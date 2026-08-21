@@ -15,7 +15,7 @@ import {
 } from "@/src/components/ui/card";
 import { Separator } from "@/src/components/ui/separator";
 import Header from "@/src/components/layouts/header";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
@@ -48,6 +48,7 @@ const OrganizationProjectTiles = ({
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
+  const router = useRouter();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
     { orgId: org.id },
@@ -131,14 +132,20 @@ const OrganizationProjectTiles = ({
               </CardHeader>
               {!project.deletedAt ? (
                 <CardFooter className="gap-2">
-                  <Button asChild variant="secondary">
-                    <Link href={`/project/${project.id}`}>Go to project</Link>
-                  </Button>
-                  <Button asChild variant="ghost">
-                    <Link href={`/project/${project.id}/settings`}>
-                      <Settings size={16} />
-                    </Link>
-                  </Button>
+                  <Button
+                    label="Go to project"
+                    type="secondary"
+                    onClick={() => router.push(`/project/${project.id}`)}
+                  />
+                  <Button
+                    label="Project settings"
+                    type="borderless"
+                    icon="icon-only"
+                    Icon={Settings}
+                    onClick={() =>
+                      router.push(`/project/${project.id}/settings`)
+                    }
+                  />
                 </CardFooter>
               ) : (
                 <CardContent>
@@ -154,6 +161,7 @@ const OrganizationProjectTiles = ({
 
 const DemoOrganizationTile = () => {
   const capture = usePostHogClientCapture();
+  const router = useRouter();
 
   return (
     <Card>
@@ -165,18 +173,18 @@ const DemoOrganizationTile = () => {
         Docs. Interact with it to see traces in Langfuse.
       </CardContent>
       <CardFooter>
-        <Button asChild variant="secondary">
-          <Link
-            href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}
-            onClick={() =>
-              capture("organizations:demo_project_button_click", {
-                location: "project_overview_demo_tile",
-              })
-            }
-          >
-            View Demo Project
-          </Link>
-        </Button>
+        <Button
+          label="View Demo Project"
+          type="secondary"
+          onClick={() => {
+            capture("organizations:demo_project_button_click", {
+              location: "project_overview_demo_tile",
+            });
+            router
+              .push(`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`)
+              .catch(() => {});
+          }}
+        />
       </CardFooter>
     </Card>
   );
@@ -184,11 +192,12 @@ const DemoOrganizationTile = () => {
 
 const OrganizationActionButtons = ({
   orgId,
-  primaryButtonVariant = "default",
+  primaryButtonVariant = "primary",
 }: {
   orgId: string;
-  primaryButtonVariant?: "default" | "secondary";
+  primaryButtonVariant?: "primary" | "secondary";
 }) => {
+  const router = useRouter();
   const membersViewAccess = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "organizationMembers:read",
@@ -200,30 +209,38 @@ const OrganizationActionButtons = ({
 
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link href={`/organization/${orgId}/settings`}>
-          <Settings size={14} />
-        </Link>
-      </Button>
+      <Button
+        label="Organization settings"
+        type="borderless"
+        icon="icon-only"
+        Icon={Settings}
+        onClick={() => router.push(`/organization/${orgId}/settings`)}
+      />
       {membersViewAccess && (
-        <Button asChild variant="ghost">
-          <Link href={`/organization/${orgId}/settings/members`}>
-            <Users size={14} />
-          </Link>
-        </Button>
+        <Button
+          label="Members"
+          type="borderless"
+          icon="icon-only"
+          Icon={Users}
+          onClick={() => router.push(`/organization/${orgId}/settings/members`)}
+        />
       )}
       {createProjectAccess ? (
-        <Button asChild variant={primaryButtonVariant}>
-          <Link href={createProjectRoute(orgId)}>
-            <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-            New project
-          </Link>
-        </Button>
+        <Button
+          label="New project"
+          type={primaryButtonVariant}
+          icon="text-and-icon"
+          Icon={PlusIcon}
+          onClick={() => router.push(createProjectRoute(orgId))}
+        />
       ) : (
-        <Button disabled variant={primaryButtonVariant}>
-          <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-          New project
-        </Button>
+        <Button
+          label="New project"
+          type={primaryButtonVariant}
+          state="disabled"
+          icon="text-and-icon"
+          Icon={LockIcon}
+        />
       )}
     </>
   );
@@ -377,12 +394,12 @@ export const OrganizationProjectOverview = () => {
               onChange={(e) => setQueryParams({ search: e.target.value })}
             />
             {canCreateOrg && (
-              <Button data-testid="create-organization-btn" asChild>
-                <Link href={createOrganizationRoute}>
-                  <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                  New Organization
-                </Link>
-              </Button>
+              <Button
+                label="New Organization"
+                icon="text-and-icon"
+                Icon={PlusIcon}
+                onClick={() => router.push(createOrganizationRoute)}
+              />
             )}
           </>
         ),
@@ -419,6 +436,7 @@ export const OrganizationProjectOverview = () => {
 
 const Onboarding = () => {
   const session = useSession();
+  const router = useRouter();
   const canCreateOrgs = session.data?.user?.canCreateOrganizations;
   return (
     <Card className="mt-5">
@@ -436,25 +454,29 @@ const Onboarding = () => {
       </CardContent>
       <CardFooter className="flex gap-4">
         {canCreateOrgs && (
-          <Button data-testid="create-project-btn" asChild>
-            <Link href={createOrganizationRoute}>
-              <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-              New Organization
-            </Link>
-          </Button>
+          <Button
+            label="New Organization"
+            icon="text-and-icon"
+            Icon={PlusIcon}
+            onClick={() => router.push(createOrganizationRoute)}
+          />
         )}
-        <Button variant="secondary" asChild>
-          <Link href="https://langfuse.com/docs" target="_blank">
-            <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
-            Docs
-          </Link>
-        </Button>
-        <Button variant="secondary" asChild>
-          <Link href="https://langfuse.com/docs/ask-ai" target="_blank">
-            <MessageSquareText className="mr-2 h-4 w-4" aria-hidden="true" />
-            Ask AI
-          </Link>
-        </Button>
+        <Button
+          label="Docs"
+          type="secondary"
+          icon="text-and-icon"
+          Icon={BookOpen}
+          onClick={() => window.open("https://langfuse.com/docs", "_blank")}
+        />
+        <Button
+          label="Ask AI"
+          type="secondary"
+          icon="text-and-icon"
+          Icon={MessageSquareText}
+          onClick={() =>
+            window.open("https://langfuse.com/docs/ask-ai", "_blank")
+          }
+        />
       </CardFooter>
     </Card>
   );
