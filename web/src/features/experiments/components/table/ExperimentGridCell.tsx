@@ -35,7 +35,10 @@ import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import {
+  ScoreMetadataJsonView,
+  useStringifiedMetadata,
+} from "@/src/features/scores/components/ScoreMetadataJsonView";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
@@ -191,6 +194,7 @@ const ScoreMetadataPeek = ({
   );
 
   const metadataLoaded = metadata && Object.keys(metadata).length > 0;
+  const stringifiedMetadata = useStringifiedMetadata(metadata);
 
   return (
     <HoverCard onOpenChange={setIsOpen}>
@@ -199,7 +203,11 @@ const ScoreMetadataPeek = ({
       </HoverCardTrigger>
       <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
         {metadataLoaded ? (
-          <JSONView codeClassName="rounded-md!" json={metadata} />
+          <ScoreMetadataJsonView
+            codeClassName="rounded-md!"
+            metadata={metadata}
+            stringified={stringifiedMetadata}
+          />
         ) : (
           <Skeleton className="h-12 w-full" />
         )}
