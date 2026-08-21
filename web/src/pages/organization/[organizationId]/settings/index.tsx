@@ -47,9 +47,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
-  const showV4Migration = useV4UpgradeUiFlag({
-    organizationId: organization?.id,
-  });
+  const showV4Migration = useV4UpgradeUiFlag();
 
   if (!organization) return [];
 

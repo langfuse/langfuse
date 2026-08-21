@@ -74,7 +74,10 @@ import {
 } from "@/src/features/entitlements/server/getPlan";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import {
+  canToggleV4,
+  isV4UpgradeUiAvailable,
+} from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 
 const staticProviders: Provider[] = [
@@ -878,6 +881,15 @@ export async function getAuthOptions(signupAttribution?: {
             (v4WriteMode === "dual" &&
               dualPreviewAvailable &&
               dbUser?.v4BetaEnabled === true);
+          // The migration/upgrade UI is a separate question from the preview
+          // read path above: it guides users through work that is still
+          // pending, so it does not require the user to have opted into v4
+          // reads first — the migration panel is where that opt-in is offered.
+          const v4UpgradeUiAvailable = isV4UpgradeUiAvailable({
+            isLangfuseCloud,
+            v4WriteMode,
+            dualPreviewAvailable,
+          });
 
           return {
             ...session,
@@ -903,6 +915,7 @@ export async function getAuthOptions(signupAttribution?: {
                     image: dbUser.image,
                     admin: dbUser.admin,
                     v4BetaEnabled,
+                    v4UpgradeUiAvailable,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud

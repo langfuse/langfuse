@@ -127,16 +127,9 @@ export function AuthenticatedLayout({
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
-  const showV4Migration = useV4UpgradeUiFlag({
-    projectId:
-      typeof router.query.projectId === "string"
-        ? router.query.projectId
-        : undefined,
-    organizationId:
-      typeof router.query.organizationId === "string"
-        ? router.query.organizationId
-        : undefined,
-  });
+  // Account-level entry: use the deployment-level migration UI gate, not
+  // project-scoped force-v3 suppression.
+  const showV4Migration = useV4UpgradeUiFlag();
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point

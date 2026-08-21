@@ -152,9 +152,11 @@ import {
 } from "../features/posthog/handlePostHogIntegrationProjectJob";
 import {
   CircularRedirectError,
+  fetchWithSecureRedirects,
   MaxRedirectsExceededError,
   OutboundUrlValidationError,
   RedirectValidationError,
+  validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { rethrowIfOutboundValidationFailure } from "../features/analyticsIntegrationEgress";
 import { MixpanelClient } from "../features/mixpanel/mixpanelClient";
@@ -221,6 +223,104 @@ describe("PostHog integration project job — SSRF connect-time pinning", () => 
     );
     expect(h.dispatchProjectNotification).toHaveBeenCalled();
   }, 40_000);
+});
+
+/**
+ * A blocked redirect target is the same customer-config fault as a blocked
+ * configured host, so it must disable too: the typed `code` has to survive the
+ * RedirectValidationError re-wrap for the classifier to see it.
+ */
+describe("PostHog integration project job — SSRF block on a redirect hop", () => {
+  const exporterHost = "https://exporter.analytics.example";
+  const metadataUrl = "http://169.254.169.254/latest/meta-data/";
+
+  beforeEach(() => {
+    h.posthogIntegrationUpdate.mockClear();
+    h.posthogIntegrationUpdateMany.mockClear();
+    h.recordIncrement.mockClear();
+    h.dispatchProjectNotification.mockClear();
+    h.db.integration = h.integration();
+  });
+
+  const redirectOnce = () =>
+    vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(null, { status: 302, headers: { Location: metadataUrl } }),
+      );
+
+  // Stub the pre-check for the harness host only (as the tests above do); the
+  // redirect target goes through the real validator, so the classified fault is
+  // a genuine OutboundUrlValidationError and not a shape invented here.
+  async function useRealValidatorForRedirectTargets() {
+    const actual = await vi.importActual<
+      typeof import("@langfuse/shared/src/server")
+    >("@langfuse/shared/src/server");
+    const exporterOrigin = new URL(exporterHost).origin;
+    vi.mocked(validateWebhookURL).mockImplementation(async (url, whitelist) => {
+      // Origin equality, not a prefix: exporter.analytics.example.evil.test
+      // starts with the harness host but is a different origin.
+      if (new URL(url).origin === exporterOrigin) return;
+      await actual.validateWebhookURL(url, whitelist);
+    });
+  }
+
+  it("disables the integration when a redirect target is a blocked host", async () => {
+    await useRealValidatorForRedirectTargets();
+    h.db.integration.posthogHostName = exporterHost;
+    // Stubbed at the socket boundary: only redirect validation can reject here.
+    const fetchSpy = redirectOnce();
+
+    let thrown: unknown;
+    try {
+      await handlePostHogIntegrationProjectJob(makeJob());
+    } catch (error) {
+      thrown = error;
+    }
+
+    // Non-vacuous: the 302 was served, so the block came from the redirect hop.
+    expect(fetchSpy).toHaveBeenCalled();
+    // Must not throw: that would fire the Failures monitor every cycle.
+    expect(thrown).toBeUndefined();
+    expect(h.recordIncrement).toHaveBeenCalledWith(
+      POSTHOG_INTEGRATION_DISABLED_METRIC,
+      1,
+      { reason: "ssrf_blocked_endpoint" },
+    );
+    expect(h.posthogIntegrationUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { enabled: false } }),
+    );
+    expect(h.dispatchProjectNotification).toHaveBeenCalled();
+  }, 40_000);
+
+  // The contract the disable rests on: the inner typed error stays reachable,
+  // and stays off the enumerable surface a logger serializes.
+  it("keeps the inner validation error reachable as a non-enumerable cause", async () => {
+    const actual = await vi.importActual<
+      typeof import("@langfuse/shared/src/server")
+    >("@langfuse/shared/src/server");
+    redirectOnce();
+
+    const thrown = await fetchWithSecureRedirects(
+      `${exporterHost}/batch/`,
+      { method: "POST" },
+      {
+        maxRedirects: 3,
+        redirectValidation: { validateUrl: actual.validateWebhookURL },
+      },
+    ).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    expect((thrown as Error | undefined)?.name).toBe("RedirectValidationError");
+    const cause = (thrown as { cause?: unknown } | undefined)?.cause as
+      | { name?: string; code?: string }
+      | undefined;
+    expect(cause?.name).toBe("OutboundUrlValidationError");
+    expect(cause?.code).toBe("blocked-hostname");
+    expect(Object.keys(thrown as object)).not.toContain("cause");
+  });
 });
 
 describe("Mixpanel sender — SSRF connect-time pinning", () => {
@@ -352,6 +452,10 @@ describe("terminal outbound failure reporting", () => {
         "Blocked IP address detected: 169.254.169.254",
         "http://exporter:hunter2@169.254.169.254/",
         0,
+        new OutboundUrlValidationError(
+          "blocked-ip",
+          "Blocked IP address detected: 169.254.169.254",
+        ),
       ),
     });
 

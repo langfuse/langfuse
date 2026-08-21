@@ -202,8 +202,6 @@ describe("organization feature preview defaults", () => {
         ?.featurePreviews,
     ).toEqual({
       modernSession: false,
-      searchBar: false,
-      v4UpgradeUi: false,
       compactTimeline: true,
     });
   });
@@ -394,8 +392,6 @@ describe("organization member feature preview overrides", () => {
 
     expect(row?.featurePreviews).toEqual({
       modernSession: false,
-      searchBar: false,
-      v4UpgradeUi: false,
       compactTimeline: true,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");

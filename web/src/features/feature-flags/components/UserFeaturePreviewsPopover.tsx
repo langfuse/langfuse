@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";

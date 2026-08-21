@@ -5,8 +5,8 @@ import {
   promoteFacet,
   settleFacetOrder,
   settleOnNextChange,
+  type FacetOrder,
 } from "./facet-order";
-import type { FacetOrder } from "./facet-order";
 
 const CATALOG = [{ column: "alpha" }, { column: "beta" }, { column: "gamma" }];
 const shown = (order: FacetOrder) =>

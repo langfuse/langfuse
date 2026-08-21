@@ -159,6 +159,8 @@ This is your final step. Do not call any more tools. Summarize what you have fou
 </step_limit_wrap_up>`;
 
 export type InAppAgentCompleteOutcome = {
+  /** The turn reached the step cap, whether or not wrap-up rescued it. */
+  reachedStepLimit: boolean;
   truncatedByStepLimit: boolean;
 };
 
@@ -193,6 +195,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
       // the reasoning UI would render blank blocks.
       additionalModelRequestFields: {
         thinking: { type: "adaptive" as const, display: "summarized" },
+        output_config: { effort: "medium" as const },
       },
     },
   };
@@ -407,7 +410,7 @@ export async function createAgUiStream(params: {
         subscription?.unsubscribe();
 
         logger.error("Failed to persist in-app agent event", {
-          error,
+          error: toLoggableError(error),
           runId: params.input.runId,
           threadId: params.input.threadId,
           eventType,
@@ -743,7 +746,7 @@ export async function createAgUiStream(params: {
               }
 
               logger.error("Error in agent execution", {
-                error,
+                error: toLoggableError(error),
                 runId: params.input.runId,
                 threadId: params.input.threadId,
               });
@@ -792,6 +795,7 @@ export async function createAgUiStream(params: {
                         instrumentation.flush(),
                       );
                       return params.options.onComplete?.({
+                        reachedStepLimit: stepLimitState.wrapUp,
                         truncatedByStepLimit,
                       });
                     }
@@ -816,7 +820,7 @@ export async function createAgUiStream(params: {
           }
 
           logger.error("Error initializing agent", {
-            error,
+            error: toLoggableError(error),
             runId: params.input.runId,
             threadId: params.input.threadId,
           });
@@ -1535,6 +1539,22 @@ function createRunErrorEvent(
     runId: input.runId,
     message,
   };
+}
+
+function toLoggableError(error: unknown): {
+  name?: string;
+  message: string;
+  stack?: string;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return { message: String(error) };
 }
 
 function getRunErrorMessage(event: AgUiEvent) {

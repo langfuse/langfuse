@@ -20,8 +20,6 @@ const mocks = vi.hoisted(() => ({
   experimentalFeaturesEnabled: false,
   userFeatureFlags: {
     modernSession: false,
-    searchBar: false,
-    v4UpgradeUi: true,
     compactTimeline: false,
   },
   updateSession: vi.fn().mockResolvedValue(undefined),
@@ -140,8 +138,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.experimentalFeaturesEnabled = false;
     mocks.userFeatureFlags = {
       modernSession: false,
-      searchBar: false,
-      v4UpgradeUi: true,
       compactTimeline: false,
     };
     mocks.mutate.mockImplementation((variables) => {
@@ -165,7 +161,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     const switches = screen.getAllByRole("checkbox", {
       name: /organization default/i,
     });
-    expect(switches).toHaveLength(4);
+    expect(switches).toHaveLength(2);
     switches.forEach((featureSwitch) => {
       expect(featureSwitch).toBeChecked();
       expect(featureSwitch).toBeDisabled();

@@ -34,11 +34,9 @@ export function V4MigrationDelayBadge({
   // Which table hosts the badge — clicks/hovers/impressions segment by it.
   page: "traces" | "observations" | "experiments";
 }) {
-  const { project } = useQueryProject();
-  const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag({
-    projectId: project?.id,
-  });
+  const v4UpgradeUiFlagEnabled = useV4UpgradeUiFlag();
   const openMigrationPanel = useOpenV4MigrationPanel();
+  const { project } = useQueryProject();
   const forceV3 = useForceV3Experience(project?.id);
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();

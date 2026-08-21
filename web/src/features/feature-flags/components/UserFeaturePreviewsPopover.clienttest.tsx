@@ -122,8 +122,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        searchBar: false,
-        v4UpgradeUi: false,
         compactTimeline: false,
       },
       management: {
@@ -137,7 +135,7 @@ describe("UserFeaturePreviewsControl", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /0\/4 enabled/i }),
+      screen.getByRole("button", { name: /0\/2 enabled/i }),
     ).toBeDisabled();
   });
 
@@ -147,8 +145,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        searchBar: false,
-        v4UpgradeUi: false,
         compactTimeline: false,
       },
       management: { allowed: true },
@@ -185,8 +181,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        searchBar: false,
-        v4UpgradeUi: false,
         compactTimeline: false,
       },
       management: { allowed: true },
@@ -214,8 +208,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        searchBar: false,
-        v4UpgradeUi: false,
         compactTimeline: false,
       },
       management: { allowed: true },

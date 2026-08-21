@@ -1,21 +1,16 @@
 import { useSession } from "next-auth/react";
 
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 /**
- * Raw `v4UpgradeUi` feature-preview flag, without the force-v3 suppression.
+ * Whether this deployment shows the v4 migration UI at all, before the
+ * per-project force-v3 suppression. Derived from the write mode once in the
+ * auth session callback — see isV4UpgradeUiAvailable.
  */
-export function useV4UpgradeUiFlag({
-  projectId,
-  organizationId,
-}: { projectId?: string; organizationId?: string } = {}): boolean {
+export function useV4UpgradeUiFlag(): boolean {
   const { data: session } = useSession();
 
-  return (
-    getContextualFeatureFlags(session?.user, { projectId, organizationId })
-      ?.v4UpgradeUi === true
-  );
+  return session?.user?.v4UpgradeUiAvailable === true;
 }
 
 /**
@@ -26,7 +21,7 @@ export function useV4UpgradeUiFlag({
  * when the migration UI is off.
  */
 export function useV4UpgradeUiEnabled(projectId?: string): boolean {
-  const flag = useV4UpgradeUiFlag({ projectId });
+  const available = useV4UpgradeUiFlag();
   const forceV3 = useForceV3Experience(projectId);
-  return flag && !forceV3;
+  return available && !forceV3;
 }
