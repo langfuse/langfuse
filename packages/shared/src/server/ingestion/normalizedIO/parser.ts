@@ -1329,9 +1329,11 @@ function normalizeMessage(
     !isLegacyFunctionMessage &&
     parts.length > 0
   ) {
-    if (parts.every((part) => part.type === "tool-call")) {
+    // Explicit boolean return type: TS would otherwise infer a type
+    // predicate and narrow `parts` to TextPart[], rejecting the splice.
+    if (parts.every((part): boolean => part.type === "tool-call")) {
       role = "assistant";
-    } else if (parts.every((part) => part.type === "text")) {
+    } else if (parts.every((part): boolean => part.type === "text")) {
       const output = parts
         .map((part) => (part.type === "text" ? part.text : ""))
         .join("\n");
