@@ -46,14 +46,16 @@ export const Error = meta.story({
   },
 });
 
+const defaultSubmit = fn(async () => undefined);
+
 export const SubmitsAiFeaturesDefault = meta.story({
   name: "(Test) Submits AI Features Default",
   args: {
     state: "form",
     canConfigureAiFeatures: true,
-    onSubmit: fn(async () => undefined),
+    onSubmit: defaultSubmit,
   },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
     await expect(
@@ -61,7 +63,7 @@ export const SubmitsAiFeaturesDefault = meta.story({
     ).toBeChecked();
     await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
 
-    await expect(args.onSubmit).toHaveBeenCalledWith({
+    await expect(defaultSubmit).toHaveBeenCalledWith({
       referralSource: undefined,
       aiFeaturesEnabled: true,
     });
