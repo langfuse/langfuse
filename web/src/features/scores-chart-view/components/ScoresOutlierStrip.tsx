@@ -301,7 +301,6 @@ export function ScoresOutlierStrip({
                 onAggregationChange={setAggregation}
               />
               <ScoreOutlierBarStrip
-                className="mt-1.5"
                 dense={[]}
                 maxValue={0}
                 ticks={[]}
@@ -335,7 +334,6 @@ export function ScoresOutlierStrip({
                 onAggregationChange={setAggregation}
               />
               <ScoreOutlierBarStrip
-                className="mt-1.5"
                 dense={series.dense}
                 maxValue={series.maxValue}
                 ticks={series.ticks}
