@@ -23,16 +23,6 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 
-// Full-page trace view's layout group. v3: the full-page view gets the same
-// computed info-favoring default + localStorage persistence as the peek
-// (LFE-10729); bumped from v2 so stale saved layouts from the old 60/40-share
-// era don't mask the new default.
-const RESIZABLE_PANEL_GROUP_ID = "trace-layout-v3";
-// Peek keeps a distinct group id so the two surfaces remember their sizes
-// independently — a split dragged in a ~50vw peek is rarely right for a
-// full-page trace, and vice versa. Same panels, different layout scope
-// (LFE-10601).
-const PEEK_RESIZABLE_PANEL_GROUP_ID = "trace-layout-peek-v1";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
@@ -180,36 +170,27 @@ export function useDesktopLayoutContextOptional() {
   return useContext(LayoutContext);
 }
 
-export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
+export function TraceLayoutDesktop({
+  children,
+  groupId,
+  defaultNavigationCollapsed,
+}: {
+  children: ReactNode;
+  groupId: string;
+  defaultNavigationCollapsed: boolean;
+}) {
   // Get current view mode from URL
   const [viewMode] = useQueryParam("view", StringParam);
   const isTimelineView = viewMode === "timeline";
 
-  // Get annotation mode + peek mode from context. Peek scopes the layout to its
-  // own group so a split dragged there doesn't leak into the full-page view and
-  // vice versa (LFE-10601).
-  const { isAnnotationMode, isPeekMode } = useViewPreferences();
+  // Peek sizing depends on the drawer width; persistence scope is caller-owned.
+  const { isPeekMode } = useViewPreferences();
 
-  const groupId = isPeekMode
-    ? PEEK_RESIZABLE_PANEL_GROUP_ID
-    : RESIZABLE_PANEL_GROUP_ID;
-  // Both views persist their split in localStorage (like the peek's outer
-  // width), so a resized tree/info ratio sticks across tabs and reloads instead
-  // of resetting per tab (the peek's old sessionStorage behavior, fixed in
-  // LFE-10601; the full-page's in LFE-10729). Guarded so SSR / DOM-less tests
-  // fall back to a no-op store instead of throwing on the bare global.
-  //
-  // Annotation mode is an opinionated workspace — nav on its rail, detail
-  // full-width — that never SAVES a layout (onLayoutChanged below), so it must
-  // not INHERIT one either: it shares the full-page group id, and a full-page
-  // session that parked the detail panel on its 40px rail would otherwise open
-  // annotation with BOTH panels collapsed (trace-level queue items have no
-  // selection to auto-expand the detail panel). No-op storage keeps it on the
-  // computed default.
+  // The caller owns the persistence scope and first-use default. Keeping that
+  // policy outside this layout lets annotation queues retain their workspace
+  // across keyed trace remounts without inheriting the full-page trace layout.
   const storage =
-    typeof window === "undefined" || isAnnotationMode
-      ? NOOP_LAYOUT_STORAGE
-      : window.localStorage;
+    typeof window === "undefined" ? NOOP_LAYOUT_STORAGE : window.localStorage;
 
   // The width the trace container actually opens at, driving the computed
   // default split. Peek: the drawer width — when expanded (a shared/reloaded
@@ -262,7 +243,7 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
 
   const [isNavigationPanelCollapsed, setIsNavigationPanelCollapsed] = useState(
     () =>
-      isAnnotationMode ||
+      (defaultNavigationCollapsed && !defaultLayout) ||
       isPanelCollapsedInLayout(
         defaultLayout,
         RESIZABLE_PANEL_NAVIGATION_ID,
@@ -422,10 +403,11 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId]);
 
-  // Collapse panel on initial mount if in annotation mode
+  // Apply the caller's first-use default. A restored layout always wins.
   useEffect(() => {
     if (
-      isAnnotationMode &&
+      defaultNavigationCollapsed &&
+      !defaultLayout &&
       panelRef.current &&
       !panelRef.current.isCollapsed()
     ) {
@@ -492,7 +474,7 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
           id={groupId}
           groupRef={groupRef}
           defaultLayout={defaultLayout ?? computedDefaultLayout}
-          onLayoutChanged={isAnnotationMode ? undefined : onLayoutChanged}
+          onLayoutChanged={onLayoutChanged}
           className={bothPanelsOpen ? undefined : "min-w-0"}
           style={
             bothPanelsOpen
