@@ -58,15 +58,24 @@ describe("managed evaluator templates catalog", () => {
 
     const javascript = template.evaluator.source
       .replace(
-        "function evaluate(ctx: EvaluationContext): EvaluationResult",
-        "function evaluate(ctx)",
+        "function contentToText(content: unknown): string",
+        "function contentToText(content)",
       )
-      .replace("(value: unknown): string =>", "(value) =>")
-      .replaceAll(" as Record<string, unknown>", "");
+      .replace(
+        "function getMessages(input: unknown): Array<Record<string, unknown>>",
+        "function getMessages(input)",
+      )
+      .replace(
+        "function evaluate({ observation }: EvaluationContext): EvaluationResult",
+        "function evaluate({ observation })",
+      )
+      .replaceAll(" as Record<string, unknown>", "")
+      .replaceAll(" as { messages?: unknown }", "")
+      .replaceAll(" as { messages: unknown[] }", "");
     const createEvaluator = new Function(
       `${javascript}\nreturn evaluate;`,
     ) as () => (ctx: { observation: { input: unknown } }) => {
-      scores: Array<{ value: boolean }>;
+      scores: Array<{ name?: string; value: boolean }>;
     };
 
     const evaluate = createEvaluator();
@@ -81,8 +90,21 @@ describe("managed evaluator templates catalog", () => {
 
     for (const input of [messages, { messages }]) {
       const result = evaluate({ observation: { input } });
+      expect(result.scores[0]?.name).toBe("all-caps-detection");
       expect(result.scores[0]?.value).toBe(true);
     }
+
+    const mixedCase = evaluate({
+      observation: {
+        input: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "This is completely broken" }],
+          },
+        ],
+      },
+    });
+    expect(mixedCase.scores[0]?.value).toBe(false);
   });
 
   it("ships code evaluator templates that pass client validation", async () => {
