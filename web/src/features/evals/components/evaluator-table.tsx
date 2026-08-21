@@ -10,7 +10,7 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
@@ -353,11 +353,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           return filter;
         });
 
-        return (
-          <div className="flex h-full overflow-x-auto">
-            <InlineFilterState filterState={newFilterState} />
-          </div>
-        );
+        return <EvaluatorFilterCell filterState={newFilterState} />;
       },
     }),
     columnHelper.accessor("id", {
