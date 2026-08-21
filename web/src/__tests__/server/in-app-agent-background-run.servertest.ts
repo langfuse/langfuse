@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
@@ -96,6 +97,11 @@ vi.mock("@/src/server/auth", () => ({
 describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  const originalSharedInAppAgentEnabled =
+    sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
   const originalMaxActiveRunsPerUser =
     env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER;
   const originalMaxActiveRunsPerOrg =
@@ -104,6 +110,10 @@ describe("in-app agent background runs", () => {
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
     persistenceMocks.maybeInferAndPersistConversationTitle.mockClear();
@@ -117,6 +127,13 @@ describe("in-app agent background runs", () => {
     vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+      originalSharedCloudRegion;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
+      originalSharedBedrockRegion;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
+      originalSharedInAppAgentEnabled;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
       originalMaxActiveRunsPerUser;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG =
@@ -193,6 +210,120 @@ describe("in-app agent background runs", () => {
       conversationId: createInAppAgentConversationId(),
       userId: params.userId,
     });
+
+  it.each([
+    {
+      name: "starts a self-hosted run when LANGFUSE_IN_APP_AGENT_ENABLED is true",
+      cloudRegion: undefined,
+      enabled: "true" as const,
+      plan: "self-hosted:enterprise" as const,
+      expected: "queued" as const,
+    },
+    {
+      name: "rejects a self-hosted run when LANGFUSE_IN_APP_AGENT_ENABLED is unset",
+      cloudRegion: undefined,
+      enabled: undefined,
+      plan: "self-hosted:enterprise" as const,
+      expected: "rejected" as const,
+    },
+    {
+      name: "rejects a self-hosted run when LANGFUSE_IN_APP_AGENT_ENABLED is false",
+      cloudRegion: undefined,
+      enabled: "false" as const,
+      plan: "self-hosted:enterprise" as const,
+      expected: "rejected" as const,
+    },
+    {
+      name: "starts a Cloud run when LANGFUSE_IN_APP_AGENT_ENABLED is unset",
+      cloudRegion: "DEV" as const,
+      enabled: undefined,
+      plan: "cloud:hobby" as const,
+      expected: "queued" as const,
+    },
+    {
+      name: "rejects a Cloud run when LANGFUSE_IN_APP_AGENT_ENABLED is false",
+      cloudRegion: "DEV" as const,
+      enabled: "false" as const,
+      plan: "cloud:hobby" as const,
+      expected: "rejected" as const,
+    },
+  ])("$name", async ({ cloudRegion, enabled, plan, expected }) => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+    (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+    (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = enabled;
+    const { caller, projectId, userId } = await createCaller(undefined, plan);
+    const conversation = await createConversation({ projectId, userId });
+
+    const startRun = caller.startRun({
+      projectId,
+      conversationId: conversation.id,
+      message: "Inspect a trace",
+    });
+
+    if (expected === "queued") {
+      await expect(startRun).resolves.toMatchObject({
+        conversationId: conversation.id,
+      });
+      expect(enqueuedJobs).toHaveLength(1);
+      return;
+    }
+
+    await expect(startRun).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message: "In-app agent is not enabled on this instance.",
+    });
+    expect(enqueuedJobs).toHaveLength(0);
+  });
+
+  it("lists conversations when the in-app agent model is not configured", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    const listed = await caller.listConversations({ projectId, limit: 50 });
+
+    expect(listed.conversations.map((item) => item.id)).toEqual([
+      conversation.id,
+    ]);
+  });
+
+  it("starts a Cloud run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: conversation.id,
+        message: "Inspect a trace",
+      }),
+    ).resolves.toMatchObject({
+      conversationId: conversation.id,
+    });
+    expect(enqueuedJobs).toHaveLength(1);
+  });
+
+  it("rejects requests before queueing when the in-app agent model is not configured", async () => {
+    const { caller, projectId } = await createCaller();
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+
+    await expect(
+      caller.startRun({
+        projectId,
+        conversationId: createInAppAgentConversationId(),
+        message: "Do not queue this",
+      }),
+    ).rejects.toMatchObject({
+      code: "PRECONDITION_FAILED",
+      message:
+        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
+    });
+
+    expect(enqueuedJobs).toHaveLength(0);
+  });
 
   /** Park a run for approval the way the worker does: interrupt event, then CAS. */
   const parkRunForApproval = async (params: {

@@ -219,13 +219,181 @@ const remarkPromptReferences = () => (tree: MarkdownAstNode) => {
   transformPromptReferenceNodes(tree);
 };
 
+/**
+ * Stable `react-markdown` `code` renderer. Defined at module scope so React
+ * reuses the CodeBlock instance across parent re-renders (copy / scroll state).
+ */
+function MarkdownCode({
+  children,
+  className,
+}: {
+  children?: ReactNode;
+  className?: string;
+}) {
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const theme = forcedTheme ?? resolvedTheme;
+  const languageMatch = /language-(\w+)/.exec(className || "");
+  const language = languageMatch ? languageMatch[1] : "";
+  const codeContent = String(children).replace(/\n$/, "");
+  const isMultiLine = codeContent.includes("\n");
+
+  return language || isMultiLine ? (
+    <CodeBlock
+      language={language}
+      value={codeContent}
+      theme={theme === "dark" ? "dark" : "light"}
+    />
+  ) : (
+    <code className="bg-secondary rounded border px-0.5">{codeContent}</code>
+  );
+}
+
+const remarkPluginsDefault = [remarkGfm];
+const remarkPluginsWithPromptRefs = [remarkGfm, remarkPromptReferences];
+
+// Module-level so custom-element types stay stable across parent re-renders.
+// Inline renderers (especially `pre`, which wraps fenced `code`) are a new
+// component type every render and remount CodeBlock, dropping local state.
+const markdownComponents: NonNullable<Options["components"]> = {
+  p({ children, node }) {
+    if (isImageNode(node)) {
+      return <>{children}</>;
+    }
+    return <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>;
+  },
+  a({ children, href }) {
+    const promptReference = parsePromptReferenceMarkdownHref(href);
+    if (promptReference) {
+      return (
+        <PromptReferenceButton
+          promptRef={promptReference}
+          fallbackText={getNodeTextContent(children)}
+        />
+      );
+    }
+
+    // Handle mention links
+    if (href?.startsWith(MENTION_USER_PREFIX)) {
+      const userId = href.replace(MENTION_USER_PREFIX, "");
+      const displayName = String(children);
+      return <MentionBadge userId={userId} displayName={displayName} />;
+    }
+
+    // Handle regular links. These are user-content URLs opened in a
+    // new tab (target="_blank"), so a native <a> is correct: a Next.js
+    // <Link> gives no client-routing benefit for an external new-tab
+    // navigation, but it DOES run the router's href validation, which
+    // throws "Invalid href '…' passed to next/router" for the many
+    // malformed URLs embedded in trace content (e.g. a URL containing
+    // a second `https://`). That was a top Sentry noise family
+    // (LANGFUSE-5DZ / 5EA / 5ER, ~40k lifetime events). getSafeLinkUrl
+    // already gates the protocol/shape; a native <a> never validates.
+    // Re-apply NEXT_PUBLIC_BASE_PATH for root-relative internal hrefs,
+    // which <Link> used to prepend automatically (subpath deploys).
+    const safeHref = getSafeLinkUrl(href);
+    if (safeHref) {
+      return (
+        <a
+          href={prependBasePathToInternalHref(
+            safeHref,
+            env.NEXT_PUBLIC_BASE_PATH ?? "",
+          )}
+          className="underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {children}
+        </a>
+      );
+    }
+    return <span className="text-muted-foreground underline">{children}</span>;
+  },
+  ul({ children }) {
+    if (isChecklist(children)) return <ul className="list-none">{children}</ul>;
+
+    return <ul className="list-inside list-disc">{children}</ul>;
+  },
+  ol({ children, start }) {
+    return (
+      <ol start={start} className="list-inside list-decimal">
+        {children}
+      </ol>
+    );
+  },
+  li({ children }) {
+    return (
+      <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
+        {transformListItemChildren(children)}
+      </li>
+    );
+  },
+  pre({ children }) {
+    return <pre className="rounded p-2">{children}</pre>;
+  },
+  h1({ children }) {
+    return <h1 className="text-2xl font-bold">{children}</h1>;
+  },
+  h2({ children }) {
+    return <h2 className="text-xl font-bold">{children}</h2>;
+  },
+  h3({ children }) {
+    return <h3 className="text-lg font-bold">{children}</h3>;
+  },
+  h4({ children }) {
+    return <h4 className="text-base font-bold">{children}</h4>;
+  },
+  h5({ children }) {
+    return <h5 className="text-sm font-bold">{children}</h5>;
+  },
+  h6({ children }) {
+    return <h6 className="text-xs font-bold">{children}</h6>;
+  },
+  code: MarkdownCode,
+  blockquote({ children }) {
+    return (
+      <blockquote className="border-l-4 pl-4 italic">{children}</blockquote>
+    );
+  },
+  img({ src, alt }) {
+    const safeSrc = typeof src === "string" ? getSafeImageUrl(src) : null;
+    return safeSrc ? <ResizableImage src={safeSrc} alt={alt} /> : null;
+  },
+  hr() {
+    return <hr className="my-4" />;
+  },
+  table({ children }) {
+    return (
+      <div className="overflow-x-auto rounded border text-xs">
+        <table className="min-w-full divide-y">{children}</table>
+      </div>
+    );
+  },
+  thead({ children }) {
+    return <thead>{children}</thead>;
+  },
+  tbody({ children }) {
+    return <tbody className="divide-border divide-y">{children}</tbody>;
+  },
+  tr({ children }) {
+    return <tr>{children}</tr>;
+  },
+  th({ children }) {
+    return (
+      <th className="px-4 py-2 text-left text-xs font-bold tracking-wider uppercase">
+        {children}
+      </th>
+    );
+  },
+  td({ children }) {
+    return <td className="px-4 py-2 whitespace-nowrap">{children}</td>;
+  },
+};
+
 function MarkdownRenderer({
   markdown,
-  theme,
   className,
 }: {
   markdown: string;
-  theme?: string;
   className?: string;
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
@@ -268,181 +436,10 @@ function MarkdownRenderer({
         <MemoizedReactMarkdown
           remarkPlugins={
             promptReferenceProjectId
-              ? [remarkGfm, remarkPromptReferences]
-              : [remarkGfm]
+              ? remarkPluginsWithPromptRefs
+              : remarkPluginsDefault
           }
-          components={{
-            p({ children, node }) {
-              if (isImageNode(node)) {
-                return <>{children}</>;
-              }
-              return (
-                <p className="mb-2 whitespace-pre-wrap last:mb-0">{children}</p>
-              );
-            },
-            a({ children, href }) {
-              const promptReference = parsePromptReferenceMarkdownHref(href);
-              if (promptReference) {
-                return (
-                  <PromptReferenceButton
-                    promptRef={promptReference}
-                    fallbackText={getNodeTextContent(children)}
-                  />
-                );
-              }
-
-              // Handle mention links
-              if (href?.startsWith(MENTION_USER_PREFIX)) {
-                const userId = href.replace(MENTION_USER_PREFIX, "");
-                const displayName = String(children);
-                return (
-                  <MentionBadge userId={userId} displayName={displayName} />
-                );
-              }
-
-              // Handle regular links. These are user-content URLs opened in a
-              // new tab (target="_blank"), so a native <a> is correct: a Next.js
-              // <Link> gives no client-routing benefit for an external new-tab
-              // navigation, but it DOES run the router's href validation, which
-              // throws "Invalid href '…' passed to next/router" for the many
-              // malformed URLs embedded in trace content (e.g. a URL containing
-              // a second `https://`). That was a top Sentry noise family
-              // (LANGFUSE-5DZ / 5EA / 5ER, ~40k lifetime events). getSafeLinkUrl
-              // already gates the protocol/shape; a native <a> never validates.
-              // Re-apply NEXT_PUBLIC_BASE_PATH for root-relative internal hrefs,
-              // which <Link> used to prepend automatically (subpath deploys).
-              const safeHref = getSafeLinkUrl(href);
-              if (safeHref) {
-                return (
-                  <a
-                    href={prependBasePathToInternalHref(
-                      safeHref,
-                      env.NEXT_PUBLIC_BASE_PATH ?? "",
-                    )}
-                    className="underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {children}
-                  </a>
-                );
-              }
-              return (
-                <span className="text-muted-foreground underline">
-                  {children}
-                </span>
-              );
-            },
-            ul({ children }) {
-              if (isChecklist(children))
-                return <ul className="list-none">{children}</ul>;
-
-              return <ul className="list-inside list-disc">{children}</ul>;
-            },
-            ol({ children, start }) {
-              return (
-                <ol start={start} className="list-inside list-decimal">
-                  {children}
-                </ol>
-              );
-            },
-            li({ children }) {
-              return (
-                <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
-                  {transformListItemChildren(children)}
-                </li>
-              );
-            },
-            pre({ children }) {
-              return <pre className="rounded p-2">{children}</pre>;
-            },
-            h1({ children }) {
-              return <h1 className="text-2xl font-bold">{children}</h1>;
-            },
-            h2({ children }) {
-              return <h2 className="text-xl font-bold">{children}</h2>;
-            },
-            h3({ children }) {
-              return <h3 className="text-lg font-bold">{children}</h3>;
-            },
-            h4({ children }) {
-              return <h4 className="text-base font-bold">{children}</h4>;
-            },
-            h5({ children }) {
-              return <h5 className="text-sm font-bold">{children}</h5>;
-            },
-            h6({ children }) {
-              return <h6 className="text-xs font-bold">{children}</h6>;
-            },
-            code({ children, className }) {
-              const languageMatch = /language-(\w+)/.exec(className || "");
-              const language = languageMatch ? languageMatch[1] : "";
-              const codeContent = String(children).replace(/\n$/, "");
-              const isMultiLine = codeContent.includes("\n");
-
-              return language || isMultiLine ? (
-                // code block
-                <CodeBlock
-                  key={Math.random()}
-                  language={language}
-                  value={codeContent}
-                  theme={theme === "dark" ? "dark" : "light"}
-                />
-              ) : (
-                // inline code
-                <code className="bg-secondary rounded border px-0.5">
-                  {codeContent}
-                </code>
-              );
-            },
-            blockquote({ children }) {
-              return (
-                <blockquote className="border-l-4 pl-4 italic">
-                  {children}
-                </blockquote>
-              );
-            },
-            img({ src, alt }) {
-              const safeSrc =
-                typeof src === "string" ? getSafeImageUrl(src) : null;
-              return safeSrc ? (
-                <ResizableImage src={safeSrc} alt={alt} />
-              ) : null;
-            },
-            hr() {
-              return <hr className="my-4" />;
-            },
-            table({ children }) {
-              return (
-                <div className="overflow-x-auto rounded border text-xs">
-                  <table className="min-w-full divide-y">{children}</table>
-                </div>
-              );
-            },
-            thead({ children }) {
-              return <thead>{children}</thead>;
-            },
-            tbody({ children }) {
-              return (
-                <tbody className="divide-border divide-y">{children}</tbody>
-              );
-            },
-            tr({ children }) {
-              return <tr>{children}</tr>;
-            },
-            th({ children }) {
-              return (
-                <th className="px-4 py-2 text-left text-xs font-bold tracking-wider uppercase">
-                  {children}
-                </th>
-              );
-            },
-            td({ children }) {
-              return (
-                <td className="px-4 py-2 whitespace-nowrap">{children}</td>
-              );
-            },
-          }}
+          components={markdownComponents}
         >
           {markdown}
         </MemoizedReactMarkdown>
@@ -606,7 +603,6 @@ export function MarkdownView({
             <>
               <MarkdownRenderer
                 markdown={isCollapsed ? truncatedContent : markdown}
-                theme={theme}
               />
               {collapseToggle}
             </>
@@ -619,7 +615,7 @@ export function MarkdownView({
           <>
             {isCollapsed ? (
               <>
-                <MarkdownRenderer markdown={truncatedContent} theme={theme} />
+                <MarkdownRenderer markdown={truncatedContent} />
                 {(markdown ?? []).map((content, index) =>
                   isOpenAITextContentPart(content)
                     ? null
@@ -636,7 +632,6 @@ export function MarkdownView({
           <>
             <MarkdownRenderer
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
-              theme={theme}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}
@@ -673,9 +668,7 @@ export function MarkdownView({
     }
 
     if (isOpenAITextContentPart(content)) {
-      return (
-        <MarkdownRenderer key={index} markdown={content.text} theme={theme} />
-      );
+      return <MarkdownRenderer key={index} markdown={content.text} />;
     }
 
     if (isOpenAIImageContentPart(content)) {

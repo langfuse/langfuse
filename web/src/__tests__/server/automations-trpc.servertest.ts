@@ -2394,6 +2394,59 @@ describe("automations trpc", () => {
       expect(decryptedStoredSecret).toBe(response.webhookSecret);
     });
 
+    it("should preserve custom request headers when regenerating the secret", async () => {
+      const { project, caller } = await prepare();
+
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      const encryptedAuthHeader = encrypt("Bearer super-secret-token");
+      const action = await prisma.action.create({
+        data: {
+          id: v4(),
+          projectId: project.id,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            headers: { "X-Legacy": "legacy-value" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+              Authorization: { secret: true, value: encryptedAuthHeader },
+            },
+            displayHeaders: {
+              "X-Legacy": { secret: false, value: "legacy-value" },
+              "Content-Type": { secret: false, value: "application/json" },
+              Authorization: { secret: true, value: "Bear...oken" },
+            },
+            apiVersion: { prompt: "v1" },
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+
+      await caller.automations.regenerateWebhookSecret({
+        projectId: project.id,
+        actionId: action.id,
+      });
+
+      const updatedAction = await prisma.action.findUnique({
+        where: { id: action.id },
+      });
+      const updatedConfig =
+        updatedAction?.config as WebhookActionConfigWithSecrets;
+
+      // Rotating the signing secret must not drop the custom headers, and
+      // secret header values must stay encrypted at rest.
+      expect(updatedConfig.requestHeaders).toEqual({
+        "Content-Type": { secret: false, value: "application/json" },
+        Authorization: { secret: true, value: encryptedAuthHeader },
+      });
+      expect(updatedConfig.headers).toEqual({ "X-Legacy": "legacy-value" });
+      expect(decrypt(updatedConfig.requestHeaders!.Authorization.value)).toBe(
+        "Bearer super-secret-token",
+      );
+    });
+
     it("should throw error when action not found", async () => {
       const { project, caller } = await prepare();
 

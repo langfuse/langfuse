@@ -12,14 +12,16 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "../../server";
+import { isSettledInAppAgentRunStatus } from "../constants";
+import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
-import { env } from "../../env";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "../../server/llm/langfuseAiCompletion";
+import { getInAppAgentModelConfig } from "./modelProvider";
 import { getProductBaseUrl } from "../../server/utils/baseUrl";
 import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -169,7 +171,7 @@ export async function appendRunEvents(params: {
     errorMessage?: string;
   };
 }): Promise<boolean> {
-  return params.prisma.$transaction(async (tx) => {
+  const appended = await params.prisma.$transaction(async (tx) => {
     await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
@@ -246,6 +248,22 @@ export async function appendRunEvents(params: {
 
     return true;
   });
+
+  // Emitted after the transaction commits so a rolled-back flush cannot inflate
+  // the outcome count. The fenced path returns false and is deliberately silent:
+  // whichever writer won the CAS already recorded that run's outcome.
+  if (
+    appended &&
+    params.finish &&
+    isSettledInAppAgentRunStatus(params.finish.status)
+  ) {
+    recordRunTerminalOutcome({
+      status: params.finish.status,
+      errorCode: params.finish.errorCode ?? null,
+    });
+  }
+
+  return appended;
 }
 
 export async function getConversationEvents(params: {
@@ -431,10 +449,9 @@ export async function maybeInferAndPersistConversationTitle(params: {
   userId: string;
   aiTelemetryEnabled: boolean;
 }) {
-  const model =
-    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const modelConfig = getInAppAgentModelConfig();
 
-  if (!model) {
+  if (!modelConfig) {
     return;
   }
 
@@ -523,7 +540,7 @@ ${JSON.stringify(transcript, null, 2)}
   `.trim(),
         },
       ],
-      model,
+      model: modelConfig.titleModelId,
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({

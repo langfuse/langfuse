@@ -550,7 +550,7 @@ export function DataTable<TData extends object, TValue>({
                                 href={columnDef.headerTooltip.href}
                               />
                             )}
-                            {orderBy?.column === columnDef.id
+                            {sortingEnabled && orderBy?.column === columnDef.id
                               ? renderOrderingIndicator(orderBy)
                               : null}
 

@@ -1,15 +1,14 @@
 // @vitest-environment node
 
 /**
- * HIPAA / non-EU-US Session Replay masking guard.
+ * Session Replay masking guard.
  *
  * All cloud regions (including HIPAA) report to the same US Sentry org.
- * The compliance safeguard for Session Replay is the region-gated
- * `maskAllText` / `blockAllMedia` configuration in
- * `web/instrumentation-client.ts`: replays are masked everywhere EXCEPT the
- * EU and US non-HIPAA cloud regions. Removing or weakening that gate would
- * ship unmasked replay of user content (prompts, traces, PII/PHI) from
- * HIPAA and other regions to Sentry.
+ * The compliance safeguard for Session Replay is the unconditional
+ * `maskAllText` / `maskAllInputs` / `blockAllMedia` configuration in
+ * `web/instrumentation-client.ts`: replays are masked in every deployment.
+ * Removing or weakening that configuration would ship unmasked replay of
+ * user content (prompts, traces, PII/PHI) to Sentry.
  *
  * Scope note: the mask covers Session Replay ONLY. Error-event payloads
  * (message, breadcrumbs, extra, tags) are never masked — for those, the
@@ -25,16 +24,17 @@
  * change weakens the compliance mask — fix the change, not the test.
  */
 
-type ReplayOptions = { maskAllText: boolean; blockAllMedia: boolean };
+type ReplayOptions = {
+  maskAllText: boolean;
+  maskAllInputs: boolean;
+  blockAllMedia: boolean;
+};
 
 const { initMock, replayIntegrationMock, replaySentinel } = vi.hoisted(() => {
   const replaySentinel = { name: "Replay-sentinel" };
   return {
     initMock: vi.fn<(options: { integrations: unknown[] }) => void>(),
-    replayIntegrationMock: vi.fn(
-      (_options: { maskAllText: boolean; blockAllMedia: boolean }) =>
-        replaySentinel,
-    ),
+    replayIntegrationMock: vi.fn((_options: ReplayOptions) => replaySentinel),
     replaySentinel,
   };
 });
@@ -77,39 +77,29 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("Session Replay masking is region-gated (compliance guard)", () => {
-  // Regions that must ALWAYS be fully masked. `toStrictEqual` on the whole
+describe("Session Replay masking is unconditional (compliance guard)", () => {
+  // Every region must be fully masked. `toStrictEqual` on the whole
   // options object is deliberate: any new replay option must be reviewed
   // here for its compliance impact before it can ship.
-  const alwaysMaskedRegions: [string | undefined, string][] = [
+  const regions: [string | undefined, string][] = [
+    ["EU", "the EU cloud region"],
+    ["US", "the US cloud region"],
     ["HIPAA", "the HIPAA cloud region"],
     ["JP", "a non-EU/US cloud region"],
     ["STAGING", "the staging environment"],
     ["DEV", "the dev environment"],
     [undefined, "self-hosted (region unset)"],
     ["", "an empty region value"],
-    ["us", "a lowercase region value (gate must be exact-match)"],
+    ["us", "a lowercase region value"],
   ];
 
-  it.each(alwaysMaskedRegions)(
-    "region %j (%s) gets maskAllText + blockAllMedia",
+  it.each(regions)(
+    "region %j (%s) gets text, input, and media masking",
     async (region) => {
       await expect(loadReplayOptions(region)).resolves.toStrictEqual({
         maskAllText: true,
+        maskAllInputs: true,
         blockAllMedia: true,
-      });
-    },
-  );
-
-  // The ONLY regions where unmasked replay is permitted. If this case starts
-  // failing because masking became unconditional, that is a deliberate
-  // product decision to confirm — not a bug in this test.
-  it.each(["EU", "US"])(
-    "only the %s cloud region may run unmasked replay",
-    async (region) => {
-      await expect(loadReplayOptions(region)).resolves.toStrictEqual({
-        maskAllText: false,
-        blockAllMedia: false,
       });
     },
   );
