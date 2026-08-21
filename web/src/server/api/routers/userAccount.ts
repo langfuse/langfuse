@@ -7,16 +7,13 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import {
-  canToggleV4,
-  isV4UpgradeUiAvailable,
-} from "@/src/features/events/lib/v4Rollout";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
-  featurePreviewDefaultsToEnabled,
   getFeaturePreviewOptOutFlag,
+  receivesFeaturePreviewsByDefault,
 } from "@/src/features/feature-flags/utils";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 
@@ -117,27 +114,9 @@ export const userAccountRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-      // Mirrors the auth.ts session callback so the write path agrees with what
-      // the session reports.
-      const v4UpgradeUiAvailable = isV4UpgradeUiAvailable({
-        isLangfuseCloud,
-        v4WriteMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-        dualPreviewAvailable:
-          isLangfuseCloud ||
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
-      });
-
-      // The v4 migration UI has its own availability rule and must not ride the
-      // generic self-hosted bypass below: on a self-hosted `events_only`
-      // deployment `v4BetaEnabled` is forced on while the migration UI is
-      // deliberately off, and the bypass would let an enable write a raw flag
-      // entry that `parseFlags` then ignores forever. Gate it solely on its own
-      // availability so the write path agrees with the read path.
       const canEnableFeaturePreviews =
-        input.flag === "v4UpgradeUi"
-          ? v4UpgradeUiAvailable
-          : isLangfuseCloud || ctx.session.user.v4BetaEnabled === true;
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
 
       if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
@@ -168,7 +147,7 @@ export const userAccountRouter = createTRPCRouter({
           );
           const nextFeatureFlags = input.enabled
             ? [...featureFlagsWithoutOverride, input.flag]
-            : featurePreviewDefaultsToEnabled(input.flag, currentUser.email)
+            : receivesFeaturePreviewsByDefault(currentUser.email)
               ? [...featureFlagsWithoutOverride, optOutFlag]
               : featureFlagsWithoutOverride;
           await tx.user.update({

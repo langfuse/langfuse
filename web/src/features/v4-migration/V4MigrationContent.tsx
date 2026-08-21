@@ -74,9 +74,6 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "November 16, 2026";
-/** Self-hosted stand-in for the dated deadline — see useHasV4MigrationDeadline. */
-export const V4_MIGRATION_SELF_HOSTED_CUTOFF =
-  "once your administrator disables the legacy mode";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -1075,8 +1072,8 @@ export function V4MigrationDeadlineNote() {
   if (!hasDeadline) {
     return (
       <p>
-        Some features may stop working without an upgrade{" "}
-        {V4_MIGRATION_SELF_HOSTED_CUTOFF}.
+        Some features may stop working without an upgrade once your
+        administrator disables the legacy mode.
       </p>
     );
   }

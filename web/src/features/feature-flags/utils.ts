@@ -27,30 +27,6 @@ export const receivesFeaturePreviewsByDefault = (
   );
 };
 
-/**
- * Whether `flag` is on for this user without an explicit entry in
- * `User.featureFlags` — i.e. whether an "off" has to be stored as an opt-out
- * marker rather than as the absence of an opt-in.
- *
- * Deliberately independent of `isFeaturePreviewAvailable`, so an opt-out
- * recorded today still holds once a deployment becomes eligible later.
- *
- * Known one-off: opt-outs made before the marker existed were stored as a plain
- * removal, which is byte-identical to never having touched the toggle. Those
- * users see `v4UpgradeUi` come back on once, and their next opt-out sticks.
- * There is nothing to key a backfill on — flipping the default for the empty
- * state is the point of this rule.
- */
-export const featurePreviewDefaultsToEnabled = (
-  flag: FeaturePreviewFlag,
-  email: string | null | undefined,
-): boolean =>
-  receivesFeaturePreviewsByDefault(email) ||
-  // The v4 migration UI is not a preview users have to discover: every
-  // deployment that can act on the migration gets it by default, and the
-  // Feature Preview modal only exists to opt back out.
-  flag === "v4UpgradeUi";
-
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
@@ -58,24 +34,21 @@ export const parseFlags = (
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
+  const enableFeaturePreviewsByDefault = receivesFeaturePreviewsByDefault(
+    context.email,
+  );
 
   availableFlags.forEach((flag) => {
-    if (!isFeaturePreviewFlag(flag)) {
-      parsedFlags[flag] = dbFlags.includes(flag);
+    if (
+      enableFeaturePreviewsByDefault &&
+      isFeaturePreviewFlag(flag) &&
+      isFeaturePreviewAvailable(flag, context)
+    ) {
+      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
       return;
     }
 
-    // Availability is a hard gate: a preview whose read path this deployment
-    // does not support stays off even for a user holding an opt-in entry from
-    // a deployment that used to support it.
-    if (!isFeaturePreviewAvailable(flag, context)) {
-      parsedFlags[flag] = false;
-      return;
-    }
-
-    parsedFlags[flag] = featurePreviewDefaultsToEnabled(flag, context.email)
-      ? !dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
-      : dbFlags.includes(flag);
+    parsedFlags[flag] = dbFlags.includes(flag);
   });
 
   return parsedFlags;

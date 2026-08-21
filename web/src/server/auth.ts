@@ -145,7 +145,6 @@ const staticProviders: Provider[] = [
           // The full session callback resolves deployment and rollout
           // availability before applying employee defaults.
           v4BetaEnabled: false,
-          v4UpgradeUiAvailable: false,
         }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
@@ -1001,7 +1000,6 @@ export async function getAuthOptions(signupAttribution?: {
                     featureFlags: parseFlags(dbUser.featureFlags, {
                       email: dbUser.email,
                       v4BetaEnabled,
-                      v4UpgradeUiAvailable,
                     }),
                     hasPassword: Boolean(dbUser.password),
                   }

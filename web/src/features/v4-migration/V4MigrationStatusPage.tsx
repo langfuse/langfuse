@@ -19,7 +19,6 @@ import {
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
-  V4_MIGRATION_SELF_HOSTED_CUTOFF,
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
@@ -538,7 +537,7 @@ function V4MigrationStatusPageContent() {
           <span className="underline">
             {hasDeadline
               ? `on ${V4_MIGRATION_DEADLINE}`
-              : V4_MIGRATION_SELF_HOSTED_CUTOFF}
+              : "once your administrator disables the legacy mode"}
           </span>
           . They keep running until then, but we&apos;re no longer fixing bugs
           in them.
@@ -721,7 +720,7 @@ function SwitchBackSection() {
             The features powering the legacy v3 UI will be sunset{" "}
             {hasDeadline
               ? `on ${V4_MIGRATION_DEADLINE}`
-              : V4_MIGRATION_SELF_HOSTED_CUTOFF}
+              : "once your administrator disables the legacy mode"}
             . We strongly recommend switching to the latest UI (v4) before then.
           </p>
         )}

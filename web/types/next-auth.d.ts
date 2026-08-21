@@ -27,10 +27,11 @@ declare module "next-auth" {
           admin?: PrismaUser["admin"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
-          // Whether this deployment shows the v4 migration UI at all. The gate
-          // every migration surface reads is `featureFlags.v4UpgradeUi`; this is
-          // only here so the Feature Preview modal can tell "user opted out"
-          // apart from "this deployment cannot act on the migration".
+          // Whether this deployment shows the v4 migration UI (sidebar pill,
+          // organization-overview chips and banner, panel, status page). Derived
+          // from the write mode in the session callback — see
+          // isV4UpgradeUiAvailable. This is the gate every migration surface
+          // reads, via useV4UpgradeUiEnabled; there is no per-user opt-in.
           v4UpgradeUiAvailable?: boolean;
           emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
           canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS

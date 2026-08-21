@@ -7,7 +7,6 @@ export const featurePreviewFlags = [
   // no longer a per-user Feature Preview opt-in. Kept as dead plumbing for a
   // safe rollback; drop once the GA rollout is confirmed stable.
   "searchBar",
-  "v4UpgradeUi",
   "compactTimeline",
 ] as const;
 
@@ -15,9 +14,6 @@ export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
-  // Whether this deployment shows the v4 migration UI at all — derived from the
-  // write mode once in the auth session callback. See isV4UpgradeUiAvailable.
-  v4UpgradeUiAvailable: boolean;
 };
 
 export const isFeaturePreviewAvailable = (
@@ -30,10 +26,6 @@ export const isFeaturePreviewAvailable = (
 
   if (flag === "searchBar") {
     return true;
-  }
-
-  if (flag === "v4UpgradeUi") {
-    return context.v4UpgradeUiAvailable;
   }
 
   if (flag === "compactTimeline") {

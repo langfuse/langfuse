@@ -20,7 +20,6 @@ type ControlledFeaturePreviewModalProps = {
 const PREVIEW_LABEL: Record<PreviewFlag, string> = {
   modernSession: "Compact Session View",
   searchBar: "Filter Search Bar",
-  v4UpgradeUi: "V4 Migration",
   compactTimeline: "Compact Timeline",
 };
 
@@ -30,22 +29,6 @@ export function ControlledFeaturePreviewModal({
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
   const { isBetaEnabled } = useV4Beta();
-  const v4UpgradeUiAvailable =
-    authSession.data?.user?.v4UpgradeUiAvailable === true;
-  // Each write mode is unavailable for a different reason, and the advice has to
-  // match: telling an events_only operator to switch to dual would resume the
-  // legacy writes their deployment already finished migrating away from.
-  const v4UpgradeUiWarningReason = (): string | undefined => {
-    if (v4UpgradeUiAvailable) return undefined;
-    switch (authSession.data?.environment.v4WriteMode) {
-      case "events_only":
-        return "This deployment already writes the v4 events tables only, so the migration is complete and there is nothing left to act on.";
-      case "legacy":
-        return "This deployment runs LANGFUSE_MIGRATION_V4_WRITE_MODE=legacy, so it does not write the v4 events tables the migration surfaces read.";
-      default:
-        return "Set LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true so this deployment can opt into the v4 read path.";
-    }
-  };
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
@@ -84,16 +67,6 @@ export function ControlledFeaturePreviewModal({
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
-    v4UpgradeUi: {
-      enabled: authSession.data?.user?.featureFlags.v4UpgradeUi === true,
-      // On by default wherever the deployment can act on the migration, so the
-      // only reason to see it off is an opt-out — or a deployment that cannot
-      // act on it at all, which the toggle has to explain rather than reject.
-      disabled: !v4UpgradeUiAvailable,
-      warningReason: v4UpgradeUiWarningReason(),
-      onToggle: onToggle("v4UpgradeUi"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
     compactTimeline: {

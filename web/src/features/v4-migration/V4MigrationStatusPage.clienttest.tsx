@@ -77,8 +77,6 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   V4_MIGRATION_DEADLINE: "November 16, 2026",
-  V4_MIGRATION_SELF_HOSTED_CUTOFF:
-    "once your administrator disables the legacy mode",
   useCopyMigrationPrompt: () => vi.fn(),
   useHasV4MigrationDeadline: () => mocks.hasDeadline,
   // Stand-ins for the shared sidebar copy: the real components are covered in
