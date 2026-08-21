@@ -900,7 +900,7 @@ export type InAppAgentWindowProps = {
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
   /** Titles the window. Null until the server has named the conversation,
-   * which is when the product name and its Beta tag show instead. */
+   * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -1169,17 +1169,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <>
-              <p
-                className="shrink-0 truncate text-sm font-bold"
-                title="Assistant"
-              >
-                Assistant
-              </p>
-              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-                Beta
-              </span>
-            </>
+            <p
+              className="shrink-0 truncate text-sm font-bold"
+              title="Assistant"
+            >
+              Assistant
+            </p>
           )}
         </div>
         <div
