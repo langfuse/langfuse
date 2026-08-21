@@ -6,7 +6,8 @@ import {
   ExperimentCreateQueue,
   getCategoricalScoresGroupedByName,
   getBooleanScoresGroupedByName,
-  getDatasetItems,
+  getDatasetItemsCount,
+  countDatasetItemVariableMatches,
   getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
@@ -35,13 +36,11 @@ import {
 } from "@/src/server/api/trpc";
 import {
   extractVariables,
-  validateDatasetItem,
+  isBaseError,
   UnauthorizedError,
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
-  isPresent,
-  type DatasetItemDomain,
   singleFilter,
   orderBy,
   paginationZod,
@@ -79,39 +78,6 @@ const ConfigResponse = z.discriminatedUnion("isValid", [
   InvalidConfigResponse,
 ]);
 
-const countValidDatasetItems = (
-  datasetItems: Omit<DatasetItemDomain, "status">[],
-  variables: string[],
-): Record<string, number> => {
-  const variableMap: Record<string, number> = {};
-
-  for (const { input } of datasetItems) {
-    // Step 1: Validate item
-    if (!isPresent(input) || !validateDatasetItem(input, variables)) {
-      continue;
-    }
-
-    // Step 2: Count variable matches
-
-    // String with single variable - count that variable
-    if (typeof input === "string" && variables.length === 1) {
-      variableMap[variables[0]] = (variableMap[variables[0]] || 0) + 1;
-      continue;
-    }
-
-    // For object inputs, count each matching variable
-    if (typeof input === "object" && !Array.isArray(input)) {
-      for (const variable of variables) {
-        if (variable in input) {
-          variableMap[variable] = (variableMap[variable] || 0) + 1;
-        }
-      }
-    }
-  }
-
-  return variableMap;
-};
-
 export const experimentsRouter = createTRPCRouter({
   validateConfig: protectedProjectProcedure
     .input(
@@ -145,7 +111,23 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       const promptService = new PromptService(ctx.prisma, redis);
-      const resolvedPrompt = await promptService.resolvePrompt(prompt);
+      let resolvedPrompt;
+      try {
+        resolvedPrompt = await promptService.resolvePrompt(prompt);
+      } catch (error) {
+        if (
+          error instanceof SyntaxError ||
+          (isBaseError(error) && error.isUserError())
+        ) {
+          return {
+            isValid: false,
+            message: isBaseError(error)
+              ? error.message
+              : "Selected prompt could not be resolved.",
+          };
+        }
+        throw error;
+      }
 
       if (!resolvedPrompt) {
         return {
@@ -155,9 +137,9 @@ export const experimentsRouter = createTRPCRouter({
       }
 
       const extractedVariables = extractVariables(
-        resolvedPrompt?.type === PromptType.Text
+        resolvedPrompt.type === PromptType.Text
           ? (resolvedPrompt.prompt?.toString() ?? "")
-          : JSON.stringify(resolvedPrompt?.prompt),
+          : JSON.stringify(resolvedPrompt.prompt ?? ""),
       );
 
       const promptMessages =
@@ -178,23 +160,30 @@ export const experimentsRouter = createTRPCRouter({
         };
       }
 
-      const items = await getDatasetItems({
+      const filterState = createDatasetItemFilterState({
+        datasetIds: [input.datasetId],
+        status: "ACTIVE",
+      });
+
+      const totalItems = await getDatasetItemsCount({
         projectId: input.projectId,
-        filterState: createDatasetItemFilterState({
-          datasetIds: [input.datasetId],
-          status: "ACTIVE",
-        }),
+        filterState,
         version: input.datasetVersion,
       });
 
-      if (!Boolean(items.length)) {
+      if (!Boolean(totalItems)) {
         return {
           isValid: false,
           message: "Selected dataset is empty or all items are inactive.",
         };
       }
 
-      const variablesMap = countValidDatasetItems(items, allVariables);
+      const variablesMap = await countDatasetItemVariableMatches({
+        projectId: input.projectId,
+        filterState,
+        version: input.datasetVersion,
+        variables: allVariables,
+      });
 
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
@@ -205,8 +194,8 @@ export const experimentsRouter = createTRPCRouter({
 
       return {
         isValid: true,
-        totalItems: items.length,
-        variablesMap: variablesMap,
+        totalItems,
+        variablesMap,
       };
     }),
 
