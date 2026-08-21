@@ -1,3 +1,4 @@
+import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
@@ -57,8 +58,63 @@ describe("createEvaluatorSetupStore", () => {
       description: "Checks for output",
       sourceCode: "return { score: output ? 1 : 0 };",
       sourceCodeLanguage: "TYPESCRIPT",
-      sampleFilter: [],
+      sampleFilter: [
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+        ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
+      ],
     });
+  });
+
+  it("prefills an existing evaluator from its first assigned rule", () => {
+    const initialSampleFilter = [
+      {
+        column: "type",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["GENERATION"],
+      },
+    ];
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Generation evaluator",
+        description: null,
+        definition: {
+          type: "CODE",
+          sourceCode: "return { score: 1 };",
+          sourceCodeLanguage: "TYPESCRIPT",
+          variableMapping: null,
+        },
+      },
+      initialSampleFilter,
+      mode: "edit",
+    });
+
+    expect(store.getState().sampleFilter).toBe(initialSampleFilter);
+  });
+
+  it("preserves an explicitly empty filter from an assigned rule", () => {
+    const initialSampleFilter: FilterState = [];
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "All observations evaluator",
+        description: null,
+        definition: {
+          type: "CODE",
+          sourceCode: "return { score: 1 };",
+          sourceCodeLanguage: "TYPESCRIPT",
+          variableMapping: null,
+        },
+      },
+      initialSampleFilter,
+      mode: "edit",
+    });
+
+    expect(store.getState().sampleFilter).toBe(initialSampleFilter);
   });
 
   it("starts a blank code evaluator from the gallery", () => {

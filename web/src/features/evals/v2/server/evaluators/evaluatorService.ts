@@ -118,6 +118,18 @@ export class EvaluatorService {
     return evaluator;
   }
 
+  async getWithSampleFilter(projectId: string, evaluatorId: string) {
+    const [evaluator, sampleFilter] = await Promise.all([
+      this.get(projectId, evaluatorId),
+      repository.findFirstAssignedRuleFilter({
+        prisma: this.prisma,
+        projectId,
+        evaluatorId,
+      }),
+    ]);
+    return { ...evaluator, sampleFilter };
+  }
+
   async listVersions(params: {
     projectId: string;
     evaluatorId: string;

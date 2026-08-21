@@ -54,6 +54,7 @@ export default function EvaluatorDetailPage() {
         blockedAt: evaluator.data.blockedAt,
         blockReason: evaluator.data.blockReason,
         blockMessage: evaluator.data.blockMessage,
+        sampleFilter: evaluator.data.sampleFilter,
       }}
     />
   );

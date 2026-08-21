@@ -229,6 +229,127 @@ describe("EvaluatorService", () => {
     );
   });
 
+  it("returns the filter from the first assigned rule", async () => {
+    const service = createService();
+    const created = await service.create(llmInput("Assigned evaluator"), null);
+    const olderFilter = [
+      {
+        column: "name",
+        type: "string",
+        operator: "contains",
+        value: "older",
+      },
+    ];
+    const newerFilter = [
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+    ];
+
+    await Promise.all([
+      prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Older assigned rule",
+          status: "ACTIVE",
+          targetObject: EvalTargetObject.EVENT,
+          filter: olderFilter,
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: {
+              projectId,
+              evaluatorId: created.id,
+              createdAt: new Date("2025-01-01T00:00:00.000Z"),
+            },
+          },
+        },
+      }),
+      prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Newer assigned rule",
+          status: "ACTIVE",
+          targetObject: EvalTargetObject.EVENT,
+          filter: newerFilter,
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: {
+              projectId,
+              evaluatorId: created.id,
+              createdAt: new Date("2025-01-02T00:00:00.000Z"),
+            },
+          },
+        },
+      }),
+    ]);
+
+    await expect(
+      service.getWithSampleFilter(projectId, created.id),
+    ).resolves.toMatchObject({
+      id: created.id,
+      sampleFilter: newerFilter,
+    });
+  });
+
+  it("does not return a sample filter without an assigned rule", async () => {
+    const service = createService();
+    const created = await service.create(
+      llmInput("Unassigned evaluator"),
+      null,
+    );
+
+    await expect(
+      service.getWithSampleFilter(projectId, created.id),
+    ).resolves.toMatchObject({
+      id: created.id,
+      sampleFilter: undefined,
+    });
+  });
+
+  it("does not return a legacy rule filter unsupported by observation queries", async () => {
+    const service = createService();
+    const created = await service.create(
+      llmInput("Legacy filter evaluator"),
+      null,
+    );
+    await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Legacy assigned rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [
+          {
+            column: "Dataset",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["dataset-1"],
+          },
+        ],
+        sampling: 1,
+        delay: 0,
+        assignments: {
+          create: {
+            projectId,
+            evaluatorId: created.id,
+          },
+        },
+      },
+    });
+
+    await expect(
+      service.getWithSampleFilter(projectId, created.id),
+    ).resolves.toMatchObject({
+      id: created.id,
+      sampleFilter: undefined,
+    });
+  });
+
   it("audits successful evaluator mutations", async () => {
     const audit = vi.fn().mockResolvedValue(undefined);
     const service = new EvaluatorService(prisma, audit);

@@ -107,14 +107,15 @@ export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
+  initialSampleFilter,
   initialType,
-  mode,
 }: {
   initialEvaluator: {
     name: string;
     description: string | null;
     definition: EvaluatorDefinition;
   } | null;
+  initialSampleFilter?: FilterState;
   initialType?: EvalTemplateType;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
@@ -172,13 +173,10 @@ export function createEvaluatorSetupStore({
         ? initialDefinition.modelParams
         : null,
     selectedObservation: null,
-    sampleFilter:
-      mode === "create"
-        ? [
-            ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
-            ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
-          ]
-        : [],
+    sampleFilter: initialSampleFilter ?? [
+      ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
+      ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
+    ],
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {

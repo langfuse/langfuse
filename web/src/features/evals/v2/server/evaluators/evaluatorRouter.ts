@@ -100,7 +100,7 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evalTemplate:read",
       });
-      return serviceForContext(ctx).get(
+      return serviceForContext(ctx).getWithSampleFilter(
         ctx.session.projectId,
         input.evaluatorId,
       );

@@ -10,7 +10,12 @@ import type {
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
-import { EvalTargetObject, type FilterState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  eventsEvalFilterColumns,
+  validateEvaluatorFiltersForTarget,
+  type FilterState,
+} from "@langfuse/shared";
 import {
   compilePrismaFilters,
   stringFilterToPrisma,
@@ -25,6 +30,10 @@ const latestVersion = {
   orderBy: { version: "desc" as const },
   take: 1,
 };
+
+const eventEvaluatorFilterColumnIds = new Set(
+  eventsEvalFilterColumns.map((column) => column.id),
+);
 
 export const batchEligibleEvaluatorWhere = {
   // Trace/dataset assignments carry rule-specific mappings that an
@@ -291,6 +300,39 @@ export function findEvaluator(params: {
       versions: latestVersion,
     },
   });
+}
+
+export async function findFirstAssignedRuleFilter(params: {
+  prisma: PrismaClient | PrismaTransaction;
+  projectId: string;
+  evaluatorId: string;
+}): Promise<FilterState | undefined> {
+  const assignment =
+    await params.prisma.evaluationRuleEvaluatorAssignment.findFirst({
+      where: {
+        projectId: params.projectId,
+        evaluatorId: params.evaluatorId,
+        evaluator: { projectId: params.projectId },
+        evaluationRule: { projectId: params.projectId },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        evaluationRule: { select: { filter: true } },
+      },
+    });
+
+  if (!assignment) return undefined;
+
+  const validation = validateEvaluatorFiltersForTarget({
+    targetObject: EvalTargetObject.EVENT,
+    filter: assignment.evaluationRule.filter,
+  });
+  const usesCanonicalEventColumns = validation.validatedFilters.every(
+    (filter) => eventEvaluatorFilterColumnIds.has(filter.column),
+  );
+  return validation.isValid && usesCanonicalEventColumns
+    ? validation.validatedFilters
+    : undefined;
 }
 
 export function findEvaluatorsByIds(params: {

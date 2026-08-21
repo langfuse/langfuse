@@ -59,6 +59,7 @@ type InitialEvaluator = {
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
+  sampleFilter?: FilterState;
 };
 
 export function shouldOfferRuleAttachment(evaluator: {
@@ -112,6 +113,7 @@ export function EvaluatorSetupPage(
   const [evaluatorSetupStore] = useState(() =>
     createEvaluatorSetupStore({
       initialEvaluator: initialEvaluator ?? initialDraft,
+      initialSampleFilter: initialEvaluator?.sampleFilter,
       initialType: props.mode === "create" ? props.initialType : undefined,
       mode: props.mode,
     }),
