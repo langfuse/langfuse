@@ -61,7 +61,7 @@ describe("MappingPreviewPanel JSON size gating", () => {
         fieldLabel="Input"
         defaultSourceField="output"
         config={config}
-        observationData={{ input: {}, output: hugeOutput, metadata: {} }}
+        observationData={{ id: "obs-1", input: {}, output: hugeOutput, metadata: {} }}
         isLoading={false}
       />,
     );
@@ -77,6 +77,7 @@ describe("MappingPreviewPanel JSON size gating", () => {
         defaultSourceField="output"
         config={config}
         observationData={{
+          id: "obs-2",
           input: {},
           output: { role: "assistant", content: "hi" },
           metadata: {},
