@@ -545,6 +545,93 @@ describe("traces trpc", () => {
     });
   });
 
+  describe("traces.all pagination under a large trace volume", () => {
+    // Regression guard for a "many traces => frontend lag" class of bug: if
+    // traces.all ever stopped honoring `limit` (e.g. a change that fetches
+    // everything and paginates/filters client-side), a project with hundreds
+    // of traces would ship its entire trace list to the browser on every
+    // load. This pins the endpoint to always return exactly one page,
+    // independent of how many traces exist in the project.
+    it("returns exactly one page of results when the project has hundreds of traces", async () => {
+      const tag = `pagination-volume-${randomUUID()}`;
+      const totalTraces = 300;
+      const pageSize = 50;
+
+      await createTracesCh(
+        Array(totalTraces)
+          .fill(0)
+          .map(() =>
+            createTrace({
+              project_id: projectId,
+              tags: [tag],
+            }),
+          ),
+      );
+
+      const filter = [
+        {
+          column: "timestamp" as const,
+          type: "datetime" as const,
+          operator: ">=" as const,
+          value: new Date(new Date().getTime() - 1000).toISOString(),
+        },
+        {
+          column: "tags" as const,
+          operator: "any of" as const,
+          value: [tag],
+          type: "arrayOptions" as const,
+        },
+      ];
+
+      const firstPage = await caller.traces.all({
+        projectId,
+        filter,
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: pageSize,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(firstPage.traces.length).toBe(pageSize);
+
+      const secondPage = await caller.traces.all({
+        projectId,
+        filter,
+        searchQuery: null,
+        searchType: ["id"],
+        page: 1,
+        limit: pageSize,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(secondPage.traces.length).toBe(pageSize);
+      // The two pages must not overlap — proves the server is windowing the
+      // result set, not returning the same (or the full) set both times.
+      const firstIds = new Set(firstPage.traces.map((t) => t.id));
+      const overlap = secondPage.traces.filter((t) => firstIds.has(t.id));
+      expect(overlap).toHaveLength(0);
+
+      const count = await caller.traces.countAll({
+        projectId,
+        filter,
+        searchQuery: null,
+        searchType: ["id"],
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+      expect(count.totalCount).toBe(totalTraces);
+    });
+  });
+
   describe("traces.byId", () => {
     it("access private trace", async () => {
       const trace = createTrace({

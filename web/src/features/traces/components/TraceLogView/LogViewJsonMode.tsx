@@ -7,11 +7,18 @@
  * Reuses the existing JSONView component from CodeJsonViewer.tsx.
  */
 
-import { memo, useEffect } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type FlatLogItem } from "./log-view-types";
 import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";
+import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  JSON_VIEW_RENDER_ROW_LIMIT,
+  probeJsonField,
+} from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
 
 export interface LogViewJsonModeProps {
   items: FlatLogItem[];
@@ -48,6 +55,23 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
     }
   }, [data, isLoading, isError, loadAllData]);
 
+  // Size gate (same class of bug as LFE-10989/LFE-10847, fixed for the
+  // per-field trace I/O views): `data` here concatenates EVERY observation's
+  // input/output/metadata into one object handed to the unvirtualized
+  // react18-json-view. The `!isVirtualized` gate in TraceLogView.tsx only
+  // bounds how many observations can reach this component (< 350) — it does
+  // nothing about how large any of them are, so a trace with a moderate
+  // observation count but verbose I/O (long agent/RAG contexts) still freezes
+  // the tab here. Probe the combined payload once it loads and, above the
+  // limit, show the bounded fallback + download instead of the live tree.
+  const probe = useMemo(() => (data ? probeJsonField(data) : null), [data]);
+  const rowCount = useMemo(() => (data ? countJsonRows(data) : 0), [data]);
+  const tooLarge = Boolean(
+    probe &&
+    (probe.size > JSON_VIEW_RENDER_CHAR_LIMIT ||
+      rowCount > JSON_VIEW_RENDER_ROW_LIMIT),
+  );
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Loading state */}
@@ -77,7 +101,22 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
         visible height (JSONView's root carries `max-h-full min-h-0`), leaving
         no overflow and making tall JSON unscrollable (LFE-10513).
       */}
-      {data && !isLoading && (
+      {data && !isLoading && tooLarge && probe && (
+        <div className="flex-1 overflow-y-auto p-2">
+          <LargeJsonFieldFallback
+            title="All observations"
+            serialized={probe.serialized}
+            isString={probe.isString}
+            charCount={probe.size}
+            rowCount={
+              rowCount > JSON_VIEW_RENDER_ROW_LIMIT ? rowCount : undefined
+            }
+            downloadFileBase={`observations-${traceId}`}
+          />
+        </div>
+      )}
+
+      {data && !isLoading && !tooLarge && (
         <div className="flex-1 overflow-y-auto">
           <JSONView
             json={data}

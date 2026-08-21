@@ -2,10 +2,12 @@ import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
+import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
+  JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
 
@@ -90,31 +92,64 @@ export function IOPreviewJSONSimple({
   const outputProbe = useMemo(() => probeJsonField(output), [output]);
   const metadataProbe = useMemo(() => probeJsonField(metadata), [metadata]);
 
-  const inputTooLarge = inputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
-  const outputTooLarge = outputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
-  const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const inputCharTooLarge = inputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const outputCharTooLarge = outputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const metadataCharTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
   // Parse data if not pre-parsed
   // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
   // Skip parsing entirely for over-limit fields: parsing a ~20 MB string in
   // deepParseJson (parsePreservingPrecision) blocks the main thread for seconds.
-  const effectiveInput = useMemo(() => {
+  const parsedInputValue = useMemo(() => {
     if (isParsing) return undefined; // Wait for Web Worker to finish
-    if (inputTooLarge) return undefined;
+    if (inputCharTooLarge) return undefined;
     return parsedInput ?? deepParseJson(input);
-  }, [parsedInput, input, isParsing, inputTooLarge]);
+  }, [parsedInput, input, isParsing, inputCharTooLarge]);
 
-  const effectiveOutput = useMemo(() => {
+  const parsedOutputValue = useMemo(() => {
     if (isParsing) return undefined;
-    if (outputTooLarge) return undefined;
+    if (outputCharTooLarge) return undefined;
     return parsedOutput ?? deepParseJson(output);
-  }, [parsedOutput, output, isParsing, outputTooLarge]);
+  }, [parsedOutput, output, isParsing, outputCharTooLarge]);
 
-  const effectiveMetadata = useMemo(() => {
+  const parsedMetadataValue = useMemo(() => {
     if (isParsing) return undefined;
-    if (metadataTooLarge) return undefined;
+    if (metadataCharTooLarge) return undefined;
     return parsedMetadata ?? deepParseJson(metadata);
-  }, [parsedMetadata, metadata, isParsing, metadataTooLarge]);
+  }, [parsedMetadata, metadata, isParsing, metadataCharTooLarge]);
+
+  // Node-count gate (LFE-10847, applied here to close the same gap already
+  // fixed in the JSON Beta view — see IOPreviewJSON.tsx). A field can stay
+  // under JSON_VIEW_RENDER_CHAR_LIMIT chars yet still deep-parse into tens of
+  // thousands of small nodes (e.g. a flat array of short retrieval
+  // documents). react18-json-view builds one DOM node per key/value with no
+  // virtualization, so that node count alone — not the char count — is what
+  // freezes the tab. Count rows on the already-parsed value (parsing itself
+  // is bounded by the char gate above, so this doesn't reintroduce a slow
+  // parse) and gate the same way as the char check.
+  const inputRows = useMemo(
+    () => countJsonRows(parsedInputValue),
+    [parsedInputValue],
+  );
+  const outputRows = useMemo(
+    () => countJsonRows(parsedOutputValue),
+    [parsedOutputValue],
+  );
+  const metadataRows = useMemo(
+    () => countJsonRows(parsedMetadataValue),
+    [parsedMetadataValue],
+  );
+
+  const inputTooLarge =
+    inputCharTooLarge || inputRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const outputTooLarge =
+    outputCharTooLarge || outputRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const metadataTooLarge =
+    metadataCharTooLarge || metadataRows > JSON_VIEW_RENDER_ROW_LIMIT;
+
+  const effectiveInput = inputTooLarge ? undefined : parsedInputValue;
+  const effectiveOutput = outputTooLarge ? undefined : parsedOutputValue;
+  const effectiveMetadata = metadataTooLarge ? undefined : parsedMetadataValue;
 
   // An over-limit field parses to `undefined` above, but it is not empty — it
   // is too big. Treat it as present so `hideIfNull` callers still show the

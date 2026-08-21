@@ -136,6 +136,9 @@ export const PromptDetail = ({
   const [isLabelPopoverOpen, setIsLabelPopoverOpen] = useState(false);
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
+  const [historySearchValue, setHistorySearchValue] = useState("");
+  const [historyScrollNode, setHistoryScrollNode] =
+    useState<HTMLDivElement | null>(null);
   const [resolutionMode, setResolutionMode] = useState<"tagged" | "resolved">(
     "tagged",
   );
@@ -333,12 +336,18 @@ export const PromptDetail = ({
       }}
     >
       <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden px-3 md:grid-cols-4">
-        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
+        <Command
+          ref={setHistoryScrollNode}
+          shouldFilter={false}
+          className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0"
+        >
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
               placeholder="Search..."
               className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
+              value={historySearchValue}
+              onValueChange={setHistorySearchValue}
             />
 
             <Button
@@ -365,6 +374,8 @@ export const PromptDetail = ({
                 setCurrentPromptLabel(null);
               }}
               commentCounts={commentCounts}
+              searchValue={historySearchValue}
+              scrollElement={historyScrollNode}
             />
           </div>
         </Command>

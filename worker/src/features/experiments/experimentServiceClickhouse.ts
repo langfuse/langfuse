@@ -43,6 +43,11 @@ import { createW3CTraceId } from "../utils";
 import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
+// Number of dataset items fetched per `getDatasetItems` call. Keeps a single
+// query bounded instead of loading an entire (potentially huge) dataset with
+// full input/output payloads into memory in one shot. Exported for tests.
+export const DATASET_ITEMS_PAGE_SIZE = 500;
+
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
   runId: string,
@@ -241,55 +246,76 @@ async function getItemsToProcess(
   runId: string,
   config: PromptExperimentConfig,
 ) {
-  // Fetch all dataset items at the specified version (if provided)
-  const datasetItems = await getDatasetItems({
-    projectId,
-    filterState: createDatasetItemFilterState({
-      datasetIds: [datasetId],
-      status: "ACTIVE",
-    }),
-    version: config.datasetVersion,
-    includeIO: true,
-  });
-
-  // Filter and validate dataset items
-  const validatedDatasetItems = datasetItems
-    .filter(({ input }) => validateDatasetItem(input, config.allVariables))
-    .map((datasetItem) => {
-      // Normalize string inputs to object format for single-variable prompts
-      const normalizedInput = normalizeDatasetItemInput(
-        datasetItem.input,
-        config.allVariables,
-      );
-
-      return {
-        ...datasetItem,
-        status: datasetItem.status ?? "ACTIVE",
-        input: parseDatasetItemInput(normalizedInput, config.allVariables),
-      };
-    });
-
-  if (!validatedDatasetItems.length) {
-    logger.info(
-      `No Dataset ${datasetId} item input matches expected prompt variable format`,
-    );
-    return [];
-  }
-
-  // Batch deduplication - get existing run items' dataset item ids
+  // Batch deduplication - get existing run items' dataset item ids upfront so
+  // we can filter each page as it is fetched instead of holding the entire
+  // dataset (including all unprocessed items) in memory at once.
   const existingDatasetItemIds = await getExistingRunItemDatasetItemIds(
     projectId,
     runId,
     datasetId,
   );
 
-  // Filter out existing items
-  const itemsToProcess = validatedDatasetItems.filter(
-    (item) => !existingDatasetItemIds.has(item.id),
-  );
+  const filterState = createDatasetItemFilterState({
+    datasetIds: [datasetId],
+    status: "ACTIVE",
+  });
+
+  let validatedCount = 0;
+  const itemsToProcess: Array<
+    DatasetItemDomain & { input: Prisma.JsonObject }
+  > = [];
+
+  // Page through the dataset instead of fetching every item (with full IO)
+  // in a single unbounded query.
+  for (let page = 0; ; page++) {
+    const datasetItemsPage = await getDatasetItems({
+      projectId,
+      filterState,
+      version: config.datasetVersion,
+      includeIO: true,
+      limit: DATASET_ITEMS_PAGE_SIZE,
+      page,
+    });
+
+    if (datasetItemsPage.length === 0) break;
+
+    // Filter and validate dataset items
+    const validatedPageItems = datasetItemsPage
+      .filter(({ input }) => validateDatasetItem(input, config.allVariables))
+      .map((datasetItem) => {
+        // Normalize string inputs to object format for single-variable prompts
+        const normalizedInput = normalizeDatasetItemInput(
+          datasetItem.input,
+          config.allVariables,
+        );
+
+        return {
+          ...datasetItem,
+          status: datasetItem.status ?? "ACTIVE",
+          input: parseDatasetItemInput(normalizedInput, config.allVariables),
+        };
+      });
+
+    validatedCount += validatedPageItems.length;
+
+    for (const item of validatedPageItems) {
+      if (!existingDatasetItemIds.has(item.id)) {
+        itemsToProcess.push(item);
+      }
+    }
+
+    if (datasetItemsPage.length < DATASET_ITEMS_PAGE_SIZE) break;
+  }
+
+  if (!validatedCount) {
+    logger.info(
+      `No Dataset ${datasetId} item input matches expected prompt variable format`,
+    );
+    return [];
+  }
 
   logger.info(
-    `Found ${validatedDatasetItems.length} valid items, ${existingDatasetItemIds.size} already exist, ${itemsToProcess.length} to process`,
+    `Found ${validatedCount} valid items, ${existingDatasetItemIds.size} already exist, ${itemsToProcess.length} to process`,
   );
 
   return itemsToProcess;
@@ -381,16 +407,6 @@ async function createAllDatasetRunItemsWithConfigError(
   runId: string,
   errorMessage: string,
 ) {
-  // Fetch all dataset items
-  const datasetItems = await getDatasetItems({
-    projectId,
-    filterState: createDatasetItemFilterState({
-      datasetIds: [datasetId],
-      status: "ACTIVE",
-    }),
-    includeIO: true,
-  });
-
   // Check for existing run items' dataset item ids to avoid duplicates
   const existingRunItemDatasetItemIds = await getExistingRunItemDatasetItemIds(
     projectId,
@@ -398,89 +414,116 @@ async function createAllDatasetRunItemsWithConfigError(
     datasetId,
   );
 
-  // Create run items with config error for all non-existing items
-  const newItems = datasetItems.filter(
-    (item) => !existingRunItemDatasetItemIds.has(item.id),
-  );
-
-  const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
-    const traceId = v4();
-    const runItemId = v4();
-    const generationId = v4();
-    const timestamp = new Date().toISOString();
-
-    let stringInput = "";
-    try {
-      stringInput = JSON.stringify(datasetItem.input);
-    } catch {
-      logger.info(
-        `Failed to stringify input for dataset item ${datasetItem.id}`,
-      );
-    }
-
-    return [
-      // dataset run item
-      {
-        id: runItemId,
-        type: eventTypes.DATASET_RUN_ITEM_CREATE,
-        timestamp,
-        body: {
-          id: runItemId,
-          traceId,
-          observationId: null,
-          error: `Experiment configuration error: ${errorMessage}`,
-          createdAt: timestamp,
-          datasetId: datasetItem.datasetId,
-          runId: runId,
-          datasetItemId: datasetItem.id,
-          datasetVersion: datasetItem.validFrom.toISOString(),
-        },
-      },
-      // trace
-      {
-        id: traceId,
-        type: eventTypes.TRACE_CREATE,
-        timestamp,
-        body: {
-          id: traceId,
-          environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-          name: `dataset-run-item-${runItemId.slice(0, 5)}`,
-          input: stringInput,
-        },
-      },
-      // generation
-      {
-        id: generationId,
-        type: eventTypes.GENERATION_CREATE,
-        timestamp,
-        body: {
-          id: generationId,
-          environment: LangfuseInternalTraceEnvironment.PromptExperiments,
-          traceId,
-          input: stringInput,
-          level: "ERROR" as const,
-          statusMessage: `Experiment configuration error: ${errorMessage}`,
-        },
-      },
-    ];
+  const filterState = createDatasetItemFilterState({
+    datasetIds: [datasetId],
+    status: "ACTIVE",
   });
 
-  if (events.length > 0) {
-    logger.info(
-      `Creating ${events.length / 3} dataset run items with config error`,
+  const auth = {
+    validKey: true as const,
+    scope: {
+      projectId,
+      accessLevel: "project" as const,
+    },
+  };
+
+  let totalCreated = 0;
+
+  // Page through the dataset and submit one bounded-size ingestion batch per
+  // page instead of loading every item into memory and submitting a single
+  // unchunked events array.
+  for (let page = 0; ; page++) {
+    const datasetItemsPage = await getDatasetItems({
+      projectId,
+      filterState,
+      includeIO: true,
+      limit: DATASET_ITEMS_PAGE_SIZE,
+      page,
+    });
+
+    if (datasetItemsPage.length === 0) break;
+
+    // Create run items with config error for all non-existing items
+    const newItems = datasetItemsPage.filter(
+      (item) => !existingRunItemDatasetItemIds.has(item.id),
     );
 
-    const auth = {
-      validKey: true as const,
-      scope: {
-        projectId,
-        accessLevel: "project" as const,
-      },
-    };
+    const events: IngestionEventType[] = newItems.flatMap((datasetItem) => {
+      const traceId = v4();
+      const runItemId = v4();
+      const generationId = v4();
+      const timestamp = new Date().toISOString();
 
-    await processEventBatch(events, auth, {
-      isLangfuseInternal: true,
-      attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+      let stringInput = "";
+      try {
+        stringInput = JSON.stringify(datasetItem.input);
+      } catch {
+        logger.info(
+          `Failed to stringify input for dataset item ${datasetItem.id}`,
+        );
+      }
+
+      return [
+        // dataset run item
+        {
+          id: runItemId,
+          type: eventTypes.DATASET_RUN_ITEM_CREATE,
+          timestamp,
+          body: {
+            id: runItemId,
+            traceId,
+            observationId: null,
+            error: `Experiment configuration error: ${errorMessage}`,
+            createdAt: timestamp,
+            datasetId: datasetItem.datasetId,
+            runId: runId,
+            datasetItemId: datasetItem.id,
+            datasetVersion: datasetItem.validFrom.toISOString(),
+          },
+        },
+        // trace
+        {
+          id: traceId,
+          type: eventTypes.TRACE_CREATE,
+          timestamp,
+          body: {
+            id: traceId,
+            environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+            name: `dataset-run-item-${runItemId.slice(0, 5)}`,
+            input: stringInput,
+          },
+        },
+        // generation
+        {
+          id: generationId,
+          type: eventTypes.GENERATION_CREATE,
+          timestamp,
+          body: {
+            id: generationId,
+            environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+            traceId,
+            input: stringInput,
+            level: "ERROR" as const,
+            statusMessage: `Experiment configuration error: ${errorMessage}`,
+          },
+        },
+      ];
     });
+
+    if (events.length > 0) {
+      await processEventBatch(events, auth, {
+        isLangfuseInternal: true,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+      });
+      totalCreated += newItems.length;
+    }
+
+    if (datasetItemsPage.length < DATASET_ITEMS_PAGE_SIZE) break;
+  }
+
+  if (totalCreated > 0) {
+    logger.info(
+      `Created ${totalCreated} dataset run items with config error`,
+    );
   }
 }

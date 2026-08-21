@@ -29,9 +29,21 @@ vi.mock("@langfuse/shared", () => ({
 }));
 
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
-import { JSON_VIEW_RENDER_CHAR_LIMIT } from "./fns/jsonViewSizeGate";
+import {
+  JSON_VIEW_RENDER_CHAR_LIMIT,
+  JSON_VIEW_RENDER_ROW_LIMIT,
+} from "./fns/jsonViewSizeGate";
 
 const FALLBACK_TEXT = /too large to render in JSON view/i;
+
+// An array of many short primitives stays well under JSON_VIEW_RENDER_CHAR_LIMIT
+// chars (each element is a couple bytes) while its node count blows past
+// JSON_VIEW_RENDER_ROW_LIMIT — exactly the "many small nodes, few chars" shape
+// (e.g. a flat list of retrieval documents/log lines) that used to sail through
+// the char-only gate and freeze react18-json-view (LFE-10847, same root cause
+// already fixed for the JSON Beta view in IOPreviewJSON.tsx).
+const manyRowsFewChars = () =>
+  Array.from({ length: JSON_VIEW_RENDER_ROW_LIMIT + 1 }, (_, i) => i);
 
 describe("IOPreviewJSONSimple size gating", () => {
   it("renders the fallback and NOT PrettyJsonView for an over-limit field", () => {
@@ -123,6 +135,52 @@ describe("IOPreviewJSONSimple size gating", () => {
 
     expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
     expect(screen.queryByTestId("pretty-json-view")).not.toBeInTheDocument();
+  });
+
+  it("renders the fallback and NOT PrettyJsonView for a field with many nodes but few chars", () => {
+    const payload = manyRowsFewChars();
+    expect(JSON.stringify(payload).length).toBeLessThan(
+      JSON_VIEW_RENDER_CHAR_LIMIT,
+    );
+
+    render(
+      <IOPreviewJSONSimple
+        input={payload}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    // Node-count gate must catch this even though the char gate would not.
+    expect(screen.getByText(FALLBACK_TEXT)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Download Input/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("pretty-json-view")).not.toBeInTheDocument();
+  });
+
+  it("renders PrettyJsonView for a field just under the row limit", () => {
+    const payload = Array.from(
+      { length: JSON_VIEW_RENDER_ROW_LIMIT - 1 },
+      (_, i) => i,
+    );
+
+    render(
+      <IOPreviewJSONSimple
+        input={payload}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
+    expect(screen.getByTestId("pretty-json-view")).toBeInTheDocument();
   });
 
   it("renders PrettyJsonView (not the fallback) for normal small I/O", () => {
