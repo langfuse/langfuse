@@ -346,6 +346,7 @@ export const InnerEvaluatorForm = (props: {
     isSaveDisabled: boolean;
   }) => React.ReactNode;
   oldConfigId?: string;
+  sourceRuleAction?: "mark-inactive" | "delete";
 }) => {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -711,13 +712,20 @@ export const InnerEvaluatorForm = (props: {
           delay,
           timeScope: isModern ? ["NEW"] : values.timeScope,
           ...(status ? { status } : {}),
+          ...(props.oldConfigId
+            ? {
+                sourceRuleId: props.oldConfigId,
+                sourceRuleAction:
+                  props.sourceRuleAction ?? ("mark-inactive" as const),
+              }
+            : {}),
         })
     )
       .then(() => {
         props.onFormSuccess?.();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
-          router.push(`/project/${props.projectId}/evals`);
+          router.push(`/project/${props.projectId}/evals/legacy`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
           // Only reset form when NOT redirecting

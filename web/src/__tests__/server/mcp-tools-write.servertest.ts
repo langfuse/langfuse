@@ -30,12 +30,13 @@ vi.mock(
   }),
 );
 
-// Skip the LLM model preflight so llm_as_judge evaluators don't require a
-// provisioned default eval model.
+// Skip evaluator configuration validation so these tool tests do not require
+// a provisioned default eval model.
 vi.mock(
   "@/src/features/evals/server/evaluator-preflight",
   async (importActual) => ({
     ...(await importActual<object>()),
+    getEvaluatorDefinitionConfigurationError: vi.fn(async () => null),
     getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
   }),
 );
@@ -61,9 +62,13 @@ import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tool
 import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
 import { handleCreateAnnotationQueue } from "@/src/features/mcp/features/annotationQueues/tools";
 import {
-  upsertEvaluatorTool,
-  handleUpsertEvaluator,
-} from "@/src/features/mcp/features/evals/tools/upsertEvaluator";
+  createEvaluatorTool,
+  handleCreateEvaluator,
+} from "@/src/features/mcp/features/evals/tools/createEvaluator";
+import {
+  updateEvaluatorTool,
+  handleUpdateEvaluator,
+} from "@/src/features/mcp/features/evals/tools/updateEvaluator";
 import {
   createEvaluationRuleTool,
   handleCreateEvaluationRule,
@@ -81,6 +86,12 @@ import {
   handleDeleteEvaluator,
 } from "@/src/features/mcp/features/evals/tools/deleteEvaluator";
 import { handleGetEvaluationRule } from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+import {
+  attachEvaluatorToEvaluationRuleTool,
+  detachEvaluatorFromEvaluationRuleTool,
+  handleAttachEvaluatorToEvaluationRule,
+  handleDetachEvaluatorFromEvaluationRule,
+} from "@/src/features/mcp/features/evals/tools/manageEvaluationRuleEvaluators";
 import {
   createDashboardWidgetTool,
   handleCreateDashboardWidget,
@@ -108,27 +119,29 @@ const createScoreConfig = async (projectId: string) =>
     },
   });
 
-const createLlmEvaluatorForMcpWriteTest = async (
+const createStableLlmEvaluatorForMcpWriteTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
-  name = `mcp-eval-${nanoid()}`,
-) => {
-  return (await handleUpsertEvaluator(
+  name = `mcp-stable-eval-${nanoid()}`,
+) =>
+  (await handleCreateEvaluator(
     {
       name,
-      type: "llm_as_judge",
+      type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
-      outputDefinition: mcpEvalOutputDefinition,
-      modelConfig: null,
+      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+      variableMapping: [
+        { templateVariable: "input", selectedColumnId: "input" },
+        { templateVariable: "output", selectedColumnId: "output" },
+      ],
     },
     setup.context,
-  )) as { id: string; name: string; type: string; variables: string[] };
-};
+  )) as { id: string; name: string; versions: Array<{ version: number }> };
 
 const createLlmEvaluationRuleForMcpWriteTest = async (
   setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
 ) => {
   const evaluatorName = `mcp-eval-${nanoid()}`;
-  const evaluator = await createLlmEvaluatorForMcpWriteTest(
+  const evaluator = await createStableLlmEvaluatorForMcpWriteTest(
     setup,
     evaluatorName,
   );
@@ -136,24 +149,23 @@ const createLlmEvaluationRuleForMcpWriteTest = async (
   const rule = (await handleCreateEvaluationRule(
     {
       name: ruleName,
-      evaluator: {
-        name: evaluatorName,
-        scope: "project",
-        type: "llm_as_judge",
-      },
-      enabled: false,
+      evaluatorAssignments: [
+        {
+          evaluatorId: evaluator.id,
+          variableMapping: [
+            { variable: "input", source: "input" },
+            { variable: "output", source: "output" },
+          ],
+        },
+      ],
+      enabled: true,
       sampling: 1,
-      target: "observation",
       filter: [
         { column: "version", operator: "=", value: "1.0.0", type: "string" },
       ],
-      mapping: [
-        { variable: "input", source: "input" },
-        { variable: "output", source: "output" },
-      ],
     },
     setup.context,
-  )) as { id: string; name: string; target: string; sampling: number };
+  )) as { id: string; name: string; sampling: number };
 
   return { evaluator, rule };
 };
@@ -175,63 +187,28 @@ describe("MCP Write Tools", () => {
     });
   });
 
-  describe("upsertEvaluator tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(upsertEvaluatorTool, { destructiveHint: true });
-    });
-
-    it("should create an llm-as-judge evaluator and audit the write", async () => {
+  describe("stable evaluator tools", () => {
+    it("creates and versions an evaluator by stable id", async () => {
       const setup = await createMcpTestSetup();
-      const { projectId, apiKeyId } = setup;
-      const evaluatorName = `mcp-eval-${nanoid()}`;
+      verifyToolAnnotations(createEvaluatorTool, { destructiveHint: true });
+      verifyToolAnnotations(updateEvaluatorTool, { destructiveHint: true });
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
 
-      const evaluator = await createLlmEvaluatorForMcpWriteTest(
-        setup,
-        evaluatorName,
-      );
-
-      expect(evaluator).toMatchObject({
-        name: evaluatorName,
-        type: "llm_as_judge",
-      });
-      expect(evaluator.variables.sort()).toEqual(["input", "output"]);
-      await expect(
-        verifyAuditLog({
-          projectId,
-          apiKeyId,
-          resourceType: "evalTemplate",
-          resourceId: evaluator.id,
-          action: "create",
-        }),
-      ).resolves.toMatchObject({ resourceId: evaluator.id, action: "create" });
-    });
-
-    it("should create code evaluators", async () => {
-      const { context, projectId, apiKeyId } = await createMcpTestSetup();
-
-      const evaluator = (await handleUpsertEvaluator(
+      const updatedEvaluator = (await handleUpdateEvaluator(
         {
-          name: `mcp-code-eval-${nanoid()}`,
-          type: "code",
-          sourceCode: "export function evaluate() { return { score: 1 }; }",
-          sourceCodeLanguage: "TYPESCRIPT",
+          evaluatorId: evaluator.id,
+          name: evaluator.name,
+          type: "LLM_AS_JUDGE",
+          prompt: "Judge {{input}} very strictly",
+          outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
         },
-        context,
-      )) as { id: string; type: string; sourceCodeLanguage: string };
+        setup.context,
+      )) as { id: string; versions: Array<{ version: number }> };
 
-      expect(evaluator).toMatchObject({
-        type: "code",
-        sourceCodeLanguage: "TYPESCRIPT",
-      });
-      await expect(
-        verifyAuditLog({
-          projectId,
-          apiKeyId,
-          resourceType: "evalTemplate",
-          resourceId: evaluator.id,
-          action: "create",
-        }),
-      ).resolves.toMatchObject({ resourceId: evaluator.id, action: "create" });
+      expect(updatedEvaluator).toMatchObject({ id: evaluator.id });
+      expect(updatedEvaluator.versions).toEqual([
+        expect.objectContaining({ version: 2 }),
+      ]);
     });
   });
 
@@ -242,13 +219,101 @@ describe("MCP Write Tools", () => {
       });
     });
 
+    it("addresses project evaluators by stable id", () => {
+      const properties = createEvaluationRuleTool.inputSchema.properties;
+
+      expect(properties).toHaveProperty("evaluatorAssignments");
+      expect(properties).not.toHaveProperty("evaluatorId");
+      expect(properties).not.toHaveProperty("evaluator");
+    });
+
+    it("creates a rule with multiple evaluators created through MCP", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluatorName = `duplicate-name-evaluator-${nanoid()}`;
+      const [firstEvaluator, secondEvaluator] = await Promise.all([
+        createStableLlmEvaluatorForMcpWriteTest(setup, evaluatorName),
+        createStableLlmEvaluatorForMcpWriteTest(setup, evaluatorName),
+      ]);
+
+      const rule = (await handleCreateEvaluationRule(
+        {
+          name: `mcp-stable-rule-${nanoid()}`,
+          evaluatorAssignments: [
+            {
+              evaluatorId: firstEvaluator.id,
+              variableMapping: [
+                { variable: "input", source: "input" },
+                { variable: "output", source: "output" },
+              ],
+            },
+            { evaluatorId: secondEvaluator.id },
+          ],
+          enabled: true,
+          sampling: 1,
+          filter: [],
+        },
+        setup.context,
+      )) as {
+        id: string;
+        evaluators: Array<{
+          evaluatorId: string;
+          variableMapping: unknown;
+        }>;
+      };
+
+      expect(rule).toMatchObject({
+        enabled: true,
+        evaluators: expect.arrayContaining([
+          expect.objectContaining({
+            evaluatorId: firstEvaluator.id,
+            variableMapping: [
+              { variable: "input", source: "input" },
+              { variable: "output", source: "output" },
+            ],
+          }),
+          expect.objectContaining({
+            evaluatorId: secondEvaluator.id,
+            variableMapping: null,
+          }),
+        ]),
+      });
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.count({
+          where: {
+            projectId: setup.projectId,
+            evaluationRuleId: rule.id,
+          },
+        }),
+      ).resolves.toBe(2);
+    });
+
+    it("rejects an evaluator id from another project", async () => {
+      const setup = await createMcpTestSetup();
+      const otherSetup = await createMcpTestSetup();
+      const evaluator =
+        await createStableLlmEvaluatorForMcpWriteTest(otherSetup);
+
+      await expect(
+        handleCreateEvaluationRule(
+          {
+            name: `cross-project-rule-${nanoid()}`,
+            evaluatorAssignments: [{ evaluatorId: evaluator.id }],
+            enabled: true,
+            sampling: 1,
+            filter: [],
+          },
+          setup.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+    });
+
     it("should create an evaluation rule and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
 
       const { rule } = await createLlmEvaluationRuleForMcpWriteTest(setup);
 
-      expect(rule).toMatchObject({ target: "observation", sampling: 1 });
+      expect(rule).toMatchObject({ sampling: 1 });
       await expect(
         verifyAuditLog({
           projectId,
@@ -264,24 +329,24 @@ describe("MCP Write Tools", () => {
       const { context } = await createMcpTestSetup();
       const evaluatorName = `mcp-code-eval-${nanoid()}`;
 
-      await handleUpsertEvaluator(
+      const evaluator = (await handleCreateEvaluator(
         {
           name: evaluatorName,
-          type: "code",
+          type: "CODE",
           sourceCode: "export function evaluate() { return { score: 1 }; }",
           sourceCodeLanguage: "TYPESCRIPT",
         },
         context,
-      );
+      )) as { id: string };
 
       const rule = (await handleCreateEvaluationRule(
         {
           name: `mcp-code-rule-${nanoid()}`,
-          evaluator: { name: evaluatorName, scope: "project", type: "code" },
-          enabled: false,
-          target: "observation",
+          evaluatorAssignments: [{ evaluatorId: evaluator.id }],
+          enabled: true,
+          sampling: 1,
           filter: [],
-        } as unknown as Parameters<typeof handleCreateEvaluationRule>[0],
+        },
         context,
       )) as { id: string };
       expect(rule.id).toBeDefined();
@@ -310,6 +375,64 @@ describe("MCP Write Tools", () => {
         verifyAuditLog({
           projectId,
           apiKeyId,
+          resourceType: "job",
+          resourceId: rule.id,
+          action: "update",
+        }),
+      ).resolves.toMatchObject({ resourceId: rule.id, action: "update" });
+    });
+  });
+
+  describe("evaluation rule evaluator assignment tools", () => {
+    it("should have destructiveHint annotations", () => {
+      verifyToolAnnotations(attachEvaluatorToEvaluationRuleTool, {
+        destructiveHint: true,
+      });
+      verifyToolAnnotations(detachEvaluatorFromEvaluationRuleTool, {
+        destructiveHint: true,
+      });
+    });
+
+    it("attaches and detaches a stable evaluator and audits both writes", async () => {
+      const setup = await createMcpTestSetup();
+      const { rule } = await createLlmEvaluationRuleForMcpWriteTest(setup);
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
+      const input = {
+        evaluationRuleId: rule.id,
+        evaluatorId: evaluator.id,
+      };
+
+      await expect(
+        handleAttachEvaluatorToEvaluationRule(input, setup.context),
+      ).resolves.toEqual(input);
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findUnique({
+          where: {
+            evaluationRuleId_evaluatorId: {
+              evaluationRuleId: rule.id,
+              evaluatorId: evaluator.id,
+            },
+          },
+        }),
+      ).resolves.toMatchObject({ variableMapping: null });
+
+      await expect(
+        handleDetachEvaluatorFromEvaluationRule(input, setup.context),
+      ).resolves.toEqual(input);
+      await expect(
+        prisma.evaluationRuleEvaluatorAssignment.findUnique({
+          where: {
+            evaluationRuleId_evaluatorId: {
+              evaluationRuleId: rule.id,
+              evaluatorId: evaluator.id,
+            },
+          },
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        verifyAuditLog({
+          projectId: setup.projectId,
+          apiKeyId: setup.apiKeyId,
           resourceType: "job",
           resourceId: rule.id,
           action: "update",
@@ -362,7 +485,7 @@ describe("MCP Write Tools", () => {
     it("should delete an evaluator and audit the write", async () => {
       const setup = await createMcpTestSetup();
       const { projectId, apiKeyId } = setup;
-      const evaluator = await createLlmEvaluatorForMcpWriteTest(setup);
+      const evaluator = await createStableLlmEvaluatorForMcpWriteTest(setup);
 
       await expect(
         handleDeleteEvaluator({ evaluatorId: evaluator.id }, setup.context),
@@ -378,20 +501,22 @@ describe("MCP Write Tools", () => {
       ).resolves.toMatchObject({ resourceId: evaluator.id, action: "delete" });
 
       await expect(
-        prisma.evalTemplate.findUnique({ where: { id: evaluator.id } }),
+        prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
       ).resolves.toBeNull();
     });
 
-    it("should reject deletion while an evaluation rule references the evaluator", async () => {
+    it("should reject an evaluator id from another project", async () => {
       const setup = await createMcpTestSetup();
-      const { evaluator } = await createLlmEvaluationRuleForMcpWriteTest(setup);
+      const otherSetup = await createMcpTestSetup();
+      const evaluator =
+        await createStableLlmEvaluatorForMcpWriteTest(otherSetup);
 
       await expect(
         handleDeleteEvaluator({ evaluatorId: evaluator.id }, setup.context),
-      ).rejects.toThrow(/evaluation rule/);
+      ).rejects.toThrow(/not found/i);
 
       await expect(
-        prisma.evalTemplate.findUnique({ where: { id: evaluator.id } }),
+        prisma.evaluator.findUnique({ where: { id: evaluator.id } }),
       ).resolves.not.toBeNull();
     });
   });

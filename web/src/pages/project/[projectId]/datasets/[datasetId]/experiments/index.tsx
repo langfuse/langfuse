@@ -44,6 +44,8 @@ import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBr
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { ExperimentEvaluatorAssignments } from "@/src/features/experiments";
+import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
 
 export default function Dataset() {
   const router = useRouter();
@@ -115,19 +117,25 @@ export default function Dataset() {
     scope: "evalJob:read",
   });
 
+  const hasEvaluatorReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
   const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
   });
 
-  const evalTemplates = api.evals.latestTemplates.useQuery({
-    projectId,
-  });
+  const evalTemplates = api.evals.latestTemplates.useQuery(
+    { projectId },
+    { enabled: !isExperimentsBetaActive },
+  );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: hasEvalReadAccess && !!datasetId,
+      enabled: !isExperimentsBetaActive && hasEvalReadAccess && !!datasetId,
     },
   );
 
@@ -146,6 +154,13 @@ export default function Dataset() {
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
+    projectId,
+    datasetId,
+    datasetName: dataset.data?.name ?? datasetId,
+    enabled: isExperimentsBetaActive && hasEvaluatorReadAccess,
+    canWrite: hasEvalWriteAccess,
   });
 
   // Callback for preprocessing evaluator form values
@@ -201,23 +216,35 @@ export default function Dataset() {
                   />
                 </DialogContent>
               </Dialog>
-
-              {hasEvalReadAccess && (
-                <div className="w-fit">
-                  <TemplateSelector
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    evalTemplates={evalTemplates.data?.templates ?? []}
-                    onConfigureTemplate={handleConfigureEvaluator}
-                    onSelectEvaluator={handleSelectEvaluator}
-                    disabled={!hasEvalWriteAccess}
-                  />
-                </div>
-              )}
             </>
           ),
         }}
       >
+        {hasEvaluatorReadAccess && (
+          <section className="border-b p-3">
+            <div className="max-w-3xl space-y-3">
+              <div>
+                <h2 className="text-base font-bold">Experiment evaluators</h2>
+                <p className="text-muted-foreground text-sm">
+                  Attach evaluators and review how their variables map to
+                  experiment inputs and outputs.
+                </p>
+              </div>
+              <ExperimentEvaluatorAssignments
+                projectId={projectId}
+                datasetId={datasetId}
+                evaluatorOptions={v2EvaluatorSelection.options}
+                initialAssignments={v2EvaluatorSelection.selectedAssignments}
+                search={v2EvaluatorSelection.search}
+                onSearchChange={v2EvaluatorSelection.onSearchChange}
+                onSaveAssignments={v2EvaluatorSelection.onSaveAssignments}
+                disabled={
+                  !hasEvalWriteAccess || v2EvaluatorSelection.isUpdating
+                }
+              />
+            </div>
+          </section>
+        )}
         <ExperimentsTable
           projectId={projectId}
           fixedFilter={[

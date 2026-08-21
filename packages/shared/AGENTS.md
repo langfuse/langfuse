@@ -30,9 +30,6 @@
   `clickhouse format` for snapshot comparison. Every migrated call site is
   proven against its baseline here.
 - Postgres schema: `prisma/schema.prisma`
-- For unstable public eval APIs, the public `evaluatorId` is currently the
-  exact `EvalTemplate.id`. Latest-version family grouping is derived from
-  `(projectId, name)` rather than stored on extra evaluator identity fields.
 - Prisma migrations: `prisma/migrations/*`
 - ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`

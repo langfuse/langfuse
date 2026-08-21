@@ -1,64 +1,51 @@
-import { z } from "zod";
-import {
-  EvaluationRuleCreateBase,
-  PostUnstableEvaluationRuleBody,
-  PostUnstableEvaluationRuleResponse,
-} from "@/src/features/public-api/types/unstable-evaluation-rules";
-import { PublicEvaluationRuleTarget } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { createPublicEvaluationRule } from "@/src/features/evals/server/unstable-public-api";
+import { EvalTargetObject } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { RuleFilterBaseSchema, RuleMappingBaseSchema } from "../schema";
-
-// Superset (flattened) schema for client discovery. name/evaluator/enabled/
-// sampling are reused from the contract's EvaluationRuleCreateBase; only the
-// target-discriminated fields are flattened here (target widened to the enum,
-// filter/mapping made union-free and target-agnostic). The real per-target
-// discriminated union and code-vs-llm mapping rules are enforced at runtime by
-// `inputSchema` (PostUnstableEvaluationRuleBody).
-const CreateEvaluationRuleBaseSchema = z.object({
-  ...EvaluationRuleCreateBase,
-  target: PublicEvaluationRuleTarget,
-  filter: z
-    .array(RuleFilterBaseSchema)
-    .optional()
-    .describe("Conditions selecting which items the rule runs on."),
-  mapping: z
-    .array(RuleMappingBaseSchema)
-    .optional()
-    .describe(
-      "Variable mapping. Required for `llm_as_judge` evaluators; omit for `code` evaluators.",
-    ),
-});
+import {
+  CreateEvaluationRuleBaseSchema,
+  CreateEvaluationRuleInputSchema,
+} from "../rule-schema";
+import {
+  createMcpRuleService,
+  toMcpEvaluationRule,
+  toStoredAssignments,
+} from "../rule-service";
 
 export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
   defineTool({
     name: "createEvaluationRule",
     description: [
-      "Create an evaluation rule that runs an evaluator on new observations or experiment items.",
-      "Set target to `observation` or `experiment`. For `llm_as_judge` evaluators provide a variable mapping; for `code` evaluators omit mapping (Langfuse manages it).",
+      "Create an observation evaluation rule with one or more evaluator assignments.",
+      "Each assignment references a project evaluator by stable ID and may override its variable mapping.",
     ].join(" "),
     baseSchema: CreateEvaluationRuleBaseSchema,
-    inputSchema: PostUnstableEvaluationRuleBody,
+    inputSchema: CreateEvaluationRuleInputSchema,
     handler: async (input, context) =>
       runMcpTool({
         spanName: "mcp.evaluation_rules.create",
         context,
         attributes: {
           "mcp.evaluation_rule_name": input.name,
-          "mcp.evaluation_rule_target": input.target,
+          "mcp.evaluation_rule_evaluator_count":
+            input.evaluatorAssignments.length,
         },
         fn: async (span) => {
-          const evaluationRule = await createPublicEvaluationRule({
-            orgId: context.orgId,
-            projectId: context.projectId,
-            input,
-            auditScope: context,
-          });
-
+          const evaluationRule = await createMcpRuleService(context).create(
+            {
+              projectId: context.projectId,
+              name: input.name,
+              targetObject: EvalTargetObject.EVENT,
+              enabled: input.enabled,
+              sampling: input.sampling,
+              filter: input.filter ?? [],
+              evaluatorAssignments: toStoredAssignments(
+                input.evaluatorAssignments,
+              ),
+            },
+            context.userId ?? null,
+          );
           span.setAttribute("mcp.evaluation_rule_id", evaluationRule.id);
-
-          return PostUnstableEvaluationRuleResponse.parse(evaluationRule);
+          return toMcpEvaluationRule(evaluationRule);
         },
       }),
     destructiveHint: true,

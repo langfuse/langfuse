@@ -1,0 +1,23 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "lint": {
+      "env": [
+        "$TURBO_EXTENDS$",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "DISABLE_ERD",
+        "EVALUATOR_V2_MIGRATION_DATABASE_URL"
+      ]
+    },
+    "db:test:evaluator-v2-migration": {
+      "cache": false,
+      "env": [
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "DISABLE_ERD",
+        "EVALUATOR_V2_MIGRATION_DATABASE_URL"
+      ]
+    }
+  }
+}

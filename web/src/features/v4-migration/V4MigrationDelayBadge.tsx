@@ -20,7 +20,7 @@ import {
   getOtelSectionState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
@@ -214,7 +214,7 @@ export function V4MigrationUpdateRequiredBadge() {
   const handleManualUpgrade = () => {
     if (!project) return;
     setDialogOpen(false);
-    router.push(buildDeprecatedEvaluatorsUrl(project.id));
+    router.push(buildDeprecatedRulesUrl(project.id));
   };
 
   return (

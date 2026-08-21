@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { zipObservationToolCalls } from "./observationForEval";
+import {
+  mapEventEvalFilterColumnIdToField,
+  type ObservationForEval,
+  zipObservationToolCalls,
+} from "./observationForEval";
 
 describe("zipObservationToolCalls", () => {
   it("zips ClickHouse parallel arrays into named tool calls with parsed arguments", () => {
@@ -75,5 +79,28 @@ describe("zipObservationToolCalls", () => {
         index: 2,
       },
     ]);
+  });
+});
+
+describe("mapEventEvalFilterColumnIdToField", () => {
+  it("maps the experiment root filter to a boolean", () => {
+    expect(
+      mapEventEvalFilterColumnIdToField(
+        {
+          span_id: "root-span",
+          experiment_item_root_span_id: "root-span",
+        } as ObservationForEval,
+        "isExperimentItemRootSpan",
+      ),
+    ).toBe(true);
+    expect(
+      mapEventEvalFilterColumnIdToField(
+        {
+          span_id: "child-span",
+          experiment_item_root_span_id: "root-span",
+        } as ObservationForEval,
+        "isExperimentItemRootSpan",
+      ),
+    ).toBe(false);
   });
 });

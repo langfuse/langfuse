@@ -5,24 +5,21 @@ import {
   CODE_EVAL_TEMPLATE_VARIABLES,
 } from "@langfuse/shared";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
-import { EvalTemplateType } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma } from "@langfuse/shared/src/db";
 import {
-  toApiEvaluationRule,
   toApiEvaluator,
-  toApiWritableEvaluationRule,
-  toJobConfigurationInput,
+  toApiV2EvaluationRule,
+  toEvaluationRuleInput,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import type {
-  StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
+  StoredPublicV2EvaluationRule,
 } from "@/src/features/evals/server/unstable-public-api/types";
 import {
-  GetUnstableEvaluationRuleResponse,
   GetUnstableEvaluationRulesQuery,
   PatchUnstableEvaluationRuleBody,
   PostUnstableEvaluationRuleBody,
-  PostUnstableEvaluationRuleResponse,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
   GetUnstableEvaluatorsQuery,
@@ -37,6 +34,8 @@ import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
   scoreDescription: "A score between 0 and 1",
+  minValue: 0,
+  maxValue: 1,
 });
 
 const expectUnstablePublicApiError = (
@@ -91,6 +90,8 @@ describe("unstable public eval contracts", () => {
         },
         score: {
           description: "A score between 0 and 1",
+          minValue: 0,
+          maxValue: 1,
         },
       },
       modelConfig: {
@@ -98,6 +99,23 @@ describe("unstable public eval contracts", () => {
         model: "gpt-4.1-mini",
       },
     });
+  });
+
+  it("accepts evaluator default mappings", () => {
+    const parsed = PostUnstableEvaluatorBody.parse({
+      name: "Answer correctness",
+      prompt: "Judge {{input}} against {{output}}",
+      outputDefinition: numericOutputDefinition,
+      mapping: [
+        { variable: "input", source: "input" },
+        { variable: "output", source: "output" },
+      ],
+    });
+
+    expect(parsed.mapping).toEqual([
+      { variable: "input", source: "input" },
+      { variable: "output", source: "output" },
+    ]);
   });
 
   it("requires outputDefinition.dataType for evaluator creation", () => {
@@ -182,7 +200,6 @@ describe("unstable public eval contracts", () => {
       name: "answer_quality",
       evaluator: {
         name: "Answer correctness",
-        scope: "project",
       },
       target: "observation",
       enabled: true,
@@ -216,7 +233,6 @@ describe("unstable public eval contracts", () => {
       name: "toxicity-code-live",
       evaluator: {
         name: "Toxicity detector",
-        scope: "project",
         type: PUBLIC_EVALUATOR_TYPE_CODE,
       },
       target: "observation",
@@ -230,12 +246,40 @@ describe("unstable public eval contracts", () => {
     expect("variableMapping" in parsed).toBe(false);
   });
 
+  it("keeps trace rules read-only", () => {
+    const parsed = PostUnstableEvaluationRuleBody.safeParse({
+      name: "trace-quality",
+      evaluator: {
+        name: "Quality",
+        type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+      },
+      target: "trace",
+      enabled: true,
+      filter: [],
+      mapping: [
+        {
+          variable: "input",
+          langfuseObject: "trace",
+          objectName: null,
+          source: "input",
+        },
+        {
+          variable: "output",
+          langfuseObject: "generation",
+          objectName: "answer-generation",
+          source: "output",
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("rejects code evaluation rule create bodies with mappings", () => {
     const parsed = PostUnstableEvaluationRuleBody.safeParse({
       name: "toxicity-code-live",
       evaluator: {
         name: "Toxicity detector",
-        scope: "project",
         type: PUBLIC_EVALUATOR_TYPE_CODE,
       },
       target: "observation",
@@ -248,12 +292,11 @@ describe("unstable public eval contracts", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects LLM evaluation rule create bodies without mappings", () => {
+  it("accepts LLM evaluation rule create bodies without mappings to inherit evaluator defaults", () => {
     const parsed = PostUnstableEvaluationRuleBody.safeParse({
       name: "answer-correctness-live",
       evaluator: {
         name: "Answer correctness",
-        scope: "project",
       },
       target: "observation",
       enabled: true,
@@ -261,7 +304,84 @@ describe("unstable public eval contracts", () => {
       filter: [],
     });
 
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts multiple evaluator assignments", () => {
+    const parsed = PostUnstableEvaluationRuleBody.parse({
+      name: "answer-quality-live",
+      evaluators: [
+        {
+          evaluator: { name: "Correctness" },
+        },
+        {
+          evaluator: { name: "Tone" },
+          mapping: [{ variable: "output", source: "output" }],
+        },
+      ],
+      target: "observation",
+      enabled: true,
+      filter: [],
+    });
+
+    expect(parsed.evaluators).toHaveLength(2);
+  });
+
+  it("rejects create bodies containing both compatibility and array evaluator fields", () => {
+    const parsed = PostUnstableEvaluationRuleBody.safeParse({
+      name: "answer-quality-live",
+      evaluator: { name: "Correctness" },
+      evaluators: [{ evaluator: { name: "Tone" } }],
+      target: "observation",
+      enabled: true,
+      filter: [],
+    });
+
     expect(parsed.success).toBe(false);
+  });
+
+  it("rejects create bodies that pair the deprecated mapping alias with evaluators", () => {
+    const parsed = PostUnstableEvaluationRuleBody.safeParse({
+      name: "answer-quality-live",
+      evaluators: [{ evaluator: { name: "Tone" } }],
+      mapping: [{ variable: "output", source: "output" }],
+      target: "observation",
+      enabled: true,
+      filter: [],
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts evaluators on patch bodies as a full assignment replacement", () => {
+    const parsed = PatchUnstableEvaluationRuleBody.parse({
+      evaluators: [
+        { evaluator: { name: "Correctness" } },
+        {
+          evaluator: { name: "Tone" },
+          mapping: [{ variable: "output", source: "output" }],
+        },
+      ],
+    });
+
+    expect(parsed).toMatchObject({ evaluators: expect.any(Array) });
+  });
+
+  it("rejects patch bodies pairing evaluators with the deprecated aliases", () => {
+    for (const conflicting of [
+      { evaluator: { name: "Correctness" } },
+      {
+        target: "observation" as const,
+        mapping: [{ variable: "output", source: "output" as const }],
+      },
+    ]) {
+      expect(
+        PatchUnstableEvaluationRuleBody.safeParse({
+          evaluators: [{ evaluator: { name: "Tone" } }],
+          ...conflicting,
+        }).success,
+      ).toBe(false);
+    }
   });
 
   it("rejects experiment filter updates unless target is provided", () => {
@@ -362,11 +482,13 @@ describe("unstable public eval contracts", () => {
       name: "experiment-expected-output-match",
       target: "experiment",
       filter: [
+        // The experiment-root filter is what `target: "experiment"` means, so
+        // it is not separately addressable on either target.
         {
-          type: "stringOptions",
-          column: "type",
-          operator: "any of",
-          value: ["GENERATION"],
+          type: "boolean",
+          column: "isExperimentItemRootSpan",
+          operator: "=",
+          value: true,
         },
       ],
     });
@@ -375,11 +497,34 @@ describe("unstable public eval contracts", () => {
     expect(parsed.error?.issues.length).toBeGreaterThan(0);
   });
 
+  it("accepts observation filters on the experiment target", () => {
+    // An experiment rule is an observation rule scoped to experiment root
+    // spans, so every observation filter stays available alongside datasetId.
+    const parsed = PatchUnstableEvaluationRuleBody.safeParse({
+      target: "experiment",
+      filter: [
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+        {
+          type: "stringOptions",
+          column: "datasetId",
+          operator: "any of",
+          value: ["dataset-prod"],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
   it("strips evaluator type from patch bodies so a rule's evaluator type cannot be changed", () => {
     const parsed = PatchUnstableEvaluationRuleBody.parse({
       evaluator: {
         name: "toxicity-detector",
-        scope: "project",
         type: "llm_as_judge",
       },
     });
@@ -387,7 +532,7 @@ describe("unstable public eval contracts", () => {
     // `type` is dropped: the service inherits the rule's current evaluator type,
     // so a code rule cannot be retargeted to an LLM evaluator family.
     expect(parsed).toEqual({
-      evaluator: { name: "toxicity-detector", scope: "project" },
+      evaluator: { name: "toxicity-detector" },
     });
     expect(
       (parsed as { evaluator: { type?: string } }).evaluator.type,
@@ -396,158 +541,74 @@ describe("unstable public eval contracts", () => {
 });
 
 describe("unstable public eval adapters", () => {
-  it("returns legacy trace evaluation rules with their migration context", () => {
-    const evaluationRule = toApiEvaluationRule({
-      id: "ceval_trace_123",
+  it("returns an empty effective mapping for zero-variable evaluators", () => {
+    const createdAt = new Date("2026-08-14T00:00:00.000Z");
+    const rule = {
+      id: "rule_zero_variables",
+      createdAt,
+      updatedAt: createdAt,
       projectId: "project_123",
-      evalTemplateId: "tmpl_project_v2",
-      scoreName: "answer_critic",
-      targetObject: EvalTargetObject.TRACE,
-      filter: [
-        {
-          type: "stringOptions",
-          column: "environment",
-          operator: "none of",
-          value: ["langfuse-evaluation"],
-        },
-      ],
-      variableMapping: [
-        {
-          templateVariable: "input",
-          langfuseObject: "trace",
-          objectName: null,
-          selectedColumnId: "input",
-          jsonSelector: null,
-        },
-        {
-          templateVariable: "output",
-          langfuseObject: "generation",
-          objectName: "answer-generation",
-          selectedColumnId: "output",
-          jsonSelector: "$.answer",
-        },
-      ],
-      sampling: 1,
-      delay: 30_000,
-      timeScope: ["NEW"],
+      createdByUserId: null,
+      name: "Always pass",
       status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
-      createdAt: new Date("2026-03-30T08:00:00.000Z"),
-      updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-      evalTemplate: {
-        id: "tmpl_project_v2",
-        projectId: "project_123",
-        name: "Answer critic",
-        type: EvalTemplateType.LLM_AS_JUDGE,
-      },
-    } as unknown as StoredPublicEvaluationRuleConfig);
-
-    expect(() =>
-      GetUnstableEvaluationRuleResponse.parse(evaluationRule),
-    ).not.toThrow();
-    expect(evaluationRule).toMatchObject({
-      target: "trace",
-      delay: 30_000,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: new Prisma.Decimal(1),
+      delay: 0,
       timeScope: ["NEW"],
-      filter: [
+      assignments: [
         {
-          type: "stringOptions",
-          column: "environment",
-          operator: "none of",
-          value: ["langfuse-evaluation"],
+          id: "assignment_zero_variables",
+          createdAt,
+          updatedAt: createdAt,
+          projectId: "project_123",
+          evaluationRuleId: "rule_zero_variables",
+          evaluatorId: "evaluator_zero_variables",
+          variableMapping: null,
+          evaluator: {
+            id: "evaluator_zero_variables",
+            createdAt,
+            updatedAt: createdAt,
+            projectId: "project_123",
+            name: "Always pass",
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            description: null,
+            createdByUserId: null,
+            blockedAt: null,
+            blockReason: null,
+            blockMessage: null,
+            versions: [
+              {
+                id: "version_zero_variables",
+                createdAt,
+                evaluatorId: "evaluator_zero_variables",
+                version: 1,
+                createdByUserId: null,
+                prompt: "Always return a score of 1",
+                partner: null,
+                model: null,
+                provider: null,
+                modelParams: null,
+                vars: [],
+                variableMapping: null,
+                outputDefinition: numericOutputDefinition,
+                sourceCode: null,
+                sourceCodeLanguage: null,
+              },
+            ],
+          },
         },
       ],
-      mapping: [
-        {
-          variable: "input",
-          langfuseObject: "trace",
-          objectName: null,
-          source: "input",
-        },
-        {
-          variable: "output",
-          langfuseObject: "generation",
-          objectName: "answer-generation",
-          source: "output",
-          jsonPath: "$.answer",
-        },
-      ],
-    });
-  });
+    } satisfies StoredPublicV2EvaluationRule;
 
-  it("returns legacy dataset evaluation rules with legacy filters and mappings", () => {
-    const config = {
-      id: "ceval_dataset_123",
-      projectId: "project_123",
-      evalTemplateId: "tmpl_project_v2",
-      scoreName: "dataset_critic",
-      targetObject: EvalTargetObject.DATASET,
-      filter: [
-        {
-          type: "stringOptions",
-          column: "datasetId",
-          operator: "any of",
-          value: ["dataset_123"],
-        },
-      ],
-      variableMapping: [
-        {
-          templateVariable: "input",
-          langfuseObject: "dataset_item",
-          objectName: null,
-          selectedColumnId: "input",
-          jsonSelector: null,
-        },
-      ],
-      sampling: 1,
-      delay: 30_000,
-      timeScope: ["NEW"],
-      status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
-      createdAt: new Date("2026-03-30T08:00:00.000Z"),
-      updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-      evalTemplate: {
-        id: "tmpl_project_v2",
-        projectId: "project_123",
-        name: "Dataset critic",
-        type: EvalTemplateType.LLM_AS_JUDGE,
-      },
-    } as unknown as StoredPublicEvaluationRuleConfig;
-    const evaluationRule = toApiEvaluationRule(config);
-
-    expect(() =>
-      GetUnstableEvaluationRuleResponse.parse(evaluationRule),
-    ).not.toThrow();
-    expect(evaluationRule).toMatchObject({
-      target: "dataset",
-      filter: [
-        {
-          type: "stringOptions",
-          column: "datasetId",
-          operator: "any of",
-          value: ["dataset_123"],
-        },
-      ],
-      mapping: [
-        {
-          variable: "input",
-          langfuseObject: "dataset_item",
-          objectName: null,
-          source: "input",
-        },
-      ],
+    expect(toApiV2EvaluationRule(rule)).toMatchObject({
+      mapping: [],
+      evaluators: [{ mapping: null }],
     });
-    expect(() => toApiWritableEvaluationRule(config)).toThrow(
-      "Evaluation rule target is corrupted",
-    );
   });
 
   it("translates evaluation rule writes into job configuration inputs", () => {
-    const writeModel = toJobConfigurationInput({
+    const writeModel = toEvaluationRuleInput({
       input: {
         name: "expected_output_match",
         target: "experiment",
@@ -598,126 +659,10 @@ describe("unstable public eval adapters", () => {
     });
   });
 
-  it("reads legacy expected output mapping column ids without failing", () => {
-    const evaluationRule = toApiEvaluationRule({
-      id: "ceval_123",
-      projectId: "project_123",
-      evalTemplateId: "tmpl_project_v2",
-      scoreName: "expected_output_match",
-      targetObject: EvalTargetObject.EXPERIMENT,
-      filter: [],
-      variableMapping: [
-        {
-          templateVariable: "expected_output",
-          selectedColumnId: "experiment_item_expected_output",
-          jsonSelector: null,
-        },
-      ],
-      sampling: 1,
-      status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
-      createdAt: new Date("2026-03-30T08:00:00.000Z"),
-      updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-      evalTemplate: {
-        id: "tmpl_project_v2",
-        projectId: "project_123",
-        name: "Answer correctness",
-        vars: ["expected_output"],
-        prompt: "Judge {{expected_output}}",
-      },
-    } as unknown as StoredPublicEvaluationRuleConfig);
-
-    expect(evaluationRule.mapping).toEqual([
-      {
-        variable: "expected_output",
-        source: "expected_output",
-      },
-    ]);
-  });
-
-  it("reads a toolCalls mapping column id as the tool_calls source", () => {
-    const evaluationRule = toApiEvaluationRule({
-      id: "ceval_123",
-      projectId: "project_123",
-      evalTemplateId: "tmpl_project_v2",
-      scoreName: "tool_call_check",
-      targetObject: EvalTargetObject.EVENT,
-      filter: [],
-      variableMapping: [
-        {
-          templateVariable: "calls",
-          selectedColumnId: "toolCalls",
-          jsonSelector: "$[*].name",
-        },
-      ],
-      sampling: 1,
-      status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
-      createdAt: new Date("2026-03-30T08:00:00.000Z"),
-      updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-      evalTemplate: {
-        id: "tmpl_project_v2",
-        projectId: "project_123",
-        name: "Tool call check",
-        vars: ["calls"],
-        prompt: "Judge {{calls}}",
-      },
-    } as unknown as StoredPublicEvaluationRuleConfig);
-
-    expect(evaluationRule.mapping).toEqual([
-      {
-        variable: "calls",
-        source: "tool_calls",
-        jsonPath: "$[*].name",
-      },
-    ]);
-  });
-
-  it("rejects a stored snake_case tool_calls mapping column id as corrupted", () => {
-    // Deliberate asymmetry with expected_output: no legacy snake_case rows
-    // exist for tool calls, so an accidental "tool_calls" write must surface
-    // at the corrupted-mapping boundary instead of being absorbed.
-    expect(() =>
-      toApiEvaluationRule({
-        id: "ceval_123",
-        projectId: "project_123",
-        evalTemplateId: "tmpl_project_v2",
-        scoreName: "tool_call_check",
-        targetObject: EvalTargetObject.EVENT,
-        filter: [],
-        variableMapping: [
-          {
-            templateVariable: "calls",
-            selectedColumnId: "tool_calls",
-            jsonSelector: null,
-          },
-        ],
-        sampling: 1,
-        status: JobConfigState.ACTIVE,
-        blockedAt: null,
-        blockReason: null,
-        blockMessage: null,
-        createdAt: new Date("2026-03-30T08:00:00.000Z"),
-        updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-        evalTemplate: {
-          id: "tmpl_project_v2",
-          projectId: "project_123",
-          name: "Tool call check",
-          vars: ["calls"],
-          prompt: "Judge {{calls}}",
-        },
-      } as unknown as StoredPublicEvaluationRuleConfig),
-    ).toThrow("Evaluation rule mapping is corrupted");
-  });
-
   it("rejects invalid static filter option values", () => {
     expectUnstablePublicApiError(
       () =>
-        toJobConfigurationInput({
+        toEvaluationRuleInput({
           input: {
             name: "answer_quality",
             target: "observation",
@@ -750,7 +695,7 @@ describe("unstable public eval adapters", () => {
   it("rejects malformed jsonPath selectors", () => {
     expectUnstablePublicApiError(
       () =>
-        toJobConfigurationInput({
+        toEvaluationRuleInput({
           input: {
             name: "metadata_projection",
             target: "observation",
@@ -782,7 +727,7 @@ describe("unstable public eval adapters", () => {
   it("rejects mapping sources that are incompatible with the selected target", () => {
     expectUnstablePublicApiError(
       () =>
-        toJobConfigurationInput({
+        toEvaluationRuleInput({
           input: {
             name: "answer_quality",
             target: "observation",
@@ -808,7 +753,7 @@ describe("unstable public eval adapters", () => {
 
   it("accepts tool_calls mappings for both targets", () => {
     for (const target of ["observation", "experiment"] as const) {
-      const writeModel = toJobConfigurationInput({
+      const writeModel = toEvaluationRuleInput({
         input: {
           name: "tool_call_check",
           target,
@@ -836,7 +781,7 @@ describe("unstable public eval adapters", () => {
   it("rejects missing evaluator variable mappings", () => {
     expectUnstablePublicApiError(
       () =>
-        toJobConfigurationInput({
+        toEvaluationRuleInput({
           input: {
             name: "answer_quality",
             target: "observation",
@@ -859,7 +804,7 @@ describe("unstable public eval adapters", () => {
   });
 
   it("stores canonical mappings for code evaluation rule writes", () => {
-    const writeModel = toJobConfigurationInput({
+    const writeModel = toEvaluationRuleInput({
       input: {
         name: "toxicity-code-live",
         target: "observation",
@@ -877,7 +822,7 @@ describe("unstable public eval adapters", () => {
   it("maps evaluator records to exact template versions", () => {
     const template: StoredPublicEvaluatorTemplate = {
       id: "tmpl_latest",
-      projectId: null,
+      projectId: "project_123",
       name: "answer-correctness",
       version: 7,
       type: EvalTemplateType.LLM_AS_JUDGE,
@@ -887,6 +832,7 @@ describe("unstable public eval adapters", () => {
       model: "gpt-4.1-mini",
       modelParams: { temperature: 0 },
       vars: ["input", "output"],
+      variableMapping: null,
       outputDefinition: numericOutputDefinition,
       sourceCode: null,
       sourceCodeLanguage: null,
@@ -903,7 +849,6 @@ describe("unstable public eval adapters", () => {
       id: "tmpl_latest",
       name: "answer-correctness",
       version: 7,
-      scope: "managed",
       type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
       outputDefinition: {
         dataType: "NUMERIC",
@@ -912,6 +857,8 @@ describe("unstable public eval adapters", () => {
         },
         score: {
           description: "A score between 0 and 1",
+          minValue: 0,
+          maxValue: 1,
         },
       },
       modelConfig: {
@@ -936,6 +883,7 @@ describe("unstable public eval adapters", () => {
       model: null,
       modelParams: null,
       vars: ["stale"],
+      variableMapping: null,
       outputDefinition: null,
       sourceCode:
         'function evaluate() { return { scores: [{ name: "toxicity", value: false, dataType: "BOOLEAN" }] }; }',
@@ -970,6 +918,7 @@ describe("unstable public eval adapters", () => {
       model: null,
       modelParams: null,
       vars: ["input", "output"],
+      variableMapping: null,
       outputDefinition: {
         reasoning: "Explain why the answer is correct or incorrect.",
         score: "Return a score between 0 and 1.",
@@ -995,59 +944,6 @@ describe("unstable public eval adapters", () => {
           description: "Return a score between 0 and 1.",
         },
       },
-    });
-  });
-
-  it("maps evaluation rules to exact referenced template ids", () => {
-    const config: StoredPublicEvaluationRuleConfig = {
-      id: "ceval_123",
-      projectId: "project_123",
-      evalTemplateId: "tmpl_exact",
-      scoreName: "answer_quality",
-      targetObject: EvalTargetObject.EVENT,
-      filter: [],
-      variableMapping: [
-        {
-          templateVariable: "input",
-          selectedColumnId: "input",
-          jsonSelector: null,
-        },
-      ],
-      // Stored configs carry a Prisma Decimal; the adapter only reads it as a
-      // number, so a plain 1 is a faithful stand-in.
-      sampling: 1 as unknown as StoredPublicEvaluationRuleConfig["sampling"],
-      delay: 0,
-      timeScope: ["NEW"],
-      status: JobConfigState.ACTIVE,
-      blockedAt: null,
-      blockReason: null,
-      blockMessage: null,
-      createdAt: new Date("2026-03-30T08:00:00.000Z"),
-      updatedAt: new Date("2026-03-30T09:00:00.000Z"),
-      evalTemplate: {
-        id: "tmpl_exact",
-        projectId: "project_123",
-        name: "Answer correctness",
-        type: EvalTemplateType.LLM_AS_JUDGE,
-      },
-    };
-
-    const evaluationRule = toApiEvaluationRule(config);
-
-    expect(() =>
-      PostUnstableEvaluationRuleResponse.parse(evaluationRule),
-    ).not.toThrow();
-    expect(evaluationRule).not.toHaveProperty("delay");
-    expect(evaluationRule).not.toHaveProperty("timeScope");
-    expect(evaluationRule).toMatchObject({
-      evaluator: {
-        id: "tmpl_exact",
-        name: "Answer correctness",
-        scope: "project",
-      },
-      target: "observation",
-      enabled: true,
-      status: "active",
     });
   });
 });
