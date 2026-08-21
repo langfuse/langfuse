@@ -20,7 +20,7 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
@@ -91,10 +91,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
       : null;
-  const timestamp = prepareLocalIsoDate({
-    date: trace.timestamp,
-    accuracy: "millisecond",
-  });
 
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -243,12 +239,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       {/* Metadata badges */}
       <div className="flex flex-col gap-2">
         {/* Timestamp */}
-        <div className="flex flex-wrap items-center gap-1">
-          {timestamp ? (
-            <span title={timestamp.title} className="text-sm">
-              {timestamp.display}
-            </span>
-          ) : null}
+        <div className="flex flex-wrap items-center gap-1 text-sm">
+          <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
         </div>
 
         {/* Other badges */}

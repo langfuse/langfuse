@@ -21,7 +21,7 @@ import {
 import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
 import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 
@@ -125,8 +125,7 @@ export function DatasetRunItemsByRunTable(props: {
       cell: ({ row }) => {
         const value: DatasetRunItemByRunRowData["runAt"] =
           row.getValue("runAt");
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return <LocalIsoDate date={value} />;
       },
     },
     {

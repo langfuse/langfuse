@@ -1,14 +1,11 @@
 // Langfuse Cloud only
 
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 
 export const BillingCurrentPlanLabel = () => {
   const { planLabel, cancellation } = useBillingInformation();
-  const cancellationDate = cancellation?.date
-    ? prepareLocalIsoDate({ date: cancellation.date, accuracy: "day" })
-    : null;
 
   return (
     <div>
@@ -16,11 +13,7 @@ export const BillingCurrentPlanLabel = () => {
       {cancellation?.isCancelled && cancellation.date && (
         <>
           <span>(will end on </span>
-          {cancellationDate ? (
-            <span title={cancellationDate.title}>
-              {cancellationDate.display}
-            </span>
-          ) : null}
+          <LocalIsoDate date={cancellation.date} accuracy="day" />
           <span>)</span>
         </>
       )}

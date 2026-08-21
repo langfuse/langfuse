@@ -29,7 +29,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -206,8 +206,7 @@ export function DatasetItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const value: RowData["createdAt"] = row.getValue("createdAt");
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return <LocalIsoDate date={value} />;
       },
     },
     {

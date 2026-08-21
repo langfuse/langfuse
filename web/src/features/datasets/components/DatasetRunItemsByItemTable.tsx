@@ -12,7 +12,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { ListTree } from "lucide-react";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -85,8 +85,7 @@ export function DatasetRunItemsByItemTable(props: {
       cell: ({ row }) => {
         const value: DatasetRunItemByItemRowData["runAt"] =
           row.getValue("runAt");
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return <LocalIsoDate date={value} />;
       },
     },
     {

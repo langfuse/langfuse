@@ -54,3 +54,17 @@ export const prepareLocalIsoDate = ({
     title: `UTC: ${formatLocalIsoDate(date, true, "millisecond")}`,
   };
 };
+
+export const LocalIsoDate = ({
+  date,
+  accuracy,
+}: {
+  date: Date;
+  accuracy?: LocalIsoDateAccuracy;
+}) => {
+  const preparedDate = prepareLocalIsoDate({ date, accuracy });
+
+  return preparedDate ? (
+    <span title={preparedDate.title}>{preparedDate.display}</span>
+  ) : null;
+};

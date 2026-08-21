@@ -31,7 +31,7 @@ import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -718,12 +718,7 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => {
-              const date = prepareLocalIsoDate({ date: exp.startTime });
-              return date ? (
-                <span title={date.title}>{date.display}</span>
-              ) : null;
-            }}
+            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
           />
         );
       },

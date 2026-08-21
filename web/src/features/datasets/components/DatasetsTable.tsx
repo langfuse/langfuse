@@ -20,7 +20,7 @@ import {
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
@@ -379,9 +379,7 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 150,
       cell: ({ row }) => {
         const value: DatasetTableRow["createdAt"] = row.getValue("createdAt");
-        if (!value) return undefined;
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {
@@ -392,9 +390,7 @@ export function DatasetsTable(props: { projectId: string }) {
       size: 150,
       cell: ({ row }) => {
         const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
-        if (!value) return undefined;
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {

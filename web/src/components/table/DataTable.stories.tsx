@@ -21,7 +21,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
@@ -80,7 +80,7 @@ import {
 //                instead of TagPromptPopover/TagManager (same visible children).
 //   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
 //                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
-// Everything else (TableLink, Badge, IOTableCell, prepared date spans, TableIdOrName,
+// Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
 // TokenUsageBadge, LevelCountsDisplay, FolderBreadcrumbLink, Skeleton, the
 // loading cells) is the actual production component.
 //
@@ -270,9 +270,7 @@ function buildTraceColumns(
       enableSorting: true,
       cell: ({ row }) => {
         const value = row.original.timestamp;
-        if (!value) return undefined;
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {
@@ -556,10 +554,7 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
     header: "Timestamp",
     enableSorting: true,
     size: 200,
-    cell: ({ row }) => {
-      const date = prepareLocalIsoDate({ date: row.original.timestamp });
-      return date ? <span title={date.title}>{date.display}</span> : null;
-    },
+    cell: ({ row }) => <LocalIsoDate date={row.original.timestamp} />,
   },
   {
     accessorKey: "environment",
@@ -1181,7 +1176,7 @@ export const WithGroupedHeaders = meta.story({
 //     Folder icon); prompt rows use TableLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
-//   - "Latest Version Created At": prepared date span, null on folder rows.
+//   - "Latest Version Created At": LocalIsoDate, null on folder rows.
 //   - "Number of Observations (7d)": TableLink wrapping the count (0 still links),
 //     with the real Skeleton fallback shape (h-3 w-1/2).
 //   - Tags: real TagList in the `flex gap-x-1 gap-y-1` wrapper; folder rows
@@ -1302,9 +1297,7 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     cell: ({ row }) => {
       if (row.original.type === "folder") return null;
       const createdAt = row.original.createdAt;
-      if (!createdAt) return null;
-      const date = prepareLocalIsoDate({ date: createdAt });
-      return date ? <span title={date.title}>{date.display}</span> : null;
+      return createdAt ? <LocalIsoDate date={createdAt} /> : null;
     },
   },
   {

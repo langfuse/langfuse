@@ -64,7 +64,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
@@ -676,9 +676,7 @@ export default function TracesTable({
       enableSorting,
       cell: ({ row }) => {
         const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
-        if (!value) return undefined;
-        const date = prepareLocalIsoDate({ date: value });
-        return date ? <span title={date.title}>{date.display}</span> : null;
+        return value ? <LocalIsoDate date={value} /> : undefined;
       },
     },
     {

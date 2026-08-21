@@ -17,7 +17,7 @@ import {
   type CellRowDef,
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
-import { prepareLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
@@ -556,18 +556,13 @@ export const ExperimentGridCell = ({
           },
           {
             accessorKey: "startTime",
-            cell: ({ data }) => {
-              const date = prepareLocalIsoDate({ date: data.startTime });
-              return (
-                <MetadataItem label="Start Time">
-                  {date ? (
-                    <span title={date.title} className="text-xs">
-                      {date.display}
-                    </span>
-                  ) : null}
-                </MetadataItem>
-              );
-            },
+            cell: ({ data }) => (
+              <MetadataItem label="Start Time">
+                <span className="text-xs">
+                  <LocalIsoDate date={data.startTime} />
+                </span>
+              </MetadataItem>
+            ),
           },
           {
             accessorKey: "totalCost",
