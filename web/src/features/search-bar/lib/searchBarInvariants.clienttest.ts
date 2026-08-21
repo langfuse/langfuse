@@ -421,6 +421,39 @@ describe("search bar invariants — sessions registry", () => {
     ).toBe("invalid");
   });
 
+  it("treats a multi-word run as one phrase, not one filter per word", () => {
+    // The suggestion offers `id:"test 123"`, so Enter must agree with it. Per
+    // word it would AND `id contains test` with `id contains 123` — a query
+    // matching neither what was typed nor what was offered.
+    const multi = planCommit("test 123", undefined, SESSIONS_FIELD_REGISTRY);
+    if (multi.status !== "committed") throw new Error(multi.status);
+    expect(multi.filters).toEqual([
+      { column: "id", type: "string", operator: "contains", value: "test 123" },
+    ]);
+    expect(multi.searchQuery).toBeNull();
+    // …and it round-trips through the quoting as the same single filter.
+    const text = filterStateToQueryText(
+      multi.filters,
+      undefined,
+      SESSIONS_FIELD_REGISTRY,
+    ).text;
+    expect(text).toBe('id:"test 123"');
+    expect(planCommit(text, undefined, SESSIONS_FIELD_REGISTRY)).toMatchObject({
+      filters: multi.filters,
+    });
+
+    // Words split around a real filter token still coalesce into one phrase.
+    const mixed = planCommit(
+      "test countTraces:8 123",
+      undefined,
+      SESSIONS_FIELD_REGISTRY,
+    );
+    if (mixed.status !== "committed") throw new Error(mixed.status);
+    expect(mixed.filters.filter((f) => f.column === "id")).toEqual([
+      { column: "id", type: "string", operator: "contains", value: "test 123" },
+    ]);
+  });
+
   it("drops metadata on the v3 registry, which has no metadata column", () => {
     expect(
       SESSIONS_V3_FIELD_REGISTRY.resolveField("metadata.region"),

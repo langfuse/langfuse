@@ -160,13 +160,43 @@ export function astToFilterState(
     lowerTopLevel(ast, false, ctx);
   }
 
+  const defaultTextFilter = lowerDefaultTextField(ctx);
+
   return {
     filters: ctx.filters,
-    searchQuery: ctx.searchTerms.length > 0 ? ctx.searchTerms.join(" ") : null,
+    searchQuery:
+      defaultTextFilter || ctx.searchTerms.length === 0
+        ? null
+        : ctx.searchTerms.join(" "),
     // The bar has no scope tokens; the caller (commit.ts) applies the default.
     searchType: null,
     errors: ctx.errors,
   };
+}
+
+/**
+ * On a view with no full-text lane, the collected free-text words are ONE
+ * phrase on the view's default text field — the same coalescing the events
+ * table applies before writing `searchQuery`, and the same thing the bar's own
+ * `id:"test 123"` suggestion promises. Lowering per word instead would AND
+ * `id contains test` with `id contains 123`, which matches neither.
+ * Returns whether it consumed the terms.
+ */
+function lowerDefaultTextField(ctx: LowerContext): boolean {
+  const field = ctx.registry.defaultTextField;
+  if (ctx.registry.allowFreeText || field === null) return false;
+  if (ctx.searchTerms.length === 0) return false;
+  lowerFilterNode(
+    {
+      kind: "filter",
+      key: field,
+      op: "=",
+      values: [ctx.searchTerms.join(" ")],
+    },
+    false,
+    ctx,
+  );
+  return true;
 }
 
 // AND chains (top-level or parenthesized — semantically identical in the
@@ -191,26 +221,15 @@ function lowerTopLevel(
       // Quoted text is an explicit literal search and is allowed.
       if (!ctx.registry.allowFreeText) {
         // A view with no full-text lane can still give a bare word a useful
-        // meaning: rewrite it onto the view's default text field and lower it
-        // through the normal field path (one lowering path, no second one).
-        // The canonicalization is visible — the commit echo re-renders the word
-        // as `<field>:<word>`, so nothing is hidden.
-        const defaultField = ctx.registry.defaultTextField;
+        // meaning: it becomes a filter on the view's default text field. The
+        // words are only COLLECTED here — a multi-word run is one phrase, so it
+        // has to lower as a single filter (see lowerDefaultTextField), not one
+        // AND-ed filter per word.
         if (
-          defaultField !== null &&
+          ctx.registry.defaultTextField !== null &&
           !isDanglingDotPrefix(node.value, ctx.registry)
         ) {
-          lowerFilterNode(
-            {
-              kind: "filter",
-              key: defaultField,
-              op: "=",
-              values: [node.value],
-              span: node.span,
-            },
-            negated,
-            ctx,
-          );
+          ctx.searchTerms.push(node.value);
           return;
         }
         ctx.errors.push("Free-text search is not supported by this view");
