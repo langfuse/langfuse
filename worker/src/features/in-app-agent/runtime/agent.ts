@@ -195,6 +195,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
       // the reasoning UI would render blank blocks.
       additionalModelRequestFields: {
         thinking: { type: "adaptive" as const, display: "summarized" },
+        output_config: { effort: "medium" as const },
       },
     },
   };
