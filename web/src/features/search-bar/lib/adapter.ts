@@ -216,31 +216,27 @@ function lowerTopLevel(
         return;
       }
       // A bare dot-prefix (`metadata.`, `scores.`, …) parses as free text, so
-      // committing it would silently set searchQuery to the prefix. Reject it
-      // here so every commit path (typed Enter and structured pick) is gated.
-      // Quoted text is an explicit literal search and is allowed.
-      if (!ctx.registry.allowFreeText) {
-        // A view with no full-text lane can still give a bare word a useful
-        // meaning: it becomes a filter on the view's default text field. The
-        // words are only COLLECTED here — a multi-word run is one phrase, so it
-        // has to lower as a single filter (see lowerDefaultTextField), not one
-        // AND-ed filter per word.
-        if (
-          ctx.registry.defaultTextField !== null &&
-          !isDanglingDotPrefix(node.value, ctx.registry)
-        ) {
-          ctx.searchTerms.push(node.value);
-          return;
-        }
-        ctx.errors.push("Free-text search is not supported by this view");
-        return;
-      }
+      // committing it would silently search for the prefix itself. Gated ahead
+      // of the free-text branches below so every view reports the same accurate
+      // reason — a view whose bare words are rewritten (or rejected outright)
+      // still supports `metadata.<key>`, so "free text is not supported" would
+      // be the wrong message. Quoted text is an explicit literal and is allowed.
       if (!node.quoted && isDanglingDotPrefix(node.value, ctx.registry)) {
         ctx.errors.push(
           `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
         );
         return;
       }
+      if (
+        !ctx.registry.allowFreeText &&
+        ctx.registry.defaultTextField === null
+      ) {
+        ctx.errors.push("Free-text search is not supported by this view");
+        return;
+      }
+      // Collected, not lowered: on a `defaultTextField` view a multi-word run is
+      // ONE phrase, so it becomes a single filter (see lowerDefaultTextField),
+      // never one AND-ed filter per word.
       ctx.searchTerms.push(node.value);
       return;
     case "not":

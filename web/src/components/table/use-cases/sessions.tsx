@@ -62,7 +62,7 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useSession } from "next-auth/react";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
@@ -302,7 +302,7 @@ export default function SessionsTable({
   // page-scoped by a userId filter the bar must not fight (same embedded
   // opt-out as EventsTable).
   const sessionsSearchBarEnabled =
-    useSession().data?.user?.featureFlags.sessionsSearchBar === true &&
+    useIsFeatureEnabled("sessionsSearchBar", { enableForAdmins: false }) &&
     isBetaEnabled &&
     !userId;
   const searchRegistry = useMemo(
