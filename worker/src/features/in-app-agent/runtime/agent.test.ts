@@ -55,6 +55,7 @@ const getAgentTools = (
 type MockedAgentConfig = {
   instructions?: (() => string) | string;
   model?: {
+    doGenerate?: (options: unknown) => Promise<unknown>;
     doStream: (options: unknown) => Promise<{
       stream: ReadableStream<unknown>;
     }>;
@@ -656,6 +657,63 @@ describe("createAgUiStream", () => {
     expect(readAgentInstructions(agentConfig)).toContain(
       "Do not call any more tools",
     );
+  });
+
+  it("rewrites a trailing assistant wrap-up message to user before the provider call", async () => {
+    await initializeBasicTracedAgent("run-step-limit-wrap-up-prefill");
+    const model = getLastAgentConfig()?.model;
+    expect(model).toBeDefined();
+
+    const wrapUpText =
+      "<step_limit_wrap_up>\nThis is your final step. Do not call any more tools.\n</step_limit_wrap_up>";
+    const toolEndingPrompt = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "hello" }],
+      },
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call-1",
+            toolName: "listTraces",
+            output: { ok: true },
+          },
+        ],
+      },
+    ];
+    const wrapUpPrompt = [
+      ...toolEndingPrompt,
+      {
+        role: "assistant",
+        content: [{ type: "text", text: wrapUpText }],
+      },
+    ];
+
+    await model!.doStream({ prompt: wrapUpPrompt });
+    await model!.doGenerate?.({ prompt: wrapUpPrompt });
+    await model!.doStream({ prompt: toolEndingPrompt });
+
+    const streamCalls = bedrockMocks.doStream.mock.calls as Array<
+      [{ prompt: Array<{ role: string }> }]
+    >;
+    const generateCalls = bedrockMocks.doGenerate.mock.calls as Array<
+      [{ prompt: Array<{ role: string }> }]
+    >;
+    const rewrittenStreamPrompt = streamCalls.at(-2)?.[0]?.prompt;
+    const rewrittenGeneratePrompt = generateCalls.at(-1)?.[0]?.prompt;
+    const unchangedToolPrompt = streamCalls.at(-1)?.[0]?.prompt;
+
+    expect(rewrittenStreamPrompt?.at(-1)?.role).toBe("user");
+    expect(JSON.stringify(rewrittenStreamPrompt?.at(-1))).toContain(
+      "step_limit_wrap_up",
+    );
+    expect(rewrittenGeneratePrompt?.at(-1)?.role).toBe("user");
+    expect(JSON.stringify(rewrittenGeneratePrompt?.at(-1))).toContain(
+      "step_limit_wrap_up",
+    );
+    expect(unchangedToolPrompt).toEqual(toolEndingPrompt);
   });
 
   it("does not treat provider stream finishes as Mastra steps", async () => {

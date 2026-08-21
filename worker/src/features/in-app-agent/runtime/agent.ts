@@ -890,6 +890,30 @@ type InAppAgentLanguageModel = ReturnType<
   ReturnType<typeof createAmazonBedrock>
 >;
 
+function withoutTrailingAssistantPrefill<T extends { prompt: unknown }>(
+  options: T,
+): T {
+  const prompt = options.prompt;
+  if (!Array.isArray(prompt) || prompt.length === 0) {
+    return options;
+  }
+
+  const last = prompt[prompt.length - 1];
+  if (
+    last === null ||
+    typeof last !== "object" ||
+    !("role" in last) ||
+    last.role !== "assistant"
+  ) {
+    return options;
+  }
+
+  return {
+    ...options,
+    prompt: [...prompt.slice(0, -1), { ...last, role: "user" }],
+  };
+}
+
 function withModelTracing(
   model: InAppAgentLanguageModel,
   callbacks: {
@@ -897,19 +921,21 @@ function withModelTracing(
     onStreamPart?: (part: unknown) => void;
   },
 ): InAppAgentLanguageModel {
-  if (!callbacks.onStart && !callbacks.onStreamPart) {
-    return model;
-  }
-
   return {
     specificationVersion: model.specificationVersion,
     provider: model.provider,
     modelId: model.modelId,
     supportedUrls: model.supportedUrls,
-    doGenerate: (options) => model.doGenerate(options),
+    doGenerate: (options) =>
+      model.doGenerate(withoutTrailingAssistantPrefill(options)),
     doStream: async (options) => {
-      callbacks.onStart?.(options);
-      const result = await model.doStream(options);
+      const next = withoutTrailingAssistantPrefill(options);
+      callbacks.onStart?.(next);
+      const result = await model.doStream(next);
+
+      if (!callbacks.onStreamPart) {
+        return result;
+      }
 
       return {
         ...result,
@@ -1155,6 +1181,13 @@ async function createMastraAdapter(params: {
             !isFinal
           ) {
             params.stepLimitState.wrapUp = true;
+            logger.info("In-app agent step-limit wrap-up injected", {
+              runId: params.input.runId,
+              threadId: params.input.threadId,
+              iteration,
+              maxIterations: maxIterations ?? IN_APP_AGENT_MAX_STEPS,
+              finishReason,
+            });
             // instructions() is snapshotted at stream start; feedback reaches the next call.
             return { feedback: STEP_LIMIT_WRAP_UP_INSTRUCTION };
           }
