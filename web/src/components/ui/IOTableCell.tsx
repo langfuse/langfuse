@@ -242,10 +242,15 @@ export const IOTableCell = ({
         side="top"
         align="start"
       >
-        <JSONView
-          json={data}
+        {/* Reuse the gated content renderer — this used to render `data`
+            directly through JSONView with no char/row gate at all, so a
+            large field would freeze the tab on hover (worse than the cell
+            itself, which was at least char-gated). */}
+        <IOTableCellContent
+          data={data}
+          singleLine={false}
           className="w-full"
-          codeClassName="p-0 border-none"
+          padding="compact"
         />
       </HoverCardContent>
     </HoverCard>
