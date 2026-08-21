@@ -434,7 +434,9 @@ export class ChbBillingService {
         number: invoice.number,
         status: invoice.status,
         currency: invoice.currency?.toUpperCase() ?? "USD",
-        created: invoice.createdAt ? Date.parse(invoice.createdAt) : 0,
+        // Milliseconds, like the Stripe path. Guarded: an unparseable CHB
+        // timestamp must not reach the table as NaN.
+        created: (this.toUnixSeconds(invoice.createdAt) ?? 0) * 1000,
         hostedInvoiceUrl: invoice.downloadUrl ?? null,
         invoicePdfUrl: invoice.downloadUrl ?? null,
         breakdown: {

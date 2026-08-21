@@ -31,9 +31,10 @@ export const IdempotencyKind = z.enum([
   "subscription.migrate.flexible",
   "subscription.schedule.clear",
   "subscription.update.discounts.add",
-  // ClickHouse Billing (CHB) operations — same machinery, keyed on the
-  // client-generated opId the router already accepts
-  "chb.checkout.create",
+  // ClickHouse Billing (CHB) bundle mutations — same machinery, keyed on the
+  // client-generated opId the plan-change and cancellation mutations already
+  // accept. Checkout has no opId in the router contract, on either provider,
+  // so there is no CHB checkout kind here.
   "chb.bundle.scheduled.set",
   "chb.bundle.scheduled.clear",
 ]);
