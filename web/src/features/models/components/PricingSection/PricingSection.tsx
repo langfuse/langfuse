@@ -1,6 +1,6 @@
 import { PlusCircle } from "lucide-react";
 import { useState } from "react";
-import { useFieldArray } from "react-hook-form";
+import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
 import { FormDescription, FormLabel } from "@/src/components/ui/form";
 import { Accordion } from "@/src/components/ui/accordion";
@@ -9,7 +9,6 @@ import { makeUsageTypeKeys } from "@/src/features/models/fns/makeUsageTypeKeys";
 import { TierAccordionItem } from "./components/TierAccordionItem";
 import { TierPriceEditor } from "./components/TierPriceEditor";
 import { TierPrefillButtons } from "./components/TierPrefillButtons";
-import type { UseFormReturn } from "react-hook-form";
 import type { FormUpsertModel } from "@/src/features/models/validation";
 
 type PricingSectionProps = {

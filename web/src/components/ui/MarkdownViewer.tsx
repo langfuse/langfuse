@@ -10,7 +10,10 @@ import {
   Children,
   createElement,
 } from "react";
-import ReactMarkdown, { type Options } from "react-markdown";
+import ReactMarkdown, {
+  type Options,
+  type ExtraProps as ReactMarkdownExtraProps,
+} from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
@@ -18,7 +21,6 @@ import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
-import { type ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
 import {
   OpenAIUrlImageUrl,
   MediaReferenceStringSchema,

@@ -2,9 +2,8 @@ import { v4 } from "uuid";
 import {
   createObservationsCh,
   createTracesCh,
-} from "@langfuse/shared/src/server";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
-import {
+  createObservation,
+  createTrace,
   getTracesTable,
   type TracesTableUiReturnType,
   type ObservationRecordInsertType,

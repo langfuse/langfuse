@@ -21,10 +21,9 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
-import { type Prisma } from "@langfuse/shared";
 
 /**
  * Component for creating a new dataset item from an existing object.

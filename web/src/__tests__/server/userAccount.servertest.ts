@@ -45,29 +45,6 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
-  it("enables the V4 migration UI preview, leaving other flags intact", async () => {
-    const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag"],
-    });
-
-    const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "v4UpgradeUi",
-      enabled: true,
-    });
-
-    expect(result).toEqual({
-      success: true,
-      flag: "v4UpgradeUi",
-      enabled: true,
-    });
-
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { featureFlags: true },
-    });
-    expect(user.featureFlags).toEqual(["templateFlag", "v4UpgradeUi"]);
-  });
-
   it("disables a preview flag without touching the others", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
@@ -91,11 +68,11 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag"]);
   });
 
-  it.each(["team.member@langfuse.com", "team.member@clickhouse.com"])(
-    "persists an opt-out when %s disables a preview",
-    async (email) => {
+  it.each(["langfuse.com", "clickhouse.com"])(
+    "persists an opt-out when a team member on %s disables a preview",
+    async (emailDomain) => {
       const { caller, userId } = await createCaller({
-        email,
+        emailDomain,
         featureFlags: ["templateFlag"],
       });
 
@@ -139,13 +116,15 @@ async function createCaller({
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
-  email,
+  emailDomain = "example.com",
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
   includeProjectInSession?: boolean;
-  email?: string;
+  // Domain only — the local part is always unique so reruns against the same
+  // database do not trip the users.email unique constraint.
+  emailDomain?: string;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -169,7 +148,7 @@ async function createCaller({
   const user = await prisma.user.create({
     data: {
       id: userId,
-      email: email ?? `${userId}@example.com`,
+      email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
     },
@@ -212,7 +191,6 @@ async function createCaller({
         modernSession: featureFlags.includes("modernSession"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
-        v4UpgradeUi: featureFlags.includes("v4UpgradeUi"),
         excludeClickhouseRead: false,
         observationEvals: false,
         v4BetaToggleVisible: false,
