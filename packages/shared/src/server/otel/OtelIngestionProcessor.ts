@@ -490,6 +490,7 @@ export class OtelIngestionProcessor {
                   this.isAiSdkAgentOperation(spanAttributes) ||
                   this.isDuplicateAiSdkEmbeddingOperationSpan(
                     spanAttributes,
+                    traceId,
                     spanId,
                     embeddingsOperationParentSpanIds,
                   );
@@ -1188,6 +1189,7 @@ export class OtelIngestionProcessor {
       this.isAiSdkAgentOperation(attributes) ||
       this.isDuplicateAiSdkEmbeddingOperationSpan(
         attributes,
+        traceId,
         observationSpanId,
         embeddingsOperationParentSpanIds,
       );
@@ -2645,22 +2647,35 @@ export class OtelIngestionProcessor {
    * integration gives the wrapper a distinct operation name
    * (https://github.com/vercel/ai/issues/19250), the parent is identified
    * structurally: it is an `embeddings` span that is also the parent of
-   * another `embeddings` span within the same ingestion batch.
+   * another `embeddings` span within the same ingestion batch. The key is
+   * scoped to traceId+spanId since span IDs are only unique within a trace,
+   * not across an entire batch.
    */
   private isDuplicateAiSdkEmbeddingOperationSpan(
     attributes: Record<string, unknown>,
+    traceId: string,
     spanId: string,
     embeddingsOperationParentSpanIds: Set<string>,
   ): boolean {
     return (
       attributes["gen_ai.operation.name"] === "embeddings" &&
-      embeddingsOperationParentSpanIds.has(spanId)
+      embeddingsOperationParentSpanIds.has(
+        this.buildEmbeddingsOperationSpanKey(traceId, spanId),
+      )
     );
   }
 
+  private buildEmbeddingsOperationSpanKey(
+    traceId: string,
+    spanId: string,
+  ): string {
+    return `${traceId}:${spanId}`;
+  }
+
   /**
-   * Collects the spanIds of AI SDK `embeddings` operation spans that are the
-   * parent of another `embeddings` operation span within this batch.
+   * Collects the traceId+spanId keys of AI SDK `embeddings` operation spans
+   * that are the parent of another `embeddings` operation span within this
+   * batch.
    */
   private collectAiSdkEmbeddingOperationParentSpanIds(
     resourceSpans: ResourceSpan[],
@@ -2674,8 +2689,15 @@ export class OtelIngestionProcessor {
 
           const attributes = this.extractSpanAttributes(span);
           if (attributes["gen_ai.operation.name"] === "embeddings") {
+            const spanTraceId: any = span.traceId;
+            const traceId = this.parseId(spanTraceId?.data ?? spanTraceId);
             const parentSpanId: any = span.parentSpanId;
-            parentSpanIds.add(this.parseId(parentSpanId?.data ?? parentSpanId));
+            parentSpanIds.add(
+              this.buildEmbeddingsOperationSpanKey(
+                traceId,
+                this.parseId(parentSpanId?.data ?? parentSpanId),
+              ),
+            );
           }
         }
       }

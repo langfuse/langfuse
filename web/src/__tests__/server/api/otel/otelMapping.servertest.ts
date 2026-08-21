@@ -9118,6 +9118,104 @@ describe("OTel Resource Span Mapping", () => {
       expect(childEvent?.body.usageDetails.input).toBe(28);
       expect(childEvent?.body.model).toBe("text-embedding-3-large");
     });
+
+    it("should not strip usage from an unrelated embeddings span in another trace that reuses the same raw span ID as an aggregate wrapper", async () => {
+      const traceIdA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const traceIdB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+      const collidingSpanId = "1234567890abcde1";
+      const childSpanId = "1234567890abcde2";
+
+      const embeddingAttributes = [
+        {
+          key: "gen_ai.operation.name",
+          value: { stringValue: "embeddings" },
+        },
+        {
+          key: "gen_ai.request.model",
+          value: { stringValue: "text-embedding-3-large" },
+        },
+        {
+          key: "gen_ai.usage.input_tokens",
+          value: { intValue: { low: 28, high: 0, unsigned: false } },
+        },
+      ];
+
+      const batch = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "test-service" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "ai", version: "7.0.0" },
+            spans: [
+              // Trace A: standalone embeddings span (no parent/child) that
+              // happens to reuse the same raw span ID as trace B's aggregate
+              // wrapper below.
+              {
+                traceId: Buffer.from(traceIdA, "hex"),
+                spanId: Buffer.from(collidingSpanId, "hex"),
+                name: "embeddings text-embedding-3-large",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: embeddingAttributes,
+                status: {},
+              },
+              // Trace B: operation span (root), same raw span ID as trace A's
+              // span above but a different trace.
+              {
+                traceId: Buffer.from(traceIdB, "hex"),
+                spanId: Buffer.from(collidingSpanId, "hex"),
+                name: "embeddings text-embedding-3-large",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 3000000, high: 406528574 },
+                attributes: embeddingAttributes,
+                status: {},
+              },
+              // Trace B: model-call span (child), making the trace B root the
+              // real aggregate wrapper.
+              {
+                traceId: Buffer.from(traceIdB, "hex"),
+                spanId: Buffer.from(childSpanId, "hex"),
+                parentSpanId: Buffer.from(collidingSpanId, "hex"),
+                name: "embeddings text-embedding-3-large",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000, high: 406528574 },
+                endTimeUnixNano: { low: 2000000, high: 406528574 },
+                attributes: embeddingAttributes,
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(batch, new Set());
+      const embeddingEvents = events.filter(
+        (e) => e.type === "embedding-create",
+      );
+      expect(embeddingEvents).toHaveLength(3);
+
+      const traceASpan = embeddingEvents.find(
+        (e) => e.body.traceId === traceIdA,
+      );
+      const traceBRoot = embeddingEvents.find(
+        (e) => e.body.traceId === traceIdB && e.body.id === collidingSpanId,
+      );
+
+      // Trace A's span is unrelated to trace B's aggregate wrapper and must
+      // keep its usage despite sharing the same raw span ID.
+      expect(traceASpan?.body.usageDetails.input).toBe(28);
+      expect(traceASpan?.body.model).toBe("text-embedding-3-large");
+
+      // Trace B's root is still correctly identified as the aggregate
+      // wrapper and stays skipped.
+      expect(traceBRoot?.body.usageDetails.input).toBeUndefined();
+      expect(traceBRoot?.body.model).toBeUndefined();
+    });
   });
 
   describe("Input/Output attribute filtering from metadata", () => {
