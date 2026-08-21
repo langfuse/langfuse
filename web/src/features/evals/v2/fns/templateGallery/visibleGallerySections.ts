@@ -8,7 +8,7 @@ import type {
   GallerySection,
 } from "@/src/features/evals/v2/types/templateGallery";
 
-export function isGalleryAllSection(activeSection: string | null) {
+function isGalleryAllSection(activeSection: string | null) {
   return !activeSection || activeSection === EVALUATOR_GALLERY_ALL_SECTION_KEY;
 }
 

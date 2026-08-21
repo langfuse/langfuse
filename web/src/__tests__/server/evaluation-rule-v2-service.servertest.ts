@@ -977,7 +977,7 @@ describe("RuleService", () => {
 
   describe("legacy rule write guards", () => {
     it.each([EvalTargetObject.TRACE, EvalTargetObject.DATASET])(
-      "allows deactivating a %s rule but rejects assignments and reactivation",
+      "allows disconnecting from a %s rule and disables it when unassigned",
       async (targetObject) => {
         const [assignedEvaluator, otherEvaluator] = await Promise.all([
           createEvaluator(),
@@ -1007,9 +1007,7 @@ describe("RuleService", () => {
             ruleId: legacyRule.id,
             evaluatorId: assignedEvaluator.id,
           }),
-        ).rejects.toThrow(
-          "Evaluator assignments on legacy evaluation rules are read-only",
-        );
+        ).resolves.toMatchObject({ enabled: false, assignments: [] });
         await expect(
           service.update({
             projectId,
@@ -1076,10 +1074,39 @@ describe("RuleService", () => {
           }),
         ).resolves.toMatchObject({
           status: "INACTIVE",
-          assignments: [{ evaluatorId: assignedEvaluator.id }],
+          assignments: [],
         });
       },
     );
+
+    it("keeps a legacy rule enabled when another evaluator remains", async () => {
+      const [firstEvaluator, secondEvaluator] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+      ]);
+      const legacyRule = await createLegacyRule(firstEvaluator.id);
+      await prisma.evaluationRuleEvaluatorAssignment.create({
+        data: {
+          projectId,
+          evaluationRuleId: legacyRule.id,
+          evaluatorId: secondEvaluator.id,
+          variableMapping: [],
+        },
+      });
+
+      await expect(
+        createService().detach({
+          projectId,
+          ruleId: legacyRule.id,
+          evaluatorId: firstEvaluator.id,
+        }),
+      ).resolves.toMatchObject({
+        enabled: true,
+        assignments: [
+          expect.objectContaining({ evaluatorId: secondEvaluator.id }),
+        ],
+      });
+    });
 
     it("allows deleting a legacy rule without deleting its evaluator", async () => {
       const evaluator = await createEvaluator();

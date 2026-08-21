@@ -9,14 +9,6 @@ export type ActivationEstimate = {
   estimatedCostUsd: number;
 };
 
-export type ActivationPreparation = {
-  estimates: ActivationEstimate[];
-  /** Evaluators whose per-run rate could not be determined. */
-  unavailableEstimateCount: number;
-  /** Observations the rule matched in the estimation window. */
-  matchingObservations: number;
-};
-
 function groupBy<TItem>(
   items: readonly TItem[],
   toKey: (item: TItem) => string,

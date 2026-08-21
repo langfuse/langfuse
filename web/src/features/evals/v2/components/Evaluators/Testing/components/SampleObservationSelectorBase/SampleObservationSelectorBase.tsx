@@ -28,6 +28,8 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
+import { dedupeObservations } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
+import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -241,8 +243,8 @@ export function SampleObservationSelectorBase(
       ),
     ),
   );
-  const matchingObservations = observationPages.flatMap(
-    (page) => page.data?.observations ?? [],
+  const matchingObservations = dedupeObservations(
+    observationPages.flatMap((page) => page.data?.observations ?? []),
   );
   const observationIOPages = api.useQueries((t) =>
     observationPages.map((page) => {
@@ -478,34 +480,9 @@ export function SampleObservationSelectorBase(
               className="flex h-8 items-center gap-2 text-sm"
               onClick={() => {
                 setPageCount(1);
-                setFilters((current) => {
-                  const next = [...current];
-                  for (const addition of example.filters) {
-                    const index = next.findIndex(
-                      (filter) =>
-                        filter.column === addition.column &&
-                        filter.type === addition.type &&
-                        filter.operator === addition.operator,
-                    );
-                    if (index < 0) {
-                      next.push(addition);
-                      continue;
-                    }
-                    const existing = next[index];
-                    if (
-                      Array.isArray(existing.value) &&
-                      Array.isArray(addition.value)
-                    ) {
-                      next[index] = {
-                        ...existing,
-                        value: Array.from(
-                          new Set([...existing.value, ...addition.value]),
-                        ),
-                      } as typeof existing;
-                    }
-                  }
-                  return next;
-                });
+                setFilters((current) =>
+                  toggleExampleFilters(current, [...example.filters]),
+                );
               }}
             >
               <example.icon className="h-4 w-4" />

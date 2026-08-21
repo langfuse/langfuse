@@ -59,12 +59,18 @@ export function EvaluatorSampleObservationSelector({
         enableHiding: false,
         isFixedPosition: true,
         isPinnedLeft: true,
+        cellPadding: "none",
         cell: ({ row }) => (
-          <Checkbox
-            checked={selectedObservationId === row.original.id}
-            aria-label={`Use ${row.original.name ?? row.original.id} as sample`}
-            onCheckedChange={() => onSelect(row.original)}
-          />
+          <label
+            className="flex h-full w-full cursor-pointer items-center px-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Checkbox
+              checked={selectedObservationId === row.original.id}
+              aria-label={`Use ${row.original.name ?? row.original.id} as sample`}
+              onCheckedChange={() => onSelect(row.original)}
+            />
+          </label>
         ),
       },
     ],

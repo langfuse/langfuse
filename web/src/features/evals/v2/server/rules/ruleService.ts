@@ -550,12 +550,7 @@ export class RuleService {
     evaluatorId: string;
   }) {
     const deleted = await this.prisma.$transaction(async (prisma) => {
-      const rule = await this.requireRule(
-        prisma,
-        params.projectId,
-        params.ruleId,
-      );
-      this.assertLegacyRuleAssignmentsWritable(rule.targetObject);
+      await this.requireRule(prisma, params.projectId, params.ruleId);
       return repository.detachEvaluator({ prisma, ...params });
     });
     if (!deleted) throw new LangfuseNotFoundError("Assignment not found");

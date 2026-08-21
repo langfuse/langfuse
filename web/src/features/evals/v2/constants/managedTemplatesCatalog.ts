@@ -131,7 +131,7 @@ User message: {{input}}`,
     },
     {
       key: "out-of-scope-request",
-      name: "Detect Out-of-scope request",
+      name: "Detect Out-of-Scope Request",
       categories: ["conversation", "recommended"],
       icon: "shield",
       description:
@@ -270,7 +270,7 @@ Last user message: {{last_user_message}}`,
     },
     {
       key: "all-caps",
-      name: "Detect User frustration (ALL CAPS)",
+      name: "Detect User Frustration (ALL CAPS)",
       categories: ["conversation"],
       icon: "type",
       description:
@@ -414,7 +414,7 @@ Expected output: {{expected_output}}`,
     },
     {
       key: "exact-match",
-      name: "Check if output is an Exact Match",
+      name: "Check if Output Is an Exact Match",
       categories: ["quality"],
       icon: "equal",
       description:
@@ -465,7 +465,7 @@ Expected output: {{expected_output}}`,
     },
     {
       key: "keyword-match",
-      name: "Validate Keyword match",
+      name: "Validate Keyword Match",
       categories: ["quality"],
       icon: "list-checks",
       description:
@@ -520,7 +520,7 @@ Expected output: {{expected_output}}`,
     },
     {
       key: "answer-relevance",
-      name: "Check Answer relevance",
+      name: "Check Answer Relevance",
       categories: ["quality"],
       icon: "target",
       description:
@@ -579,7 +579,7 @@ Assistant output: {{assistant_output}}`,
     },
     {
       key: "quality-criterion",
-      name: "Judge on one Quality criterion",
+      name: "Judge on One Quality Criterion",
       categories: ["quality", "recommended"],
       icon: "scale",
       description: "Checks whether output follows a defined quality criterion.",
@@ -626,7 +626,7 @@ Assistant output: {{assistant_output}}`,
     },
     {
       key: "topic-classifier",
-      name: "Classify input topic",
+      name: "Classify Input Topic",
       categories: ["classifier", "recommended"],
       icon: "tags",
       description:
@@ -689,7 +689,7 @@ Input: {{input}}`,
     },
     {
       key: "language-classifier",
-      name: "Classify input language",
+      name: "Classify Input Language",
       categories: ["classifier"],
       icon: "languages",
       description:
@@ -798,7 +798,7 @@ Context: {{context}}`,
     },
     {
       key: "context-precision",
-      name: "Check Context precision",
+      name: "Check Context Precision",
       categories: ["retrieval"],
       icon: "scan-search",
       description:
@@ -855,7 +855,7 @@ Context: {{context}}`,
     },
     {
       key: "context-recall",
-      name: "Check Context recall",
+      name: "Check Context Recall",
       categories: ["retrieval"],
       icon: "list-checks",
       description:
@@ -914,7 +914,7 @@ Context: {{context}}`,
     },
     {
       key: "pii-leakage",
-      name: "Detect PII leakage",
+      name: "Detect PII Leakage",
       categories: ["safety"],
       icon: "shield-alert",
       description:
@@ -973,7 +973,7 @@ Assistant output: {{output}}`,
     },
     {
       key: "rule-adherence",
-      name: "Check Rule adherence",
+      name: "Check Rule Adherence",
       categories: ["safety"],
       icon: "shield-check",
       description:
@@ -1018,7 +1018,7 @@ Assistant output: {{assistant_output}}`,
     },
     {
       key: "prompt-injection",
-      name: "Detect Prompt injection",
+      name: "Detect Prompt Injection",
       categories: ["safety"],
       icon: "shield-x",
       description:
@@ -1071,7 +1071,7 @@ Input text: {{input_text}}`,
     },
     {
       key: "engineering-task-type",
-      name: "Classify Engineering task type",
+      name: "Classify Engineering Task Type",
       categories: ["coding-agents"],
       icon: "code-2",
       description: "Categorizes the type of task the coding agent is used for.",
@@ -1142,7 +1142,7 @@ Task text: {{task_text}}`,
     },
     {
       key: "coding-agent-department-usage",
-      name: "Classify Coding agent usage per department",
+      name: "Classify Coding Agent Usage per Department",
       categories: ["coding-agents"],
       icon: "building-2",
       description: "Classifies coding-agent usage into department buckets.",

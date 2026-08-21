@@ -44,7 +44,7 @@ export function EvaluatorActionsCell({
         type="button"
         variant="link"
         size="sm"
-        className="text-foreground hover:text-foreground h-auto w-28 shrink-0 justify-start px-0 py-0"
+        className="text-foreground hover:text-foreground h-auto px-0 py-0"
         onClick={handlePrimaryAction}
       >
         View scores

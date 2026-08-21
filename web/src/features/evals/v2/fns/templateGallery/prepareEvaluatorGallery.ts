@@ -64,26 +64,20 @@ export function prepareEvaluatorGallery({
     }),
   );
   const navigationItems: GalleryNavigationItem[] = [
-    ...(filteredCustom.length
-      ? [
-          {
-            key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            label: "Your templates",
-            icon: getGalleryCategoryPresentation(
-              EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-            ).icon,
-            count: customTemplateCount,
-          },
-        ]
-      : []),
-    ...managedCatalog.categories
-      .map((category) => ({
-        key: category.key,
-        label: category.label,
-        icon: getGalleryCategoryPresentation(category.key).icon,
-        count: managedByCategory.get(category.key)?.length ?? 0,
-      }))
-      .filter(({ count }) => count > 0),
+    {
+      key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+      label: "Your templates",
+      icon: getGalleryCategoryPresentation(
+        EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+      ).icon,
+      count: customTemplateCount,
+    },
+    ...managedCatalog.categories.map((category) => ({
+      key: category.key,
+      label: category.label,
+      icon: getGalleryCategoryPresentation(category.key).icon,
+      count: managedByCategory.get(category.key)?.length ?? 0,
+    })),
   ];
   const sections: GallerySection[] = [
     ...(filteredCustom.length

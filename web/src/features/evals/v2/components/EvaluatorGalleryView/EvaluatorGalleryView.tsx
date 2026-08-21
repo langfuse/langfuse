@@ -63,11 +63,11 @@ export function EvaluatorGalleryView({
   errorMessage?: string;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
-  const resolvedSection = sidebarItems.some(
-    (item) => item.key === activeSection,
-  )
-    ? activeSection
-    : EVALUATOR_GALLERY_ALL_SECTION_KEY;
+  const resolvedSection =
+    activeSection === EVALUATOR_GALLERY_ALL_SECTION_KEY ||
+    sections.some((section) => section.key === activeSection)
+      ? activeSection
+      : EVALUATOR_GALLERY_ALL_SECTION_KEY;
   const displayedSections = visibleGallerySections(sections, resolvedSection);
   const hasTemplates = displayedSections.length > 0;
 
@@ -78,9 +78,14 @@ export function EvaluatorGalleryView({
           <EvaluatorGallerySidebar
             items={sidebarItems}
             activeSection={resolvedSection}
-            onSelectSection={onSelectSection}
+            onSelectSection={(key) => {
+              if (key !== resolvedSection) onSearchChange("");
+              onSelectSection(key);
+            }}
           />
-        ) : null}
+        ) : (
+          <div aria-hidden="true" className="w-56 shrink-0 border-r" />
+        )}
 
         <div className="@container flex min-w-0 flex-1 flex-col overflow-hidden">
           <div

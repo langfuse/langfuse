@@ -224,16 +224,19 @@ export const EmptySearch = meta.story({
     ...defaultArgs,
     search: "does not exist",
     sections: [],
-    navigationItems: [],
+    navigationItems: defaultArgs.navigationItems.map((item) => ({
+      ...item,
+      count: 0,
+    })),
   },
   play: async ({ canvas }) => {
     await expect(
       canvas.getByText("No templates match your search."),
     ).toBeInTheDocument();
-    await expect(canvas.queryByText("Browse")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Browse")).toBeInTheDocument();
     await expect(
-      canvas.queryByRole("button", { name: /All/ }),
-    ).not.toBeInTheDocument();
+      canvas.getByRole("button", { name: "Quality 0" }),
+    ).toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "New LLM-as-a-judge" }),
     ).toBeInTheDocument();
@@ -242,10 +245,14 @@ export const EmptySearch = meta.story({
 
 export const SelectsCategory = meta.story({
   name: "(Test) Selects a category",
-  args: defaultArgs,
+  args: {
+    ...defaultArgs,
+    search: "quality",
+  },
   render: StatefulEvaluatorGalleryView,
   play: async ({ canvas, args }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Quality 7" }));
+    await expect(args.onSearchChange).toHaveBeenCalledWith("");
     await expect(args.onSelectSection).toHaveBeenCalledWith("quality");
     await expect(
       canvas.getByRole("heading", { name: "Quality" }),

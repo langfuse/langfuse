@@ -66,16 +66,22 @@ describe("prepareEvaluatorGallery", () => {
   it("searches custom and managed template descriptions", () => {
     const gallery = prepareEvaluatorGallery({
       customTemplates: [customTemplate],
-      customTemplateCount: 1,
+      customTemplateCount: 0,
       search: "grounded",
     });
 
-    expect(gallery.navigationItems).toEqual([
-      expect.objectContaining({ key: "retrieval", count: 1 }),
+    expect(
+      gallery.navigationItems.map(({ key, count }) => ({ key, count })),
+    ).toEqual([
+      { key: "custom", count: 0 },
+      { key: "recommended", count: 0 },
+      { key: "conversation", count: 0 },
+      { key: "quality", count: 0 },
+      { key: "classifier", count: 0 },
+      { key: "retrieval", count: 1 },
+      { key: "safety", count: 0 },
+      { key: "coding-agents", count: 0 },
     ]);
-    expect(gallery.navigationItems.map(({ key }) => key)).toEqual(
-      gallery.sections.map(({ key }) => key),
-    );
     expect(gallery.sections).toHaveLength(1);
     expect(gallery.sections[0]?.templates).toEqual([
       expect.objectContaining({
