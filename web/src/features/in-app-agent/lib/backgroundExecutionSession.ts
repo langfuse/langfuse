@@ -567,6 +567,30 @@ export function isCancellableBackgroundRun(
   );
 }
 
+const FAILED_TO_FINISH_CONTINUE =
+  "The assistant failed to finish. Send another message to continue.";
+const FAILED_TO_FINISH_TRY_AGAIN =
+  "The assistant failed to finish. Send another message to try again.";
+
+const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
+  [InAppAgentRunErrorCode.WORKER_LOST]: FAILED_TO_FINISH_CONTINUE,
+  [InAppAgentRunErrorCode.STALE]: FAILED_TO_FINISH_CONTINUE,
+  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]: FAILED_TO_FINISH_CONTINUE,
+  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]: FAILED_TO_FINISH_CONTINUE,
+  [InAppAgentRunErrorCode.INIT_FAILED]: FAILED_TO_FINISH_TRY_AGAIN,
+  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: FAILED_TO_FINISH_TRY_AGAIN,
+  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: FAILED_TO_FINISH_TRY_AGAIN,
+  [InAppAgentRunErrorCode.APPROVAL_EXPIRED]:
+    "The approval request expired. The action was not run. Send another message if you still want it.",
+  [InAppAgentRunErrorCode.RUN_TIMEOUT]:
+    "The run hit the time limit. Send another message to continue.",
+  [InAppAgentRunErrorCode.AGENT_ERROR]:
+    "The assistant hit an error before finishing. Send another message to continue.",
+  [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
+  [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
+  [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
+};
+
 export function getBackgroundRunFailureMessage(
   errorCode: string | null,
 ): string {
@@ -637,24 +661,6 @@ export function getSettledActivityOutcome(
 
   return "worked";
 }
-
-const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
-  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: "Couldn't start the run. Try again.",
-  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]:
-    "No worker picked this up. Try again.",
-  [InAppAgentRunErrorCode.WORKER_LOST]: "The run was interrupted. Try again.",
-  [InAppAgentRunErrorCode.STALE]: "The run was interrupted. Try again.",
-  [InAppAgentRunErrorCode.RUN_TIMEOUT]:
-    "The run exceeded the maximum duration.",
-  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]:
-    "The run was interrupted by a deploy. Try again.",
-  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]:
-    "The approved action may have completed. Verify before retrying.",
-  [InAppAgentRunErrorCode.APPROVAL_EXPIRED]: "The approval request expired.",
-  [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
-  [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
-  [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
-};
 
 function isExecutingRun(
   run: BackgroundExecutionRunView | null,

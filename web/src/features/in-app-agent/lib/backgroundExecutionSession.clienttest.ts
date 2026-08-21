@@ -17,6 +17,7 @@ import {
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   BackgroundExecutionSessionController,
+  getBackgroundRunNotice,
   type BackgroundExecutionView,
 } from "./backgroundExecutionSession";
 
@@ -1360,6 +1361,48 @@ describe("InAppAgentBackgroundClient reconnect", () => {
     await expect(result).resolves.toMatchObject({
       message: "Assistant watch returned an invalid frame",
       retryable: false,
+    });
+  });
+});
+
+describe("getBackgroundRunNotice", () => {
+  const failedRun = (errorCode: string | null) => ({
+    id: "run-1",
+    status: InAppAgentRunStatus.FAILED,
+    errorCode,
+    cancelRequested: false,
+  });
+
+  const failedToFinishContinue =
+    "The assistant failed to finish. Send another message to continue.";
+  const failedToFinishTryAgain =
+    "The assistant failed to finish. Send another message to try again.";
+
+  it.each([
+    [InAppAgentRunErrorCode.WORKER_LOST, failedToFinishContinue],
+    [InAppAgentRunErrorCode.STALE, failedToFinishContinue],
+    [InAppAgentRunErrorCode.QUEUE_TIMEOUT, failedToFinishContinue],
+    [InAppAgentRunErrorCode.WORKER_SHUTDOWN, failedToFinishContinue],
+    [InAppAgentRunErrorCode.INIT_FAILED, failedToFinishTryAgain],
+    [InAppAgentRunErrorCode.OUTCOME_UNKNOWN, failedToFinishTryAgain],
+    [InAppAgentRunErrorCode.ENQUEUE_FAILED, failedToFinishTryAgain],
+    [
+      InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+      "The approval request expired. The action was not run. Send another message if you still want it.",
+    ],
+    [
+      InAppAgentRunErrorCode.RUN_TIMEOUT,
+      "The run hit the time limit. Send another message to continue.",
+    ],
+    [
+      InAppAgentRunErrorCode.AGENT_ERROR,
+      "The assistant hit an error before finishing. Send another message to continue.",
+    ],
+    ["mystery_code", "The run failed. Try again."],
+  ] as const)("maps FAILED %s to the user-facing notice", (errorCode, text) => {
+    expect(getBackgroundRunNotice(failedRun(errorCode))).toEqual({
+      text,
+      tone: "info",
     });
   });
 });
