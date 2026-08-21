@@ -14,7 +14,7 @@ describe("formatEvaluatorCostCalculation", () => {
         evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
-      "1,840 matching observations × 40% sampling × $0.001 per evaluation = ≈ $0.74 / week. Estimated model-provider / LLM cost only.",
+      "1,840 matching observations × 40% sampling × $0.001 per evaluation = ≈ $0.74 / week. Expected cost on your linked API key (not Langfuse). Matching observations are based on the last 7 days. Per-evaluation cost uses the latest cost-bearing evaluator trace from that period, or a fallback test call.",
     );
   });
 
@@ -28,7 +28,7 @@ describe("formatEvaluatorCostCalculation", () => {
         evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
-      "No cost-bearing evaluator trace was available from the last 7 days, and the fallback test call did not return a usable model cost. Estimated model-provider / LLM cost only.",
+      "No cost-bearing evaluator trace was available from the last 7 days, and the fallback test call did not return a usable model cost. Expected cost would be charged to your linked API key, not Langfuse.",
     );
   });
 
@@ -42,7 +42,7 @@ describe("formatEvaluatorCostCalculation", () => {
         evaluatorType: EvalTemplateTypeEnum.LLM_AS_JUDGE,
       }),
     ).toBe(
-      "0 matching observations × 100% sampling = ≈ $0.00 / week. Estimated model-provider / LLM cost only.",
+      "0 matching observations × 100% sampling = ≈ $0.00 / week. Expected cost on your linked API key (not Langfuse). Matching observations are based on the last 7 days.",
     );
   });
 
