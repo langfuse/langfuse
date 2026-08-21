@@ -3,10 +3,14 @@
 // component files keep Fast Refresh eligibility.
 
 import type { ComposerSegment } from "@/src/features/search-bar/lib/composer-segments";
+import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
 
-// Page-neutral: the bar mounts on both the Observations and Traces tables.
-export const COMPOSER_PLACEHOLDER =
-  "Search — e.g. level:ERROR, -env:dev, latency:>2, scores.accuracy:>0.8";
+/** Per-view: the examples have to name fields the view actually has. */
+export function composerPlaceholder(registry: FieldRegistry): string {
+  return registry.searchExamples.length > 0
+    ? `Search — e.g. ${registry.searchExamples.join(", ")}`
+    : "Search";
+}
 
 /** DOM id for an option row — referenced by aria-activedescendant. Option ids
  *  embed observed values (`value:My Test Trace`) and recent queries, which can

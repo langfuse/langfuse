@@ -11,6 +11,12 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
   {
     id: "evaluationRules",
     allowFreeText: false,
+    searchExamples: [
+      "level:ERROR",
+      "-env:dev",
+      "tags:billing",
+      "type:GENERATION",
+    ],
     metadata: true,
     aiContextFields: [
       { observedOptionsKey: "type", promptLabel: "type" },

@@ -70,6 +70,9 @@ export type FieldRegistry = {
    *  no searchQuery, but `id contains` is its most-applied filter by far, so a
    *  bare word means that instead of being rejected. Null = reject. */
   defaultTextField: string | null;
+  /** Placeholder examples. Written per view, never derived from field ids: the
+   *  events examples advertise `latency:`/`level:` on a view that has neither. */
+  searchExamples: readonly string[];
   aiContextFields: readonly AIContextField[];
   resolveField: (name: string) => FieldRef | null;
   nullableFields: () => readonly FieldDef[];
@@ -104,6 +107,7 @@ export function fieldRegistryFromColumns(
     traceScores?: boolean;
     allowFreeText?: boolean;
     defaultTextField?: string;
+    searchExamples?: readonly string[];
     aiContextFields?: readonly AIContextField[];
   },
 ): FieldRegistry {
@@ -157,6 +161,7 @@ export function fieldRegistryFromColumns(
     traceScores: overlay.traceScores ?? scores,
     allowFreeText: overlay.allowFreeText ?? true,
     defaultTextField: overlay.defaultTextField ?? null,
+    searchExamples: overlay.searchExamples ?? [],
     aiContextFields: overlay.aiContextFields ?? [],
   });
 }
@@ -263,6 +268,7 @@ function createFieldRegistry({
   traceScores,
   allowFreeText,
   defaultTextField,
+  searchExamples,
   aiContextFields,
 }: {
   id: FieldRegistry["id"];
@@ -273,6 +279,7 @@ function createFieldRegistry({
   traceScores: boolean;
   allowFreeText: boolean;
   defaultTextField: string | null;
+  searchExamples: readonly string[];
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
   const byName = new Map<string, FieldDef>();
@@ -299,6 +306,7 @@ function createFieldRegistry({
     scores,
     traceScores,
     defaultTextField,
+    searchExamples,
     aiContextFields,
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
     nullableFields: () => nullable,
@@ -325,6 +333,12 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   traceScores: true,
   allowFreeText: true,
   defaultTextField: null,
+  searchExamples: [
+    "level:ERROR",
+    "-env:dev",
+    "latency:>2",
+    "scores.accuracy:>0.8",
+  ],
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },
     { observedOptionsKey: "level", promptLabel: "level" },
