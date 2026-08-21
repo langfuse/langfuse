@@ -502,8 +502,7 @@ export const env = createEnv({
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
-    // router, so it works as a runtime env var on prebuilt Docker images
-    // (unlike its build-time NEXT_PUBLIC_ predecessor).
+    // router, so it works as a runtime env var on prebuilt Docker images.
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
       .number()
       .int()
@@ -605,13 +604,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
-    // Build-time predecessor of LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT. Kept
-    // as its fallback and as the client value until the runtime limit is fetched.
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(150_000),
   },
 
   /**
@@ -940,9 +932,6 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
-    // Markdown rendering
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
-      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -1018,8 +1007,7 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
-      process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT ??
-      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT, // fallback on old env var
+      process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

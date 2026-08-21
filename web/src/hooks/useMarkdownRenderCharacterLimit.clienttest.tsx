@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/components/ui/markdown-render-limits";
 import {
   MarkdownRenderCharacterLimitProvider,
   useMarkdownRenderCharacterLimit,
@@ -21,10 +22,6 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-// Non-default value so the fallback tests fail if the module hardcodes 150k.
-vi.mock("@/src/env.mjs", () => ({
-  env: { NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: 42_000 },
-}));
 
 const renderWithProvider = () =>
   renderHook(() => useMarkdownRenderCharacterLimit(), {
@@ -44,17 +41,17 @@ describe("useMarkdownRenderCharacterLimit", () => {
     expect(renderWithProvider()).toBe(500_000);
   });
 
-  it("falls back to the build-time value while the query has no data", () => {
+  it("uses the default while the query has no data", () => {
     mockMarkdownRenderConfigQuery.mockReturnValue({
       data: undefined,
       isLoading: true,
     });
-    expect(renderWithProvider()).toBe(42_000);
+    expect(renderWithProvider()).toBe(DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT);
   });
 
-  it("defaults to the build-time value without a provider (stories, tests)", () => {
+  it("uses the default without a provider (stories, tests)", () => {
     const { result } = renderHook(() => useMarkdownRenderCharacterLimit());
-    expect(result.current).toBe(42_000);
+    expect(result.current).toBe(DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT);
     expect(mockMarkdownRenderConfigQuery).not.toHaveBeenCalled();
   });
 });

@@ -99,7 +99,7 @@ export function ChatMessageList({
     const renderedMediaIds = new Set<string>();
 
     visibleMessages.forEach(({ message }) => {
-      const content = message.content;
+      const content = message.content || "";
 
       // Only content that ChatMessage renders through MarkdownView shows its
       // media inline; anything falling back to a JSON table still needs the
@@ -107,14 +107,6 @@ export function ChatMessageList({
       if (canRenderContentAsMarkdown(content, characterLimit)) {
         getRenderedInlineMediaIds({
           markdown: content,
-          audio: message.audio,
-        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
-        return;
-      }
-
-      if (message.audio) {
-        getRenderedInlineMediaIds({
-          markdown: "",
           audio: message.audio,
         }).forEach((mediaId) => renderedMediaIds.add(mediaId));
       }

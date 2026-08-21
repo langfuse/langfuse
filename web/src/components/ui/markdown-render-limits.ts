@@ -19,6 +19,7 @@
 // plain text. Legitimate markdown nests <20-30 levels deep; a stack-overflowing
 // payload needs hundreds+, so this threshold sits in a wide safe band.
 export const MARKDOWN_MAX_NESTING_DEPTH = 100;
+export const DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT = 150_000;
 
 const isListBullet = (char: string): boolean =>
   char === "-" || char === "+" || char === "*";
@@ -131,6 +132,11 @@ export function exceedsMarkdownRenderLimits(
   content: string,
   characterLimit: number,
 ): boolean {
-  if (content.length > Math.max(150_000, characterLimit)) return true;
+  if (
+    content.length >
+    Math.max(DEFAULT_MARKDOWN_RENDER_CHARACTER_LIMIT, characterLimit)
+  ) {
+    return true;
+  }
   return estimateMarkdownNestingDepth(content) > MARKDOWN_MAX_NESTING_DEPTH;
 }

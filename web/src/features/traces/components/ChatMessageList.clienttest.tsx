@@ -32,6 +32,7 @@ vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({
 }));
 
 const MEDIA_REF = "@@@langfuseMedia:type=image/png|id=media-1|source=base64@@@";
+const AUDIO_REF = "@@@langfuseMedia:type=audio/wav|id=audio-1|source=base64@@@";
 
 const media = [{ mediaId: "media-1" } as MediaReturnType];
 
@@ -64,6 +65,36 @@ describe("ChatMessageList media dedup", () => {
     expect(screen.getByTestId("section-media")).toHaveAttribute(
       "data-media-ids",
       "media-1",
+    );
+  });
+
+  it("keeps output audio in the strip when over-limit content falls back to JSON", () => {
+    render(
+      <ChatMessageList
+        messages={[
+          {
+            role: "assistant",
+            content: "x".repeat(TEST_LIMIT + 1),
+            audio: {
+              data: {
+                type: "base64",
+                id: "audio-1",
+                source: "",
+                referenceString: AUDIO_REF,
+              },
+            },
+          } as ChatMlMessage,
+        ]}
+        shouldRenderMarkdown={true}
+        media={[{ mediaId: "audio-1" } as MediaReturnType]}
+        currentView="pretty"
+        messageToToolCallNumbers={new Map()}
+      />,
+    );
+
+    expect(screen.getByTestId("section-media")).toHaveAttribute(
+      "data-media-ids",
+      "audio-1",
     );
   });
 });
