@@ -1,5 +1,9 @@
 import { useMemo } from "react";
 import { constructDatasetRunAggregateColumns } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
+import {
+  type ObservationByIdsItem,
+  type TraceByIdsItem,
+} from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { api } from "@/src/utils/api";
 import {
   datasetRunItemsTableColsWithOptions,
@@ -13,12 +17,20 @@ export function useDatasetRunAggregateColumns({
   datasetId,
   updateRunFilters,
   getFiltersForRun,
+  tracesById,
+  observationsById,
+  isTracesLoading,
+  isObservationsLoading,
 }: {
   projectId: string;
   runIds: string[];
   datasetId: string;
   updateRunFilters: (runId: string, filters: FilterState) => void;
   getFiltersForRun: (runId: string) => FilterState;
+  tracesById: Map<string, TraceByIdsItem>;
+  observationsById: Map<string, ObservationByIdsItem>;
+  isTracesLoading: boolean;
+  isObservationsLoading: boolean;
 }) {
   const datasetRunItemsFilterOptionsResponse =
     api.datasets.runItemFilterOptions.useQuery({
@@ -76,6 +88,10 @@ export function useDatasetRunAggregateColumns({
       serverScoreColumns: scoreKeysAndProps.data?.scoreColumns,
       updateRunFilters,
       getFiltersForRun,
+      tracesById,
+      observationsById,
+      isTracesLoading,
+      isObservationsLoading,
     });
   }, [
     runAggregateColumnProps,
@@ -84,6 +100,10 @@ export function useDatasetRunAggregateColumns({
     scoreKeysAndProps.data?.scoreColumns,
     updateRunFilters,
     getFiltersForRun,
+    tracesById,
+    observationsById,
+    isTracesLoading,
+    isObservationsLoading,
   ]);
 
   return {

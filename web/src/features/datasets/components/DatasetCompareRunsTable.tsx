@@ -6,6 +6,10 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
+import {
+  type ObservationByIdsItem,
+  type TraceByIdsItem,
+} from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
 import { useState, useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -84,6 +88,88 @@ function DatasetCompareRunsTableInternal(props: {
     },
   );
 
+  const itemsData = datasetItemsWithRunData.data?.data;
+
+  // The grid is rows (dataset items) x columns (selected runs). Each cell
+  // needs the trace or observation for its (item, run) pair. Rather than let
+  // every cell query independently (one HTTP request per cell — up to
+  // 50 rows x N runs on a single page load), collect every id the currently
+  // rendered page needs and batch-fetch them in exactly one request per kind.
+  const { traceIds, observationIds, fromTimestamp } = useMemo(() => {
+    const traceIdSet = new Set<string>();
+    const observationIdSet = new Set<string>();
+    let minCreatedAt: Date | undefined;
+
+    (itemsData ?? []).forEach((item) => {
+      Object.values(item.runData ?? {}).forEach((value) => {
+        if (value.observation === undefined) {
+          traceIdSet.add(value.trace.id);
+        } else {
+          observationIdSet.add(value.observation.id);
+        }
+        if (!minCreatedAt || value.createdAt < minCreatedAt) {
+          minCreatedAt = value.createdAt;
+        }
+      });
+    });
+
+    return {
+      traceIds: Array.from(traceIdSet),
+      observationIds: Array.from(observationIdSet),
+      // Subtract 1 day from the earliest run item creation timestamp as a
+      // buffer in case a trace happened before the run (mirrors the per-cell
+      // buffer this batched fetch replaces).
+      fromTimestamp: minCreatedAt
+        ? new Date(minCreatedAt.getTime() - 24 * 60 * 60 * 1000)
+        : undefined,
+    };
+  }, [itemsData]);
+
+  const tracesByIdsQuery = api.traces.byIds.useQuery(
+    { projectId: props.projectId, traceIds, fromTimestamp },
+    {
+      enabled: traceIds.length > 0,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const observationsByIdsQuery = api.observations.byIds.useQuery(
+    { projectId: props.projectId, observationIds },
+    {
+      enabled: observationIds.length > 0,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const tracesById = useMemo(() => {
+    const map = new Map<string, TraceByIdsItem>();
+    tracesByIdsQuery.data?.forEach((trace) => map.set(trace.id, trace));
+    return map;
+  }, [tracesByIdsQuery.data]);
+
+  const observationsById = useMemo(() => {
+    const map = new Map<string, ObservationByIdsItem>();
+    observationsByIdsQuery.data?.forEach((observation) =>
+      map.set(observation.id, observation),
+    );
+    return map;
+  }, [observationsByIdsQuery.data]);
+
+  // Only "loading" while a batch this page actually needs is in flight; a
+  // page with no observation cells, for example, should not wait on the
+  // (disabled) observations query.
+  const isTracesLoading = traceIds.length > 0 && tracesByIdsQuery.isPending;
+  const isObservationsLoading =
+    observationIds.length > 0 && observationsByIdsQuery.isPending;
+
   const totalCountQuery = api.datasets.runItemCompareCount.useQuery({
     projectId: props.projectId,
     datasetId: props.datasetId,
@@ -133,6 +219,10 @@ function DatasetCompareRunsTableInternal(props: {
       datasetId: props.datasetId,
       updateRunFilters,
       getFiltersForRun,
+      tracesById,
+      observationsById,
+      isTracesLoading,
+      isObservationsLoading,
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
@@ -211,7 +301,7 @@ function DatasetCompareRunsTableInternal(props: {
   ];
 
   const rows =
-    datasetItemsWithRunData.data?.data.map((item) => ({
+    itemsData?.map((item) => ({
       ...item,
       runs: item.runData,
     })) ?? [];

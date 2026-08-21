@@ -779,6 +779,54 @@ describe("traces trpc", () => {
     });
   });
 
+  describe("traces.byIds", () => {
+    it("returns an empty array for an empty id list", async () => {
+      const result = await caller.traces.byIds({
+        projectId,
+        traceIds: [],
+      });
+
+      expect(result).toEqual([]);
+    });
+
+    it("batches multiple traces into a single response", async () => {
+      // Regression coverage for the dataset run comparison grid, which
+      // previously fired one `traces.byId` request per cell. `byIds` must
+      // resolve every requested trace from one call.
+      const traces = [
+        createTrace({ project_id: projectId }),
+        createTrace({ project_id: projectId }),
+        createTrace({ project_id: projectId }),
+      ];
+
+      await createTracesCh(traces);
+
+      const result = await caller.traces.byIds({
+        projectId,
+        traceIds: traces.map((t) => t.id),
+      });
+
+      expect(result.map((t) => t.id).sort()).toEqual(
+        traces.map((t) => t.id).sort(),
+      );
+      const first = result.find((t) => t.id === traces[0]!.id);
+      expect(first?.projectId).toEqual(projectId);
+      expect(first?.name).toEqual(traces[0]!.name);
+    });
+
+    it("omits ids that do not resolve to a trace in the project", async () => {
+      const trace = createTrace({ project_id: projectId });
+      await createTracesCh([trace]);
+
+      const result = await caller.traces.byIds({
+        projectId,
+        traceIds: [trace.id, randomUUID()],
+      });
+
+      expect(result.map((t) => t.id)).toEqual([trace.id]);
+    });
+  });
+
   describe("traces.filterOptions", () => {
     it("should include all possible categorical score values from score configs", async () => {
       // Create a trace
