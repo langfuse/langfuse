@@ -161,7 +161,8 @@ export const EvaluatorOptionsSchema = z.object({
   excludeLegacyEvaluators: z.boolean().optional().default(false),
 });
 
-export const SuggestEvaluatorNameSchema = z.object({
+/** Input for both the name and the description suggestion procedures. */
+export const SuggestEvaluatorTextSchema = z.object({
   projectId: z.string(),
   definition: z.discriminatedUnion("type", [
     z.object({
@@ -174,8 +175,6 @@ export const SuggestEvaluatorNameSchema = z.object({
     }),
   ]),
 });
-
-export const SuggestEvaluatorDescriptionSchema = SuggestEvaluatorNameSchema;
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;

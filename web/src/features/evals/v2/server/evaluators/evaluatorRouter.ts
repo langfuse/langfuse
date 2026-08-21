@@ -16,8 +16,7 @@ import {
   EvaluatorOptionsSchema,
   EvaluatorVersionsSchema,
   ListEvaluatorsSchema,
-  SuggestEvaluatorDescriptionSchema,
-  SuggestEvaluatorNameSchema,
+  SuggestEvaluatorTextSchema,
   UpdateEvaluatorSchema,
 } from "./evaluatorTypes";
 import { EvaluatorService } from "./evaluatorService";
@@ -261,7 +260,7 @@ export const evaluatorRouter = createTRPCRouter({
     }),
 
   suggestName: protectedProjectProcedure
-    .input(SuggestEvaluatorNameSchema)
+    .input(SuggestEvaluatorTextSchema)
     .mutation(({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -276,7 +275,7 @@ export const evaluatorRouter = createTRPCRouter({
     }),
 
   suggestDescription: protectedProjectProcedure
-    .input(SuggestEvaluatorDescriptionSchema)
+    .input(SuggestEvaluatorTextSchema)
     .mutation(({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,

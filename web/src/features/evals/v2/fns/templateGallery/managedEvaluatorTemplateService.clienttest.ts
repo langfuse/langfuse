@@ -11,7 +11,7 @@ describe("managedEvaluatorTemplateService", () => {
       category: "recommended",
     });
 
-    expect(exactMatch?.name).toBe("Check if output is an Exact Match");
+    expect(exactMatch?.name).toBe("Check if Output Is an Exact Match");
     expect(codeTemplates.templates.map(({ key }) => key)).toEqual([
       "exact-match",
     ]);

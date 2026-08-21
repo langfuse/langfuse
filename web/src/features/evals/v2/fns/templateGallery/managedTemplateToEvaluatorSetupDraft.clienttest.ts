@@ -9,7 +9,7 @@ describe("managedTemplateToEvaluatorSetupDraft", () => {
     expect(template).toBeDefined();
 
     expect(managedTemplateToEvaluatorSetupDraft(template!)).toMatchObject({
-      name: "Check Answer relevance",
+      name: "Check Answer Relevance",
       definition: {
         type: "LLM_AS_JUDGE",
         provider: null,
@@ -30,7 +30,7 @@ describe("managedTemplateToEvaluatorSetupDraft", () => {
     expect(template).toBeDefined();
 
     expect(managedTemplateToEvaluatorSetupDraft(template!)).toMatchObject({
-      name: "Check if output is an Exact Match",
+      name: "Check if Output Is an Exact Match",
       definition: {
         type: "CODE",
         sourceCodeLanguage: "TYPESCRIPT",
