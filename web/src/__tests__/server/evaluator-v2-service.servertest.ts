@@ -661,6 +661,33 @@ describe("EvaluatorService", () => {
     expect(mocks.generateLangfuseAIText).not.toHaveBeenCalled();
   });
 
+  it("suggests only an evaluator description", async () => {
+    mocks.generateLangfuseAIText.mockResolvedValueOnce(
+      "  Scores response quality when reviewing model outputs.  ",
+    );
+    const service = createService();
+    const definition = {
+      type: "LLM_AS_JUDGE" as const,
+      prompt: "Judge quality",
+    };
+
+    await expect(
+      service.suggestDescription({ projectId, userId: null, definition }),
+    ).resolves.toBe("Scores response quality when reviewing model outputs.");
+    expect(mocks.generateLangfuseAIText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            content: expect.stringMatching(
+              /Describe the evaluator.*one concise sentence/,
+            ),
+          }),
+          expect.anything(),
+        ],
+      }),
+    );
+  });
+
   it("deletes only the evaluator in the selected project", async () => {
     const service = createService();
     const created = await service.create(llmInput("Delete evaluator"), null);

@@ -1,6 +1,7 @@
 import { useStore } from "zustand";
 
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
@@ -19,12 +20,19 @@ export function useEvaluatorTestAvailability({
   const definitionAvailable = useStore(store, (state) =>
     Boolean(prepareEvaluatorDraft(state).definition),
   );
+  const scoreOutputReason = useStore(store, (state) =>
+    state.type === "LLM_AS_JUDGE"
+      ? getScoreOutputValidation(state.scoreOutput).reason
+      : null,
+  );
 
-  return !definitionAvailable
-    ? "Complete the evaluator before running a test."
-    : !selectedObservation
-      ? "Select a sample observation first."
-      : !sampleObject
-        ? "Loading the selected sample."
-        : null;
+  return scoreOutputReason
+    ? scoreOutputReason
+    : !definitionAvailable
+      ? "Complete the evaluator before running a test."
+      : !selectedObservation
+        ? "Select a sample observation first."
+        : !sampleObject
+          ? "Loading the selected sample."
+          : null;
 }

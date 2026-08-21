@@ -16,6 +16,7 @@ import {
   EvaluatorOptionsSchema,
   EvaluatorVersionsSchema,
   ListEvaluatorsSchema,
+  SuggestEvaluatorDescriptionSchema,
   SuggestEvaluatorNameSchema,
   UpdateEvaluatorSchema,
 } from "./evaluatorTypes";
@@ -268,6 +269,21 @@ export const evaluatorRouter = createTRPCRouter({
         scope: "evalTemplate:CUD",
       });
       return serviceForContext(ctx).suggestName({
+        ...input,
+        projectId: ctx.session.projectId,
+        userId: ctx.session.user.id,
+      });
+    }),
+
+  suggestDescription: protectedProjectProcedure
+    .input(SuggestEvaluatorDescriptionSchema)
+    .mutation(({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evalTemplate:CUD",
+      });
+      return serviceForContext(ctx).suggestDescription({
         ...input,
         projectId: ctx.session.projectId,
         userId: ctx.session.user.id,

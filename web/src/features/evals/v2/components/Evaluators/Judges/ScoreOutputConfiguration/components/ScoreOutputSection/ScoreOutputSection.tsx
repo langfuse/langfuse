@@ -22,9 +22,11 @@ import {
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { CategoryEditorPopover } from "./components/CategoryEditorPopover/CategoryEditorPopover";
 import {
-  DUPLICATE_CATEGORY_NAMES_MESSAGE,
-  getDuplicateScoreOutputCategoryIndexes,
-} from "@/src/features/evals/v2/fns/scoreOutput/getDuplicateScoreOutputCategoryIndexes";
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 
 import {
   type ScoreOutputChoice,
@@ -81,11 +83,7 @@ export function ScoreOutputSection({
     null,
   );
   const [newChoice, setNewChoice] = useState<ScoreOutputChoice>({ label: "" });
-  const duplicateCategoryIndexes = new Set(
-    getDuplicateScoreOutputCategoryIndexes(
-      state.choices.map(({ label }) => label),
-    ),
-  );
+  const { categoryWarnings } = getScoreOutputValidation(state);
 
   const handleDataTypeChange = (dataType: ScoreOutputDataType) => {
     onChange({
@@ -292,14 +290,23 @@ export function ScoreOutputSection({
                     <span>
                       {choice.label.trim() || `Category ${index + 1}`}
                     </span>
-                    {duplicateCategoryIndexes.has(index) ? (
-                      <span
-                        className="text-dark-yellow h-4 w-4 shrink-0"
-                        aria-label={`Warning: ${DUPLICATE_CATEGORY_NAMES_MESSAGE}`}
-                        title={DUPLICATE_CATEGORY_NAMES_MESSAGE}
-                      >
-                        <TriangleAlert className="h-4 w-4" aria-hidden="true" />
-                      </span>
+                    {categoryWarnings[index] ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className="text-dark-yellow h-4 w-4 shrink-0"
+                            aria-label={`Warning: ${categoryWarnings[index]}`}
+                          >
+                            <TriangleAlert
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {categoryWarnings[index]}
+                        </TooltipContent>
+                      </Tooltip>
                     ) : null}
                     {!readOnly ? (
                       <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />

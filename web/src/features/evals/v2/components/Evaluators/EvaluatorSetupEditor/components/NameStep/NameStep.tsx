@@ -1,7 +1,6 @@
 import type { ComponentProps } from "react";
 
 import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
-import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
@@ -15,6 +14,7 @@ export function NameStep({
   description,
   onDescriptionChange,
   nameAIAssistance,
+  descriptionAIAssistance,
 }: {
   step: number;
   open: boolean;
@@ -24,6 +24,9 @@ export function NameStep({
   description: string;
   onDescriptionChange: (description: string) => void;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
+  descriptionAIAssistance: ComponentProps<
+    typeof AIAssistedInput
+  >["aiAssistance"];
 }) {
   return (
     <Stepper
@@ -61,11 +64,17 @@ export function NameStep({
               (optional)
             </span>
           </Label>
-          <Input
+          <AIAssistedInput
             id="evaluator-description"
             value={description}
             onChange={(event) => onDescriptionChange(event.target.value)}
-            placeholder="Describe what this evaluator measures"
+            placeholder={
+              descriptionAIAssistance.state === "generating"
+                ? "Generating a description…"
+                : "Describe what this evaluator measures"
+            }
+            fieldName="description"
+            aiAssistance={descriptionAIAssistance}
           />
         </div>
       </div>

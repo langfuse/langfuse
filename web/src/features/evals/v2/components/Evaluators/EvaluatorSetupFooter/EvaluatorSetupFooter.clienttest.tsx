@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -32,5 +33,48 @@ describe("EvaluatorSetupFooter", () => {
     expect(
       screen.getByRole("button", { name: "Create evaluator" }),
     ).toBeDisabled();
+  });
+
+  it("explains that empty category names block evaluator creation", async () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      initialType: "LLM_AS_JUDGE",
+      mode: "create",
+    });
+    store.getState().actions.setName("Categorical evaluator");
+    store.getState().actions.setScoreOutput({
+      dataType: ScoreDataTypeEnum.CATEGORICAL,
+      scoreDescription: "Classify the response",
+      reasoningDescription: "Explain the classification",
+      choices: [{ label: "" }, { label: "" }],
+      shouldAllowMultipleMatches: false,
+      minValue: "",
+      maxValue: "",
+    });
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <EvaluatorSetupFooter
+          store={store}
+          initialSnapshot=""
+          isEditing={false}
+          isSaving={false}
+          nameAIAssistanceAvailable={false}
+          codeValidation={null}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const createButton = screen.getByRole("button", {
+      name: "Create evaluator",
+    });
+    expect(createButton).toBeDisabled();
+
+    fireEvent.focus(createButton.parentElement!);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Category names cannot be empty.",
+    );
   });
 });

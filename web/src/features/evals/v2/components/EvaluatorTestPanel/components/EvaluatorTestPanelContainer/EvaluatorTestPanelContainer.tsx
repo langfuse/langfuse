@@ -14,7 +14,6 @@ export function EvaluatorTestPanelContainer({
   rawResultOpen,
   onRawResultOpenChange,
   onRunTest,
-  onOpenSampleTrace,
   onOpenExecutionTrace,
 }: {
   projectId: string;
@@ -25,9 +24,6 @@ export function EvaluatorTestPanelContainer({
   rawResultOpen: boolean;
   onRawResultOpenChange: (open: boolean) => void;
   onRunTest: () => void;
-  onOpenSampleTrace: Parameters<
-    typeof TestSectionContainer
-  >[0]["onOpenSampleTrace"];
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
   const open = useStore(store, (state) => state.testPanelOpen);
@@ -47,7 +43,6 @@ export function EvaluatorTestPanelContainer({
           rawResultOpen={rawResultOpen}
           onRawResultOpenChange={onRawResultOpenChange}
           onRunTest={onRunTest}
-          onOpenSampleTrace={onOpenSampleTrace}
           onOpenExecutionTrace={onOpenExecutionTrace}
         />
       }

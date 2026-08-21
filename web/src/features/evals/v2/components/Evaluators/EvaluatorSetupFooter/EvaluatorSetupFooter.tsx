@@ -1,7 +1,5 @@
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import { ScoreDataTypeEnum } from "@langfuse/shared";
-
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
@@ -9,10 +7,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import {
-  DUPLICATE_CATEGORY_NAMES_MESSAGE,
-  getDuplicateScoreOutputCategoryIndexes,
-} from "@/src/features/evals/v2/fns/scoreOutput/getDuplicateScoreOutputCategoryIndexes";
+import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function EvaluatorSetupFooter({
@@ -34,7 +29,7 @@ export function EvaluatorSetupFooter({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const { currentSnapshot, canSubmit, hasDuplicateCategoryNames, nameMissing } =
+  const { currentSnapshot, canSubmit, scoreOutputReason, nameMissing } =
     useStore(
       store,
       useShallow((state) => {
@@ -52,12 +47,10 @@ export function EvaluatorSetupFooter({
             definition,
           }),
           canSubmit: Boolean(definition) && hasCompleteMappings,
-          hasDuplicateCategoryNames:
-            state.type === "LLM_AS_JUDGE" &&
-            state.scoreOutput.dataType === ScoreDataTypeEnum.CATEGORICAL &&
-            getDuplicateScoreOutputCategoryIndexes(
-              state.scoreOutput.choices.map(({ label }) => label),
-            ).length > 0,
+          scoreOutputReason:
+            state.type === "LLM_AS_JUDGE"
+              ? getScoreOutputValidation(state.scoreOutput).reason
+              : null,
           nameMissing: !state.name.trim(),
         };
       }),
@@ -66,8 +59,8 @@ export function EvaluatorSetupFooter({
   const disabledReason =
     nameMissing && !nameAIAssistanceAvailable
       ? "Add an evaluator name before saving."
-      : hasDuplicateCategoryNames
-        ? DUPLICATE_CATEGORY_NAMES_MESSAGE
+      : scoreOutputReason
+        ? scoreOutputReason
         : codeValidation && !codeValidation.isPending && !codeValidation.isValid
           ? "Fix the code validation errors before saving."
           : null;
@@ -100,7 +93,9 @@ export function EvaluatorSetupFooter({
       {disabledReason ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex cursor-not-allowed">{saveButton}</span>
+            <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+              {saveButton}
+            </span>
           </TooltipTrigger>
           <TooltipContent>{disabledReason}</TooltipContent>
         </Tooltip>

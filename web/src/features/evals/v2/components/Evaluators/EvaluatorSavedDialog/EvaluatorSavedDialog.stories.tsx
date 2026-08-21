@@ -85,7 +85,8 @@ const sharedArgs = {
   canSubmit: true,
   isSubmitting: false,
   onModeChange: fn(),
-  onOpenChange: fn(),
+  onDismiss: fn(),
+  onSecondaryAction: fn(),
   onPrimaryAction: fn(),
 };
 

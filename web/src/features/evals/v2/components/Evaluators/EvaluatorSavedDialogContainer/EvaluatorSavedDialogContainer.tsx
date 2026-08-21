@@ -30,6 +30,7 @@ type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";
 export function EvaluatorSavedDialogContainer({
   projectId,
   evaluator,
+  onDismiss,
   onFinish,
 }: {
   projectId: string;
@@ -42,6 +43,7 @@ export function EvaluatorSavedDialogContainer({
     hasCompletedTestCall?: boolean;
     testRunCostUsd?: number | null;
   };
+  onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
 }) {
   const capture = usePostHogClientCapture();
@@ -454,12 +456,14 @@ export function EvaluatorSavedDialogContainer({
             : "Open rule editor"
       }
       onModeChange={handleModeChange}
-      onOpenChange={(open) => {
-        if (!open) {
-          createRuleHandoffPending.current = false;
-          setDialogPhase("closed");
-          finish().catch(() => undefined);
-        }
+      onDismiss={() => {
+        createRuleHandoffPending.current = false;
+        setDialogPhase("closed");
+        onDismiss().catch(trpcErrorToast);
+      }}
+      onSecondaryAction={() => {
+        setDialogPhase("closed");
+        finish().catch(trpcErrorToast);
       }}
       onPrimaryAction={handlePrimaryAction}
       onCloseAnimationEnd={completeCreateRuleHandoff}

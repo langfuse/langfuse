@@ -72,8 +72,8 @@ export function EvaluatorGalleryView({
   const hasTemplates = displayedSections.length > 0;
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+    <div className="@container flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden @2xl:flex-row">
         {sidebarItems.length > 0 ? (
           <EvaluatorGallerySidebar
             items={sidebarItems}

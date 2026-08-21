@@ -159,7 +159,7 @@ function TreeSelectorBody({
     );
   }
 
-  const treeGuidance = `Click rows to open them — hover one and press "Use" to bind {{${variable}}} (values bind on click).`;
+  const treeGuidance = `Click rows to open them — hover one and press "Use" to bind {{${variable}}}.`;
 
   return (
     <>

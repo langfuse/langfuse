@@ -28,7 +28,7 @@ import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
-import { dedupeObservations } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
+import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
 
 export type SampleObservation =
@@ -165,7 +165,6 @@ export function SampleObservationSelectorBase(
     formatCount,
     mapObservedOptions,
   } = props;
-  const [pageCount, setPageCount] = useState(1);
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -215,70 +214,68 @@ export function SampleObservationSelectorBase(
     searchType,
     observed,
     setFilterState: (next) => {
-      setPageCount(1);
       setFilters(next);
     },
     setSearchQuery: (next) => {
-      setPageCount(1);
       setSearchQuery(next);
     },
     setSearchType: (next) => {
-      setPageCount(1);
       setSearchType(next);
     },
     ...(registry ? { registry } : {}),
   });
-  const queryInput = {
-    projectId,
-    filter: effectiveFilters,
-    searchQuery,
-    searchType,
-    orderBy: { column: "startTime", order: "DESC" as const },
-  };
-  const observationPages = api.useQueries((t) =>
-    Array.from({ length: pageCount }, (_, index) =>
-      t.events.all(
-        { ...queryInput, page: index + 1, limit: PAGE_SIZE },
-        { placeholderData: (previous) => previous },
+  // listCursor always reads in the events table's stable start_time DESC tuple
+  // order, so it takes no orderBy.
+  const observationQuery = api.events.listCursor.useInfiniteQuery(
+    {
+      projectId,
+      filter: effectiveFilters,
+      searchQuery,
+      searchType,
+      limit: PAGE_SIZE,
+    },
+    { getNextPageParam: (lastPage) => lastPage.nextCursor },
+  );
+  const observationPages = useMemo(
+    () =>
+      dedupeObservationPages(
+        observationQuery.data?.pages.map((page) => page.observations) ?? [],
       ),
-    ),
+    [observationQuery.data?.pages],
   );
-  const matchingObservations = dedupeObservations(
-    observationPages.flatMap((page) => page.data?.observations ?? []),
-  );
+  const matchingObservations = observationPages.flat();
   const observationIOPages = api.useQueries((t) =>
-    observationPages.map((page) => {
-      const observations = (page.data?.observations ?? []).filter(
-        (observation) =>
-          observation.id && observation.traceId && observation.startTime,
-      );
-      const startTimes = observations.map((observation) =>
-        observation.startTime.getTime(),
-      );
+    observationPages
+      .filter((page) => page.length > 0)
+      .map((page) => {
+        const observations = page.filter(
+          (observation) =>
+            observation.id && observation.traceId && observation.startTime,
+        );
+        const startTimes = observations.map((observation) =>
+          observation.startTime.getTime(),
+        );
 
-      return t.events.batchIO(
-        {
-          projectId,
-          observations: observations.map((observation) => ({
-            id: observation.id,
-            traceId: observation.traceId!,
-          })),
-          minStartTime: new Date(
-            startTimes.length > 0 ? Math.min(...startTimes) : 0,
-          ),
-          maxStartTime: new Date(
-            startTimes.length > 0 ? Math.max(...startTimes) : 0,
-          ),
-        },
-        {
-          ...sendAsPostOption,
-          enabled:
-            page.status === "success" &&
-            !page.isPlaceholderData &&
-            observations.length > 0,
-        },
-      );
-    }),
+        return t.events.batchIO(
+          {
+            projectId,
+            observations: observations.map((observation) => ({
+              id: observation.id,
+              traceId: observation.traceId!,
+            })),
+            minStartTime: new Date(
+              startTimes.length > 0 ? Math.min(...startTimes) : 0,
+            ),
+            maxStartTime: new Date(
+              startTimes.length > 0 ? Math.max(...startTimes) : 0,
+            ),
+          },
+          {
+            ...sendAsPostOption,
+            enabled: observationQuery.isSuccess && observations.length > 0,
+          },
+        );
+      }),
   );
   const observationIOById = useMemo(
     () =>
@@ -292,10 +289,9 @@ export function SampleObservationSelectorBase(
   const observationIOPending = observationIOPages.some(
     (page) => page.isPending,
   );
-  const observationsPending = observationPages.some((page) => page.isPending);
-  const observationsFetching = observationPages.some((page) => page.isFetching);
-  const observationsError = observationPages.find((page) => page.isError);
-  const lastObservationPage = observationPages.at(-1);
+  const observationsPending = observationQuery.isPending;
+  const observationsFetching = observationQuery.isFetchingNextPage;
+  const observationsError = observationQuery.error;
   const aiDataContext = useMemo(
     () =>
       buildAiContext({
@@ -303,12 +299,12 @@ export function SampleObservationSelectorBase(
         sampleMetadata: matchingObservations
           .slice(0, 30)
           .map((observation) => observation.metadata),
-        resultCount: observationPages.every((page) => page.status === "success")
+        resultCount: observationQuery.isSuccess
           ? matchingObservations.length
           : null,
         registry: registry ?? EVENTS_FIELD_REGISTRY,
       }),
-    [matchingObservations, observationPages, observed, registry],
+    [matchingObservations, observationQuery.isSuccess, observed, registry],
   );
   const aiScoreNames = useMemo(
     () =>
@@ -317,11 +313,9 @@ export function SampleObservationSelectorBase(
         : undefined,
     [observed, registry],
   );
-  const selectionToReconcile =
-    observationPages[0]?.status === "success" &&
-    !observationPages[0].isPlaceholderData
-      ? resolveSelection(matchingObservations, selectedObservationId)
-      : undefined;
+  const selectionToReconcile = observationQuery.isSuccess
+    ? resolveSelection(matchingObservations, selectedObservationId)
+    : undefined;
 
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
@@ -438,11 +432,11 @@ export function SampleObservationSelectorBase(
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
     if (
-      lastObservationPage?.data?.hasMore &&
+      observationQuery.hasNextPage &&
       !observationsFetching &&
       element.scrollHeight - element.scrollTop - element.clientHeight < 80
     ) {
-      setPageCount((current) => current + 1);
+      observationQuery.fetchNextPage().catch(() => undefined);
     }
   };
 
@@ -479,7 +473,6 @@ export function SampleObservationSelectorBase(
               size="sm"
               className="flex h-8 items-center gap-2 text-sm"
               onClick={() => {
-                setPageCount(1);
                 setFilters((current) =>
                   toggleExampleFilters(current, [...example.filters]),
                 );
@@ -536,7 +529,7 @@ export function SampleObservationSelectorBase(
                   ? {
                       isLoading: false,
                       isError: true,
-                      error: observationsError.error.message,
+                      error: observationsError.message,
                     }
                   : {
                       isLoading: false,

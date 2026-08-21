@@ -15,6 +15,7 @@ type AIAssistedInputProps = Pick<
   ComponentProps<typeof Input>,
   "disabled" | "id" | "maxLength" | "onChange" | "placeholder" | "value"
 > & {
+  fieldName?: string;
   aiAssistance:
     | { state: "unavailable" }
     | { state: "idle"; onGenerate: () => void }
@@ -24,6 +25,7 @@ type AIAssistedInputProps = Pick<
 export function AIAssistedInput({
   aiAssistance,
   disabled,
+  fieldName = "name",
   placeholder,
   value,
   ...inputProps
@@ -31,8 +33,8 @@ export function AIAssistedInput({
   const isAvailable = aiAssistance.state !== "unavailable";
   const isGenerating = aiAssistance.state === "generating";
   const generateLabel = value
-    ? "Regenerate name with AI"
-    : "Generate name with AI";
+    ? `Regenerate ${fieldName} with AI`
+    : `Generate ${fieldName} with AI`;
 
   return (
     <div className="relative">
@@ -53,7 +55,7 @@ export function AIAssistedInput({
           className="pointer-events-none absolute inset-y-0 right-9 left-0 flex items-center overflow-hidden px-2 text-sm whitespace-nowrap"
         >
           <span className={textShimmerStyles.textShimmer}>
-            Generating name…
+            Generating {fieldName}…
           </span>
         </span>
       ) : null}
@@ -81,7 +83,7 @@ export function AIAssistedInput({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {isGenerating ? "Generating name…" : generateLabel}
+            {isGenerating ? `Generating ${fieldName}…` : generateLabel}
           </TooltipContent>
         </Tooltip>
       ) : null}

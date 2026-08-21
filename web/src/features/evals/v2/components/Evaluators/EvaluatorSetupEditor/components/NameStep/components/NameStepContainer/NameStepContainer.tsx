@@ -9,10 +9,14 @@ import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluato
 export function NameStepContainer({
   store,
   nameAIAssistance,
+  descriptionAIAssistance,
   onStepOpenChange,
 }: {
   store: EvaluatorSetupStore;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
+  descriptionAIAssistance: ComponentProps<
+    typeof AIAssistedInput
+  >["aiAssistance"];
   onStepOpenChange: (step: number, open: boolean) => void;
 }) {
   const state = useStore(
@@ -39,6 +43,7 @@ export function NameStepContainer({
       description={state.description}
       onDescriptionChange={state.actions.setDescription}
       nameAIAssistance={nameAIAssistance}
+      descriptionAIAssistance={descriptionAIAssistance}
     />
   );
 }

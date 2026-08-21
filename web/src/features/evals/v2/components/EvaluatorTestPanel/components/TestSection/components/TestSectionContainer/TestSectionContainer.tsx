@@ -1,6 +1,5 @@
 import { useStore } from "zustand";
 
-import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 import { TestResultPanelView } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
 import { TestSection } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/TestSection";
 import { TestRerunAction } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRerunAction/TestRerunAction";
@@ -17,7 +16,6 @@ export function TestSectionContainer({
   rawResultOpen,
   onRawResultOpenChange,
   onRunTest,
-  onOpenSampleTrace,
   onOpenExecutionTrace,
 }: {
   projectId: string;
@@ -27,7 +25,6 @@ export function TestSectionContainer({
   rawResultOpen: boolean;
   onRawResultOpenChange: (open: boolean) => void;
   onRunTest: () => void;
-  onOpenSampleTrace: (observation: SampleObservation) => void;
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
   const type = useStore(store, (state) => state.type);
@@ -65,9 +62,7 @@ export function TestSectionContainer({
             onRawOpenChange={onRawResultOpenChange}
             traceActions={
               <TestResultActions
-                store={store}
                 executionTraceId={executionTraceId}
-                onOpenSampleTrace={onOpenSampleTrace}
                 onOpenExecutionTrace={onOpenExecutionTrace}
               />
             }

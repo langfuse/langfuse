@@ -14,13 +14,11 @@ const meta = preview.meta({ component: TestResultPanelView });
 const actions = {
   onRawOpenChange: fn(),
   onRerun: fn(),
-  onOpenSampleTrace: fn(),
   onOpenExecutionTrace: fn(),
 };
 
 const traceActions = (executionTraceId: string | null) => (
   <TestResultTraceActions
-    onOpenSampleTrace={actions.onOpenSampleTrace}
     executionTraceId={executionTraceId}
     onOpenExecutionTrace={actions.onOpenExecutionTrace}
   >

@@ -15,6 +15,17 @@ export const Available = meta.story({
   },
 });
 
+export const DescriptionAvailable = meta.story({
+  args: {
+    id: "available-description",
+    value: "Scores whether an answer is factually correct.",
+    placeholder: "Evaluator description",
+    fieldName: "description",
+    onChange: fn(),
+    aiAssistance: { state: "idle", onGenerate: fn() },
+  },
+});
+
 export const Generating = meta.story({
   args: {
     id: "generating-name",

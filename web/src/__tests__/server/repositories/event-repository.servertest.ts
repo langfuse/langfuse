@@ -25,6 +25,7 @@ import {
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
+  getEventListCursor,
   getEventFilterNumericRange,
   getEventFilterOptions,
   getEventFilterValuePage,
@@ -578,6 +579,123 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(result1.length).toBeLessThanOrEqual(2);
       expect(result2.length).toBeLessThanOrEqual(2);
+    });
+
+    it("keeps cursor pages disjoint when a newer observation arrives", async () => {
+      const name = `cursor-pagination-${randomUUID()}`;
+      const events = Array.from({ length: 4 }, (_, index) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() - index * 1_000,
+        });
+      });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh(events);
+
+      const original = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 10,
+        cursorPagination: true,
+      });
+      const firstPage = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 2,
+        cursorPagination: true,
+      });
+      const boundary = firstPage.at(-1)!;
+
+      const newerId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          id: newerId,
+          span_id: newerId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() + 60_000,
+        }),
+      ]);
+
+      const secondPage = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 2,
+        cursorPagination: true,
+        cursor: {
+          lastStartTimeTo: boundary.startTime,
+          lastTraceId: boundary.traceId ?? "",
+          lastId: boundary.id,
+        },
+      });
+
+      expect(firstPage.map(({ id }) => id)).not.toContain(newerId);
+      expect(secondPage.map(({ id }) => id)).not.toContain(newerId);
+      expect(
+        new Set([...firstPage, ...secondPage].map(({ id }) => id)).size,
+      ).toBe(4);
+      expect([...firstPage, ...secondPage].map(({ id }) => id)).toEqual(
+        original.map(({ id }) => id),
+      );
+    });
+
+    it("returns a next cursor and a second service page", async () => {
+      const name = `cursor-service-${randomUUID()}`;
+      const events = Array.from({ length: 30 }, (_, index) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() - index * 1_000,
+        });
+      });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh(events);
+
+      const firstPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 25,
+      });
+      expect(firstPage.observations).toHaveLength(25);
+      expect(firstPage.nextCursor).toBeDefined();
+
+      const secondPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 25,
+        cursor: firstPage.nextCursor,
+      });
+
+      expect(secondPage.observations).toHaveLength(5);
+      expect(secondPage.nextCursor).toBeUndefined();
+      expect(
+        new Set(
+          [...firstPage.observations, ...secondPage.observations].map(
+            ({ id }) => id,
+          ),
+        ).size,
+      ).toBe(30);
     });
 
     it("should return release field in the result set", async () => {

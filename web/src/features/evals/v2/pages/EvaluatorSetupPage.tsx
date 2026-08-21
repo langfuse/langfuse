@@ -46,7 +46,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
+import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 
@@ -65,6 +65,15 @@ export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
 }) {
   return evaluator.blockedAt === null;
+}
+
+export function applyEvaluatorSuggestion(
+  suggestion: string | null,
+  setSuggestion: (suggestion: string) => void,
+) {
+  if (!suggestion) return false;
+  setSuggestion(suggestion);
+  return true;
 }
 
 export function EvaluatorSetupPage(
@@ -257,22 +266,69 @@ export function EvaluatorSetupPage(
     },
   });
   const suggestName = api.evalsV2.suggestName.useMutation();
+  const suggestDescription = api.evalsV2.suggestDescription.useMutation();
 
-  const requestNameSuggestion = async () => {
-    if (!nameAIAssistanceAvailable) return null;
-    hasRequestedName.current = true;
+  const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
-    const nameDefinition =
-      state.type === "LLM_AS_JUDGE"
-        ? { type: state.type, prompt: state.prompt }
-        : { type: state.type, sourceCode: state.sourceCode };
-    const suggested = await suggestName.mutateAsync({
+    return state.type === "LLM_AS_JUDGE"
+      ? { type: state.type, prompt: state.prompt }
+      : { type: state.type, sourceCode: state.sourceCode };
+  };
+
+  const generateNameSuggestion = async () => {
+    if (!nameAIAssistanceAvailable) return null;
+    return suggestName.mutateAsync({
       projectId,
-      definition: nameDefinition,
+      definition: getSuggestionDefinition(),
     });
-    const name = suggested?.trim() || null;
-    if (name) state.actions.setName(name);
-    return name;
+  };
+
+  const generateDescriptionSuggestion = async () => {
+    if (!nameAIAssistanceAvailable) return null;
+    return suggestDescription.mutateAsync({
+      projectId,
+      definition: getSuggestionDefinition(),
+    });
+  };
+
+  const requestNameSuggestion = async (showFailureToast = false) => {
+    hasRequestedName.current = true;
+    try {
+      const name = await generateNameSuggestion();
+      const applied = applyEvaluatorSuggestion(
+        name,
+        evaluatorSetupStore.getState().actions.setName,
+      );
+      if (!applied && showFailureToast) {
+        showErrorToast(
+          "Couldn't generate an evaluator name",
+          "Please enter a name manually.",
+        );
+      }
+    } catch (error) {
+      if (!showFailureToast) throw error;
+      showErrorToast(
+        "Couldn't generate an evaluator name",
+        "Please enter a name manually.",
+      );
+    }
+  };
+
+  const requestDescriptionSuggestion = async () => {
+    try {
+      const description = await generateDescriptionSuggestion();
+      const applied = applyEvaluatorSuggestion(
+        description,
+        evaluatorSetupStore.getState().actions.setDescription,
+      );
+      if (applied) return;
+    } catch {
+      // The field-specific message below is more actionable than the request error.
+    }
+    showErrorToast(
+      "Couldn't generate an evaluator description",
+      "Please enter a description manually.",
+    );
   };
 
   const setStepOpen = (step: number, open: boolean) => {
@@ -302,11 +358,31 @@ export function EvaluatorSetupPage(
   const save = async () => {
     try {
       let state = evaluatorSetupStore.getState();
-      const name = await prepareNameForSave({
+      const metadata = await prepareEvaluatorMetadataForSave({
         currentName: state.name,
-        generateName: nameAIAssistanceAvailable ? requestNameSuggestion : null,
+        currentDescription: state.description,
+        generateName: nameAIAssistanceAvailable ? generateNameSuggestion : null,
+        generateDescription:
+          nameAIAssistanceAvailable && !initialEvaluator
+            ? async () => {
+                try {
+                  return await generateDescriptionSuggestion();
+                } catch (error) {
+                  trpcErrorToast(error);
+                  return null;
+                }
+              }
+            : null,
         setName: state.actions.setName,
+        setDescription: state.actions.setDescription,
       });
+      if (!metadata) {
+        showErrorToast(
+          "Evaluator name required",
+          "We couldn't generate a name. Please enter one manually and try again.",
+        );
+        return;
+      }
       state = evaluatorSetupStore.getState();
       if (state.type === "CODE") {
         const validatedSourceCode = state.sourceCode;
@@ -326,14 +402,15 @@ export function EvaluatorSetupPage(
         }
       }
       const { definition } = prepareEvaluatorDraft(state);
-      if (!definition || !name) return;
+      if (!definition) return;
+      const { name, description } = metadata;
 
       if (initialEvaluator) {
         const evaluator = await update.mutateAsync({
           projectId,
           evaluatorId: initialEvaluator.id,
           name,
-          description: state.description || null,
+          description,
           definition,
         });
         capture("evaluators:update", { evaluatorType: state.type });
@@ -351,7 +428,7 @@ export function EvaluatorSetupPage(
         projectId,
         evaluatorId,
         name,
-        description: state.description || null,
+        description,
         definition,
       });
       capture("evaluators:create", { evaluatorType: state.type });
@@ -440,7 +517,21 @@ export function EvaluatorSetupPage(
             ? { state: "generating" }
             : {
                 state: "idle",
-                onGenerate: () => requestNameSuggestion().catch(trpcErrorToast),
+                onGenerate: () =>
+                  requestNameSuggestion(true).catch(trpcErrorToast),
+              }
+      }
+      descriptionAIAssistance={
+        !nameAIAssistanceAvailable
+          ? { state: "unavailable" }
+          : suggestDescription.isPending
+            ? { state: "generating" }
+            : {
+                state: "idle",
+                // requestDescriptionSuggestion reports its own failures.
+                onGenerate: () => {
+                  requestDescriptionSuggestion();
+                },
               }
       }
     />
@@ -462,11 +553,6 @@ export function EvaluatorSetupPage(
           }}
         />
       }
-      onOpenSampleTrace={(observation) => {
-        if (observation.traceId) {
-          sampleTracePeekNavigation.openPeek(observation.traceId);
-        }
-      }}
       testResult={testResult}
       testPending={testEvaluator.isPending}
       rawResultOpen={rawResultOpen}
@@ -577,7 +663,10 @@ export function EvaluatorSetupPage(
           initialSnapshot={initialSnapshot.current}
           isEditing={Boolean(initialEvaluator)}
           isSaving={
-            create.isPending || update.isPending || suggestName.isPending
+            create.isPending ||
+            update.isPending ||
+            suggestName.isPending ||
+            suggestDescription.isPending
           }
           nameAIAssistanceAvailable={nameAIAssistanceAvailable}
           codeValidation={
@@ -652,6 +741,11 @@ export function EvaluatorSetupPage(
         <EvaluatorSavedDialogContainer
           projectId={projectId}
           evaluator={savedEvaluator}
+          onDismiss={async () => {
+            await router.push(
+              `/project/${projectId}/evals/${savedEvaluator.id}`,
+            );
+          }}
           onFinish={async () => {
             await router.push(`/project/${projectId}/evals`);
           }}

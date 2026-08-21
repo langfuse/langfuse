@@ -19,6 +19,7 @@ export function EvaluatorSetupEditor({
   providerAdapters,
   canSetProjectDefault,
   nameAIAssistance,
+  descriptionAIAssistance,
   onStepOpenChange,
   onConfigureProviders,
   onSetProjectDefault,
@@ -32,6 +33,9 @@ export function EvaluatorSetupEditor({
   providerAdapters: Record<string, LLMAdapter>;
   canSetProjectDefault: boolean;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
+  descriptionAIAssistance: ComponentProps<
+    typeof AIAssistedInput
+  >["aiAssistance"];
   onStepOpenChange: (step: number, open: boolean) => void;
   onConfigureProviders: () => void;
   onSetProjectDefault: (model: ProjectDefaultModelConfig) => void;
@@ -64,6 +68,7 @@ export function EvaluatorSetupEditor({
       <NameStepContainer
         store={store}
         nameAIAssistance={nameAIAssistance}
+        descriptionAIAssistance={descriptionAIAssistance}
         onStepOpenChange={onStepOpenChange}
       />
     </div>

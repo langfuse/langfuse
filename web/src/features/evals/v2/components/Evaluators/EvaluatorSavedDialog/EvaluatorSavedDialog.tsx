@@ -46,7 +46,8 @@ export function EvaluatorSavedDialog({
   isSubmitting,
   primaryActionLabel,
   onModeChange,
-  onOpenChange,
+  onDismiss,
+  onSecondaryAction,
   onPrimaryAction,
   onCloseAnimationEnd,
 }: {
@@ -58,12 +59,18 @@ export function EvaluatorSavedDialog({
   isSubmitting: boolean;
   primaryActionLabel: string;
   onModeChange: (mode: EvaluatorSavedMode) => void;
-  onOpenChange: (open: boolean) => void;
+  onDismiss: () => void;
+  onSecondaryAction: () => void;
   onPrimaryAction: () => void;
   onCloseAnimationEnd?: () => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onDismiss();
+      }}
+    >
       <DialogContent
         className="sm:max-w-4xl"
         closeOnInteractionOutside
@@ -150,7 +157,7 @@ export function EvaluatorSavedDialog({
               <Button
                 variant="outline"
                 disabled={isSubmitting}
-                onClick={() => onOpenChange(false)}
+                onClick={onSecondaryAction}
               >
                 Skip execution
               </Button>

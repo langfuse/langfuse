@@ -75,14 +75,25 @@ const TRACE_SCOPED_SCORE_FILTER: FilterCondition[] = [
   },
 ];
 
-interface GetObservationsListParams {
+interface GetObservationsListBaseParams {
   projectId: string;
   filter: any[];
   searchQuery?: string;
   searchType: any[];
+  limit: number;
+}
+
+interface GetObservationsListParams extends GetObservationsListBaseParams {
   orderBy: any;
   page: number;
-  limit: number;
+}
+
+interface GetObservationsCursorListParams extends GetObservationsListBaseParams {
+  cursor?: {
+    lastStartTimeTo: Date;
+    lastTraceId: string;
+    lastId: string;
+  };
 }
 
 interface GetObservationsCountParams {
@@ -258,6 +269,45 @@ export async function getEventList(params: GetObservationsListParams) {
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
+  return getEventListPage(params, queryOpts);
+}
+
+export async function getEventListCursor(
+  params: GetObservationsCursorListParams,
+) {
+  const page = await getEventListPage(params, {
+    projectId: params.projectId,
+    filter: params.filter,
+    searchQuery: params.searchQuery,
+    searchType: params.searchType,
+    limit: params.limit + 1,
+    cursorPagination: true,
+    cursor: params.cursor,
+    dedupeBySpanId: true,
+    selectIOAndMetadata: false,
+    renderingProps: { truncated: true, shouldJsonParse: false },
+  });
+  const boundary = page.observations.at(-1);
+
+  return {
+    ...page,
+    nextCursor:
+      page.hasMore && boundary
+        ? {
+            lastStartTimeTo: boundary.startTime,
+            // The ClickHouse column is non-null; the domain adapter represents
+            // its empty-string sentinel as null.
+            lastTraceId: boundary.traceId ?? "",
+            lastId: boundary.id,
+          }
+        : undefined,
+  };
+}
+
+async function getEventListPage(
+  params: GetObservationsListBaseParams,
+  queryOpts: Parameters<typeof getObservationsWithModelDataFromEventsTable>[0],
+) {
   const fetchedObservations =
     await getObservationsWithModelDataFromEventsTable(queryOpts);
   const hasMore = fetchedObservations.length > params.limit;

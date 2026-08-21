@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { forwardRef, type ComponentProps, type ReactNode } from "react";
 import { ExternalLink, MoreVertical } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -8,22 +8,30 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 
-export function TestResultTraceActionsTrigger() {
+export const TestResultTraceActionsTrigger = forwardRef<
+  HTMLButtonElement,
+  ComponentProps<typeof Button>
+>(function TestResultTraceActionsTrigger({ title = "More", ...props }, ref) {
   return (
-    <Button type="button" variant="ghost" size="icon-xs" title="More">
+    <Button
+      {...props}
+      ref={ref}
+      type="button"
+      variant="ghost"
+      size="icon-xs"
+      title={title}
+    >
       <MoreVertical className="h-3.5 w-3.5" />
     </Button>
   );
-}
+});
 
 export function TestResultTraceActions({
   children,
-  onOpenSampleTrace,
   executionTraceId,
   onOpenExecutionTrace,
 }: {
   children: ReactNode;
-  onOpenSampleTrace: (() => void) | null;
   executionTraceId: string | null;
   onOpenExecutionTrace: ((executionTraceId: string) => void) | null;
 }) {
@@ -36,12 +44,6 @@ export function TestResultTraceActions({
     <DropdownMenu>
       {children}
       <DropdownMenuContent align="end">
-        {onOpenSampleTrace ? (
-          <DropdownMenuItem onClick={onOpenSampleTrace}>
-            <ExternalLink className="mr-2 h-3.5 w-3.5" />
-            Open sample trace
-          </DropdownMenuItem>
-        ) : null}
         {openExecutionTrace ? (
           <DropdownMenuItem onClick={openExecutionTrace}>
             <ExternalLink className="mr-2 h-3.5 w-3.5" />

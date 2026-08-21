@@ -175,6 +175,8 @@ export const SuggestEvaluatorNameSchema = z.object({
   ]),
 });
 
+export const SuggestEvaluatorDescriptionSchema = SuggestEvaluatorNameSchema;
+
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
