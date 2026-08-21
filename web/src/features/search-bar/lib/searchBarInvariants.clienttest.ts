@@ -4,8 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import { EVENTS_FIELD_REGISTRY } from "./fields";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  SESSIONS_FIELD_REGISTRY,
+  SESSIONS_V3_FIELD_REGISTRY,
+} from "@/src/features/filters/config/sessionsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
+import { filterStateToQueryText } from "./filter-state-to-query";
 import { planInputCompletions } from "./completions";
 import {
   generateQueryCases,
@@ -251,5 +256,246 @@ describe("search bar invariants — evaluation rules registry", () => {
 
   it("holds commit parity and FilterState round-trips", () => {
     expect(runSearchBarInvariants(evaluationRulesView)).toEqual([]);
+  });
+});
+
+const sessionsView: RegistryUnderTest = {
+  name: "sessions v4",
+  registry: SESSIONS_FIELD_REGISTRY,
+  extraKeys: [
+    "metadata.region",
+    'metadata."my key"',
+    "scores.accuracy",
+    'scores."Rouge Score"',
+    "has:environment",
+    "has:userIds",
+  ],
+  scoreContexts: [
+    {
+      numericScoreNames: new Set(["accuracy"]),
+      categoricalScoreNames: new Set(),
+    },
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(["accuracy"]),
+    },
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(),
+      booleanScoreNames: new Set(["accuracy"]),
+    },
+  ],
+  fieldValues: ["x", "default", "5", "0.8", "true", "a b", "user-1"],
+  // Free text is rewritten onto `id`, not dropped, so the quoting/reserved-word
+  // mirror still has to hold on this registry.
+  freeTextValues: ["hello", "refund policy", "or", "and", "!important", "-foo"],
+};
+
+describe("search bar invariants — sessions registry", () => {
+  it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
+    const failures = runSearchBarInvariants(sessionsView);
+    expect(
+      failures,
+      failures.length === 0
+        ? "ok"
+        : `\n${failures
+            .slice(0, 25)
+            .map((f) => `  [${f.invariant}] ${f.case} — ${f.detail}`)
+            .join(
+              "\n",
+            )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
+    ).toEqual([]);
+  });
+
+  it("exposes the sidebar's facets and nothing else", () => {
+    expect(SESSIONS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
+      "commentContent",
+      "commentCount",
+      "countTraces",
+      "environment",
+      "id",
+      "inputCost",
+      "inputTokens",
+      "outputCost",
+      "outputTokens",
+      "sessionDuration",
+      "tags",
+      "totalCost",
+      "totalTokens",
+      "userIds",
+    ]);
+    // Events-only fields and columns the sidebar never offers stay unresolvable,
+    // so a stray token is a diagnostic rather than a filter the sidebar cannot
+    // show or remove.
+    for (const key of ["latency", "createdAt", "usage", "bookmarked"]) {
+      expect(SESSIONS_FIELD_REGISTRY.resolveField(key)).toBeNull();
+    }
+  });
+
+  it("keeps the trace-score namespace closed but observation scores open", () => {
+    expect(SESSIONS_FIELD_REGISTRY.resolveField("scores.accuracy")).toEqual({
+      type: "scores",
+      key: "accuracy",
+      level: "observation",
+    });
+    expect(
+      SESSIONS_FIELD_REGISTRY.resolveField("traceScores.accuracy"),
+    ).toBeNull();
+  });
+
+  it("round-trips the all-of array filters sessions users actually apply", () => {
+    // `tags all of` (1.2k applies/56d) and `userIds all of` are the two shapes
+    // the sessions sidebar produces that no other bar surface exercises.
+    for (const column of ["tags", "userIds"]) {
+      expect(
+        planCommit(`${column}:(a AND b)`, undefined, SESSIONS_FIELD_REGISTRY),
+      ).toMatchObject({
+        status: "committed",
+        filters: [
+          {
+            column,
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["a", "b"],
+          },
+        ],
+      });
+    }
+  });
+
+  it("lowers metadata and session id the way the sidebar does", () => {
+    expect(
+      planCommit("metadata.region:eu", undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "region",
+          value: "eu",
+        },
+      ],
+    });
+    // `id contains` is how every one of the 13.6k session-id filters is applied.
+    expect(
+      planCommit("id:checkout", undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "id",
+          type: "string",
+          operator: "contains",
+          value: "checkout",
+        },
+      ],
+    });
+  });
+
+  it("rewrites a bare word onto the session id and settles there", () => {
+    const first = planCommit("refund", undefined, SESSIONS_FIELD_REGISTRY);
+    if (first.status !== "committed") throw new Error(first.status);
+    expect(first).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        { column: "id", type: "string", operator: "contains", value: "refund" },
+      ],
+    });
+    // The canonicalization is visible AND terminal: the echo renders `id:refund`
+    // and committing that again produces the identical filter, so the bar does
+    // not keep rewriting itself.
+    expect(
+      filterStateToQueryText(first.filters, undefined, SESSIONS_FIELD_REGISTRY)
+        .text,
+    ).toBe("id:refund");
+    expect(
+      planCommit("id:refund", undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({ status: "committed", filters: first.filters });
+
+    // A dangling dot-prefix must stay an error rather than becoming an id search
+    // for the literal text "metadata." — and the message has to name the real
+    // problem, since this view does support `metadata.<key>`.
+    const dangling = planCommit(
+      "metadata.",
+      undefined,
+      SESSIONS_FIELD_REGISTRY,
+    );
+    expect(dangling.status).toBe("invalid");
+    if (dangling.status !== "invalid") throw new Error("expected invalid");
+    expect(
+      dangling.diagnostics.some((d) =>
+        /add a key after the dot/.test(d.message),
+      ),
+    ).toBe(true);
+
+    // Quoting it makes it an explicit literal, so it searches ids like any word.
+    expect(
+      planCommit('"metadata."', undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "id",
+          type: "string",
+          operator: "contains",
+          value: "metadata.",
+        },
+      ],
+    });
+  });
+
+  it("treats a multi-word run as one phrase, not one filter per word", () => {
+    // The suggestion offers `id:"test 123"`, so Enter must agree with it. Per
+    // word it would AND `id contains test` with `id contains 123` — a query
+    // matching neither what was typed nor what was offered.
+    const multi = planCommit("test 123", undefined, SESSIONS_FIELD_REGISTRY);
+    if (multi.status !== "committed") throw new Error(multi.status);
+    expect(multi.filters).toEqual([
+      { column: "id", type: "string", operator: "contains", value: "test 123" },
+    ]);
+    expect(multi.searchQuery).toBeNull();
+    // …and it round-trips through the quoting as the same single filter.
+    const text = filterStateToQueryText(
+      multi.filters,
+      undefined,
+      SESSIONS_FIELD_REGISTRY,
+    ).text;
+    expect(text).toBe('id:"test 123"');
+    expect(planCommit(text, undefined, SESSIONS_FIELD_REGISTRY)).toMatchObject({
+      filters: multi.filters,
+    });
+
+    // Words split around a real filter token still coalesce into one phrase.
+    const mixed = planCommit(
+      "test countTraces:8 123",
+      undefined,
+      SESSIONS_FIELD_REGISTRY,
+    );
+    if (mixed.status !== "committed") throw new Error(mixed.status);
+    expect(mixed.filters.filter((f) => f.column === "id")).toEqual([
+      { column: "id", type: "string", operator: "contains", value: "test 123" },
+    ]);
+  });
+
+  it("does not offer Ask AI until the view has its own prompt", () => {
+    // buildFilterSystemPrompt branches on registry.id and falls back to the
+    // EVENTS prompt — events prose, events worked examples. A view without its
+    // own branch must not offer AI generation, or the model gets a correct field
+    // catalog wrapped in instructions aimed at columns the view lacks.
+    expect(SESSIONS_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
+    expect(EVENTS_FIELD_REGISTRY.aiFilterPrompt).toBe(true);
+    expect(RULE_FIELD_REGISTRY.aiFilterPrompt).toBe(true);
+  });
+
+  it("drops metadata on the v3 registry, which has no metadata column", () => {
+    expect(
+      SESSIONS_V3_FIELD_REGISTRY.resolveField("metadata.region"),
+    ).toBeNull();
+    expect(SESSIONS_FIELD_REGISTRY.resolveField("metadata.region")).toEqual({
+      type: "metadata",
+      key: "region",
+    });
   });
 });

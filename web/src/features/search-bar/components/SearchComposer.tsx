@@ -54,7 +54,7 @@ import {
   WORD_JOINER,
 } from "@/src/features/search-bar/components/ComposerTokens";
 import {
-  COMPOSER_PLACEHOLDER,
+  composerPlaceholder,
   deactivationReason,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
@@ -1190,6 +1190,7 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
+  const placeholder = composerPlaceholder(registry);
   const segments = deriveComposerSegments(draft, scoreTypes, registry);
   // The token holding a collapsed caret — the keyboard counterpart to hover.
   // Not at the trailing insertion point, where the user is appending, not
@@ -1386,9 +1387,9 @@ export function SearchComposer({
                 ? "right-20"
                 : "right-8",
             )}
-            title={COMPOSER_PLACEHOLDER}
+            title={placeholder}
           >
-            {COMPOSER_PLACEHOLDER}
+            {placeholder}
           </div>
         )}
         <div

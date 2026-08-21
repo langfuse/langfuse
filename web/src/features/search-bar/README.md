@@ -1,7 +1,8 @@
 # Search Bar
 
-Grammar-based query bar shared by the observations (v4 events) table and
-evaluation-rule observation filters. On the events table it does NOT replace
+Grammar-based query bar shared by the observations (v4 events) table,
+evaluation-rule observation filters, and the sessions table (Feature Preview,
+`sessionsSearchBar`). On the events table it does NOT replace
 the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
 with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
 (+ the table's full-text search) remains the single source of truth; the bar
@@ -389,22 +390,51 @@ registry + grammar + value validation. Keep it that way.
 adapter, serializer, completion planner, token projection, store, and AI prompt
 all take an injected `FieldRegistry`. `EVENTS_FIELD_REGISTRY` remains the default
 for existing call sites; evaluation rules pass `RULE_FIELD_REGISTRY`, which is
-derived from the same `eventsEvalFilterColumns` used by backend validation.
+derived from the same `eventsEvalFilterColumns` used by backend validation, and
+the sessions table passes `SESSIONS_FIELD_REGISTRY`
+(`features/filters/config/sessionsSearchRegistry.ts`).
+
+**Pass the registry to BOTH halves.** `registry` is an optional prop defaulting
+to `EVENTS_FIELD_REGISTRY` on `useEventsSearchBar` AND on `EventsSearchBarRow`.
+Give it to the hook only and the view still _works_: commits validate against
+the right fields while the autocomplete offers the events list. Nothing throws —
+so a new view must check the field dropdown, not just that Enter applies.
 
 **Recipe to add the bar to a view:**
 
-1. **Derive the field registry from that view's `ColumnDefinition[]`** — do NOT
-   hand-author a second 47-entry list. ~70% is mechanical: `type → kind`
-   (`number`/`datetime`/`boolean` map directly, everything else → `text`),
-   `nullable`, `options → observed values`, `unit`. Use the existing
-   `fieldRegistryFromColumns(cols, overlay)` helper.
+1. **Derive the field registry from the view's FACETS, not its raw columns.** Use
+   `fieldRegistryFromColumns(cols, overlay)` — never hand-author a second
+   47-entry list; ~70% is mechanical (`type → kind`, `nullable`,
+   `options → observed values`, `unit`). But feed it the columns the _facet
+   sidebar_ exposes, as `sessionsSearchRegistry.ts` does, not the whole
+   `ColumnDefinition[]`. A view's column list also carries internals the sidebar
+   deliberately never offers — a duplicate (`usage` = `totalTokens`), a column
+   owned by another control (`createdAt`, the time-range picker), a retired one
+   (`bookmarked`). Deriving from facets keeps the bar a strict SUBSET of the
+   sidebar by construction: no bar-authored filter the sidebar cannot display or
+   clear, and adding a facet gives the bar the field for free. Anything outside
+   that set resolves to null, so an old saved view's filter on it lands in
+   `skippedFilters` (preserved) instead of becoming an unparsable token.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
    user-facing **field aliases** (`env`, `tags`, `ttft`), **inline filter
    aliases/macros**, **AI context fields**, **dot-path roots**
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
-   declarative.
+   declarative. Three flags are per-view capabilities, not cosmetics:
+   - `metadata` / `scores` / `traceScores` — the keyed dot-path roots. Set them
+     from the columns the view's BACKEND has, not from what reads well: sessions
+     aggregates scores at session level and has no `trace_scores_*` columns, so
+     it keeps `scores.` and closes `traceScores.`. A dot path the backend cannot
+     answer is worse than an unknown-field diagnostic. `fieldRegistryFromColumns`
+     drops the keyed score columns from the field list when `scores` is on
+     (`score_categories` is `categoryOptions`, not `*Object`, so the `*Object`
+     filter alone would leave a bogus keyless `score_categories:` field).
+   - `allowFreeText` + `defaultTextField` — see "Bare text on a view with no
+     full-text lane" below.
+   - `searchExamples` — the placeholder, **written per view, never derived from
+     field ids**. The events examples (`level:ERROR`, `latency:>2`) advertised
+     fields that do not exist on either of the other two surfaces.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed
    values; point it at the new view's procedure (do not invent a parallel one).
@@ -418,6 +448,27 @@ derived from the same `eventsEvalFilterColumns` used by backend validation.
    that owns both, so the two cannot drift.
 6. **Add the round-trip property test for the new registry** (see Hardening) —
    run it per registry. This is the universal safety net across views.
+
+**Bare text on a view with no full-text lane.** Sessions has no `searchQuery`
+at all — `sessions.all*` takes none. Two registry options cover that:
+
+- `allowFreeText: false` alone — bare words are a commit-blocking diagnostic
+  (evaluation rules).
+- `allowFreeText: false` + `defaultTextField: "<field>"` — bare words become a
+  `contains` filter on that field (sessions uses `id`: it is that view's
+  most-applied filter by an order of magnitude, and every application of it is
+  `contains`). Two properties make this safe rather than magic: the rewrite is
+  **offered before Enter** (it joins the matching-filter suggestions, so the user
+  sees `id:"…"` while typing), and it is **visible and terminal after** — the bar
+  re-renders the word as an `id:` pill which commits to the identical filter. It
+  lowers through the normal field path; there is no second lowering path.
+- A multi-word run is ONE phrase, coalesced exactly like `searchQuery` is. Per
+  word it would AND `id contains test` with `id contains 123` — matching neither
+  the input nor the suggestion.
+
+**`createFieldRegistry` stays unexported.** Both derived views (rules, sessions)
+are fully expressed by `fieldRegistryFromColumns` + overlay; nothing has yet
+needed to hand-assemble a registry. Do not export it speculatively.
 
 **What stays grammar-global — do not make per-view:** tokenizing, quoting
 (`serializeValue` ↔ `reservedTokenIssue` is a **mirror invariant**: add a
@@ -452,7 +503,10 @@ real consumer and validate it against that view's backend filter contract.
   The harness is **pure and registry-shaped**: it generates the matrix from the
   passed `view.registry`, so it auto-covers added/changed fields. Each
   filterable view gets the same coverage by adding one block to the
-  `.clienttest.ts` with its registry — see "Extending to other views".
+  `.clienttest.ts` with its registry — see "Extending to other views". It only
+  exercises free text through `freeTextValues` (INV-3, serialize↔parse), so a
+  `defaultTextField` view must also pin its phrase/round-trip behaviour
+  explicitly, as the sessions block does.
 
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
