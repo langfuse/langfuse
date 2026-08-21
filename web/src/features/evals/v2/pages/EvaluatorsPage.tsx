@@ -22,7 +22,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { EvaluatorActionsCell } from "../components/Evaluators/EvaluatorActionsCell/EvaluatorActionsCell";
 import { EvaluatorBulkDeleteDialog } from "../components/Evaluators/EvaluatorBulkDeleteDialog/EvaluatorBulkDeleteDialog";
 import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/EvaluatorGalleryDialog";
-import { EvaluatorRuleRelationshipsSheet } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
@@ -216,9 +215,6 @@ export default function EvaluatorsPage() {
   const [defaultModelPickerOpen, setDefaultModelPickerOpen] = useState(false);
   const [defaultModelConfigurationOpen, setDefaultModelConfigurationOpen] =
     useState(false);
-  const [attachEvaluatorId, setAttachEvaluatorId] = useState<string | null>(
-    null,
-  );
   const evaluators = api.evalsV2.list.useQuery(
     {
       projectId,
@@ -231,9 +227,6 @@ export default function EvaluatorsPage() {
   const evaluatorIds = useMemo(
     () => evaluators.data?.evaluators.map(({ id }) => id) ?? [],
     [evaluators.data?.evaluators],
-  );
-  const selectedRuleEvaluator = evaluators.data?.evaluators.find(
-    ({ id }) => id === attachEvaluatorId,
   );
   const showOnboarding =
     evaluators.isSuccess &&
@@ -448,7 +441,6 @@ export default function EvaluatorsPage() {
         cell: ({ row }) => (
           <div className="w-full" onClick={(event) => event.stopPropagation()}>
             <EvaluatorActionsCell
-              hasActiveRules={row.original.hasActiveRules}
               canViewExecutions={hasExecutionReadAccess}
               onViewScores={() =>
                 router.push(evaluatorScoresUrl(projectId, row.original.name))
@@ -462,7 +454,6 @@ export default function EvaluatorsPage() {
                   ),
                 )
               }
-              onManageRules={() => setAttachEvaluatorId(row.original.id)}
               onEdit={() =>
                 router.push(`/project/${projectId}/evals/${row.original.id}`)
               }
@@ -730,22 +721,6 @@ export default function EvaluatorsPage() {
           );
         }}
       />
-      {selectedRuleEvaluator ? (
-        <EvaluatorRuleRelationshipsSheet
-          projectId={projectId}
-          evaluatorId={selectedRuleEvaluator.id}
-          evaluatorName={selectedRuleEvaluator.name}
-          evaluatorType={selectedRuleEvaluator.type}
-          evaluatorDefaultVariableMapping={
-            selectedRuleEvaluator.versions[0]?.variableMapping
-          }
-          source="evaluator_overview"
-          open
-          onOpenChange={(open) => {
-            if (!open) setAttachEvaluatorId(null);
-          }}
-        />
-      ) : null}
       {projectDefaultModel.defaultModel &&
       projectDefaultModel.update.pendingModel ? (
         <DefaultModelChangeConfirmationDialog

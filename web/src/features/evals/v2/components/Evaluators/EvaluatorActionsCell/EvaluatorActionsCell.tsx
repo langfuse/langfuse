@@ -1,6 +1,5 @@
 import {
   Copy,
-  Link2,
   ListTree,
   MoreVertical,
   Pencil,
@@ -18,20 +17,16 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function EvaluatorActionsCell({
-  hasActiveRules,
   canViewExecutions,
   onViewScores,
   onViewExecutions,
-  onManageRules,
   onClone,
   onEdit,
   onDelete,
 }: {
-  hasActiveRules: boolean;
   canViewExecutions: boolean;
   onViewScores: () => void;
   onViewExecutions: () => void;
-  onManageRules: () => void;
   onClone: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -39,35 +34,21 @@ export function EvaluatorActionsCell({
   const capture = usePostHogClientCapture();
 
   const handlePrimaryAction = () => {
-    const action = hasActiveRules ? "view_scores" : "attach_rule";
-    capture("evaluators:overview_action_click", { action });
-    if (hasActiveRules) {
-      onViewScores();
-    } else {
-      onManageRules();
-    }
+    capture("evaluators:overview_action_click", { action: "view_scores" });
+    onViewScores();
   };
 
   return (
     <div className="flex w-full min-w-0 items-center justify-start gap-1">
       <Button
         type="button"
-        variant="outline"
+        variant="link"
         size="sm"
-        className="w-32 shrink-0"
+        className="text-foreground hover:text-foreground h-auto w-28 shrink-0 justify-start px-0 py-0"
         onClick={handlePrimaryAction}
       >
-        {hasActiveRules ? (
-          <>
-            <SquarePercent className="mr-2 h-4 w-4" />
-            View scores
-          </>
-        ) : (
-          <>
-            <Link2 className="mr-2 h-4 w-4" />
-            Attach to rule
-          </>
-        )}
+        View scores
+        <SquarePercent className="ml-1 h-3.5 w-3.5" />
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

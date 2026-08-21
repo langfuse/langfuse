@@ -14,26 +14,11 @@ const meta = preview.meta({
   ],
 });
 
-export const ActiveEvaluator = meta.story({
+export const Default = meta.story({
   args: {
-    hasActiveRules: true,
     canViewExecutions: true,
     onViewScores: fn(),
     onViewExecutions: fn(),
-    onManageRules: fn(),
-    onEdit: fn(),
-    onClone: fn(),
-    onDelete: fn(),
-  },
-});
-
-export const InactiveEvaluator = meta.story({
-  args: {
-    hasActiveRules: false,
-    canViewExecutions: true,
-    onViewScores: fn(),
-    onViewExecutions: fn(),
-    onManageRules: fn(),
     onEdit: fn(),
     onClone: fn(),
     onDelete: fn(),
@@ -43,11 +28,9 @@ export const InactiveEvaluator = meta.story({
 export const OpenMenu = meta.story({
   name: "(Test) Opens menu",
   args: {
-    hasActiveRules: true,
     canViewExecutions: true,
     onViewScores: fn(),
     onViewExecutions: fn(),
-    onManageRules: fn(),
     onEdit: fn(),
     onClone: fn(),
     onDelete: fn(),

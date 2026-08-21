@@ -391,19 +391,20 @@ export function RulesTable({
           const navigationAction = getRuleNavigationAction(row.original);
           return (
             <div
-              className="flex items-center gap-1"
+              className="flex w-full min-w-0 items-center justify-start gap-1"
               onClick={(event) => event.stopPropagation()}
             >
               <Button
                 type="button"
-                variant="outline"
+                variant="link"
                 size="sm"
+                className="text-foreground hover:text-foreground h-auto px-0 py-0"
                 onClick={(event) => {
                   event.stopPropagation();
                   router.push(ruleExecutionsUrl(projectId, row.original.id));
                 }}
               >
-                View traces <ExternalLink className="ml-1 h-3 w-3" />
+                View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
