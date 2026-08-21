@@ -48,15 +48,6 @@ const meta = preview.meta({
     data: DATA,
     onConfigChange: fn(),
   },
-  // In production the panel fills a bounded-height flex ancestor (`flex-1`
-  // inside `ScoresChartView`). The standalone story provides that ancestor.
-  decorators: [
-    (Story) => (
-      <div className="flex h-[420px]">
-        <Story />
-      </div>
-    ),
-  ],
 });
 
 export const Default = meta.story({});
