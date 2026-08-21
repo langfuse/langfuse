@@ -69,6 +69,7 @@ export type Route = {
     projectId: string | undefined;
     isLangfuseCloud: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
+    v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -227,8 +228,8 @@ export const ROUTES: Route[] = [
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
-    featureFlag: "v4UpgradeUi",
-    show: ({ projectId }) => projectId !== undefined,
+    show: ({ projectId, v4UpgradeUiAvailable }) =>
+      v4UpgradeUiAvailable && projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
   },
   {
