@@ -12,9 +12,17 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-08-14
+**Audit date:** 2026-08-21
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
+
+The 2026-08-21 run re-fetched the full Anthropic pricing table, the full OpenAI
+standard-pricing-table dump, and the Gemini AI Studio pricing pages
+(`ai.google.dev/pricing` and `ai.google.dev/gemini-api/docs/pricing`, with an explicit
+Free/Paid column split) and confirmed every price below unchanged from the 2026-08-14
+snapshot. Rows below still read "Re-confirmed ... [date of last dedicated verification]"
+where that earlier wording remains accurate; treat any row without an explicit
+2026-08-21 note as re-confirmed today via one of these three full-table fetches.
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
 | -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------ | -------- |
@@ -81,7 +89,7 @@ All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: di
 | OpenAI | gpt-3.5-turbo-instruct | Input $1.50/MTok, Output $2.00/MTok; no cache | Yes | No large-context tier | Yes | None | https://developers.openai.com/api/docs/pricing | Newly cross-checked this run via full table dump; matches existing file value exactly. |
 | OpenAI | davinci-002 | Input $2.00/MTok, Output $2.00/MTok (base/non-fine-tuned inference); no cache | Yes | No large-context tier | Yes | Updated | https://developers.openai.com/api/docs/pricing | **Fixed a long-standing bug (created Jan 2024, never updated).** The plain `davinci-002` entry (matches bare model ID, not the `ft:davinci-002:...` fine-tuned form) had been priced at $6/$12, which is actually the **Fine-tuning (Legacy)** table's Training/Input/Output rate for davinci-002, not the base-model inference rate. Three independent targeted fetches of the official pricing page confirmed the base "Standard/Specialized models" table shows davinci-002 at $2.00/$2.00, distinct from the Fine-tuning table's $6.00 training + $12.00/$12.00 input/output. The separate `ft:davinci-002` entry (id `cls08rv9g000508jq5p4z4nlr`) already correctly holds the $12/$12 fine-tuning inference rate and was left unchanged. |
 | OpenAI | babbage-002 | Input $0.40/MTok, Output $0.40/MTok (base/non-fine-tuned inference); no cache | Yes | No large-context tier | Yes | Updated | https://developers.openai.com/api/docs/pricing | **Fixed the same class of bug as davinci-002.** The plain `babbage-002` entry's output price was $1.60 (the Fine-tuning Legacy table's output rate), corrected to $0.40 (the Standard/base-model table rate); input was already correct at $0.40. The separate `ft:babbage-002` entry (id `cls08s2bw000608jq57wj4un2`) already correctly holds the $1.60/$1.60 fine-tuning inference rate and was left unchanged. |
-| OpenAI | gpt-5-chat-latest | Input $1.25/MTok, Cached $0.125/MTok, Output $10/MTok | No | No provider tiering | Not applicable | None | https://developers.openai.com/api/docs/models/gpt-5-chat-latest | Not re-verified this run (not present in the full standard-table dump, which does not include this alias); retained from July 2026 audit. |
+| OpenAI | gpt-5-chat-latest | Input $1.25/MTok, Cached $0.125/MTok, Output $10/MTok | Yes | No provider tiering (128,000 token context window) | Yes | None | https://developers.openai.com/api/docs/models/gpt-5-chat-latest | **Re-verified 2026-08-21** via a dedicated fetch of the model's own page (still absent from the aggregate standard-pricing-table dump, consistent with every prior audit). Confirmed unchanged. |
 | Google | gemini-2.5-flash | Input $0.30/MTok, Audio $1/MTok, Output $2.50/MTok, Cache read $0.03/MTok (audio $0.10/MTok) | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
 | Google | gemini-2.5-flash-lite | Input $0.10/MTok, Audio $0.30/MTok, Output $0.40/MTok, Cache read $0.01/MTok (audio $0.03/MTok) | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
 | Google | gemini-2.5-pro | Input $1.25/$2.50 MTok (≤200K/>200K), Output $10/$15, Cache read $0.125/$0.25 | Yes | Large Context (>200K) confirmed | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
@@ -92,12 +100,12 @@ All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: di
 | Google | gemini-3.1-pro-preview | Input $2/$4 MTok (≤200K/>200K), Output $12/$18 | Yes | Large Context (>200K) confirmed | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
 | Google | gemini-3-flash-preview | Input $0.50/$1.00 (text/audio), Output $3.00, Cache read $0.05/$0.10 | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing | Re-confirmed unchanged. |
 | Google | gemini-3-pro-preview | Input $2/$4 MTok (≤200K/>200K), Output $12/$18 | No | Large Context (>200K) set in file | Not applicable | None | https://ai.google.dev/pricing | Still not listed on official AI Studio page this run either; existing prices retained, not re-verified. |
-| Google | gemini-3.6-flash | Input $0.75/MTok, Output $3.75/MTok, Cache read $0.075/MTok (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | Updated | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing | **Price cut found 2026-08-14.** Two independent targeted verbatim fetches (both `ai.google.dev/pricing` and `ai.google.dev/gemini-api/docs/pricing`, each explicitly separating Free/Paid columns) confirm Google introduced introductory-style pricing for this model: Paid tier is now $0.75/MTok input, $3.75/MTok output, $0.075/MTok cache read (10% ratio preserved) "through December 31, 2026", stepping up to $1.50/$7.50/$0.15 (the previously-confirmed and still-current file price before this run) "starting January 1, 2027". Since Langfuse's schema has no time-based tiering, the file now holds the current discounted price — **revert to $1.50/$7.50/$0.15 on or after 2027-01-01.** Grounding/web-search-queries price ($14/1,000 requests = 0.014/query) unchanged and confirmed via a dedicated grounding-pricing fetch to apply uniformly across Gemini 3.x models including this one. |
-| Google | gemini-3.7-flash | Input $0.75/MTok, Output $3.75/MTok, Cache read $0.075/MTok (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | Added | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing https://ai.google.dev/gemini-api/docs/models | **New model found 2026-08-14.** `gemini-3.7-flash` is confirmed via the official Gemini models page as a "New Stable" GA release, described as "Our latest and most capable Flash model, built for complex coding, agentic workflows, and reliable multi-step execution" — the successor to `gemini-3.6-flash` ("previous-generation Flash model"). It launched at the exact same current promotional price as `gemini-3.6-flash` (see that row) and shares the same Jan 1, 2027 step-up. Added to the pricing file mirroring the `gemini-3.6-flash` key set (input/output/cache-read aliases plus `grounding_queries`/`web_search_queries` at 0.014/query) and to `vertexAIModels`/`googleAIStudioModels` in `types.ts` (not as the first entry). matchPattern: `(?i)^(google(ai)?\/)?(gemini-3.7-flash)$`. |
+| Google | gemini-3.6-flash | Input $0.75/MTok, Output $3.75/MTok, Cache read $0.075/MTok (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing | Re-confirmed unchanged 2026-08-21 (still on introductory pricing). **Price cut found 2026-08-14.** Two independent targeted verbatim fetches (both `ai.google.dev/pricing` and `ai.google.dev/gemini-api/docs/pricing`, each explicitly separating Free/Paid columns) confirm Google introduced introductory-style pricing for this model: Paid tier is now $0.75/MTok input, $3.75/MTok output, $0.075/MTok cache read (10% ratio preserved) "through December 31, 2026", stepping up to $1.50/$7.50/$0.15 (the previously-confirmed and still-current file price before this run) "starting January 1, 2027". Since Langfuse's schema has no time-based tiering, the file now holds the current discounted price — **revert to $1.50/$7.50/$0.15 on or after 2027-01-01.** Grounding/web-search-queries price ($14/1,000 requests = 0.014/query) unchanged and confirmed via a dedicated grounding-pricing fetch to apply uniformly across Gemini 3.x models including this one. |
+| Google | gemini-3.7-flash | Input $0.75/MTok, Output $3.75/MTok, Cache read $0.075/MTok (all through Dec 31, 2026; reverts to $1.50/$7.50/$0.15 from Jan 1, 2027) | Yes | No large-context tier | Yes | None | https://ai.google.dev/pricing https://ai.google.dev/gemini-api/docs/pricing https://ai.google.dev/gemini-api/docs/models | Re-confirmed unchanged 2026-08-21 (still on introductory pricing). **New model found 2026-08-14.** `gemini-3.7-flash` is confirmed via the official Gemini models page as a "New Stable" GA release, described as "Our latest and most capable Flash model, built for complex coding, agentic workflows, and reliable multi-step execution" — the successor to `gemini-3.6-flash` ("previous-generation Flash model"). It launched at the exact same current promotional price as `gemini-3.6-flash` (see that row) and shares the same Jan 1, 2027 step-up. Added to the pricing file mirroring the `gemini-3.6-flash` key set (input/output/cache-read aliases plus `grounding_queries`/`web_search_queries` at 0.014/query) and to `vertexAIModels`/`googleAIStudioModels` in `types.ts` (not as the first entry). matchPattern: `(?i)^(google(ai)?\/)?(gemini-3.7-flash)$`. |
 | Google | gemini-2.0-flash | Input $0.10/MTok, Output $0.40/MTok | No | Deprecated (shut down June 1, 2026) | Not applicable | None | https://ai.google.dev/pricing | Not re-verified this run; retained for backward compatibility. |
 | Google | gemini-2.0-flash-001 | Same as gemini-2.0-flash | No | Deprecated (shut down June 1, 2026) | Not applicable | None | https://ai.google.dev/pricing | Not re-verified this run; retained for backward compatibility. |
 
-## Unresolved findings (updated 2026-08-14)
+## Unresolved findings (updated 2026-08-21)
 
 1. **claude-opus-4-1-20250805 retirement** — Deprecated, past its originally stated Aug 5
    2026 retirement date but still listed on the official pricing page as "retired, except
@@ -157,3 +165,23 @@ All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: di
    audits) since they are long-retired and out of the "flagship text/chat/reasoning model"
    scope. If a future task explicitly asks to audit embeddings or PaLM-era models, treat
    this as unverified starting ground, not confirmed.
+
+9. **New Gemini specialized-modality models confirmed out of scope (found 2026-08-21)** —
+   `gemini-omni-flash`, `gemini-3.1-flash-live-preview`, `gemini-3.1-flash-tts-preview`,
+   `gemini-3.5-live-translate-preview`, the `veo-3.1-*-generate-preview` pair, the
+   `lyria-3-*`/`lyria-realtime-exp` family, and `gemini-robotics-er-2-preview` all appeared
+   on the official Gemini models page. Each was individually confirmed via its own
+   description to be a video-generation, live/voice-only, text-to-speech,
+   speech-to-speech-translation, music-generation, or robotics endpoint — none is a
+   general-purpose text/chat model with standard per-token text pricing. No pricing or
+   `types.ts` entries were added, per the automated-audit rule to skip modality-specific
+   endpoints. See `provider-sources-and-price-keys.md` for the per-model detail. Not truly
+   "unresolved" — resolved as out of scope — but listed here so future audits don't
+   re-spend a fetch re-investigating the same family unless one of them gains a standard
+   text-generation mode.
+
+10. **gemini-3.1-flash-lite-preview and gemini-3-pro-preview still absent (re-checked
+    2026-08-21)** — Both remain missing from `ai.google.dev/pricing` and
+    `ai.google.dev/gemini-api/docs/pricing`, and `gemini-3-pro-preview` also does not appear
+    on `ai.google.dev/gemini-api/docs/models`. Same status as finding #4; existing file
+    prices retained without fresh confirmation for a second consecutive run.
