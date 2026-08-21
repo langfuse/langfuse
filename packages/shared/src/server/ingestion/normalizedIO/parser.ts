@@ -1088,7 +1088,7 @@ function withProviderOptions<T extends NormalizedMessagePart>(
     ...providerOptions,
     ...part.providerMetadata,
   });
-  return compact({ ...part, providerMetadata });
+  return { ...part, providerMetadata } as T;
 }
 
 function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
