@@ -24,7 +24,10 @@ export function buildAnthropicModel(params: {
 }): LanguageModel {
   const provider = createAnthropic({
     apiKey: params.apiKey,
-    baseURL: toAnthropicBaseURL(params.baseURL),
+    // Always pass a base URL so the SDK cannot fall back to ambient
+    // ANTHROPIC_BASE_URL (e.g. a local Claude Code proxy).
+    baseURL:
+      toAnthropicBaseURL(params.baseURL) ?? "https://api.anthropic.com/v1",
     headers: params.extraHeaders,
     fetch: params.fetch,
   });

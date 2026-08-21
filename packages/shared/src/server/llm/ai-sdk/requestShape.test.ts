@@ -546,6 +546,24 @@ describe("AI SDK request shapes", () => {
     expect(request.body.messages).toHaveLength(1);
   });
 
+  it("Anthropic: omitted base URL pins official /v1 even when ANTHROPIC_BASE_URL is set", async () => {
+    vi.stubEnv("ANTHROPIC_BASE_URL", "http://127.0.0.1:18789/anthropic");
+
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        model: "claude-sonnet-5",
+        max_tokens: 256,
+      },
+      apiKey: "anthropic-key",
+      response: ANTHROPIC_RESPONSE,
+    });
+
+    expect(request.url).toBe("https://api.anthropic.com/v1/messages");
+    expect(request.headers.get("x-api-key")).toBe("anthropic-key");
+  });
+
   it("Google AI Studio: /v1beta path on a custom origin with thinkingConfig", async () => {
     const { request } = await runCompletion({
       modelParams: {
