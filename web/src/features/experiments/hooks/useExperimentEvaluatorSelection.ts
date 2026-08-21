@@ -1,8 +1,7 @@
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
-import { isEvalRuleExecutable } from "@langfuse/shared";
+import { isEvalRuleExecutable, singleFilter } from "@langfuse/shared";
 import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
-import { singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
 /**

@@ -28,11 +28,12 @@ import {
   resolvePersistedEvalOutputDefinition,
   EvalTemplateType,
   EvalTemplateSourceCodeLanguage,
+  type EvalTemplate,
+  type ModelParams,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import router from "next/router";
-import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { type ModelParams, ZodModelConfig } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";

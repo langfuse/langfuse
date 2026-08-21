@@ -4,8 +4,8 @@ import {
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
+  wipVariableMapping,
 } from "@langfuse/shared";
-import { wipVariableMapping } from "@langfuse/shared";
 import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
 import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
 

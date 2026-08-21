@@ -21,14 +21,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import type {
-  CreateEvaluatorInput,
-  DeleteEvaluatorsInput,
-  EvaluatorDefinition,
-  EvaluatorVersionCursor,
-  UpdateEvaluatorInput,
-} from "./evaluatorTypes";
 import {
+  type CreateEvaluatorInput,
+  type DeleteEvaluatorsInput,
+  type EvaluatorDefinition,
+  type EvaluatorVersionCursor,
+  type UpdateEvaluatorInput,
   encodeEvaluatorVersionCursor,
   EvaluatorDefinitionSchema,
 } from "./evaluatorTypes";

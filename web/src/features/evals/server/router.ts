@@ -25,6 +25,7 @@ import {
   LangfuseNotFoundError,
   EvalTemplateType,
   type EvaluatorExecutionStatusCount,
+  type EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -46,9 +47,11 @@ import { assertUnreachable, isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type JobExecution, type PrismaClient } from "@prisma/client";
-import { type EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
-import { selectDatasetEvaluatorsForStatusChange } from "@/src/features/evals/server/evalConfigState";
+import {
+  selectDatasetEvaluatorsForStatusChange,
+  shouldValidateBeforeActivation,
+} from "@/src/features/evals/server/evalConfigState";
 import {
   EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
   JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
@@ -71,7 +74,6 @@ import {
   CodeEvalJobConfigError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { shouldValidateBeforeActivation } from "@/src/features/evals/server/evalConfigState";
 import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
 import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";

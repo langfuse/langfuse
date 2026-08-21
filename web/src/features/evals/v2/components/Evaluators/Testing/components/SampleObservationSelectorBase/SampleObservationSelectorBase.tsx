@@ -16,8 +16,10 @@ import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFil
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
-import { EVENTS_FIELD_REGISTRY } from "@/src/features/search-bar/lib/fields";
+import {
+  type FieldRegistry,
+  EVENTS_FIELD_REGISTRY,
+} from "@/src/features/search-bar/lib/fields";
 import {
   observedScoreNamesFromOptions,
   toObservedOptions,

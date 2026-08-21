@@ -50,8 +50,7 @@ import {
   buildFilterSystemPrompt,
   nullableFieldIds,
 } from "./buildFilterPrompt";
-import type { FieldRegistry } from "../lib/fields";
-import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
+import { type FieldRegistry, EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 /** Name of the managed chat prompt in the AI-features Langfuse project. Kept
  *  in sync with the repo seed file (`./prompts/search-bar-filter.prompt.json`)

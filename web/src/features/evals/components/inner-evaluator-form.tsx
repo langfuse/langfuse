@@ -25,17 +25,17 @@ import {
   JobConfigState,
   validateEvaluatorFiltersForTarget,
   evalTraceTableCols,
-} from "@langfuse/shared";
-import { z } from "zod";
-import { useEffect, useMemo, useState, memo } from "react";
-import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import {
   type EvalTemplate,
   EvalTemplateSourceCodeLanguage,
   variableMapping,
   observationVariableMapping,
+  EvalTargetObject,
+  EvalTargetObjectSchema,
 } from "@langfuse/shared";
+import { z } from "zod";
+import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
+import { api } from "@/src/utils/api";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -55,9 +55,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
-import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,

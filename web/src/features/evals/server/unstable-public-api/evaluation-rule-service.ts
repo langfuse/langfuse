@@ -22,10 +22,11 @@ import type {
   PatchUnstableEvaluationRuleBodyType,
   PostUnstableEvaluationRuleBodyType,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
-import type {
-  PublicEvaluationRuleMappingType,
-  PublicEvaluationRuleReadMappingType,
-  PublicEvaluationRuleTargetType,
+import {
+  type PublicEvaluationRuleMappingType,
+  type PublicEvaluationRuleReadMappingType,
+  type PublicEvaluationRuleTargetType,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {
   deriveEvaluatorVariables,
@@ -57,7 +58,6 @@ import {
   assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
-import { PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { assertUnreachable } from "@/src/utils/types";
 

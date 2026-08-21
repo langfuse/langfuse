@@ -6,8 +6,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import type { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
-import { isRuleDraftDirty } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import {
+  type createRuleSetupStore,
+  isRuleDraftDirty,
+} from "@/src/features/evals/v2/stores/createRuleSetupStore";
 
 export function RuleDialogFooter({
   ruleSetupStore,

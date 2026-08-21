@@ -1,6 +1,9 @@
 import { LangfuseConflictError, EvalTargetObject } from "@langfuse/shared";
-import type { PrismaClient, Prisma } from "@langfuse/shared/src/db";
-import { JobConfigState } from "@langfuse/shared/src/db";
+import {
+  type PrismaClient,
+  type Prisma,
+  JobConfigState,
+} from "@langfuse/shared/src/db";
 
 /**
  * Cap on simultaneously active evaluation rules per project. Enforced for every

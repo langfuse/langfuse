@@ -6,8 +6,7 @@ import type {
   RulesTableStore,
 } from "@/src/features/evals/v2/types/rules";
 import type { ColumnOrderState, VisibilityState } from "@tanstack/react-table";
-import type { Dispatch, SetStateAction } from "react";
-import type { ComponentProps } from "react";
+import { type Dispatch, type SetStateAction, type ComponentProps } from "react";
 import type { RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import type { FilterState } from "@langfuse/shared";
 

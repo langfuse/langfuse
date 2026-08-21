@@ -27,11 +27,11 @@ import {
   EvaluatorVersionConflictError,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
-import type {
-  CreateEvaluatorInput,
-  EvaluatorDefinition,
+import {
+  type CreateEvaluatorInput,
+  type EvaluatorDefinition,
+  EvaluatorVersionsSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
-import { EvaluatorVersionsSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
