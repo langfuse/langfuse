@@ -18,6 +18,8 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { ExternalLink } from "lucide-react";
 
 export function OnboardingSurvey() {
   const router = useRouter();
@@ -26,6 +28,7 @@ export function OnboardingSurvey() {
   const form = useForm<SurveyFormData>({
     defaultValues: {
       referralSource: undefined,
+      aiFeaturesEnabled: true,
     },
   });
   const onboardingStatus = api.onboarding.status.useQuery();
@@ -39,8 +42,18 @@ export function OnboardingSurvey() {
 
       try {
         const referralSource = data?.referralSource?.trim();
+        const canConfigureAiFeatures =
+          onboardingStatus.data?.completed === false &&
+          onboardingStatus.data.canConfigureAiFeatures;
         const onboardingResult = await completeOnboardingMutation.mutateAsync(
-          referralSource ? { referralSource } : undefined,
+          referralSource || canConfigureAiFeatures
+            ? {
+                ...(referralSource ? { referralSource } : {}),
+                ...(canConfigureAiFeatures
+                  ? { aiFeaturesEnabled: data?.aiFeaturesEnabled ?? true }
+                  : {}),
+              }
+            : undefined,
         );
         utils.onboarding.status.setData(undefined, {
           completed: true,
@@ -56,7 +69,13 @@ export function OnboardingSurvey() {
         );
       }
     },
-    [completeOnboardingMutation, router, updateSession, utils],
+    [
+      completeOnboardingMutation,
+      onboardingStatus.data,
+      router,
+      updateSession,
+      utils,
+    ],
   );
 
   const [redirectCompletedOnboarding, isRedirectingCompletedOnboarding] =
@@ -190,6 +209,41 @@ export function OnboardingSurvey() {
                   </FormItem>
                 )}
               />
+              {onboardingStatus.data?.completed === false &&
+                onboardingStatus.data.canConfigureAiFeatures && (
+                  <FormField
+                    control={form.control}
+                    name="aiFeaturesEnabled"
+                    render={({ field }) => (
+                      <FormItem className="mt-6 flex flex-row items-start justify-between gap-4 rounded-md border p-3">
+                        <div className="flex flex-col gap-1">
+                          <FormLabel>Enable AI powered features</FormLabel>
+                          <p className="text-muted-foreground text-sm">
+                            Relevant project data can be sent to AWS Bedrock
+                            within your Langfuse data region. Your data will not
+                            be used for training models.{" "}
+                            <a
+                              href="https://langfuse.com/security/ai-features"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary inline-flex items-center gap-1 hover:underline"
+                            >
+                              Learn more
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </p>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            aria-label="Enable AI powered features"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
             </div>
 
             <div className="flex justify-end pt-6">

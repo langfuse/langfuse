@@ -15,6 +15,9 @@ import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { ExternalLink } from "lucide-react";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 export const NewOrganizationForm = ({
   onSuccess,
@@ -22,11 +25,13 @@ export const NewOrganizationForm = ({
   onSuccess: (orgId: string) => void | Promise<void>;
 }) => {
   const { update: updateSession } = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const form = useForm({
     resolver: zodResolver(organizationFormSchema),
     defaultValues: {
       name: "",
+      aiFeaturesEnabled: true,
     },
   });
   const capture = usePostHogClientCapture();
@@ -39,6 +44,7 @@ export const NewOrganizationForm = ({
     createOrgMutation
       .mutateAsync({
         name: values.name,
+        aiFeaturesEnabled: values.aiFeaturesEnabled,
       })
       .then(async (org) => {
         // the setup (next step) resolves the current org from session state,
@@ -78,6 +84,40 @@ export const NewOrganizationForm = ({
                 />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="aiFeaturesEnabled"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start justify-between gap-4 rounded-md border p-3">
+              <div className="flex flex-col gap-1">
+                <FormLabel>Enable AI powered features</FormLabel>
+                <p className="text-muted-foreground text-sm">
+                  {isLangfuseCloud
+                    ? "Relevant project data can be sent to AWS Bedrock within your Langfuse data region. Your data will not be used for training models."
+                    : "Relevant project data can be sent to the model provider configured by your instance administrator."}{" "}
+                  {isLangfuseCloud && (
+                    <a
+                      href="https://langfuse.com/security/ai-features"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary inline-flex items-center gap-1 hover:underline"
+                    >
+                      Learn more
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </p>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  aria-label="Enable AI powered features"
+                />
+              </FormControl>
             </FormItem>
           )}
         />

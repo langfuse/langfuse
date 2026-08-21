@@ -6,13 +6,13 @@ const organizationName = StringNoHTML.min(
   "Must have at least 3 characters",
 ).max(60, "Must have at most 60 characters");
 
-export const organizationFormSchema = z.object({
+export const organizationNameSchema = z.object({
   name: organizationName,
 });
 
-// Base schema for org creation, used for server-side validation too
-/** @alias */
-export const organizationNameSchema = organizationFormSchema;
+export const organizationFormSchema = organizationNameSchema.extend({
+  aiFeaturesEnabled: z.boolean(),
+});
 
 export const organizationOptionalNameSchema = z.object({
   name: organizationName.optional(),
