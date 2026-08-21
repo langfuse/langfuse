@@ -62,6 +62,34 @@ type InitialEvaluator = {
   sampleFilter?: FilterState;
 };
 
+export type EvaluatorCreationSource =
+  | { type: "managed"; templateKey: string }
+  | { type: "custom" }
+  | { type: "scratch" };
+
+export function getEvaluatorCreateAnalyticsProperties({
+  evaluatorType,
+  creationSource,
+}: {
+  evaluatorType: EvalTemplateType;
+  creationSource: EvaluatorCreationSource;
+}) {
+  if (creationSource.type === "managed") {
+    return {
+      evaluatorType,
+      managedTemplateKey: creationSource.templateKey,
+      isCustomTemplate: false,
+      isFromScratch: false,
+    };
+  }
+
+  return {
+    evaluatorType,
+    isCustomTemplate: creationSource.type === "custom",
+    isFromScratch: creationSource.type === "scratch",
+  };
+}
+
 export function shouldOfferRuleAttachment(evaluator: {
   blockedAt: Date | null;
 }) {
@@ -84,6 +112,7 @@ export function EvaluatorSetupPage(
         projectId: string;
         initialDraft: EvaluatorSetupDraft | null;
         initialType: EvalTemplateType;
+        creationSource: EvaluatorCreationSource;
       }
     | {
         mode: "edit";
@@ -422,10 +451,10 @@ export function EvaluatorSetupPage(
       if (!definition) return;
       const { name, description } = metadata;
 
-      if (initialEvaluator) {
+      if (props.mode === "edit") {
         const evaluator = await update.mutateAsync({
           projectId,
-          evaluatorId: initialEvaluator.id,
+          evaluatorId: props.initialEvaluator.id,
           name,
           description,
           definition,
@@ -448,7 +477,13 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
-      capture("evaluators:create", { evaluatorType: state.type });
+      capture(
+        "evaluators:create",
+        getEvaluatorCreateAnalyticsProperties({
+          evaluatorType: state.type,
+          creationSource: props.creationSource,
+        }),
+      );
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {

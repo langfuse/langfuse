@@ -36,6 +36,11 @@ export default function NewEvaluatorPage() {
   }
 
   const initialType = requestedEvaluatorType(router.query.type);
+  const creationSource = templateKey
+    ? { type: "managed" as const, templateKey }
+    : evaluatorId
+      ? { type: "custom" as const }
+      : { type: "scratch" as const };
 
   return (
     <EvaluatorSetupPage
@@ -44,6 +49,7 @@ export default function NewEvaluatorPage() {
       projectId={projectId}
       initialDraft={template.draft}
       initialType={initialType}
+      creationSource={creationSource}
     />
   );
 }
