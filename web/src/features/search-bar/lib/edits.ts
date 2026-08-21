@@ -6,8 +6,7 @@
 // stranding empty parens, …) the edit falls back to AST surgery + canonical
 // reserialize — structured edits NEVER produce an uncommittable string.
 
-import type { ASTNode, Span } from "./ast";
-import { astEquals, removeNodeBySpan } from "./ast";
+import { type ASTNode, type Span, astEquals, removeNodeBySpan } from "./ast";
 import { findClosingQuote, parse, serialize } from "./langQ";
 
 function spliceSpan(

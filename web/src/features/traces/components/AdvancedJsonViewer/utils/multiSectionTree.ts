@@ -14,8 +14,11 @@
  *   └─ ...
  */
 
-import type { TreeNode, TreeState } from "./treeStructure";
-import { buildTreeFromJSON } from "./treeStructure";
+import {
+  type TreeNode,
+  type TreeState,
+  buildTreeFromJSON,
+} from "./treeStructure";
 import { type WidthEstimatorConfig } from "./calculateWidth";
 
 /**
