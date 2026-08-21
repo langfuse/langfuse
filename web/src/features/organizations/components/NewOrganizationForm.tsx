@@ -11,22 +11,17 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
-import { useSession } from "next-auth/react";
 import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { ExternalLink } from "lucide-react";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 export const NewOrganizationForm = ({
-  onSuccess,
+  isLangfuseCloud,
+  onSubmit,
 }: {
-  onSuccess: (orgId: string) => void | Promise<void>;
+  isLangfuseCloud: boolean;
+  onSubmit: (values: z.infer<typeof organizationFormSchema>) => Promise<void>;
 }) => {
-  const { update: updateSession } = useSession();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-
   const form = useForm({
     resolver: zodResolver(organizationFormSchema),
     defaultValues: {
@@ -34,39 +29,31 @@ export const NewOrganizationForm = ({
       aiFeaturesEnabled: true,
     },
   });
-  const capture = usePostHogClientCapture();
-  const createOrgMutation = api.organizations.create.useMutation({
-    onError: (error) => form.setError("name", { message: error.message }),
-  });
 
-  function onSubmit(values: z.infer<typeof organizationFormSchema>) {
-    capture("organizations:new_form_submit");
-    createOrgMutation
-      .mutateAsync({
-        name: values.name,
-        aiFeaturesEnabled: values.aiFeaturesEnabled,
-      })
-      .then(async (org) => {
-        // the setup (next step) resolves the current org from session state,
-        // so we refresh it, so that the UI doesn't render stale state.
-        // for example, it could otherwise show the v4 enable toggle.
-        await updateSession();
-        await onSuccess(org.id);
-        form.reset();
-      })
-      .catch((error) => reportTrpcErrorWithoutToast(error, "organizations"));
+  async function handleSubmit(values: z.infer<typeof organizationFormSchema>) {
+    try {
+      await onSubmit(values);
+      form.reset();
+    } catch (error) {
+      form.setError("name", {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to create organization",
+      });
+    }
   }
 
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(handleSubmit)}
         className="space-y-3"
         data-testid="new-org-form"
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
-            form.handleSubmit(onSubmit)();
+            form.handleSubmit(handleSubmit)();
           }
         }}
       >
@@ -121,7 +108,7 @@ export const NewOrganizationForm = ({
             </FormItem>
           )}
         />
-        <Button type="submit" loading={createOrgMutation.isPending}>
+        <Button type="submit" loading={form.formState.isSubmitting}>
           Create
         </Button>
       </form>

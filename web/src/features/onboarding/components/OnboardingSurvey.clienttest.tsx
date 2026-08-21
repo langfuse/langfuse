@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ConnectedOnboardingSurvey } from "./ConnectedOnboardingSurvey";
 import { OnboardingSurvey } from "./OnboardingSurvey";
 
 const mocks = vi.hoisted(() => {
@@ -105,7 +106,7 @@ describe("OnboardingSurvey", () => {
   it("does not show the survey again after completion remounts onboarding", async () => {
     mocks.updateSessionMock.mockReturnValueOnce(new Promise(() => undefined));
 
-    const { unmount } = render(<OnboardingSurvey />);
+    const { unmount } = render(<ConnectedOnboardingSurvey />);
 
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Reddit" },
@@ -125,7 +126,7 @@ describe("OnboardingSurvey", () => {
 
     unmount();
     await act(async () => {
-      render(<OnboardingSurvey />);
+      render(<ConnectedOnboardingSurvey />);
       await Promise.resolve();
     });
 
@@ -134,33 +135,43 @@ describe("OnboardingSurvey", () => {
   });
 
   it("enables AI features by default for a configurable starter organization", async () => {
-    onboardingStatus = {
-      completed: false,
-      canConfigureAiFeatures: true,
-    };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-    render(<OnboardingSurvey />);
+    render(
+      <OnboardingSurvey
+        state="form"
+        canConfigureAiFeatures
+        onSubmit={onSubmit}
+      />,
+    );
 
     expect(
       screen.getByRole("switch", { name: "Enable AI powered features" }),
     ).toBeChecked();
+    expect(
+      screen.getByRole("heading", { name: "Organizational settings" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     await waitFor(() => {
-      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
+      expect(onSubmit).toHaveBeenCalledWith({
+        referralSource: undefined,
         aiFeaturesEnabled: true,
       });
     });
   });
 
   it("submits an explicit AI features opt-out", async () => {
-    onboardingStatus = {
-      completed: false,
-      canConfigureAiFeatures: true,
-    };
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-    render(<OnboardingSurvey />);
+    render(
+      <OnboardingSurvey
+        state="form"
+        canConfigureAiFeatures
+        onSubmit={onSubmit}
+      />,
+    );
 
     fireEvent.click(
       screen.getByRole("switch", { name: "Enable AI powered features" }),
@@ -168,17 +179,27 @@ describe("OnboardingSurvey", () => {
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
 
     await waitFor(() => {
-      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
+      expect(onSubmit).toHaveBeenCalledWith({
+        referralSource: undefined,
         aiFeaturesEnabled: false,
       });
     });
   });
 
   it("hides the AI features choice without a configurable starter organization", () => {
-    render(<OnboardingSurvey />);
+    render(
+      <OnboardingSurvey
+        state="form"
+        canConfigureAiFeatures={false}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
 
     expect(
       screen.queryByRole("switch", { name: "Enable AI powered features" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Organizational settings" }),
     ).not.toBeInTheDocument();
   });
 });

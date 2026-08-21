@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Card } from "@/src/components/ui/card";
-import { NewOrganizationForm } from "@/src/features/organizations/components/NewOrganizationForm";
+import { ConnectedNewOrganizationForm } from "@/src/features/organizations/components/ConnectedNewOrganizationForm";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
@@ -81,7 +81,7 @@ export function SetupPage() {
               <p className="text-muted-foreground mb-4 text-sm">
                 Organizations are used to manage your projects and teams.
               </p>
-              <NewOrganizationForm
+              <ConnectedNewOrganizationForm
                 onSuccess={(orgId) => {
                   router.push(createProjectRoute(orgId));
                 }}
