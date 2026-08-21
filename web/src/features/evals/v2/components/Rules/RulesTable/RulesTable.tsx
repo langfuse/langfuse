@@ -640,6 +640,7 @@ export function RulesTable({
             open
             initialRule={cloneRule}
             onOpenChange={(open) => !open && setCloneRule(null)}
+            successNotification="toast"
           />
         ) : null}
       </div>

@@ -18,7 +18,6 @@ import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/Creat
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -158,10 +157,6 @@ export function EvaluatorSavedDialogContainer({
         source: "evaluator_create_test_filters",
       });
     }
-    showSuccessToast({
-      title: result.action === "created" ? "Rule created" : "Rule reused",
-      description: `${result.rule.name} is active.`,
-    });
     await invalidateRuleQueries();
     await finish();
   };
@@ -491,6 +486,7 @@ export function EvaluatorSavedDialogContainer({
         }
       }}
       initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
+      successNotification="none"
     />
   ) : null;
 }

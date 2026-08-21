@@ -376,6 +376,7 @@ export function EvaluatorRuleRelationshipsSheet({
             ...preparedEvaluatorMapping,
           }}
           onOpenChange={setCreateOpen}
+          successNotification="toast"
         />
       ) : null}
       <ActivationConfirmationDialog

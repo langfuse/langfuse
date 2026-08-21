@@ -19,6 +19,7 @@ export function CreateRuleDialog({
   initialRule,
   initialFilter,
   targetObject,
+  successNotification,
 }: {
   projectId: string;
   open: boolean;
@@ -27,6 +28,7 @@ export function CreateRuleDialog({
   initialRule?: RuleTableRow;
   initialFilter?: FilterState;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  successNotification: "toast" | "none";
 }) {
   const [evaluatorSearch, setEvaluatorSearch] = useState("");
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
@@ -94,6 +96,7 @@ export function CreateRuleDialog({
       initialFilter={initialFilter}
       targetObject={targetObject}
       evaluatorSearch={evaluatorSearch}
+      successNotification={successNotification}
       onEvaluatorSearchChange={(value) => {
         setEvaluatorSearch(value);
         debouncedEvaluatorSearch(value);

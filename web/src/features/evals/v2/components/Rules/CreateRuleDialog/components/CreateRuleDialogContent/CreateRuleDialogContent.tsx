@@ -38,6 +38,7 @@ export function CreateRuleDialogContent({
   initialFilter,
   targetObject,
   evaluatorSearch,
+  successNotification,
   onEvaluatorSearchChange,
 }: {
   projectId: string;
@@ -49,6 +50,7 @@ export function CreateRuleDialogContent({
   initialFilter: FilterState | undefined;
   targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
   evaluatorSearch: string;
+  successNotification: "toast" | "none";
   onEvaluatorSearchChange: (search: string) => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -119,10 +121,12 @@ export function CreateRuleDialogContent({
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: true,
     });
-    showSuccessToast({
-      title: "Rule created",
-      description: `${rule.name} is active.`,
-    });
+    if (successNotification === "toast") {
+      showSuccessToast({
+        title: "Rule created",
+        description: `${rule.name} is active.`,
+      });
+    }
     await Promise.all([
       utils.evalsV2.rules.list.invalidate({ projectId }),
       utils.evalsV2.rules.filterOptions.invalidate({ projectId }),

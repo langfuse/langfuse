@@ -57,6 +57,7 @@ export function RulesPage() {
           projectId={projectId}
           open
           onOpenChange={setCreateOpen}
+          successNotification="toast"
         />
       ) : null}
     </Page>
