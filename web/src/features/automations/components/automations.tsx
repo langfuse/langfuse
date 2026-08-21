@@ -10,7 +10,7 @@ import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Page from "@/src/components/layouts/page";
-import { api } from "@/src/utils/api";
+import { api, getPathnameWithoutBasePath } from "@/src/utils/api";
 import { useQueryParams, StringParam, withDefault } from "use-query-params";
 import {
   Dialog,
@@ -23,7 +23,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { type AutomationDomain } from "@langfuse/shared";
 import { ErrorPage } from "@/src/components/error-page";
-import { getPathnameWithoutBasePath } from "@/src/utils/api";
 
 export default function AutomationsPage() {
   const router = useRouter();

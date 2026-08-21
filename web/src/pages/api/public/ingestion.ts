@@ -10,18 +10,18 @@ import {
   eventTypes,
   markProjectIngestFailure,
   createIngestionAttribution,
+  processEventBatch,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { jsonSchema } from "@langfuse/shared";
-import { isPrismaException } from "@/src/utils/exceptions";
 import {
+  jsonSchema,
   MethodNotAllowedError,
   BaseError,
   UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
-import { processEventBatch } from "@langfuse/shared/src/server";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";

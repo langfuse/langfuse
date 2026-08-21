@@ -1,11 +1,10 @@
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
-import { PlaygroundProvider } from "../context";
+import { PlaygroundProvider, usePlaygroundContext } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { Button } from "@/src/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { usePlaygroundContext } from "../context";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
 import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";

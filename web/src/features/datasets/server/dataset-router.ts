@@ -33,6 +33,7 @@ import {
   ActionId,
   BatchActionType,
   BatchExportTableName,
+  type BulkDatasetItemValidationError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -95,7 +96,6 @@ import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,

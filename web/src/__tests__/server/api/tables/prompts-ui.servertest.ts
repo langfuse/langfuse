@@ -5,8 +5,6 @@ import {
   createObservationsCh,
   createScoresCh,
   createTraceScore,
-} from "@langfuse/shared/src/server";
-import {
   getAggregatedScoresForPromptsFromEvents,
   buildAggregatedScoresForPromptsFromEventsQuery,
   getObservationMetricsForPrompts,

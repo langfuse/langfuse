@@ -6,12 +6,12 @@ import {
   filterAndValidateLegacyV1GetScoreList,
   PostScoresBodyV1,
   PostScoresResponseV1,
+  ForbiddenError,
 } from "@langfuse/shared";
 import {
   createIngestionAttribution,
   logger,
 } from "@langfuse/shared/src/server";
-import { ForbiddenError } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { randomUUID } from "crypto";

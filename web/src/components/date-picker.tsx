@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { Calendar as CalendarIcon, X, ChevronDown } from "lucide-react";
-import { addMinutes } from "date-fns";
+import { addMinutes, format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
 import { Calendar } from "@/src/components/ui/calendar";
 import {
@@ -13,7 +13,6 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { type DateRange as RDPDateRange } from "react-day-picker";
-import { format } from "date-fns";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";

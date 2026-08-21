@@ -58,6 +58,7 @@ export default [
       ...reactHooksPlugin.configs.recommended.rules,
       ...nextPlugin.configs["core-web-vitals"].rules,
       "import/no-anonymous-default-export": "warn",
+      "import/no-duplicates": ["error", { "prefer-inline": true }],
       "react/no-unknown-property": "off",
       "react/react-in-jsx-scope": "off",
       "react/prop-types": "off",

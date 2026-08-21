@@ -1,11 +1,9 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 
-import type {
-  AgUiContext,
-  AgUiMessage,
-  InAppAgentToolApprovalRequest,
-} from "@langfuse/shared/in-app-agent";
 import {
+  type AgUiContext,
+  type AgUiMessage,
+  type InAppAgentToolApprovalRequest,
   AgUiMessageSchema,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,

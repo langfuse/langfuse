@@ -20,12 +20,14 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
+import {
+  requiresLegacyMigrationAction,
+  isLegacyEvalTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,

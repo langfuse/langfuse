@@ -10,8 +10,7 @@
  * 3. Call toolRegistry.register(featureModule)
  */
 
-import { toolRegistry } from "./registry";
-import type { McpFeatureModule } from "./registry";
+import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "../features/prompts";
 import { observationsFeature } from "../features/observations";
 import { annotationQueuesFeature } from "../features/annotationQueues";

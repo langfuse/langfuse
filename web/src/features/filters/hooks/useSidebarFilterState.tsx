@@ -1,5 +1,11 @@
-import type React from "react";
-import { useCallback, useMemo, useEffect, useRef, useState } from "react";
+import {
+  type default as React,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   StringParam,
   useQueryParam,

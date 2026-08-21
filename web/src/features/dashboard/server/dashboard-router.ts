@@ -6,6 +6,7 @@ import {
 import {
   filterInterface,
   sqlInterface,
+  type DatabaseRow,
 } from "@/src/server/api/services/sqlInterface";
 import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
@@ -19,7 +20,6 @@ import {
   DashboardService,
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
-import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   query as customQuery,

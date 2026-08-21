@@ -9,6 +9,7 @@ import {
   type AutomationDomain,
   JobConfigState,
   TriggerEventSource,
+  type FilterState,
 } from "@langfuse/shared";
 import {
   TabsBar,
@@ -16,7 +17,6 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { type FilterState } from "@langfuse/shared";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";

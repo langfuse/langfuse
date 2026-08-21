@@ -27,10 +27,9 @@
 // change.
 
 import type { FieldDef } from "./fields";
-import type { ScoreTypeContext } from "./adapter";
+import { type ScoreTypeContext, astToFilterState } from "./adapter";
 import type { FilterState } from "@langfuse/shared";
 import { parse, serialize } from "./langQ";
-import { astToFilterState } from "./adapter";
 import { validateQuery } from "./validate";
 import { filterStateToQueryText } from "./filter-state-to-query";
 

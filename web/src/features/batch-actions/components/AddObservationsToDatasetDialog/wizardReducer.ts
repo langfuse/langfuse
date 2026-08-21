@@ -1,5 +1,9 @@
-import type { WizardState, WizardAction, DialogStep } from "./types";
-import { DEFAULT_MAPPING_CONFIG } from "./types";
+import {
+  type WizardState,
+  type WizardAction,
+  type DialogStep,
+  DEFAULT_MAPPING_CONFIG,
+} from "./types";
 
 export const initialWizardState: WizardState = {
   step: "choice",

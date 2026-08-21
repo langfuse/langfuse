@@ -4,8 +4,7 @@ import { Pencil } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { cn } from "@/src/utils/tailwind";
 import type { FinalPreviewStepProps, DialogStep } from "./types";
-import { applyFullMapping } from "@langfuse/shared";
-import type { MappingError } from "@langfuse/shared";
+import { applyFullMapping, type MappingError } from "@langfuse/shared";
 import {
   IssueBanner,
   issueCardVariants,

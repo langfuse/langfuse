@@ -9,8 +9,10 @@ import {
 } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { type AnnotateDrawerProps } from "@/src/features/scores/types";
-import { type ScoreTarget } from "@/src/features/scores/types";
+import {
+  type AnnotateDrawerProps,
+  type ScoreTarget,
+} from "@/src/features/scores/types";
 import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 
 export function AnnotateDrawer<Target extends ScoreTarget>({

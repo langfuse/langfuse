@@ -6,8 +6,8 @@ import {
   queryViewToDashboardWidgetView,
   resolveDashboardWidgetMinVersion,
   type WidgetDomain,
+  type ApiAccessScope,
 } from "@langfuse/shared/src/server";
-import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,

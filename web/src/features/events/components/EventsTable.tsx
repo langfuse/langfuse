@@ -33,6 +33,7 @@ import {
   type TimeFilter,
   type TracingSearchType,
   type ScoreAggregate,
+  buildTracePath,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
@@ -107,7 +108,6 @@ import {
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { buildTracePath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {

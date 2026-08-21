@@ -1,5 +1,7 @@
-import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
-import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import {
+  type AnnotationScoreDataSchema,
+  type AnnotateFormSchema,
+} from "@/src/features/scores/schema";
 import { type ButtonProps } from "@/src/components/ui/button";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {

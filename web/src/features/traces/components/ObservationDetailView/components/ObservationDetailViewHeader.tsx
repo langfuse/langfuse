@@ -14,6 +14,7 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
@@ -42,7 +43,6 @@ import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { type ScoreDomain } from "@langfuse/shared";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";

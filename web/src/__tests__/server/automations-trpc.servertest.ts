@@ -12,8 +12,11 @@ import {
   type WebhookActionConfigWithSecrets,
   isWebhookAction,
 } from "@langfuse/shared";
-import { encrypt, decrypt } from "@langfuse/shared/encryption";
-import { generateWebhookSecret } from "@langfuse/shared/encryption";
+import {
+  encrypt,
+  decrypt,
+  generateWebhookSecret,
+} from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 
 const __orgIds: string[] = [];

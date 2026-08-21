@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { DependencyList } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DependencyList,
+} from "react";
 
 /**
  * Wraps a callback that returns a `Promise` with an in-flight loading state.

@@ -4,8 +4,6 @@ import {
   createTracesCh,
   createEvent as createEventBase,
   createOrgProjectAndApiKey,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createEventsCh,
 } from "@langfuse/shared/src/server";

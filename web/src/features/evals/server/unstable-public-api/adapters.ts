@@ -13,8 +13,9 @@ import {
   variableMappingList,
   type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
+  InternalServerError,
+  CODE_EVAL_TEMPLATE_VARIABLES,
 } from "@langfuse/shared";
-import { InternalServerError } from "@langfuse/shared";
 import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
@@ -32,7 +33,6 @@ import {
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type {
   ApiEvaluationRuleRecord,

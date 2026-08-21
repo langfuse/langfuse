@@ -112,6 +112,7 @@ import {
   createNumericEvalOutputDefinition,
   EvalTargetObject,
   JobConfigState,
+  CODE_EVAL_TEMPLATE_VARIABLES,
 } from "@langfuse/shared";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
@@ -127,7 +128,6 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import { PostUnstableEvaluationRuleBody } from "@/src/features/public-api/types/unstable-evaluation-rules";
 

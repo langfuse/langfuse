@@ -1,9 +1,11 @@
-import { type TraceDomain } from "@langfuse/shared";
+import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
-import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import {
+  ViewPreferencesProvider,
+  useViewPreferences,
+} from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   SelectionProvider,
   useSelection,
@@ -12,7 +14,10 @@ import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedO
 import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
 import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
-import { TraceGraphDataProvider } from "@/src/features/traces/contexts/TraceGraphDataContext";
+import {
+  TraceGraphDataProvider,
+  useTraceGraphData,
+} from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
 import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
@@ -22,8 +27,6 @@ import { TraceTree } from "@/src/features/traces/components/TraceTree";
 import { TraceTimeline } from "@/src/features/traces/components/TraceTimeline/TraceTimeline";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
 import { useMemo } from "react";

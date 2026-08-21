@@ -7,8 +7,6 @@ import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-} from "@langfuse/shared/in-app-agent";
-import {
   AgUiMessageSchema,
   type AgUiMessage,
   InAppAgentRedirectActionToolResultSchema,

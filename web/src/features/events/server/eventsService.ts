@@ -4,6 +4,8 @@ import {
   LISTABLE_SCORE_TYPES,
   type NumericEventsTableColumnId,
   filterAndValidateDbScoreList,
+  type timeFilter,
+  type FilterState,
 } from "@langfuse/shared";
 import {
   getObservationsCountsFromEventsTable,
@@ -25,7 +27,6 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { type timeFilter, type FilterState } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;

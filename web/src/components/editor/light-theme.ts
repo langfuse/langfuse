@@ -1,7 +1,9 @@
-import { defaultSettingsBothThemes } from "@/src/components/editor/shared-theme";
+import {
+  defaultSettingsBothThemes,
+  bothThemeStyles,
+} from "@/src/components/editor/shared-theme";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
-import { bothThemeStyles } from "@/src/components/editor/shared-theme";
 
 export const defaultSettingsLightTheme: CreateThemeOptions["settings"] = {
   ...defaultSettingsBothThemes,

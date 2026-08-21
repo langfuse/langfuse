@@ -16,12 +16,12 @@ import {
 import {
   type MigrationActionState,
   type MigrationCountState,
+  V4_MIGRATION_LOOKBACK_DAYS,
 } from "./migrationData";
 import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "./sdkVersionStatus";
-import { V4_MIGRATION_LOOKBACK_DAYS } from "./migrationData";
 import { TABLE_AGGREGATION_OPTIONS } from "@langfuse/shared";
 import { rangeFromString } from "@/src/utils/date-range-utils";
 

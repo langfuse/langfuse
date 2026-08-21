@@ -9,6 +9,7 @@ import {
   type ApiAccessLevel,
   traceException,
   logger,
+  contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
 import {
   PayloadTooLargeError,
@@ -17,7 +18,6 @@ import {
 } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
-import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";

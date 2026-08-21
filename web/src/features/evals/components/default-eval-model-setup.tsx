@@ -1,8 +1,7 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { CardContent } from "@/src/components/ui/card";
-import { Card } from "@/src/components/ui/card";
+import { CardContent, Card } from "@/src/components/ui/card";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
@@ -12,9 +11,12 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
-import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
+import {
+  DialogContent,
+  DialogTrigger,
+  Dialog,
+} from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
 import {
   Popover,

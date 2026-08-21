@@ -1,5 +1,4 @@
-import { CardContent } from "@/src/components/ui/card";
-import { Card } from "@/src/components/ui/card";
+import { CardContent, Card } from "@/src/components/ui/card";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 
 export function SetupDefaultEvalModelCard({
