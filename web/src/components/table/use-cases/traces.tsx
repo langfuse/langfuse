@@ -105,6 +105,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import { buildTraceBatchActionQuery } from "@/src/features/traces/fns/buildTraceBatchActionQuery";
 
 export type TracesTableRow = {
   // Shown by default
@@ -580,12 +581,12 @@ export default function TracesTable({
     await traceDeleteMutation.mutateAsync({
       projectId,
       traceIds: selectedTraceIds,
-      query: {
+      query: buildTraceBatchActionQuery({
         filter: filterState,
         orderBy: orderByState,
-        searchQuery: searchQuery || undefined,
+        searchQuery,
         searchType,
-      },
+      }),
       isBatchAction: selectAll,
     });
     setSelectedRows({});
@@ -608,10 +609,12 @@ export default function TracesTable({
       objectType: AnnotationQueueObjectType.TRACE,
       queueId: targetId,
       isBatchAction: selectAll,
-      query: {
+      query: buildTraceBatchActionQuery({
         filter: filterState,
         orderBy: orderByState,
-      },
+        searchQuery,
+        searchType,
+      }),
     });
     setSelectedRows({});
   };
