@@ -51,7 +51,7 @@ import { TracingSearchType } from "../../interfaces/search";
 import { observationsTableCols } from "../../observationsTable";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
-import { ObservationType } from "../../domain";
+import { ObservationType, type Observation } from "../../domain";
 import {
   LEGACY_OBSERVATION_EXPORT_FIELDS,
   OBSERVATION_FIELD_GROUPS_FULL,
@@ -135,9 +135,25 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
+// Caps the number of observations `getObservationsForTrace` fetches and
+// converts for a single trace. Without a cap, a trace with tens of thousands
+// of spans is fetched from ClickHouse and JS-converted (`convertObservation`)
+// in full, which is unbounded CPU/memory cost regardless of the payload
+// byte-size gate below. Ordered by start_time ASC, so a capped response keeps
+// the earliest observations and drops the chronological tail; callers must
+// surface `truncated` rather than silently presenting the capped list as
+// complete.
+export const OBSERVATIONS_FOR_TRACE_LIMIT =
+  env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
+
+export type GetObservationsForTraceResult = {
+  observations: Observation[];
+  truncated: boolean;
+};
+
 export const getObservationsForTrace = async <IncludeIO extends boolean>(
   opts: GetObservationsForTraceOpts<IncludeIO>,
-) => {
+): Promise<GetObservationsForTraceResult> => {
   const {
     traceId,
     projectId,
@@ -149,50 +165,60 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
   // OTel projects use immutable spans - no need for deduplication
   const skipDedup = await shouldSkipObservationsFinal(projectId);
 
+  // Fetch one row beyond the limit so truncation can be detected without a
+  // separate count query.
+  const fetchLimit = OBSERVATIONS_FOR_TRACE_LIMIT + 1;
+
   const query = `
-  SELECT
-    id,
-    trace_id,
-    project_id,
-    type,
-    parent_observation_id,
-    environment,
-    start_time,
-    end_time,
-    name,
-    level,
-    status_message,
-    version,
-    ${includeIO === true ? "input, output, metadata," : ""}
-    provided_model_name,
-    internal_model_id,
-    model_parameters,
-    provided_usage_details,
-    usage_details,
-    provided_cost_details,
-    cost_details,
-    total_cost,
-    usage_pricing_tier_id,
-    usage_pricing_tier_name,
-    completion_start_time,
-    prompt_id,
-    prompt_name,
-    prompt_version,
-    ${includeIO === true ? "tool_definitions, tool_calls, tool_call_names," : ""}
-    created_at,
-    updated_at,
-    event_ts
-  FROM observations
-  WHERE trace_id = {traceId: String}
-  AND project_id = {projectId: String}
-   ${timestamp ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
-  ${skipDedup ? "" : "ORDER BY event_ts DESC"}
-  ${skipDedup ? "" : "LIMIT 1 BY id, project_id"}`;
-  const records = await queryClickhouse<ObservationRecordReadType>({
+  SELECT *
+  FROM (
+    SELECT
+      id,
+      trace_id,
+      project_id,
+      type,
+      parent_observation_id,
+      environment,
+      start_time,
+      end_time,
+      name,
+      level,
+      status_message,
+      version,
+      ${includeIO === true ? "input, output, metadata," : ""}
+      provided_model_name,
+      internal_model_id,
+      model_parameters,
+      provided_usage_details,
+      usage_details,
+      provided_cost_details,
+      cost_details,
+      total_cost,
+      usage_pricing_tier_id,
+      usage_pricing_tier_name,
+      completion_start_time,
+      prompt_id,
+      prompt_name,
+      prompt_version,
+      ${includeIO === true ? "tool_definitions, tool_calls, tool_call_names," : ""}
+      created_at,
+      updated_at,
+      event_ts
+    FROM observations
+    WHERE trace_id = {traceId: String}
+    AND project_id = {projectId: String}
+     ${timestamp ? `AND start_time >= {traceTimestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}` : ""}
+    ${skipDedup ? "" : "ORDER BY event_ts DESC"}
+    ${skipDedup ? "" : "LIMIT 1 BY id, project_id"}
+  )
+  ORDER BY start_time ASC
+  LIMIT {fetchLimit: UInt32}`;
+  const fetchedRecords = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: {
       traceId,
       projectId,
+      fetchLimit,
       ...(timestamp
         ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
         : {}),
@@ -200,6 +226,11 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     tags: { projectId },
     preferredClickhouseService,
   });
+
+  const truncated = fetchedRecords.length > OBSERVATIONS_FOR_TRACE_LIMIT;
+  const records = truncated
+    ? fetchedRecords.slice(0, OBSERVATIONS_FOR_TRACE_LIMIT)
+    : fetchedRecords;
 
   // Large number of observations in trace with large input / output / metadata will lead to
   // high CPU and memory consumption in the convertObservation step, where parsing occurs
@@ -232,7 +263,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     }
   }
 
-  return records.map((r) => {
+  const observations = records.map((r) => {
     const observation = convertObservation({
       ...r,
       metadata: r.metadata ?? {},
@@ -246,6 +277,8 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     );
     return observation;
   });
+
+  return { observations, truncated };
 };
 
 export const getObservationForTraceIdByName = async ({

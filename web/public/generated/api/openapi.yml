@@ -9323,6 +9323,12 @@ components:
           items:
             $ref: '#/components/schemas/ObservationsView'
           description: List of observations
+        observationsTruncated:
+          type: boolean
+          nullable: true
+          description: >-
+            True if the trace has more observations than the server-side fetch
+            limit and the observations list was truncated to that limit.
         scores:
           type: array
           items:
