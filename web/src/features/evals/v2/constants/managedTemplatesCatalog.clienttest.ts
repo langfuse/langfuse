@@ -46,7 +46,7 @@ describe("managed evaluator templates catalog", () => {
     }
   });
 
-  it("detects all-caps text in the latest user chat message", () => {
+  it("detects all-caps text in the user input and comments on the score", () => {
     const template = MANAGED_TEMPLATES_CATALOG.templates.find(
       ({ key }) => key === "all-caps",
     );
@@ -58,25 +58,15 @@ describe("managed evaluator templates catalog", () => {
 
     const javascript = template.evaluator.source
       .replace(
-        "function contentToText(content: unknown): string",
-        "function contentToText(content)",
+        "function evaluate(ctx: EvaluationContext): EvaluationResult",
+        "function evaluate(ctx)",
       )
-      .replace(
-        "function getMessages(input: unknown): Array<Record<string, unknown>>",
-        "function getMessages(input)",
-      )
-      .replace(
-        "function evaluate({ observation }: EvaluationContext): EvaluationResult",
-        "function evaluate({ observation })",
-      )
-      .replaceAll(" as Record<string, unknown>", "")
-      .replaceAll(" as Array<Record<string, unknown>>", "")
-      .replaceAll(" as { messages?: unknown }", "")
-      .replaceAll(" as { messages: unknown[] }", "");
+      .replace("(value: unknown): string =>", "(value) =>")
+      .replaceAll(" as Record<string, unknown>", "");
     const createEvaluator = new Function(
       `${javascript}\nreturn evaluate;`,
     ) as () => (ctx: { observation: { input: unknown } }) => {
-      scores: Array<{ name?: string; value: boolean }>;
+      scores: Array<{ name?: string; value: boolean; comment?: string }>;
     };
 
     const evaluate = createEvaluator();
@@ -89,23 +79,22 @@ describe("managed evaluator templates catalog", () => {
       },
     ];
 
-    for (const input of [messages, { messages }]) {
+    for (const input of ["THIS IS COMPLETELY BROKEN", messages, { messages }]) {
       const result = evaluate({ observation: { input } });
-      expect(result.scores[0]?.name).toBe("all-caps-detection");
+      expect(result.scores[0]?.name).toBe("All CAPS");
       expect(result.scores[0]?.value).toBe(true);
+      expect(result.scores[0]?.comment).toBe("User input is mostly all caps.");
     }
 
     const mixedCase = evaluate({
       observation: {
-        input: [
-          {
-            role: "user",
-            content: [{ type: "text", text: "This is completely broken" }],
-          },
-        ],
+        input: "This is completely broken",
       },
     });
     expect(mixedCase.scores[0]?.value).toBe(false);
+    expect(mixedCase.scores[0]?.comment).toBe(
+      "User input is not mostly all caps.",
+    );
   });
 
   it("ships code evaluator templates that pass client validation", async () => {

@@ -274,87 +274,69 @@ Last user message: {{last_user_message}}`,
       categories: ["conversation"],
       icon: "type",
       description:
-        "Detects whether user uses all capital letters, potentially indicating frustration.",
+        "Detects whether the user input is written in all capital letters.",
       maintainer: "langfuse",
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
-        source: `function contentToText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (!part || typeof part !== "object") return "";
+        source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
+  const extractText = (value: unknown): string => {
+    if (typeof value === "string") return value;
 
-        const record = part as Record<string, unknown>;
-        if (typeof record.text === "string") return record.text;
-        if (typeof record.content === "string") return record.content;
-        if (
-          record.input &&
-          typeof record.input === "object" &&
-          typeof (record.input as Record<string, unknown>).text === "string"
-        ) {
-          return String((record.input as Record<string, unknown>).text);
-        }
+    if (Array.isArray(value)) {
+      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");
+    }
 
-        return "";
-      })
-      .join("");
+    if (value !== null && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if ("content" in record) return extractText(record.content);
+      if ("text" in record) return extractText(record.text);
+      if ("parts" in record) return extractText(record.parts);
+    }
+
+    return "";
+  };
+
+  const input = ctx.observation.input;
+  const inputRecord =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : null;
+  const messages = Array.isArray(input)
+    ? input
+    : Array.isArray(inputRecord?.messages)
+      ? inputRecord.messages
+      : [];
+
+  let message = messages[messages.length - 1];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate === null || typeof candidate !== "object") continue;
+
+    const record = candidate as Record<string, unknown>;
+    const role = record.role ?? record.type;
+    if (role === "user" || role === "human") {
+      message = candidate;
+      break;
+    }
   }
 
-  if (content && typeof content === "object") {
-    const record = content as Record<string, unknown>;
-    if (typeof record.text === "string") return record.text;
-    if (typeof record.content === "string") return record.content;
-  }
-
-  return "";
-}
-
-function getMessages(input: unknown): Array<Record<string, unknown>> {
-  if (typeof input === "string") return [{ role: "user", content: input }];
-  if (Array.isArray(input)) {
-    return input.filter(
-      (message) => message && typeof message === "object",
-    ) as Array<Record<string, unknown>>;
-  }
-  if (
-    input &&
-    typeof input === "object" &&
-    Array.isArray((input as { messages?: unknown }).messages)
-  ) {
-    return ((input as { messages: unknown[] }).messages).filter(
-      (message) => message && typeof message === "object",
-    ) as Array<Record<string, unknown>>;
-  }
-
-  return [];
-}
-
-function evaluate({ observation }: EvaluationContext): EvaluationResult {
-  const messages = getMessages(observation.input);
-  const lastUser = [...messages]
-    .reverse()
-    .find((message) => message?.role === "user");
-  const text = contentToText(lastUser?.content ?? lastUser?.parts ?? "");
-  const letters = text.replace(/[^A-Za-z]/g, "");
-  const hasEnoughLetters = letters.length >= 12;
-  const uppercaseRatio = hasEnoughLetters
-    ? letters.replace(/[^A-Z]/g, "").length / letters.length
-    : 0;
-  const detected = hasEnoughLetters && uppercaseRatio > 0.85;
+  const text = typeof input === "string" ? input : extractText(message ?? input);
+  const letters = text.match(/[A-Za-z]/g) ?? [];
+  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];
+  const uppercaseRatio =
+    letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;
+  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;
 
   return {
     scores: [
       {
-        name: "all-caps-detection",
-        value: detected,
+        name: "All CAPS",
+        value: isAllCaps,
         dataType: "BOOLEAN",
-        comment: detected
-          ? "Last user message is mostly all caps."
-          : "Last user message is not mostly all caps.",
-        metadata: { uppercaseRatio },
+        comment: isAllCaps
+          ? "User input is mostly all caps."
+          : "User input is not mostly all caps.",
       },
     ],
   };
