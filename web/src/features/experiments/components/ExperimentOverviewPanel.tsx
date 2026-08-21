@@ -50,7 +50,7 @@ export function ExperimentOverviewPanel({
   const safeGithubJobUrl = isSafeHttpUrl(githubJobUrl)
     ? githubJobUrl
     : undefined;
-  const startTime = prepareLocalIsoDate({ date: experiment.startTime });
+  const startTime = prepareLocalIsoDate({ date: experiment?.startTime });
   const additionalMetadata = { ...metadata };
   if (provider || model) {
     delete additionalMetadata.provider;
