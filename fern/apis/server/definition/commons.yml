@@ -93,6 +93,9 @@ types:
       observations:
         type: list<ObservationsView>
         docs: List of observations
+      observationsTruncated:
+        type: optional<boolean>
+        docs: True if the trace has more observations than the server-side fetch limit and the observations list was truncated to that limit.
       scores:
         type: list<ScoreV1>
         docs: List of scores

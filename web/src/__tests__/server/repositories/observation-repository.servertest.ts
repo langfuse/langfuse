@@ -186,7 +186,7 @@ describe("Clickhouse Observations Repository Test", () => {
 
     await createObservationsCh([observation]);
 
-    const result = await getObservationsForTrace({
+    const { observations: result, truncated } = await getObservationsForTrace({
       traceId,
       projectId,
       includeIO: true,
@@ -194,6 +194,7 @@ describe("Clickhouse Observations Repository Test", () => {
     if (!result || result.length === 0) {
       throw new Error("Observation not found");
     }
+    expect(truncated).toBe(false);
     const firstObservation = result[0];
     expect(firstObservation.id).toEqual(observation.id);
     expect(firstObservation.traceId).toEqual(observation.trace_id);

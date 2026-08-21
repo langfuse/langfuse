@@ -109,6 +109,9 @@ export const GetTraceV1Query = z.object({
 export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
+  // True when the trace has more observations than the server-side fetch cap
+  // and the `observations` array was truncated to that cap.
+  observationsTruncated: z.boolean().default(false),
   _deprecation: deprecationResponseZod.optional(),
 }).strict();
 

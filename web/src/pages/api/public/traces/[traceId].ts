@@ -76,25 +76,26 @@ export default withMiddlewares(
           );
         }
 
-        const [observations, scores] = await Promise.all([
-          includeObservations || includeMetrics
-            ? getObservationsForTrace({
-                traceId,
-                projectId: auth.scope.projectId,
-                timestamp: trace?.timestamp,
-                includeIO: includeObservations,
-                preferredClickhouseService: "ReadOnly",
-              })
-            : Promise.resolve([]),
-          includeScores
-            ? getScoresForTraces({
-                projectId: auth.scope.projectId,
-                traceIds: [traceId],
-                timestamp: trace?.timestamp,
-                preferredClickhouseService: "ReadOnly",
-              })
-            : Promise.resolve([]),
-        ]);
+        const [{ observations, truncated: observationsTruncated }, scores] =
+          await Promise.all([
+            includeObservations || includeMetrics
+              ? getObservationsForTrace({
+                  traceId,
+                  projectId: auth.scope.projectId,
+                  timestamp: trace?.timestamp,
+                  includeIO: includeObservations,
+                  preferredClickhouseService: "ReadOnly",
+                })
+              : Promise.resolve({ observations: [], truncated: false }),
+            includeScores
+              ? getScoresForTraces({
+                  projectId: auth.scope.projectId,
+                  traceIds: [traceId],
+                  timestamp: trace?.timestamp,
+                  preferredClickhouseService: "ReadOnly",
+                })
+              : Promise.resolve([]),
+          ]);
 
         const uniqueModels: string[] = Array.from(
           new Set(
@@ -182,6 +183,9 @@ export default withMiddlewares(
               : 0
             : -1,
           observations: includeObservations ? outObservations : [],
+          observationsTruncated: includeObservations
+            ? observationsTruncated
+            : false,
           htmlPath: `/project/${auth.scope.projectId}/traces/${traceId}`,
           totalCost: includeMetrics
             ? outObservations

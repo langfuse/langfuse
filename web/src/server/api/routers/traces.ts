@@ -400,19 +400,20 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
-      const [observations, traceScores] = await Promise.all([
-        getObservationsForTrace({
-          traceId: input.traceId,
-          projectId: input.projectId,
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-          includeIO: false,
-        }),
-        getScoresAndCorrectionsForTraces({
-          projectId: input.projectId,
-          traceIds: [input.traceId],
-          timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-        }),
-      ]);
+      const [{ observations, truncated: observationsTruncated }, traceScores] =
+        await Promise.all([
+          getObservationsForTrace({
+            traceId: input.traceId,
+            projectId: input.projectId,
+            timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+            includeIO: false,
+          }),
+          getScoresAndCorrectionsForTraces({
+            projectId: input.projectId,
+            traceIds: [input.traceId],
+            timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
+          }),
+        ]);
 
       const validatedScores = filterAndValidateDbScoreList({
         scores: traceScores,
@@ -458,6 +459,7 @@ export const traceRouter = createTRPCRouter({
           output: undefined,
           input: undefined, // this is not queried above.
         })) as ObservationReturnTypeWithMetadata[],
+        observationsTruncated,
       };
     }),
   deleteMany: protectedProjectProcedure
