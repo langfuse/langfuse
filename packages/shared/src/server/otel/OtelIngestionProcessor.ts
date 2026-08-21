@@ -172,6 +172,7 @@ interface CreateObservationEventParams {
   isLangfuseSDKSpans: boolean;
   startTimeISO: string;
   endTimeISO: string;
+  embeddingsOperationParentSpanIds: Set<string>;
 }
 
 type NanoTimestamp =
@@ -361,6 +362,9 @@ export class OtelIngestionProcessor {
           return [];
         }
 
+        const embeddingsOperationParentSpanIds =
+          this.collectAiSdkEmbeddingOperationParentSpanIds(resourceSpans);
+
         return resourceSpans
           .filter((r) => Boolean(r))
           .flatMap((resourceSpan) => {
@@ -479,11 +483,19 @@ export class OtelIngestionProcessor {
 
                 // AI SDK agent spans carry aggregate usage duplicating their
                 // child model-call spans — skip model/usage/cost for them.
-                const isAiSdkAgentSpan =
-                  this.isAiSdkAgentOperation(spanAttributes);
+                // The same applies to an AI SDK "embeddings" operation span
+                // that is the parent of another "embeddings" span in this
+                // batch (embed/embedMany's aggregate wrapper).
+                const skipModelUsageAndCost =
+                  this.isAiSdkAgentOperation(spanAttributes) ||
+                  this.isDuplicateAiSdkEmbeddingOperationSpan(
+                    spanAttributes,
+                    spanId,
+                    embeddingsOperationParentSpanIds,
+                  );
 
                 const usageDetails = UsageDetails.safeParse(
-                  isAiSdkAgentSpan
+                  skipModelUsageAndCost
                     ? {}
                     : this.extractUsageDetails(
                         spanAttributes,
@@ -582,7 +594,7 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
                   ),
-                  modelName: isAiSdkAgentSpan
+                  modelName: skipModelUsageAndCost
                     ? undefined
                     : this.extractModelName(spanAttributes),
                   completionStartTime: this.extractCompletionStartTime(
@@ -594,7 +606,7 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: isAiSdkAgentSpan
+                  providedCostDetails: skipModelUsageAndCost
                     ? {}
                     : this.extractCostDetails(spanAttributes, spanContext),
 
@@ -696,10 +708,21 @@ export class OtelIngestionProcessor {
             return [];
           }
 
+          // The AI SDK OTel integration emits an aggregate-usage "embeddings"
+          // operation span whose child model-call span (same operation name)
+          // carries the same usage/cost — collect which spans are such
+          // duplicated parents before processing so the parent can be
+          // skipped below.
+          const embeddingsOperationParentSpanIds =
+            this.collectAiSdkEmbeddingOperationParentSpanIds(resourceSpans);
+
           // Process all events normally first
           const allEvents = resourceSpans.flatMap((resourceSpan) => {
             if (!resourceSpan) return [];
-            return this.processResourceSpan(resourceSpan);
+            return this.processResourceSpan(
+              resourceSpan,
+              embeddingsOperationParentSpanIds,
+            );
           });
 
           // Filter out redundant shallow trace events
@@ -861,6 +884,7 @@ export class OtelIngestionProcessor {
 
   private processResourceSpan(
     resourceSpan: ResourceSpan,
+    embeddingsOperationParentSpanIds: Set<string>,
   ): IngestionEventType[] {
     const resourceAttributes = this.extractResourceAttributes(resourceSpan);
     const events: IngestionEventType[] = [];
@@ -881,6 +905,7 @@ export class OtelIngestionProcessor {
           resourceAttributes,
           scopeAttributes,
           isLangfuseSDKSpans,
+          embeddingsOperationParentSpanIds,
         );
         events.push(...spanEvents);
       }
@@ -895,6 +920,7 @@ export class OtelIngestionProcessor {
     resourceAttributes: Record<string, unknown>,
     scopeAttributes: Record<string, unknown>,
     isLangfuseSDKSpans: boolean,
+    embeddingsOperationParentSpanIds: Set<string>,
   ): IngestionEventType[] {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
@@ -963,6 +989,7 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
+      embeddingsOperationParentSpanIds,
     });
     events.push(observationEvent);
 
@@ -1122,6 +1149,7 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
+      embeddingsOperationParentSpanIds,
     } = params;
 
     const instrumentationScopeName = scopeSpan?.scope?.name;
@@ -1153,8 +1181,16 @@ export class OtelIngestionProcessor {
     );
 
     // AI SDK agent spans carry aggregate usage duplicating their child
-    // model-call spans — skip model/usage/cost for them.
-    const isAiSdkAgentSpan = this.isAiSdkAgentOperation(attributes);
+    // model-call spans — skip model/usage/cost for them. The same applies to
+    // an AI SDK "embeddings" operation span that is the parent of another
+    // "embeddings" span in this batch (embed/embedMany's aggregate wrapper).
+    const skipModelUsageAndCost =
+      this.isAiSdkAgentOperation(attributes) ||
+      this.isDuplicateAiSdkEmbeddingOperationSpan(
+        attributes,
+        observationSpanId,
+        embeddingsOperationParentSpanIds,
+      );
 
     const mappedObservationType = observationTypeMapper.mapToObservationType(
       attributes,
@@ -1200,7 +1236,9 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ) as any,
-      model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
+      model: skipModelUsageAndCost
+        ? undefined
+        : this.extractModelName(attributes),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1215,14 +1253,14 @@ export class OtelIngestionProcessor {
           this.parseLangfusePromptFromAISDK(attributes)?.version ??
           null)
         : null,
-      usageDetails: isAiSdkAgentSpan
+      usageDetails: skipModelUsageAndCost
         ? {}
         : this.extractUsageDetails(
             attributes,
             instrumentationScopeName,
             observationContext,
           ),
-      costDetails: isAiSdkAgentSpan
+      costDetails: skipModelUsageAndCost
         ? {}
         : this.extractCostDetails(attributes, observationContext),
       input: normalizedToolMetadata.input,
@@ -2597,6 +2635,53 @@ export class OtelIngestionProcessor {
       typeof operationName === "string" &&
       ["invoke_agent", "agent_step"].includes(operationName)
     );
+  }
+
+  /**
+   * The Vercel AI SDK OTel integration emits `embed()`/`embedMany()` as two
+   * nested spans that share the same `gen_ai.operation.name: "embeddings"`:
+   * an operation span (root) carrying aggregate usage, and a model-call span
+   * per provider call (child) carrying the same usage. Until the upstream
+   * integration gives the wrapper a distinct operation name
+   * (https://github.com/vercel/ai/issues/19250), the parent is identified
+   * structurally: it is an `embeddings` span that is also the parent of
+   * another `embeddings` span within the same ingestion batch.
+   */
+  private isDuplicateAiSdkEmbeddingOperationSpan(
+    attributes: Record<string, unknown>,
+    spanId: string,
+    embeddingsOperationParentSpanIds: Set<string>,
+  ): boolean {
+    return (
+      attributes["gen_ai.operation.name"] === "embeddings" &&
+      embeddingsOperationParentSpanIds.has(spanId)
+    );
+  }
+
+  /**
+   * Collects the spanIds of AI SDK `embeddings` operation spans that are the
+   * parent of another `embeddings` operation span within this batch.
+   */
+  private collectAiSdkEmbeddingOperationParentSpanIds(
+    resourceSpans: ResourceSpan[],
+  ): Set<string> {
+    const parentSpanIds = new Set<string>();
+
+    for (const resourceSpan of resourceSpans ?? []) {
+      for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+        for (const span of scopeSpan?.spans ?? []) {
+          if (!span?.parentSpanId) continue;
+
+          const attributes = this.extractSpanAttributes(span);
+          if (attributes["gen_ai.operation.name"] === "embeddings") {
+            const parentSpanId: any = span.parentSpanId;
+            parentSpanIds.add(this.parseId(parentSpanId?.data ?? parentSpanId));
+          }
+        }
+      }
+    }
+
+    return parentSpanIds;
   }
 
   private extractModelName(
