@@ -3,11 +3,19 @@ import { z } from "zod";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 
+import {
+  ChbAccessTokenProvider,
+  type ChbAccessTokenConfig,
+} from "./chbAccessToken";
+
 /**
  * Thin fetch wrapper for the ClickHouse Billing (CHB) REST API.
  *
  * This module is the only place that knows the CHB wire format, so swapping in
  * the generated typed client CHB intends to publish stays a one-file change.
+ *
+ * Inbound auth is CHB's Auth0 M2M scheme; `chbAccessToken` owns the grant and
+ * the token cache.
  *
  * The response schemas below still need reconciling against the final CHB API
  * definitions before rollout, so they are deliberately loose — unknown fields
@@ -119,14 +127,20 @@ type ChbRequestOptions = {
 };
 
 export class ChbApiClient {
+  private readonly tokenProvider: ChbAccessTokenProvider;
+
   constructor(
     private readonly config: {
       baseUrl: string;
-      serviceToken: string;
+      auth: ChbAccessTokenConfig;
     },
-  ) {}
+  ) {
+    this.tokenProvider = new ChbAccessTokenProvider(config.auth);
+  }
 
-  private async request(opts: ChbRequestOptions): Promise<unknown> {
+  private requestUrl(opts: ChbRequestOptions): URL {
+    // Relative join against a trailing slash, so a base url carrying a path
+    // prefix keeps it instead of having it replaced.
     const url = new URL(
       opts.path.replace(/^\//, ""),
       `${this.config.baseUrl.replace(/\/$/, "")}/`,
@@ -134,11 +148,14 @@ export class ChbApiClient {
     for (const [key, value] of Object.entries(opts.searchParams ?? {})) {
       url.searchParams.set(key, value);
     }
+    return url;
+  }
 
-    const response = await fetch(url, {
+  private async send(url: URL, opts: ChbRequestOptions): Promise<Response> {
+    return await fetch(url, {
       method: opts.method,
       headers: {
-        authorization: `Bearer ${this.config.serviceToken}`,
+        authorization: `Bearer ${await this.tokenProvider.getToken()}`,
         ...(opts.chOrganizationId
           ? { "CH-Organization-Id": opts.chOrganizationId }
           : {}),
@@ -155,6 +172,23 @@ export class ChbApiClient {
       redirect: "error",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+  }
+
+  private async request(opts: ChbRequestOptions): Promise<unknown> {
+    const url = this.requestUrl(opts);
+
+    let response = await this.send(url, opts);
+    if (response.status === 401) {
+      // CHB rejected a token we still considered fresh — revoked, or the Auth0
+      // signing key rotated. A 401 means CHB did no work, and the retry carries
+      // the same idempotency key, so replaying once with a new token is safe.
+      logger.warn("[CHB API] Token rejected, retrying with a fresh one", {
+        method: opts.method,
+        path: opts.path,
+      });
+      this.tokenProvider.invalidate();
+      response = await this.send(url, opts);
+    }
 
     const responseBody = await response
       .json()
@@ -281,18 +315,26 @@ export class ChbApiClient {
 }
 
 /**
- * Build a client from env, or null when the CHB REST surface is not
- * configured. Callers treat null as "CHB unavailable" and fail closed.
+ * Build a client from env, or null when the CHB REST surface is not fully
+ * configured. Callers treat null as "CHB unavailable" and fail closed — a
+ * partially configured deployment must not reach CHB unauthenticated.
  */
 export const createChbApiClientFromEnv = (): ChbApiClient | null => {
   if (
     !env.CLICKHOUSE_BILLING_BASE_URL ||
-    !env.CLICKHOUSE_BILLING_SERVICE_TOKEN
+    !env.CLICKHOUSE_BILLING_AUTH0_DOMAIN ||
+    !env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID ||
+    !env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET
   ) {
     return null;
   }
   return new ChbApiClient({
     baseUrl: env.CLICKHOUSE_BILLING_BASE_URL,
-    serviceToken: env.CLICKHOUSE_BILLING_SERVICE_TOKEN,
+    auth: {
+      auth0Domain: env.CLICKHOUSE_BILLING_AUTH0_DOMAIN,
+      clientId: env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID,
+      clientSecret: env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
+      audience: env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
+    },
   });
 };

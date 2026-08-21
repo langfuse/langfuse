@@ -426,12 +426,20 @@ export const env = createEnv({
         "must be an EventBridge bus ARN (arn:aws:events:<region>:<account-id>:event-bus/<name>)",
       )
       .optional(),
-    // Bearer token we present to CHB's REST API (checkout sessions, bundles,
-    // invoices). Not used for the event bus, which authenticates via IAM.
-    CLICKHOUSE_BILLING_SERVICE_TOKEN: z.string().optional(),
-    // CHB REST API base url. Unset (or a missing service token) makes the CHB
-    // billing service refuse to construct, so no half-configured calls go out.
+    // CHB REST API base url (checkout sessions, bundles, invoices). Unset, or
+    // any missing Auth0 credential below, makes the CHB billing service refuse
+    // to construct, so no half-configured calls go out.
     CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+    // Auth0 client credentials for CHB's REST API: it verifies the bearer
+    // token's issuer, audience and signature against this tenant's JWKS, so a
+    // static shared secret is rejected. Not used for the event bus, which
+    // authenticates via IAM.
+    CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+    // CHB's resource-server identifier. Defaulted because it is the same value
+    // in every CHB tenant, and overridable in case that stops being true.
+    CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -968,9 +976,15 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
-    CLICKHOUSE_BILLING_SERVICE_TOKEN:
-      process.env.CLICKHOUSE_BILLING_SERVICE_TOKEN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
+    CLICKHOUSE_BILLING_AUTH0_DOMAIN:
+      process.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN,
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID:
+      process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID,
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET:
+      process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
+    CLICKHOUSE_BILLING_AUTH0_AUDIENCE:
+      process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
