@@ -19,7 +19,7 @@ import {
   organizationManageableFeaturePreviewFlags,
   type OrganizationManageableFeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { featurePreviewLabels } from "@/src/features/feature-previews/feature-preview-labels";
+import { featurePreviewLabels } from "@/src/features/feature-previews/components/FeaturePreviewModal";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

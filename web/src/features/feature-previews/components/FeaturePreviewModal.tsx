@@ -14,8 +14,6 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 
-import { featurePreviewLabels } from "../feature-preview-labels";
-
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
 import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
@@ -40,6 +38,7 @@ type PreviewIllustration = {
 
 type PreviewRegistryItem = {
   flag: PreviewFlag;
+  title: string;
   description: string;
   details: string;
   feedbackUrl: string;
@@ -61,6 +60,7 @@ export type PreviewState = {
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
     flag: "modernSession",
+    title: "Compact Session View",
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
     details:
@@ -74,6 +74,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
   {
     flag: "compactTimeline",
+    title: "Compact Timeline",
     description:
       "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
     details:
@@ -87,6 +88,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
   {
     flag: "v4UpgradeUi",
+    title: "V4 Migration",
     description:
       "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
     details:
@@ -106,6 +108,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   // Kept for a safe rollback; delete with the rest of the searchBar plumbing.
   {
     flag: "searchBar",
+    title: "Filter Search Bar",
     description:
       "A keyboard-driven query bar on the Observations and Traces tables — type filters like level:ERROR -env:dev latency:>2 with inline suggestions, alongside the existing filter sidebar.",
     details:
@@ -118,6 +121,10 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     },
   },
 ];
+
+export const featurePreviewLabels = Object.fromEntries(
+  PREVIEW_REGISTRY.map(({ flag, title }) => [flag, title]),
+) as Record<PreviewFlag, string>;
 
 const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
 const FEATURE_PREVIEW_MODAL_SUBTITLE =

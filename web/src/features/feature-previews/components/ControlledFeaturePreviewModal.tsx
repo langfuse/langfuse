@@ -6,8 +6,8 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { api } from "@/src/utils/api";
 
-import { featurePreviewLabels } from "../feature-preview-labels";
 import {
+  featurePreviewLabels,
   FeaturePreviewModal,
   type PreviewFlag,
   type PreviewState,
