@@ -4,8 +4,14 @@ import {
   LangfuseConflictError,
   ServiceUnavailableError,
 } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
-import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import {
+  escapeSlackMrkdwn,
+  getProductBaseUrl,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import type {
@@ -13,11 +19,26 @@ import type {
   PostFeedbackResponseType,
 } from "@/src/features/public-api/types/feedback";
 
-export type FeedbackSource = "langfuse-mcp" | "public-api";
+export type FeedbackSource = "langfuse-mcp" | "in-app-assistant" | "public-api";
+
+export type FeedbackReporter = {
+  userId: string;
+  email?: string | null;
+};
 
 type FeedbackContext = {
   projectId: string;
   orgId: string;
+  orgName?: string;
+  orgUrl?: string;
+  projectName?: string;
+  projectUrl?: string;
+};
+
+type FeedbackResource = {
+  id: string;
+  name?: string;
+  url?: string;
 };
 
 type SlackTextObject = {
@@ -100,7 +121,108 @@ const getDataRegion = (): string =>
 
 const feedbackSourceLabel: Record<FeedbackSource, string> = {
   "langfuse-mcp": "Langfuse MCP",
+  "in-app-assistant": "In-app assistant",
   "public-api": "Public API",
+};
+
+const formatFeedbackReporterLabel = (
+  reporter: FeedbackReporter | undefined,
+): string | undefined => {
+  if (!reporter) return undefined;
+
+  const userId = reporter.userId.trim();
+  const email = reporter.email?.trim();
+  if (!userId) return email || undefined;
+  return email ? `${userId} · ${email}` : userId;
+};
+
+const tryBuildProductUrl = (path: string): string | undefined => {
+  try {
+    return new URL(path.replace(/^\//, ""), getProductBaseUrl()).toString();
+  } catch {
+    return undefined;
+  }
+};
+
+const formatResourceContextElement = (
+  label: string,
+  resource: FeedbackResource,
+): SlackTextObject => {
+  if (resource.name) {
+    const name = escapeSlackMrkdwn(
+      truncateForSlack(resource.name, SLACK_FIELD_TEXT_LIMIT),
+    );
+    const id = escapeSlackMrkdwn(resource.id);
+    const identifier = resource.url ? `<${resource.url}|${id}>` : id;
+    return mrkdwnText(
+      truncateForSlack(
+        `${label} ${name} · ${identifier}`,
+        SLACK_FIELD_TEXT_LIMIT,
+      ),
+    );
+  }
+
+  return plainText(`${label} ${resource.id}`, SLACK_FIELD_TEXT_LIMIT);
+};
+
+const resolveFeedbackResources = async ({
+  orgId,
+  projectId,
+}: {
+  orgId: string;
+  projectId: string;
+}): Promise<{ org: FeedbackResource; project: FeedbackResource }> => {
+  const shouldLookupProject = projectId !== "unknown";
+
+  try {
+    const [organization, project] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { name: true },
+      }),
+      shouldLookupProject
+        ? prisma.project.findFirst({
+            where: { id: projectId, orgId },
+            select: { name: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      org: {
+        id: orgId,
+        ...(organization
+          ? {
+              name: organization.name,
+              url: tryBuildProductUrl(
+                `organization/${encodeURIComponent(orgId)}`,
+              ),
+            }
+          : {}),
+      },
+      project: {
+        id: projectId,
+        ...(project
+          ? {
+              name: project.name,
+              url: tryBuildProductUrl(
+                `project/${encodeURIComponent(projectId)}`,
+              ),
+            }
+          : {}),
+      },
+    };
+  } catch (error) {
+    logger.warn("Failed to resolve feedback org/project names", {
+      orgId,
+      projectId,
+      error,
+    });
+    return {
+      org: { id: orgId },
+      project: { id: projectId },
+    };
+  }
 };
 
 const buildFeedbackSlackMessage = ({
@@ -108,12 +230,15 @@ const buildFeedbackSlackMessage = ({
   input,
   source,
   context,
+  reporter,
 }: {
   id: string;
   input: PostFeedbackBodyType;
   source: FeedbackSource;
   context: FeedbackContext;
+  reporter?: FeedbackReporter;
 }): FeedbackSlackMessage => {
+  const reporterLabel = formatFeedbackReporterLabel(reporter);
   const blocks: SlackBlock[] = [
     {
       type: "header",
@@ -130,6 +255,14 @@ const buildFeedbackSlackMessage = ({
           `📬 SOURCE:\n${feedbackSourceLabel[source]}`,
           SLACK_FIELD_TEXT_LIMIT,
         ),
+        ...(reporterLabel
+          ? [
+              plainText(
+                `👤 REPORTER:\n${reporterLabel}`,
+                SLACK_FIELD_TEXT_LIMIT,
+              ),
+            ]
+          : []),
         plainText(`🎯 TARGET:\n${input.target}`, SLACK_FIELD_TEXT_LIMIT),
         plainText(
           `🧩 TARGET TYPE:\n${input.targetType}`,
@@ -151,8 +284,16 @@ const buildFeedbackSlackMessage = ({
       type: "context",
       elements: [
         plainText(`🧾 Receipt: ${id}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`🏢 Org: ${context.orgId}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`📁 Project: ${context.projectId}`, SLACK_FIELD_TEXT_LIMIT),
+        formatResourceContextElement("🏢 Org:", {
+          id: context.orgId,
+          name: context.orgName,
+          url: context.orgUrl,
+        }),
+        formatResourceContextElement("📁 Project:", {
+          id: context.projectId,
+          name: context.projectName,
+          url: context.projectUrl,
+        }),
       ],
     },
   );
@@ -195,10 +336,12 @@ export const submitFeedback = async ({
   input,
   source,
   scope,
+  reporter,
 }: {
   input: PostFeedbackBodyType;
   source: FeedbackSource;
   scope: ApiAccessScope;
+  reporter?: FeedbackReporter;
 }): Promise<PostFeedbackResponseType> => {
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     scope,
@@ -237,13 +380,22 @@ export const submitFeedback = async ({
 
   const id = randomUUID();
   const webhookUrl = validateFeedbackWebhookUrl(configuredWebhookUrl);
+  const { org, project } = await resolveFeedbackResources({
+    orgId: scope.orgId,
+    projectId: scope.projectId ?? "unknown",
+  });
   const payload = buildFeedbackSlackMessage({
     id,
     input,
     source,
+    reporter,
     context: {
-      orgId: scope.orgId,
-      projectId: scope.projectId ?? "unknown",
+      orgId: org.id,
+      orgName: org.name,
+      orgUrl: org.url,
+      projectId: project.id,
+      projectName: project.name,
+      projectUrl: project.url,
     },
   });
 

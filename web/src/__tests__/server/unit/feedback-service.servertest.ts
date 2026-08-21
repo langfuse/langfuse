@@ -7,12 +7,19 @@ import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
-const { mockRateLimitRequest, mockRecordIncrement, mockLoggerWarn } =
-  vi.hoisted(() => ({
-    mockRateLimitRequest: vi.fn(),
-    mockRecordIncrement: vi.fn(),
-    mockLoggerWarn: vi.fn(),
-  }));
+const {
+  mockRateLimitRequest,
+  mockRecordIncrement,
+  mockLoggerWarn,
+  mockOrgFindUnique,
+  mockProjectFindFirst,
+} = vi.hoisted(() => ({
+  mockRateLimitRequest: vi.fn(),
+  mockRecordIncrement: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+  mockOrgFindUnique: vi.fn(),
+  mockProjectFindFirst: vi.fn(),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<typeof SharedServer>(
@@ -21,11 +28,23 @@ vi.mock("@langfuse/shared/src/server", async () => {
   return {
     ...actual,
     recordIncrement: mockRecordIncrement,
+    getProductBaseUrl: () => new URL("https://cloud.langfuse.com/"),
     logger: Object.assign(Object.create(actual.logger), {
       warn: mockLoggerWarn,
     }),
   };
 });
+
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: {
+    organization: {
+      findUnique: mockOrgFindUnique,
+    },
+    project: {
+      findFirst: mockProjectFindFirst,
+    },
+  },
+}));
 
 vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   RateLimitService: {
@@ -69,6 +88,10 @@ describe("FeedbackService", () => {
     mockRateLimitRequest.mockResolvedValue(undefined);
     mockRecordIncrement.mockReset();
     mockLoggerWarn.mockReset();
+    mockOrgFindUnique.mockReset();
+    mockProjectFindFirst.mockReset();
+    mockOrgFindUnique.mockResolvedValue(null);
+    mockProjectFindFirst.mockResolvedValue(null);
     (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK =
       "https://hooks.slack.com/services/test";
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -135,6 +158,7 @@ describe("FeedbackService", () => {
       "🏢 Org: org-1",
       "📁 Project: project-1",
     ]);
+    expect(JSON.stringify(body.blocks)).not.toContain("REPORTER");
 
     // User-authored text must stay plain_text so mentions cannot ping.
     const feedbackBlock = body.blocks.find(
@@ -202,6 +226,8 @@ describe("FeedbackService", () => {
     ).rejects.toMatchObject({ httpCode: 429 });
 
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockOrgFindUnique).not.toHaveBeenCalled();
+    expect(mockProjectFindFirst).not.toHaveBeenCalled();
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.feedback.submission",
       1,
@@ -231,6 +257,8 @@ describe("FeedbackService", () => {
     );
 
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockOrgFindUnique).not.toHaveBeenCalled();
+    expect(mockProjectFindFirst).not.toHaveBeenCalled();
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.feedback.submission",
       1,
@@ -277,5 +305,192 @@ describe("FeedbackService", () => {
       1,
       { source: "public-api", outcome: "sink_unconfigured" },
     );
+  });
+
+  it("includes the reporter in Slack for in-app assistant feedback", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitFeedback({
+      scope,
+      input: {
+        targetType: "mcp-tool" as const,
+        target: "submitFeedback",
+        feedback: "The traces table filter is confusing.",
+      },
+      source: "in-app-assistant",
+      reporter: {
+        userId: "user-1",
+        email: "ugeon.jeon@creverse.com",
+      },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      text: string;
+      blocks: SlackBlockForTest[];
+    };
+    expect(body.text).toBe(
+      `New Langfuse feedback · In-app assistant · mcp-tool · ${result.id}`,
+    );
+
+    const fieldTexts =
+      body.blocks
+        .find((block) => Array.isArray(block.fields))
+        ?.fields?.map((field) => field.text) ?? [];
+    expect(fieldTexts).toEqual(
+      expect.arrayContaining([
+        "📬 SOURCE:\nIn-app assistant",
+        "👤 REPORTER:\nuser-1 · ugeon.jeon@creverse.com",
+      ]),
+    );
+  });
+
+  it("does not log reporter PII when the Slack sink is not configured", async () => {
+    (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK = undefined;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitFeedback({
+        scope,
+        input: {
+          targetType: "docs" as const,
+          target: "/docs/mcp",
+          feedback: "Please clarify setup.",
+        },
+        source: "in-app-assistant",
+        reporter: {
+          userId: "user-1",
+          email: "reporter@example.com",
+        },
+      }),
+    ).rejects.toBeInstanceOf(LangfuseConflictError);
+
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
+      "reporter@example.com",
+    );
+  });
+
+  it("enriches Slack context with org and project names and product links", async () => {
+    mockOrgFindUnique.mockResolvedValueOnce({ name: "Acme <Corp>" });
+    mockProjectFindFirst.mockResolvedValueOnce({ name: "Production" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitFeedback({
+      scope,
+      input: {
+        targetType: "docs" as const,
+        target: "/docs/mcp",
+        feedback: "Please clarify setup.",
+      },
+      source: "langfuse-mcp",
+    });
+
+    expect(mockOrgFindUnique).toHaveBeenCalledWith({
+      where: { id: "org-1" },
+      select: { name: true },
+    });
+    expect(mockProjectFindFirst).toHaveBeenCalledWith({
+      where: { id: "project-1", orgId: "org-1" },
+      select: { name: true },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      blocks: SlackBlockForTest[];
+    };
+    expect(body.blocks.at(-1)?.elements).toEqual([
+      expect.objectContaining({
+        type: "plain_text",
+        text: `🧾 Receipt: ${result.id}`,
+      }),
+      expect.objectContaining({
+        type: "mrkdwn",
+        text: "🏢 Org: Acme &lt;Corp&gt; · <https://cloud.langfuse.com/organization/org-1|org-1>",
+      }),
+      expect.objectContaining({
+        type: "mrkdwn",
+        text: "📁 Project: Production · <https://cloud.langfuse.com/project/project-1|project-1>",
+      }),
+    ]);
+  });
+
+  it("skips project lookup when the scope has no project id", async () => {
+    mockOrgFindUnique.mockResolvedValueOnce({ name: "Acme Corp" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitFeedback({
+      scope: { ...scope, projectId: null },
+      input: {
+        targetType: "docs" as const,
+        target: "/docs/mcp",
+        feedback: "Please clarify setup.",
+      },
+      source: "public-api",
+    });
+
+    expect(mockProjectFindFirst).not.toHaveBeenCalled();
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      blocks: SlackBlockForTest[];
+    };
+    expect(body.blocks.at(-1)?.elements).toEqual([
+      expect.objectContaining({
+        type: "plain_text",
+        text: `🧾 Receipt: ${result.id}`,
+      }),
+      expect.objectContaining({
+        type: "mrkdwn",
+        text: "🏢 Org: Acme Corp · <https://cloud.langfuse.com/organization/org-1|org-1>",
+      }),
+      expect.objectContaining({
+        type: "plain_text",
+        text: "📁 Project: unknown",
+      }),
+    ]);
+  });
+
+  it("falls back to plain org and project ids when lookup fails", async () => {
+    mockOrgFindUnique.mockRejectedValueOnce(new Error("db unavailable"));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await submitFeedback({
+      scope,
+      input: {
+        targetType: "docs" as const,
+        target: "/docs/mcp",
+        feedback: "Please clarify setup.",
+      },
+      source: "langfuse-mcp",
+    });
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "Failed to resolve feedback org/project names",
+      expect.objectContaining({
+        orgId: "org-1",
+        projectId: "project-1",
+      }),
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      blocks: SlackBlockForTest[];
+    };
+    expect(
+      body.blocks.at(-1)?.elements?.map((element) => element.text),
+    ).toEqual([
+      `🧾 Receipt: ${result.id}`,
+      "🏢 Org: org-1",
+      "📁 Project: project-1",
+    ]);
   });
 });

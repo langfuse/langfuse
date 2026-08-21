@@ -1,7 +1,40 @@
-import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  submitFeedback,
+  type FeedbackReporter,
+} from "@/src/features/feedback/server/FeedbackService";
 import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+
+// In-app-agent keys are minted per run for the signed-in user. Regular API
+// keys may also have a creator, but that person is not the MCP caller.
+const resolveInAppAgentFeedbackReporter = async ({
+  apiKeyId,
+  projectId,
+}: {
+  apiKeyId: string;
+  projectId: string;
+}): Promise<FeedbackReporter | undefined> => {
+  const apiKey = await prisma.apiKey.findFirst({
+    where: { id: apiKeyId, projectId },
+    select: {
+      isInAppAgentKey: true,
+      createdByUser: {
+        select: { id: true, email: true },
+      },
+    },
+  });
+
+  if (!apiKey?.isInAppAgentKey || !apiKey.createdByUser) {
+    return undefined;
+  }
+
+  return {
+    userId: apiKey.createdByUser.id,
+    email: apiKey.createdByUser.email,
+  };
+};
 
 export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
   name: "submitFeedback",
@@ -20,10 +53,18 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
       attributes: {
         "mcp.feedback_target_type": input.targetType,
       },
-      fn: async () =>
-        await submitFeedback({
+      fn: async () => {
+        const reporter = context.inAppAgent
+          ? await resolveInAppAgentFeedbackReporter({
+              apiKeyId: context.apiKeyId,
+              projectId: context.projectId,
+            })
+          : undefined;
+
+        return await submitFeedback({
           input,
-          source: "langfuse-mcp",
+          source: context.inAppAgent ? "in-app-assistant" : "langfuse-mcp",
+          reporter,
           scope: {
             projectId: context.projectId,
             orgId: context.orgId,
@@ -34,6 +75,7 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
             publicKey: context.publicKey,
             isIngestionSuspended: false,
           },
-        }),
+        });
+      },
     }),
 });
