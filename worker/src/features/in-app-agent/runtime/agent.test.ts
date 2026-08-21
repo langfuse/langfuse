@@ -33,6 +33,14 @@ const testBedrockModel = (modelId: string) => ({
   region: "eu-central-1",
 });
 
+const testAnthropicModel = (modelId: string) => ({
+  provider: "anthropic" as const,
+  modelId,
+  titleModelId: modelId,
+  apiKey: "sk-ant-test",
+  baseURL: "https://api.anthropic.com/v1",
+});
+
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
 // does not allow property access, so tests read it through this view.
@@ -253,6 +261,17 @@ vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
   createAmazonBedrock: vi.fn(() => (modelId: string) => ({
     specificationVersion: "v3",
     provider: "amazon-bedrock",
+    modelId,
+    supportedUrls: {},
+    doGenerate: bedrockMocks.doGenerate,
+    doStream: bedrockMocks.doStream,
+  })),
+}));
+
+vi.mock("ai-sdk-anthropic-v4", () => ({
+  createAnthropic: vi.fn(() => (modelId: string) => ({
+    specificationVersion: "v3",
+    provider: "anthropic",
     modelId,
     supportedUrls: {},
     doGenerate: bedrockMocks.doGenerate,
@@ -586,6 +605,34 @@ describe("createAgUiStream", () => {
     expect(createAmazonBedrock).toHaveBeenCalledWith({
       apiKey: "",
       credentialProvider: expect.any(Function),
+    });
+  });
+
+  it("uses Anthropic Messages with the namespaced API key and thinking options", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+    const { createAnthropic } = await import("ai-sdk-anthropic-v4");
+
+    await initializeBasicTracedAgent(
+      "run-anthropic-messages",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    expect(createAmazonBedrock).not.toHaveBeenCalled();
+    expect(createAnthropic).toHaveBeenCalledWith({
+      apiKey: "sk-ant-test",
+      baseURL: "https://api.anthropic.com/v1",
+    });
+
+    const { Agent } = await import("@mastra/core/agent");
+    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0] as
+      | MockedAgentConfig
+      | undefined;
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      providerOptions: {
+        anthropic: {
+          thinking: { type: "adaptive", display: "summarized" },
+        },
+      },
     });
   });
 

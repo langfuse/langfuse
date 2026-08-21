@@ -1,4 +1,7 @@
-import { getBedrockReasoningProviderOptions } from "./agent";
+import {
+  getBedrockReasoningProviderOptions,
+  getInAppAgentReasoningProviderOptions,
+} from "./model";
 import { describe, expect, it } from "vitest";
 
 describe("getBedrockReasoningProviderOptions", () => {
@@ -29,6 +32,34 @@ describe("getBedrockReasoningProviderOptions", () => {
   it("sends no thinking config for non-Claude models", () => {
     expect(
       getBedrockReasoningProviderOptions("meta.llama3-70b-instruct-v1:0"),
+    ).toBeUndefined();
+  });
+});
+
+describe("getInAppAgentReasoningProviderOptions", () => {
+  it("sends Anthropic adaptive thinking for Claude model ids", () => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "anthropic",
+        modelId: "claude-opus-4-8",
+        titleModelId: "claude-haiku-4-5",
+        apiKey: "sk-ant-test",
+      }),
+    ).toEqual({
+      anthropic: {
+        thinking: { type: "adaptive", display: "summarized" },
+      },
+    });
+  });
+
+  it("sends no thinking config for non-Claude Anthropic model ids", () => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "anthropic",
+        modelId: "some-other-model",
+        titleModelId: "some-other-model",
+        apiKey: "sk-ant-test",
+      }),
     ).toBeUndefined();
   });
 });

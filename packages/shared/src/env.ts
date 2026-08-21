@@ -519,9 +519,18 @@ const EnvSchema = z.object({
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
+  // Deprecated Bedrock aliases kept as fallback during the LANGFUSE_AI_*
+  // cutover (LANGFUSE_AI_MODEL, LANGFUSE_AI_SMALL_MODEL,
+  // LANGFUSE_AI_AWS_BEDROCK_REGION). Remove after Cloud and OSS env migrate.
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+  LANGFUSE_AI_MODEL: z.string().optional(),
+  LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+  LANGFUSE_AI_API_KEY: z.string().optional(),
+  LANGFUSE_AI_BASE_URL: z.string().optional(),
+  LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 
   // API Performance Flags
