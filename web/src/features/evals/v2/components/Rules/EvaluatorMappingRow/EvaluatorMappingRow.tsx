@@ -3,7 +3,7 @@ import type {
   EvalTemplateType,
   ObservationVariableMapping,
 } from "@langfuse/shared";
-import { type ReactNode, useState } from "react";
+import { memo, type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
@@ -18,7 +18,7 @@ import { useVariableMappingController } from "@/src/features/evals/v2/hooks/useV
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
 import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
 
-export function EvaluatorMappingRow({
+export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   evaluatorId,
   evaluatorName,
   evaluatorType,
@@ -178,4 +178,4 @@ export function EvaluatorMappingRow({
       </Collapsible>
     </li>
   );
-}
+});

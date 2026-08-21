@@ -122,6 +122,10 @@ WITH ranked_family_versions AS (
     -- nullable in eval_templates, NOT NULL in evaluator_versions; see the time_scope note above
     COALESCE(family."vars", ARRAY[]::TEXT[]) AS "vars",
     CASE
+      -- Code mappings are fixed by Langfuse and do not depend on the legacy job configuration.
+      -- Older configurations contain snapshots that predate newer canonical variables, so use the
+      -- complete current mapping for attached code evaluators as well as unattached ones.
+      WHEN family."type" = 'CODE' THEN '[{"templateVariable":"input","selectedColumnId":"input","jsonSelector":null},{"templateVariable":"output","selectedColumnId":"output","jsonSelector":null},{"templateVariable":"metadata","selectedColumnId":"metadata","jsonSelector":null},{"templateVariable":"toolCalls","selectedColumnId":"toolCalls","jsonSelector":null},{"templateVariable":"experimentItemExpectedOutput","selectedColumnId":"experimentItemExpectedOutput","jsonSelector":null},{"templateVariable":"experimentItemMetadata","selectedColumnId":"experimentItemMetadata","jsonSelector":null}]'::JSONB
       WHEN family."id" = current_template."id" THEN jc."variable_mapping"
       -- job configurations are not versioned so we don't know historic mappings
       ELSE NULL
@@ -277,7 +281,12 @@ SELECT
   template."partner", template."model", template."provider",
   template."model_params",
   -- nullable in eval_templates, NOT NULL in evaluator_versions; see the time_scope note above
-  COALESCE(template."vars", ARRAY[]::TEXT[]), NULL, template."output_schema",
+  COALESCE(template."vars", ARRAY[]::TEXT[]),
+  CASE
+    WHEN template."type" = 'CODE' THEN '[{"templateVariable":"input","selectedColumnId":"input","jsonSelector":null},{"templateVariable":"output","selectedColumnId":"output","jsonSelector":null},{"templateVariable":"metadata","selectedColumnId":"metadata","jsonSelector":null},{"templateVariable":"toolCalls","selectedColumnId":"toolCalls","jsonSelector":null},{"templateVariable":"experimentItemExpectedOutput","selectedColumnId":"experimentItemExpectedOutput","jsonSelector":null},{"templateVariable":"experimentItemMetadata","selectedColumnId":"experimentItemMetadata","jsonSelector":null}]'::JSONB
+    ELSE NULL
+  END,
+  template."output_schema",
   template."source_code",
   template."source_code_language"::TEXT::"EvaluatorSourceCodeLanguage"
 FROM unattached_families family

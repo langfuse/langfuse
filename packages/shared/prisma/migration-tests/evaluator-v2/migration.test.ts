@@ -55,6 +55,19 @@ const temporaryPrismaDirectory = mkdtempSync(
 
 const shadowDatabaseName = `${databaseName}_shadow`;
 
+const codeEvaluatorVariableMapping = [
+  "input",
+  "output",
+  "metadata",
+  "toolCalls",
+  "experimentItemExpectedOutput",
+  "experimentItemMetadata",
+].map((variable) => ({
+  templateVariable: variable,
+  selectedColumnId: variable,
+  jsonSelector: null,
+}));
+
 let databaseCreated = false;
 let shadowDatabaseCreated = false;
 let prisma: PrismaClient;
@@ -1065,7 +1078,7 @@ if (existingDatabaseUrl) {
           vars: ["input"],
           modelParams: null,
           outputDefinition: { type: "boolean" },
-          variableMapping: { input: "input" },
+          variableMapping: codeEvaluatorVariableMapping,
           sourceCode: "return true;",
           sourceCodeLanguage: "TYPESCRIPT",
         },
@@ -1091,7 +1104,7 @@ if (existingDatabaseUrl) {
           vars: ["input"],
           modelParams: null,
           outputDefinition: { type: "boolean" },
-          variableMapping: { input: "input", output: "output" },
+          variableMapping: codeEvaluatorVariableMapping,
           sourceCode: "return true;",
           sourceCodeLanguage: "TYPESCRIPT",
         },
@@ -1195,7 +1208,7 @@ if (existingDatabaseUrl) {
           vars: [],
           modelParams: null,
           outputDefinition: null,
-          variableMapping: null,
+          variableMapping: codeEvaluatorVariableMapping,
           sourceCode: "return false;",
           sourceCodeLanguage: "TYPESCRIPT",
         },
