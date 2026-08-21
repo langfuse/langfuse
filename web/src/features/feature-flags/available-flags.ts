@@ -39,7 +39,10 @@ export const isFeaturePreviewAvailable = (
   }
 
   if (flag === "sessionsSearchBar") {
-    return true;
+    // Reads the events-backed sessions table, so it depends on v4 exactly as
+    // modernSession does — without this, staff who get previews by default
+    // would see the tile checked but disabled.
+    return context.v4BetaEnabled;
   }
 
   return assertUnreachable(flag);

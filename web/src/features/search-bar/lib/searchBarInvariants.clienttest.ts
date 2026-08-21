@@ -415,10 +415,35 @@ describe("search bar invariants — sessions registry", () => {
     ).toMatchObject({ status: "committed", filters: first.filters });
 
     // A dangling dot-prefix must stay an error rather than becoming an id search
-    // for the literal text "metadata.".
+    // for the literal text "metadata." — and the message has to name the real
+    // problem, since this view does support `metadata.<key>`.
+    const dangling = planCommit(
+      "metadata.",
+      undefined,
+      SESSIONS_FIELD_REGISTRY,
+    );
+    expect(dangling.status).toBe("invalid");
+    if (dangling.status !== "invalid") throw new Error("expected invalid");
     expect(
-      planCommit("metadata.", undefined, SESSIONS_FIELD_REGISTRY).status,
-    ).toBe("invalid");
+      dangling.diagnostics.some((d) =>
+        /add a key after the dot/.test(d.message),
+      ),
+    ).toBe(true);
+
+    // Quoting it makes it an explicit literal, so it searches ids like any word.
+    expect(
+      planCommit('"metadata."', undefined, SESSIONS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "id",
+          type: "string",
+          operator: "contains",
+          value: "metadata.",
+        },
+      ],
+    });
   });
 
   it("treats a multi-word run as one phrase, not one filter per word", () => {
