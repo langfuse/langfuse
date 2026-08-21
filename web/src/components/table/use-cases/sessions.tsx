@@ -859,6 +859,7 @@ export default function SessionsTable({
             commit={searchBarCommit}
             observed={observedOptions}
             onApplyFilters={setFiltersWrapper}
+            registry={searchRegistry}
           />
         )}
         {/* Toolbar spanning full width */}

@@ -215,11 +215,16 @@ function fieldOptions(
     );
   }
   if (includeVirtual) {
+    // The example names one of THIS view's nullable fields; `has:endTime` on a
+    // view without endTime advertises a filter that cannot resolve.
+    const example = registry.nullableFields()[0]?.id;
     opts.push({
       id: "field:has",
       kind: "field",
       label: "has",
-      detail: "field has a value, e.g. has:endTime (-has: for missing)",
+      detail: example
+        ? `field has a value, e.g. has:${example} (-has: for missing)`
+        : "field has a value (-has: for missing)",
       fieldId: "has",
     });
   }
@@ -1311,22 +1316,26 @@ export function planInputCompletions(
     // Contextual facet matches share the run gate (and its span) with the scope
     // switches: both rewrite the whole free-text block the user sees, and the
     // gate already excludes negated terms and existing `key:` tokens.
+    // The default-text rewrite IS a matching filter (`id:chat`), not a full-text
+    // scope, so it joins that section after the observed-value matches.
     const matchingFilters: CompletionOption[] =
       run !== null
-        ? matchingFilterOptions(
-            run.text,
-            ctx.observed,
-            { from: run.from, to: run.to },
-            registry,
-          )
+        ? [
+            ...matchingFilterOptions(
+              run.text,
+              ctx.observed,
+              { from: run.from, to: run.to },
+              registry,
+            ),
+            ...defaultTextRewrite,
+          ]
         : [];
     if (
       fields.length +
         operators.length +
         patterns.length +
         matchingFilters.length +
-        searchScopes.length +
-        defaultTextRewrite.length ===
+        searchScopes.length ===
       0
     )
       return null;
@@ -1356,7 +1365,6 @@ export function planInputCompletions(
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
         ...section(SECTION_SEARCH_IN, searchScopes),
-        ...section(SECTION_SEARCH_IN, defaultTextRewrite),
       ],
     };
   }
