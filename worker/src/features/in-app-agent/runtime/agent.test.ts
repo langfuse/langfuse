@@ -55,11 +55,17 @@ const getAgentTools = (
 type MockedAgentConfig = {
   instructions?: (() => string) | string;
   model?: {
-    doGenerate?: (options: unknown) => Promise<unknown>;
     doStream: (options: unknown) => Promise<{
       stream: ReadableStream<unknown>;
     }>;
   };
+  inputProcessors?: Array<{
+    id: string;
+    processInputStep?: (args: {
+      stepNumber: number;
+      sendSignal?: (signal: unknown) => Promise<unknown>;
+    }) => Promise<unknown>;
+  }>;
   defaultOptions?: {
     onIterationComplete?: (context: {
       iteration: number;
@@ -633,87 +639,49 @@ describe("createAgUiStream", () => {
     ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
-  it("injects wrap-up instructions after the penultimate Mastra iteration", async () => {
+  it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {
     await initializeBasicTracedAgent("run-step-limit-wrap-up");
     const agentConfig = getLastAgentConfig();
-    const onIterationComplete =
-      agentConfig?.defaultOptions?.onIterationComplete;
-    expect(onIterationComplete).toEqual(expect.any(Function));
-
+    const processor = agentConfig?.inputProcessors?.find(
+      (item) => item.id === "ensure-final-response",
+    );
+    expect(processor?.processInputStep).toEqual(expect.any(Function));
     expect(readAgentInstructions(agentConfig)).not.toContain(
       "Do not call any more tools",
     );
+    expect(readAgentInstructions(agentConfig)).not.toContain("system-reminder");
 
-    const wrapUp = await onIterationComplete?.({
+    const sendSignal = vi.fn();
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 2,
+      sendSignal,
+    });
+    expect(sendSignal).not.toHaveBeenCalled();
+
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 1,
+      sendSignal,
+    });
+    expect(sendSignal).toHaveBeenCalledWith({
+      type: "reactive",
+      tagName: "step_limit_wrap_up",
+      contents: expect.stringContaining("Do not call any more tools"),
+      attributes: {
+        reason: "max-steps-reached",
+        step: IN_APP_AGENT_MAX_STEPS,
+      },
+    });
+
+    const wrapUp = await agentConfig?.defaultOptions?.onIterationComplete?.({
       iteration: IN_APP_AGENT_MAX_STEPS - 1,
       maxIterations: IN_APP_AGENT_MAX_STEPS,
       isFinal: false,
       finishReason: "tool-calls",
     });
-
-    expect(wrapUp).toEqual({
-      feedback: expect.stringContaining("<step_limit_wrap_up>"),
-    });
-    expect(readAgentInstructions(agentConfig)).toContain(
+    expect(wrapUp).toBeUndefined();
+    expect(readAgentInstructions(agentConfig)).not.toContain(
       "Do not call any more tools",
     );
-  });
-
-  it("rewrites a trailing assistant wrap-up message to user before the provider call", async () => {
-    await initializeBasicTracedAgent("run-step-limit-wrap-up-prefill");
-    const model = getLastAgentConfig()?.model;
-    expect(model).toBeDefined();
-
-    const wrapUpText =
-      "<step_limit_wrap_up>\nThis is your final step. Do not call any more tools.\n</step_limit_wrap_up>";
-    const toolEndingPrompt = [
-      {
-        role: "user",
-        content: [{ type: "text", text: "hello" }],
-      },
-      {
-        role: "tool",
-        content: [
-          {
-            type: "tool-result",
-            toolCallId: "call-1",
-            toolName: "listTraces",
-            output: { ok: true },
-          },
-        ],
-      },
-    ];
-    const wrapUpPrompt = [
-      ...toolEndingPrompt,
-      {
-        role: "assistant",
-        content: [{ type: "text", text: wrapUpText }],
-      },
-    ];
-
-    await model!.doStream({ prompt: wrapUpPrompt });
-    await model!.doGenerate?.({ prompt: wrapUpPrompt });
-    await model!.doStream({ prompt: toolEndingPrompt });
-
-    const streamCalls = bedrockMocks.doStream.mock.calls as Array<
-      [{ prompt: Array<{ role: string }> }]
-    >;
-    const generateCalls = bedrockMocks.doGenerate.mock.calls as Array<
-      [{ prompt: Array<{ role: string }> }]
-    >;
-    const rewrittenStreamPrompt = streamCalls.at(-2)?.[0]?.prompt;
-    const rewrittenGeneratePrompt = generateCalls.at(-1)?.[0]?.prompt;
-    const unchangedToolPrompt = streamCalls.at(-1)?.[0]?.prompt;
-
-    expect(rewrittenStreamPrompt?.at(-1)?.role).toBe("user");
-    expect(JSON.stringify(rewrittenStreamPrompt?.at(-1))).toContain(
-      "step_limit_wrap_up",
-    );
-    expect(rewrittenGeneratePrompt?.at(-1)?.role).toBe("user");
-    expect(JSON.stringify(rewrittenGeneratePrompt?.at(-1))).toContain(
-      "step_limit_wrap_up",
-    );
-    expect(unchangedToolPrompt).toEqual(toolEndingPrompt);
   });
 
   it("does not treat provider stream finishes as Mastra steps", async () => {
