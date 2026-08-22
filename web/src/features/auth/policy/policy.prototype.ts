@@ -30,12 +30,14 @@ const wildcard = "*" as const;
 type Wildcard = typeof wildcard;
 
 /** SystemRule is a system-originated deny rule the PIP can attach. */
-type SystemRule = "ingestion_suspended";
+type SystemRule = "ingestion_suspended" | "mcp_disabled";
 
 /** systemRuleMessages maps each system deny rule to the 403 message its endpoint throws. */
 const systemRuleMessages: Record<SystemRule, string> = {
   ingestion_suspended:
     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+  mcp_disabled:
+    "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
 };
 
 /** PendingProjectApiAction holds net-new project-level public-API tokens absent from projectScopes. */
@@ -44,11 +46,13 @@ export type PendingProjectApiAction =
   | "traces:create"
   | "scores:read"
   | "scores:create"
+  | "media:create"
   | "sessions:read"
   | "metrics:read"
   | "models:read"
   | "experiments:read"
-  | "projects:read";
+  | "projects:read"
+  | "mcp:access";
 
 /** ProjectAction is an action assignable to a project policy. */
 export type ProjectAction = ProjectScope | PendingProjectApiAction | Wildcard;
@@ -329,9 +333,10 @@ if (import.meta.vitest) {
   const denyProject = (
     actions: ProjectAction[],
     resources: (Wildcard | OrgProjectsRef)[],
+    rule: SystemRule = "ingestion_suspended",
   ): ProjectPolicy => ({
     kind: "project",
-    source: { kind: "system", rule: "ingestion_suspended" },
+    source: { kind: "system", rule },
     actions,
     resources,
     effect: "deny",
@@ -550,6 +555,36 @@ if (import.meta.vitest) {
       expect(() =>
         mustAuthorize(c, "traces:delete", { projectId: PRJ }),
       ).toThrow();
+    });
+  });
+
+  describe("ingestion suspension boundary", () => {
+    const suspended = ctx([
+      allowProject([wildcard], [{ orgId: ORG, projectIds: [PRJ] }]),
+      denyProject(
+        ["traces:create", "scores:create", "media:create"],
+        [{ orgId: ORG, projectIds: [PRJ] }],
+      ),
+      denyProject(
+        ["mcp:access"],
+        [{ orgId: ORG, projectIds: [PRJ] }],
+        "mcp_disabled",
+      ),
+    ]);
+    it.each([
+      ["traces:create", systemRuleMessages.ingestion_suspended],
+      ["scores:create", systemRuleMessages.ingestion_suspended],
+      ["media:create", systemRuleMessages.ingestion_suspended],
+      ["mcp:access", systemRuleMessages.mcp_disabled],
+    ] as const)("suspends %s with its rule's message", (action, message) => {
+      const decision = authorize(suspended, action, { projectId: PRJ });
+      expect(decision.success).toBe(false);
+      expect(decision.error?.message).toBe(message);
+    });
+    it("leaves reads available under suspension", () => {
+      expect(
+        authorize(suspended, "traces:read", { projectId: PRJ }).success,
+      ).toBe(true);
     });
   });
 
