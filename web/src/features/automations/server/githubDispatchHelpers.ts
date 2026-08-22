@@ -110,6 +110,20 @@ export async function processGitHubDispatchActionConfig({
     displayToken = maskGitHubToken(tokenToUse);
     returnToken = tokenToUse;
   } else if (existingActionConfig?.githubToken) {
+    // A stored token is scoped to the repository it was entered for. The
+    // enterprise pattern above accepts any host, and the worker sends the
+    // decrypted token as a bearer credential to whatever URL ends up stored,
+    // so carrying it across a URL change would hand a GitHub PAT to a
+    // destination the submitter never proved they hold a credential for.
+    // Same rule as the dataset remote-experiment and webhook headers.
+    if (urlToUse !== existingActionConfig.url) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message:
+          "The GitHub token must be re-entered when changing the repository dispatch URL",
+      });
+    }
+
     tokenToUse = existingActionConfig.githubToken;
     displayToken = existingActionConfig.displayGitHubToken;
     returnToken = undefined;
