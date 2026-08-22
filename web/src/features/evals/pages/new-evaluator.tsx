@@ -27,9 +27,9 @@ import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 // Multi-step setup process
-// 1. Select Evaluator: /project/:projectId/evals/new
-// 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/new?evaluator=:evaluatorId
-// 3. Configure Evaluator: /project/:projectId/evals/new?evaluator=:evaluatorId
+// 1. Select Evaluator: /project/:projectId/evals/legacy/new
+// 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
+// 3. Configure Evaluator: /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
 export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -164,7 +164,7 @@ export default function NewEvaluatorPage() {
         breadcrumb: [
           {
             name: "Running Evaluators",
-            href: `/project/${projectId}/evals`,
+            href: `/project/${projectId}/evals/legacy`,
           },
         ],
       }}
@@ -173,7 +173,9 @@ export default function NewEvaluatorPage() {
         <BreadcrumbList>
           <BreadcrumbItem
             className="hover:cursor-pointer"
-            onClick={() => router.push(`/project/${projectId}/evals/new`)}
+            onClick={() =>
+              router.push(`/project/${projectId}/evals/legacy/new`)
+            }
           >
             <BreadcrumbPage
               className={cn(
