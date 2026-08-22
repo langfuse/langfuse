@@ -24,12 +24,39 @@ const tracingFormat = function () {
   })();
 };
 
+// ioredis attaches the command it was running to reply errors, and for AUTH and
+// HELLO the arguments are the credential itself. winston's `errors` format lifts
+// an Error's own enumerable properties into the record, so any handler passing a
+// raw connection error -- and there are dozens across the queue layer, e.g.
+// `queue.on("error", (err) => logger.error("...", err))` -- would otherwise
+// serialise it. This mirrors the redaction already applied to ioredis spans in
+// `server/instrumentation`.
+const CREDENTIAL_BEARING_COMMANDS = new Set(["auth", "hello"]);
+
+export const redactCommandCredentials = winston.format((info) => {
+  const command = info.command as
+    | { name?: unknown; args?: unknown }
+    | undefined;
+
+  if (
+    command &&
+    typeof command === "object" &&
+    typeof command.name === "string" &&
+    CREDENTIAL_BEARING_COMMANDS.has(command.name.toLowerCase())
+  ) {
+    info.command = { name: command.name, args: "[REDACTED]" };
+  }
+
+  return info;
+});
+
 const getWinstonLogger = (
   nodeEnv: "development" | "production" | "test",
   minLevel = "info",
 ) => {
   const textLoggerFormat = winston.format.combine(
     winston.format.errors({ stack: true }),
+    redactCommandCredentials(),
     winston.format.timestamp(),
     winston.format.align(),
     winston.format.printf((info) => {
@@ -40,6 +67,7 @@ const getWinstonLogger = (
 
   const jsonLoggerFormat = winston.format.combine(
     winston.format.errors({ stack: true }),
+    redactCommandCredentials(),
     winston.format.timestamp(),
     tracingFormat(),
     winston.format.json(),
