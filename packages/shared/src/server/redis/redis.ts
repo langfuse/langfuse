@@ -366,8 +366,8 @@ export const createNewRedisInstance = (
   })();
 
   if (instance && managedCredentialProvider) {
-    // Wraps connect() to apply the first token before connecting and to refresh
-    // it ahead of expiry; connecting itself stays lazy until a caller triggers it.
+    // Tracks the connection so it holds the current token and is re-AUTHed ahead
+    // of expiry. Connecting stays lazy until a caller triggers it.
     bindManagedCredentialToRedis(instance, managedCredentialProvider);
   }
 
