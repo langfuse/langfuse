@@ -4,6 +4,7 @@ import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
 import {
   EXPECTED_TRPC_ERROR_CODES,
+  captureBuildId,
   fetchWithParseErrorStatus,
   getTrpcErrorCode,
   getTrpcErrorFingerprint,
@@ -16,12 +17,17 @@ import {
   reportTrpcErrorWithoutToast,
 } from "@/src/utils/api";
 
-const { captureExceptionMock, addBreadcrumbMock, trpcErrorToastMock } =
-  vi.hoisted(() => ({
-    captureExceptionMock: vi.fn(),
-    addBreadcrumbMock: vi.fn(),
-    trpcErrorToastMock: vi.fn(),
-  }));
+const {
+  captureExceptionMock,
+  addBreadcrumbMock,
+  trpcErrorToastMock,
+  showVersionUpdateToastMock,
+} = vi.hoisted(() => ({
+  captureExceptionMock: vi.fn(),
+  addBreadcrumbMock: vi.fn(),
+  trpcErrorToastMock: vi.fn(),
+  showVersionUpdateToastMock: vi.fn(),
+}));
 
 vi.mock("@sentry/nextjs", () => ({
   captureException: captureExceptionMock,
@@ -30,6 +36,12 @@ vi.mock("@sentry/nextjs", () => ({
 
 vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: trpcErrorToastMock,
+}));
+
+// Tripwire for the deleted `showVersionUpdateToast` path: 400/404 plus a
+// mismatched `x-build-id` must not be remapped to a refresh toast.
+vi.mock("@/src/features/notifications/showVersionUpdateToast", () => ({
+  showVersionUpdateToast: showVersionUpdateToastMock,
 }));
 
 /** A JSON.parse SyntaxError annotated with the HTTP status it was parsed
@@ -643,5 +655,63 @@ describe("reportNonTrpcError", () => {
     const [, options] = captureExceptionMock.mock.calls[0]!;
     expect(options.tags.area).toBe("organizations");
     expect(options.extra).toEqual({ context: "delete-organization" });
+  });
+});
+
+describe("400/404 tRPC errors must not be remapped to a version-update toast", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    trpcErrorToastMock.mockClear();
+    showVersionUpdateToastMock.mockClear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "running-build");
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("classifies a 400 even when x-build-id differs from the running build", () => {
+    // Evaluators (and any other page) can legitimately 400 while HTML and API
+    // are served by different builds. The version-update banner is the only
+    // mismatch UX; this seam must still classify the error.
+    captureBuildId(
+      new Response("", { headers: { "x-build-id": "other-build" } }),
+    );
+
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: "evals.allConfigs",
+      }),
+      "evals",
+    );
+
+    expect(showVersionUpdateToastMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("classifies a 404 NOT_FOUND as expected even when build ids differ", () => {
+    captureBuildId(
+      new Response("", { headers: { "x-build-id": "other-build" } }),
+    );
+
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "NOT_FOUND",
+        httpStatus: 404,
+        path: "evals.byId",
+      }),
+      "evals",
+    );
+
+    expect(showVersionUpdateToastMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
   });
 });

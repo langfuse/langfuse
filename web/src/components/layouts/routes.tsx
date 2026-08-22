@@ -56,6 +56,7 @@ export type Route = {
   organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon; // ignored for nested routes
   pathname: string; // link
+  legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
   newTab?: boolean; // open in new tab
@@ -68,6 +69,7 @@ export type Route = {
     projectId: string | undefined;
     isLangfuseCloud: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
+    v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -171,6 +173,7 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
+    legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
     title: "Human Annotation",
@@ -225,8 +228,8 @@ export const ROUTES: Route[] = [
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
-    featureFlag: "v4UpgradeUi",
-    show: ({ projectId }) => projectId !== undefined,
+    show: ({ projectId, v4UpgradeUiAvailable }) =>
+      v4UpgradeUiAvailable && projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
   },
   {
