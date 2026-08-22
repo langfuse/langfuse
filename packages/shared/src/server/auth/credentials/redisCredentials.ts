@@ -2,7 +2,10 @@ import type { Redis } from "ioredis";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { AzureManagedIdentityCredentialProvider } from "./azureManagedIdentity";
-import { RefreshingTokenManager } from "./RefreshingTokenManager";
+import {
+  describeError,
+  RefreshingTokenManager,
+} from "./RefreshingTokenManager";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
 
 type BoundConnection = {
@@ -38,13 +41,6 @@ export function getRedisManagedCredentialProviderFromEnv(): ManagedCredentialPro
 
   return sharedProvider;
 }
-
-// ioredis attaches the failed command -- including the credential it just sent --
-// to reply errors, and the logger serialises an Error's own enumerable properties.
-// Rendering only the message keeps a rotation failure from emitting a replayable
-// bearer token into the logs.
-const describeError = (error: unknown): string =>
-  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 
 // ioredis builds its auth handshake from options.password inside connect(), so
 // this is what every connect and reconnect authenticates from.
@@ -167,17 +163,18 @@ export function bindManagedCredentialToRedis(
   const manager = deps.manager ?? getSharedManager(provider);
   const entry: BoundConnection = { client, provider };
 
+  // Registered for the lifetime of the client, never unregistered. ioredis
+  // snapshots the auth handshake from options synchronously inside connect(),
+  // before it emits "connect", so reacting to that event is already too late for
+  // the attempt it fires during -- a client revived by BullMQ's
+  // RedisConnection.reconnect() would hand the server a stale credential.
+  // Keeping the entry means rotation refreshes the options of a disconnected
+  // client too, so whenever it is revived its first handshake already carries the
+  // current token. reauthenticate() skips anything that is not "ready", so an
+  // entry for a dead client costs nothing, and the number of clients a process
+  // creates is bounded by its queues, caches and rate limiters.
   boundConnections.add(entry);
   if (currentToken) applyToken(entry, currentToken);
-  // ioredis emits "end" when it will not retry on its own, but BullMQ revives the
-  // same instance through RedisConnection.reconnect(). Re-registering on connect
-  // keeps a revived client in rotation instead of silently leaving it on a frozen
-  // credential until the next expiry kills it.
-  client.on("end", () => boundConnections.delete(entry));
-  client.on("connect", () => {
-    boundConnections.add(entry);
-    if (currentToken) applyToken(entry, currentToken);
-  });
 
   // BullMQ's Worker does not use the connection it is handed -- it builds its
   // blocking connection with duplicate(), which ioredis implements as

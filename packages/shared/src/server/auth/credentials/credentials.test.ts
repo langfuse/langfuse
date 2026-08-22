@@ -340,7 +340,7 @@ describe("bindManagedCredentialToRedis", () => {
     manager.stop();
   });
 
-  it("re-registers a connection that reconnects after ending", async () => {
+  it("keeps a disconnected connection's credential current for its revival", async () => {
     vi.useFakeTimers();
     const provider = fakeProvider({ username: "object-id-123" });
     const client = fakeRedisClient();
@@ -351,36 +351,15 @@ describe("bindManagedCredentialToRedis", () => {
     );
     await settle();
 
-    // BullMQ revives the same instance via RedisConnection.reconnect().
-    client.handlers.end();
-    client.handlers.connect();
-    client.status = "ready";
-
+    // ioredis snapshots the auth handshake from options inside connect(), before
+    // it emits "connect", so the token has to be current *when a revival starts*.
+    // Reacting to the event would be one rotation too late, and BullMQ revives
+    // the same instance through RedisConnection.reconnect().
+    client.status = "end";
     await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+
     expect(client.options.password).toBe("token-2");
-    expect(client.call).toHaveBeenCalledWith(
-      "AUTH",
-      "object-id-123",
-      "token-2",
-    );
-    manager.stop();
-  });
-
-  it("stops refreshing a connection once it has ended", async () => {
-    vi.useFakeTimers();
-    const provider = fakeProvider();
-    const client = fakeRedisClient();
-
-    const manager = bindManagedCredentialToRedis(
-      client as unknown as Redis,
-      provider,
-    );
-    await settle();
-    client.status = "ready";
-
-    // A closed connection must not keep receiving AUTH for every rotation.
-    client.handlers.end();
-    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    // Nothing is sent to a socket that is not open.
     expect(client.call).not.toHaveBeenCalled();
     manager.stop();
   });

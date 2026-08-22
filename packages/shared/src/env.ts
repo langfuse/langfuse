@@ -622,6 +622,39 @@ const validateManagedRedisAuth = (
     });
   }
 
+  // TLS alone is not enough: an unverified peer still receives the token. These
+  // escape hatches are defensible for a static password scoped to one cache, but
+  // not for a bearer credential the whole audience accepts.
+  if (val.REDIS_TLS_REJECT_UNAUTHORIZED === "false") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_TLS_REJECT_UNAUTHORIZED"],
+      message: `REDIS_TLS_REJECT_UNAUTHORIZED must not be "false" when REDIS_AUTH_METHOD is "${val.REDIS_AUTH_METHOD}": an unverified peer would receive a replayable token.`,
+    });
+  }
+
+  if (val.REDIS_TLS_CHECK_SERVER_IDENTITY === "false") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_TLS_CHECK_SERVER_IDENTITY"],
+      message: `REDIS_TLS_CHECK_SERVER_IDENTITY must not be "false" when REDIS_AUTH_METHOD is "${val.REDIS_AUTH_METHOD}": the token would be sent to a host that did not prove its identity.`,
+    });
+  }
+
+  // createNewRedisInstance routes cluster and sentinel to builders that never bind
+  // the managed credential, so accepting this would certify a configuration the
+  // runtime openly refuses to implement.
+  if (
+    val.REDIS_CLUSTER_ENABLED === "true" ||
+    val.REDIS_SENTINEL_ENABLED === "true"
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_AUTH_METHOD"],
+      message: `REDIS_AUTH_METHOD "${val.REDIS_AUTH_METHOD}" is supported for single-node Redis only; cluster and sentinel modes still use static credentials.`,
+    });
+  }
+
   // Azure authenticates the identity by its object id, and without a username
   // ioredis sends no AUTH at all -- which would connect anonymously to a server
   // that permits it rather than failing closed.
