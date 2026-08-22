@@ -47,6 +47,7 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { mergePlaygroundConfig } from "@/src/features/llm-schemas/promptConfig";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
@@ -185,6 +186,23 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     if (shouldLoadPlaygroundCache && playgroundCache) {
       form.setValue("type", PromptType.Chat);
       setInitialMessages(playgroundCache.messages);
+
+      // Persist playground tools/structured output schema onto the prompt config
+      // so they round-trip back into the playground later.
+      let existingConfig: unknown = {};
+      try {
+        existingConfig = JSON.parse(form.getValues("config"));
+      } catch {
+        // Keep empty object when the current config is not valid JSON.
+      }
+      form.setValue(
+        "config",
+        JSON.stringify(
+          mergePlaygroundConfig(existingConfig, playgroundCache),
+          null,
+          2,
+        ),
+      );
     } else if (initialPrompt?.type === PromptType.Chat) {
       setInitialMessages(initialPrompt.prompt);
     }
