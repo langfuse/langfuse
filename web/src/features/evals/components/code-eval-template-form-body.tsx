@@ -1,7 +1,11 @@
-import CodeMirror, { EditorView, hoverTooltip } from "@uiw/react-codemirror";
+import CodeMirror, {
+  EditorView,
+  hoverTooltip,
+  type ReactCodeMirrorRef,
+} from "@uiw/react-codemirror";
 import { EditorState, Prec } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
-import { linter, type Diagnostic } from "@codemirror/lint";
+import { linter, setDiagnostics } from "@codemirror/lint";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
@@ -31,6 +35,10 @@ import {
   isInsideStringOrComment,
 } from "@/src/features/evals/utils/code-eval-template-completions";
 import {
+  commitCodeEvalSourceChange,
+  mapCodeEvalDiagnosticsToCodeMirror,
+} from "@/src/features/evals/utils/code-eval-template-editor";
+import {
   formatPythonCodeEvalSourceWithRuff,
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
@@ -56,6 +64,12 @@ const CODE_MIRROR_BASIC_SETUP = {
   lineNumbers: true,
   searchKeymap: true,
 };
+// Install the lint plugin without a source so validation results can be
+// pushed with `setDiagnostics` instead of swapping the `extensions` array.
+// react-codemirror reconfigures the whole editor when `extensions` changes
+// identity; that reconfigure plus a controlled react-hook-form value is what
+// produced production "Maximum update depth exceeded" crashes.
+const CODE_EVAL_LINT_EXTENSION = linter(null);
 const codeMirrorLayoutTheme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-gutters": { borderRight: "1px solid" },
@@ -130,6 +144,7 @@ export function CodeEvalTemplateFormBody({
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
   const languageLabel =
     sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
@@ -147,14 +162,40 @@ export function CodeEvalTemplateFormBody({
     sourceCodeRef.current = sourceCode;
   });
   const handleSourceCodeChange = useCallback((value: string) => {
-    sourceCodeRef.current = value;
-    onSourceCodeChangeRef.current(value);
+    commitCodeEvalSourceChange(
+      value,
+      sourceCodeRef,
+      onSourceCodeChangeRef.current,
+    );
   }, []);
 
   const diagnostics = useMemo(
     () => validationResult?.diagnostics ?? [],
     [validationResult?.diagnostics],
   );
+  const diagnosticsRef = useRef(diagnostics);
+  diagnosticsRef.current = diagnostics;
+
+  // CodeMirror is the external owner of lint marks. Push diagnostics through
+  // its API instead of rebuilding the `extensions` array on every validation.
+  useEffect(() => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    view.dispatch(
+      setDiagnostics(
+        view.state,
+        mapCodeEvalDiagnosticsToCodeMirror(diagnostics),
+      ),
+    );
+  }, [diagnostics]);
+  const handleCreateEditor = useCallback((view: EditorView) => {
+    view.dispatch(
+      setDiagnostics(
+        view.state,
+        mapCodeEvalDiagnosticsToCodeMirror(diagnosticsRef.current),
+      ),
+    );
+  }, []);
 
   // Reentrancy lives in a ref so `formatSource` (and with it the keydown
   // extension and the whole extension array) keeps its identity across the
@@ -174,27 +215,16 @@ export function CodeEvalTemplateFormBody({
       // would render as an empty final line.
       handleSourceCodeChange(formatted.trimEnd());
     } catch (error) {
-      console.error(error);
+      // Invalid user source is an expected format failure. console.error is
+      // captured by Sentry's console integration and would mint an issue for
+      // every failed Format click.
+      console.warn(error);
     } finally {
       isFormattingRef.current = false;
       setIsFormatting(false);
     }
   }, [editable, handleSourceCodeChange, sourceCodeLanguage]);
 
-  const linterExtension = useMemo(
-    () =>
-      linter(() =>
-        diagnostics.map(
-          (diagnostic): Diagnostic => ({
-            from: diagnostic.from,
-            to: Math.max(diagnostic.from + 1, diagnostic.to),
-            severity: diagnostic.severity,
-            message: diagnostic.message,
-          }),
-        ),
-      ),
-    [diagnostics],
-  );
   const formatShortcutExtension = useMemo(
     () =>
       Prec.highest(
@@ -244,7 +274,7 @@ export function CodeEvalTemplateFormBody({
       languageExtension,
       codeEvalCompletionExtension,
       codeEvalHoverExtension,
-      linterExtension,
+      CODE_EVAL_LINT_EXTENSION,
       ...(editable
         ? [formatShortcutExtension, autoScrollOnSelectionDrag()]
         : []),
@@ -257,7 +287,6 @@ export function CodeEvalTemplateFormBody({
       editable,
       formatShortcutExtension,
       languageExtension,
-      linterExtension,
     ],
   );
 
@@ -294,11 +323,13 @@ export function CodeEvalTemplateFormBody({
         ) : null}
       </div>
       <CodeMirror
+        ref={editorRef}
         value={sourceCode}
         theme={codeMirrorTheme}
         basicSetup={CODE_MIRROR_BASIC_SETUP}
         extensions={extensions}
         editable={editable}
+        onCreateEditor={handleCreateEditor}
         onChange={handleSourceCodeChange}
         className="overflow-hidden rounded-md border text-xs"
       />

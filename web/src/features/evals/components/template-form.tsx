@@ -627,7 +627,9 @@ export const InnerEvalTemplateForm = (props: {
                 sourceCodeLanguage={sourceCodeLanguage}
                 onSourceCodeChange={(value) => {
                   field.onChange(value);
-                  setFormError(null);
+                  setFormError((current) =>
+                    current === null ? current : null,
+                  );
                 }}
                 editable={Boolean(props.isEditing)}
                 validationResult={codeValidationResult}
