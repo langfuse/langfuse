@@ -5,5 +5,6 @@ export const orderedRoles: Record<Role, number> = {
   [Role.ADMIN]: 3,
   [Role.MEMBER]: 2,
   [Role.VIEWER]: 1,
+  [Role.ANNOTATOR]: 1,
   [Role.NONE]: 0,
 };
