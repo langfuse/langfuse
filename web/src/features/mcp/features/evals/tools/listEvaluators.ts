@@ -1,18 +1,20 @@
-import {
-  GetUnstableEvaluatorsQuery,
-  GetUnstableEvaluatorsResponse,
-} from "@/src/features/public-api/types/unstable-evaluators";
-import { listPublicEvaluators } from "@/src/features/evals/server/unstable-public-api";
+import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { createMcpEvaluatorService } from "../evaluator-service";
+
+const ListEvaluatorsInput = z.object({
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().max(100).default(50),
+});
 
 export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
   name: "listEvaluators",
   description:
     "List evaluators (llm_as_judge and code) defined in the current Langfuse project. Results are paginated.",
-  baseSchema: GetUnstableEvaluatorsQuery,
-  inputSchema: GetUnstableEvaluatorsQuery,
+  baseSchema: ListEvaluatorsInput,
+  inputSchema: ListEvaluatorsInput,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluators.list",
@@ -22,23 +24,28 @@ export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
-        const result = await listPublicEvaluators({
+        const { evaluators, totalItems } = await createMcpEvaluatorService(
+          context,
+        ).list({
           projectId: context.projectId,
           page: input.page,
           limit: input.limit,
         });
-
-        const parsed = GetUnstableEvaluatorsResponse.parse(result);
-
+        const data = evaluators.map((evaluator) => ({
+          ...evaluator,
+          url: buildEvaluatorUrl({
+            projectId: context.projectId,
+            evaluatorId: evaluator.id,
+          }),
+        }));
         return {
-          ...parsed,
-          data: parsed.data.map((evaluator) => ({
-            ...evaluator,
-            url: buildEvaluatorUrl({
-              projectId: context.projectId,
-              evaluatorId: evaluator.id,
-            }),
-          })),
+          data,
+          meta: {
+            page: input.page,
+            limit: input.limit,
+            totalItems,
+            totalPages: Math.ceil(totalItems / input.limit),
+          },
         };
       },
     }),

@@ -2051,6 +2051,7 @@ export const TheToolbarDoesNotExplainItself = meta.story({
       expect(toolbar.innerText.toLowerCase()).toContain("window"),
     );
     await expect(toolbar.innerText.toLowerCase()).not.toContain("drag");
+    await expect(toolbar.innerText.toLowerCase()).not.toContain("px");
   },
 });
 

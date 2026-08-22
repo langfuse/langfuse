@@ -69,11 +69,23 @@ export function getCategoricalCategoryRuleViolations(categories: string[]) {
 
 const EvalCategoricalCategorySchema = z.string().trim().min(1);
 
+const NumericEvalOutputScoreDefinitionSchema =
+  EvalOutputFieldDefinitionSchema.extend({
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+  }).refine(
+    ({ minValue, maxValue }) =>
+      minValue === undefined || maxValue === undefined || minValue <= maxValue,
+    {
+      message: "Minimum value must be less than or equal to maximum value",
+    },
+  );
+
 export const NumericEvalOutputDefinitionV2Schema = z.object({
   version: z.literal(2),
   dataType: z.literal(ScoreDataTypeEnum.NUMERIC),
   reasoning: EvalOutputFieldDefinitionSchema,
-  score: EvalOutputFieldDefinitionSchema,
+  score: NumericEvalOutputScoreDefinitionSchema,
 });
 export type NumericEvalOutputDefinitionV2 = z.infer<
   typeof NumericEvalOutputDefinitionV2Schema
@@ -141,6 +153,8 @@ export type ResolvedEvalOutputDefinition =
       dataType: typeof ScoreDataTypeEnum.NUMERIC;
       reasoningDescription: string;
       scoreDescription: string;
+      minValue?: number;
+      maxValue?: number;
     }
   | {
       dataType: typeof ScoreDataTypeEnum.BOOLEAN;
@@ -190,10 +204,17 @@ export function resolvePersistedEvalOutputDefinition(
     };
   }
 
-  if (
-    outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC ||
-    outputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN
-  ) {
+  if (outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return {
+      dataType: outputDefinition.dataType,
+      reasoningDescription: outputDefinition.reasoning.description,
+      scoreDescription: outputDefinition.score.description,
+      minValue: outputDefinition.score.minValue,
+      maxValue: outputDefinition.score.maxValue,
+    };
+  }
+
+  if (outputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN) {
     return {
       dataType: outputDefinition.dataType,
       reasoningDescription: outputDefinition.reasoning.description,
@@ -214,6 +235,8 @@ export function resolvePersistedEvalOutputDefinition(
 export function createNumericEvalOutputDefinition(params: {
   reasoningDescription: string;
   scoreDescription: string;
+  minValue?: number;
+  maxValue?: number;
 }) {
   return NumericEvalOutputDefinitionV2Schema.parse({
     version: 2,
@@ -223,6 +246,8 @@ export function createNumericEvalOutputDefinition(params: {
     },
     score: {
       description: params.scoreDescription,
+      ...(params.minValue !== undefined ? { minValue: params.minValue } : {}),
+      ...(params.maxValue !== undefined ? { maxValue: params.maxValue } : {}),
     },
   });
 }
@@ -313,9 +338,17 @@ function buildResultSchemaForResolvedOutputDefinition(
     });
   }
 
+  let scoreSchema = z.number();
+  if (resolvedOutputDefinition.minValue !== undefined) {
+    scoreSchema = scoreSchema.min(resolvedOutputDefinition.minValue);
+  }
+  if (resolvedOutputDefinition.maxValue !== undefined) {
+    scoreSchema = scoreSchema.max(resolvedOutputDefinition.maxValue);
+  }
+
   return z.object({
     reasoning: reasoningSchema,
-    score: z.number().describe(resolvedOutputDefinition.scoreDescription),
+    score: scoreSchema.describe(resolvedOutputDefinition.scoreDescription),
   });
 }
 

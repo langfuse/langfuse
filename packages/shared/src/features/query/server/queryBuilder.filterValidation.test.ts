@@ -170,6 +170,27 @@ describe("queryBuilder filter type validation", () => {
     expect(query).toContain(": Boolean}");
   });
 
+  it.each(["v1", "v2"] as const)(
+    "lowers evaluator score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "evaluatorId",
+          operator: "any of",
+          value: ["evaluator-1", "rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain(
+        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
+      );
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
+
   it("lowers the semantic-root observation filter only in the v2 events view", async () => {
     const { query } = await buildQueryWithFilter(
       {

@@ -18,7 +18,12 @@
 // are rejected with targeted messages in validate.ts, not here.
 
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
-import { canonicalKey, operatorIssue, resolveField } from "./fields";
+import {
+  canonicalKey,
+  EVENTS_FIELD_REGISTRY,
+  operatorIssue,
+  type FieldRegistry,
+} from "./fields";
 import { NEEDS_QUOTES, quote, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
@@ -261,6 +266,7 @@ function parseTermNode(
   raw: string,
   span: Span,
   diagnostics: Diagnostic[],
+  registry: FieldRegistry,
 ): FilterNode | TextNode {
   const reserved = reservedTokenIssue(raw);
   if (reserved !== null) {
@@ -282,7 +288,7 @@ function parseTermNode(
 
   const keyRaw = raw.slice(0, colon);
   const valueRaw = raw.slice(colon + 1);
-  const ref = keyRaw.length === 0 ? null : resolveField(keyRaw);
+  const ref = keyRaw.length === 0 ? null : registry.resolveField(keyRaw);
 
   if (ref === null) {
     diagnostics.push({
@@ -560,7 +566,10 @@ function parseGroupedValues(
 
 // ---- parser ----
 
-export function parse(input: string): ParseResult {
+export function parse(
+  input: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): ParseResult {
   const diagnostics: Diagnostic[] = [];
   const tokens = lex(input, diagnostics);
   let pos = 0;
@@ -733,13 +742,14 @@ export function parse(input: string): ParseResult {
         severity: "error",
         message: "Negation (-) only applies to field filters, e.g. -env:dev",
       });
-      return parseTermNode(t.raw, t.span, diagnostics);
+      return parseTermNode(t.raw, t.span, diagnostics, registry);
     }
     if (t.raw.startsWith("-") && t.raw.length > 1) {
       const inner = parseTermNode(
         t.raw.slice(1),
         { from: t.span.from + 1, to: t.span.to },
         diagnostics,
+        registry,
       );
       if (inner.kind === "text") {
         // "-foo" as free text would be a negated search term; not supported.
@@ -753,7 +763,7 @@ export function parse(input: string): ParseResult {
       }
       return { kind: "not", child: inner, span: t.span };
     }
-    return parseTermNode(t.raw, t.span, diagnostics);
+    return parseTermNode(t.raw, t.span, diagnostics, registry);
   }
 
   let ast = parseOr();
@@ -924,8 +934,12 @@ function serializeSameFieldOr(filters: FilterNode[], negated = false): string {
 // free-text word (part of a multi-word phrase like `type error`): those must
 // NOT be quoted per-word, or the phrase corrupts to `"type" error`. Mirror
 // invariant with validate.ts's standalone-field-token check.
-function serializeText(node: TextNode, phraseInternal: boolean): string {
-  if (!phraseInternal && resolveField(node.value) !== null) {
+function serializeText(
+  node: TextNode,
+  phraseInternal: boolean,
+  registry: FieldRegistry,
+): string {
+  if (!phraseInternal && registry.resolveField(node.value) !== null) {
     return quote(node.value);
   }
   // Otherwise route through serializeValue so bare keywords (AND/OR/NOT) and
@@ -933,22 +947,25 @@ function serializeText(node: TextNode, phraseInternal: boolean): string {
   return serializeValue(node.value);
 }
 
-export function serialize(ast: ASTNode | null): string {
+export function serialize(
+  ast: ASTNode | null,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
   if (ast === null) return "";
   switch (ast.kind) {
     case "filter":
       return serializeFilter(ast);
     case "text":
       // A top-level lone text node is standalone by definition.
-      return serializeText(ast, false);
+      return serializeText(ast, false, registry);
     case "not": {
       const child = ast.child;
       if (child.kind === "filter") return `-${serializeFilter(child)}`;
       const sameField = sameFieldOrGroup(child);
       if (sameField !== null) return serializeSameFieldOr(sameField, true);
-      if (child.kind === "not") return `NOT (${serialize(child)})`;
-      if (child.kind === "text") return `NOT ${serialize(child)}`;
-      return `NOT (${serialize(child)})`;
+      if (child.kind === "not") return `NOT (${serialize(child, registry)})`;
+      if (child.kind === "text") return `NOT ${serialize(child, registry)}`;
+      return `NOT (${serialize(child, registry)})`;
     }
     case "and":
       // Nested groups keep their parens: OR for precedence, AND so the
@@ -958,10 +975,10 @@ export function serialize(ast: ASTNode | null): string {
         .map((c, i) => {
           if (c.kind === "or") {
             return sameFieldOrGroup(c) !== null
-              ? serialize(c)
-              : `(${serialize(c)})`;
+              ? serialize(c, registry)
+              : `(${serialize(c, registry)})`;
           }
-          if (c.kind === "and") return `(${serialize(c)})`;
+          if (c.kind === "and") return `(${serialize(c, registry)})`;
           // A text child glued to a text sibling is part of a phrase — don't
           // force-quote a field-name word inside it (see serializeText).
           if (c.kind === "text") {
@@ -969,9 +986,9 @@ export function serialize(ast: ASTNode | null): string {
             const phraseInternal =
               children[i - 1]?.kind === "text" ||
               children[i + 1]?.kind === "text";
-            return serializeText(c, phraseInternal);
+            return serializeText(c, phraseInternal, registry);
           }
-          return serialize(c);
+          return serialize(c, registry);
         })
         .join(" ");
     case "or": {
@@ -981,7 +998,11 @@ export function serialize(ast: ASTNode | null): string {
       // chain flattens on reparse; AND children reparse correctly bare
       // (implicit AND binds tighter than OR).
       return ast.children
-        .map((c) => (c.kind === "or" ? `(${serialize(c)})` : serialize(c)))
+        .map((c) =>
+          c.kind === "or"
+            ? `(${serialize(c, registry)})`
+            : serialize(c, registry),
+        )
         .join(" OR ");
     }
   }

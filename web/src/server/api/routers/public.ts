@@ -21,6 +21,9 @@ export const publicRouter = createTRPCRouter({
   traceReadConfig: publicProcedure.query(() => ({
     v4WriteMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
   })),
+  markdownRenderConfig: publicProcedure.query(() => ({
+    characterLimit: env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
+  })),
   tracingSearchConfig: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(() => ({

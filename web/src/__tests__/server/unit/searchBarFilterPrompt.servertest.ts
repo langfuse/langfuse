@@ -12,6 +12,8 @@ import {
   specForField,
 } from "@/src/features/search-bar/server/buildFilterPrompt";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { parseGeneratedFilters } from "@/src/features/search-bar/server/parseFilterCompletion";
 
 // A representative `singleFilter` for the FilterState `type` the prompt tells
 // the model to emit for this field. Used to assert the prompt's per-field
@@ -99,6 +101,41 @@ describe("buildFilterSystemPrompt", () => {
     // datetime now, so passing extra args would be a silent no-op if the
     // signature ever regained them without a type error surfacing here.
     expect(buildFilterSystemPrompt.length).toBe(1);
+  });
+});
+
+describe("evaluation rule AI registry", () => {
+  it("advertises and accepts only the rule filter contract", () => {
+    const prompt = buildFilterSystemPrompt(
+      "Monday, 2026-06-15T00:00:00.000Z",
+      RULE_FIELD_REGISTRY,
+    );
+    expect(prompt).toContain("- tags [aliases:");
+    expect(prompt).not.toContain("- latency:");
+    expect(prompt).toContain("Never emit full-text search, score filters");
+
+    const result = parseGeneratedFilters(
+      JSON.stringify([
+        {
+          type: "arrayOptions",
+          column: "tags",
+          operator: "any of",
+          value: ["billing"],
+        },
+        { type: "number", column: "latency", operator: ">", value: 2 },
+      ]),
+      undefined,
+      RULE_FIELD_REGISTRY,
+    );
+    expect(result.filters).toEqual([
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "any of",
+        value: ["billing"],
+      },
+    ]);
+    expect(result.droppedCount).toBe(1);
   });
 });
 

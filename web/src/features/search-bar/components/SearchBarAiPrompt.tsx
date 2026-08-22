@@ -42,6 +42,7 @@ export function SearchBarAiPrompt({
   store,
   dataContext,
   scoreNames,
+  registryId = "events",
   onApply,
   onExit,
 }: {
@@ -57,6 +58,7 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
+  registryId?: "events" | "evaluationRules";
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
@@ -124,6 +126,7 @@ export function SearchBarAiPrompt({
     try {
       const result = await generateFilter.mutateAsync({
         projectId,
+        registryId,
         prompt,
         currentQuery: refineMode ? refine : undefined,
         dataContext,

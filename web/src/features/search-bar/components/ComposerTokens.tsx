@@ -14,6 +14,10 @@ import { cva } from "class-variance-authority";
 
 import type { ScoreTypeContext } from "@/src/features/search-bar/lib/adapter";
 import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
   deriveComposerSegments,
   type FilterSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
@@ -118,6 +122,7 @@ export function ComposerTokens({
   fieldReason,
   freeTextReason,
   highlightedSegmentId,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   draft: string;
   showDiagnostics: boolean;
@@ -134,8 +139,9 @@ export function ComposerTokens({
   /** Reason a free-text token is not applied (e.g. charts ignore full-text
    *  search), or null/undefined to leave it active. */
   freeTextReason?: string | null;
+  registry?: FieldRegistry;
 }): React.ReactNode {
-  const segments = deriveComposerSegments(draft, scoreTypes);
+  const segments = deriveComposerSegments(draft, scoreTypes, registry);
   const out: React.ReactNode[] = [];
   let cursor = 0;
   for (const segment of segments) {

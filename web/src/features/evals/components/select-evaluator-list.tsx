@@ -57,7 +57,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const { enabled: isCodeEvalEnabled } = codeEvalCapabilities;
 
   const handleSelectEvaluator = (template: EvalTemplate) => {
-    router.push(`/project/${projectId}/evals/new?evaluator=${template.id}`);
+    router.push(
+      `/project/${projectId}/evals/legacy/new?evaluator=${template.id}`,
+    );
   };
 
   // Fetch templates

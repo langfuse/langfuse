@@ -76,6 +76,7 @@ export function ComposerWithPreview(
                 scoreTypes={scoreTypes}
                 fieldReason={props.fieldReason}
                 freeTextReason={props.freeTextReason}
+                registry={props.registry}
               />
             </div>
           </div>

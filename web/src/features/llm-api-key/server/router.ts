@@ -25,10 +25,9 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  getEvaluatorBlockMetadata,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
+
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
@@ -38,9 +37,11 @@ import {
   logger,
   mapLegacyLLMCompletionParams,
   decryptAndParseExtraHeaders,
-  blockEvaluatorConfigsInTx,
+  blockEvaluatorsUsingDefaultModel,
+  blockEvaluatorsUsingProvider,
+  EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
-  finalizeBlockedEvaluatorConfigBlocks,
+  finalizeEvaluatorBlocks,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -326,63 +327,21 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
         });
 
-        const providerBlockedJobConfigIds = new Set<string>();
-        const defaultModelBlockedJobConfigIds = new Set<string>();
-
-        if (llmApiKey?.provider) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId: input.projectId }, { projectId: null }],
+        const providerBlock = llmApiKey?.provider
+          ? await blockEvaluatorsUsingProvider({
+              tx,
+              projectId: input.projectId,
               provider: llmApiKey.provider,
-            },
-            select: {
-              id: true,
-            },
-          });
+            })
+          : EMPTY_EVALUATOR_BLOCK;
 
-          const providerBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId: input.projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
-              },
-            },
-            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            ).message,
-          });
-
-          for (const configId of providerBlockResult.blockedJobConfigIds) {
-            providerBlockedJobConfigIds.add(configId);
-          }
-        }
-
-        if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
-            tx,
-            projectId: input.projectId,
-          });
-
-          const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId: input.projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplateIds,
-              },
-            },
-            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            ).message,
-          });
-
-          for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
-            defaultModelBlockedJobConfigIds.add(configId);
-          }
-        }
+        const defaultModelBlock =
+          !!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id
+            ? await blockEvaluatorsUsingDefaultModel({
+                tx,
+                projectId: input.projectId,
+              })
+            : EMPTY_EVALUATOR_BLOCK;
 
         await tx.llmApiKeys.delete({
           where: {
@@ -399,22 +358,17 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "delete",
         });
 
-        return {
-          providerBlockedJobConfigIds: Array.from(providerBlockedJobConfigIds),
-          defaultModelBlockedJobConfigIds: Array.from(
-            defaultModelBlockedJobConfigIds,
-          ),
-        };
+        return { providerBlock, defaultModelBlock };
       });
 
-      await finalizeBlockedEvaluatorConfigBlocks({
+      await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        blockedByReason: {
+        evaluatorIdsByReason: {
           [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
-            result.providerBlockedJobConfigIds,
+            result.providerBlock.blockedEvaluatorIds,
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.defaultModelBlockedJobConfigIds,
+            result.defaultModelBlock.blockedEvaluatorIds,
         },
       });
 

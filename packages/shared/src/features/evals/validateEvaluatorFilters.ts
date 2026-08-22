@@ -7,8 +7,8 @@ import {
 } from "../../tableDefinitions/tracesTable";
 import type { FilterCondition, FilterState } from "../../types";
 import {
+  eventsEvalFilterColumns,
   experimentEvalFilterColumns,
-  observationEvalFilterColumns,
 } from "./observationForEval";
 import { COMPATIBLE_FILTER_TYPES } from "../../server/queries/clickhouse-sql/filterTypeCompatibility";
 import {
@@ -47,7 +47,7 @@ const getSupportedColumnsForTarget = (
     case EvalTargetObject.DATASET:
       return evalDatasetFormFilterCols;
     case EvalTargetObject.EVENT:
-      return observationEvalFilterColumns;
+      return eventsEvalFilterColumns;
     case EvalTargetObject.EXPERIMENT:
       return experimentEvalFilterColumns;
   }

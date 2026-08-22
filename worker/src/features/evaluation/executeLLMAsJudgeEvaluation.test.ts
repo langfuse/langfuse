@@ -7,7 +7,7 @@ const observabilityMocks = vi.hoisted(() => ({
     name: string;
     attributes: Record<string, unknown>;
   }>,
-  blockEvaluatorConfigs: vi.fn().mockResolvedValue(undefined),
+  blockEvaluator: vi.fn().mockResolvedValue({ blockedEvaluatorIds: [] }),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -16,7 +16,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
   return {
     ...actual,
-    blockEvaluatorConfigs: observabilityMocks.blockEvaluatorConfigs,
+    blockEvaluator: observabilityMocks.blockEvaluator,
     instrumentAsync: vi.fn(
       async (
         { name }: { name: string },
@@ -74,7 +74,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
   beforeEach(() => {
     observabilityMocks.spans.length = 0;
-    observabilityMocks.blockEvaluatorConfigs.mockClear();
+    observabilityMocks.blockEvaluator.mockClear();
   });
 
   // ============================================================================
@@ -539,7 +539,24 @@ describe("executeLLMAsJudgeEvaluation", () => {
       const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
       const deps = createSuccessfulDeps({ callLLM });
 
-      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.NUMERIC,
+              reasoning: { description: "Explain the score" },
+              score: {
+                description: "Return a score between 0 and 1",
+                minValue: 0,
+                maxValue: 1,
+              },
+            },
+          },
+        }),
+      );
 
       const structuredOutputSchema = callLLM.mock.calls[0][0]
         .structuredOutputSchema as z.ZodTypeAny;
@@ -550,6 +567,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
           reasoning: "Good response",
         }).success,
       ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: 1.1,
+          reasoning: "Outside the configured range",
+        }).success,
+      ).toBe(false);
+      expect(z.toJSONSchema(structuredOutputSchema)).toMatchObject({
+        properties: {
+          score: {
+            minimum: 0,
+            maximum: 1,
+          },
+        },
+      });
     });
 
     it("should pass categorical structured output schema to LLM", async () => {
@@ -1265,7 +1296,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).rejects.toThrow("Rate limit exceeded");
     });
 
-    it("records native error policy on both evaluator spans", async () => {
+    it("records native error policy and blocks the evaluator", async () => {
       const llmError = new LLMValidationError({
         code: "endpoint-unreachable",
         message: "Cannot reach custom endpoint",
@@ -1276,7 +1307,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
       });
 
       await expect(
-        executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
+        executeLLMAsJudgeEvaluation({
+          ...createExecutionParams({ deps }),
+          evaluatorId: "evaluator-123",
+        }),
       ).rejects.toBe(llmError);
 
       const executeSpan = observabilityMocks.spans.find(
@@ -1307,7 +1341,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(callSpan?.attributes).not.toHaveProperty(
         "http.response.status_code",
       );
-      expect(observabilityMocks.blockEvaluatorConfigs).toHaveBeenCalledTimes(1);
+      expect(observabilityMocks.blockEvaluator).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evaluatorId: "evaluator-123",
+          blockReason: "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+          source: "llm_completion_error",
+        }),
+      );
     });
   });
 

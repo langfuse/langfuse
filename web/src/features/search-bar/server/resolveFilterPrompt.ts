@@ -50,6 +50,7 @@ import {
   buildFilterSystemPrompt,
   nullableFieldIds,
 } from "./buildFilterPrompt";
+import { type FieldRegistry, EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 /** Name of the managed chat prompt in the AI-features Langfuse project. Kept
  *  in sync with the repo seed file (`./prompts/search-bar-filter.prompt.json`)
@@ -67,12 +68,13 @@ export type ResolvedFilterSystemPrompt = {
 
 function buildFallbackPrompt(
   currentDatetime: string,
+  registry: FieldRegistry,
 ): ResolvedFilterSystemPrompt {
   return {
     messages: [
       {
         role: ChatMessageRole.System,
-        content: buildFilterSystemPrompt(currentDatetime),
+        content: buildFilterSystemPrompt(currentDatetime, registry),
         type: ChatMessageType.PublicAPICreated,
       },
     ],
@@ -107,8 +109,14 @@ export async function resolveFilterSystemPrompt(params: {
   aiFeaturesPublicKey: string | undefined;
   aiFeaturesSecretKey: string | undefined;
   aiFeaturesHost: string | undefined;
+  registry?: FieldRegistry;
 }): Promise<ResolvedFilterSystemPrompt> {
-  const fallback = buildFallbackPrompt(params.currentDatetime);
+  const registry = params.registry ?? EVENTS_FIELD_REGISTRY;
+  const fallback = buildFallbackPrompt(params.currentDatetime, registry);
+
+  // The managed prompt is authored for the events registry. Other views use
+  // their registry-derived local prompt until they have their own managed one.
+  if (registry.id !== "events") return fallback;
 
   // Self-hosted (no keys) is an expected, ordinary state — the AI-features
   // project is never contacted, so there is nothing to fetch and nothing to
@@ -136,8 +144,8 @@ export async function resolveFilterSystemPrompt(params: {
       { type: "chat", fetchTimeoutMs: 2000, maxRetries: 0 },
     );
     const compiled = promptResponse.compile({
-      catalog: buildFieldCatalog(),
-      nullable_ids: nullableFieldIds(),
+      catalog: buildFieldCatalog(registry),
+      nullable_ids: nullableFieldIds(registry),
       current_datetime: params.currentDatetime,
     });
     // `getPrompt` is typed to return chat messages for `{ type: "chat" }`, but

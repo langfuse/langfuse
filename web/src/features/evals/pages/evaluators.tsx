@@ -68,7 +68,13 @@ export default function EvaluatorsPage() {
         }}
         scrollable
       >
-        <EvaluatorsOnboarding projectId={projectId} />
+        <EvaluatorsOnboarding
+          projectId={projectId}
+          createEvaluatorAction={{
+            label: "Create Evaluator",
+            href: `/project/${projectId}/evals/legacy/new`,
+          }}
+        />
       </Page>
     );
   }
@@ -92,7 +98,7 @@ export default function EvaluatorsPage() {
             <ManageDefaultEvalModel projectId={projectId} />
             <ActionButton
               hasAccess={hasWriteAccess}
-              href={`/project/${projectId}/evals/new`}
+              href={`/project/${projectId}/evals/legacy/new`}
               icon={<Plus className="h-4 w-4" />}
               trackingEventName="eval_config:new_form_open"
               variant="default"

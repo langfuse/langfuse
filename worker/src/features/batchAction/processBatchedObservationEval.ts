@@ -5,7 +5,7 @@ import { logger, traceException } from "@langfuse/shared/src/server";
 import {
   createObservationEvalSchedulerDeps,
   scheduleObservationEvals,
-  type ObservationEvalConfig,
+  type ObservationEvalRule,
 } from "../evaluation/observationEval";
 
 const BATCH_SIZE = 500;
@@ -15,10 +15,17 @@ const MAX_ERROR_LOG_LINES = 20;
 export async function processBatchedObservationEval(params: {
   projectId: string;
   batchActionId: string;
-  evaluators: ObservationEvalConfig[];
+  evaluators: ObservationEvalRule[];
+  evaluatorLabels?: string[];
   observationStream: AsyncIterable<Record<string, unknown>>;
 }): Promise<void> {
-  const { projectId, batchActionId, evaluators, observationStream } = params;
+  const {
+    projectId,
+    batchActionId,
+    evaluators,
+    evaluatorLabels,
+    observationStream,
+  } = params;
   const limit = pLimit(CONCURRENCY_LIMIT);
   const schedulerDeps = createObservationEvalSchedulerDeps();
 
@@ -112,7 +119,7 @@ export async function processBatchedObservationEval(params: {
 
   const errorSummary =
     errors.length > 0
-      ? `${failedCount} observations failed while scheduling ${evaluators.length} evaluator(s): ${evaluators.map((evaluator) => evaluator.scoreName).join(", ")}.\n${errors.join("\n")}`
+      ? `${failedCount} observations failed while scheduling ${evaluators.length} evaluator(s): ${(evaluatorLabels ?? evaluators.map((evaluator) => ("scoreName" in evaluator ? evaluator.scoreName : evaluator.id))).join(", ")}.\n${errors.join("\n")}`
       : null;
 
   await prisma.batchAction.update({

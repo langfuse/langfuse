@@ -718,7 +718,7 @@ describe("v4TransitionRouter", () => {
 
   it("summarizes trace-level evals", async () => {
     const mockPrisma = {
-      jobConfiguration: {
+      evaluationRule: {
         groupBy: vi.fn().mockResolvedValue([
           {
             projectId,
@@ -734,11 +734,10 @@ describe("v4TransitionRouter", () => {
       traceLevelEvalCount: 3,
     });
 
-    expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
+    expect(mockPrisma.evaluationRule.groupBy).toHaveBeenCalledWith({
       by: ["projectId"],
       where: {
         projectId: { in: [projectId] },
-        jobType: "EVAL",
         targetObject: { in: ["trace", "dataset"] },
         status: "ACTIVE",
         timeScope: { has: "NEW" },
@@ -749,7 +748,7 @@ describe("v4TransitionRouter", () => {
 
   it("returns zero evals when no active configs exist", async () => {
     const mockPrisma = {
-      jobConfiguration: {
+      evaluationRule: {
         groupBy: vi.fn().mockResolvedValue([]),
       },
     };
@@ -887,7 +886,7 @@ describe("v4TransitionRouter", () => {
           { id: secondProjectId, name: "Second Project" },
         ]),
       },
-      jobConfiguration: {
+      evaluationRule: {
         groupBy: vi.fn().mockResolvedValue([
           {
             projectId,
@@ -914,11 +913,10 @@ describe("v4TransitionRouter", () => {
     expect(mockPrisma.project.findMany).toHaveBeenCalledWith(
       accessibleProjectsFindManyArgs,
     );
-    expect(mockPrisma.jobConfiguration.groupBy).toHaveBeenCalledWith({
+    expect(mockPrisma.evaluationRule.groupBy).toHaveBeenCalledWith({
       by: ["projectId"],
       where: {
         projectId: { in: [projectId, secondProjectId] },
-        jobType: "EVAL",
         targetObject: { in: ["trace", "dataset"] },
         status: "ACTIVE",
         timeScope: { has: "NEW" },
@@ -2091,7 +2089,7 @@ describe("v4TransitionRouter", () => {
       const mockPrismaForActions = ({
         evalCount = 0,
       }: { evalCount?: number } = {}) => ({
-        jobConfiguration: {
+        evaluationRule: {
           groupBy: vi
             .fn()
             .mockResolvedValue(
@@ -2200,7 +2198,7 @@ describe("v4TransitionRouter", () => {
           exportsActionNeeded: false,
         });
 
-        expect(prismaMock.jobConfiguration.groupBy).not.toHaveBeenCalled();
+        expect(prismaMock.evaluationRule.groupBy).not.toHaveBeenCalled();
         expect(mockedQueryClickhouse).not.toHaveBeenCalled();
       });
 

@@ -3,6 +3,7 @@ import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { Agent } from "@mastra/core/agent";
+import type { ProcessInputStepArgs, Processor } from "@mastra/core/processors";
 import { MCPClient } from "@mastra/mcp";
 import type { Langfuse } from "langfuse";
 
@@ -154,9 +155,34 @@ The sandbox workspace from earlier turns in this conversation expired and has be
 - Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
 </sandbox_workspace_reset>`;
 
-const STEP_LIMIT_WRAP_UP_INSTRUCTION = `<step_limit_wrap_up>
-This is your final step. Do not call any more tools. Summarize what you have found and give the user a complete final answer now.
-</step_limit_wrap_up>`;
+const STEP_LIMIT_WRAP_UP_INSTRUCTION =
+  "This is your final step. Do not call any more tools. Summarize what you have found and give the user a complete final answer now.";
+
+class EnsureFinalResponseProcessor implements Processor {
+  readonly id = "ensure-final-response";
+
+  constructor(
+    private readonly maxSteps: number,
+    private readonly onLastStep?: () => void,
+  ) {}
+
+  async processInputStep({ stepNumber, sendSignal }: ProcessInputStepArgs) {
+    if (stepNumber !== this.maxSteps - 1) {
+      return;
+    }
+
+    this.onLastStep?.();
+    await sendSignal?.({
+      type: "reactive",
+      tagName: "step_limit_wrap_up",
+      contents: STEP_LIMIT_WRAP_UP_INSTRUCTION,
+      attributes: {
+        reason: "max-steps-reached",
+        step: stepNumber + 1,
+      },
+    });
+  }
+}
 
 export type InAppAgentCompleteOutcome = {
   /** The turn reached the step cap, whether or not wrap-up rescued it. */
@@ -195,6 +221,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
       // the reasoning UI would render blank blocks.
       additionalModelRequestFields: {
         thinking: { type: "adaptive" as const, display: "summarized" },
+        output_config: { effort: "medium" as const },
       },
     },
   };
@@ -1124,40 +1151,29 @@ async function createMastraAdapter(params: {
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
       instructions: () =>
-        [
-          params.instructions,
-          developerGuidance,
-          params.stepLimitState.wrapUp
-            ? STEP_LIMIT_WRAP_UP_INSTRUCTION
-            : undefined,
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
+        [params.instructions, developerGuidance].filter(Boolean).join("\n\n"),
       model,
       skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
       maxRetries: 2,
+      inputProcessors: [
+        new EnsureFinalResponseProcessor(IN_APP_AGENT_MAX_STEPS, () => {
+          params.stepLimitState.wrapUp = true;
+          logger.info("In-app agent step-limit wrap-up injected", {
+            runId: params.input.runId,
+            threadId: params.input.threadId,
+            maxSteps: IN_APP_AGENT_MAX_STEPS,
+          });
+        }),
+      ],
       defaultOptions: {
         abortSignal: params.signal,
         maxSteps: IN_APP_AGENT_MAX_STEPS,
         // Mastra's logical step counter — not provider doStream/finish parts,
         // which retry and inflate independently of maxSteps.
-        onIterationComplete: ({
-          iteration,
-          maxIterations,
-          isFinal,
-          finishReason,
-        }) => {
+        onIterationComplete: ({ iteration, finishReason }) => {
           params.stepLimitState.iteration = iteration;
           params.stepLimitState.lastFinishReason = finishReason;
-          if (
-            iteration === (maxIterations ?? IN_APP_AGENT_MAX_STEPS) - 1 &&
-            !isFinal
-          ) {
-            params.stepLimitState.wrapUp = true;
-            // instructions() is snapshotted at stream start; feedback reaches the next call.
-            return { feedback: STEP_LIMIT_WRAP_UP_INSTRUCTION };
-          }
         },
         ...(params.options.sandboxWorkspaceWasReset
           ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }

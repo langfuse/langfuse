@@ -32,11 +32,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-
-import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 import { FormDescription } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "../editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { LLMApiKeyComponent } from "./LLMApiKeyComponent";
 
 export type ModelParamsContext = {
   modelParams: UIModelParams;
@@ -142,71 +141,13 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             Configure advanced parameters for your model.
           </p>
         </div>
-        <div className="space-y-4">
-          <ModelParamsSlider
-            title="Temperature"
-            modelParamsKey="temperature"
-            formDisabled={formDisabled}
-            enabled={modelParams.temperature.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.temperature.value}
-            min={0}
-            max={modelParams.maxTemperature.value}
-            step={0.01}
-            tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Output token limit"
-            modelParamsKey="max_tokens"
-            formDisabled={formDisabled}
-            enabled={modelParams.max_tokens.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.max_tokens.value}
-            min={1}
-            max={16384}
-            step={1}
-            tooltip="The maximum number of tokens that can be generated in the chat completion."
-            updateModelParam={updateModelParamValue}
-          />
-          <ModelParamsSlider
-            title="Top P"
-            modelParamsKey="top_p"
-            formDisabled={formDisabled}
-            enabled={modelParams.top_p.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            value={modelParams.top_p.value}
-            min={0}
-            max={1}
-            step={0.01}
-            tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
-            updateModelParam={updateModelParamValue}
-          />
-          {modelParams.adapter.value === LLMAdapter.VertexAI &&
-            modelParams.maxReasoningTokens && (
-              <ModelParamsSlider
-                title="Max. Reasoning Tokens"
-                modelParamsKey="maxReasoningTokens"
-                formDisabled={formDisabled}
-                enabled={modelParams.maxReasoningTokens.enabled}
-                setModelParamEnabled={setModelParamEnabled}
-                value={modelParams.maxReasoningTokens.value}
-                min={-1}
-                max={24576}
-                step={1}
-                tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
-                updateModelParam={updateModelParamValue}
-              />
-            )}
-          <ProviderOptionsInput
-            value={modelParams.providerOptions.value}
-            formDisabled={formDisabled}
-            enabled={modelParams.providerOptions.enabled}
-            setModelParamEnabled={setModelParamEnabled}
-            updateModelParam={updateModelParamValue}
-          />
-          <LLMApiKeyComponent {...{ projectId, modelParams }} />
-        </div>
+        <ModelParameterSettings
+          projectId={projectId}
+          modelParams={modelParams}
+          updateModelParamValue={updateModelParamValue}
+          setModelParamEnabled={setModelParamEnabled}
+          formDisabled={formDisabled}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -337,6 +278,86 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     </div>
   );
 };
+
+export const ModelParameterSettings = ({
+  projectId,
+  modelParams,
+  updateModelParamValue,
+  setModelParamEnabled,
+  formDisabled = false,
+}: Pick<
+  ModelParamsContext,
+  | "modelParams"
+  | "updateModelParamValue"
+  | "setModelParamEnabled"
+  | "formDisabled"
+> & { projectId: string }) => (
+  <div className="space-y-4">
+    <ModelParamsSlider
+      title="Temperature"
+      modelParamsKey="temperature"
+      formDisabled={formDisabled}
+      enabled={modelParams.temperature.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      value={modelParams.temperature.value}
+      min={0}
+      max={modelParams.maxTemperature.value}
+      step={0.01}
+      tooltip="The sampling temperature. Higher values will make the output more random, while lower values will make it more focused and deterministic."
+      updateModelParam={updateModelParamValue}
+    />
+    <ModelParamsSlider
+      title="Output token limit"
+      modelParamsKey="max_tokens"
+      formDisabled={formDisabled}
+      enabled={modelParams.max_tokens.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      value={modelParams.max_tokens.value}
+      min={1}
+      max={16384}
+      step={1}
+      tooltip="The maximum number of tokens that can be generated in the chat completion."
+      updateModelParam={updateModelParamValue}
+    />
+    <ModelParamsSlider
+      title="Top P"
+      modelParamsKey="top_p"
+      formDisabled={formDisabled}
+      enabled={modelParams.top_p.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      value={modelParams.top_p.value}
+      min={0}
+      max={1}
+      step={0.01}
+      tooltip="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered. We generally recommend altering this or temperature but not both."
+      updateModelParam={updateModelParamValue}
+    />
+    {modelParams.adapter.value === LLMAdapter.VertexAI &&
+      modelParams.maxReasoningTokens && (
+        <ModelParamsSlider
+          title="Max. Reasoning Tokens"
+          modelParamsKey="maxReasoningTokens"
+          formDisabled={formDisabled}
+          enabled={modelParams.maxReasoningTokens.enabled}
+          setModelParamEnabled={setModelParamEnabled}
+          value={modelParams.maxReasoningTokens.value}
+          min={-1}
+          max={24576}
+          step={1}
+          tooltip="Maximum tokens for model thinking/reasoning. Set to -1 for default (auto) thinking, 0 to disable. Only supported on Gemini 2.5+ models."
+          updateModelParam={updateModelParamValue}
+        />
+      )}
+    <ProviderOptionsInput
+      value={modelParams.providerOptions.value}
+      formDisabled={formDisabled}
+      enabled={modelParams.providerOptions.enabled}
+      setModelParamEnabled={setModelParamEnabled}
+      updateModelParam={updateModelParamValue}
+    />
+    <LLMApiKeyComponent projectId={projectId} modelParams={modelParams} />
+  </div>
+);
 
 type ModelParamsSelectProps = {
   title: string;

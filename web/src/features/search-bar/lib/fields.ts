@@ -16,6 +16,8 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
+import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
+
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
 
@@ -50,7 +52,92 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Nullable-only columns participate in `has:` but are not direct filters. */
+  directFilter?: boolean;
 };
+
+export type FieldRegistry = {
+  id: "events" | "evaluationRules";
+  fields: readonly FieldDef[];
+  columns: readonly ColumnDefinition[];
+  allowFreeText: boolean;
+  metadata: boolean;
+  scores: boolean;
+  aiContextFields: readonly AIContextField[];
+  resolveField: (name: string) => FieldRef | null;
+  nullableFields: () => readonly FieldDef[];
+  /** Ids of `nullableFields`, precomputed for per-keystroke validation. */
+  nullableFieldIds: ReadonlySet<string>;
+  isDanglingDotPrefix: (value: string) => boolean;
+  columnIdOf: (column: string) => string | null;
+};
+
+export type AIContextField = {
+  /** Key in the observed filter-options payload. */
+  observedOptionsKey: string;
+  /** Human-readable field description rendered into the AI prompt context. */
+  promptLabel: string;
+};
+
+export type FieldOverlay = Partial<
+  Omit<FieldDef, "id" | "kind" | "syncMode" | "label" | "description">
+> & {
+  label?: string;
+  description?: string;
+};
+
+export function fieldRegistryFromColumns(
+  columns: readonly ColumnDefinition[],
+  overlay: {
+    id: FieldRegistry["id"];
+    fields?: Readonly<Record<string, FieldOverlay>>;
+    metadata?: boolean;
+    scores?: boolean;
+    allowFreeText?: boolean;
+    aiContextFields?: readonly AIContextField[];
+  },
+): FieldRegistry {
+  const fields = columns
+    .filter((column) => !column.type.endsWith("Object"))
+    .map((column): FieldDef => {
+      const fieldOverlay = overlay.fields?.[column.id];
+      const kind: FieldKind =
+        column.type === "number" ||
+        column.type === "datetime" ||
+        column.type === "boolean"
+          ? column.type
+          : "text";
+      const syncMode: SyncMode =
+        column.type === "stringOptions" || column.type === "categoryOptions"
+          ? "exactOption"
+          : column.type === "arrayOptions"
+            ? "arrayOption"
+            : "textSearch";
+      return {
+        id: column.id,
+        aliases: fieldOverlay?.aliases ?? column.aliases ?? [],
+        kind,
+        syncMode,
+        label: fieldOverlay?.label ?? column.name,
+        description: fieldOverlay?.description ?? column.name,
+        nullable: column.nullable,
+        directFilter: column.type !== "null",
+        suggestObservedValues: fieldOverlay?.suggestObservedValues,
+        unit: fieldOverlay?.unit,
+        negatedLabel: fieldOverlay?.negatedLabel,
+      };
+    });
+
+  return createFieldRegistry({
+    id: overlay.id,
+    fields,
+    columns,
+    metadata: overlay.metadata ?? false,
+    scores: overlay.scores ?? false,
+    allowFreeText: overlay.allowFreeText ?? true,
+    aiContextFields: overlay.aiContextFields ?? [],
+  });
+}
 
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
@@ -98,16 +185,11 @@ export const FIELDS: FieldDef[] = [
   { id: "commentContent", aliases: ["commentcontent", "comment_content", "comment"], kind: "text", syncMode: "textSearch", label: "Comment text", description: "Comment text", nullable: true },
   { id: "experimentDatasetId", aliases: ["experimentdatasetid", "experiment_dataset_id", "dataset"], kind: "text", syncMode: "exactOption", label: "Experiment dataset ID", description: "Experiment dataset identifier", nullable: true },
   { id: "experimentId", aliases: ["experimentid", "experiment_id"], kind: "text", syncMode: "exactOption", label: "Experiment ID", description: "Experiment identifier", nullable: true },
+  { id: "isExperimentItemRootSpan", aliases: ["isexperimentitemrootspan", "is_experiment_item_root_span", "experimentroot"], kind: "boolean", syncMode: "textSearch", label: "Is experiment item root span", negatedLabel: "Is not experiment item root span", description: "Whether the observation is the root span for an experiment item" },
   { id: "experimentName", aliases: ["experimentname", "experiment_name", "experiment"], kind: "text", syncMode: "exactOption", label: "Experiment name", description: "Experiment name", nullable: true },
   { id: "input", aliases: [], kind: "text", syncMode: "textSearch", label: "Input", description: "Observation input", nullable: true },
   { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
 ];
-
-const byName = new Map<string, FieldDef>();
-for (const f of FIELDS) {
-  byName.set(f.id.toLowerCase(), f);
-  for (const a of f.aliases) byName.set(a, f);
-}
 
 export const METADATA_PREFIX = "metadata.";
 
@@ -141,32 +223,133 @@ export type FieldRef =
   | { type: "scores"; key: string; level: "observation" | "trace" }
   | { type: "pseudo"; id: typeof HAS_KEY };
 
-/**
- * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
- * metadata/score dot path (the key keeps its case), or a pseudo-field.
- * Null = unknown key.
- */
-export function resolveField(name: string): FieldRef | null {
+function createFieldRegistry({
+  id,
+  fields,
+  columns,
+  metadata,
+  scores,
+  allowFreeText,
+  aiContextFields,
+}: {
+  id: FieldRegistry["id"];
+  fields: readonly FieldDef[];
+  columns: readonly ColumnDefinition[];
+  metadata: boolean;
+  scores: boolean;
+  allowFreeText: boolean;
+  aiContextFields: readonly AIContextField[];
+}): FieldRegistry {
+  const byName = new Map<string, FieldDef>();
+  for (const field of fields) {
+    byName.set(field.id.toLowerCase(), field);
+    for (const alias of field.aliases) byName.set(alias.toLowerCase(), field);
+  }
+  const nullable = fields.filter((field) => field.nullable === true);
+  const columnIds = new Map<string, string>();
+  for (const column of columns) {
+    columnIds.set(column.id.toLowerCase(), column.id);
+    columnIds.set(column.name.toLowerCase(), column.id);
+    for (const alias of column.aliases ?? []) {
+      columnIds.set(alias.toLowerCase(), column.id);
+    }
+  }
+
+  const registry: FieldRegistry = {
+    id,
+    fields,
+    columns,
+    allowFreeText,
+    metadata,
+    scores,
+    aiContextFields,
+    resolveField: (name) => resolveFromRegistry(name, registry, byName),
+    nullableFields: () => nullable,
+    nullableFieldIds: new Set(nullable.map((field) => field.id)),
+    isDanglingDotPrefix: (value) => {
+      const lower = value.toLowerCase();
+      return (
+        (metadata && lower === METADATA_PREFIX) ||
+        (scores &&
+          (SCORE_PREFIXES.includes(lower) ||
+            TRACE_SCORE_PREFIXES.includes(lower)))
+      );
+    },
+    columnIdOf: (column) => columnIds.get(column.toLowerCase()) ?? null,
+  };
+  return registry;
+}
+
+export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
+  id: "events",
+  fields: FIELDS,
+  columns: eventsTableCols,
+  metadata: true,
+  scores: true,
+  allowFreeText: true,
+  aiContextFields: [
+    { observedOptionsKey: "type", promptLabel: "type" },
+    { observedOptionsKey: "level", promptLabel: "level" },
+    { observedOptionsKey: "environment", promptLabel: "environment" },
+    { observedOptionsKey: "traceName", promptLabel: "traceName" },
+    { observedOptionsKey: "name", promptLabel: "name" },
+    { observedOptionsKey: "traceTags", promptLabel: "traceTags (tags)" },
+    {
+      observedOptionsKey: "providedModelName",
+      promptLabel: "providedModelName (model)",
+    },
+    { observedOptionsKey: "promptName", promptLabel: "promptName" },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.numeric,
+      promptLabel: "scores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.categorical,
+      promptLabel: "scores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.observation.boolean,
+      promptLabel: "scores.<name> (boolean)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.numeric,
+      promptLabel: "traceScores.<name> (numeric)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.categorical,
+      promptLabel: "traceScores.<name> (categorical)",
+    },
+    {
+      observedOptionsKey: SCORE_COLUMNS.trace.boolean,
+      promptLabel: "traceScores.<name> (boolean)",
+    },
+  ],
+});
+
+function resolveFromRegistry(
+  name: string,
+  registry: FieldRegistry,
+  byName: ReadonlyMap<string, FieldDef>,
+): FieldRef | null {
   const lower = name.toLowerCase();
-  // The segment after a dot-path prefix may be quoted to carry spaces/grammar
-  // chars (`scores."Rouge Score"`, `metadata."my key"`); unquote it to the real
-  // key. refName re-quotes it on the way back out.
-  if (lower.startsWith(METADATA_PREFIX)) {
+  if (registry.metadata && lower.startsWith(METADATA_PREFIX)) {
     const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
   }
-  for (const prefix of TRACE_SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
+  if (registry.scores) {
+    for (const prefix of TRACE_SCORE_PREFIXES) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
+      }
     }
-  }
-  for (const prefix of SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0
-        ? { type: "scores", key, level: "observation" }
-        : null;
+    for (const prefix of SCORE_PREFIXES) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0
+          ? { type: "scores", key, level: "observation" }
+          : null;
+      }
     }
   }
   if (lower === HAS_KEY) return { type: "pseudo", id: lower };
@@ -175,23 +358,35 @@ export function resolveField(name: string): FieldRef | null {
 }
 
 /**
+ * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
+ * metadata/score dot path (the key keeps its case), or a pseudo-field.
+ * Null = unknown key.
+ */
+export function resolveField(
+  name: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): FieldRef | null {
+  return registry.resolveField(name);
+}
+
+/**
  * A dot-path prefix typed/picked with no key after the dot (`metadata.`,
  * `scores.`, `traceScores.` and accepted aliases). These parse as free text
  * (no colon), so without this guard committing one would silently set the
  * full-text searchQuery to the bare prefix.
  */
-export function isDanglingDotPrefix(value: string): boolean {
-  const lower = value.toLowerCase();
-  return (
-    lower === METADATA_PREFIX ||
-    SCORE_PREFIXES.includes(lower) ||
-    TRACE_SCORE_PREFIXES.includes(lower)
-  );
+export function isDanglingDotPrefix(
+  value: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): boolean {
+  return registry.isDanglingDotPrefix(value);
 }
 
 /** Fields that can be unset — the value domain of `has:` / `-has:`. */
-export function nullableFields(): FieldDef[] {
-  return FIELDS.filter((f) => f.nullable === true);
+export function nullableFields(
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): readonly FieldDef[] {
+  return registry.nullableFields();
 }
 
 // ---- operator validity ----
@@ -258,6 +453,9 @@ export function operatorIssue(
       return null;
     case "field": {
       const f = ref.field;
+      if (f.directFilter === false) {
+        return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
+      }
       if (f.kind === "number") {
         if (op === "~" || op === "^" || op === "$") {
           return `"${f.id}" is a number field and does not support ${label(op)}`;

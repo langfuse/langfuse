@@ -64,6 +64,7 @@ export const ProjectNotificationEventSchema = z.discriminatedUnion(
       ),
       blockReason: z.enum(EvaluatorBlockReason),
       evalTemplateId: z.string().optional(),
+      evaluatorId: z.string().optional(),
     }),
   ],
 );

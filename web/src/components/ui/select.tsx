@@ -8,6 +8,16 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/components/ui/layer";
 
+/**
+ * The canonical value-picker trigger surface. Exported so a Popover trigger
+ * that sets a value (a range editor, a model picker) can be visually identical
+ * to a Select instead of reading as a plain outline button next to one — the
+ * `border-input` and `disabled:bg-muted/50` pair is what makes a disabled
+ * picker look the same whichever primitive is behind it.
+ */
+export const selectTriggerClassName =
+  "border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50";
+
 const Select = SelectPrimitive.Root;
 
 const SelectGroup = SelectPrimitive.Group;
@@ -28,7 +38,7 @@ const SelectTrigger = React.forwardRef<
     <SelectPrimitive.Trigger
       ref={ref}
       className={cn(
-        "border-input bg-background ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring disabled:bg-muted/50 flex h-8 w-full items-center justify-between gap-1 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        selectTriggerClassName,
         disableValueLineClamp ? null : "[&>span]:line-clamp-1",
         className,
       )}

@@ -29,6 +29,8 @@ const TABLE_NAME_TO_URL_MAP: Partial<Record<TableViewPresetTableName, string>> =
     [TableViewPresetTableName.Datasets]: "datasets",
     [TableViewPresetTableName.Experiments]: "experiments",
     [TableViewPresetTableName.ExperimentItems]: "experiments/results",
+    [TableViewPresetTableName.Evaluators]: "evals",
+    [TableViewPresetTableName.EvaluationRules]: "evals/rules",
   };
 
 // The v4 table was mistakenly released under the `observations` table name,

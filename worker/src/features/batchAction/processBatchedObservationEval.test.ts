@@ -4,7 +4,7 @@ import {
   EvalTemplateType,
   JobConfigState,
 } from "@langfuse/shared";
-import { type ObservationEvalConfig } from "../evaluation/observationEval";
+import { type ObservationEvalRule } from "../evaluation/observationEval";
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
@@ -35,12 +35,12 @@ describe("processBatchedObservationEval", () => {
     // Evaluators should already have filter=[] and sampling=1 set by the
     // caller (handleBatchActionJob), so the scheduler applies its normal
     // targeting logic and every observation matches.
-    const evaluators: ObservationEvalConfig[] = [
+    const evaluators: ObservationEvalRule[] = [
       {
         id: "config-1",
         projectId,
         filter: [],
-        sampling: { toNumber: () => 1 } as ObservationEvalConfig["sampling"],
+        sampling: { toNumber: () => 1 } as ObservationEvalRule["sampling"],
         evalTemplateId: "template-1",
         evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
         scoreName: "quality",
@@ -91,16 +91,79 @@ describe("processBatchedObservationEval", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("passes stable evaluator assignments to the scheduler for v2 batches", async () => {
+    const projectId = "project-1";
+    const evaluators: ObservationEvalRule[] = [
+      {
+        id: "evaluator-1",
+        // A standalone evaluator falls back to its own id as the execution anchor.
+        ruleId: null,
+        projectId,
+        filter: [],
+        sampling: { toNumber: () => 1 } as ObservationEvalRule["sampling"],
+        status: JobConfigState.ACTIVE,
+        targetObject: EvalTargetObject.EVENT,
+        assignments: [
+          {
+            id: "evaluator-1",
+            evaluatorId: "evaluator-1",
+            variableMapping: null,
+            evaluator: {
+              id: "evaluator-1",
+              projectId,
+              type: EvalTemplateType.LLM_AS_JUDGE,
+              blockedAt: null,
+              versions: [{ id: "evaluator-version-1", variableMapping: [] }],
+            },
+          },
+        ],
+      },
+    ];
+    const observationStream = (async function* () {
+      yield {
+        span_id: "obs-v2",
+        trace_id: "trace-v2",
+        project_id: projectId,
+        parent_span_id: null,
+        type: "GENERATION",
+        name: "v2-test",
+        usage_details: {},
+        cost_details: {},
+        provided_usage_details: {},
+        provided_cost_details: {},
+        tags: [],
+        input: "input",
+        output: "output",
+        metadata: {},
+      };
+    })();
+
+    await processBatchedObservationEval({
+      projectId,
+      batchActionId: "batch-action-v2",
+      evaluators,
+      evaluatorLabels: ["Quality"],
+      observationStream,
+    });
+
+    expect(scheduleObservationEvals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configs: evaluators,
+        executionMode: "MANUAL",
+      }),
+    );
+  });
+
   it("derives tool_call_count from tool_call_names in batch records", async () => {
     const projectId = "project-1";
     const batchActionId = "batch-action-2";
 
-    const evaluators: ObservationEvalConfig[] = [
+    const evaluators: ObservationEvalRule[] = [
       {
         id: "config-1",
         projectId,
         filter: [],
-        sampling: { toNumber: () => 1 } as ObservationEvalConfig["sampling"],
+        sampling: { toNumber: () => 1 } as ObservationEvalRule["sampling"],
         evalTemplateId: "template-1",
         evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
         scoreName: "quality",

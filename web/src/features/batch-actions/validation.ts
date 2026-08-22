@@ -17,6 +17,7 @@ export const CreateObservationBatchEvaluationActionSchema = z.object({
   query: BatchActionQuerySchema,
   evaluatorIds: z.array(z.string()).min(1),
   sourceTable: BatchEvalSourceTableSchema.default("events"),
+  evalVersion: z.literal("v2").optional(),
 });
 
 export const ValidateBatchAddToDatasetMappingSchema = z.object({

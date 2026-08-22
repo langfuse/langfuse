@@ -12,7 +12,7 @@
 
 import type { ASTNode, Span, TextNode } from "./ast";
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
-import { nullableFields, resolveField } from "./fields";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
 export const MAX_QUERY_LENGTH = 2048;
@@ -33,8 +33,6 @@ function nodeSpan(node: ASTNode, textLength: number): Span {
   return node.parenSpan ?? node.span ?? { from: 0, to: textLength };
 }
 
-const NULLABLE_FIELD_IDS = new Set(nullableFields().map((f) => f.id));
-
 /**
  * `has:` on a column that always has a value matches everything — and its
  * negation (`-has:` / `NOT has:`) lowers to `IS NULL`, which is vacuously
@@ -46,17 +44,18 @@ function hasFilterWarnings(
   textLength: number,
   out: Diagnostic[],
   negated = false,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
   switch (node.kind) {
     case "filter": {
-      const ref = resolveField(node.key);
+      const ref = registry.resolveField(node.key);
       if (ref === null || ref.type !== "pseudo" || ref.id !== "has") return;
       for (const v of node.values) {
-        const target = resolveField(v);
+        const target = registry.resolveField(v);
         if (
           target !== null &&
           target.type === "field" &&
-          !NULLABLE_FIELD_IDS.has(target.field.id)
+          !registry.nullableFieldIds.has(target.field.id)
         ) {
           const span = nodeSpan(node, textLength);
           out.push({
@@ -74,12 +73,12 @@ function hasFilterWarnings(
     case "text":
       return;
     case "not":
-      hasFilterWarnings(node.child, textLength, out, !negated);
+      hasFilterWarnings(node.child, textLength, out, !negated, registry);
       return;
     case "and":
     case "or":
       for (const c of node.children)
-        hasFilterWarnings(c, textLength, out, negated);
+        hasFilterWarnings(c, textLength, out, negated, registry);
       return;
   }
 }
@@ -144,12 +143,13 @@ function collectStandaloneTextNodes(node: ASTNode, out: TextNode[]): void {
 function incompleteFieldTokenDiagnostics(
   ast: ASTNode,
   out: Diagnostic[],
+  registry: FieldRegistry,
 ): void {
   const texts: TextNode[] = [];
   collectStandaloneTextNodes(ast, texts);
   for (const node of texts) {
     if (node.quoted || node.span === undefined) continue;
-    if (resolveField(node.value) === null) continue;
+    if (registry.resolveField(node.value) === null) continue;
     out.push({
       from: node.span.from,
       to: node.span.to,
@@ -163,6 +163,7 @@ export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   if (ast === null) return out;
@@ -170,7 +171,7 @@ export function semanticDiagnostics(
   // A standalone bare field-name word (no operator/value) is an incomplete
   // filter, not free text — checked over the WHOLE tree (not per top-level
   // node) so the adjacency scoping can see each text node's siblings.
-  incompleteFieldTokenDiagnostics(ast, out);
+  incompleteFieldTokenDiagnostics(ast, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same
@@ -178,12 +179,12 @@ export function semanticDiagnostics(
   // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node, scoreTypes);
+    const { errors } = astToFilterState(node, scoreTypes, registry);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
-    hasFilterWarnings(node, textLength, out);
+    hasFilterWarnings(node, textLength, out, false, registry);
   }
 
   return out;
@@ -224,11 +225,12 @@ function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
 export function validateQuery(
   text: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ParseResult {
-  const res = parse(text);
+  const res = parse(text, registry);
   const diagnostics = dedupeMergedDiagnostics([
     ...res.diagnostics,
-    ...semanticDiagnostics(res.ast, text.length, scoreTypes),
+    ...semanticDiagnostics(res.ast, text.length, scoreTypes, registry),
   ]);
   if (text.length > MAX_QUERY_LENGTH) {
     diagnostics.push({

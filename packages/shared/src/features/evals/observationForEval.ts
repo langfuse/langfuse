@@ -180,7 +180,9 @@ export type ObservationEvalFilterColumnInternal =
     | "user_id"
     | "session_id"
     | "tags"
+    | "experiment_id"
     | "experiment_dataset_id"
+    | "experiment_item_root_span_id"
     | "metadata"
     | "parent_span_id"
     | "is_app_root"
@@ -229,6 +231,14 @@ export const CODE_EVAL_TEMPLATE_VARIABLES = [
 
 export type CodeEvalTemplateVariable =
   (typeof CODE_EVAL_TEMPLATE_VARIABLES)[number];
+
+export function getCodeEvalVariableMapping() {
+  return CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
+    templateVariable: variable,
+    selectedColumnId: variable,
+    jsonSelector: null,
+  }));
+}
 
 export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
   id: CodeEvalTemplateVariable;
@@ -386,6 +396,20 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     nullable: true,
   },
   {
+    name: "Experiment ID",
+    id: "experimentId",
+    type: "stringOptions",
+    internal: "experiment_id",
+    options: [], // to be filled at runtime
+    nullable: true,
+  },
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "experiment_item_root_span_id",
+  },
+  {
     name: "Called Tool Names",
     id: "calledToolNames",
     type: "arrayOptions",
@@ -489,6 +513,13 @@ export function mapEventEvalFilterColumnIdToField(
       parentObservationId: observation.parent_span_id,
       isAppRoot: observation.is_app_root,
     });
+  }
+
+  if (columnMapping.id === "isExperimentItemRootSpan") {
+    return (
+      observation.experiment_item_root_span_id !== null &&
+      observation.experiment_item_root_span_id === observation.span_id
+    );
   }
 
   return observation[columnMapping.internal];

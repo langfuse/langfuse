@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
-import { env } from "@/src/env.mjs";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   type ChatMLParserResult,
@@ -202,6 +202,8 @@ export function IOPreviewPretty({
     chatMLParserResult,
   );
 
+  const characterLimit = useMarkdownRenderCharacterLimit();
+
   // Determine if markdown is safe to render (content size check)
   const shouldRenderMarkdown = useMemo(() => {
     // Fast byte estimation without expensive JSON.stringify
@@ -233,11 +235,10 @@ export function IOPreviewPretty({
     const messagesSize = estimateSize(allMessages);
     const totalSize = inputSize + outputSize + messagesSize;
 
-    const shouldRender =
-      totalSize <= env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT;
+    const shouldRender = totalSize <= characterLimit;
 
     return shouldRender;
-  }, [parsedInput, parsedOutput, allMessages]);
+  }, [parsedInput, parsedOutput, allMessages, characterLimit]);
 
   // Prepare additional input (only if non-empty)
   const additionalInputToShow = useMemo(() => {

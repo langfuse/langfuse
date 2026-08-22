@@ -190,7 +190,7 @@ export type EvalTemplateFormPreFill = {
   shouldUseDefaultModel?: boolean;
 };
 
-export const InnerEvalTemplateForm = (props: {
+const InnerEvalTemplateForm = (props: {
   projectId: string;
   useDialog: boolean;
   // pre-filled values from langfuse-defined template or template from db
@@ -412,7 +412,6 @@ export const InnerEvalTemplateForm = (props: {
       return {
         intent: "clone" as const,
         cloneSourceId: props.cloneSourceId,
-        retargetUsingJobConfigs: false,
       };
     }
 
@@ -631,6 +630,7 @@ export const InnerEvalTemplateForm = (props: {
                 }}
                 editable={Boolean(props.isEditing)}
                 validationResult={codeValidationResult}
+                ctxSample={null}
               />
             )}
           />

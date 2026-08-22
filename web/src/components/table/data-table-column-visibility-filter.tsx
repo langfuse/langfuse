@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useMemo,
+  type ComponentProps,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -54,6 +55,7 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
+  triggerSize?: ComponentProps<typeof Button>["size"];
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -295,6 +297,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnVisibility,
   columnOrder,
   setColumnOrder,
+  triggerSize,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -394,12 +397,16 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     >
       <Drawer modal={false}>
         <DrawerTrigger asChild>
-          <Button variant="outline" title="Show/hide columns">
+          <Button
+            variant="outline"
+            size={triggerSize}
+            title="Show/hide columns"
+          >
             <span>Columns</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>
-        <DrawerContent overlayClassName="bg-primary/10">
+        <DrawerContent portalLayer="popover" overlayClassName="bg-primary/10">
           <div className="mx-auto w-full overflow-y-auto md:max-h-full">
             <div className="sticky top-0 z-10">
               <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-2">

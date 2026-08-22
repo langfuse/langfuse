@@ -24,7 +24,11 @@ import {
 } from "@/src/components/ui/popover";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ModernSessionHeaderProps = {
@@ -59,6 +63,9 @@ const ChipValue = ({ children }: { children: React.ReactNode }) => (
 );
 
 const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
+
+const compactTokenFormatter = (tokens: number) =>
+  compactNumberFormatter(tokens, 0).toLowerCase();
 
 const scoreChipValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
@@ -354,16 +361,21 @@ export function ModernSessionHeader({
   }
 
   if (totalTokens > 0) {
+    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
     pills.push({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <ModernSessionHeaderPill
+          variant="display"
+          title={`tokens ${exactTokenCounts}`}
+        >
           <span>
             tokens{" "}
             <ChipValue>
-              {numberFormatter(tokensIn, 0)} → {numberFormatter(tokensOut, 0)}{" "}
-              (Σ {numberFormatter(totalTokens, 0)})
+              {compactTokenFormatter(tokensIn)} →{" "}
+              {compactTokenFormatter(tokensOut)} (Σ{" "}
+              {compactTokenFormatter(totalTokens)})
             </ChipValue>
           </span>
         </ModernSessionHeaderPill>

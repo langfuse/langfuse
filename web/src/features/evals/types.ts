@@ -1,9 +1,6 @@
-import { z } from "zod";
 import { JobConfigState, type JobConfiguration } from "@langfuse/shared";
 
 export const EvaluatorStatus = JobConfigState;
-export const EvaluatorStatusSchema = z.enum(EvaluatorStatus);
-export type EvaluatorStatusType = z.infer<typeof EvaluatorStatusSchema>;
 
 export type PartialConfig = Pick<
   JobConfiguration,

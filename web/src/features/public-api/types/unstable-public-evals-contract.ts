@@ -31,7 +31,6 @@ export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
   PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
-export const PublicEvaluatorScope = z.enum(["project", "managed"]);
 export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
   "PYTHON",
   "TYPESCRIPT",
@@ -46,10 +45,22 @@ export const PublicEvaluatorOutputFieldDefinition = z.object({
   description: z.string().trim().min(1),
 });
 
+export const PublicNumericEvaluatorOutputScoreDefinition =
+  PublicEvaluatorOutputFieldDefinition.extend({
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+  }).refine(
+    ({ minValue, maxValue }) =>
+      minValue === undefined || maxValue === undefined || minValue <= maxValue,
+    {
+      message: "Minimum value must be less than or equal to maximum value",
+    },
+  );
+
 export const PublicNumericEvaluatorOutputDefinition = z.object({
   dataType: z.literal("NUMERIC"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
-  score: PublicEvaluatorOutputFieldDefinition,
+  score: PublicNumericEvaluatorOutputScoreDefinition,
 });
 
 export const PublicBooleanEvaluatorOutputDefinition = z.object({
@@ -92,20 +103,21 @@ export const PublicEvaluationRuleStatus = z.enum([
   "paused",
 ]);
 
+// No `scope`: every evaluator is project-owned, so the field could only ever
+// carry one value. Gallery templates are starter definitions that are copied
+// into the project on save, not addressable Langfuse-managed resources.
 export const PublicEvaluationRuleEvaluatorReference = z.object({
   name: z.string().min(1),
-  scope: PublicEvaluatorScope,
   type: PublicEvaluatorType.default(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
 });
 
 // PATCH intentionally omits `type`: an evaluation rule's evaluator type cannot
 // be changed. The service always inherits the rule's current type, so a code
-// rule is never retargeted to an LLM evaluator family (which would otherwise
-// inherit the synthesized code mapping and fail validation against the LLM
-// evaluator's variables). To use a different evaluator type, create a new rule.
+// rule is never retargeted to an LLM evaluator family, which stores its
+// mapping per assignment and would inherit none. To use a different evaluator
+// type, create a new rule.
 export const PublicEvaluationRuleEvaluatorReferencePatch = z.object({
   name: z.string().min(1),
-  scope: PublicEvaluatorScope,
 });
 
 export const PublicEvaluationRuleEvaluator =
@@ -159,13 +171,32 @@ export const PublicEvaluationRuleMapping = z.union([
   ExperimentEvaluationRuleMapping,
 ]);
 
-export const LegacyEvaluationRuleMapping = z.object({
+// Read responses preserve incomplete legacy mappings so callers can repair
+// them. Write schemas remain strict and require a concrete source.
+export const PublicEvaluationRuleReadMapping = z.object({
   variable: z.string().min(1),
-  langfuseObject: z.enum(langfuseObjects),
-  objectName: z.string().nullable(),
-  source: z.string().min(1),
+  source: ExperimentEvaluationRuleMappingSource.nullable(),
   jsonPath: z.string().min(1).optional(),
 });
+
+export const LegacyEvaluationRuleMapping = z
+  .object({
+    variable: z.string().min(1),
+    langfuseObject: z.enum(langfuseObjects),
+    objectName: z.string().nullable(),
+    source: z.string().min(1),
+    jsonPath: z.string().min(1).optional(),
+  })
+  .refine(
+    (mapping) =>
+      mapping.langfuseObject === "trace" ||
+      mapping.langfuseObject === "dataset_item" ||
+      mapping.objectName !== null,
+    {
+      path: ["objectName"],
+      message: "objectName is required for observation objects",
+    },
+  );
 
 const filterSchemaFactories = {
   datetime: (columnId: string) =>
@@ -212,13 +243,23 @@ function createTargetFilterSchema(
   );
 }
 
-export const OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS =
-  observationEvalFilterColumns.map((column) => ({
-    id: column.id,
-    type: column.type as SupportedFilterFactory,
-  }));
+// The experiment-root filter is what the `experiment` target *means*, so it is
+// not separately addressable: exposing it on `observation` too would give one
+// rule two contradictory public representations.
+const EXPERIMENT_ROOT_FILTER_COLUMN = "isExperimentItemRootSpan";
 
+export const OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS =
+  observationEvalFilterColumns
+    .filter((column) => column.id !== EXPERIMENT_ROOT_FILTER_COLUMN)
+    .map((column) => ({
+      id: column.id,
+      type: column.type as SupportedFilterFactory,
+    }));
+
+// An experiment rule is an observation rule scoped to experiment root spans,
+// so it accepts every observation filter plus the dataset scope.
 export const EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS = [
+  ...OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS,
   {
     id: "datasetId",
     type: experimentEvalFilterColumns[0]!.type as SupportedFilterFactory,
@@ -245,7 +286,6 @@ export type PublicEvaluatorOutputDefinitionType = z.infer<
   typeof PublicEvaluatorOutputDefinition
 >;
 export type PublicEvaluatorTypeType = z.infer<typeof PublicEvaluatorType>;
-export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
 export type PublicEvaluationRuleTargetType = z.infer<
   typeof PublicEvaluationRuleTarget
 >;
@@ -266,6 +306,12 @@ export type PublicEvaluationRuleEvaluatorType = z.infer<
 >;
 export type PublicEvaluationRuleMappingType = z.infer<
   typeof PublicEvaluationRuleMapping
+>;
+export type PublicEvaluationRuleReadMappingType = z.infer<
+  typeof PublicEvaluationRuleReadMapping
+>;
+export type PublicObservationEvaluationRuleMappingType = z.infer<
+  typeof ObservationEvaluationRuleMapping
 >;
 export type LegacyEvaluationRuleMappingType = z.infer<
   typeof LegacyEvaluationRuleMapping

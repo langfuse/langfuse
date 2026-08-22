@@ -22,7 +22,7 @@ const EvaluatorLink = ({
   evaluator: ReferencingEvaluator;
 }) => (
   <Link
-    href={`/project/${projectId}/evals?peek=${evaluator.id}`}
+    href={`/project/${projectId}/evals/legacy?peek=${evaluator.id}`}
     target="_blank"
     rel="noopener noreferrer"
     className="inline-flex items-center gap-1 text-blue-600 hover:underline"

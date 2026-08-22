@@ -223,7 +223,7 @@ export default function EvalLogTable({
           const evaluatorId = row.getValue();
           return evaluatorId ? (
             <TableLink
-              path={`/project/${projectId}/evals/${encodeURIComponent(evaluatorId)}`}
+              path={`/project/${projectId}/evals/legacy/${encodeURIComponent(evaluatorId)}`}
               value={evaluatorId}
             />
           ) : undefined;

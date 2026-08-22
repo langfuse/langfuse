@@ -118,7 +118,7 @@ export function buildEvalPreviewNavigationPath({
   return `${basePath}${basePath.includes("?") ? "&" : "?"}${params.toString()}`;
 }
 
-export function useFirstEvalPreviewNavigationEntry({
+function useFirstEvalPreviewNavigationEntry({
   target,
   useEventsTable,
 }: {

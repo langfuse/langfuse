@@ -1559,6 +1559,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
+        s.metadata['evaluator_id'] AS evaluator_id,
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
@@ -1629,6 +1630,7 @@ export const getScoresUiCountFromEvents = async (props: {
 
 export type ScoreUiTableRowFromEvents = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
+  evaluatorId: string | null;
 };
 
 export async function getScoresUiTableFromEvents(props: {
@@ -1671,6 +1673,7 @@ export async function getScoresUiTableFromEvents(props: {
     event_ts: string;
     created_at: string;
     updated_at: string;
+    evaluator_id: string;
     has_metadata: 0 | 1;
   }>({
     select: "rows",
@@ -1692,6 +1695,7 @@ export async function getScoresUiTableFromEvents(props: {
     return {
       ...score,
       hasMetadata: !!row.has_metadata,
+      evaluatorId: row.evaluator_id || null,
     };
   });
 }

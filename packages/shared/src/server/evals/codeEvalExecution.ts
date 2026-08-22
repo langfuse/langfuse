@@ -9,7 +9,6 @@ import {
   type InternalTraceWriter,
 } from "../llm/types";
 import { logger } from "../logger";
-import type { EvalTemplateCodeBased } from "../../features/evals/types";
 import {
   CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES,
   CODE_EVAL_DISPATCH_RESULT_MAX_BYTES,
@@ -19,6 +18,7 @@ import {
   withCodeEvalDocs,
   type CodeEvalDispatcherErrorCode,
   type CodeEvalDispatcher,
+  type CodeEvalRuntimeLanguage,
   type CodeEvalPayload,
   type CodeEvalScoreWithName,
   type DispatchResult,
@@ -209,7 +209,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
   projectId: string;
   executionTraceId: string;
   jobExecutionId: string;
-  template: EvalTemplateCodeBased;
+  evaluator: { id: string };
+  version: {
+    sourceCode: string;
+    sourceCodeLanguage: CodeEvalRuntimeLanguage;
+  };
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   traceName: string;
@@ -228,11 +232,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
       scope: {
         organizationId: params.organizationId,
         projectId: params.projectId,
-        evaluatorId: params.template.id,
+        evaluatorId: params.evaluator.id,
       },
-      runtime: { language: params.template.sourceCodeLanguage },
+      runtime: { language: params.version.sourceCodeLanguage },
       execution: { jobExecutionId: params.jobExecutionId },
-      code: { source: params.template.sourceCode },
+      code: { source: params.version.sourceCode },
       payload,
     });
 
@@ -246,7 +250,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
         payload,
         output: dispatchResult,
         metadata: params.metadata,
-        sourceCode: params.template.sourceCode,
+        sourceCode: params.version.sourceCode,
       }),
     });
 
@@ -293,7 +297,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
             : {}),
           error_retryable: errorDetails.retryable,
         },
-        sourceCode: params.template.sourceCode,
+        sourceCode: params.version.sourceCode,
         level: "ERROR",
         statusMessage: `Code eval execution failed: ${visibleError.message}`,
       }),

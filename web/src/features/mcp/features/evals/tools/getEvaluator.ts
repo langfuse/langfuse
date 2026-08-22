@@ -1,30 +1,27 @@
-import {
-  GetUnstableEvaluatorQuery,
-  GetUnstableEvaluatorResponse,
-} from "@/src/features/public-api/types/unstable-evaluators";
-import { getPublicEvaluator } from "@/src/features/evals/server/unstable-public-api";
+import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { buildEvaluatorUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { createMcpEvaluatorService } from "../evaluator-service";
+
+const GetEvaluatorInput = z.object({ evaluatorId: z.string() });
 
 export const [getEvaluatorTool, handleGetEvaluator] = defineTool({
   name: "getEvaluator",
   description:
     "Fetch a single evaluator by id, including its prompt or source code, output definition, and how many evaluation rules reference it.",
-  baseSchema: GetUnstableEvaluatorQuery,
-  inputSchema: GetUnstableEvaluatorQuery,
+  baseSchema: GetEvaluatorInput,
+  inputSchema: GetEvaluatorInput,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.evaluators.get",
       context,
       attributes: { "mcp.evaluator_id": input.evaluatorId },
       fn: async () => {
-        const result = await getPublicEvaluator({
-          projectId: context.projectId,
-          evaluatorId: input.evaluatorId,
-        });
-
-        const evaluator = GetUnstableEvaluatorResponse.parse(result);
+        const evaluator = await createMcpEvaluatorService(context).get(
+          context.projectId,
+          input.evaluatorId,
+        );
 
         return {
           ...evaluator,

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
-import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
 import {
   mapLegacyToModernTarget,
@@ -40,7 +40,7 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =
   "https://langfuse.com/faq/all/llm-as-a-judge-migration";
 
-type LegacyEvalAction = "keep-active" | "mark-inactive" | "delete";
+type LegacyEvalAction = "mark-inactive" | "delete";
 
 export default function RemapEvaluatorPage() {
   const router = useRouter();
@@ -61,7 +61,6 @@ export default function RemapEvaluatorPage() {
     enabled: v4UpgradeUiEnabled && Boolean(projectId),
   });
 
-  const [error, setError] = useState<string | null>(null);
   const [legacyAction, setLegacyAction] =
     useState<LegacyEvalAction>("mark-inactive");
 
@@ -113,26 +112,6 @@ export default function RemapEvaluatorPage() {
     await router.push(`/project/${projectId}/evals${filterQuery}`);
   };
 
-  // Update mutation to set old eval to INACTIVE
-  const updateJobMutation = api.evals.updateEvalJob.useMutation({
-    onSuccess: () => {
-      utils.evals.invalidate();
-    },
-    onError: (err) => {
-      setError(err.message ?? "Failed to update old eval configuration");
-    },
-  });
-
-  // Delete mutation to remove old eval
-  const deleteJobMutation = api.evals.deleteEvalJob.useMutation({
-    onSuccess: () => {
-      utils.evals.invalidate();
-    },
-    onError: (err) => {
-      setError(err.message ?? "Failed to delete old eval configuration");
-    },
-  });
-
   const { isBetaEnabled: isV4BetaEnabled } = useV4Beta();
 
   // Map old config to new config with modern target
@@ -163,37 +142,7 @@ export default function RemapEvaluatorPage() {
 
   const handleFormSuccess = async () => {
     if (!oldConfig) return;
-
-    try {
-      switch (legacyAction) {
-        case "keep-active":
-          // Do nothing - both old and new evals will be active
-          await redirectAfterSave();
-          break;
-        case "mark-inactive":
-          // Set old eval to INACTIVE
-          await updateJobMutation.mutateAsync({
-            projectId,
-            evalConfigId,
-            config: {
-              status: "INACTIVE",
-            },
-          });
-          await redirectAfterSave();
-          break;
-        case "delete":
-          // Delete old eval
-          await deleteJobMutation.mutateAsync({
-            projectId,
-            evalConfigId,
-          });
-          await redirectAfterSave();
-          break;
-      }
-    } catch (err) {
-      // The mutations' local onError owns the UX; this owns classification + capture.
-      reportTrpcErrorWithoutToast(err, "evals");
-    }
+    await redirectAfterSave();
   };
 
   const handleUseAssistant = async () => {
@@ -358,6 +307,7 @@ export default function RemapEvaluatorPage() {
                   evalCapabilities={evalCapabilities}
                   showPreviewTargetBadge={false}
                   oldConfigId={evalConfigId}
+                  sourceRuleAction={legacyAction}
                   hideRootObservationFilter={!isV4BetaEnabled}
                   renderFooter={({ isLoading, isSaveDisabled }) => (
                     <div className="flex w-full flex-col items-end gap-4">
@@ -368,11 +318,9 @@ export default function RemapEvaluatorPage() {
                           disabled={isSaveDisabled}
                           className="mt-3 rounded-l-md rounded-r-none"
                         >
-                          {legacyAction === "keep-active"
-                            ? "Save & keep legacy active"
-                            : legacyAction === "mark-inactive"
-                              ? "Save & mark legacy inactive"
-                              : "Save & delete legacy"}
+                          {legacyAction === "mark-inactive"
+                            ? "Save & mark legacy inactive"
+                            : "Save & delete legacy"}
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -385,12 +333,6 @@ export default function RemapEvaluatorPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("keep-active")}
-                            >
-                              {legacyAction === "keep-active" && "✓ "}
-                              Save & keep legacy active
-                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => setLegacyAction("mark-inactive")}
                             >
@@ -413,12 +355,6 @@ export default function RemapEvaluatorPage() {
             </div>
           )}
         </div>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
       </div>
     </Page>
   );

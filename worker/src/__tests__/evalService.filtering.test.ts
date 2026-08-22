@@ -3,7 +3,7 @@ import {
   singleFilter,
   EvalTargetObject,
 } from "@langfuse/shared";
-import { JobConfiguration, prisma } from "@langfuse/shared/src/db";
+import { JobConfiguration, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   createOrgProjectAndApiKey,
@@ -128,7 +128,7 @@ const test = baseTest.extend<{
       },
     });
     await use(async (job) => {
-      await prisma.jobConfiguration.create({
+      const config = await prisma.jobConfiguration.create({
         data: {
           id: randomUUID(),
           projectId,
@@ -140,6 +140,45 @@ const test = baseTest.extend<{
           scoreName: "score",
           variableMapping: JSON.parse("[]"),
           ...job,
+        },
+      });
+      const evaluator = await prisma.evaluator.create({
+        data: {
+          projectId,
+          name: config.scoreName,
+          type: "LLM_AS_JUDGE",
+          versions: {
+            create: {
+              version: 1,
+              prompt: evalTemplate.prompt,
+              model: evalTemplate.model,
+              provider: evalTemplate.provider,
+              modelParams: evalTemplate.modelParams ?? undefined,
+              vars: evalTemplate.vars,
+              outputDefinition:
+                evalTemplate.outputDefinition as Prisma.InputJsonValue,
+            },
+          },
+        },
+      });
+      await prisma.evaluationRule.create({
+        data: {
+          id: config.id,
+          projectId,
+          name: config.scoreName,
+          status: config.status,
+          targetObject: config.targetObject,
+          filter: config.filter as Prisma.InputJsonValue,
+          sampling: config.sampling,
+          delay: config.delay,
+          timeScope: config.timeScope,
+          assignments: {
+            create: {
+              projectId,
+              evaluatorId: evaluator.id,
+              variableMapping: config.variableMapping as Prisma.InputJsonValue,
+            },
+          },
         },
       });
     });

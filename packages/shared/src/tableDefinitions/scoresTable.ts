@@ -62,6 +62,20 @@ export const scoresTableCols: ColumnDefinition[] = [
     internal: 's."name"',
     options: [],
   },
+  {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    // ClickHouse-only virtual column; see mapScoresTable.ts.
+    internal: "",
+    options: [],
+  },
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: 's."metadata"',
+  },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
   {
     name: "Boolean Value",

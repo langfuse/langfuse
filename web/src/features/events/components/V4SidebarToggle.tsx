@@ -10,6 +10,10 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import {
+  getV4PreviewDisabledRedirect,
+  getV4PreviewEnabledRedirect,
+} from "@/src/features/events/lib/v4PreviewRedirect";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { ZapIcon } from "lucide-react";
 import { useId } from "react";
@@ -55,15 +59,20 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
     const projectId = asSingleValue(router.query.projectId);
     if (!projectId) return;
 
-    if (
-      !enabled &&
-      router.pathname.startsWith("/project/[projectId]/experiments")
-    ) {
-      router.push(`/project/${projectId}/datasets`);
+    if (!enabled) {
+      const redirect = getV4PreviewDisabledRedirect(router.pathname, projectId);
+      if (redirect) router.push(redirect);
       return;
     }
 
-    if (!enabled) return;
+    const evaluatorRedirect = getV4PreviewEnabledRedirect(
+      router.pathname,
+      projectId,
+    );
+    if (evaluatorRedirect) {
+      router.push(evaluatorRedirect);
+      return;
+    }
 
     if (
       router.pathname ===

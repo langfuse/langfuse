@@ -2,7 +2,7 @@ import { getBedrockReasoningProviderOptions } from "./agent";
 import { describe, expect, it } from "vitest";
 
 describe("getBedrockReasoningProviderOptions", () => {
-  it("sends adaptive thinking with summarized display to Claude models by default", () => {
+  it("sends adaptive thinking with medium effort and summarized display to Claude models", () => {
     // Adaptive thinking is the default for every Claude model, including
     // unrecognized future generations, so no model list needs maintenance.
     // The config must go through additionalModelRequestFields, not
@@ -20,6 +20,7 @@ describe("getBedrockReasoningProviderOptions", () => {
         bedrock: {
           additionalModelRequestFields: {
             thinking: { type: "adaptive", display: "summarized" },
+            output_config: { effort: "medium" },
           },
         },
       });

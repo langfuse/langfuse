@@ -83,12 +83,6 @@ export const filters = {
       return ctx.session?.user?.canToggleV4 === true ? route : null;
     }
 
-    if (route.featureFlag === "v4UpgradeUi") {
-      return ctx.session?.user?.featureFlags.v4UpgradeUi === true
-        ? route
-        : null;
-    }
-
     const hasFlag =
       ctx.enableExperimentalFeatures ||
       ctx.cloudAdmin ||
@@ -177,6 +171,7 @@ export const filters = {
       projectId: ctx.routerProjectId,
       isLangfuseCloud: ctx.isLangfuseCloud,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,
+      v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
     })
       ? route
       : null;

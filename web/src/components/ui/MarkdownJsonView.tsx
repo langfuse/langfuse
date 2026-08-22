@@ -10,7 +10,7 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
-import { env } from "@/src/env.mjs";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
@@ -76,11 +76,11 @@ export function MarkdownJsonViewHeader({
  */
 export const canRenderContentAsMarkdown = (
   content: unknown,
+  characterLimit: number,
 ): content is z.input<typeof OpenAIContentSchema> =>
   OpenAIContentSchema.safeParse(content).success &&
   // Don't render if markdown content is huge
-  JSON.stringify(content || {}).length <=
-    env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT;
+  JSON.stringify(content || {}).length <= characterLimit;
 
 // MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
 // otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
@@ -108,11 +108,15 @@ export function MarkdownJsonView({
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
 }) {
+  const characterLimit = useMarkdownRenderCharacterLimit();
   // Boxed so a renderable `null` content stays distinguishable from
   // "not renderable as markdown", without re-widening the narrowed type.
   const markdownContent = useMemo(
-    () => (canRenderContentAsMarkdown(content) ? { value: content } : null),
-    [content],
+    () =>
+      canRenderContentAsMarkdown(content, characterLimit)
+        ? { value: content }
+        : null,
+    [content, characterLimit],
   );
 
   return (

@@ -24,6 +24,10 @@ import {
 } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
   type ObservedOptions,
   scoreTypeContextFromObserved,
 } from "@/src/features/search-bar/lib/observed-options";
@@ -75,6 +79,7 @@ export function useEventsSearchBar({
   setFilterState,
   setSearchQuery,
   setSearchType,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   projectId: string;
   /** Table this bar filters — the `tableName` analytics dimension. */
@@ -89,6 +94,7 @@ export function useEventsSearchBar({
   setFilterState: (filters: FilterState) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
+  registry?: FieldRegistry;
 }): {
   store: SearchBarStore;
   commit: (trigger?: SearchCommitTrigger) => string | null;
@@ -102,8 +108,9 @@ export function useEventsSearchBar({
   observedRef.current = observed;
 
   const [store] = useState(() =>
-    createSearchBarStore(() =>
-      scoreTypeContextFromObserved(observedRef.current),
+    createSearchBarStore(
+      () => scoreTypeContextFromObserved(observedRef.current),
+      registry,
     ),
   );
 
@@ -111,8 +118,13 @@ export function useEventsSearchBar({
   // are filters that have no grammar form — the bar can't show them, so they
   // must be preserved across a commit instead of being silently wiped.
   const derived = useMemo(
-    () => filterStateToQueryText(filterState, { searchQuery, searchType }),
-    [filterState, searchQuery, searchType],
+    () =>
+      filterStateToQueryText(
+        filterState,
+        { searchQuery, searchType },
+        registry,
+      ),
+    [filterState, registry, searchQuery, searchType],
   );
   const committedText = restingDraft(derived.text);
   const skippedFiltersRef = useRef(derived.skippedFilters);
@@ -197,6 +209,7 @@ export function useEventsSearchBar({
       const result = planCommit(
         draftText,
         scoreTypeContextFromObserved(observedRef.current),
+        registry,
       );
       if (result.status === "invalid") {
         store.getState().actions.revealInvalid();
@@ -254,10 +267,14 @@ export function useEventsSearchBar({
       // so the echo string-compares equal and the space survives even when the
       // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
       const committed = restingDraft(
-        filterStateToQueryText(committedFilters, {
-          searchQuery: result.searchQuery,
-          searchType: result.searchType,
-        }).text,
+        filterStateToQueryText(
+          committedFilters,
+          {
+            searchQuery: result.searchQuery,
+            searchType: result.searchType,
+          },
+          registry,
+        ).text,
       );
 
       // Analytics (LFE-10781). METADATA ONLY — `queryLength` is a CHAR COUNT, we
@@ -279,7 +296,7 @@ export function useEventsSearchBar({
 
       return committed;
     },
-    [store, projectId, tableName, mergeWithSkipped, capture],
+    [store, projectId, tableName, mergeWithSkipped, capture, registry],
   );
 
   return { store, commit, applyFilters };

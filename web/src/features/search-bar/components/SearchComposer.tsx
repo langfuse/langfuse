@@ -30,6 +30,10 @@ import {
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { explainSegment } from "@/src/features/search-bar/lib/explain";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
   applyPick,
@@ -302,6 +306,7 @@ export function SearchComposer({
   onRequestColumns,
   fieldReason,
   freeTextReason,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
@@ -323,6 +328,7 @@ export function SearchComposer({
   fieldReason?: (field: string) => string | null;
   /** Reason free-text tokens are not applied on the current surface, or null. */
   freeTextReason?: string | null;
+  registry?: FieldRegistry;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -377,17 +383,21 @@ export function SearchComposer({
     [autocompleteOpen, draft, projectId],
   );
 
-  const plan: CompletionPlan | null =
+  const unrestrictedPlan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
-      ? planInputCompletions({
-          input: draft,
-          caret: Math.min(caret, draft.length),
-          observed,
-          erroredColumns,
-          recents,
-          currentQueryText: draft,
-        })
+      ? planInputCompletions(
+          {
+            input: draft,
+            caret: Math.min(caret, draft.length),
+            observed,
+            erroredColumns,
+            recents,
+            currentQueryText: draft,
+          },
+          registry,
+        )
       : null;
+  const plan = unrestrictedPlan;
   // Lazy filter-options: when the current completion stage needs option columns
   // that have not loaded yet, ask the host table to fetch them. Keyed on the
   // joined column list so it fires once per distinct need, not every keystroke.
@@ -747,6 +757,7 @@ export function SearchComposer({
           typedSpaced,
           committedText,
           scoreTypes,
+          registry,
         )
           ? typedSpaced
           : committedText;
@@ -762,7 +773,13 @@ export function SearchComposer({
         setAutocompleteOpen(false);
       }
     },
-    [storeApi, commitToFilterState, setDraftWithSelection, scoreTypes],
+    [
+      storeApi,
+      commitToFilterState,
+      setDraftWithSelection,
+      scoreTypes,
+      registry,
+    ],
   );
 
   // Structured edits (autocomplete picks, chip removal) apply immediately, but
@@ -1138,7 +1155,7 @@ export function SearchComposer({
       // or its padding) nudges the collapsed caret across the whitespace run,
       // so typing starts the next entry instead of gluing to the previous
       // token. Clicks on token text keep their native caret untouched.
-      const segment = deriveComposerSegments(draft, scoreTypes).find(
+      const segment = deriveComposerSegments(draft, scoreTypes, registry).find(
         (s) => s.to === end,
       );
       const el =
@@ -1173,7 +1190,7 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
-  const segments = deriveComposerSegments(draft, scoreTypes);
+  const segments = deriveComposerSegments(draft, scoreTypes, registry);
   // The token holding a collapsed caret — the keyboard counterpart to hover.
   // Not at the trailing insertion point, where the user is appending, not
   // editing. Every segment kind qualifies: an operator explains itself on the
@@ -1212,7 +1229,7 @@ export function SearchComposer({
           : null;
   const explainTargetId = explainTarget?.id ?? null;
   const explanation =
-    explainTarget === null ? null : explainSegment(explainTarget);
+    explainTarget === null ? null : explainSegment(explainTarget, registry);
   const explainDeactivatedReason =
     explainTarget === null
       ? null
@@ -1221,7 +1238,7 @@ export function SearchComposer({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null ? null : explainSegment(caretSegment);
+    caretSegment === null ? null : explainSegment(caretSegment, registry);
   const caretDeactivatedReason =
     caretSegment === null
       ? null
@@ -1431,6 +1448,7 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
             fieldReason={fieldReason}
             freeTextReason={freeTextReason}
+            registry={registry}
             highlightedSegmentId={
               explanation !== null ? explainTargetId : errorTarget?.id
             }
@@ -1472,14 +1490,9 @@ export function SearchComposer({
           </button>
         )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
-            (z-20) < autocomplete popover (z-50). Both the X and the popover drop
-            BELOW the bar, staying in-flow inside the table. The error tooltip is
-            the exception: when the popover is open it flips ABOVE the offending
-            block, into the page header's band — an ancestor it can't beat
-            in-flow (`#page > main` is overflow:hidden and the header is its own
-            z-50 stacking context). So it renders through the "tooltip" <Layer>,
-            which portals it to a body-level layer container (see the render
-            below + components/ui/layer.tsx). */}
+            (z-20). The autocomplete and token tooltip both render through app
+            overlay layers so they escape clipped table, panel, and dialog
+            ancestors. */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
@@ -1521,7 +1534,6 @@ export function SearchComposer({
           onHighlight={setHighlightedOptionId}
           listboxId={LISTBOX_ID}
           anchorLeft={0}
-          containerRef={containerRef}
         />
       )}
 
