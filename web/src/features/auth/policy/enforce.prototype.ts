@@ -64,16 +64,16 @@ export function enforceProjectAuthz(params: {
   return { projectId, access };
 }
 
-/** enforceOrgAuthz resolves the target org and asserts action on it; project actions org-check into the residual list filter. */
+/** enforceOrgAuthz resolves the target org and asserts action on it when given one; project actions org-check into the residual list filter. */
 export function enforceOrgAuthz(params: {
   context: AuthorizationContext;
   headers: IncomingHttpHeaders;
-  action: Action | null;
+  action?: Action;
 }): { orgId: string; access: Access | null } {
   const { context, headers, action } = params;
   const orgId = getOrgId(context, headers);
   const access =
-    action === null
+    action === undefined
       ? null
       : isOrganizationAction(action)
         ? mustAuthorize(context, action, { orgId })
@@ -467,6 +467,14 @@ if (import.meta.vitest) {
   });
 
   describe("enforceOrgAuthz", () => {
+    it("omitting action is authenticated-only", () => {
+      const { orgId, access } = enforceOrgAuthz({
+        context: orgKey(),
+        headers: {},
+      });
+      expect(orgId).toBe(ORG);
+      expect(access).toBeNull();
+    });
     it("grants an org action to an org key", () => {
       const { orgId } = enforceOrgAuthz({
         context: orgKey(),

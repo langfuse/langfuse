@@ -53,7 +53,7 @@ export async function enforceProjectAuth(params: {
 /** enforceOrgAuth authenticates the request and asserts action on its resolved org, one call per route. */
 export async function enforceOrgAuth(params: {
   headers: IncomingHttpHeaders;
-  action: Action | null;
+  action?: Action;
 }): Promise<{
   context: AuthorizationContext;
   orgId: string;
