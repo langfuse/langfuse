@@ -2,6 +2,7 @@ import {
   availableFlags,
   featurePreviewFlags,
   isFeaturePreviewAvailable,
+  organizationManageableFeaturePreviewFlags,
   type FeaturePreviewAvailabilityContext,
   type FeaturePreviewFlag,
 } from "./available-flags";
@@ -38,11 +39,19 @@ export const parseFlags = (
 
   availableFlags.forEach((flag) => {
     if (
+      isFeaturePreviewFlag(flag) &&
+      dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
+    ) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
+    if (
       enableFeaturePreviewsByDefault &&
       isFeaturePreviewFlag(flag) &&
       isFeaturePreviewAvailable(flag, context)
     ) {
-      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
+      parsedFlags[flag] = true;
       return;
     }
 
@@ -50,4 +59,49 @@ export const parseFlags = (
   });
 
   return parsedFlags;
+};
+
+export const parseFlagsWithOrganizationDefaults = (
+  dbFlags: string[],
+  organizationDefaults: string[],
+  context: FeaturePreviewAvailabilityContext & {
+    email: string | null | undefined;
+  },
+): Flags => {
+  const manageableDefaults = organizationDefaults.filter((flag) =>
+    organizationManageableFeaturePreviewFlags.some(
+      (manageableFlag) => manageableFlag === flag,
+    ),
+  );
+
+  return parseFlags([...dbFlags, ...manageableDefaults], context);
+};
+
+type ContextualFeatureFlagUser = {
+  featureFlags: Flags;
+  organizations: Array<{
+    id: string;
+    featureFlags?: Flags;
+    projects: Array<{ id: string }>;
+  }>;
+};
+
+export const getContextualFeatureFlags = (
+  user: ContextualFeatureFlagUser | null | undefined,
+  {
+    projectId,
+    organizationId,
+  }: { projectId?: string; organizationId?: string } = {},
+): Flags | undefined => {
+  if (!user) return undefined;
+
+  const organization = organizationId
+    ? user.organizations.find((candidate) => candidate.id === organizationId)
+    : projectId
+      ? user.organizations.find((candidate) =>
+          candidate.projects.some((project) => project.id === projectId),
+        )
+      : undefined;
+
+  return organization?.featureFlags ?? user.featureFlags;
 };

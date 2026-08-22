@@ -7,6 +7,7 @@ import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { api } from "@/src/utils/api";
 
 import {
+  featurePreviewLabels,
   FeaturePreviewModal,
   type PreviewFlag,
   type PreviewState,
@@ -15,12 +16,6 @@ import {
 type ControlledFeaturePreviewModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-};
-
-const PREVIEW_LABEL: Record<PreviewFlag, string> = {
-  modernSession: "Compact Session View",
-  searchBar: "Filter Search Bar",
-  compactTimeline: "Compact Timeline",
 };
 
 export function ControlledFeaturePreviewModal({
@@ -40,9 +35,7 @@ export function ControlledFeaturePreviewModal({
         });
         showSuccessToast({
           title: "Feature preview updated",
-          description: `${PREVIEW_LABEL[variables.flag]} preview has been ${
-            variables.enabled ? "enabled" : "disabled"
-          }.`,
+          description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
         });
       },
       onError: (error) => {
@@ -82,14 +75,6 @@ export function ControlledFeaturePreviewModal({
       onToggle: onToggle("compactTimeline"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    // The "Filter Search Bar" preview is retired — the bar is now generally
-    // available on the v4 events tables for everyone (see useSearchBarEnabled),
-    // so it no longer renders a tile here. The `searchBar` flag plumbing
-    // (PreviewFlag type, registry entry, the userAccount allowlist) is kept for
-    // now so a rollback is a one-line revert; restore the `searchBar: { ... }`
-    // state entry to bring the tile back.
-    // TODO(remove ~2026-06-19): delete the dead searchBar plumbing once the GA
-    // rollout is confirmed stable — see useSearchBarEnabled for the full list.
   };
 
   return (
