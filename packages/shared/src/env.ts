@@ -61,6 +61,12 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  // Opt-in short-lived Redis credentials; "static" keeps username/password auth.
+  REDIS_AUTH_METHOD: z
+    .enum(["static", "azure_managed_identity"])
+    .default("static"),
+  REDIS_AZURE_CLIENT_ID: z.string().optional(),
+  REDIS_AZURE_SCOPE: z.string().default("https://redis.azure.com/.default"),
   // Optional prefix for Redis keys. Used by BullMQ queues via their native prefix option
   // and by the singleton cache instance via ioredis keyPrefix. Useful for multi-tenant Redis.
   REDIS_KEY_PREFIX: z.string().nullish(),
@@ -581,7 +587,109 @@ const EnvSchema = z.object({
 
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
+// Sovereign clouds use their own Redis resource host, so accept the resource
+// rather than one fixed string. The GUID is the documented application-id form
+// of the same resource.
+const AZURE_REDIS_RESOURCES = [
+  "https://redis.azure.com",
+  "https://redis.azure.cn",
+  "https://redis.azure.us",
+  "https://redis.azure.de",
+  "acca5fbb-b7e4-4009-81f1-37e38fd66d78",
+];
+
+const isAzureRedisScope = (scope: string): boolean =>
+  AZURE_REDIS_RESOURCES.some((resource) => scope === `${resource}/.default`);
+
+/**
+ * Cross-field rules for managed Redis credentials, enforced at startup so a
+ * misconfiguration fails loudly instead of degrading quietly at connect time.
+ */
+const validateManagedRedisAuth = (
+  val: SharedEnv,
+  ctx: z.RefinementCtx,
+): void => {
+  if (val.REDIS_AUTH_METHOD === "static") return;
+
+  // An Entra token is a bearer credential for the whole audience, replayable by
+  // anyone who observes it -- unlike a static password scoped to one cache. It
+  // must never cross the network in cleartext.
+  if (val.REDIS_TLS_ENABLED !== "true") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_TLS_ENABLED"],
+      message: `REDIS_TLS_ENABLED must be "true" when REDIS_AUTH_METHOD is "${val.REDIS_AUTH_METHOD}": the token is a bearer credential and must not be sent in cleartext.`,
+    });
+  }
+
+  // TLS alone is not enough: an unverified peer still receives the token. These
+  // escape hatches are defensible for a static password scoped to one cache, but
+  // not for a bearer credential the whole audience accepts.
+  if (val.REDIS_TLS_REJECT_UNAUTHORIZED === "false") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_TLS_REJECT_UNAUTHORIZED"],
+      message: `REDIS_TLS_REJECT_UNAUTHORIZED must not be "false" when REDIS_AUTH_METHOD is "${val.REDIS_AUTH_METHOD}": an unverified peer would receive a replayable token.`,
+    });
+  }
+
+  if (val.REDIS_TLS_CHECK_SERVER_IDENTITY === "false") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_TLS_CHECK_SERVER_IDENTITY"],
+      message: `REDIS_TLS_CHECK_SERVER_IDENTITY must not be "false" when REDIS_AUTH_METHOD is "${val.REDIS_AUTH_METHOD}": the token would be sent to a host that did not prove its identity.`,
+    });
+  }
+
+  // createNewRedisInstance routes cluster and sentinel to builders that never bind
+  // the managed credential, so accepting this would certify a configuration the
+  // runtime openly refuses to implement.
+  if (
+    val.REDIS_CLUSTER_ENABLED === "true" ||
+    val.REDIS_SENTINEL_ENABLED === "true"
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_AUTH_METHOD"],
+      message: `REDIS_AUTH_METHOD "${val.REDIS_AUTH_METHOD}" is supported for single-node Redis only; cluster and sentinel modes still use static credentials.`,
+    });
+  }
+
+  // Azure authenticates the identity by its object id, and without a username
+  // ioredis sends no AUTH at all -- which would connect anonymously to a server
+  // that permits it rather than failing closed.
+  if (!val.REDIS_USERNAME) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_USERNAME"],
+      message: `REDIS_USERNAME is required when REDIS_AUTH_METHOD is "${val.REDIS_AUTH_METHOD}": set it to the object id (not the client id) of the managed identity or service principal.`,
+    });
+  }
+
+  // The credential rotates, so it cannot live in a connection string -- and a
+  // password left in the URL would silently keep being used if a token fetch fails.
+  if (val.REDIS_CONNECTION_STRING) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_CONNECTION_STRING"],
+      message: `REDIS_CONNECTION_STRING cannot be combined with REDIS_AUTH_METHOD "${val.REDIS_AUTH_METHOD}" because the credential rotates. Use REDIS_HOST and REDIS_PORT instead.`,
+    });
+  }
+
+  // Any other audience would mint a token for a different Azure resource and send
+  // it to the Redis host as a password.
+  if (!isAzureRedisScope(val.REDIS_AZURE_SCOPE)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["REDIS_AZURE_SCOPE"],
+      message: `REDIS_AZURE_SCOPE must be a Redis resource scope such as "https://redis.azure.com/.default"; got "${val.REDIS_AZURE_SCOPE}".`,
+    });
+  }
+};
+
+const ValidatedEnvSchema = EnvSchema.superRefine(validateManagedRedisAuth);
+
 export const env: SharedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : ValidatedEnvSchema.parse(removeEmptyEnvVariables(process.env));
