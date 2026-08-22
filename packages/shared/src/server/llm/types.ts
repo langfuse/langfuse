@@ -322,6 +322,7 @@ export const openAIModels = [
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
+  "gpt-5.6-cyber",
   "gpt-5.5",
   "gpt-5.5-2026-04-23",
   "gpt-5.5-pro",

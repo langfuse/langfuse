@@ -338,6 +338,36 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
     dated-snapshot entries, plus combined Flex/large-context tiers where the documented
     > 272K multiplier applies. It also added the two Anthropic Fast-mode tiers, including
     > the documented prompt-cache multipliers.
+- **gpt-5.6-sol price cut and new `gpt-5.6-cyber` model (found August 22 2026)** — A
+  broad WebFetch of `developers.openai.com/api/docs/pricing` reported `gpt-5.6-sol` at
+  $4.00/$0.40/$5.00/$20.00 (input/cached/cache-write/output per MTok), down from the
+  previously confirmed $5.00/$0.50/$6.25/$30.00, and also asserted a `gpt-5.6-cyber`
+  and a `gpt-5.5-cyber` existed. Because a single broad fetch is not sufficient
+  evidence for a price change (see the `gpt-5-chat-latest` lesson below), both claims
+  were independently re-verified: `gpt-5.6-sol`'s own model page
+  (`https://developers.openai.com/api/docs/models/gpt-5.6-sol`) and a second, narrowly
+  scoped fetch of the pricing page both confirmed the new $4.00/$0.40/$5.00/$20.00
+  price — a real cut, not a hallucination. `https://developers.openai.com/api/docs/models/all`
+  confirmed `gpt-5.6-cyber` is real ("Our most advanced cybersecurity model for
+  authorized vulnerability research and security testing") but found no trace of
+  `gpt-5.5-cyber` anywhere on the page — that half of the claim was a fabrication, and
+  was not added. `gpt-5.6-cyber` pricing (confirmed via its own model page plus a
+  targeted pricing-page fetch): $12.50 input, $1.25 cached input, $75.00 output per
+  MTok; cache writes at the standard 1.25x-of-input rate ($15.625); Large Context
+  (>272K) tier at the standard 2x input / 1.5x output multiplier ($25/$2.50/$31.25/$112.50);
+  400,000 token context window, 128,000 max output tokens, supports reasoning tokens;
+  no Fast mode or Flex pricing documented. Only the Responses API is supported (Chat
+  Completions and other endpoints are explicitly listed as unsupported), but Langfuse's
+  pricing schema matches on model ID string regardless of endpoint, so this does not
+  block adding a pricing entry. `gpt-5.6-terra` and `gpt-5.6-luna` were re-confirmed
+  unchanged at their existing prices in the same run. Updated `gpt-5.6-sol`'s pricing
+  file entry (all 6 tiers) and added a new `gpt-5.6-cyber` entry (Standard + Large
+  Context tiers only) plus a selectable-model entry in `openAIModels` (not first).
+  matchPattern: `(?i)^(openai/)?(gpt-5.6-cyber)$`. Lesson: a WebFetch summary asserting
+  a brand-new model name is exactly the kind of claim that needs independent
+  confirmation from a second source (a dedicated model-catalog or model-detail page)
+  before acting on it — one half of a two-model claim can be real while the other half
+  is fabricated.
 
 Capture:
 
