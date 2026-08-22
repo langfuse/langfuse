@@ -11,9 +11,15 @@ import {
 } from "./evaluatorScoresUrl";
 
 describe("evaluatorScoresUrl", () => {
-  it("shows evaluator scores across all environments", () => {
+  it("filters code evaluator scores by evaluator and assigned rule IDs", () => {
     const url = new URL(
-      evaluatorScoresUrl("project-1", "evaluator-name"),
+      evaluatorScoresUrl(
+        "project-1",
+        "evaluator-id",
+        "Code evaluator",
+        EvalTemplateTypeEnum.CODE,
+        ["rule-1", "rule-2"],
+      ),
       "https://langfuse.local",
     );
 
@@ -21,10 +27,38 @@ describe("evaluatorScoresUrl", () => {
     expect(url.searchParams.get("showAllEnvironments")).toBe("true");
     expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
       {
+        column: "evaluatorId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["evaluator-id", "rule-1", "rule-2"],
+      },
+      {
+        column: "source",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["EVAL"],
+      },
+    ]);
+  });
+
+  it("filters judge scores by evaluator name", () => {
+    const url = new URL(
+      evaluatorScoresUrl(
+        "project-1",
+        "evaluator-id",
+        "Correctness",
+        EvalTemplateTypeEnum.LLM_AS_JUDGE,
+        ["rule-1"],
+      ),
+      "https://langfuse.local",
+    );
+
+    expect(decodeFiltersGeneric(url.searchParams.get("filter") ?? "")).toEqual([
+      {
         column: "name",
         type: "stringOptions",
         operator: "any of",
-        value: ["evaluator-name"],
+        value: ["Correctness"],
       },
       {
         column: "source",
