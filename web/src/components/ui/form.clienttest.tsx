@@ -1,0 +1,126 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useForm } from "react-hook-form";
+
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/src/components/ui/form";
+
+type Values = {
+  categories: Array<{ value: string }>;
+};
+
+function FormMessageProbe() {
+  const form = useForm<Values>({
+    defaultValues: { categories: [{ value: "" }, { value: "" }] },
+  });
+
+  return (
+    <Form {...form}>
+      <FormField
+        control={form.control}
+        name="categories"
+        render={() => (
+          <FormItem>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          form.setError("categories.0.value", {
+            message: "Category cannot be empty",
+          });
+        }}
+      >
+        item-only
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setError("categories", {
+            message: "Categories must be unique",
+          });
+        }}
+      >
+        array-only
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setError("categories.0.value", {
+            message: "Category cannot be empty",
+          });
+          form.setError("categories.root", {
+            message: "Add at least two categories",
+          });
+        }}
+      >
+        item-and-root
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setError("categories.config", {
+            message: "Expected string",
+          });
+        }}
+      >
+        union
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setError("categories", { message: "" });
+        }}
+      >
+        empty-message
+      </button>
+    </Form>
+  );
+}
+
+describe("FormMessage", () => {
+  it("renders an item-only nested message on the parent field", () => {
+    render(<FormMessageProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "item-only" }));
+
+    expect(screen.getByText("Category cannot be empty")).toBeInTheDocument();
+  });
+
+  it("renders an array-level message", () => {
+    render(<FormMessageProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "array-only" }));
+
+    expect(screen.getByText("Categories must be unique")).toBeInTheDocument();
+  });
+
+  it("renders the array-level root message when item errors also exist", () => {
+    render(<FormMessageProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "item-and-root" }));
+
+    expect(screen.getByText("Add at least two categories")).toBeInTheDocument();
+  });
+
+  it("renders a nested union-path message", () => {
+    render(<FormMessageProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "union" }));
+
+    expect(screen.getByText("Expected string")).toBeInTheDocument();
+  });
+
+  it("renders nothing for an empty message object", () => {
+    render(<FormMessageProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "empty-message" }));
+
+    expect(screen.queryByRole("paragraph")).not.toBeInTheDocument();
+  });
+});
