@@ -460,9 +460,18 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
+    // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
+    // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL are Anthropic-only.
     LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+    LANGFUSE_AI_MODEL: z.string().optional(),
+    LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+    LANGFUSE_AI_API_KEY: z.string().optional(),
+    LANGFUSE_AI_BASE_URL: z.string().optional(),
+    LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 
     // Tracing for Langfuse AI Features
@@ -562,6 +571,7 @@ export const env = createEnv({
       }),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    // Deprecated. Fallback for LANGFUSE_AI_AWS_BEDROCK_REGION; remove after cutover.
     LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
       .number()
@@ -986,10 +996,18 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
+    // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
+    // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
+    // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL.
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
     LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
       process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
+    LANGFUSE_AI_PROVIDER: process.env.LANGFUSE_AI_PROVIDER,
+    LANGFUSE_AI_MODEL: process.env.LANGFUSE_AI_MODEL,
+    LANGFUSE_AI_SMALL_MODEL: process.env.LANGFUSE_AI_SMALL_MODEL,
+    LANGFUSE_AI_API_KEY: process.env.LANGFUSE_AI_API_KEY,
+    LANGFUSE_AI_BASE_URL: process.env.LANGFUSE_AI_BASE_URL,
+    LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
 
     // Langfuse Tracing AI Features
