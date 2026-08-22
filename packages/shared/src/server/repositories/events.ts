@@ -1100,13 +1100,11 @@ export const getTraceByIdFromEventsTable = async ({
   if (excludeInputOutput) {
     queryBuilder.select("'' as input").select("'' as output");
   } else if (renderingProps.truncated) {
+    const charLimit =
+      renderingProps.charLimit ?? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
     queryBuilder
-      .select(
-        `leftUTF8(t.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`,
-      )
-      .select(
-        `leftUTF8(t.output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as output`,
-      );
+      .select(`leftUTF8(t.input, ${charLimit}) as input`)
+      .select(`leftUTF8(t.output, ${charLimit}) as output`);
   } else {
     queryBuilder.selectColumns("t.input", "t.output");
   }

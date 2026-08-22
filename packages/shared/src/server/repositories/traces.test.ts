@@ -81,6 +81,26 @@ describe("public trace query construction", () => {
     expect(query).not.toContain("FINAL");
   });
 
+  it("dedups by trace id instead of counting raw rows when FINAL is skipped", async () => {
+    // traces is a ReplacingMergeTree: without FINAL, an unmerged trace can
+    // have multiple row versions on disk. A bare count() would double-count
+    // it; uniqExact(t.id) counts distinct traces regardless of dedup state.
+    const filter = new FilterList([
+      new StringFilter({
+        clickhouseTable: "traces",
+        field: "user_id",
+        operator: "=",
+        value: "user-abc",
+      }),
+    ]);
+
+    await getTracesCountForPublicApi({ projectId: "proj-1", filter });
+
+    const { query } = mockQueryClickhouse.mock.calls[0][0];
+    expect(query).toMatch(/SELECT\s+uniqExact\(t\.id\)\s+as\s+count/);
+    expect(query).not.toMatch(/SELECT\s+count\(\)\s+as\s+count/);
+  });
+
   it("uses FINAL when an observations-table filter is present", async () => {
     const filter = new FilterList([
       new StringFilter({
@@ -96,6 +116,33 @@ describe("public trace query construction", () => {
     expect(mockQueryClickhouse).toHaveBeenCalledOnce();
     const { query } = mockQueryClickhouse.mock.calls[0][0];
     expect(query).toMatch(/FROM\s+traces\s+t\s+FINAL/);
+  });
+
+  it("dedups by trace id in the complex (score-filtered) count query when FINAL is skipped", async () => {
+    // Combining a user_id filter (skip-index, no FINAL) with a scores filter
+    // routes through buildTracesBaseQuery's count branch instead of the
+    // simple count() query — that branch must dedup the same way.
+    const filter = new FilterList([
+      new StringFilter({
+        clickhouseTable: "traces",
+        field: "user_id",
+        operator: "=",
+        value: "user-abc",
+      }),
+      new NumberObjectFilter({
+        clickhouseTable: "scores",
+        field: "s.scores_avg",
+        key: "quality",
+        operator: ">",
+        value: 0.5,
+      }),
+    ]);
+
+    await getTracesCountForPublicApi({ projectId: "proj-1", filter });
+
+    const { query } = mockQueryClickhouse.mock.calls[0][0];
+    expect(query).toMatch(/SELECT\s+uniqExact\(t\.id\)\s+as\s+count/);
+    expect(query).not.toMatch(/SELECT\s+count\(\)\s+as\s+count/);
   });
 
   it("pushes score names down for filter-only count queries", async () => {

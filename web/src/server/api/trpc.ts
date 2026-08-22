@@ -505,6 +505,17 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
  * - Without a traceId, falls back to the project-membership check (trace: null).
  */
 
+/**
+ * "compact" verbosity (used by per-row table cells, e.g. TracesDynamicCell)
+ * extracts just the last ChatML message client-side via `parseIO`, which
+ * needs the tail of the input/output JSON intact — so it can't use the same
+ * small char limit as "truncated" (that cuts from the left and would corrupt
+ * the JSON for any real conversation). This is a much larger cap that only
+ * guards against pathological outliers (e.g. multi-MB base64 payloads),
+ * without truncating input/output for the vast majority of traces.
+ */
+const COMPACT_IO_SAFETY_CHAR_LIMIT = 20_000;
+
 const inputTraceSchema = z.object({
   traceId: z.string().optional(),
   projectId: z.string(),
@@ -535,6 +546,16 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
     const verbosity = result.data.verbosity;
     const isEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
 
+    // "compact" also needs DB-side truncation (not just "truncated"), but with
+    // a much larger cap — see COMPACT_IO_SAFETY_CHAR_LIMIT above.
+    const traceIoRenderingProps = {
+      truncated: verbosity === "truncated" || verbosity === "compact",
+      shouldJsonParse: false, // we do not want to parse the input/output for tRPC
+      ...(verbosity === "compact"
+        ? { charLimit: COMPACT_IO_SAFETY_CHAR_LIMIT }
+        : {}),
+    };
+
     const useEventsTraceSource =
       readSource === "v4" && env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
 
@@ -559,10 +580,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
               fromTimestamp ??
               (isEventsOnly ? timestamp : undefined) ??
               undefined,
-            renderingProps: {
-              truncated: verbosity === "truncated",
-              shouldJsonParse: false, // we do not want to parse the input/output for tRPC
-            },
+            renderingProps: traceIoRenderingProps,
           })
       : null;
 
@@ -582,10 +600,7 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
         traceId,
         projectId,
         fromTimestamp: fromTimestamp ?? timestamp ?? undefined,
-        renderingProps: {
-          truncated: verbosity === "truncated",
-          shouldJsonParse: false,
-        },
+        renderingProps: traceIoRenderingProps,
       });
     }
 

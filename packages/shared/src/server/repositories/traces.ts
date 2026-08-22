@@ -502,15 +502,17 @@ export const getTraceByIdFromTracesTable = async ({
     tags: { projectId },
   };
 
+  const charLimit =
+    renderingProps.charLimit ?? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
   const inputColumn = excludeInputOutput
     ? "''"
     : renderingProps.truncated
-      ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+      ? `leftUTF8(input, ${charLimit})`
       : "input";
   const outputColumn = excludeInputOutput
     ? "''"
     : renderingProps.truncated
-      ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
+      ? `leftUTF8(output, ${charLimit})`
       : "output";
   // map() (not a '{}' string literal) so the excluded column keeps the
   // Map type and converts to an empty object in the domain model.
@@ -1786,8 +1788,11 @@ async function buildTracesBaseQuery(
   let query: string;
 
   if (select.count) {
+    // uniqExact(t.id), not count(), because traces is a ReplacingMergeTree:
+    // unmerged duplicate row versions (e.g. from a bookmark/publish update)
+    // would otherwise inflate the count, and this path can skip FINAL above.
     query = `${withClause}
-      SELECT count() as count
+      SELECT uniqExact(t.id) as count
       ${queryMiddle}
     `;
   } else if (select.includeIO) {
@@ -1965,8 +1970,11 @@ export const getTracesCountForPublicApi = async ({
         )),
   );
 
+  // uniqExact(t.id), not count(), because traces is a ReplacingMergeTree and
+  // this path does not apply FINAL: unmerged duplicate row versions (e.g.
+  // from a bookmark/publish update) would otherwise inflate the count.
   let query = `
-    SELECT count() as count
+    SELECT uniqExact(t.id) as count
     FROM __TRACE_TABLE__ t
     WHERE project_id = {projectId: String}
     ${filter.length() > 0 ? `AND ${appliedFilter.query}` : ""}

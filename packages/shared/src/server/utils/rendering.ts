@@ -17,6 +17,12 @@ export interface RenderingProps {
    * This is useful when the client will handle JSON parsing to avoid double parsing.
    */
   shouldJsonParse: boolean;
+
+  /**
+   * Overrides LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT when `truncated` is true.
+   * Defaults to that env limit when unset.
+   */
+  charLimit?: number;
 }
 
 /**
@@ -36,19 +42,14 @@ export const applyInputOutputRendering = (
 ): JsonNested | string | null => {
   if (!io) return null;
   let result: JsonNested | string = io;
+  const charLimit =
+    renderingProps.charLimit ?? env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT;
 
-  if (
-    renderingProps.truncated &&
-    io.length > env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
-  ) {
-    result =
-      io.slice(0, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT) + "...[truncated]";
+  if (renderingProps.truncated && io.length > charLimit) {
+    result = io.slice(0, charLimit) + "...[truncated]";
   }
 
-  if (
-    renderingProps.truncated &&
-    io.length === env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT
-  ) {
+  if (renderingProps.truncated && io.length === charLimit) {
     result = io + "...[truncated]";
   }
 
