@@ -39,6 +39,13 @@ export function getRedisManagedCredentialProviderFromEnv(): ManagedCredentialPro
   return sharedProvider;
 }
 
+// ioredis attaches the failed command -- including the credential it just sent --
+// to reply errors, and the logger serialises an Error's own enumerable properties.
+// Rendering only the message keeps a rotation failure from emitting a replayable
+// bearer token into the logs.
+const describeError = (error: unknown): string =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
 // ioredis builds its auth handshake from options.password inside connect(), so
 // this is what every connect and reconnect authenticates from.
 function applyToken(entry: BoundConnection, token: ManagedAccessToken): void {
@@ -64,8 +71,7 @@ function reauthenticate(
     .call("AUTH", ...authArgs)
     .catch((error) =>
       logger.warn(
-        `Failed to re-authenticate Redis after ${entry.provider.name} token refresh`,
-        error,
+        `Failed to re-authenticate Redis after ${entry.provider.name} token refresh: ${describeError(error)}`,
       ),
     );
 }
@@ -129,6 +135,12 @@ export const initializeRedisManagedCredentials = async (): Promise<void> => {
 
 /** Test seam: clears process-wide state so a suite can switch REDIS_AUTH_METHOD. */
 export const resetRedisManagedCredentialsForTests = (): void => {
+  if (env.NODE_ENV === "production") {
+    throw new Error(
+      "resetRedisManagedCredentialsForTests must not be called in production: it stops rotation and unbinds every connection.",
+    );
+  }
+
   sharedManager?.stop();
   sharedProvider = undefined;
   sharedManager = null;
@@ -157,7 +169,15 @@ export function bindManagedCredentialToRedis(
 
   boundConnections.add(entry);
   if (currentToken) applyToken(entry, currentToken);
-  client.once("end", () => boundConnections.delete(entry));
+  // ioredis emits "end" when it will not retry on its own, but BullMQ revives the
+  // same instance through RedisConnection.reconnect(). Re-registering on connect
+  // keeps a revived client in rotation instead of silently leaving it on a frozen
+  // credential until the next expiry kills it.
+  client.on("end", () => boundConnections.delete(entry));
+  client.on("connect", () => {
+    boundConnections.add(entry);
+    if (currentToken) applyToken(entry, currentToken);
+  });
 
   // BullMQ's Worker does not use the connection it is handed -- it builds its
   // blocking connection with duplicate(), which ioredis implements as
@@ -175,8 +195,7 @@ export function bindManagedCredentialToRedis(
   // connection the process opens.
   ensureTokenStarted(provider).catch((error) =>
     logger.error(
-      `Failed to fetch initial ${provider.name} token for Redis`,
-      error,
+      `Failed to fetch initial ${provider.name} token for Redis: ${describeError(error)}`,
     ),
   );
 

@@ -25,6 +25,7 @@ const envMock = vi.hoisted(() => ({
     REDIS_USERNAME: undefined as string | undefined | null,
     REDIS_AZURE_CLIENT_ID: undefined as string | undefined,
     REDIS_AZURE_SCOPE: "https://redis.azure.com/.default" as string,
+    NODE_ENV: "test" as string,
   },
 }));
 vi.mock("../../../env", () => envMock);
@@ -45,6 +46,7 @@ import {
   resetRedisManagedCredentialsForTests,
 } from "./redisCredentials";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
+import { logger } from "../../logger";
 
 const ONE_HOUR = 60 * 60 * 1000;
 
@@ -86,6 +88,9 @@ function fakeRedisClient() {
     once: vi.fn((event: string, handler: () => void) => {
       handlers[event] = handler;
     }),
+    on: vi.fn((event: string, handler: () => void) => {
+      handlers[event] = handler;
+    }),
     duplicate: vi.fn(() => {
       const copy = fakeRedisClient();
       copy.options = { ...client.options };
@@ -106,6 +111,8 @@ beforeEach(() => {
   envMock.env.REDIS_USERNAME = undefined;
   envMock.env.REDIS_AZURE_CLIENT_ID = undefined;
   envMock.env.REDIS_AZURE_SCOPE = "https://redis.azure.com/.default";
+  envMock.env.NODE_ENV = "test";
+  (logger.warn as ReturnType<typeof vi.fn>).mockClear();
   resetRedisManagedCredentialsForTests();
 });
 
@@ -302,6 +309,63 @@ describe("bindManagedCredentialToRedis", () => {
     manager.stop();
   });
 
+  it("never writes the credential into the logs when re-authentication fails", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider({ username: "object-id-123" });
+    const client = fakeRedisClient();
+
+    // ioredis attaches the command it sent -- credential included -- to reply
+    // errors, and the logger serialises an Error's own enumerable properties.
+    client.call.mockRejectedValue(
+      Object.assign(new Error("WRONGPASS invalid username-password pair"), {
+        command: { name: "auth", args: ["object-id-123", "token-2"] },
+      }),
+    );
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+    client.status = "ready";
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    await settle();
+
+    const calls = (logger.warn as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(JSON.stringify(calls)).not.toContain("token-2");
+    // A lone string argument is what guarantees it: nothing is passed that could
+    // carry the command payload.
+    for (const call of calls) expect(call).toHaveLength(1);
+    manager.stop();
+  });
+
+  it("re-registers a connection that reconnects after ending", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider({ username: "object-id-123" });
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+
+    // BullMQ revives the same instance via RedisConnection.reconnect().
+    client.handlers.end();
+    client.handlers.connect();
+    client.status = "ready";
+
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    expect(client.options.password).toBe("token-2");
+    expect(client.call).toHaveBeenCalledWith(
+      "AUTH",
+      "object-id-123",
+      "token-2",
+    );
+    manager.stop();
+  });
+
   it("stops refreshing a connection once it has ended", async () => {
     vi.useFakeTimers();
     const provider = fakeProvider();
@@ -379,5 +443,15 @@ describe("getRedisManagedCredentialProviderFromEnv", () => {
     const second = getRedisManagedCredentialProviderFromEnv();
     expect(first).not.toBeNull();
     expect(first).toBe(second);
+  });
+});
+
+describe("resetRedisManagedCredentialsForTests", () => {
+  it("refuses to run in production, where it would stop all rotation", () => {
+    envMock.env.NODE_ENV = "production";
+    expect(() => resetRedisManagedCredentialsForTests()).toThrow(
+      /must not be called in production/,
+    );
+    envMock.env.NODE_ENV = "test";
   });
 });
