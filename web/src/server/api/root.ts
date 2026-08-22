@@ -41,6 +41,7 @@ import { queueItemRouter } from "@/src/features/annotation-queues/server/annotat
 import { experimentsRouter } from "@/src/features/experiments/server/router";
 import { mediaRouter } from "@/src/server/api/routers/media";
 import { backgroundMigrationsRouter } from "@/src/features/background-migrations/server/background-migrations-router";
+import { instanceUsageRouter } from "@/src/features/instance-usage/server/instanceUsageRouter";
 import { auditLogsRouter } from "./routers/auditLogs";
 import { tableRouter } from "@/src/features/table/server/tableRouter";
 import { batchActionRouter } from "@/src/features/batch-actions/server/batchActionRouter";
@@ -112,6 +113,7 @@ export const appRouter = createTRPCRouter({
   commentReactions: commentReactionsRouter,
   media: mediaRouter,
   backgroundMigrations: backgroundMigrationsRouter,
+  instanceUsage: instanceUsageRouter,
   auditLogs: auditLogsRouter,
   table: tableRouter,
   batchAction: batchActionRouter,

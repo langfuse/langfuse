@@ -23,6 +23,7 @@ import {
   ArrowUp,
   ArrowUp10,
   BadgeCheck,
+  ChartColumn,
   ChevronsUpDown,
   ChevronDownIcon,
   ExternalLink,
@@ -65,6 +66,7 @@ import {
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
+import { isInstanceUsageAvailable } from "@/src/features/instance-usage/lib/availability";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
 import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
@@ -656,6 +658,14 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
             Releases
           </Link>
         </DropdownMenuItem>
+        {isInstanceUsageAvailable() && (
+          <DropdownMenuItem asChild>
+            <Link href="/instance-usage">
+              <ChartColumn size={16} className="mr-2" />
+              Usage
+            </Link>
+          </DropdownMenuItem>
+        )}
         {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
