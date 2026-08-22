@@ -100,6 +100,67 @@ jobs:
               - 'packages/shared/src/server/llm/**'
               - 'worker/src/__tests__/llmConnections.test.ts'
 
+  # Resolves the deploy-mode fan-out for tests-web and tests-worker. The
+  # -azure and -redis-cluster shards replay both suites end to end against a
+  # different blob store and Redis topology, which triples the cost of the two
+  # most expensive jobs in this pipeline (~$600/month, of which ~$400 is spent
+  # on pull requests) for a narrow slice of extra coverage. Non-PR events
+  # (merge queue, main, v3, tags) always run all three modes, so nothing lands
+  # untested; pull requests pay for the extra modes only when they touch the
+  # code those modes exercise. About 1 in 8 commits does, so most PRs go from
+  # six mode shards to two. This job costs ~10s of wall clock ahead of the two
+  # test jobs, which fits inside test-docker-build's runtime.
+  deploy-mode-filter:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      modes: ${{ steps.select.outputs.modes }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          # Recommended for paths-filter action
+          # may save additional git fetch roundtrip if
+          # merge-base is found within latest N commits
+          fetch-depth: 20
+          persist-credentials: false
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        if: github.event_name == 'pull_request'
+        id: filter
+        with:
+          filters: |
+            # pnpm-lock.yaml is deliberately absent: a lockfile-only change
+            # means a transitive bump, and adding it would run the full matrix
+            # on every dependency PR. Direct bumps of @azure/storage-blob,
+            # ioredis, and bullmq all touch one of the manifests below, and the
+            # merge queue runs all three modes regardless.
+            deploy_modes:
+              - '.github/workflows/pipeline.yml'
+              - '.env.dev*.example'
+              - 'docker-compose.dev*.yml'
+              - 'packages/shared/src/env.ts'
+              - 'packages/shared/src/server/redis/**'
+              - 'packages/shared/src/server/queues.ts'
+              - 'packages/shared/src/server/services/StorageService*'
+              - 'packages/shared/package.json'
+              - 'worker/src/env.ts'
+              - 'worker/package.json'
+              - 'web/package.json'
+      - id: select
+        # Anything that is not a pull request runs the full matrix, including
+        # the merge queue that gates main.
+        env:
+          ALL_MODES: ${{ github.event_name != 'pull_request' || steps.filter.outputs.deploy_modes == 'true' }}
+        run: |
+          if [[ "$ALL_MODES" == "true" ]]; then
+            echo 'modes=["", "-azure", "-redis-cluster"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'modes=[""]' >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
     timeout-minutes: 12
     runs-on: blacksmith-8vcpu-ubuntu-2404
@@ -558,9 +619,10 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - pre-job
+      - deploy-mode-filter
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # at run creation, so only deploy-mode-filter (~10s) gates this job
+    # (!cancelled() lets the condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
@@ -569,7 +631,10 @@ jobs:
       matrix:
         node-version: [24]
         postgres-version: [15]
-        deploy-mode: ["", "-azure", "-redis-cluster"]
+        # ["", "-azure", "-redis-cluster"] on every non-PR event and on PRs
+        # that touch blob storage, Redis, or queue config; [""] otherwise.
+        # See the deploy-mode-filter job for the reasoning.
+        deploy-mode: ${{ fromJSON(needs.deploy-mode-filter.outputs.modes) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -613,6 +678,8 @@ jobs:
         run: |
           pnpm install
       - name: Load default env
+        env:
+          DEPLOY_MODE: ${{ matrix.deploy-mode }}
         run: |
           write_test_env() {
             {
@@ -632,7 +699,7 @@ jobs:
           # Compile once under the default test environment. Next's generate
           # phase below reapplies the mode-specific config and prerendering.
           write_test_env .env.dev.example .env
-          write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
+          write_test_env ".env.dev${DEPLOY_MODE}.example" .env.runtime
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
@@ -648,8 +715,9 @@ jobs:
         # Independent of the build, so let the build overlap the ~15-20s
         # container startup. "Wait for dev containers" collects the result.
         run: |
-          (set +e; docker compose --env-file .env.runtime -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+          (set +e; docker compose --env-file .env.runtime -f "docker-compose.dev${DEPLOY_MODE}.yml" up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
         env:
+          DEPLOY_MODE: ${{ matrix.deploy-mode }}
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Build
         run: pnpm turbo run build:test
@@ -666,11 +734,13 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
+        env:
+          DEPLOY_MODE: ${{ matrix.deploy-mode }}
         run: |
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
             || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
-          docker compose --env-file .env.runtime -f docker-compose.dev${{ matrix.deploy-mode }}.yml ps
+          docker compose --env-file .env.runtime -f "docker-compose.dev${DEPLOY_MODE}.yml" ps
           exit "$(cat /tmp/compose-up.exit)"
       - name: Migrate DB
         run: |
@@ -766,9 +836,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
+      - deploy-mode-filter
     # pre-job only runs on push events; everywhere else it resolves as skipped
-    # at run creation, so this job starts immediately (!cancelled() lets the
-    # condition evaluate despite the skipped dependency).
+    # at run creation, so only deploy-mode-filter (~10s) gates this job
+    # (!cancelled() lets the condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     env:
@@ -777,7 +848,8 @@ jobs:
       matrix:
         node-version: [24]
         postgres-version: [15]
-        deploy-mode: ["", "-azure", "-redis-cluster"]
+        # Same fan-out rule as tests-web; see the deploy-mode-filter job.
+        deploy-mode: ${{ fromJSON(needs.deploy-mode-filter.outputs.modes) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -816,15 +888,18 @@ jobs:
           sudo mv migrate /usr/bin/migrate
           which migrate
       - name: Load default env
+        env:
+          DEPLOY_MODE: ${{ matrix.deploy-mode }}
         run: |
-          cp .env.dev${{ matrix.deploy-mode }}.example .env
-          cp .env.dev${{ matrix.deploy-mode }}.example web/.env
-          cp .env.dev${{ matrix.deploy-mode }}.example worker/.env
+          cp ".env.dev${DEPLOY_MODE}.example" .env
+          cp ".env.dev${DEPLOY_MODE}.example" web/.env
+          cp ".env.dev${DEPLOY_MODE}.example" worker/.env
       - name: Run + migrate
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
+          docker compose -f "docker-compose.dev${DEPLOY_MODE}.yml" up -d --wait --wait-timeout 180
           docker compose ps
         env:
+          DEPLOY_MODE: ${{ matrix.deploy-mode }}
           # Only start the extra floci container for default worker tests to avoid overhead elsewhere.
           COMPOSE_PROFILES: ${{ matrix.deploy-mode == '' && 'worker-tests' || '' }}
       - name: Ensure no unhealthy status
