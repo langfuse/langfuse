@@ -13,7 +13,8 @@ import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
-import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+// PROTOTYPE(LFE-15038): required-action factory replacing createAuthedProjectAPIRoute
+import { createAuthorizedProjectAPIRoute } from "@/src/features/auth/policy/apiAdapter.prototype";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   createIngestionAttribution,
@@ -36,8 +37,9 @@ import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecation
 
 export default withMiddlewares(
   {
-    POST: createAuthedProjectAPIRoute({
+    POST: createAuthorizedProjectAPIRoute({
       name: "Create Trace (Legacy)",
+      action: "traces:create",
       bodySchema: PostTracesV1Body,
       responseSchema: PostTracesV1Response, // Adjust this if you have a specific response schema
       rateLimitResource: "legacy-ingestion",
@@ -76,8 +78,9 @@ export default withMiddlewares(
       },
     }),
 
-    GET: createAuthedProjectAPIRoute({
+    GET: createAuthorizedProjectAPIRoute({
       name: "Get Traces",
+      action: "traces:read",
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
@@ -194,8 +197,9 @@ export default withMiddlewares(
       },
     }),
 
-    DELETE: createAuthedProjectAPIRoute({
+    DELETE: createAuthorizedProjectAPIRoute({
       name: "Delete Multiple Traces",
+      action: "traces:delete",
       bodySchema: DeleteTracesV1Body,
       responseSchema: DeleteTracesV1Response,
       rateLimitResource: "trace-delete",

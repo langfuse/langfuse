@@ -33,26 +33,30 @@ type Wildcard = typeof wildcard;
 type SystemRule = "ingestion_suspended" | "mcp_disabled";
 
 /** systemRuleMessages maps each system deny rule to the 403 message its endpoint throws. */
-const systemRuleMessages: Record<SystemRule, string> = {
+export const systemRuleMessages: Record<SystemRule, string> = {
   ingestion_suspended:
     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
   mcp_disabled:
     "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
 };
 
-/** PendingProjectApiAction holds net-new project-level public-API tokens absent from projectScopes. */
-export type PendingProjectApiAction =
-  | "traces:read"
-  | "traces:create"
-  | "scores:read"
-  | "scores:create"
-  | "media:create"
-  | "sessions:read"
-  | "metrics:read"
-  | "models:read"
-  | "experiments:read"
-  | "projects:read"
-  | "mcp:access";
+/** pendingProjectApiActions holds net-new project-level public-API tokens absent from projectScopes. */
+export const pendingProjectApiActions = [
+  "traces:read",
+  "traces:create",
+  "scores:read",
+  "scores:create",
+  "media:create",
+  "sessions:read",
+  "metrics:read",
+  "models:read",
+  "experiments:read",
+  "projects:read",
+  "mcp:access",
+] as const;
+
+/** PendingProjectApiAction is a net-new project-level public-API token. */
+export type PendingProjectApiAction = (typeof pendingProjectApiActions)[number];
 
 /** ProjectAction is an action assignable to a project policy. */
 export type ProjectAction = ProjectScope | PendingProjectApiAction | Wildcard;
@@ -264,9 +268,18 @@ const survives = (
     return granted.some((id) => !denied.has(id));
   });
 
-/** hasAction matches a policy granting the action, explicitly or by wildcard. */
+/** hasAction matches a policy granting the action explicitly, or by wildcard within the policy kind's own vocabulary. */
 const hasAction = (action: Action) => (p: Policy) =>
-  p.actions.some((a) => a === wildcard || a === action);
+  p.actions.some((a) => a === action) ||
+  (p.actions.some((a) => a === wildcard) && kindVocabularyHas(p.kind, action));
+
+/** kindVocabularyHas reports whether action belongs to the policy kind's vocabulary, so a wildcard never grants across kinds. */
+const kindVocabularyHas = (kind: Policy["kind"], action: Action): boolean =>
+  action === wildcard ||
+  (kind === "organization"
+    ? (organizationScopes as readonly string[]).includes(action)
+    : (projectScopes as readonly string[]).includes(action) ||
+      (pendingProjectApiActions as readonly string[]).includes(action));
 
 /** hasEffect matches a policy of the given effect. */
 const hasEffect = (effect: Policy["effect"]) => (p: Policy) =>
@@ -431,10 +444,13 @@ if (import.meta.vitest) {
   });
 
   describe("authorize — admin wildcard has no PDP branch", () => {
-    const admin = ctx([allowOrg([wildcard], [wildcard])], {
-      kind: "admin",
-      userId: null,
-    });
+    const admin = ctx(
+      [allowOrg([wildcard], [wildcard]), allowProject([wildcard], [wildcard])],
+      {
+        kind: "admin",
+        userId: null,
+      },
+    );
     it("admin allows any project action", () => {
       expect(authorize(admin, "prompts:read", { projectId: "y" }).success).toBe(
         true,

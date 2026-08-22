@@ -1,4 +1,5 @@
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
+import type { AuthorizationContext } from "@/src/features/auth/policy/policy.prototype";
 import type { McpToolName } from "./server/bootstrap";
 
 /**
@@ -63,6 +64,9 @@ export interface ServerContext {
 
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
+
+  /** PROTOTYPE(LFE-15038): resolved authorization context for per-tool action asserts; optional only until every entry point attaches it. */
+  authz?: AuthorizationContext;
 }
 
 /** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */

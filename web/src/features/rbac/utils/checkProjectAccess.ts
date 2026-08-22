@@ -3,6 +3,12 @@ import { type Role } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
+// PROTOTYPE(LFE-15038): policy-core overload, proven unambiguous by typecheck
+import {
+  mustAuthorize,
+  type AuthorizationContext,
+  type ProjectAction,
+} from "@/src/features/auth/policy/policy.prototype";
 import { hasOwnRole } from "./hasOwnRole";
 
 type HasProjectAccessParams = (
@@ -22,7 +28,15 @@ type HasProjectAccessParams = (
  * Check if user has access to the given scope, for use in TRPC resolvers
  * @throws TRPCError("FORBIDDEN") if user does not have access
  */
-export const throwIfNoProjectAccess = (p: HasProjectAccessParams) => {
+export function throwIfNoProjectAccess(p: HasProjectAccessParams): void;
+export function throwIfNoProjectAccess(p: PolicyProjectAccessParams): void;
+export function throwIfNoProjectAccess(
+  p: HasProjectAccessParams | PolicyProjectAccessParams,
+): void {
+  if ("context" in p) {
+    mustAuthorize(p.context, p.action, { projectId: p.projectId });
+    return;
+  }
   if (!hasProjectAccess(p))
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -30,6 +44,13 @@ export const throwIfNoProjectAccess = (p: HasProjectAccessParams) => {
         p.forbiddenErrorMessage ??
         "User does not have access to this resource or action",
     });
+}
+
+/** PolicyProjectAccessParams is the policy-core call shape the RFC adds beside the session shape. */
+type PolicyProjectAccessParams = {
+  context: AuthorizationContext;
+  projectId: string;
+  action: ProjectAction;
 };
 
 /**

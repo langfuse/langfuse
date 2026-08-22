@@ -1,9 +1,10 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+// PROTOTYPE(LFE-15038): legacy accessLevel gate replaced by enforceOrgAuth
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
+import { BaseError } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
+import { enforceOrgAuth } from "@/src/features/auth/policy/apiAdapter.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -23,32 +24,25 @@ export default async function handler(
     });
   }
 
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      error: authCheck.error,
-    });
-  }
-  // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      error:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-    });
+  let orgId: string;
+  let scope;
+  try {
+    // one call: 401 on bad credential, 400 on missing/disagreeing org target,
+    // 404 outside the grant, 403 when no policy covers projects:read on the org
+    ({ orgId, scope } = await enforceOrgAuth({
+      headers: req.headers,
+      action: "projects:read",
+    }));
+  } catch (error) {
+    if (error instanceof BaseError) {
+      return res.status(error.httpCode).json({ error: error.message });
+    }
+    throw error;
   }
 
   if (
     !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
+      plan: scope.plan,
       entitlement: "admin-api",
     })
   ) {
@@ -58,16 +52,15 @@ export default async function handler(
   }
 
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
-    authCheck.scope,
+    scope,
     "public-api",
   );
   if (rateLimitCheck?.isRateLimited()) {
     return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
-  // Route to the appropriate handler based on HTTP method
   try {
-    return handleGetProjects(req, res, authCheck.scope.orgId);
+    return handleGetProjects(req, res, orgId);
   } catch (error) {
     logger.error(
       `Error handling organization projects for ${req.method}`,

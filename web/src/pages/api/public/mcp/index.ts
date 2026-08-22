@@ -33,16 +33,11 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { addUserToSpan, logger } from "@langfuse/shared/src/server";
+// PROTOTYPE(LFE-15038): fused auth + mcp:access assert; suspension arrives as the mcp_disabled system deny
+import { enforceProjectAuth } from "@/src/features/auth/policy/apiAdapter.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  BaseError,
-  UnauthorizedError,
-  ForbiddenError,
-  safeJsonParse,
-} from "@langfuse/shared";
+import { BaseError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
@@ -83,47 +78,26 @@ export default async function handler(
       return;
     }
 
-    // Authenticate request using BasicAuth (Public Key:Secret Key)
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+    // one call: 401 on bad credential, 400 without a project target (org
+    // keys), 403 from the mcp_disabled system deny with today's message
+    const { context: authz, scope, projectId } = await enforceProjectAuth({
+      headers: req.headers,
+      action: "mcp:access",
       allowInAppAgentKey: true,
     });
 
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
-    }
-
-    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
-      throw new ForbiddenError(
-        "Access denied: MCP requires project-scoped API keys with BasicAuth",
-      );
-    }
-
     addUserToSpan({
-      apiKeyId: authCheck.scope.apiKeyId,
-      publicKey: authCheck.scope.publicKey,
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
-      plan: authCheck.scope.plan,
+      apiKeyId: scope.apiKeyId,
+      publicKey: scope.publicKey,
+      projectId,
+      orgId: scope.orgId,
+      plan: scope.plan,
     });
-
-    // Check if ingestion is suspended due to usage limits
-    if (authCheck.scope.isIngestionSuspended) {
-      throw new ForbiddenError(
-        "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
-      );
-    }
 
     // Rate limit MCP requests
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
+        scope,
         "public-api",
       );
 
@@ -135,16 +109,17 @@ export default async function handler(
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
+      projectId,
+      orgId: scope.orgId,
       userId: undefined, // API keys don't have associated users
-      apiKeyId: authCheck.scope.apiKeyId,
+      apiKeyId: scope.apiKeyId,
       accessLevel: "project",
-      publicKey: authCheck.scope.publicKey,
-      plan: authCheck.scope.plan,
-      rateLimitOverrides: authCheck.scope.rateLimitOverrides,
+      publicKey: scope.publicKey,
+      plan: scope.plan,
+      rateLimitOverrides: scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
-      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
+      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
+      authz,
     };
 
     logger.debug("MCP request authenticated", {

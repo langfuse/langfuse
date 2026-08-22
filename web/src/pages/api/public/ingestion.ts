@@ -3,7 +3,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
   traceException,
-  redis,
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
@@ -15,15 +14,14 @@ import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import {
-  MethodNotAllowedError,
-  BaseError,
-  UnauthorizedError,
-  ForbiddenError,
-} from "@langfuse/shared";
+import { MethodNotAllowedError, BaseError } from "@langfuse/shared";
 import { processEventBatch } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+// PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
+import { authenticate } from "@/src/features/auth/policy/apiAdapter.prototype";
+import {
+  enforceIngestionAuthz,
+  getProjectId,
+} from "@/src/features/auth/policy/enforce.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -79,33 +77,17 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
-    }
-    if (!authCheck.scope.projectId) {
-      throw new UnauthorizedError(
-        "Missing projectId in scope. Are you using an organization key?",
-      );
-    }
-    const projectId = authCheck.scope.projectId;
+    // authentication: 401 on bad credential; suspension is no longer a flag
+    // check here — it arrives as a system deny policy asserted on the batch
+    const { context, scope } = await authenticate(req.headers);
+    const projectId = getProjectId(context, req.headers);
     projectIdForIngestFailure = projectId;
-
-    if (authCheck.scope.isIngestionSuspended) {
-      throw new ForbiddenError(
-        "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
-      );
-    }
+    const authCheck = { validKey: true as const, scope };
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId,
-      apiKeyId: authCheck.scope.apiKeyId,
+      apiKeyId: scope.apiKeyId,
       clickhouse: {
         surface: "publicapi",
         route: clickHouseRouteForRequest(req),
@@ -147,6 +129,15 @@ export default async function handler(
 
         await telemetry();
 
+        // authorization: a system deny (suspension) throws the whole-request
+        // 403 with today's message; a grant deny rejects per event (207)
+        const { allowedBatch, rejectedEvents: authzRejections } =
+          enforceIngestionAuthz({
+            context,
+            headers: req.headers,
+            batch: parsedSchema.data.batch,
+          });
+
         // V4 events_only mode: refuse trace/observation events because their
         // writes would land in the legacy ClickHouse tables this deployment no
         // longer reads. Scores and SDK logs are unaffected and pass through.
@@ -154,7 +145,7 @@ export default async function handler(
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
-          parsedSchema.data.batch,
+          allowedBatch,
           isEventsOnlyMode,
         );
 
@@ -176,8 +167,8 @@ export default async function handler(
         const result = await processEventBatch(batchForProcessing, authCheck, {
           attribution,
         });
-        if (rejectedErrors.length > 0) {
-          result.errors = [...result.errors, ...rejectedErrors];
+        if (rejectedErrors.length > 0 || authzRejections.length > 0) {
+          result.errors = [...result.errors, ...rejectedErrors, ...authzRejections];
         }
         return res.status(207).json(result);
       } catch (error) {
