@@ -79,6 +79,17 @@ export const AnnotationQueueItemPage: React.FC<{
     { projectId, itemId: itemId as string },
     { enabled: !!itemId && sessionLoaded, refetchOnMount: false },
   );
+  const itemNavigation = api.annotationQueueItems.navigationById.useQuery(
+    {
+      queueId: annotationQueueId,
+      projectId,
+      itemId: queryItemId as string,
+    },
+    {
+      enabled: isSingleItem && !!queryItemId && sessionLoaded,
+      refetchOnWindowFocus: false,
+    },
+  );
 
   const fetchAndLockNextMutation =
     api.annotationQueues.fetchAndLockNext.useMutation();
@@ -107,7 +118,7 @@ export const AnnotationQueueItemPage: React.FC<{
         projectId,
         seenItemIds,
       },
-      { refetchOnWindowFocus: false },
+      { enabled: !isSingleItem, refetchOnWindowFocus: false },
     );
 
   const utils = api.useUtils();
@@ -179,15 +190,50 @@ export const AnnotationQueueItemPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relevantItem]);
 
-  const isNextItemAvailable = totalItems > progressIndex + 1;
+  const isNextItemAvailable = isSingleItem
+    ? Boolean(itemNavigation.data?.nextItemId)
+    : totalItems > progressIndex + 1;
+  const isPreviousItemAvailable = isSingleItem
+    ? Boolean(itemNavigation.data?.previousItemId)
+    : progressIndex > 0;
+  const displayedPosition = isSingleItem
+    ? (itemNavigation.data?.position ?? 1)
+    : progressIndex + 1;
+  const displayedTotalItems = isSingleItem
+    ? (itemNavigation.data?.totalItems ?? 1)
+    : totalItems;
   const isPending = relevantItem?.status === AnnotationQueueStatus.PENDING;
 
   // LFE-7628 — keyboard-first navigation/completion.
   const handleNavigateBack = useCallback(() => {
+    if (isSingleItem) {
+      const previousItemId = itemNavigation.data?.previousItemId;
+      if (!previousItemId) return;
+      router.push({
+        pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${previousItemId}`,
+        query: { singleItem: "true" },
+      });
+      return;
+    }
     setProgressIndex((prev) => prev - 1);
-  }, []);
+  }, [
+    annotationQueueId,
+    isSingleItem,
+    itemNavigation.data?.previousItemId,
+    projectId,
+    router,
+  ]);
 
   const handleNavigateNext = useCallback(async () => {
+    if (isSingleItem) {
+      const nextItemId = itemNavigation.data?.nextItemId;
+      if (!nextItemId) return;
+      await router.push({
+        pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${nextItemId}`,
+        query: { singleItem: "true" },
+      });
+      return;
+    }
     if (progressIndex >= seenItemIds.length - 1) {
       const nextItem = await fetchAndLockNextMutation.mutateAsync({
         queueId: annotationQueueId,
@@ -198,7 +244,15 @@ export const AnnotationQueueItemPage: React.FC<{
     }
     setProgressIndex(Math.max(progressIndex + 1, 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progressIndex, seenItemIds, annotationQueueId, projectId]);
+  }, [
+    progressIndex,
+    seenItemIds,
+    annotationQueueId,
+    projectId,
+    isSingleItem,
+    itemNavigation.data?.nextItemId,
+    router,
+  ]);
 
   const handleComplete = useCallback(async () => {
     if (!relevantItem) return;
@@ -360,7 +414,8 @@ export const AnnotationQueueItemPage: React.FC<{
   if (
     (seenItemData.isPending && itemId) ||
     (fetchAndLockNextMutation.isPending && !itemId) ||
-    unseenPendingItemCount.isPending ||
+    (!isSingleItem && unseenPendingItemCount.isPending) ||
+    (isSingleItem && itemNavigation.isPending) ||
     objectData.isLoading ||
     (!sessionLoaded && !isSingleItem)
   ) {
@@ -431,17 +486,19 @@ export const AnnotationQueueItemPage: React.FC<{
         {renderContent()}
       </div>
       <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
-        {!isSingleItem && (
+        {(!isSingleItem || itemNavigation.data) && (
           <div className="flex max-h-10 flex-row items-center gap-2">
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
-              {progressIndex + 1} / {totalItems}
+              {displayedPosition} / {displayedTotalItems}
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   onClick={handleNavigateBack}
                   variant="outline"
-                  disabled={progressIndex === 0 || !hasAccess}
+                  disabled={
+                    !isPreviousItemAvailable || (!isSingleItem && !hasAccess)
+                  }
                   size="lg"
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
@@ -451,46 +508,54 @@ export const AnnotationQueueItemPage: React.FC<{
                   aria-label="Previous item"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <KeyboardShortcut>←</KeyboardShortcut>
+                  {!isSingleItem && <KeyboardShortcut>←</KeyboardShortcut>}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <span>Previous item</span>
-                <KeyboardShortcut className="ml-2">←</KeyboardShortcut>
+                {!isSingleItem && (
+                  <KeyboardShortcut className="ml-2">←</KeyboardShortcut>
+                )}
               </TooltipContent>
             </Tooltip>
-            {/* Shortcut legend so annotators can discover keyboard-first flow */}
-            <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
-              <KeyboardShortcut
-                className="h-4 px-1 text-[9px]"
-                keys={[modLabel, "↵"]}
-              />
-              complete + next ·
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                →
-              </KeyboardShortcut>
-              skip
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowShortcuts(true)}
-              className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
-              aria-label="Show keyboard shortcuts"
-            >
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                ?
-              </KeyboardShortcut>
-              shortcuts
-            </button>
+            {!isSingleItem && (
+              <>
+                {/* Shortcut legend so annotators can discover keyboard-first flow */}
+                <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
+                  <KeyboardShortcut
+                    className="h-4 px-1 text-[9px]"
+                    keys={[modLabel, "↵"]}
+                  />
+                  complete + next ·
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    →
+                  </KeyboardShortcut>
+                  skip
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowShortcuts(true)}
+                  className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
+                  aria-label="Show keyboard shortcuts"
+                >
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    ?
+                  </KeyboardShortcut>
+                  shortcuts
+                </button>
+              </>
+            )}
           </div>
         )}
         <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
-          {!isSingleItem && (
+          {(!isSingleItem || itemNavigation.data) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   onClick={handleNavigateNext}
-                  disabled={!isNextItemAvailable || !hasAccess}
+                  disabled={
+                    !isNextItemAvailable || (!isSingleItem && !hasAccess)
+                  }
                   size="lg"
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
@@ -499,15 +564,17 @@ export const AnnotationQueueItemPage: React.FC<{
                       "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
                   )}
                   variant="outline"
-                  aria-label="Skip to next item"
+                  aria-label={isSingleItem ? "Next item" : "Skip to next item"}
                 >
                   <ArrowRight className="h-4 w-4" />
-                  <KeyboardShortcut>→</KeyboardShortcut>
+                  {!isSingleItem && <KeyboardShortcut>→</KeyboardShortcut>}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <span>Skip to next item</span>
-                <KeyboardShortcut className="ml-2">→</KeyboardShortcut>
+                <span>{isSingleItem ? "Next item" : "Skip to next item"}</span>
+                {!isSingleItem && (
+                  <KeyboardShortcut className="ml-2">→</KeyboardShortcut>
+                )}
               </TooltipContent>
             </Tooltip>
           )}

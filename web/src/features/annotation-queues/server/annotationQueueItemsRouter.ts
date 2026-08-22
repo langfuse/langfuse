@@ -250,6 +250,60 @@ export const queueItemRouter = createTRPCRouter({
         totalItems,
       };
     }),
+  navigationById: protectedProjectProcedure
+    .input(
+      z.object({
+        queueId: z.string(),
+        projectId: z.string(),
+        itemId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:read",
+      });
+
+      const [navigation] = await ctx.prisma.$queryRaw<
+        Array<{
+          previousItemId: string | null;
+          nextItemId: string | null;
+          position: bigint;
+          totalItems: bigint;
+        }>
+      >(Prisma.sql`
+        SELECT
+          ordered."previousItemId",
+          ordered."nextItemId",
+          ordered.position,
+          ordered."totalItems"
+        FROM (
+          SELECT
+            aqi.id,
+            LAG(aqi.id) OVER queue_order AS "previousItemId",
+            LEAD(aqi.id) OVER queue_order AS "nextItemId",
+            ROW_NUMBER() OVER queue_order AS position,
+            COUNT(*) OVER () AS "totalItems"
+          FROM annotation_queue_items aqi
+          WHERE
+            aqi.project_id = ${input.projectId}
+            AND aqi.queue_id = ${input.queueId}
+          WINDOW queue_order AS (
+            ORDER BY aqi.created_at ASC, aqi.object_id ASC, aqi.object_type ASC
+          )
+        ) ordered
+        WHERE ordered.id = ${input.itemId}
+      `);
+
+      return navigation
+        ? {
+            ...navigation,
+            position: Number(navigation.position),
+            totalItems: Number(navigation.totalItems),
+          }
+        : null;
+    }),
   unseenPendingItemCountByQueueId: protectedProjectProcedure
     .input(
       z.object({
