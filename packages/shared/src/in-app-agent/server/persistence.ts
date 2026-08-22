@@ -40,6 +40,7 @@ import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
   type CompletedInAppAgentMcpToolCall,
+  getInAppAgentSilentMcpOutputFilePath,
   getPublicInAppAgentMcpToolResultContent,
   getSandboxInAppAgentMcpToolResultContent,
 } from "./toolResults";
@@ -325,7 +326,10 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(
+        draft?.toolName ?? toolCall.toolName,
+        toolCall.toolCallId,
+      ),
       content: JSON.stringify(
         {
           request: draft
@@ -400,7 +404,7 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(draft.toolName, toolCallId),
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
@@ -1490,10 +1494,6 @@ function parseSandboxToolCallValue(
 
   const parsed = safeJsonParse(value);
   return parsed === undefined ? value : parsed;
-}
-
-function formatSandboxToolCallTimestamp(date: Date) {
-  return date.toISOString().replaceAll(":", "-");
 }
 
 function getDefaultConversationTitle(date: Date) {
