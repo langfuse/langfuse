@@ -1808,6 +1808,109 @@ export async function getDatasetItemsCount(props: {
   });
 }
 
+/**
+ * Counts dataset items whose input contains each prompt variable, without
+ * transferring item IO to the Node process.
+ *
+ * Must stay aligned with `validateDatasetItem` in
+ * `packages/shared/src/features/experiments/utils.ts`:
+ * - object inputs: top-level key presence (`variable in input`)
+ * - string inputs: counted only when there is exactly one variable
+ * - arrays, null, empty string: not counted
+ *
+ * Used by `experiments.validateConfig`, which previously loaded every item's
+ * input/output/metadata into memory and 500'd on large datasets.
+ */
+export async function countDatasetItemVariableMatches(props: {
+  projectId: string;
+  filterState: FilterState;
+  variables: string[];
+  version?: Date;
+}): Promise<Record<string, number>> {
+  if (props.variables.length === 0) {
+    return {};
+  }
+
+  return executeWithDatasetServiceStrategy(OperationType.READ, {
+    [Implementation.STATEFUL]: async () =>
+      countDatasetItemVariableMatchesInternal({
+        ...props,
+        version: undefined,
+      }),
+    [Implementation.VERSIONED]: async () =>
+      countDatasetItemVariableMatchesInternal(props),
+  });
+}
+
+async function countDatasetItemVariableMatchesInternal(params: {
+  projectId: string;
+  filterState: FilterState;
+  variables: string[];
+  version?: Date;
+}): Promise<Record<string, number>> {
+  const filterCondition = tableColumnsToSqlFilterAndPrefix(
+    params.filterState,
+    datasetItemsFilterCols,
+    "dataset_item_events",
+  );
+
+  const versionCondition = params.version
+    ? Prisma.sql`
+        AND di.valid_from <= ${params.version}
+        AND (di.valid_to IS NULL OR di.valid_to > ${params.version})
+      `
+    : Prisma.sql`AND di.valid_to IS NULL`;
+
+  const variableList = Prisma.join(
+    params.variables.map((variable) => Prisma.sql`${variable}`),
+  );
+
+  const objectKeyCounts = await prisma.$queryRaw<
+    Array<{ obj_key: string; count: bigint }>
+  >(Prisma.sql`
+    SELECT obj_key, COUNT(*)::bigint AS count
+    FROM dataset_items di
+    CROSS JOIN LATERAL jsonb_object_keys(di.input::jsonb) AS obj_key
+    WHERE di.project_id = ${params.projectId}
+      AND di.is_deleted = false
+      AND di.input IS NOT NULL
+      AND jsonb_typeof(di.input::jsonb) = 'object'
+      AND obj_key IN (${variableList})
+      ${versionCondition}
+      ${filterCondition}
+    GROUP BY obj_key
+  `);
+
+  const variablesMap: Record<string, number> = {};
+  for (const row of objectKeyCounts) {
+    variablesMap[row.obj_key] = Number(row.count);
+  }
+
+  if (params.variables.length === 1) {
+    const variable = params.variables[0];
+    const stringCounts = await prisma.$queryRaw<Array<{ count: bigint }>>(
+      Prisma.sql`
+        SELECT COUNT(*)::bigint AS count
+        FROM dataset_items di
+        WHERE di.project_id = ${params.projectId}
+          AND di.is_deleted = false
+          AND di.input IS NOT NULL
+          AND jsonb_typeof(di.input::jsonb) = 'string'
+          AND coalesce(di.input #>> '{}', '') <> ''
+          ${versionCondition}
+          ${filterCondition}
+      `,
+    );
+    const stringCount =
+      stringCounts.length > 0 ? Number(stringCounts[0].count) : 0;
+    if (stringCount > 0) {
+      variablesMap[variable] = (variablesMap[variable] ?? 0) + stringCount;
+    }
+  }
+
+  return variablesMap;
+}
+
 export async function getDatasetItemsCountGrouped(props: {
   projectId: string;
   datasetIds: string[];
