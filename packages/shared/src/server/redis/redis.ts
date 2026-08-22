@@ -34,14 +34,24 @@ const defaultRedisOptions: Partial<RedisOptions> = {
 
 const REDIS_SCAN_COUNT = 1000;
 
+// Logs the first occurrence of a reconnect error message, then suppresses
+// repeats of the identical message for a while. During an outage every queue
+// connection fails with the same message in lockstep, and logging each
+// occurrence only adds noise; distinct messages are still logged immediately.
+let lastReconnectErrorLog: { message: string; at: number } | undefined;
+const REDIS_RECONNECT_ERROR_LOG_INTERVAL_MS = 60_000;
+
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
     if (times >= 5) {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Waits at least 1s and at most 20s between retries.
-    return Math.max(Math.min(Math.exp(times), 20000), 1000);
+    // Retries forever. Waits at least 1s and at most 20s between retries,
+    // plus up to 50% jitter so the per-queue connections do not reconnect in
+    // lockstep when Redis becomes unreachable.
+    const delay = Math.max(Math.min(Math.exp(times), 20000), 1000);
+    return delay + Math.random() * delay * 0.5;
   },
   reconnectOnError: (err) => {
     // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.
@@ -51,7 +61,15 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
     }
 
     // Reconnects on READONLY errors and auto-retries the command.
-    logger.warn(`Redis connection error: ${err.message}`);
+    const now = Date.now();
+    if (
+      !lastReconnectErrorLog ||
+      lastReconnectErrorLog.message !== err.message ||
+      now - lastReconnectErrorLog.at >= REDIS_RECONNECT_ERROR_LOG_INTERVAL_MS
+    ) {
+      logger.warn(`Redis connection error: ${err.message}`);
+      lastReconnectErrorLog = { message: err.message, at: now };
+    }
     return err.message.includes("READONLY") ? 2 : false;
   },
 };
