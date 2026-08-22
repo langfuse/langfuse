@@ -32,6 +32,29 @@ type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
 };
 
+const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
+
+/**
+ * Public keys are read straight out of a client-controlled Authorization header
+ * via `atob`, so on the paths where the key was not found in the database they
+ * may be arbitrary bytes. The text log formatter interpolates `message`
+ * verbatim, so an unsanitized value lets an unauthenticated caller forge log
+ * lines with a newline, or drive an operator's terminal with an escape
+ * sequence (CWE-117).
+ *
+ * A real public key is printable ASCII (`pk-lf-` plus a UUID), so allow-list
+ * that range rather than enumerating the dangerous one: this covers C0
+ * controls, DEL, and the C1 range (`atob` maps byte 0x9B to U+009B, which
+ * `JSON.stringify` does not escape) in one rule. `JSON.stringify` then quotes
+ * the result and escapes any embedded quote or backslash.
+ */
+const sanitizeKeyForLog = (publicKey: string): string =>
+  JSON.stringify(
+    publicKey
+      .slice(0, MAX_LOGGED_PUBLIC_KEY_LENGTH)
+      .replace(/[^\x20-\x7e]/g, "\uFFFD"),
+  );
+
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | Cluster | null;
@@ -113,7 +136,9 @@ export class ApiAuthService {
               });
 
               if (!slowKey) {
-                logger.error("No key found for public key", publicKey);
+                logger.error(
+                  `No key found for public key: ${sanitizeKeyForLog(publicKey)}`,
+                );
                 if (this.redis) {
                   logger.info(
                     `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
@@ -151,14 +176,16 @@ export class ApiAuthService {
             }
 
             if (!finalApiKey) {
-              logger.info("No project id found for key", publicKey);
+              logger.info(
+                `No project id found for key: ${sanitizeKeyForLog(publicKey)}`,
+              );
               throw new Error("Invalid credentials");
             }
 
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
-              logger.error("Invalid plan type for key", finalApiKey.plan);
+              logger.error(`Invalid plan type for key: ${finalApiKey.plan}`);
               throw new Error("Invalid credentials");
             }
 
@@ -311,7 +338,9 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info("No api key found for public key:", publicKey);
+      logger.info(
+        `No api key found for public key: ${sanitizeKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
     }
     return dbKey;
