@@ -13,7 +13,6 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { organizationScopes } from "@/src/features/rbac/constants/organizationAccessRights";
 import {
   authorize,
@@ -23,10 +22,10 @@ import {
   type Action,
   type AuthorizationContext,
   type OrganizationAction,
-  type OrgProjectsRef,
   type Policy,
   type PrincipalOrganization,
   type ProjectAction,
+  type Resource,
 } from "./policy.prototype";
 
 /** projectIdHeader selects the target project for keys without a bound project. */
@@ -34,9 +33,6 @@ export const projectIdHeader = "x-langfuse-project-id";
 
 /** organizationIdHeader selects the target org for keys without a bound org. */
 export const organizationIdHeader = "x-langfuse-organization-id";
-
-/** adminApiKeyId is the sentinel apiKeyId the legacy admin-key auth path emits. */
-const adminApiKeyId = "ADMIN_API_KEY";
 
 /** ingestionActionByEventType maps each authorization-relevant ingestion event type to its action; sdk-log needs bare authentication only. */
 const ingestionActionByEventType: Record<string, ProjectAction> = {
@@ -172,112 +168,6 @@ export function getOrgId(
   return orgId;
 }
 
-/** resolveContextFromLegacyScope is the shadow-phase shim PIP: it derives the AuthorizationContext a legacy ApiAccessScope implies. */
-export function resolveContextFromLegacyScope(
-  scope: ApiAccessScope,
-  opts: { orgProjectIds?: string[] } = {},
-): AuthorizationContext {
-  if (scope.apiKeyId === adminApiKeyId) {
-    return {
-      principal: { kind: "admin", userId: null },
-      policies: [
-        {
-          kind: "organization",
-          source: { kind: "grant" },
-          actions: ["*"],
-          resources: ["*"],
-          effect: "allow",
-        },
-        {
-          kind: "project",
-          source: { kind: "grant" },
-          actions: ["*"],
-          resources: ["*"],
-          effect: "allow",
-        },
-      ],
-    };
-  }
-  const projectIds = scope.projectId
-    ? [scope.projectId]
-    : (opts.orgProjectIds ?? []);
-  const organization: PrincipalOrganization = {
-    orgId: scope.orgId,
-    plan: scope.plan,
-    rateLimitConfig: scope.rateLimitOverrides ?? [],
-    projectIds,
-  };
-  const projects: OrgProjectsRef = { orgId: scope.orgId, projectIds };
-  const grants: Policy[] =
-    scope.accessLevel === "organization"
-      ? [
-          {
-            kind: "organization",
-            source: { kind: "grant" },
-            actions: ["*"],
-            resources: [{ orgId: scope.orgId }],
-            effect: "allow",
-          },
-          // org keys reach org endpoints only; listing projects is one of them
-          {
-            kind: "project",
-            source: { kind: "grant" },
-            actions: ["projects:read"],
-            resources: [projects],
-            effect: "allow",
-          },
-        ]
-      : scope.accessLevel === "scores"
-        ? [
-            {
-              kind: "project",
-              source: { kind: "grant" },
-              actions: ["scores:create"],
-              resources: [projects],
-              effect: "allow",
-            },
-          ]
-        : [
-            {
-              kind: "project",
-              source: { kind: "grant" },
-              actions: ["*"],
-              resources: [projects],
-              effect: "allow",
-            },
-          ];
-  const denies: Policy[] = scope.isIngestionSuspended
-    ? [
-        {
-          kind: "project",
-          source: { kind: "system", rule: "ingestion_suspended" },
-          actions: ["traces:create", "scores:create", "media:create"],
-          resources: [projects],
-          effect: "deny",
-        },
-        {
-          kind: "project",
-          source: { kind: "system", rule: "mcp_disabled" },
-          actions: ["mcp:access"],
-          resources: [projects],
-          effect: "deny",
-        },
-      ]
-    : [];
-  return {
-    principal: {
-      kind: "apiKey",
-      apiKeyId: scope.apiKeyId,
-      userId: null,
-      organizations: [organization],
-      boundResource: scope.projectId
-        ? { projectId: scope.projectId }
-        : { orgId: scope.orgId },
-    },
-    policies: [...grants, ...denies],
-  };
-}
-
 /** isOrganizationAction narrows an action to the org vocabulary for overload selection. */
 const isOrganizationAction = (action: Action): action is OrganizationAction =>
   action === "*" ||
@@ -349,26 +239,103 @@ if (import.meta.vitest) {
   const PRJ = "prj_1";
   const OTHER_PRJ = "prj_2";
 
-  const scope = (overrides: Partial<ApiAccessScope> = {}): ApiAccessScope => ({
-    projectId: PRJ,
-    accessLevel: "project",
+  const organization = (projectIds: string[]): PrincipalOrganization => ({
     orgId: ORG,
     plan: "cloud:hobby",
-    rateLimitOverrides: [],
-    apiKeyId: "key_1",
-    publicKey: "pk-lf-1",
-    isIngestionSuspended: false,
-    ...overrides,
+    rateLimitConfig: [],
+    projectIds,
   });
 
-  const projectKey = () => resolveContextFromLegacyScope(scope());
-  const orgKey = (orgProjectIds = [PRJ, OTHER_PRJ]) =>
-    resolveContextFromLegacyScope(
-      scope({ projectId: null, accessLevel: "organization" }),
-      { orgProjectIds },
-    );
-  const adminKey = () =>
-    resolveContextFromLegacyScope(scope({ apiKeyId: adminApiKeyId }));
+  const grantProject = (
+    actions: ProjectAction[],
+    projectIds: string[],
+  ): Policy => ({
+    kind: "project",
+    source: { kind: "grant" },
+    actions,
+    resources: [{ orgId: ORG, projectIds }],
+    effect: "allow",
+  });
+
+  const suspensionDenies = (projectIds: string[]): Policy[] => [
+    {
+      kind: "project",
+      source: { kind: "system", rule: "ingestion_suspended" },
+      actions: ["traces:create", "scores:create", "media:create"],
+      resources: [{ orgId: ORG, projectIds }],
+      effect: "deny",
+    },
+    {
+      kind: "project",
+      source: { kind: "system", rule: "mcp_disabled" },
+      actions: ["mcp:access"],
+      resources: [{ orgId: ORG, projectIds }],
+      effect: "deny",
+    },
+  ];
+
+  const apiKey = (params: {
+    boundResource: Resource;
+    organizations: PrincipalOrganization[];
+    policies: Policy[];
+  }): AuthorizationContext => ({
+    principal: {
+      kind: "apiKey",
+      apiKeyId: "key_1",
+      userId: null,
+      organizations: params.organizations,
+      boundResource: params.boundResource,
+    },
+    policies: params.policies,
+  });
+
+  const projectKey = (policies: Policy[] = [grantProject(["*"], [PRJ])]) =>
+    apiKey({
+      boundResource: { projectId: PRJ },
+      organizations: [organization([PRJ])],
+      policies,
+    });
+
+  const orgKey = () =>
+    apiKey({
+      boundResource: { orgId: ORG },
+      organizations: [organization([PRJ, OTHER_PRJ])],
+      policies: [
+        {
+          kind: "organization",
+          source: { kind: "grant" },
+          actions: ["*"],
+          resources: [{ orgId: ORG }],
+          effect: "allow",
+        },
+        grantProject(["projects:read"], [PRJ, OTHER_PRJ]),
+      ],
+    });
+
+  const scoresKey = () => projectKey([grantProject(["scores:create"], [PRJ])]);
+
+  const suspendedKey = () =>
+    projectKey([grantProject(["*"], [PRJ]), ...suspensionDenies([PRJ])]);
+
+  const adminKey = (): AuthorizationContext => ({
+    principal: { kind: "admin", userId: null },
+    policies: [
+      {
+        kind: "organization",
+        source: { kind: "grant" },
+        actions: ["*"],
+        resources: ["*"],
+        effect: "allow",
+      },
+      {
+        kind: "project",
+        source: { kind: "grant" },
+        actions: ["*"],
+        resources: ["*"],
+        effect: "allow",
+      },
+    ],
+  });
 
   describe("getProjectId", () => {
     it("resolves the bound project without a header", () => {
@@ -521,7 +488,7 @@ if (import.meta.vitest) {
     });
     it("rejects per event on a grant deny, keeping the allowed family", () => {
       const { rejectedEvents } = enforceIngestionAuthz({
-        context: resolveContextFromLegacyScope(scope({ accessLevel: "scores" })),
+        context: scoresKey(),
         headers: {},
         batch,
       });
@@ -530,9 +497,7 @@ if (import.meta.vitest) {
     it("fails the whole request on suspension with the legacy message", () => {
       expect(() =>
         enforceIngestionAuthz({
-          context: resolveContextFromLegacyScope(
-            scope({ isIngestionSuspended: true }),
-          ),
+          context: suspendedKey(),
           headers: {},
           batch,
         }),
@@ -540,71 +505,11 @@ if (import.meta.vitest) {
     });
     it("passes an sdk-log-only batch under suspension (known divergence: legacy 403s)", () => {
       const { rejectedEvents } = enforceIngestionAuthz({
-        context: resolveContextFromLegacyScope(
-          scope({ isIngestionSuspended: true }),
-        ),
+        context: suspendedKey(),
         headers: {},
         batch: [{ id: "e1", type: "sdk-log" }],
       });
       expect(rejectedEvents).toEqual([]);
-    });
-  });
-
-  describe("resolveContextFromLegacyScope", () => {
-    it("gives a project key full access to its bound project only", () => {
-      const c = projectKey();
-      expect(authorize(c, "traces:read", { projectId: PRJ }).success).toBe(
-        true,
-      );
-      expect(
-        authorize(c, "traces:read", { projectId: OTHER_PRJ }).success,
-      ).toBe(false);
-      expect(authorize(c, "projects:create", { orgId: ORG }).success).toBe(
-        false,
-      );
-    });
-    it("keeps an org key on org endpoints", () => {
-      const c = orgKey();
-      expect(authorize(c, "projects:create", { orgId: ORG }).success).toBe(
-        true,
-      );
-      expect(authorize(c, "mcp:access", { projectId: PRJ }).success).toBe(
-        false,
-      );
-      expect(authorize(c, "traces:read", { projectId: PRJ }).success).toBe(
-        false,
-      );
-    });
-    it("limits a Bearer public-key scope to score writes", () => {
-      const c = resolveContextFromLegacyScope(scope({ accessLevel: "scores" }));
-      expect(authorize(c, "scores:create", { projectId: PRJ }).success).toBe(
-        true,
-      );
-      expect(authorize(c, "traces:create", { projectId: PRJ }).success).toBe(
-        false,
-      );
-    });
-    it("suspension denies writes and mcp with the endpoint messages, reads survive", () => {
-      const c = resolveContextFromLegacyScope(
-        scope({ isIngestionSuspended: true }),
-      );
-      const write = authorize(c, "traces:create", { projectId: PRJ });
-      expect(write.error?.message).toBe(systemRuleMessages.ingestion_suspended);
-      const mcp = authorize(c, "mcp:access", { projectId: PRJ });
-      expect(mcp.error?.message).toBe(systemRuleMessages.mcp_disabled);
-      expect(authorize(c, "traces:read", { projectId: PRJ }).success).toBe(
-        true,
-      );
-    });
-    it("maps the admin sentinel to the wildcard admin principal", () => {
-      const c = adminKey();
-      expect(c.principal.kind).toBe("admin");
-      expect(authorize(c, "traces:read", { projectId: "prj_x" }).success).toBe(
-        true,
-      );
-      expect(
-        authorize(c, "organization:delete", { orgId: "org_x" }).success,
-      ).toBe(true);
     });
   });
 }

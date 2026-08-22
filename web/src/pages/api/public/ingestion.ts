@@ -24,10 +24,10 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
+import { authenticate } from "@/src/features/auth/policy/apiAdapter.prototype";
 import {
   enforceIngestionAuthz,
   getProjectId,
-  resolveContextFromLegacyScope,
 } from "@/src/features/auth/policy/enforce.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
@@ -84,9 +84,10 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // the legacy scope stays: processEventBatch and attribution are shaped on
-    // it (dies with LFE-15033); the PEP consumes the context derived from it.
-    // suspension is no longer a flag check — it arrives as a system deny
+    // two fully independent paths: the legacy authCheck keeps shaping
+    // processEventBatch, attribution and rate limiting (dies with LFE-15033);
+    // the new path resolves its own context, and suspension is no longer a
+    // flag check — it arrives as a system deny asserted on the batch
     const authCheck = await new ApiAuthService(
       prisma,
       redis,
@@ -94,7 +95,7 @@ export default async function handler(
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
     }
-    const context = resolveContextFromLegacyScope(authCheck.scope);
+    const context = await authenticate(req.headers);
     const projectId = getProjectId(context, req.headers);
     projectIdForIngestFailure = projectId;
 

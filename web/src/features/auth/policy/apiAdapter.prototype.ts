@@ -10,10 +10,6 @@ import { type IncomingHttpHeaders } from "http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType } from "zod";
 
-import { UnauthorizedError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { redis, type ApiAccessScope } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   createAuthedProjectAPIRoute,
   type AuthedProjectAPIRouteConfig,
@@ -25,12 +21,7 @@ import {
   type AuthorizationContext,
   type ProjectAction,
 } from "./policy.prototype";
-import {
-  coveringOrg,
-  enforceOrgAuthz,
-  enforceProjectAuthz,
-  resolveContextFromLegacyScope,
-} from "./enforce.prototype";
+import { enforceOrgAuthz, enforceProjectAuthz } from "./enforce.prototype";
 
 /** enforceProjectAuth authenticates the request and asserts action on its resolved project, one call per route. */
 export async function enforceProjectAuth(params: {
@@ -68,44 +59,6 @@ export async function enforceOrgAuth(params: {
   return { context, orgId, access };
 }
 
-/** authenticate verifies the credential and resolves its AuthorizationContext. */
-export async function authenticate(
-  headers: IncomingHttpHeaders,
-): Promise<AuthorizationContext> {
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(headers.authorization);
-  if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
-  const orgProjectIds =
-    authCheck.scope.accessLevel === "organization"
-      ? await materializedOrgProjectIds(authCheck.scope.orgId)
-      : undefined;
-  return resolveContextFromLegacyScope(authCheck.scope, { orgProjectIds });
-}
-
-/** legacyScope rebuilds the ApiAccessScope shape the rate-limit and entitlement seams still demand, from the context's covering org. */
-export function legacyScope(
-  context: AuthorizationContext,
-  target: { orgId: string } | { projectId: string },
-): ApiAccessScope {
-  const org = coveringOrg(context, target);
-  return {
-    orgId: org?.orgId ?? ("orgId" in target ? target.orgId : ""),
-    plan: org?.plan ?? "oss",
-    rateLimitOverrides: org?.rateLimitConfig ?? [],
-    // dead weight below: RateLimitService reads only the three fields above
-    projectId: "projectId" in target ? target.projectId : null,
-    accessLevel: "project",
-    apiKeyId:
-      context.principal.kind === "apiKey"
-        ? context.principal.apiKeyId
-        : "ADMIN_API_KEY",
-    publicKey: "",
-    isIngestionSuspended: false,
-  };
-}
-
 /** createAuthorizedProjectAPIRoute is the migration seam over the legacy factory: same config plus a required action asserted before the handler runs. */
 export const createAuthorizedProjectAPIRoute = <
   TQuery extends ZodType<any>,
@@ -120,7 +73,7 @@ export const createAuthorizedProjectAPIRoute = <
     ...routeConfig,
     fn: async (params) => {
       if (routeConfig.action !== null) {
-        const context = resolveContextFromLegacyScope(params.auth.scope);
+        const context = await authenticate(params.req.headers);
         mustAuthorize(context, routeConfig.action, {
           projectId: params.auth.scope.projectId,
         });
@@ -129,11 +82,12 @@ export const createAuthorizedProjectAPIRoute = <
     },
   });
 
-/** materializedOrgProjectIds lists the org's non-deleted project ids for the PIP's materialized refs. */
-async function materializedOrgProjectIds(orgId: string): Promise<string[]> {
-  const projects = await prisma.project.findMany({
-    where: { orgId, deletedAt: null },
-    select: { id: true },
-  });
-  return projects.map((p) => p.id);
+/** authenticate stands in for ApiAuthService.auth() — the independent new path (Verifier, LFE-15032 → Resolver, LFE-15458) — and is not built on this branch; mock it in tests. */
+export async function authenticate(
+  headers: IncomingHttpHeaders,
+): Promise<AuthorizationContext> {
+  void headers;
+  throw new Error(
+    "PROTOTYPE(LFE-15038): ApiAuthService.auth() = Verifier (LFE-15032) → Resolver (LFE-15458); not built on this branch",
+  );
 }

@@ -2,12 +2,9 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
 import { BaseError } from "@langfuse/shared";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
-import {
-  enforceOrgAuth,
-  legacyScope,
-} from "@/src/features/auth/policy/apiAdapter.prototype";
+import { enforceOrgAuth } from "@/src/features/auth/policy/apiAdapter.prototype";
+import { coveringOrg } from "@/src/features/auth/policy/enforce.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -43,26 +40,17 @@ export default async function handler(
     throw error;
   }
 
-  // legacy-shaped input for the rate-limit and entitlement seams, from context
-  const scope = legacyScope(context, { orgId });
-
+  // the covering PrincipalOrganization carries plan and rateLimitConfig; rate
+  // limiting rejoins here once RateLimitService's input narrows to that shape
   if (
     !hasEntitlementBasedOnPlan({
-      plan: scope.plan,
+      plan: coveringOrg(context, { orgId })?.plan ?? "oss",
       entitlement: "admin-api",
     })
   ) {
     return res.status(403).json({
       error: "This feature is not available on your current plan.",
     });
-  }
-
-  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
-    scope,
-    "public-api",
-  );
-  if (rateLimitCheck?.isRateLimited()) {
-    return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
   try {

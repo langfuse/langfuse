@@ -37,10 +37,8 @@ import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): MCP calls the header-free PEP directly per LFE-15053;
 // suspension arrives as the mcp_disabled system deny
-import {
-  enforceProjectAuthz,
-  resolveContextFromLegacyScope,
-} from "@/src/features/auth/policy/enforce.prototype";
+import { authenticate } from "@/src/features/auth/policy/apiAdapter.prototype";
+import { enforceProjectAuthz } from "@/src/features/auth/policy/enforce.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, safeJsonParse } from "@langfuse/shared";
@@ -84,8 +82,9 @@ export default async function handler(
       return;
     }
 
-    // the legacy scope stays: ServerContext and rate limiting are shaped on it
-    // (dies with LFE-15033); the PEP consumes the context derived from it
+    // two fully independent paths: the legacy authCheck keeps shaping
+    // ServerContext and rate limiting (dies with LFE-15033); the new path
+    // resolves its own context
     const authCheck = await new ApiAuthService(
       prisma,
       redis,
@@ -98,7 +97,7 @@ export default async function handler(
 
     // PEP: 400 without a project target (org keys), 403 from the mcp_disabled
     // system deny with today's message
-    const authz = resolveContextFromLegacyScope(authCheck.scope);
+    const authz = await authenticate(req.headers);
     const { projectId } = enforceProjectAuthz({
       context: authz,
       headers: req.headers,
