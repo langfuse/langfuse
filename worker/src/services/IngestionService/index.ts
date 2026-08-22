@@ -1636,11 +1636,12 @@ export class IngestionService {
       const cost_details = { ...provided_cost_details };
       const finalTotalCost =
         (provided_cost_details ?? {})["total"] ??
-        // Use provided input and output cost if available, but only if no other cost points are provided
-        (providedCostKeys.every((key) => ["input", "output"].includes(key))
-          ? ((provided_cost_details ?? {})["input"] ?? 0) +
-            ((provided_cost_details ?? {})["output"] ?? 0)
-          : undefined);
+        // Provided costs are authoritative: sum every provided cost point
+        // when no explicit total is given, not just input/output.
+        providedCostKeys.reduce(
+          (sum, key) => sum + ((provided_cost_details ?? {})[key] ?? 0),
+          0,
+        );
 
       if (
         !Object.prototype.hasOwnProperty.call(cost_details, "total") &&
