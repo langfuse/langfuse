@@ -17,7 +17,13 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import type Decimal from "decimal.js";
 import {
@@ -61,7 +67,6 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import React from "react";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -105,6 +110,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import TagList from "@/src/features/tag/components/TagList";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type TracesTableRow = {
   // Shown by default
@@ -616,13 +622,11 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isPending ? (
-    <span className="inline-block font-mono">...</span>
-  ) : selectAll ? (
-    compactNumberFormatter(totalCountQuery.data?.totalCount)
-  ) : (
-    compactNumberFormatter(Object.keys(selectedRows).length)
-  );
+  const displayCount = totalCountQuery.isPending
+    ? "..."
+    : selectAll
+      ? compactNumberFormatter(totalCountQuery.data?.totalCount)
+      : compactNumberFormatter(Object.keys(selectedRows).length);
 
   // Select-all deletes persist the raw filterState into the batch action, but
   // comment filters resolve via Postgres at read time and the server rejects
@@ -656,9 +660,8 @@ export default function TracesTable({
       id: ActionId.TraceAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
-      description: "Add selected traces to an annotation queue.",
-      targetLabel: "Annotation Queue",
-      execute: handleAddToAnnotationQueue,
+      description: `Add ${displayCount} selected traces to an annotation queue.`,
+      customDialog: true,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -1476,17 +1479,34 @@ export default function TracesTable({
             columnsWithCustomSelect={["traceName", "traceTags"]}
             actionButtons={[
               selectedTraceIds.length > 0 || selectAll ? (
-                <TableActionMenu
+                <AddTracesToAnnotationQueueDialogController
                   key="traces-multi-select-actions"
                   projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Traces}
-                  selectedCount={selectedTraceCount}
-                  onClearSelection={() => {
+                  onSuccess={() => {
                     setSelectedRows({});
                     setSelectAll(false);
                   }}
-                />
+                  description={`Add ${displayCount} selected traces to an annotation queue.`}
+                  onAddToQueue={handleAddToAnnotationQueue}
+                >
+                  {({ openDialog }) => (
+                    <TableActionMenu
+                      projectId={projectId}
+                      actions={tableActions}
+                      tableName={BatchExportTableName.Traces}
+                      selectedCount={selectedTraceCount}
+                      onClearSelection={() => {
+                        setSelectedRows({});
+                        setSelectAll(false);
+                      }}
+                      onCustomAction={(actionType) => {
+                        if (actionType === ActionId.TraceAddToAnnotationQueue) {
+                          openDialog();
+                        }
+                      }}
+                    />
+                  )}
+                </AddTracesToAnnotationQueueDialogController>
               ) : null,
               <BatchExportTableButton
                 {...{

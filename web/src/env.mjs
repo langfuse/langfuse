@@ -415,6 +415,17 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
+    // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
+    // events to. Unset = no events are emitted. The ARN carries the bus region,
+    // so it is the only input needed; authentication is SigV4 from the task
+    // role, which infrastructure grants events:PutEvents on exactly this ARN.
+    CLICKHOUSE_BILLING_EVENT_BUS_ARN: z
+      .string()
+      .regex(
+        /^arn:aws:events:[a-z0-9-]+:\d{12}:event-bus\/.+$/,
+        "must be an EventBridge bus ARN (arn:aws:events:<region>:<account-id>:event-bus/<name>)",
+      )
+      .optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -499,6 +510,15 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
+
+    // Character count above which trace/observation I/O is rendered as plain
+    // text instead of markdown. Served to the browser via the public tRPC
+    // router, so it works as a runtime env var on prebuilt Docker images.
+    LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(150_000),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -595,13 +615,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
-    // Content larger than this is rendered as plain text instead of markdown,
-    // as react-markdown is too slow for large payloads.
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(150_000),
   },
 
   /**
@@ -930,9 +943,6 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
-    // Markdown rendering
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
-      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -949,6 +959,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
+    CLICKHOUSE_BILLING_EVENT_BUS_ARN:
+      process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -1007,6 +1019,8 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
+      process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
