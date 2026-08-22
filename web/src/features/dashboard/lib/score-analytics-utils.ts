@@ -53,8 +53,15 @@ export function createHistogramData(
   if (!Boolean(numericScoreValues.length))
     return { chartData: [], chartLabels: [] };
 
-  const min = round(Math.min(...numericScoreValues));
-  const range = round(Math.max(...numericScoreValues)) - min;
+  // Bug #15208: round each value before binning while leaving the bin edges
+  // at the raw precision. That made a value like 0.857 (bin-edge 0.86) jump
+  // to the wrong bucket on integer-style floor/precision mismatches. Use the
+  // raw values to compute edges *and* to choose the bin index; round only the
+  // display labels (with enough precision to keep narrow-range edges
+  // distinct — see #15208).
+  const min = Math.min(...numericScoreValues);
+  const max = Math.max(...numericScoreValues);
+  const range = max - min;
   const bins = computeBinSize(
     minBins,
     maxBins,
@@ -63,15 +70,23 @@ export function createHistogramData(
   );
   const binSize = range / bins || 1;
 
+  // Pick enough precision for the labels to be visually distinct on the
+  // dashboard. Three decimals is enough for confidence-style scores (0–1)
+  // and for the latency/cost metrics also surfaced via this helper.
+  const labelPrecision = 3;
+
   const baseChartData = Array.from({ length: bins }).map(
     (_, index: number) => ({
       count: 0,
-      binLabel: `[${round(min + index * binSize)}, ${round(min + (index + 1) * binSize)}]`,
+      binLabel: `[${round(min + index * binSize, labelPrecision)}, ${round(
+        min + (index + 1) * binSize,
+        labelPrecision,
+      )}]`,
     }),
   );
 
   const chartData = numericScoreValues.reduce((acc, value) => {
-    const shiftedValue = round(value) - min;
+    const shiftedValue = value - min;
     const binIndex = Math.min(Math.floor(shiftedValue / binSize), bins - 1);
     acc[binIndex].count++;
     return acc;
