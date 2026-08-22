@@ -13,6 +13,7 @@ import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { toast } from "sonner";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -42,6 +43,9 @@ export function DeactivateEvalConfig({
     onSuccess: () => {
       utils.evals.invalidate();
     },
+    onError: (error) => {
+      toast.error(error.message);
+    },
   });
 
   const onClick = async () => {
@@ -66,8 +70,8 @@ export function DeactivateEvalConfig({
         },
       });
     } catch {
-      // The default mutation error toast reports the failure; the status is
-      // unchanged, so keep the popover open and skip the change callbacks.
+      // onError surfaces the server-side rejection; keep the popover open and
+      // skip callbacks because the status is unchanged.
       return;
     }
     capture(
