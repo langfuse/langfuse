@@ -27,6 +27,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 
 const resetPasswordSchema = z
   .object({
@@ -39,6 +40,12 @@ const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+const getDemoTargetPath = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const targetPath = stripBasePath(getSafeRedirectPath(value));
+  return targetPath === "/demo" ? targetPath : undefined;
+};
+
 export function ResetPasswordPage({
   passwordResetAvailable,
 }: {
@@ -47,15 +54,21 @@ export function ResetPasswordPage({
   const session = useSession();
   const router = useRouter();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+
+  // Detect set mode: user exists but has no password (signup email verification flow)
+  const isSetMode = session.data?.user?.hasPassword === false;
+  const targetPath = isSetMode
+    ? getDemoTargetPath(router.query.targetPath)
+    : undefined;
+  const setupPasswordPath = targetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`
+    : "/auth/setup-password";
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
     useState(false);
 
   const capture = usePostHogClientCapture();
-
-  // Detect set mode: user exists but has no password (signup email verification flow)
-  const isSetMode = session.data?.user?.hasPassword === false;
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const emailVerified = isEmailVerifiedWithinCutoff(
@@ -86,9 +99,10 @@ export function ResetPasswordPage({
         setIsSuccess(true);
         setTimeout(() => {
           const target =
-            isSetMode && isLangfuseCloud && region !== "DEV"
+            targetPath ??
+            (isSetMode && isLangfuseCloud && region !== "DEV"
               ? "/onboarding"
-              : "/";
+              : "/");
           router.push(target);
           setIsSuccess(false);
         }, 2000);
@@ -245,9 +259,7 @@ export function ResetPasswordPage({
                     <RequestResetPasswordEmailButton
                       email={form.watch("email")}
                       className="w-full"
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
+                      callbackUrl={isSetMode ? setupPasswordPath : undefined}
                     />
                   )}
                 </div>
@@ -267,7 +279,7 @@ export function ResetPasswordPage({
               <RequestResetPasswordEmailButton
                 email={form.getValues("email")}
                 className="w-full"
-                callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                callbackUrl={isSetMode ? setupPasswordPath : undefined}
               />
             )}
           </div>

@@ -29,7 +29,7 @@ import {
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
-import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -91,6 +91,10 @@ function StandardSignupFlow({
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
+  const ssoCallbackUrl =
+    targetPath && stripBasePath(targetPath) === "/demo"
+      ? targetPath
+      : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -164,7 +168,10 @@ function StandardSignupFlow({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        signIn(providerId);
+        signIn(
+          providerId,
+          ssoCallbackUrl ? { callbackUrl: ssoCallbackUrl } : undefined,
+        );
         return; // stop further execution – page redirect expected
       }
 
@@ -306,6 +313,7 @@ function StandardSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={ssoCallbackUrl}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
@@ -320,6 +328,16 @@ function VerifiedSignupFlow({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+  const demoTargetPath =
+    targetPath && stripBasePath(targetPath) === "/demo" ? "/demo" : undefined;
+  const setupPasswordPath = demoTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(demoTargetPath)}`
+    : "/auth/setup-password";
+  const ssoCallbackUrl = demoTargetPath ? targetPath : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<SignupPhase>("form");
@@ -366,7 +384,7 @@ function VerifiedSignupFlow({
       // Send OTP email via NextAuth email provider
       const signInRes = await signIn("email", {
         email: values.email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
         redirect: false,
       });
 
@@ -395,7 +413,7 @@ function VerifiedSignupFlow({
     const formattedEmail = encodeURIComponent(otpEmail.toLowerCase().trim());
     const formattedCode = encodeURIComponent(otpCode.trim());
     const callback = encodeURIComponent(
-      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
+      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
     );
     // Existing hard navigation is accepted during the Next.js 16.3 migration.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
@@ -535,6 +553,7 @@ function VerifiedSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={ssoCallbackUrl}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
