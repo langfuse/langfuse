@@ -124,7 +124,6 @@
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
     "db:reset": "dotenv -e ../../.env npx -- prisma migrate reset",
     "db:reset:test": "if [ -f ../../.env.test ]; then dotenv -e ../../.env.test -e ../../.env -- npx prisma migrate reset --force; fi",
-    "db:test:evaluator-v2-migration": "dotenv -e ../../.env -- vitest run --config prisma/migration-tests/evaluator-v2/vitest.config.ts",
     "db:deploy": "dotenv -e ../../.env npx -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- npx prisma db seed",
     "db:generate": "dotenv -e ../../.env -- npx prisma generate --no-hints",
