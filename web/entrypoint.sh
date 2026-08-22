@@ -118,7 +118,6 @@ fi
 if [ $status -ne 0 ]; then
     echo "Applying clickhouse migrations failed. Common causes:"
     echo "  1. The database is unavailable or unreachable."
-    echo "  2. CLICKHOUSE_PASSWORD contains special characters that are not URL-encoded."
     check_clickhouse_password "$CLICKHOUSE_PASSWORD"
     echo "Exiting..."
     exit $status
