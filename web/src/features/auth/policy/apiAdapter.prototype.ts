@@ -26,6 +26,7 @@ import {
   type ProjectAction,
 } from "./policy.prototype";
 import {
+  coveringOrg,
   enforceOrgAuthz,
   enforceProjectAuthz,
   resolveContextFromLegacyScope,
@@ -35,22 +36,18 @@ import {
 export async function enforceProjectAuth(params: {
   headers: IncomingHttpHeaders;
   action: ProjectAction | null;
-  allowInAppAgentKey?: boolean;
 }): Promise<{
   context: AuthorizationContext;
-  scope: ApiAccessScope;
   projectId: string;
   access: Access | null;
 }> {
-  const { context, scope } = await authenticate(params.headers, {
-    allowInAppAgentKey: params.allowInAppAgentKey,
-  });
+  const context = await authenticate(params.headers);
   const { projectId, access } = enforceProjectAuthz({
     context,
     headers: params.headers,
     action: params.action,
   });
-  return { context, scope, projectId, access };
+  return { context, projectId, access };
 }
 
 /** enforceOrgAuth authenticates the request and asserts action on its resolved org, one call per route. */
@@ -59,39 +56,54 @@ export async function enforceOrgAuth(params: {
   action: Action | null;
 }): Promise<{
   context: AuthorizationContext;
-  scope: ApiAccessScope;
   orgId: string;
   access: Access | null;
 }> {
-  const { context, scope } = await authenticate(params.headers);
+  const context = await authenticate(params.headers);
   const { orgId, access } = enforceOrgAuthz({
     context,
     headers: params.headers,
     action: params.action,
   });
-  return { context, scope, orgId, access };
+  return { context, orgId, access };
 }
 
-/** authenticate verifies the credential and resolves its AuthorizationContext; the legacy scope rides along for the rate-limit and entitlement seams. */
+/** authenticate verifies the credential and resolves its AuthorizationContext. */
 export async function authenticate(
   headers: IncomingHttpHeaders,
-  opts: { allowInAppAgentKey?: boolean } = {},
-): Promise<{ context: AuthorizationContext; scope: ApiAccessScope }> {
+): Promise<AuthorizationContext> {
   const authCheck = await new ApiAuthService(
     prisma,
     redis,
-  ).verifyAuthHeaderAndReturnScope(headers.authorization, {
-    allowInAppAgentKey: opts.allowInAppAgentKey === true,
-  });
+  ).verifyAuthHeaderAndReturnScope(headers.authorization);
   if (!authCheck.validKey) throw new UnauthorizedError(authCheck.error);
   const orgProjectIds =
     authCheck.scope.accessLevel === "organization"
       ? await materializedOrgProjectIds(authCheck.scope.orgId)
       : undefined;
-  const context = resolveContextFromLegacyScope(authCheck.scope, {
-    orgProjectIds,
-  });
-  return { context, scope: authCheck.scope };
+  return resolveContextFromLegacyScope(authCheck.scope, { orgProjectIds });
+}
+
+/** legacyScope rebuilds the ApiAccessScope shape the rate-limit and entitlement seams still demand, from the context's covering org. */
+export function legacyScope(
+  context: AuthorizationContext,
+  target: { orgId: string } | { projectId: string },
+): ApiAccessScope {
+  const org = coveringOrg(context, target);
+  return {
+    orgId: org?.orgId ?? ("orgId" in target ? target.orgId : ""),
+    plan: org?.plan ?? "oss",
+    rateLimitOverrides: org?.rateLimitConfig ?? [],
+    // dead weight below: RateLimitService reads only the three fields above
+    projectId: "projectId" in target ? target.projectId : null,
+    accessLevel: "project",
+    apiKeyId:
+      context.principal.kind === "apiKey"
+        ? context.principal.apiKeyId
+        : "ADMIN_API_KEY",
+    publicKey: "",
+    isIngestionSuspended: false,
+  };
 }
 
 /** createAuthorizedProjectAPIRoute is the migration seam over the legacy factory: same config plus a required action asserted before the handler runs. */

@@ -33,11 +33,17 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { addUserToSpan, logger } from "@langfuse/shared/src/server";
-// PROTOTYPE(LFE-15038): fused auth + mcp:access assert; suspension arrives as the mcp_disabled system deny
-import { enforceProjectAuth } from "@/src/features/auth/policy/apiAdapter.prototype";
+import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+// PROTOTYPE(LFE-15038): MCP calls the header-free PEP directly per LFE-15053;
+// suspension arrives as the mcp_disabled system deny
+import {
+  enforceProjectAuthz,
+  resolveContextFromLegacyScope,
+} from "@/src/features/auth/policy/enforce.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { BaseError, safeJsonParse } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
+import { BaseError, UnauthorizedError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
@@ -78,26 +84,39 @@ export default async function handler(
       return;
     }
 
-    // one call: 401 on bad credential, 400 without a project target (org
-    // keys), 403 from the mcp_disabled system deny with today's message
-    const { context: authz, scope, projectId } = await enforceProjectAuth({
+    // the legacy scope stays: ServerContext and rate limiting are shaped on it
+    // (dies with LFE-15033); the PEP consumes the context derived from it
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+      allowInAppAgentKey: true,
+    });
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
+    }
+
+    // PEP: 400 without a project target (org keys), 403 from the mcp_disabled
+    // system deny with today's message
+    const authz = resolveContextFromLegacyScope(authCheck.scope);
+    const { projectId } = enforceProjectAuthz({
+      context: authz,
       headers: req.headers,
       action: "mcp:access",
-      allowInAppAgentKey: true,
     });
 
     addUserToSpan({
-      apiKeyId: scope.apiKeyId,
-      publicKey: scope.publicKey,
+      apiKeyId: authCheck.scope.apiKeyId,
+      publicKey: authCheck.scope.publicKey,
       projectId,
-      orgId: scope.orgId,
-      plan: scope.plan,
+      orgId: authCheck.scope.orgId,
+      plan: authCheck.scope.plan,
     });
 
     // Rate limit MCP requests
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        scope,
+        authCheck.scope,
         "public-api",
       );
 
@@ -110,15 +129,15 @@ export default async function handler(
     // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
       projectId,
-      orgId: scope.orgId,
+      orgId: authCheck.scope.orgId,
       userId: undefined, // API keys don't have associated users
-      apiKeyId: scope.apiKeyId,
+      apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
-      publicKey: scope.publicKey,
-      plan: scope.plan,
-      rateLimitOverrides: scope.rateLimitOverrides,
+      publicKey: authCheck.scope.publicKey,
+      plan: authCheck.scope.plan,
+      rateLimitOverrides: authCheck.scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
-      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
+      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
       authz,
     };
 

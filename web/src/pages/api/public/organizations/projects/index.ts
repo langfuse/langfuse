@@ -4,7 +4,10 @@ import { logger } from "@langfuse/shared/src/server";
 import { BaseError } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
-import { enforceOrgAuth } from "@/src/features/auth/policy/apiAdapter.prototype";
+import {
+  enforceOrgAuth,
+  legacyScope,
+} from "@/src/features/auth/policy/apiAdapter.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -25,11 +28,11 @@ export default async function handler(
   }
 
   let orgId: string;
-  let scope;
+  let context;
   try {
     // one call: 401 on bad credential, 400 on missing/disagreeing org target,
     // 404 outside the grant, 403 when no policy covers projects:read on the org
-    ({ orgId, scope } = await enforceOrgAuth({
+    ({ orgId, context } = await enforceOrgAuth({
       headers: req.headers,
       action: "projects:read",
     }));
@@ -39,6 +42,9 @@ export default async function handler(
     }
     throw error;
   }
+
+  // legacy-shaped input for the rate-limit and entitlement seams, from context
+  const scope = legacyScope(context, { orgId });
 
   if (
     !hasEntitlementBasedOnPlan({

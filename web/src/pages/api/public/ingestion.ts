@@ -3,6 +3,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
   traceException,
+  redis,
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
@@ -14,13 +15,19 @@ import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { MethodNotAllowedError, BaseError } from "@langfuse/shared";
+import {
+  MethodNotAllowedError,
+  BaseError,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import { processEventBatch } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
-import { authenticate } from "@/src/features/auth/policy/apiAdapter.prototype";
 import {
   enforceIngestionAuthz,
   getProjectId,
+  resolveContextFromLegacyScope,
 } from "@/src/features/auth/policy/enforce.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
@@ -77,17 +84,24 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // authentication: 401 on bad credential; suspension is no longer a flag
-    // check here — it arrives as a system deny policy asserted on the batch
-    const { context, scope } = await authenticate(req.headers);
+    // the legacy scope stays: processEventBatch and attribution are shaped on
+    // it (dies with LFE-15033); the PEP consumes the context derived from it.
+    // suspension is no longer a flag check — it arrives as a system deny
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    if (!authCheck.validKey) {
+      throw new UnauthorizedError(authCheck.error);
+    }
+    const context = resolveContextFromLegacyScope(authCheck.scope);
     const projectId = getProjectId(context, req.headers);
     projectIdForIngestFailure = projectId;
-    const authCheck = { validKey: true as const, scope };
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId,
-      apiKeyId: scope.apiKeyId,
+      apiKeyId: authCheck.scope.apiKeyId,
       clickhouse: {
         surface: "publicapi",
         route: clickHouseRouteForRequest(req),

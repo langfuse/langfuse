@@ -287,13 +287,26 @@ const isOrganizationAction = (action: Action): action is OrganizationAction =>
 const headerValue = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
 
+/** coveringOrg returns the principal organization covering the target, when one exists. */
+export const coveringOrg = (
+  context: AuthorizationContext,
+  target: { orgId: string } | { projectId: string },
+): PrincipalOrganization | undefined =>
+  context.principal.kind === "admin"
+    ? undefined
+    : context.principal.organizations.find((o) =>
+        "orgId" in target
+          ? o.orgId === target.orgId
+          : o.projectIds.includes(target.projectId),
+      );
+
 /** principalCoversProject reports whether any of the principal's orgs carries the project; admins cover everything. */
 const principalCoversProject = (
   context: AuthorizationContext,
   projectId: string,
 ): boolean =>
   context.principal.kind === "admin" ||
-  context.principal.organizations.some((o) => o.projectIds.includes(projectId));
+  coveringOrg(context, { projectId }) !== undefined;
 
 /** principalCoversOrg reports whether the principal belongs to the org; admins cover everything. */
 const principalCoversOrg = (
@@ -301,7 +314,7 @@ const principalCoversOrg = (
   orgId: string,
 ): boolean =>
   context.principal.kind === "admin" ||
-  context.principal.organizations.some((o) => o.orgId === orgId);
+  coveringOrg(context, { orgId }) !== undefined;
 
 /** isSystemDenyMessage reports whether a 403 message came from a system deny rule. */
 const isSystemDenyMessage = (message: string): boolean =>
