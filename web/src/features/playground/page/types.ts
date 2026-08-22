@@ -3,11 +3,27 @@ import {
   type LLMJSONSchema,
   type LlmSchema,
   type LlmTool,
+  type LLMToolCall,
   type LLMToolDefinition,
   type PlaceholderMessage,
   type PromptVariable,
   type UIModelParams,
 } from "@langfuse/shared";
+
+/**
+ * Result of a single execution within a repeated ("Run xN") playground
+ * submission. Collected per run so the output panel can show every response
+ * alongside deterministic consistency stats.
+ */
+export interface PlaygroundRunResult {
+  index: number;
+  status: "running" | "completed" | "error";
+  content: string;
+  reasoning?: string;
+  toolCalls: LLMToolCall[];
+  latencyMs: number;
+  error?: string;
+}
 
 export type PlaygroundTool = LLMToolDefinition & {
   id: string;

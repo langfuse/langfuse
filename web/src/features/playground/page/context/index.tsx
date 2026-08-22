@@ -40,10 +40,12 @@ import {
   type PlaceholderMessageFillIn,
   type PlaygroundProviderProps,
   type PlaygroundHandle,
+  type PlaygroundRunResult,
   PLAYGROUND_EVENTS,
   MULTI_WINDOW_CONFIG,
 } from "@/src/features/playground/page/types";
 import {
+  getGlobalRunCount,
   getPlaygroundEventBus,
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
@@ -72,6 +74,8 @@ type PlaygroundContextType = {
   outputReasoning: string;
   outputJson: string;
   outputToolCalls: LLMToolCall[];
+
+  runs: PlaygroundRunResult[];
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
@@ -121,6 +125,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
   const [outputReasoning, setOutputReasoning] = useState("");
   const [outputToolCalls, setOutputToolCalls] = useState<LLMToolCall[]>([]);
   const [outputJson, setOutputJson] = useState("");
+  const [runs, setRuns] = useState<PlaygroundRunResult[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const isStreamingRef = useRef(isStreaming);
   const [tools, setTools] = useState<PlaygroundTool[]>([]);
@@ -354,6 +359,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         setOutputReasoning("");
         setOutputJson("");
         setOutputToolCalls([]);
+        setRuns([]);
 
         const finalMessages = getFinalMessages(
           promptVariables,
@@ -385,8 +391,159 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           );
         }
 
+        const runCount = getGlobalRunCount();
+
         let response = "";
-        if (tools.length > 0) {
+        if (runCount > 1) {
+          // Repetitions mode: execute the same configuration N times in
+          // parallel (always non-streaming) so output variance across runs
+          // can be inspected in a single submission.
+          setRuns(
+            Array.from({ length: runCount }, (_, index) => ({
+              index,
+              status: "running" as const,
+              content: "",
+              toolCalls: [],
+              latencyMs: 0,
+            })),
+          );
+
+          const executeOnce = async (): Promise<{
+            content: string;
+            reasoning?: string;
+            toolCalls: LLMToolCall[];
+          }> => {
+            if (tools.length > 0) {
+              const completion = await getChatCompletionWithTools(
+                projectId,
+                finalMessages,
+                modelParams,
+                tools,
+                false,
+              );
+
+              const displayContent =
+                typeof completion.content === "string"
+                  ? completion.content
+                  : ((completion.content.find(
+                      (m): m is { type: "text"; text: string } =>
+                        "type" in m && m.type === "text",
+                    )?.text as string) ?? "");
+
+              return {
+                content: displayContent,
+                reasoning: completion.reasoning,
+                toolCalls: completion.tool_calls,
+              };
+            }
+
+            if (structuredOutputSchema) {
+              const structuredResponse =
+                await getChatCompletionWithStructuredOutput(
+                  projectId,
+                  finalMessages,
+                  modelParams,
+                  structuredOutputSchema,
+                  false,
+                );
+
+              return { content: structuredResponse, toolCalls: [] };
+            }
+
+            const result = await getChatCompletionNonStreaming(
+              projectId,
+              finalMessages,
+              modelParams,
+            );
+
+            return {
+              content: result.content,
+              reasoning: result.reasoning,
+              toolCalls: [],
+            };
+          };
+
+          // Bounded worker pool: with up to MAX_RUN_COUNT repetitions,
+          // firing everything at once would trip provider rate limits.
+          const CONCURRENT_RUNS = 5;
+          const results: PlaygroundRunResult[] = new Array(runCount);
+          let nextRunIndex = 0;
+
+          const executeRunAt = async (index: number) => {
+            const startedAt = performance.now();
+            let run: PlaygroundRunResult;
+            try {
+              const result = await executeOnce();
+              run = {
+                index,
+                status: "completed",
+                content: result.content,
+                reasoning: result.reasoning,
+                toolCalls: result.toolCalls,
+                latencyMs: Math.round(performance.now() - startedAt),
+              };
+            } catch (err) {
+              run = {
+                index,
+                status: "error",
+                content: "",
+                toolCalls: [],
+                latencyMs: Math.round(performance.now() - startedAt),
+                error:
+                  err instanceof Error ? err.message : "An error occurred",
+              };
+            }
+            results[index] = run;
+            setRuns((prev) =>
+              prev.map((prevRun) => (prevRun.index === index ? run : prevRun)),
+            );
+          };
+
+          await Promise.all(
+            Array.from(
+              { length: Math.min(CONCURRENT_RUNS, runCount) },
+              async () => {
+                while (nextRunIndex < runCount) {
+                  const index = nextRunIndex;
+                  nextRunIndex += 1;
+                  await executeRunAt(index);
+                }
+              },
+            ),
+          );
+
+          const firstCompleted = results.find(
+            (run) => run.status === "completed",
+          );
+          if (!firstCompleted) {
+            throw new Error(
+              results.find((run) => run.error)?.error ?? "All runs failed",
+            );
+          }
+
+          // Keep the single-output state in sync with the first completed run
+          // so existing consumers (cache restore, output JSON) keep working.
+          // With tool calls, serialize the same shape as the single-run tools
+          // path so cache restoration preserves the tool-call cards.
+          setOutput(firstCompleted.content);
+          setOutputToolCalls(firstCompleted.toolCalls);
+          if (firstCompleted.reasoning)
+            setOutputReasoning(firstCompleted.reasoning);
+          response =
+            firstCompleted.toolCalls.length > 0
+              ? JSON.stringify(
+                  {
+                    content: firstCompleted.content,
+                    tool_calls: firstCompleted.toolCalls,
+                    ...(firstCompleted.reasoning
+                      ? { reasoning: firstCompleted.reasoning }
+                      : {}),
+                  },
+                  null,
+                  2,
+                )
+              : firstCompleted.content;
+        } else if (tools.length > 0) {
           const completion = await getChatCompletionWithTools(
             projectId,
             finalMessages,
@@ -467,6 +624,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           outputLength: response.length,
           toolCount: tools.length,
           isStructuredOutput: Boolean(structuredOutputSchema),
+          runCount,
         });
       } catch (err) {
         const errorMessage =
@@ -745,6 +903,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         outputReasoning,
         outputJson,
         outputToolCalls,
+        runs,
         handleSubmit,
         isStreaming,
         scrollToMessage,

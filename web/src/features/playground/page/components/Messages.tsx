@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import {
@@ -9,6 +10,7 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Settings } from "lucide-react";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useGlobalRunCount } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { env } from "@/src/env.mjs";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
@@ -20,9 +22,23 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  usePanelRef,
 } from "@/src/components/ui/resizable";
 
 export const Messages: React.FC<MessagesContext> = (props) => {
+  const outputPanelRef = usePanelRef();
+  const { runs } = usePlaygroundContext();
+  const isMultiRun = runs.length > 1;
+
+  // Repeated runs render a stats bar plus a run carousel; the default 20%
+  // output panel forces a manual resize every submission, so grow it once
+  // per multi-run batch.
+  useEffect(() => {
+    if (isMultiRun) {
+      outputPanelRef.current?.resize("40%");
+    }
+  }, [isMultiRun, outputPanelRef]);
+
   return (
     <div className="flex h-full flex-col space-y-4 pt-2 pr-4">
       <ResizablePanelGroup orientation="vertical">
@@ -31,6 +47,7 @@ export const Messages: React.FC<MessagesContext> = (props) => {
         </ResizablePanel>
         <ResizableHandle withHandle className="bg-transparent" />
         <ResizablePanel
+          panelRef={outputPanelRef}
           minSize="20%"
           defaultSize="20%"
           className="flex flex-col space-y-4"
@@ -45,6 +62,7 @@ export const Messages: React.FC<MessagesContext> = (props) => {
 
 const SubmitButton = () => {
   const { handleSubmit, isStreaming } = usePlaygroundContext();
+  const runCount = useGlobalRunCount();
   const defaultStreamingEnabled =
     env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT === "true";
   const [streamingEnabled, setStreamingEnabled] = useLocalStorage(
@@ -63,7 +81,7 @@ const SubmitButton = () => {
         }}
         loading={isStreaming}
       >
-        <p>Submit</p>
+        <p>{runCount > 1 ? `Submit \u00d7${runCount}` : "Submit"}</p>
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
