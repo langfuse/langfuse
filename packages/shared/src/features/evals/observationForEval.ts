@@ -324,11 +324,12 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     options: [], // to be filled at runtime
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "level",
     options: Object.values(ObservationLevel).map((key) => ({ value: key })),
+    aliases: ["Level"],
   },
   {
     name: "Version",

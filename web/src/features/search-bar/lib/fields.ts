@@ -66,7 +66,7 @@ export const FIELDS: FieldDef[] = [
   { id: "ingestionSource", aliases: ["ingestionsource", "ingestion_source", "source"], kind: "text", syncMode: "exactOption", label: "Ingestion source", description: "Ingestion source (API or OTel path)" },
   { id: "userId", aliases: ["userid", "user_id", "user"], kind: "text", syncMode: "exactOption", label: "User ID", description: "Trace user id", nullable: true },
   { id: "sessionId", aliases: ["sessionid", "session_id", "session"], kind: "text", syncMode: "exactOption", label: "Session ID", description: "Trace session id", nullable: true },
-  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Level", description: "Observation level" },
+  { id: "level", aliases: [], kind: "text", syncMode: "exactOption", label: "Status", description: "Observation status" },
   { id: "statusMessage", aliases: ["statusmessage", "status_message", "status"], kind: "text", syncMode: "textSearch", label: "Status message", description: "Status message", nullable: true },
   { id: "modelId", aliases: ["modelid", "model_id"], kind: "text", syncMode: "exactOption", label: "Model ID", description: "Internal model id", nullable: true },
   { id: "providedModelName", aliases: ["providedmodelname", "provided_model_name", "model"], kind: "text", syncMode: "exactOption", label: "Model name", description: "Provided model name", nullable: true },

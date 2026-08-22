@@ -8,8 +8,9 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "t.bookmarked",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "observations",
     clickhouseSelect: "aggregated_level",
     queryPrefix: "o",
