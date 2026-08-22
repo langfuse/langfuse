@@ -1270,4 +1270,51 @@ describe("/api/public/observations API Endpoint", () => {
     }
     runParentObservationIdFilterTestSuite(false); // with observations table
   });
+
+  describe("GET /api/public/observations pagination stability (legacy observations table)", () => {
+    it("should not duplicate or omit observations sharing a start_time across pages", async () => {
+      const traceId = randomUUID();
+      const sharedStartTime = new Date("2024-03-01T12:00:00Z").getTime();
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: sharedStartTime,
+      });
+      await createTracesCh([trace]);
+
+      // More observations than one page (limit 50 below), all sharing the
+      // same start_time, so every page boundary falls inside a run of
+      // ordering ties. Without a unique tiebreaker, ClickHouse resolves
+      // ties arbitrarily and rows get duplicated or dropped across pages.
+      const observationCount = 150;
+      const observations = Array.from({ length: observationCount }, (_, i) =>
+        createObservation({
+          project_id: projectId,
+          trace_id: traceId,
+          id: randomUUID(),
+          name: `pagination-tie-${i}`,
+          type: "SPAN",
+          start_time: sharedStartTime,
+        }),
+      );
+      await createObservationsCh(observations);
+
+      const returnedIds: string[] = [];
+      for (const page of [1, 2, 3]) {
+        const response = await makeZodVerifiedAPICall(
+          GetObservationsV1Response,
+          "GET",
+          `/api/public/observations?traceId=${traceId}&limit=50&page=${page}`,
+          undefined,
+          auth,
+        );
+        expect(response.status).toBe(200);
+        returnedIds.push(...response.body.data.map((o) => o.id));
+      }
+
+      expect(returnedIds.length).toBe(observationCount);
+      expect(new Set(returnedIds).size).toBe(observationCount);
+    });
+  });
 });

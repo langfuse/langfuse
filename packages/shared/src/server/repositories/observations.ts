@@ -2091,6 +2091,11 @@ export const generateObservationsForPublicApi = async ({
 
   const disableObservationsFinal = await shouldSkipObservationsFinal(projectId);
 
+  // Offset pagination must order by a unique key as tiebreaker: many
+  // observations share a start_time, and ClickHouse returns ties in an
+  // unspecified order, so rows could be duplicated or dropped across page
+  // boundaries. The unique observation id resolves ties deterministically
+  // in both the paginated keys CTE and the final result ordering.
   const query = `
     with clickhouse_keys as (
       SELECT DISTINCT
@@ -2104,7 +2109,7 @@ export const generateObservationsForPublicApi = async ({
       WHERE o.project_id = {projectId: String}
         ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
         AND ${appliedFilter.query}
-      ORDER BY start_time DESC
+      ORDER BY start_time DESC, id DESC
         LIMIT {limit: Int32} OFFSET {offset: Int32}
     )
     SELECT
@@ -2141,7 +2146,7 @@ export const generateObservationsForPublicApi = async ({
     FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
     WHERE o.project_id = {projectId: String}
       AND (id, trace_id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
-    ORDER BY start_time DESC
+    ORDER BY start_time DESC, id DESC
   `;
 
   const input = {
