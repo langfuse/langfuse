@@ -125,9 +125,15 @@ export const processEventBatch = async (
     message?: string;
     error?: string;
   }[];
+  warnings: {
+    id: string;
+    status: number;
+    message: string;
+    warning: string;
+  }[];
 }> => {
   if (input.length === 0) {
-    return { successes: [], errors: [] };
+    return { successes: [], errors: [], warnings: [] };
   }
   const {
     delay = null,
@@ -205,11 +211,11 @@ export const processEventBatch = async (
   //
   // The dedup struct also caches `entityType` and `bucketPrefix` so the two
   // downstream loops (S3 upload + IngestionQueue enqueue) read a single
-  // source-of-truth per id instead of recomputing — that makes the
+  // source-of-truth per id instead of recomputing; that makes the
   // producer/consumer-must-agree invariant structural. The sanitization warn
   // log fires once at the time we resolve the prefix.
   //
-  // `String(...)` preserves the prior null → "null" coercion of
+  // `String(...)` preserves the prior null to "null" coercion of
   // `authCheck.scope.projectId`. The surrounding function legitimately treats
   // projectId as nullable elsewhere (metric labels, span attributes); we
   // don't narrow it in the type system, and a `null` projectId would land
@@ -338,6 +344,10 @@ export const processEventBatch = async (
   const projectIdsToSkipS3List =
     env.LANGFUSE_SKIP_S3_LIST_FOR_OBSERVATIONS_PROJECT_IDS?.split(",") ?? [];
 
+  // Collected here; aggregateBatchResult is the single authority that filters
+  // these out of `successes` and surfaces them as `warnings`.
+  const sampledOutEventIds: string[] = [];
+
   await Promise.all(
     Object.keys(sortedBatchByEventBodyId).map(async (id) => {
       const eventData = sortedBatchByEventBodyId[id];
@@ -361,6 +371,9 @@ export const processEventBatch = async (
       });
 
       if (!isSampled) {
+        for (const event of eventData.data) {
+          sampledOutEventIds.push(event.id);
+        }
         recordIncrement("langfuse.ingestion.sampling", eventData.data.length, {
           projectId: authCheck.scope.projectId ?? "<not set>",
           sampling_decision: "out",
@@ -414,6 +427,7 @@ export const processEventBatch = async (
     [...validationErrors, ...authenticationErrors],
     sortedBatch.map((event) => ({ id: event.id, result: event })),
     authCheck.scope.projectId,
+    sampledOutEventIds,
   );
 };
 
@@ -463,6 +477,7 @@ export const aggregateBatchResult = (
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
   projectId?: string,
+  sampledOutEventIds: string[] = [],
 ) => {
   const returnedErrors: {
     id: string;
@@ -470,6 +485,21 @@ export const aggregateBatchResult = (
     message?: string;
     error?: string;
   }[] = [];
+
+  const sampledOutSet = new Set(sampledOutEventIds);
+
+  const warnings: {
+    id: string;
+    status: number;
+    message: string;
+    warning: string;
+  }[] = sampledOutEventIds.map((id) => ({
+    id,
+    status: 200,
+    message: "Event dropped by sampling",
+    warning:
+      "This event was not processed because it was excluded by project-level trace sampling configuration.",
+  }));
 
   const successes: {
     id: string;
@@ -515,11 +545,15 @@ export const aggregateBatchResult = (
   }
 
   results.forEach((result) => {
+    // Sampled-out events are excluded from successes and surfaced as warnings.
+    if (sampledOutSet.has(result.id)) {
+      return;
+    }
     successes.push({
       id: result.id,
       status: 201,
     });
   });
 
-  return { successes, errors: returnedErrors };
+  return { successes, errors: returnedErrors, warnings };
 };
