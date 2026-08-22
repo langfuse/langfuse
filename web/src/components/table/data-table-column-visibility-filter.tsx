@@ -104,6 +104,8 @@ function ColumnVisibilityListItem<TData, TValue>({
     });
 
   const isChecked = columnVisibility[column.accessorKey] && column.enableHiding;
+  const isLocked = !column.enableHiding || isFixedPosition;
+  const checkboxId = `col-${column.accessorKey}`;
 
   return (
     <div
@@ -123,18 +125,18 @@ function ColumnVisibilityListItem<TData, TValue>({
     >
       <div className="flex items-center gap-2">
         <Checkbox
-          id={`col-${column.accessorKey}`}
-          checked={isChecked || !column.enableHiding || isFixedPosition}
+          id={checkboxId}
+          checked={isChecked || isLocked}
           onCheckedChange={() => {
-            if (column.enableHiding && !isFixedPosition)
-              toggleColumn(column.accessorKey);
+            if (!isLocked) toggleColumn(column.accessorKey);
           }}
-          disabled={!column.enableHiding || isFixedPosition}
+          disabled={isLocked}
         />
-        <span
+        <label
+          htmlFor={checkboxId}
           className={cn(
             "text-sm capitalize",
-            (!column.enableHiding || isFixedPosition) && "opacity-50",
+            isLocked ? "opacity-50" : "cursor-pointer",
           )}
           title={
             !column.enableHiding
@@ -147,7 +149,7 @@ function ColumnVisibilityListItem<TData, TValue>({
           {column.header && typeof column.header === "string"
             ? column.header
             : column.accessorKey}
-        </span>
+        </label>
         {column.headerTooltip && (
           <DocPopup
             description={column.headerTooltip.description}
