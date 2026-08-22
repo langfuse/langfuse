@@ -9,9 +9,10 @@ import {
 } from "node:fs";
 import { basename, resolve } from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { format as formatWithPrettier } from "prettier";
 
-const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
+const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const generatedDir = resolve(
   repoRoot,
   "worker/src/features/in-app-agent/runtime/skills/generated",
