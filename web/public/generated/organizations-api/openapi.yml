@@ -423,6 +423,70 @@ paths:
               schema:
                 type: string
       security: *ref_0
+  /api/admin/users/{email}/organizations:
+    get:
+      description: >-
+        Get all organizations a user is a member of, looked up by user email.
+
+
+        Operator-scoped: results cover the whole instance, across all
+        organizations. This is an administration endpoint, not an
+        identity-provider (SCIM) integration; for a single organization's view
+        of a user's project access, use `GET
+        /api/public/organizations/memberships/{email}`.
+
+
+        The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup
+        is
+
+        case-insensitive. Responds with the user's id, email, and name, plus
+        every
+
+        organization the user belongs to including the user's role in each.
+
+        Returns a 404 if no user exists with the given email.
+      operationId: users_getOrganizationsForUser
+      tags:
+        - Users
+      parameters:
+        - name: email
+          in: path
+          description: URL-encoded email address of the user (lookup is case-insensitive)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOrganizationsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: string
+      security: *ref_0
 components:
   schemas:
     Organizations:
@@ -562,6 +626,60 @@ components:
         - publicKey
         - secretKey
         - displaySecretKey
+    MembershipRole:
+      title: MembershipRole
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+        - NONE
+      description: Role of a user within an organization
+    UserOrganization:
+      title: UserOrganization
+      type: object
+      description: Organization a user is a member of, including the user's role
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Metadata for the organization
+      required:
+        - id
+        - name
+        - createdAt
+        - role
+        - metadata
+    UserOrganizationsResponse:
+      title: UserOrganizationsResponse
+      type: object
+      description: A user and the organizations they are a member of
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        organizations:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserOrganization'
+      required:
+        - userId
+        - organizations
   securitySchemes:
     BearerAuth:
       type: http

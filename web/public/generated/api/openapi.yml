@@ -804,7 +804,8 @@ paths:
         - name: objectType
           in: query
           description: >-
-            Filter comments by object type (trace, observation, session, prompt).
+            Filter comments by object type (trace, observation, session,
+            prompt).
           required: false
           schema:
             type: string
@@ -1088,7 +1089,8 @@ paths:
       security: *ref_0
     delete:
       description: >-
-        Delete a dataset item and all its run items. This action is irreversible.
+        Delete a dataset item and all its run items. This action is
+        irreversible.
       operationId: datasetItems_delete
       tags:
         - DatasetItems
@@ -1133,17 +1135,7 @@ paths:
       security: *ref_0
   /api/public/dataset-run-items:
     post:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, create
-        experiment data via the SDK experiment runner or the OpenTelemetry
-        endpoint at POST /api/public/otel/v1/traces. Self-hosted deployments are
-        unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Create a dataset run item
+      description: Create a dataset run item
       operationId: datasetRunItems_create
       tags:
         - DatasetRunItems
@@ -1187,20 +1179,8 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
-      deprecated: true
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
-        run items are replaced by experiment items; use `GET
-        /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
-        instead. Self-hosted deployments are unaffected by this date; the
-        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
-        [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        List dataset run items
+      description: List dataset run items
       operationId: datasetRunItems_list
       tags:
         - DatasetRunItems
@@ -1262,7 +1242,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1409,17 +1388,7 @@ paths:
       security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
-        runs are replaced by experiments; use GET /api/public/experiments
-        instead. Self-hosted deployments are unaffected by this date; the
-        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
-        [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get a dataset run and its items
+      description: Get a dataset run and its items
       operationId: datasets_getRun
       tags:
         - Datasets
@@ -1467,18 +1436,8 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
     delete:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
-        runs are replaced by experiments. Self-hosted deployments are unaffected
-        by this date; the endpoint becomes unavailable when they upgrade to
-        Langfuse v4. See the [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Delete a dataset run and all its run items. This action is irreversible.
+      description: Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
       tags:
         - Datasets
@@ -1526,20 +1485,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/datasets/{datasetName}/runs:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
-        runs are replaced by experiments; use GET /api/public/experiments
-        instead. Self-hosted deployments are unaffected by this date; the
-        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
-        [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get dataset runs
+      description: Get dataset runs
       operationId: datasets_getRuns
       tags:
         - Datasets
@@ -1596,7 +1544,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/experiments:
     get:
       description: |-
@@ -1944,17 +1891,6 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. Send data via the
-        OpenTelemetry endpoint at `POST /api/public/otel/v1/traces` instead, see
-        the [OpenTelemetry integration
-        docs](https://langfuse.com/integrations/native/opentelemetry).
-        Self-hosted deployments are unaffected by this date; the endpoint
-        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
-        v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
 
@@ -2049,19 +1985,9 @@ paths:
                     debugging.
               required:
                 - batch
-      deprecated: true
   /api/public/metrics:
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. Use `GET
-        /api/public/v2/metrics?query=<urlencoded json query>` instead.
-        Self-hosted deployments are unaffected by this date; the endpoint
-        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
-        v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
         Get metrics from the Langfuse project using a query object.
 
 
@@ -2160,20 +2086,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/observations/{observationId}:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. Use `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
-        instead. Self-hosted deployments are unaffected by this date; the
-        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
-        [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get a observation
+      description: Get a observation
       operationId: legacy_observationsV1_get
       tags:
         - LegacyObservationsV1
@@ -2219,19 +2134,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/observations:
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. Use `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
-        instead. Self-hosted deployments are unaffected by this date; the
-        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
-        [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
         Get a list of observations.
 
 
@@ -2517,7 +2422,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/scores/{scoreId}:
     delete:
       description: Delete a score (supports both trace and session scores)
@@ -4037,6 +3941,66 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DeleteMembershipRequest'
+  /api/public/organizations/memberships/{email}:
+    get:
+      description: >-
+        Get the projects a user of the organization associated with the API key
+        has access to, including the access level per project (requires
+        organization-scoped API key).
+
+
+        Tenant-scoped: results cover only the API key's own organization. For a
+        cross-organization view of the organizations a user belongs to, use the
+        admin API `GET /api/admin/users/{email}/organizations`.
+
+
+        The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup
+        is case-insensitive. An explicit project role overrides the organization
+        role; projects the user has no access to are omitted. Returns a 404 if
+        the user is not a member of the organization.
+      operationId: organizations_getOrganizationMembershipUserProjects
+      tags:
+        - Organizations
+      parameters:
+        - name: email
+          in: path
+          description: URL-encoded email address of the user (lookup is case-insensitive)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProjectAccessResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/projects/{projectId}/memberships:
     get:
       description: >-
@@ -4541,7 +4505,8 @@ paths:
       security: *ref_0
     post:
       description: >-
-        Create a new API key for a project (requires organization-scoped API key)
+        Create a new API key for a project (requires organization-scoped API
+        key)
       operationId: projects_createApiKey
       tags:
         - Projects
@@ -5851,16 +5816,7 @@ paths:
               $ref: '#/components/schemas/CreateScoreRequest'
   /api/public/v2/scores:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. Use `GET
-        /api/public/v3/scores` instead. Self-hosted deployments are unaffected
-        by this date; the endpoint becomes unavailable when they upgrade to
-        Langfuse v4. See the [Langfuse v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get a list of scores (supports both trace and session scores)
+      description: Get a list of scores (supports both trace and session scores)
       operationId: scores_get-many
       tags:
         - Scores
@@ -6079,20 +6035,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/v2/scores/{scoreId}:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. Use `GET
-        /api/public/v3/scores` with the `id` filter instead. Self-hosted
-        deployments are unaffected by this date; the endpoint becomes
-        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
-        upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get a score (supports both trace and session scores)
+      description: Get a score (supports both trace and session scores)
       operationId: scores_get-by-id
       tags:
         - Scores
@@ -6136,20 +6081,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/sessions:
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, read
-        session data via `GET /api/public/v2/observations?filter=<urlencoded
-        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
-        deployments are unaffected by this date; the endpoint becomes
-        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
-        upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
         Get sessions.
 
 
@@ -6246,20 +6180,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/sessions/{sessionId}:
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, read
-        session data via `GET /api/public/v2/observations?filter=<urlencoded
-        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
-        deployments are unaffected by this date; the endpoint becomes
-        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
-        upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
         Get a session.
 
 
@@ -6315,21 +6238,9 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
   /api/public/traces/{traceId}:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
-        and trace data via `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
-        Self-hosted deployments are unaffected by this date; the endpoint
-        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
-        v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get a specific trace
+      description: Get a specific trace
       operationId: trace_get
       tags:
         - Trace
@@ -6386,7 +6297,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
     delete:
       description: Delete a specific trace
       operationId: trace_delete
@@ -6434,18 +6344,7 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: >-
-        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
-        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
-        and trace data via `GET
-        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
-        Self-hosted deployments are unaffected by this date; the endpoint
-        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
-        v3 to v4 upgrade
-        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
-
-
-        Get list of traces
+      description: Get list of traces
       operationId: trace_list
       tags:
         - Trace
@@ -6770,7 +6669,6 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
-      deprecated: true
     delete:
       description: Delete multiple traces
       operationId: trace_deleteMultiple
@@ -7939,7 +7837,8 @@ paths:
         - name: evaluationRuleId
           in: path
           description: >-
-            Evaluation rule identifier returned by the evaluation rule endpoints.
+            Evaluation rule identifier returned by the evaluation rule
+            endpoints.
           required: true
           schema:
             type: string
@@ -9984,7 +9883,8 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for "True" and 0 for "False"
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
         stringValue:
           type: string
           description: >-
@@ -10170,7 +10070,8 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for "True" and 0 for "False"
+            The numeric value of the score. Equals 1 for "True" and 0 for
+            "False"
         stringValue:
           type: string
           description: >-
@@ -12943,6 +12844,66 @@ components:
             $ref: '#/components/schemas/MembershipResponse'
       required:
         - memberships
+    OrganizationAccessLevel:
+      title: OrganizationAccessLevel
+      type: string
+      enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+        - VIEWER
+        - NONE
+      description: >-
+        Access level of a user within an organization. `NONE` means the user is
+        a member of the
+
+        organization without default access to its projects, and only reaches
+        projects for which
+
+        an explicit project role is set.
+    UserProjectAccess:
+      title: UserProjectAccess
+      type: object
+      properties:
+        projectId:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/MembershipRole'
+          description: Effective access level of the user for this project
+        inheritedFromOrgRole:
+          type: boolean
+          description: >-
+            True if the access level is inherited from the organization role,
+            false if an explicit project role is set
+      required:
+        - projectId
+        - name
+        - role
+        - inheritedFromOrgRole
+    UserProjectAccessResponse:
+      title: UserProjectAccessResponse
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+          nullable: true
+        orgRole:
+          $ref: '#/components/schemas/OrganizationAccessLevel'
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProjectAccess'
+      required:
+        - userId
+        - email
+        - orgRole
+        - projects
     OrganizationProject:
       title: OrganizationProject
       type: object
@@ -14542,7 +14503,8 @@ components:
         model:
           type: string
           description: >-
-            Model identifier exposed by the provider, for example `gpt-4.1-mini`.
+            Model identifier exposed by the provider, for example
+            `gpt-4.1-mini`.
       required:
         - provider
         - model
@@ -16618,7 +16580,8 @@ components:
         id:
           type: string
           description: >-
-            Identifier of the exact evaluator version currently used by the rule.
+            Identifier of the exact evaluator version currently used by the
+            rule.
         name:
           type: string
           description: Evaluator family name.

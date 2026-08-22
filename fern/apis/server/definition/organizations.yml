@@ -27,6 +27,21 @@ service:
       request: DeleteMembershipRequest
       response: MembershipDeletionResponse
 
+    getOrganizationMembershipUserProjects:
+      docs: |
+        Get the projects a user of the organization associated with the API key has access to, including the access level per project (requires organization-scoped API key).
+
+        Tenant-scoped: results cover only the API key's own organization. For a cross-organization view of the organizations a user belongs to, use the admin API `GET /api/admin/users/{email}/organizations`.
+
+        The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup is case-insensitive. An explicit project role overrides the organization role; projects the user has no access to are omitted. Returns a 404 if the user is not a member of the organization.
+      method: GET
+      path: /organizations/memberships/{email}
+      path-parameters:
+        email:
+          type: string
+          docs: URL-encoded email address of the user (lookup is case-insensitive)
+      response: UserProjectAccessResponse
+
     getProjectMemberships:
       docs: Get all memberships for a specific project (requires organization-scoped API key)
       method: GET
@@ -97,6 +112,37 @@ types:
   MembershipsResponse:
     properties:
       memberships: list<MembershipResponse>
+
+  OrganizationAccessLevel:
+    docs: |
+      Access level of a user within an organization. `NONE` means the user is a member of the
+      organization without default access to its projects, and only reaches projects for which
+      an explicit project role is set.
+    enum:
+      - OWNER
+      - ADMIN
+      - MEMBER
+      - VIEWER
+      - NONE
+
+  UserProjectAccess:
+    properties:
+      projectId: string
+      name: string
+      role:
+        type: MembershipRole
+        docs: Effective access level of the user for this project
+      inheritedFromOrgRole:
+        type: boolean
+        docs: True if the access level is inherited from the organization role, false if an explicit project role is set
+
+  UserProjectAccessResponse:
+    properties:
+      userId: string
+      email: string
+      name: optional<string>
+      orgRole: OrganizationAccessLevel
+      projects: list<UserProjectAccess>
 
   OrganizationProject:
     properties:

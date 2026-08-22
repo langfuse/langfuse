@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  commons: ./commons.yml
+
+service:
+  auth: true
+  base-path: /api/admin
+  endpoints:
+    getOrganizationsForUser:
+      docs: |
+        Get all organizations a user is a member of, looked up by user email.
+
+        Operator-scoped: results cover the whole instance, across all organizations. This is an administration endpoint, not an identity-provider (SCIM) integration; for a single organization's view of a user's project access, use `GET /api/public/organizations/memberships/{email}`.
+
+        The email must be URL-encoded (e.g. `jane%40example.com`) and the lookup is
+        case-insensitive. Responds with the user's id, email, and name, plus every
+        organization the user belongs to including the user's role in each.
+        Returns a 404 if no user exists with the given email.
+      method: GET
+      path: /users/{email}/organizations
+      path-parameters:
+        email:
+          type: string
+          docs: URL-encoded email address of the user (lookup is case-insensitive)
+      response: UserOrganizationsResponse
+      errors:
+        - commons.Error
+        - commons.UnauthorizedError
+        - commons.MethodNotAllowedError
+
+types:
+  MembershipRole:
+    docs: Role of a user within an organization
+    enum:
+      - OWNER
+      - ADMIN
+      - MEMBER
+      - VIEWER
+      - NONE
+
+  UserOrganization:
+    docs: Organization a user is a member of, including the user's role
+    properties:
+      id: string
+      name: string
+      createdAt: datetime
+      role: MembershipRole
+      metadata:
+        type: map<string, unknown>
+        docs: Metadata for the organization
+
+  UserOrganizationsResponse:
+    docs: A user and the organizations they are a member of
+    properties:
+      userId: string
+      email: optional<string>
+      name: optional<string>
+      organizations: list<UserOrganization>
