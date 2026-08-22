@@ -1,4 +1,6 @@
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
@@ -11,12 +13,53 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { TracingAIFeatureOptInDialog } from "@/src/features/setup/components/TracingAIFeatureOptInDialog";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+
+const AI_OPT_IN_DISMISS_KEY_PREFIX = "langfuse:tracing-ai-opt-in-dismissed";
+
+const getAiOptInDismissKey = (organizationId: string) =>
+  `${AI_OPT_IN_DISMISS_KEY_PREFIX}:${organizationId}`;
+
+const hasDismissedAiOptIn = (organizationId: string) => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return (
+      localStorage.getItem(getAiOptInDismissKey(organizationId)) === "true"
+    );
+  } catch {
+    return false;
+  }
+};
+
+const markAiOptInDismissed = (organizationId: string) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    localStorage.setItem(getAiOptInDismissKey(organizationId), "true");
+  } catch {
+    // Ignore localStorage write failures and keep onboarding usable.
+  }
+};
 
 export default function Traces() {
   const router = useRouter();
+  const { update: updateSession } = useSession();
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
-  const { project } = useQueryProject();
+  const { project, organization } = useQueryProject();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const [showAiOptInDialog, setShowAiOptInDialog] = useState(false);
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -37,6 +80,82 @@ export default function Traces() {
     );
 
   const showOnboarding = !isLoading && !hasTracingConfigured;
+  const hasOrganizationUpdateAccess = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:update",
+  });
+  const shouldPromptForAiOptIn =
+    showOnboarding &&
+    isLangfuseCloud &&
+    Boolean(organization?.id) &&
+    !organization?.aiFeaturesEnabled;
+
+  const updateAiFeaturesMutation = api.organizations.update.useMutation();
+
+  useEffect(() => {
+    if (!shouldPromptForAiOptIn || !organization?.id) {
+      setShowAiOptInDialog(false);
+      return;
+    }
+
+    setShowAiOptInDialog(!hasDismissedAiOptIn(organization.id));
+  }, [organization?.id, shouldPromptForAiOptIn]);
+
+  const dismissAiOptInDialog = useCallback(() => {
+    if (organization?.id) {
+      markAiOptInDismissed(organization.id);
+    }
+
+    capture("onboarding:tracing_ai_opt_in_not_now_clicked", {
+      hasOrganizationUpdateAccess,
+    });
+    setShowAiOptInDialog(false);
+  }, [capture, hasOrganizationUpdateAccess, organization?.id]);
+
+  const enableAiFeatures = useCallback(async () => {
+    if (
+      !organization?.id ||
+      !hasOrganizationUpdateAccess ||
+      updateAiFeaturesMutation.isPending
+    ) {
+      return;
+    }
+
+    try {
+      await updateAiFeaturesMutation.mutateAsync({
+        orgId: organization.id,
+        aiFeaturesEnabled: true,
+      });
+      await updateSession();
+      await utils.organizations.byId.invalidate();
+      markAiOptInDismissed(organization.id);
+      setShowAiOptInDialog(false);
+      capture("onboarding:tracing_ai_opt_in_enabled");
+    } catch (error) {
+      showErrorToast(
+        "Failed to enable AI features",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
+  }, [
+    capture,
+    hasOrganizationUpdateAccess,
+    organization?.id,
+    updateAiFeaturesMutation,
+    updateSession,
+    utils.organizations.byId,
+  ]);
+
+  const aiOptInDialog = (
+    <TracingAIFeatureOptInDialog
+      open={showAiOptInDialog}
+      isLoading={updateAiFeaturesMutation.isPending}
+      hasOrganizationUpdateAccess={hasOrganizationUpdateAccess}
+      organizationId={organization?.id}
+      onClose={dismissAiOptInDialog}
+      onEnableAiFeatures={enableAiFeatures}
+    />
+  );
 
   if (showOnboarding) {
     return (
@@ -52,6 +171,7 @@ export default function Traces() {
         scrollable
       >
         <TracesOnboarding projectId={projectId} />
+        {aiOptInDialog}
       </Page>
     );
   }
@@ -105,6 +225,7 @@ export default function Traces() {
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
+      {aiOptInDialog}
     </Page>
   );
 }
