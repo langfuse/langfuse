@@ -88,7 +88,8 @@ export async function processWebhookActionConfig({
  * Processes webhook headers by:
  * 1. Merging legacy headers with new requestHeaders
  * 2. Handling header removal (headers not in input are removed)
- * 3. Preserving existing values when empty values are submitted
+ * 3. Preserving existing values when empty values are submitted, but only
+ *    while the webhook URL stays the same
  * 4. Encrypting secret headers based on secret flag
  * 5. Generating display values for secret headers
  */
@@ -113,8 +114,9 @@ function processWebhookHeaders(
     { secret: boolean; value: string }
   > = {};
 
-  // If no headers are provided in input, preserve all existing headers
-  // This allows URL-only updates without requiring all headers to be resent
+  // If no headers are provided in input, preserve all existing headers.
+  // Non-secret headers still survive a URL-only update this way; stored
+  // secrets do not, because the URL check below rejects that case.
   if (Object.keys(inputRequestHeaders).length === 0) {
     for (const [key, headerObj] of Object.entries(mergedExistingHeaders)) {
       finalRequestHeaders[key] = headerObj;
@@ -156,6 +158,35 @@ function processWebhookHeaders(
         finalRequestHeaders[key] = headerObj;
       }
       // If value is empty and no existing header, skip it (effectively removing it)
+    }
+  }
+
+  // Stored secrets are scoped to the URL they were entered for. Reusing them
+  // across a URL change would forward the plaintext secret to a destination
+  // the submitter never proved they hold a credential for, so require a
+  // re-entry instead. Mirrors the remote-experiment header rule.
+  //
+  // Deliberately placed after the per-header loop rather than before it, as
+  // the dataset router does: the loop raises more specific errors for a
+  // secret-status flip, and an existing test pins one of those messages for a
+  // submission that also changes the URL. The dataset router has no
+  // equivalent per-header validation to preserve.
+  if (existingConfig && actionConfig.url !== existingConfig.url) {
+    // An empty input map preserves every existing header; a submitted empty
+    // value preserves that one header.
+    const preservesAllHeaders = Object.keys(inputRequestHeaders).length === 0;
+    const reusesStoredSecret = Object.entries(mergedExistingHeaders).some(
+      ([key, existingHeader]) =>
+        existingHeader.secret &&
+        (preservesAllHeaders || inputRequestHeaders[key]?.value.trim() === ""),
+    );
+
+    if (reusesStoredSecret) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message:
+          "Secret headers must be re-entered when changing the webhook URL",
+      });
     }
   }
 
