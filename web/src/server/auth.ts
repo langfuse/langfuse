@@ -76,6 +76,7 @@ import {
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -1126,10 +1127,12 @@ export async function getAuthOptions(signupAttribution?: {
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
       error: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/error`,
-      ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-        ? {
-            newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`,
-          }
+      // Both deployment types run the onboarding step; the page picks the cloud
+      // attribution question or the self-hosting newsletter step. Operators can
+      // opt out with LANGFUSE_DISABLE_SIGNUP_ONBOARDING, which skips the
+      // interstitial entirely rather than routing through it to bounce back.
+      ...(isSignupOnboardingEnabled()
+        ? { newUser: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding` }
         : {}),
     },
     cookies: {

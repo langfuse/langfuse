@@ -14,12 +14,19 @@ export type DocPopupProps = {
   description: React.ReactNode;
   href?: string;
   className?: string;
+  /**
+   * `wide` widens the card for multi-paragraph explanations, which wrap into a
+   * very tall column at the default 16rem and cannot fit long literals such as
+   * a URL or an environment variable name on one line.
+   */
+  width?: "default" | "wide";
 };
 
 export default function DocPopup({
   description,
   href,
   className,
+  width = "default",
 }: DocPopupProps) {
   const capture = usePostHogClientCapture();
   // Controlled so a CLICK/TAP on the icon also opens the card: HoverCard
@@ -57,7 +64,11 @@ export default function DocPopup({
         </div>
       </HoverCardTrigger>
       <HoverCardPortal>
-        <HoverCardContent>
+        <HoverCardContent
+          className={
+            width === "wide" ? "w-96 max-w-[calc(100vw-2rem)]" : undefined
+          }
+        >
           <div
             className={cn(
               "text-primary text-xs font-normal whitespace-break-spaces sm:pl-0",
