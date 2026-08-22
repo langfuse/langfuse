@@ -114,6 +114,72 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(experiment?.itemCount).toBe(2);
     });
 
+    it("should read description and metadata from experiment item root spans", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "root-attributes-experiment-" + randomUUID();
+      const experimentDescription = "root-description-" + randomUUID();
+      const experimentDatasetId = randomUUID();
+      const experimentItemId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+
+      const childEvent = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "child-span-without-optional-experiment-attributes",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_description: null,
+        experiment_dataset_id: experimentDatasetId,
+        experiment_item_id: experimentItemId,
+        experiment_item_version: null,
+        experiment_item_metadata_names: [],
+        experiment_item_metadata_values: [],
+        experiment_item_root_span_id: rootSpanId,
+      });
+
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "experiment-item-root-span",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: ["application", "source"],
+        experiment_metadata_values: ["example-agent", "remote-trigger"],
+        experiment_description: experimentDescription,
+        experiment_dataset_id: experimentDatasetId,
+        experiment_item_id: experimentItemId,
+        experiment_item_version: null,
+        experiment_item_metadata_names: [],
+        experiment_item_metadata_values: [],
+        experiment_item_root_span_id: rootSpanId,
+      });
+
+      await createEventsCh([childEvent, rootEvent]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [],
+        limit: 1000,
+        page: 0,
+      });
+
+      const experiment = result.find((entry) => entry.id === experimentId);
+      expect(experiment?.description).toBe(experimentDescription);
+      expect(experiment?.metadata).toEqual({
+        application: "example-agent",
+        source: "remote-trigger",
+      });
+    });
+
     it("should order by startTime DESC", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "experiment-1-" + randomUUID();
