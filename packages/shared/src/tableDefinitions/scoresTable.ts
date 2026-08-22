@@ -70,6 +70,12 @@ export const scoresTableCols: ColumnDefinition[] = [
     internal: "",
     options: [],
   },
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: 's."metadata"',
+  },
   { name: "Value", id: "value", type: "number", internal: 's."value"' },
   {
     name: "Boolean Value",
