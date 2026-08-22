@@ -118,6 +118,20 @@ describe("queryBuilder filter type validation", () => {
       expectedMessage:
         "Filter type 'stringOptions' is not supported for dimension type 'string[]'. Expected 'arrayOptions'.",
     },
+    {
+      name: "string on observationPromptVersion (UInt16 column, not a string)",
+      filter: {
+        column: "observationPromptVersion",
+        operator: "=",
+        value: "2",
+        type: "string",
+      },
+      queryOverrides: {
+        view: "scores-numeric",
+      },
+      expectedMessage:
+        "Filter type 'string' is not supported for dimension type 'number'",
+    },
   ])(
     "rejects incompatible filter type: $name",
     async ({ filter, queryOverrides, expectedMessage }) => {
@@ -153,6 +167,21 @@ describe("queryBuilder filter type validation", () => {
     const { query } = await buildQueryWithFilter(filter as FilterCondition);
 
     expect(query).toContain("has");
+  });
+
+  it("lowers a numeric filter on observationPromptVersion to a NumberFilter SQL predicate", async () => {
+    const { query } = await buildQueryWithFilter(
+      {
+        column: "observationPromptVersion",
+        operator: "=",
+        value: 2,
+        type: "number",
+      },
+      { view: "scores-numeric" },
+    );
+
+    expect(query).toContain("observations.prompt_version = {numberFilter");
+    expect(query).toContain(": Decimal64(12)}");
   });
 
   it("lowers a compatible boolean score filter to a Boolean SQL predicate", async () => {
