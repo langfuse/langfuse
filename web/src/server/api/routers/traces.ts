@@ -2,34 +2,8 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
 import {
-  createTRPCRouter,
-  protectedGetTraceProcedure,
-  protectedProjectProcedure,
-} from "@/src/server/api/trpc";
-import {
-  BatchActionQuerySchema,
-  BatchTableNames,
-  BatchExportTableName,
-  BatchActionType,
-  ActionId,
-  filterAndValidateDbScoreList,
-  normalizeOrderByForTable,
-  orderBy,
-  paginationZod,
-  singleFilter,
-  timeFilter,
-  type Observation,
-  hasValidTracingSearchTypes,
-  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
-  TracingSearchType,
-  type ScoreDomain,
-  ScoreDataTypeArray,
-  ScoreDataTypeEnum,
-  LISTABLE_SCORE_TYPES,
-} from "@langfuse/shared";
-import {
+  applyCommentFilters,
   traceException,
   getTracesTable,
   getTracesTableCount,
@@ -56,6 +30,32 @@ import {
   updateEvents,
   getScoresAndCorrectionsForTraces,
 } from "@langfuse/shared/src/server";
+import {
+  createTRPCRouter,
+  protectedGetTraceProcedure,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
+import {
+  BatchActionQuerySchema,
+  BatchTableNames,
+  BatchExportTableName,
+  BatchActionType,
+  ActionId,
+  filterAndValidateDbScoreList,
+  normalizeOrderByForTable,
+  orderBy,
+  paginationZod,
+  singleFilter,
+  timeFilter,
+  type Observation,
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+  TracingSearchType,
+  type ScoreDomain,
+  ScoreDataTypeArray,
+  ScoreDataTypeEnum,
+  LISTABLE_SCORE_TYPES,
+} from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";

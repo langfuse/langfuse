@@ -31,6 +31,7 @@ import {
   LangfuseNotFoundError,
   EvalTemplateType,
   type EvalTemplateSourceCodeLanguage,
+  CODE_EVAL_TEMPLATE_VARIABLES,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -46,10 +47,10 @@ import {
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
   invalidateProjectEvalConfigCaches,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvaluatorStatus } from "../types";
-import { traceException } from "@langfuse/shared/src/server";
 import { assertUnreachable, isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
@@ -85,7 +86,6 @@ import {
   deleteEvalTemplateFamily,
   findEvalTemplateFamilyUsage,
 } from "@/src/features/evals/server/evalTemplateDeletion";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,

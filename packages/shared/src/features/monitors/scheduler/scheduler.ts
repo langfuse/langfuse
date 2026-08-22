@@ -12,6 +12,8 @@ export const monitorProcessorTtl = 5 * 60 * 1000;
 
 /** MonitorScheduler claims and publishes due monitors for its scheduler slot. */
 export class MonitorScheduler {
+  public static readonly claimTimeoutMs = 20_000;
+
   private readonly schedulerId: number;
   private readonly totalSchedulers: number;
   private readonly db: PrismaClient;
@@ -34,21 +36,25 @@ export class MonitorScheduler {
    * advances the schedule to the next run.
    */
   async schedule(scheduledAt: Date): Promise<number> {
-    const results = await this.db.$queryRaw<MonitorBatchResult[]>(
-      buildScheduleQuery({
-        tick: scheduledAt,
-        schedulerId: this.schedulerId,
-        totalSchedulers: this.totalSchedulers,
-      }),
-    );
+    const [, results] = await this.db.$transaction([
+      this.db.$executeRawUnsafe(
+        `SET LOCAL statement_timeout = ${MonitorScheduler.claimTimeoutMs}`,
+      ),
+      this.db.$queryRaw<MonitorBatchResult[]>(
+        buildScheduleQuery({
+          tick: scheduledAt,
+          schedulerId: this.schedulerId,
+          totalSchedulers: this.totalSchedulers,
+        }),
+      ),
+    ]);
 
     if (results.length === 0) return 0;
 
     await Promise.all(
-      results.map((result) => {
-        let event = toMonitorQueueEvent(result, scheduledAt);
-        return this.publish(event);
-      }),
+      results.map((result) =>
+        this.publish(toMonitorQueueEvent(result, scheduledAt)),
+      ),
     );
 
     return results.length;

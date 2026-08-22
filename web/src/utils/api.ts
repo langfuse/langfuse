@@ -23,7 +23,6 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 import { env } from "@/src/env.mjs";
-import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
@@ -59,10 +58,6 @@ export const getPathnameWithoutBasePath = () => {
   return pathname;
 };
 
-// global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files
-let buildId: string | null = null;
-
-const CLIENT_STALE_CACHE_CODES = [404, 400];
 const REPORTED_FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;
 
 // Cache to store hashes of recently shown errors (client-side only)
@@ -340,16 +335,8 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
 
-    if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
-      if (
-        !!buildId &&
-        !!process.env.NEXT_PUBLIC_BUILD_ID &&
-        buildId !== process.env.NEXT_PUBLIC_BUILD_ID
-      ) {
-        showVersionUpdateToast();
-        return;
-      }
-    }
+    // Version mismatch UX is owned by VersionUpdateBanner (fed by
+    // buildIdLink / versionUpdateStore). 400/404 here are real API errors.
 
     if (isExpectedTrpcClientError(error)) {
       // Expected, user-facing states (a missing/forbidden resource, an expired
@@ -446,16 +433,15 @@ export const reportTrpcErrorWithoutToast = (
 };
 
 // Reads the `x-build-id` response header (the build id serving this response)
-// and records it: the module-level `buildId` still drives the legacy
-// stale-cache toast, and the version-update store drives the persistent reload
-// banner (see src/features/version-update). Called on EVERY response — success
+// and feeds the version-update store that drives VersionUpdateBanner
+// (see src/features/version-update). Called on EVERY response — success
 // and error — so a mismatch is detected on the first response after a deploy,
-// not only when a stale chunk 404s.
-const captureBuildId = (response: unknown) => {
+// not only when a stale chunk 404s. Exported so tests can inject an observed
+// build id without going through the tRPC link.
+export const captureBuildId = (response: unknown) => {
   if (!(response instanceof Response)) return;
   const observed = response.headers.get("x-build-id");
   if (!observed) return;
-  buildId = observed;
   versionUpdateStore.reportObservedBuildId(observed);
 };
 
