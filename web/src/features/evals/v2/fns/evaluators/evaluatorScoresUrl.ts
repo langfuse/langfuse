@@ -6,14 +6,30 @@ import {
   encodeFiltersGeneric,
 } from "@langfuse/shared";
 
-export function evaluatorScoresUrl(projectId: string, name: string) {
+export function evaluatorScoresUrl(
+  projectId: string,
+  evaluatorId: string,
+  evaluatorName: string,
+  evaluatorType: EvalTemplateType,
+  assignedRuleIds: string[],
+) {
+  const evaluatorFilter: FilterState[number] =
+    evaluatorType === EvalTemplateTypeEnum.CODE
+      ? {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: [...new Set([evaluatorId, ...assignedRuleIds])],
+        }
+      : {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: [evaluatorName],
+        };
+
   const filter: FilterState = [
-    {
-      column: "name",
-      type: "stringOptions",
-      operator: "any of",
-      value: [name],
-    },
+    evaluatorFilter,
     {
       column: "source",
       type: "stringOptions",

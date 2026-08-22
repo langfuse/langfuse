@@ -180,7 +180,7 @@ export async function listEvaluators(params: {
         assignments: {
           where: { projectId: params.projectId },
           select: {
-            evaluationRule: { select: { status: true } },
+            evaluationRule: { select: { id: true, status: true } },
           },
         },
       },
@@ -190,6 +190,9 @@ export async function listEvaluators(params: {
   return {
     evaluators: evaluators.map(({ assignments, ...evaluator }) => ({
       ...evaluator,
+      assignedRuleIds: assignments.map(
+        ({ evaluationRule }) => evaluationRule.id,
+      ),
       hasActiveRules: assignments.some(
         ({ evaluationRule }) => evaluationRule.status === "ACTIVE",
       ),

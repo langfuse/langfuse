@@ -443,7 +443,15 @@ export default function EvaluatorsPage() {
             <EvaluatorActionsCell
               canViewExecutions={hasExecutionReadAccess}
               onViewScores={() =>
-                router.push(evaluatorScoresUrl(projectId, row.original.name))
+                router.push(
+                  evaluatorScoresUrl(
+                    projectId,
+                    row.original.id,
+                    row.original.name,
+                    row.original.type,
+                    row.original.assignedRuleIds,
+                  ),
+                )
               }
               onViewExecutions={() =>
                 router.push(
