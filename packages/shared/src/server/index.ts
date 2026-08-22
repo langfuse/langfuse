@@ -83,6 +83,7 @@ export * from "./ingestion/ingestionAttribution";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "./ingestion/extractToolsBackend";
+export * from "./ingestion/normalizedIO";
 export * from "../server/queries/public-api-filter-builder";
 export * from "../server/pricing-tiers";
 export * from "./redis/redis";
