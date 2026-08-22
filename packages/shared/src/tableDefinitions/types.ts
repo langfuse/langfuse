@@ -125,6 +125,7 @@ export const tableNames = [
   "job_executions",
   "dataset_items",
   "annotation_queue_assignments",
+  "annotation_queue_items",
   "dataset_item_events",
 ] as const;
 
