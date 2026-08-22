@@ -16,7 +16,7 @@ describe("managed evaluator templates catalog", () => {
       ({ key }) => key,
     );
 
-    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(20);
+    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(18);
     expect(new Set(templateKeys).size).toBe(templateKeys.length);
 
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
@@ -46,7 +46,7 @@ describe("managed evaluator templates catalog", () => {
     }
   });
 
-  it("detects all-caps text in the latest user chat message", () => {
+  it("detects all-caps text in the user input and comments on the score", () => {
     const template = MANAGED_TEMPLATES_CATALOG.templates.find(
       ({ key }) => key === "all-caps",
     );
@@ -66,7 +66,7 @@ describe("managed evaluator templates catalog", () => {
     const createEvaluator = new Function(
       `${javascript}\nreturn evaluate;`,
     ) as () => (ctx: { observation: { input: unknown } }) => {
-      scores: Array<{ value: boolean }>;
+      scores: Array<{ name?: string; value: boolean; comment?: string }>;
     };
 
     const evaluate = createEvaluator();
@@ -79,10 +79,22 @@ describe("managed evaluator templates catalog", () => {
       },
     ];
 
-    for (const input of [messages, { messages }]) {
+    for (const input of ["THIS IS COMPLETELY BROKEN", messages, { messages }]) {
       const result = evaluate({ observation: { input } });
+      expect(result.scores[0]?.name).toBe("All CAPS");
       expect(result.scores[0]?.value).toBe(true);
+      expect(result.scores[0]?.comment).toBe("User input is mostly all caps.");
     }
+
+    const mixedCase = evaluate({
+      observation: {
+        input: "This is completely broken",
+      },
+    });
+    expect(mixedCase.scores[0]?.value).toBe(false);
+    expect(mixedCase.scores[0]?.comment).toBe(
+      "User input is not mostly all caps.",
+    );
   });
 
   it("ships code evaluator templates that pass client validation", async () => {

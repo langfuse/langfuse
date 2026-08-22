@@ -274,13 +274,73 @@ Last user message: {{last_user_message}}`,
       categories: ["conversation"],
       icon: "type",
       description:
-        "Detects whether user uses all capital letters, potentially indicating frustration.",
+        "Detects whether the user input is written in all capital letters.",
       maintainer: "langfuse",
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
-        source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const extractText = (value: unknown): string => {\n    if (typeof value === "string") return value;\n\n    if (Array.isArray(value)) {\n      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");\n    }\n\n    if (value !== null && typeof value === "object") {\n      const record = value as Record<string, unknown>;\n      if ("content" in record) return extractText(record.content);\n      if ("text" in record) return extractText(record.text);\n      if ("parts" in record) return extractText(record.parts);\n    }\n\n    return "";\n  };\n\n  const input = ctx.observation.input;\n  const inputRecord =\n    input !== null && typeof input === "object" && !Array.isArray(input)\n      ? (input as Record<string, unknown>)\n      : null;\n  const messages = Array.isArray(input)\n    ? input\n    : Array.isArray(inputRecord?.messages)\n      ? inputRecord.messages\n      : [];\n\n  let message = messages[messages.length - 1];\n  for (let index = messages.length - 1; index >= 0; index -= 1) {\n    const candidate = messages[index];\n    if (candidate === null || typeof candidate !== "object") continue;\n\n    const record = candidate as Record<string, unknown>;\n    const role = record.role ?? record.type;\n    if (role === "user" || role === "human") {\n      message = candidate;\n      break;\n    }\n  }\n\n  const text = typeof input === "string" ? input : extractText(message ?? input);\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+        source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
+  const extractText = (value: unknown): string => {
+    if (typeof value === "string") return value;
+
+    if (Array.isArray(value)) {
+      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");
+    }
+
+    if (value !== null && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if ("content" in record) return extractText(record.content);
+      if ("text" in record) return extractText(record.text);
+      if ("parts" in record) return extractText(record.parts);
+    }
+
+    return "";
+  };
+
+  const input = ctx.observation.input;
+  const inputRecord =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : null;
+  const messages = Array.isArray(input)
+    ? input
+    : Array.isArray(inputRecord?.messages)
+      ? inputRecord.messages
+      : [];
+
+  let message = messages[messages.length - 1];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate === null || typeof candidate !== "object") continue;
+
+    const record = candidate as Record<string, unknown>;
+    const role = record.role ?? record.type;
+    if (role === "user" || role === "human") {
+      message = candidate;
+      break;
+    }
+  }
+
+  const text = typeof input === "string" ? input : extractText(message ?? input);
+  const letters = text.match(/[A-Za-z]/g) ?? [];
+  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];
+  const uppercaseRatio =
+    letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;
+  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;
+
+  return {
+    scores: [
+      {
+        name: "All CAPS",
+        value: isAllCaps,
+        dataType: "BOOLEAN",
+        comment: isAllCaps
+          ? "User input is mostly all caps."
+          : "User input is not mostly all caps.",
+      },
+    ],
+  };
+}`,
       },
     },
     {
@@ -410,112 +470,6 @@ Expected output: {{expected_output}}`,
             description: "One concise sentence.",
           },
         },
-      },
-    },
-    {
-      key: "exact-match",
-      name: "Check if Output Is an Exact Match",
-      categories: ["quality"],
-      icon: "equal",
-      description:
-        "Checks whether the output exactly matches the expected output.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "CODE",
-        language: "TYPESCRIPT",
-        source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
-  const expected = ctx.experiment?.itemExpectedOutput;
-  const output = ctx.observation.output;
-
-  const normalize = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-      return value.map((item) => normalize(item));
-    }
-
-    if (value !== null && typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      return Object.keys(record)
-        .sort()
-        .reduce((acc, key) => {
-          acc[key] = normalize(record[key]);
-          return acc;
-        }, {} as Record<string, unknown>);
-    }
-
-    return value;
-  };
-
-  const valuesMatch = (left: unknown, right: unknown) =>
-    JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
-
-  const hasExpected = expected !== undefined && expected !== null;
-  const matches = hasExpected && valuesMatch(output, expected);
-
-  return {
-    scores: [
-      {
-        name: "Exact match",
-        value: matches,
-        dataType: "BOOLEAN",
-      },
-    ],
-  };
-}`,
-      },
-    },
-    {
-      key: "keyword-match",
-      name: "Validate Keyword Match",
-      categories: ["quality"],
-      icon: "list-checks",
-      description:
-        "Checks whether required keywords, phrases, or entities appear in the output.",
-      maintainer: "langfuse",
-      evaluator: {
-        type: "CODE",
-        language: "TYPESCRIPT",
-        source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
-  const outputText = typeof ctx.observation.output === "string"
-    ? ctx.observation.output
-    : JSON.stringify(ctx.observation.output ?? "");
-
-  const expectedRaw = ctx.experiment?.itemExpectedOutput;
-
-  let expectedObject: Record<string, unknown> | null = null;
-  if (expectedRaw !== undefined && expectedRaw !== null) {
-    if (typeof expectedRaw === "string") {
-      try {
-        const parsed = JSON.parse(expectedRaw);
-        if (parsed && typeof parsed === "object") {
-          expectedObject = parsed as Record<string, unknown>;
-        }
-      } catch {
-        expectedObject = null;
-      }
-    } else if (typeof expectedRaw === "object") {
-      expectedObject = expectedRaw as Record<string, unknown>;
-    }
-  }
-
-  const expectedKeywords = Array.isArray(expectedObject?.expected_keywords)
-    ? expectedObject.expected_keywords.filter((keyword): keyword is string => typeof keyword === "string")
-    : [];
-
-  const normalizedOutput = outputText.toLowerCase();
-  const matches = expectedKeywords.length > 0 && expectedKeywords.every((keyword) =>
-    normalizedOutput.includes(keyword.toLowerCase()),
-  );
-
-  return {
-    scores: [
-      {
-        name: "Keyword match",
-        value: matches,
-        dataType: "BOOLEAN",
-      },
-    ],
-  };
-}`,
       },
     },
     {

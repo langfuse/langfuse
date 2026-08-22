@@ -23,14 +23,14 @@ describe("managedTemplateToEvaluatorSetupDraft", () => {
     });
   });
 
-  it("prefills the Exact Match code evaluator", () => {
+  it("prefills the all-caps code evaluator", () => {
     const template = MANAGED_TEMPLATES_CATALOG.templates.find(
-      ({ key }) => key === "exact-match",
+      ({ key }) => key === "all-caps",
     );
     expect(template).toBeDefined();
 
     expect(managedTemplateToEvaluatorSetupDraft(template!)).toMatchObject({
-      name: "Check if Output Is an Exact Match",
+      name: "Detect User Frustration (ALL CAPS)",
       definition: {
         type: "CODE",
         sourceCodeLanguage: "TYPESCRIPT",
