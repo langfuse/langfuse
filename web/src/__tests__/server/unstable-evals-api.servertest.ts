@@ -719,6 +719,70 @@ describe("/api/public/unstable evaluators API", () => {
     expect(deleted.status).toBe(200);
   });
 
+  it("still allows disabling and deleting an observation rule with a corrupted stored filter", async () => {
+    const evaluator = await makeZodVerifiedAPICall(
+      PostUnstableEvaluatorResponse,
+      "POST",
+      "/api/public/unstable/evaluators",
+      {
+        name: "Corrupted filter rule evaluator",
+        prompt: "Judge {{input}}",
+        outputDefinition: numericOutputDefinition,
+        mapping: [{ variable: "input", source: "input" }],
+      },
+      auth,
+    );
+
+    // Mirrors a migrated rule whose stored filter no longer parses under the
+    // current public schema (e.g. an unrecognized filter `type`).
+    const corruptedFilter = [{ type: "legacy_unsupported", column: "input" }];
+    const nativeRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "corrupted_filter_rule",
+        targetObject: "event",
+        status: "ACTIVE",
+        sampling: 1,
+        delay: 0,
+        timeScope: ["NEW"],
+        filter: corruptedFilter,
+        assignments: {
+          create: {
+            projectId,
+            evaluatorId: evaluator.body.id,
+          },
+        },
+      },
+    });
+
+    const patched = await makeAPICall(
+      "PATCH",
+      `/api/public/unstable/evaluation-rules/${nativeRule.id}`,
+      { enabled: false },
+      auth,
+    );
+    expect(patched.status).toBe(200);
+    expect(
+      PatchUnstableEvaluationRuleResponse.parse(patched.body),
+    ).toMatchObject({ id: nativeRule.id, enabled: false });
+
+    // The corrupted filter is left untouched rather than being silently
+    // replaced by the degraded (empty) public read representation.
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: nativeRule.id },
+      }),
+    ).resolves.toMatchObject({ filter: corruptedFilter });
+
+    const deleted = await makeAPICall(
+      "DELETE",
+      `/api/public/unstable/evaluation-rules/${nativeRule.id}`,
+      undefined,
+      auth,
+    );
+    expect(deleted.status).toBe(200);
+  });
+
   it("rejects create bodies that combine evaluators with the deprecated mapping alias", async () => {
     const evaluator = await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,

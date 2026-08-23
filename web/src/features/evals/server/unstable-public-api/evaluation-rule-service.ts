@@ -598,6 +598,30 @@ export async function updatePublicEvaluationRule(params: {
     params.input.evaluator !== undefined ||
     ("mapping" in params.input && params.input.mapping !== undefined);
 
+  // A patch that only flips enabled/sampling never needs to touch the stored
+  // filter or assignments. Routing it through ruleService.setEnabled instead
+  // of ruleService.update means it can disable (and, via findPublic...OrThrow
+  // below, delete) a rule whose stored filter no longer parses under the
+  // current schema, since setEnabled never re-validates that filter.
+  const isEnabledOrSamplingOnlyPatch =
+    !("name" in params.input && params.input.name !== undefined) &&
+    !("target" in params.input && params.input.target !== undefined) &&
+    !("filter" in params.input && params.input.filter !== undefined) &&
+    !patchesFirstAssignment &&
+    !params.input.evaluators;
+
+  if (isEnabledOrSamplingOnlyPatch) {
+    // A stored filter that fails to parse under the current public schema
+    // degrades to `[]` in existingPublic (see toApiV2EvaluationRule).
+    // Round-tripping that through toStoredFilter would silently erase the
+    // real stored filter on a patch that never touches target or filter.
+    // Keep the stored bytes as-is instead. (Only safe when target/filter
+    // are unchanged: switching target away from "experiment" relies on the
+    // public round-trip to strip the internal experiment-root marker
+    // filter.)
+    ruleFields.filter = existing.filter as typeof ruleFields.filter;
+  }
+
   if (
     "mapping" in params.input &&
     params.input.mapping !== undefined &&
@@ -702,6 +726,7 @@ export async function updatePublicEvaluationRule(params: {
     replacementAssignments,
     patchedFirstAssignment,
     effectiveAssignmentCount: effectiveAssignments.length,
+    isEnabledOrSamplingOnlyPatch,
   });
   const evaluationRule = toApiWritableV2EvaluationRule(updated);
   if (params.auditScope) {
@@ -742,7 +767,27 @@ async function updateRuleWithRuleService(params: {
   replacementAssignments: PreparedAssignment[] | null;
   patchedFirstAssignment: PreparedAssignment | null;
   effectiveAssignmentCount: number;
+  isEnabledOrSamplingOnlyPatch: boolean;
 }) {
+  const enabled =
+    params.effectiveAssignmentCount > 0 &&
+    params.fields.status === JobConfigState.ACTIVE;
+
+  if (params.isEnabledOrSamplingOnlyPatch) {
+    await runRuleServiceMutation(() =>
+      ruleService.setEnabled({
+        projectId: params.projectId,
+        ruleId: params.evaluationRuleId,
+        enabled,
+        sampling: params.fields.sampling,
+      }),
+    );
+    return findPublicV2EvaluationRuleOrThrow({
+      projectId: params.projectId,
+      evaluationRuleId: params.evaluationRuleId,
+    });
+  }
+
   const firstAssignment = params.existing.assignments[0];
   const evaluatorMappings = params.replacementAssignments
     ? params.replacementAssignments.map((assignment) => ({
@@ -776,9 +821,7 @@ async function updateRuleWithRuleService(params: {
       ruleId: params.evaluationRuleId,
       targetObject: params.fields.targetObject as EvalTargetObject,
       name: params.fields.scoreName,
-      enabled:
-        params.effectiveAssignmentCount > 0 &&
-        params.fields.status === JobConfigState.ACTIVE,
+      enabled,
       sampling: params.fields.sampling,
       filter: params.fields.filter as FilterState,
       ...(evaluatorMappings === undefined ? {} : { evaluatorMappings }),

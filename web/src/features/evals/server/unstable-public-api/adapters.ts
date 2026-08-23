@@ -434,6 +434,23 @@ function toApiFilters(
   return parsedPublicFilters.data;
 }
 
+// A migrated rule can carry a stored filter that no longer parses under the
+// current public schema. Degrading to an empty filter here (rather than
+// throwing) keeps the rule readable, patchable, and deletable through the
+// public API instead of making it permanently unmanageable; the corruption
+// is still logged in toApiFilters above.
+function toApiFiltersOrDegraded(
+  filters: unknown,
+  target: PublicEvaluationRuleTargetType,
+): PublicEvaluationRuleFilterType[] {
+  try {
+    return toApiFilters(filters, target);
+  } catch (error) {
+    if (!(error instanceof InternalServerError)) throw error;
+    return [];
+  }
+}
+
 export function toApiEvaluator(params: {
   template: StoredPublicEvaluatorTemplate;
   evaluationRuleCount: number;
@@ -610,7 +627,7 @@ export function toApiV2EvaluationRule(
     pausedMessage: block.pausedMessage,
     sampling: Number(rule.sampling),
     target,
-    filter: toApiFilters(rule.filter, target),
+    filter: toApiFiltersOrDegraded(rule.filter, target),
     mapping: toApiReadMappings(effectiveFirstMapping),
     createdAt: rule.createdAt,
     updatedAt: rule.updatedAt,
