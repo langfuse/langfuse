@@ -12,11 +12,11 @@ import { type ZodType } from "zod";
 
 import { logger } from "@langfuse/shared/src/server";
 import {
-  createAuthedProjectAPIRoute,
+  createAuthedProjectAPIRoute as legacyCreateAuthedProjectAPIRoute,
   type AuthedProjectAPIRouteConfig,
 } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
-  mustAuthorize,
+  authorize,
   type Access,
   type Action,
   type AuthorizationContext,
@@ -64,8 +64,8 @@ export async function enforceOrgAuth(params: {
   return { context, orgId, access };
 }
 
-/** createAuthedProjectAPIRoutePrototype is the migration seam over the legacy factory: same config plus a required action, logged in shadow mode and acted on at enforce. */
-export const createAuthedProjectAPIRoutePrototype = <
+/** createAuthedProjectAPIRoute is the migration seam over the legacy factory: same config plus a required action, logged in shadow mode and acted on at enforce. */
+export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
@@ -74,7 +74,7 @@ export const createAuthedProjectAPIRoutePrototype = <
     action: ProjectAction | null;
   },
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) =>
-  createAuthedProjectAPIRoute({
+  legacyCreateAuthedProjectAPIRoute({
     ...routeConfig,
     fn: async (params) => {
       // KNOWN LIMITATION: wrapping fn observes only legacy-admitted requests —
@@ -124,11 +124,13 @@ async function evaluateProjectAction(
 ): Promise<AuthzOutcome> {
   try {
     const context = await authenticate(headers);
-    return {
-      success: true,
-      access: mustAuthorize(context, action, { projectId }),
-    };
+    const decision = authorize(context, action, { projectId });
+    return decision.success
+      ? { success: true, access: decision.access }
+      : { success: false, error: decision.error };
   } catch (error) {
+    // authentication and target resolution throw today; they too become
+    // outcome values once the seam moves inside the factory's auth step
     if (error instanceof Error) return { success: false, error };
     throw error;
   }
