@@ -213,12 +213,20 @@ function normalizeMessage(
 
   // User message with tool responses - split into separate tool messages
   if (message.role === "user" && toolResponses.length > 0) {
-    return toolResponses.map((tr) =>
+    const toolMessages = toolResponses.map((tr) =>
       removeNullFields({
         role: "tool",
         ...tr,
       }),
     );
+
+    // A user request can mix tool responses with authored text; keep the
+    // text instead of dropping it when the message is split.
+    if (text) {
+      toolMessages.push(removeNullFields({ role: "user", content: text }));
+    }
+
+    return toolMessages;
   }
 
   // Regular text message (may include thinking for assistant messages)
