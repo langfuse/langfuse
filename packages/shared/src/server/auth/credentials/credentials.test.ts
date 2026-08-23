@@ -49,6 +49,8 @@ import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
 import { logger } from "../../logger";
 
 const ONE_HOUR = 60 * 60 * 1000;
+/** Mirrors REAUTH_MAX_ATTEMPTS in the module under test. */
+const REAUTH_ATTEMPTS_FOR_ONE_TOKEN = 3;
 
 // Controllable provider for the bind tests.
 function fakeProvider(
@@ -329,7 +331,8 @@ describe("bindManagedCredentialToRedis", () => {
     await settle();
     client.status = "ready";
     await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
-    await settle();
+    // Past the bounded retries, so the give-up warning has been emitted.
+    await vi.advanceTimersByTimeAsync(10_000);
 
     const calls = (logger.warn as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBeGreaterThan(0);
@@ -337,6 +340,94 @@ describe("bindManagedCredentialToRedis", () => {
     // A lone string argument is what guarantees it: nothing is passed that could
     // carry the command payload.
     for (const call of calls) expect(call).toHaveLength(1);
+    manager.stop();
+  });
+
+  it("retries a re-AUTH that fails transiently", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider({ username: "object-id-123" });
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+    client.status = "ready";
+
+    // Fails once, then succeeds -- a socket left on the previous token until
+    // expiry would be dropped by the server for no good reason.
+    client.call
+      .mockRejectedValueOnce(new Error("LOADING Redis is busy"))
+      .mockResolvedValue("OK");
+
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    expect(client.call).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(client.call).toHaveBeenCalledTimes(2);
+    expect(client.call).toHaveBeenLastCalledWith(
+      "AUTH",
+      "object-id-123",
+      "token-2",
+    );
+    // A successful retry is not worth warning about.
+    expect(logger.warn).not.toHaveBeenCalled();
+    manager.stop();
+  });
+
+  it("gives up after a bounded number of re-AUTH attempts", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider({ username: "object-id-123" });
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+    client.status = "ready";
+    client.call.mockRejectedValue(new Error("still failing"));
+
+    await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    // Bounded, so a permanently rejected credential cannot spin.
+    expect(client.call).toHaveBeenCalledTimes(3);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    // options already hold the new token, so the drop at expiry recovers.
+    expect(client.options.password).toBe("token-2");
+    manager.stop();
+  });
+
+  it("abandons a retry once a newer token has been distributed", async () => {
+    vi.useFakeTimers();
+    const provider = fakeProvider({ username: "object-id-123", ttlMs: 10_000 });
+    const client = fakeRedisClient();
+
+    const manager = bindManagedCredentialToRedis(
+      client as unknown as Redis,
+      provider,
+    );
+    await settle();
+    client.status = "ready";
+    client.call.mockRejectedValue(new Error("transient"));
+
+    // First refresh fails and schedules a retry; the next refresh lands before
+    // that retry runs. Re-AUTHing with the superseded token would move the
+    // connection backwards.
+    await vi.advanceTimersByTimeAsync(10_000 * 0.8);
+    const afterFirst = client.call.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    const stale = client.call.mock.calls.filter(
+      (c: unknown[]) => c[2] === "token-2",
+    ).length;
+    expect(afterFirst).toBe(1);
+    expect(stale).toBeLessThanOrEqual(REAUTH_ATTEMPTS_FOR_ONE_TOKEN);
+    // Whatever was sent last is the newest token, never a superseded one.
+    const last = client.call.mock.calls.at(-1) as unknown[];
+    expect(last[2]).not.toBe("token-2");
     manager.stop();
   });
 

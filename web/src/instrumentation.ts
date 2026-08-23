@@ -9,14 +9,22 @@ export async function register() {
 
   const isNodeRuntime = process.env.NEXT_RUNTIME === "nodejs";
 
-  if (isNodeRuntime && isInitLoadingEnabled) {
-    console.log("Running init scripts...");
-    // Must run before anything opens a Redis connection: ioredis does not retry a
-    // rejected AUTH handshake, so a connection opened before the first managed
-    // credential arrives is closed for good rather than recovered.
+  // Not gated on the init-scripts flag: that skips optional provisioning for local
+  // development, whereas a managed credential is a prerequisite for opening any
+  // Redis connection. The import stays inside the branch so the static path does
+  // not pull in the server barrel, which builds the Redis singleton eagerly.
+  if (
+    isNodeRuntime &&
+    process.env.REDIS_AUTH_METHOD &&
+    process.env.REDIS_AUTH_METHOD !== "static"
+  ) {
     const { initializeRedisManagedCredentials } =
       await import("@langfuse/shared/src/server");
     await initializeRedisManagedCredentials();
+  }
+
+  if (isNodeRuntime && isInitLoadingEnabled) {
+    console.log("Running init scripts...");
     await import("./observability.config");
   }
 
