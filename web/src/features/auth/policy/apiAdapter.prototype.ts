@@ -22,7 +22,11 @@ import {
   type AuthorizationContext,
   type ProjectAction,
 } from "./policy.prototype";
-import { enforceOrgAuthz, enforceProjectAuthz } from "./enforce.prototype";
+import {
+  enforceOrgAuthz,
+  enforceProjectAuthz,
+  getProjectId,
+} from "./enforce.prototype";
 
 /** authzMigrationMode gates the seam — shadow logs the new-path outcome, enforce acts on it; the flag itself is authored by the shadow slice. */
 const authzMigrationMode: "shadow" | "enforce" =
@@ -87,7 +91,6 @@ export const createAuthedProjectAPIRoute = <
         const outcome = await evaluateProjectAction(
           params.req.headers,
           routeConfig.action,
-          params.auth.scope.projectId,
         );
         if (authzMigrationMode === "enforce" && !outcome.success) {
           throw outcome.error;
@@ -116,14 +119,14 @@ export async function authenticate(
   );
 }
 
-/** evaluateProjectAction runs the new pipeline capturing every failure as an outcome, so shadow mode can log what enforce mode would throw. */
+/** evaluateProjectAction runs the new pipeline — its own target resolution included, never legacy's — capturing every failure as an outcome, so shadow mode can log what enforce mode would throw. */
 async function evaluateProjectAction(
   headers: IncomingHttpHeaders,
   action: ProjectAction,
-  projectId: string,
 ): Promise<AuthzOutcome> {
   try {
     const context = await authenticate(headers);
+    const projectId = getProjectId(context, headers);
     const decision = authorize(context, action, { projectId });
     return decision.success
       ? { success: true, access: decision.access }
