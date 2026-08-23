@@ -28,22 +28,25 @@ import { enforceOrgAuthz, getProjectId } from "./enforce.prototype";
 const authzMigrationMode: "shadow" | "enforce" =
   process.env.PUBLIC_API_AUTHZ_MIGRATION === "enforce" ? "enforce" : "shadow";
 
-/** enforceProjectAuth is evaluateProjectAction with enforce semantics: one call per route, throwing what the pipeline captured. */
+/** enforceProjectAuth runs the new pipeline — its own target resolution, never legacy's — as the one uniform seam: a failure throws at enforce, and in shadow is logged and swallowed while legacy keeps gating. */
 export async function enforceProjectAuth(params: {
   headers: IncomingHttpHeaders;
   action: ProjectAction | null;
-}): Promise<{
-  context: AuthorizationContext;
-  projectId: string;
-  access: Access | null;
-}> {
-  const outcome = await evaluateProjectAction(params.headers, params.action);
-  if (!outcome.success) throw outcome.error;
-  return {
-    context: outcome.context,
-    projectId: outcome.projectId,
-    access: outcome.access,
-  };
+}): Promise<EnforcedProject | undefined> {
+  const { headers, action } = params;
+  try {
+    const context = await authenticate(headers);
+    const projectId = getProjectId(context, headers);
+    const decision =
+      action === null ? null : authorize(context, action, { projectId });
+    if (decision && !decision.success) return failOrLog(decision.error, action);
+    return { context, projectId, access: decision?.access ?? null };
+  } catch (error) {
+    // authentication and target resolution throw today; they too become
+    // decision values once the seam moves inside the factory's auth step
+    if (error instanceof Error) return failOrLog(error, action);
+    throw error;
+  }
 }
 
 /** enforceOrgAuth authenticates the request and asserts action on its resolved org, one call per route. */
@@ -83,22 +86,10 @@ export const createAuthedProjectAPIRoute = <
       // createAuthedProjectAPIRoute's auth step and evaluates both pipelines
       // unconditionally, every outcome captured, neither throwing into the
       // other (LFE-15034 owns what gets emitted).
-      const outcome = await evaluateProjectAction(
-        params.req.headers,
-        routeConfig.action,
-      );
-      if (authzMigrationMode === "enforce" && !outcome.success) {
-        throw outcome.error;
-      }
-      if (authzMigrationMode === "shadow") {
-        // placeholder sink — the counter/log contract is LFE-15034's
-        logger.info("PROTOTYPE(LFE-15038) authz shadow decision", {
-          route: routeConfig.name,
-          action: routeConfig.action,
-          success: outcome.success,
-          error: outcome.success ? undefined : outcome.error.message,
-        });
-      }
+      await enforceProjectAuth({
+        headers: params.req.headers,
+        action: routeConfig.action,
+      });
       return routeConfig.fn(params);
     },
   });
@@ -113,33 +104,20 @@ export async function authenticate(
   );
 }
 
-/** evaluateProjectAction runs the new pipeline — its own target resolution included, never legacy's — capturing every failure as an outcome, so shadow mode can log what enforce mode would throw. */
-async function evaluateProjectAction(
-  headers: IncomingHttpHeaders,
-  action: ProjectAction | null,
-): Promise<AuthzOutcome> {
-  try {
-    const context = await authenticate(headers);
-    const projectId = getProjectId(context, headers);
-    if (action === null) return { success: true, context, projectId, access: null };
-    const decision = authorize(context, action, { projectId });
-    return decision.success
-      ? { success: true, context, projectId, access: decision.access }
-      : { success: false, error: decision.error };
-  } catch (error) {
-    // authentication and target resolution throw today; they too become
-    // outcome values once the seam moves inside the factory's auth step
-    if (error instanceof Error) return { success: false, error };
-    throw error;
-  }
+/** failOrLog throws the pipeline failure at enforce; in shadow it logs and swallows it, legacy still gating the request. */
+function failOrLog(error: Error, action: ProjectAction | null): undefined {
+  if (authzMigrationMode === "enforce") throw error;
+  // placeholder sink — the counter/log contract is LFE-15034's
+  logger.info("PROTOTYPE(LFE-15038) authz shadow decision", {
+    action,
+    error: error.message,
+  });
+  return undefined;
 }
 
-/** AuthzOutcome is a whole-pipeline result as a value: the resolved context and target with the residual access, or the error enforce mode would throw. */
-type AuthzOutcome =
-  | {
-      success: true;
-      context: AuthorizationContext;
-      projectId: string;
-      access: Access | null;
-    }
-  | { success: false; error: Error };
+/** EnforcedProject is what the seam hands a handler once the pipeline passes. */
+type EnforcedProject = {
+  context: AuthorizationContext;
+  projectId: string;
+  access: Access | null;
+};
