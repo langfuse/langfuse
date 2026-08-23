@@ -22,6 +22,11 @@ let startPromise: Promise<ManagedAccessToken> | null = null;
 let currentToken: ManagedAccessToken | null = null;
 const boundConnections = new Set<BoundConnection>();
 
+// A live re-AUTH can fail transiently. Retrying briefly rotates the credential
+// without waiting for the server to drop the connection at expiry.
+const REAUTH_MAX_ATTEMPTS = 3;
+const REAUTH_RETRY_DELAY_MS = 2_000;
+
 // Returns null for the default static auth, leaving the existing path unchanged.
 export function getRedisManagedCredentialProviderFromEnv(): ManagedCredentialProvider | null {
   if (sharedProvider !== undefined) return sharedProvider;
@@ -54,22 +59,40 @@ function applyToken(entry: BoundConnection, token: ManagedAccessToken): void {
 function reauthenticate(
   entry: BoundConnection,
   token: ManagedAccessToken,
+  attempt = 1,
 ): void {
   // Only an open socket needs AUTH; anything else picks the password up from its
   // options on the next connect, and commanding it here would force a connection.
   if (entry.client.status !== "ready") return;
 
+  // A newer token has since been distributed, so this one is stale and
+  // re-authenticating with it would move the connection backwards.
+  if (currentToken !== token) return;
+
   const authArgs = entry.provider.username
     ? [entry.provider.username, token.token]
     : [token.token];
 
-  entry.client
-    .call("AUTH", ...authArgs)
-    .catch((error) =>
-      logger.warn(
-        `Failed to re-authenticate Redis after ${entry.provider.name} token refresh: ${describeError(error)}`,
-      ),
+  entry.client.call("AUTH", ...authArgs).catch((error) => {
+    // A transient failure here would otherwise leave the socket on the previous
+    // token until the server drops it at expiry, even though a valid replacement
+    // is already in hand. Refresh runs at a fraction of the token's lifetime, so
+    // there is ample room to try again before that matters.
+    if (attempt < REAUTH_MAX_ATTEMPTS) {
+      const retry = setTimeout(
+        () => reauthenticate(entry, token, attempt + 1),
+        REAUTH_RETRY_DELAY_MS,
+      );
+      retry.unref?.();
+      return;
+    }
+
+    // Giving up is safe rather than fatal: options.password already holds the new
+    // token, so the connection the server drops at expiry reconnects with it.
+    logger.warn(
+      `Failed to re-authenticate Redis after ${entry.provider.name} token refresh, giving up after ${attempt} attempts: ${describeError(error)}`,
     );
+  });
 }
 
 function distributeToken(token: ManagedAccessToken): void {
