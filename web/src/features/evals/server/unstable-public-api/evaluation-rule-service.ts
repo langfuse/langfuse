@@ -598,6 +598,25 @@ export async function updatePublicEvaluationRule(params: {
     params.input.evaluator !== undefined ||
     ("mapping" in params.input && params.input.mapping !== undefined);
 
+  const targetUnchanged = !(
+    "target" in params.input && params.input.target !== undefined
+  );
+  const filterUnchanged = !(
+    "filter" in params.input && params.input.filter !== undefined
+  );
+
+  if (targetUnchanged && filterUnchanged) {
+    // A stored filter that fails to parse under the current public schema
+    // degrades to `[]` in existingPublic (see toApiV2EvaluationRule).
+    // Round-tripping that through toStoredFilter would silently erase the
+    // real stored filter on any patch that never touches target or filter —
+    // not just an enabled/sampling-only one. Keep the stored bytes as-is
+    // instead. (Only safe when target/filter are unchanged: switching target
+    // away from "experiment" relies on the public round-trip to strip the
+    // internal experiment-root marker filter.)
+    ruleFields.filter = existing.filter as typeof ruleFields.filter;
+  }
+
   // A patch that only flips enabled/sampling never needs to touch the stored
   // filter or assignments. Routing it through ruleService.setEnabled instead
   // of ruleService.update means it can disable (and, via findPublic...OrThrow
@@ -605,22 +624,10 @@ export async function updatePublicEvaluationRule(params: {
   // current schema, since setEnabled never re-validates that filter.
   const isEnabledOrSamplingOnlyPatch =
     !("name" in params.input && params.input.name !== undefined) &&
-    !("target" in params.input && params.input.target !== undefined) &&
-    !("filter" in params.input && params.input.filter !== undefined) &&
+    targetUnchanged &&
+    filterUnchanged &&
     !patchesFirstAssignment &&
     !params.input.evaluators;
-
-  if (isEnabledOrSamplingOnlyPatch) {
-    // A stored filter that fails to parse under the current public schema
-    // degrades to `[]` in existingPublic (see toApiV2EvaluationRule).
-    // Round-tripping that through toStoredFilter would silently erase the
-    // real stored filter on a patch that never touches target or filter.
-    // Keep the stored bytes as-is instead. (Only safe when target/filter
-    // are unchanged: switching target away from "experiment" relies on the
-    // public round-trip to strip the internal experiment-root marker
-    // filter.)
-    ruleFields.filter = existing.filter as typeof ruleFields.filter;
-  }
 
   if (
     "mapping" in params.input &&

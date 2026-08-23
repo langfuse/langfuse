@@ -783,6 +783,62 @@ describe("/api/public/unstable evaluators API", () => {
     expect(deleted.status).toBe(200);
   });
 
+  it("does not overwrite a corrupted stored filter when a PATCH renames the rule", async () => {
+    const evaluator = await makeZodVerifiedAPICall(
+      PostUnstableEvaluatorResponse,
+      "POST",
+      "/api/public/unstable/evaluators",
+      {
+        name: "Corrupted filter rename evaluator",
+        prompt: "Judge {{input}}",
+        outputDefinition: numericOutputDefinition,
+        mapping: [{ variable: "input", source: "input" }],
+      },
+      auth,
+    );
+
+    const corruptedFilter = [{ type: "legacy_unsupported", column: "input" }];
+    const nativeRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "corrupted_filter_rename_rule",
+        targetObject: "event",
+        status: "ACTIVE",
+        sampling: 1,
+        delay: 0,
+        timeScope: ["NEW"],
+        filter: corruptedFilter,
+        assignments: {
+          create: {
+            projectId,
+            evaluatorId: evaluator.body.id,
+          },
+        },
+      },
+    });
+
+    const patched = await makeAPICall(
+      "PATCH",
+      `/api/public/unstable/evaluation-rules/${nativeRule.id}`,
+      { name: "renamed_corrupted_filter_rule" },
+      auth,
+    );
+    // The rule's own filter still can't be re-validated, so this patch is
+    // rejected rather than applied — but critically, it must fail loudly
+    // instead of silently persisting the degraded (empty) public read
+    // representation over the real stored filter.
+    expect(patched.status).toBe(400);
+
+    await expect(
+      prisma.evaluationRule.findUniqueOrThrow({
+        where: { id: nativeRule.id },
+      }),
+    ).resolves.toMatchObject({
+      name: "corrupted_filter_rename_rule",
+      filter: corruptedFilter,
+    });
+  });
+
   it("rejects create bodies that combine evaluators with the deprecated mapping alias", async () => {
     const evaluator = await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,
