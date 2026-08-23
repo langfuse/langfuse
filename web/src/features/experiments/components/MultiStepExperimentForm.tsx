@@ -429,9 +429,62 @@ export const MultiStepExperimentForm = ({
     setActiveStep(stepId);
   };
 
+  // Validates the current step before advancing and surfaces the reason
+  // inline (via FormMessage) or through a toast, so a blocked "Next" click
+  // is never silent.
+  const canProceedFromStep = async (stepId: string): Promise<boolean> => {
+    switch (stepId) {
+      case "prompt": {
+        const hasPrompt = !!form.getValues("promptId");
+        if (!hasPrompt) {
+          form.setError("promptId", {
+            type: "manual",
+            message: "Please select a prompt.",
+          });
+        } else {
+          form.clearErrors("promptId");
+        }
+        const hasModel = !!(
+          modelParams.provider.value && modelParams.model.value
+        );
+        if (!hasModel) {
+          showErrorToast(
+            "Select a model before continuing.",
+            "The experiment needs a model to run.",
+          );
+        }
+        return hasPrompt && hasModel;
+      }
+      case "dataset": {
+        if (!form.getValues("datasetId")) {
+          form.setError("datasetId", {
+            type: "manual",
+            message: "Please select a dataset.",
+          });
+          return false;
+        }
+        form.clearErrors("datasetId");
+        // While server-side validation is pending we allow navigation; the
+        // review step re-checks and DatasetStep renders the failure banner.
+        if (validationResult.data && !validationResult.data.isValid) {
+          return false;
+        }
+        return true;
+      }
+      case "details":
+        return form.trigger("name");
+      default:
+        return true;
+    }
+  };
+
   const handleNextStep = async () => {
     if (activeStep === "evaluators" && useV2Evaluators) {
       await evaluatorAssignmentsRef.current?.save();
+    }
+
+    if (!(await canProceedFromStep(activeStep))) {
+      return;
     }
 
     const stepIds = steps.map((step) => step.id);
@@ -708,6 +761,7 @@ export const MultiStepExperimentForm = ({
                     type="submit"
                     disabled={!isStepValid("review")}
                     loading={form.formState.isSubmitting}
+                    title={reviewErrorMessage}
                   >
                     Run Experiment
                   </Button>
