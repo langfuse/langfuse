@@ -11,9 +11,8 @@ import {
 export const initializeWorker = async (): Promise<void> => {
   initializeNativeAddon();
 
-  // Must precede app.ts, which registers every queue and worker: ioredis does not
-  // retry a rejected AUTH handshake, so a connection opened before the first
-  // managed credential arrives is closed for good rather than recovered.
+  // Must precede app.ts, which registers every queue and worker: a connection
+  // opened before the first managed credential arrives cannot authenticate.
   await initializeRedisManagedCredentials();
 
   await initializeClickhouseCompatibility();

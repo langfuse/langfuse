@@ -72,11 +72,8 @@ function fakeProvider(
   };
 }
 
-/**
- * Mirrors ioredis where it matters here: `duplicate()` is
- * `new Redis({ ...this.options })`, so a copy is a fresh instance that inherits
- * no event subscriptions and holds a by-value snapshot of the options.
- */
+/** duplicate() is `new Redis({ ...this.options })`: a fresh instance with no
+ * subscriptions and a by-value snapshot of the options. */
 function fakeRedisClient() {
   const handlers: Record<string, () => void> = {};
   const client = {
@@ -316,8 +313,7 @@ describe("bindManagedCredentialToRedis", () => {
     const provider = fakeProvider({ username: "object-id-123" });
     const client = fakeRedisClient();
 
-    // ioredis attaches the command it sent -- credential included -- to reply
-    // errors, and the logger serialises an Error's own enumerable properties.
+    // ioredis attaches the command it sent, credential included, to reply errors.
     client.call.mockRejectedValue(
       Object.assign(new Error("WRONGPASS invalid username-password pair"), {
         command: { name: "auth", args: ["object-id-123", "token-2"] },
@@ -337,8 +333,7 @@ describe("bindManagedCredentialToRedis", () => {
     const calls = (logger.warn as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBeGreaterThan(0);
     expect(JSON.stringify(calls)).not.toContain("token-2");
-    // A lone string argument is what guarantees it: nothing is passed that could
-    // carry the command payload.
+    // A lone string argument: nothing passed that could carry the payload.
     for (const call of calls) expect(call).toHaveLength(1);
     manager.stop();
   });
@@ -355,8 +350,6 @@ describe("bindManagedCredentialToRedis", () => {
     await settle();
     client.status = "ready";
 
-    // Fails once, then succeeds -- a socket left on the previous token until
-    // expiry would be dropped by the server for no good reason.
     client.call
       .mockRejectedValueOnce(new Error("LOADING Redis is busy"))
       .mockResolvedValue("OK");
@@ -413,9 +406,7 @@ describe("bindManagedCredentialToRedis", () => {
     client.status = "ready";
     client.call.mockRejectedValue(new Error("transient"));
 
-    // First refresh fails and schedules a retry; the next refresh lands before
-    // that retry runs. Re-AUTHing with the superseded token would move the
-    // connection backwards.
+    // The next refresh lands before the scheduled retry runs.
     await vi.advanceTimersByTimeAsync(10_000 * 0.8);
     const afterFirst = client.call.mock.calls.length;
     await vi.advanceTimersByTimeAsync(10_000);
@@ -442,10 +433,8 @@ describe("bindManagedCredentialToRedis", () => {
     );
     await settle();
 
-    // ioredis snapshots the auth handshake from options inside connect(), before
-    // it emits "connect", so the token has to be current *when a revival starts*.
-    // Reacting to the event would be one rotation too late, and BullMQ revives
-    // the same instance through RedisConnection.reconnect().
+    // BullMQ revives the same instance, and ioredis snapshots the handshake inside
+    // connect(), so the token must already be current when a revival starts.
     client.status = "end";
     await vi.advanceTimersByTimeAsync(ONE_HOUR * 0.8);
 

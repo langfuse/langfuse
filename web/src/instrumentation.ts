@@ -9,9 +9,9 @@ export async function register() {
 
   const isNodeRuntime = process.env.NEXT_RUNTIME === "nodejs";
 
-  // Not gated on the init-scripts flag: that skips optional provisioning for local
-  // development, whereas a managed credential is a prerequisite for opening any
-  // Redis connection. The import stays inside the branch so the static path does
+  // Not gated on the init-scripts flag above: that skips optional provisioning for
+  // local development, whereas a managed credential is a prerequisite for opening
+  // any Redis connection. The import stays inside the branch so the static path does
   // not pull in the server barrel, which builds the Redis singleton eagerly.
   if (
     isNodeRuntime &&

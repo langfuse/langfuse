@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import { redactCommandCredentials } from "./logger";
 
 /**
- * ioredis attaches the command it was running to reply errors, and for AUTH the
- * arguments are the credential. winston's `errors` format lifts an Error's own
- * enumerable properties into the record, so without this redaction every handler
- * in the queue layer that passes a raw connection error would serialise it.
+ * ioredis attaches the command to reply errors, and for AUTH the arguments are the
+ * credential. Without redaction, every queue-layer handler that passes a raw
+ * connection error to winston would serialise it.
  */
 describe("redactCommandCredentials", () => {
   const transform = (info: Record<string, unknown>) =>
