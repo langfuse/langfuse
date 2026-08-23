@@ -22,17 +22,13 @@ import {
   type AuthorizationContext,
   type ProjectAction,
 } from "./policy.prototype";
-import {
-  enforceOrgAuthz,
-  enforceProjectAuthz,
-  getProjectId,
-} from "./enforce.prototype";
+import { enforceOrgAuthz, getProjectId } from "./enforce.prototype";
 
 /** authzMigrationMode gates the seam — shadow logs the new-path outcome, enforce acts on it; the flag itself is authored by the shadow slice. */
 const authzMigrationMode: "shadow" | "enforce" =
   process.env.PUBLIC_API_AUTHZ_MIGRATION === "enforce" ? "enforce" : "shadow";
 
-/** enforceProjectAuth authenticates the request and asserts action on its resolved project, one call per route. */
+/** enforceProjectAuth is evaluateProjectAction with enforce semantics: one call per route, throwing what the pipeline captured. */
 export async function enforceProjectAuth(params: {
   headers: IncomingHttpHeaders;
   action: ProjectAction | null;
@@ -41,13 +37,13 @@ export async function enforceProjectAuth(params: {
   projectId: string;
   access: Access | null;
 }> {
-  const context = await authenticate(params.headers);
-  const { projectId, access } = enforceProjectAuthz({
-    context,
-    headers: params.headers,
-    action: params.action,
-  });
-  return { context, projectId, access };
+  const outcome = await evaluateProjectAction(params.headers, params.action);
+  if (!outcome.success) throw outcome.error;
+  return {
+    context: outcome.context,
+    projectId: outcome.projectId,
+    access: outcome.access,
+  };
 }
 
 /** enforceOrgAuth authenticates the request and asserts action on its resolved org, one call per route. */
@@ -87,23 +83,21 @@ export const createAuthedProjectAPIRoute = <
       // createAuthedProjectAPIRoute's auth step and evaluates both pipelines
       // unconditionally, every outcome captured, neither throwing into the
       // other (LFE-15034 owns what gets emitted).
-      if (routeConfig.action !== null) {
-        const outcome = await evaluateProjectAction(
-          params.req.headers,
-          routeConfig.action,
-        );
-        if (authzMigrationMode === "enforce" && !outcome.success) {
-          throw outcome.error;
-        }
-        if (authzMigrationMode === "shadow") {
-          // placeholder sink — the counter/log contract is LFE-15034's
-          logger.info("PROTOTYPE(LFE-15038) authz shadow decision", {
-            route: routeConfig.name,
-            action: routeConfig.action,
-            success: outcome.success,
-            error: outcome.success ? undefined : outcome.error.message,
-          });
-        }
+      const outcome = await evaluateProjectAction(
+        params.req.headers,
+        routeConfig.action,
+      );
+      if (authzMigrationMode === "enforce" && !outcome.success) {
+        throw outcome.error;
+      }
+      if (authzMigrationMode === "shadow") {
+        // placeholder sink — the counter/log contract is LFE-15034's
+        logger.info("PROTOTYPE(LFE-15038) authz shadow decision", {
+          route: routeConfig.name,
+          action: routeConfig.action,
+          success: outcome.success,
+          error: outcome.success ? undefined : outcome.error.message,
+        });
       }
       return routeConfig.fn(params);
     },
@@ -122,14 +116,15 @@ export async function authenticate(
 /** evaluateProjectAction runs the new pipeline — its own target resolution included, never legacy's — capturing every failure as an outcome, so shadow mode can log what enforce mode would throw. */
 async function evaluateProjectAction(
   headers: IncomingHttpHeaders,
-  action: ProjectAction,
+  action: ProjectAction | null,
 ): Promise<AuthzOutcome> {
   try {
     const context = await authenticate(headers);
     const projectId = getProjectId(context, headers);
+    if (action === null) return { success: true, context, projectId, access: null };
     const decision = authorize(context, action, { projectId });
     return decision.success
-      ? { success: true, access: decision.access }
+      ? { success: true, context, projectId, access: decision.access }
       : { success: false, error: decision.error };
   } catch (error) {
     // authentication and target resolution throw today; they too become
@@ -139,7 +134,12 @@ async function evaluateProjectAction(
   }
 }
 
-/** AuthzOutcome is a whole-pipeline result as a value: the residual access, or the error enforce mode would throw. */
+/** AuthzOutcome is a whole-pipeline result as a value: the resolved context and target with the residual access, or the error enforce mode would throw. */
 type AuthzOutcome =
-  | { success: true; access: Access }
+  | {
+      success: true;
+      context: AuthorizationContext;
+      projectId: string;
+      access: Access | null;
+    }
   | { success: false; error: Error };
