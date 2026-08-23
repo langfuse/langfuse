@@ -25,12 +25,10 @@ const tracingFormat = function () {
 };
 
 // ioredis attaches the command it was running to reply errors, and for AUTH and
-// HELLO the arguments are the credential itself. winston's `errors` format lifts
-// an Error's own enumerable properties into the record, so any handler passing a
-// raw connection error -- and there are dozens across the queue layer, e.g.
-// `queue.on("error", (err) => logger.error("...", err))` -- would otherwise
-// serialise it. This mirrors the redaction already applied to ioredis spans in
-// `server/instrumentation`.
+// HELLO the arguments are the credential. winston's `errors` format lifts an
+// Error's own enumerable properties into the record, so any of the dozens of
+// handlers passing a raw connection error would otherwise serialise it. Mirrors the
+// redaction already applied to ioredis spans in `server/instrumentation`.
 const CREDENTIAL_BEARING_COMMANDS = new Set(["auth", "hello"]);
 
 export const redactCommandCredentials = winston.format((info) => {

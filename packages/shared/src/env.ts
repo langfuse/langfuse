@@ -587,9 +587,8 @@ const EnvSchema = z.object({
 
 export type SharedEnv = z.infer<typeof EnvSchema>;
 
-// Sovereign clouds use their own Redis resource host, so accept the resource
-// rather than one fixed string. The GUID is the documented application-id form
-// of the same resource.
+// Sovereign clouds use their own Redis host; the GUID is the documented
+// application-id form of the same resource.
 const AZURE_REDIS_RESOURCES = [
   "https://redis.azure.com",
   "https://redis.azure.cn",
@@ -601,19 +600,15 @@ const AZURE_REDIS_RESOURCES = [
 const isAzureRedisScope = (scope: string): boolean =>
   AZURE_REDIS_RESOURCES.some((resource) => scope === `${resource}/.default`);
 
-/**
- * Cross-field rules for managed Redis credentials, enforced at startup so a
- * misconfiguration fails loudly instead of degrading quietly at connect time.
- */
+/** Enforced at startup so a misconfiguration fails loudly, not at connect time. */
 const validateManagedRedisAuth = (
   val: SharedEnv,
   ctx: z.RefinementCtx,
 ): void => {
   if (val.REDIS_AUTH_METHOD === "static") return;
 
-  // An Entra token is a bearer credential for the whole audience, replayable by
-  // anyone who observes it -- unlike a static password scoped to one cache. It
-  // must never cross the network in cleartext.
+  // Unlike a static password scoped to one cache, the token is replayable by
+  // anyone who observes it.
   if (val.REDIS_TLS_ENABLED !== "true") {
     ctx.addIssue({
       code: "custom",
@@ -622,9 +617,7 @@ const validateManagedRedisAuth = (
     });
   }
 
-  // TLS alone is not enough: an unverified peer still receives the token. These
-  // escape hatches are defensible for a static password scoped to one cache, but
-  // not for a bearer credential the whole audience accepts.
+  // TLS alone is not enough: an unverified peer still receives the token.
   if (val.REDIS_TLS_REJECT_UNAUTHORIZED === "false") {
     ctx.addIssue({
       code: "custom",
@@ -641,9 +634,7 @@ const validateManagedRedisAuth = (
     });
   }
 
-  // createNewRedisInstance routes cluster and sentinel to builders that never bind
-  // the managed credential, so accepting this would certify a configuration the
-  // runtime openly refuses to implement.
+  // createNewRedisInstance routes these to builders that never bind the credential.
   if (
     val.REDIS_CLUSTER_ENABLED === "true" ||
     val.REDIS_SENTINEL_ENABLED === "true"
@@ -655,9 +646,8 @@ const validateManagedRedisAuth = (
     });
   }
 
-  // Azure authenticates the identity by its object id, and without a username
-  // ioredis sends no AUTH at all -- which would connect anonymously to a server
-  // that permits it rather than failing closed.
+  // Without a username ioredis sends no AUTH at all, connecting anonymously to a
+  // server that permits it rather than failing closed.
   if (!val.REDIS_USERNAME) {
     ctx.addIssue({
       code: "custom",
@@ -666,8 +656,7 @@ const validateManagedRedisAuth = (
     });
   }
 
-  // The credential rotates, so it cannot live in a connection string -- and a
-  // password left in the URL would silently keep being used if a token fetch fails.
+  // A password left in the URL would silently keep being used if a fetch fails.
   if (val.REDIS_CONNECTION_STRING) {
     ctx.addIssue({
       code: "custom",
@@ -676,8 +665,8 @@ const validateManagedRedisAuth = (
     });
   }
 
-  // Any other audience would mint a token for a different Azure resource and send
-  // it to the Redis host as a password.
+  // Any other audience mints a token for a different resource and sends it to the
+  // Redis host as a password.
   if (!isAzureRedisScope(val.REDIS_AZURE_SCOPE)) {
     ctx.addIssue({
       code: "custom",

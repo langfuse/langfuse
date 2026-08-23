@@ -13,8 +13,7 @@ type BoundConnection = {
   provider: ManagedCredentialProvider;
 };
 
-// One provider, manager and token per process: Langfuse opens a connection per
-// queue plus the cache singleton and rate limiters, and a credential each would
+// One provider, manager and token per process: a credential per connection would
 // mean dozens of refresh loops against a token endpoint that throttles.
 let sharedProvider: ManagedCredentialProvider | null | undefined;
 let sharedManager: RefreshingTokenManager | null = null;
@@ -22,8 +21,8 @@ let startPromise: Promise<ManagedAccessToken> | null = null;
 let currentToken: ManagedAccessToken | null = null;
 const boundConnections = new Set<BoundConnection>();
 
-// A live re-AUTH can fail transiently. Retrying briefly rotates the credential
-// without waiting for the server to drop the connection at expiry.
+// Retrying a transiently failed re-AUTH rotates the credential without waiting
+// for the server to drop the connection at expiry.
 const REAUTH_MAX_ATTEMPTS = 3;
 const REAUTH_RETRY_DELAY_MS = 2_000;
 
@@ -65,8 +64,7 @@ function reauthenticate(
   // options on the next connect, and commanding it here would force a connection.
   if (entry.client.status !== "ready") return;
 
-  // A newer token has since been distributed, so this one is stale and
-  // re-authenticating with it would move the connection backwards.
+  // Re-authenticating with a superseded token would move the connection backwards.
   if (currentToken !== token) return;
 
   const authArgs = entry.provider.username
@@ -74,10 +72,6 @@ function reauthenticate(
     : [token.token];
 
   entry.client.call("AUTH", ...authArgs).catch((error) => {
-    // A transient failure here would otherwise leave the socket on the previous
-    // token until the server drops it at expiry, even though a valid replacement
-    // is already in hand. Refresh runs at a fraction of the token's lifetime, so
-    // there is ample room to try again before that matters.
     if (attempt < REAUTH_MAX_ATTEMPTS) {
       const retry = setTimeout(
         () => reauthenticate(entry, token, attempt + 1),
@@ -87,8 +81,8 @@ function reauthenticate(
       return;
     }
 
-    // Giving up is safe rather than fatal: options.password already holds the new
-    // token, so the connection the server drops at expiry reconnects with it.
+    // Safe to give up: options.password already holds the new token, so the
+    // connection the server drops at expiry reconnects with it.
     logger.warn(
       `Failed to re-authenticate Redis after ${entry.provider.name} token refresh, giving up after ${attempt} attempts: ${describeError(error)}`,
     );
@@ -136,14 +130,9 @@ function ensureTokenStarted(
 /**
  * Acquires the first managed credential before anything connects.
  *
- * Required for the managed path, not merely an optimisation: ioredis does not retry
- * a rejected AUTH handshake -- retryStrategy covers socket failures, not a
- * protocol-level rejection -- so a connection that outruns the first token is closed
- * for good rather than recovered. Clients are created with `lazyConnect`, so
- * awaiting this during startup, before queues, workers or the first request, is what
- * guarantees a token is in hand by the time anything opens a socket.
- *
- * No-op for static auth, and safe to call more than once.
+ * Required, not an optimisation: ioredis does not retry a rejected AUTH handshake,
+ * so a connection that outruns the first token authenticates with an empty password
+ * and fails until a reconnect succeeds. No-op for static auth, safe to call twice.
  */
 export const initializeRedisManagedCredentials = async (): Promise<void> => {
   const provider = getRedisManagedCredentialProviderFromEnv();
@@ -186,24 +175,16 @@ export function bindManagedCredentialToRedis(
   const manager = deps.manager ?? getSharedManager(provider);
   const entry: BoundConnection = { client, provider };
 
-  // Registered for the lifetime of the client, never unregistered. ioredis
-  // snapshots the auth handshake from options synchronously inside connect(),
-  // before it emits "connect", so reacting to that event is already too late for
-  // the attempt it fires during -- a client revived by BullMQ's
-  // RedisConnection.reconnect() would hand the server a stale credential.
-  // Keeping the entry means rotation refreshes the options of a disconnected
-  // client too, so whenever it is revived its first handshake already carries the
-  // current token. reauthenticate() skips anything that is not "ready", so an
-  // entry for a dead client costs nothing, and the number of clients a process
-  // creates is bounded by its queues, caches and rate limiters.
+  // Never unregistered: ioredis snapshots the auth handshake inside connect(),
+  // before it emits "connect", so a client revived by BullMQ's
+  // RedisConnection.reconnect() needs its options already current. Keeping the
+  // entry means rotation refreshes disconnected clients too.
   boundConnections.add(entry);
   if (currentToken) applyToken(entry, currentToken);
 
-  // BullMQ's Worker does not use the connection it is handed -- it builds its
-  // blocking connection with duplicate(), which ioredis implements as
-  // `new Redis({ ...this.options })`. That copy inherits no tracking and a frozen
-  // password, so unbound it authenticates once and dies at the first expiry while
-  // producers keep enqueuing successfully.
+  // BullMQ's Worker builds its blocking connection with duplicate(), which ioredis
+  // implements as `new Redis({ ...this.options })` -- a copy with no tracking and a
+  // frozen password, which would die at the first expiry.
   const duplicate = client.duplicate.bind(client);
   client.duplicate = ((...args: Parameters<Redis["duplicate"]>) => {
     const copy = duplicate(...args);
@@ -211,8 +192,7 @@ export function bindManagedCredentialToRedis(
     return copy;
   }) as Redis["duplicate"];
 
-  // Not awaited: createNewRedisInstance is synchronous. Deduplicated across every
-  // connection the process opens.
+  // Not awaited: createNewRedisInstance is synchronous.
   ensureTokenStarted(provider).catch((error) =>
     logger.error(
       `Failed to fetch initial ${provider.name} token for Redis: ${describeError(error)}`,

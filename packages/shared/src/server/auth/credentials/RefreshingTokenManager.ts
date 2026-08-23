@@ -8,13 +8,9 @@ export interface RefreshingTokenManagerOptions {
 type RefreshListener = (token: ManagedAccessToken) => void;
 
 /**
- * Renders an error for logging without its attached payload.
- *
- * The logger is configured with winston's `errors` + `json` formats, which
- * serialise an Error's own enumerable properties. Credential failures carry those
- * in abundance -- ioredis attaches the command it just sent, including the
- * credential, and identity providers attach the full error body -- so only the
- * message is safe to emit.
+ * Renders an error for logging without its attached payload. winston serialises an
+ * Error's own enumerable properties, and credential failures carry the command that
+ * was sent or the provider's full error body, so only the message is safe to emit.
  */
 export const describeError = (error: unknown): string =>
   error instanceof Error ? `${error.name}: ${error.message}` : String(error);

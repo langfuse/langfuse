@@ -9,15 +9,10 @@ export async function register() {
 
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Deliberately not gated on the init-scripts flag above: that switch exists to
-  // skip optional provisioning during local development, whereas a managed
-  // credential is a prerequisite for opening any Redis connection at all. Without
-  // it the first command races its lazy connection against the token fetch and
-  // authenticates with an empty password, leaving rate limiting, caching and queue
-  // production failing until a retry succeeds.
-  //
-  // The import is kept inside the branch so the default static-password path does
-  // not pull in the shared server barrel, which builds the Redis singleton eagerly.
+  // Not gated on the init-scripts flag above: that skips optional provisioning for
+  // local development, whereas a managed credential is a prerequisite for opening
+  // any Redis connection. The import stays inside the branch so the static path does
+  // not pull in the server barrel, which builds the Redis singleton eagerly.
   if (
     process.env.REDIS_AUTH_METHOD &&
     process.env.REDIS_AUTH_METHOD !== "static"
