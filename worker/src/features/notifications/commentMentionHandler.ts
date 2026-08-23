@@ -14,6 +14,20 @@ type CommentMentionPayload = Omit<
   "type"
 >;
 
+/**
+ * Build a truncated comment preview with mention markdown stripped.
+ * Converts @[DisplayName](user:userId) to @DisplayName. The display name is
+ * matched lazily and anchored on the "](user:" suffix so it may contain
+ * brackets (e.g. SSO display names like "John Doe[ Platform Team ]"); the
+ * userId is the authoritative part of a mention.
+ */
+export function buildCommentPreview(content: string): string {
+  const truncated =
+    content.length > 500 ? content.substring(0, 497) + "..." : content;
+  // Convert @[DisplayName](user:userId) to @DisplayName
+  return truncated.replace(/@\[(.{1,100}?)\]\(user:[^)]+\)/g, "@$1");
+}
+
 async function buildCommentLink(opts: {
   baseUrl: string;
   projectId: string;
@@ -128,14 +142,7 @@ export async function handleCommentMentionNotification(
     }
 
     // Build comment preview once (truncate + strip mention markdown)
-    const commentPreview = (() => {
-      const truncated =
-        comment.content.length > 500
-          ? comment.content.substring(0, 497) + "..."
-          : comment.content;
-      // Convert @[DisplayName](user:userId) to @DisplayName
-      return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
-    })();
+    const commentPreview = buildCommentPreview(comment.content);
 
     // Process each mentioned user
     for (const userId of mentionedUserIds) {

@@ -134,11 +134,20 @@ describe("mentionParser", () => {
         expect(result).toEqual([]);
       });
 
-      it("should not match mentions with nested brackets", () => {
+      it("should match mentions whose display name contains brackets", () => {
+        // Display names from SSO providers may contain brackets; the userId is
+        // the authoritative part of a mention, so these must be parsed.
+        const content = "@[John Doe[ Platform Team ]](user:alice123)";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["alice123"]);
+      });
+
+      it("should match mentions with nested brackets around the name", () => {
         const content = "@[Alice [Admin]](user:alice123)";
         const result = extractUniqueMentionedUserIds(content);
 
-        expect(result).toEqual([]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should not match mentions with user ID containing invalid characters", () => {
@@ -267,8 +276,9 @@ describe("mentionParser", () => {
         const result = extractUniqueMentionedUserIds(content);
         const duration = Date.now() - startTime;
 
+        // The userId is authoritative, so this resolves to the mention's user
         expect(duration).toBeLessThan(100);
-        expect(result).toEqual([]);
+        expect(result).toEqual(["alice123"]);
       });
 
       it("should handle pathological regex patterns efficiently", () => {
@@ -343,6 +353,22 @@ describe("mentionParser", () => {
         const result = sanitizeMentions(content, mockMembers);
 
         expect(result.sanitizedContent).toBe("@[User](user:minimal111) review");
+      });
+
+      it("should normalize valid mentions whose display name contains brackets", () => {
+        const bracketMember: ProjectMember = {
+          id: "bracket789",
+          name: "Jane Doe[ Platform Team ]",
+          email: "jane@example.com",
+        };
+        const content =
+          "Thanks @[Jane Doe[ Platform Team ]](user:bracket789) for the review";
+        const result = sanitizeMentions(content, [bracketMember]);
+
+        expect(result.sanitizedContent).toBe(
+          "Thanks @[Jane Doe[ Platform Team ]](user:bracket789) for the review",
+        );
+        expect(result.validMentionedUserIds).toEqual(["bracket789"]);
       });
     });
 
