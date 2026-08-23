@@ -10,6 +10,7 @@ import { type IncomingHttpHeaders } from "http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType } from "zod";
 
+import { BaseError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import {
   createAuthedProjectAPIRoute as legacyCreateAuthedProjectAPIRoute,
@@ -20,7 +21,9 @@ import {
   type Access,
   type Action,
   type AuthorizationContext,
+  type ErrorResult,
   type ProjectAction,
+  type Success,
 } from "./policy.prototype";
 import { enforceOrgAuthz, getProjectId } from "./enforce.prototype";
 
@@ -28,11 +31,11 @@ import { enforceOrgAuthz, getProjectId } from "./enforce.prototype";
 const authzMigrationMode: "shadow" | "enforce" =
   process.env.PUBLIC_API_AUTHZ_MIGRATION === "enforce" ? "enforce" : "shadow";
 
-/** enforceProjectAuth runs the new pipeline — its own target resolution, never legacy's — as the one uniform seam: a failure throws at enforce, and in shadow is logged and swallowed while legacy keeps gating. */
+/** enforceProjectAuth runs the new pipeline — its own target resolution, never legacy's — as the one uniform seam: a failure throws at enforce, and in shadow is logged and returned as the error result while legacy keeps gating. */
 export async function enforceProjectAuth(params: {
   headers: IncomingHttpHeaders;
   action: ProjectAction | null;
-}): Promise<EnforcedProject | undefined> {
+}): Promise<EnforcedProject | ErrorResult<BaseError>> {
   const { headers, action } = params;
   try {
     const context = await authenticate(headers);
@@ -40,11 +43,16 @@ export async function enforceProjectAuth(params: {
     const decision =
       action === null ? null : authorize(context, action, { projectId });
     if (decision && !decision.success) return failOrLog(decision.error, action);
-    return { context, projectId, access: decision?.access ?? null };
+    return {
+      success: true,
+      context,
+      projectId,
+      access: decision?.access ?? null,
+    };
   } catch (error) {
     // authentication and target resolution throw today; they too become
     // decision values once the seam moves inside the factory's auth step
-    if (error instanceof Error) return failOrLog(error, action);
+    if (error instanceof BaseError) return failOrLog(error, action);
     throw error;
   }
 }
@@ -104,19 +112,22 @@ export async function authenticate(
   );
 }
 
-/** failOrLog throws the pipeline failure at enforce; in shadow it logs and swallows it, legacy still gating the request. */
-function failOrLog(error: Error, action: ProjectAction | null): undefined {
+/** failOrLog throws the pipeline failure at enforce; in shadow it logs it and returns the error result, legacy still gating the request. */
+function failOrLog(
+  error: BaseError,
+  action: ProjectAction | null,
+): ErrorResult<BaseError> {
   if (authzMigrationMode === "enforce") throw error;
   // placeholder sink — the counter/log contract is LFE-15034's
   logger.info("PROTOTYPE(LFE-15038) authz shadow decision", {
     action,
     error: error.message,
   });
-  return undefined;
+  return { success: false, error };
 }
 
-/** EnforcedProject is what the seam hands a handler once the pipeline passes. */
-type EnforcedProject = {
+/** EnforcedProject is the seam's success outcome: the resolved context and target with the residual access. */
+type EnforcedProject = Success & {
   context: AuthorizationContext;
   projectId: string;
   access: Access | null;
