@@ -588,7 +588,7 @@ export async function updatePublicEvaluationRule(params: {
     target: nextTarget,
     enabled: nextEnabled,
     sampling: params.input.sampling ?? existingPublic.sampling,
-    // Don't validate existing filters unless they are explicitly supplied.
+    // Target changes must also validate the effective filter against the new target.
     filter: updatesFilterOrTarget
       ? (suppliedFilter ?? existingPublic.filter)
       : [],
@@ -787,7 +787,7 @@ async function updateRuleWithRuleService(params: {
             params.fields.status === JobConfigState.ACTIVE,
       sampling: params.input.sampling,
       filter:
-        "filter" in params.input
+        "filter" in params.input || "target" in params.input
           ? (params.fields.filter as FilterState)
           : undefined,
       evaluatorMappings,
