@@ -47,7 +47,7 @@ export async function enforceProjectAuth(params: {
       success: true,
       context,
       projectId,
-      access: decision?.access ?? null,
+      access: decision?.access,
     };
   } catch (error) {
     // authentication and target resolution throw today; they too become
@@ -130,5 +130,5 @@ function failOrLog(
 type EnforcedProject = Success & {
   context: AuthorizationContext;
   projectId: string;
-  access: Access | null;
+  access?: Access;
 };
