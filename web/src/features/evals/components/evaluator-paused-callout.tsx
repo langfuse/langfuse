@@ -17,6 +17,7 @@ import { Fragment } from "react";
 
 type EvaluatorPausedCalloutProps = {
   projectId: string;
+  allowReactivation: boolean;
   evalConfig: Pick<
     JobConfiguration,
     "id" | "blockedAt" | "blockReason" | "blockMessage"
@@ -50,6 +51,7 @@ function getResolutionActionLabel(params: {
 
 export function EvaluatorPausedCallout({
   projectId,
+  allowReactivation,
   evalConfig,
 }: EvaluatorPausedCalloutProps) {
   const utils = api.useUtils();
@@ -135,24 +137,26 @@ export function EvaluatorPausedCallout({
               </Link>
             </Button>
 
-            <Button
-              size="sm"
-              variant="outline"
-              loading={reactivateEvaluator.isPending}
-              onClick={() =>
-                reactivateEvaluator.mutate({
-                  projectId,
-                  evalConfigId: evalConfig.id,
-                  config: {
-                    status: JobConfigState.ACTIVE,
-                  },
-                })
-              }
-              className="h-8 px-3"
-            >
-              <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
-              Reactivate
-            </Button>
+            {allowReactivation ? (
+              <Button
+                size="sm"
+                variant="outline"
+                loading={reactivateEvaluator.isPending}
+                onClick={() =>
+                  reactivateEvaluator.mutate({
+                    projectId,
+                    evalConfigId: evalConfig.id,
+                    config: {
+                      status: JobConfigState.ACTIVE,
+                    },
+                  })
+                }
+                className="h-8 px-3"
+              >
+                <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+                Reactivate
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

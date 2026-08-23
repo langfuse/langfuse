@@ -9,6 +9,9 @@ catalogs:
     '@aws-sdk/client-cloudwatch':
       specifier: 3.1074.0
       version: 3.1074.0
+    '@aws-sdk/client-eventbridge':
+      specifier: 3.1074.0
+      version: 3.1074.0
     '@aws-sdk/client-lambda':
       specifier: 3.1074.0
       version: 3.1074.0
@@ -61,7 +64,7 @@ overrides:
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   next-auth>nodemailer: ^9.0.3
 
-packageExtensionsChecksum: sha256-TX3lncad7qrcByckp22QdODd24iQTrIF/YrQJqHk2W8=
+packageExtensionsChecksum: sha256-QG4c9KJXY/TKGmHnbwxEePs/bdv0Wj8pLpBLp8HZH0Y=
 
 patchedDependencies:
   '@radix-ui/react-roving-focus@1.1.11': fb2bc2e96ad2c31dcb5860e509374a512fa08b1fade5805e3ae2dc72dcd68a0b
@@ -477,6 +480,9 @@ importers:
       '@aws-crypto/sha256-browser':
         specifier: ^5.2.0
         version: 5.2.0
+      '@aws-sdk/client-eventbridge':
+        specifier: 'catalog:'
+        version: 3.1074.0
       '@baselime/trpc-opentelemetry-middleware':
         specifier: ^0.1.2
         version: 0.1.2(@opentelemetry/api@1.9.1)(@trpc/server@11.13.4(typescript@7.0.2))
@@ -726,6 +732,9 @@ importers:
       elkjs:
         specifier: ^0.11.1
         version: 0.11.1
+      exponential-backoff:
+        specifier: ^3.1.2
+        version: 3.1.2
       fastest-levenshtein:
         specifier: ^1.0.16
         version: 1.0.16
@@ -1460,6 +1469,14 @@ packages:
 
   '@aws-sdk/client-cognito-identity@3.1074.0':
     resolution: {integrity: sha512-+Ty97ACrY0BEH/aWczd5Vs7VK/MAVpUGatxbv4Rkwkk5llLAHLvqJPwp8QUTQpa7DRuMuyUWbyMwIghLVf81MA==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-eventbridge@3.1074.0':
+    resolution: {integrity: sha512-6Fhu/JOC+zifM51+1Qx4N2mC/NHkulY87RFnnMcpgN89v3VgxVTVPvUcphcFIakEEiP7NtvkqSVicg5M8LsRMw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/client-kendra@3.1013.0':
+    resolution: {integrity: sha512-KYd1SYF+WaZinfzg4rsfprZQ3X1qboaJnHtjppd82JG3YSO/LVkenOkFIIsREPnXMoy6Dy6Xx+BXh4Y9A+a1zQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-lambda-microvms@3.1074.0':
@@ -11516,6 +11533,65 @@ snapshots:
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
+  '@aws-sdk/client-eventbridge@3.1074.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.975.1
+      '@aws-sdk/credential-provider-node': 3.972.66
+      '@aws-sdk/signature-v4-multi-region': 3.996.39
+      '@aws-sdk/types': 3.974.0
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.5
+      '@smithy/node-http-handler': 4.9.5
+      '@smithy/types': 4.16.1
+      tslib: 2.8.1
+
+  '@aws-sdk/client-kendra@3.1013.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.975.1
+      '@aws-sdk/credential-provider-node': 3.972.66
+      '@aws-sdk/middleware-host-header': 3.972.11
+      '@aws-sdk/middleware-logger': 3.972.10
+      '@aws-sdk/middleware-recursion-detection': 3.972.12
+      '@aws-sdk/middleware-user-agent': 3.972.39
+      '@aws-sdk/region-config-resolver': 3.972.14
+      '@aws-sdk/types': 3.974.0
+      '@aws-sdk/util-endpoints': 3.996.9
+      '@aws-sdk/util-user-agent-browser': 3.972.11
+      '@aws-sdk/util-user-agent-node': 3.973.25
+      '@smithy/config-resolver': 4.5.0
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.6.5
+      '@smithy/hash-node': 4.3.0
+      '@smithy/invalid-dependency': 4.3.0
+      '@smithy/middleware-content-length': 4.3.0
+      '@smithy/middleware-endpoint': 4.5.0
+      '@smithy/middleware-retry': 4.6.0
+      '@smithy/middleware-serde': 4.3.0
+      '@smithy/middleware-stack': 4.3.0
+      '@smithy/node-config-provider': 4.4.0
+      '@smithy/node-http-handler': 4.5.1
+      '@smithy/protocol-http': 5.4.0
+      '@smithy/smithy-client': 4.13.0
+      '@smithy/types': 4.16.1
+      '@smithy/url-parser': 4.3.0
+      '@smithy/util-base64': 4.3.2
+      '@smithy/util-body-length-browser': 4.2.2
+      '@smithy/util-body-length-node': 4.2.3
+      '@smithy/util-defaults-mode-browser': 4.4.0
+      '@smithy/util-defaults-mode-node': 4.3.0
+      '@smithy/util-endpoints': 3.5.0
+      '@smithy/util-middleware': 4.3.0
+      '@smithy/util-retry': 4.4.0
+      '@smithy/util-utf8': 4.4.14
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - aws-crt
+    optional: true
+
   '@aws-sdk/client-lambda-microvms@3.1074.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
@@ -17308,6 +17384,7 @@ snapshots:
       safe-regex: 2.1.1
       semver: 7.8.5
       tsconfig-paths-webpack-plugin: 4.2.0
+      typescript: '@typescript/typescript6@6.0.2'
       watskeburt: 6.0.0
 
   dequal@2.0.3: {}
