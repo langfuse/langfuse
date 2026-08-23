@@ -14,7 +14,7 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 // PROTOTYPE(LFE-15038): required-action factory replacing createAuthedProjectAPIRoute
-import { createAuthorizedProjectAPIRoute } from "@/src/features/auth/policy/apiAdapter.prototype";
+import { createAuthedProjectAPIRoutePrototype } from "@/src/features/auth/policy/apiAdapter.prototype";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   createIngestionAttribution,
@@ -37,7 +37,7 @@ import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecation
 
 export default withMiddlewares(
   {
-    POST: createAuthorizedProjectAPIRoute({
+    POST: createAuthedProjectAPIRoutePrototype({
       name: "Create Trace (Legacy)",
       action: "traces:create",
       bodySchema: PostTracesV1Body,
@@ -78,7 +78,7 @@ export default withMiddlewares(
       },
     }),
 
-    GET: createAuthorizedProjectAPIRoute({
+    GET: createAuthedProjectAPIRoutePrototype({
       name: "Get Traces",
       action: "traces:read",
       rateLimitResource: "public-api-legacy",
@@ -197,7 +197,7 @@ export default withMiddlewares(
       },
     }),
 
-    DELETE: createAuthorizedProjectAPIRoute({
+    DELETE: createAuthedProjectAPIRoutePrototype({
       name: "Delete Multiple Traces",
       action: "traces:delete",
       bodySchema: DeleteTracesV1Body,

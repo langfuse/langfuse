@@ -10,6 +10,7 @@ import { type IncomingHttpHeaders } from "http";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType } from "zod";
 
+import { logger } from "@langfuse/shared/src/server";
 import {
   createAuthedProjectAPIRoute,
   type AuthedProjectAPIRouteConfig,
@@ -22,6 +23,10 @@ import {
   type ProjectAction,
 } from "./policy.prototype";
 import { enforceOrgAuthz, enforceProjectAuthz } from "./enforce.prototype";
+
+/** authzMigrationMode gates the seam — shadow logs the new-path outcome, enforce acts on it; the flag itself is authored by the shadow slice. */
+const authzMigrationMode: "shadow" | "enforce" =
+  process.env.PUBLIC_API_AUTHZ_MIGRATION === "enforce" ? "enforce" : "shadow";
 
 /** enforceProjectAuth authenticates the request and asserts action on its resolved project, one call per route. */
 export async function enforceProjectAuth(params: {
@@ -59,8 +64,8 @@ export async function enforceOrgAuth(params: {
   return { context, orgId, access };
 }
 
-/** createAuthorizedProjectAPIRoute is the migration seam over the legacy factory: same config plus a required action asserted before the handler runs. */
-export const createAuthorizedProjectAPIRoute = <
+/** createAuthedProjectAPIRoutePrototype is the migration seam over the legacy factory: same config plus a required action, logged in shadow mode and acted on at enforce. */
+export const createAuthedProjectAPIRoutePrototype = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
   TResponse extends ZodType<any>,
@@ -72,11 +77,30 @@ export const createAuthorizedProjectAPIRoute = <
   createAuthedProjectAPIRoute({
     ...routeConfig,
     fn: async (params) => {
+      // KNOWN LIMITATION: wrapping fn observes only legacy-admitted requests —
+      // legacy 401/403s never reach here, so shadow is blind to the
+      // new-allows/legacy-denies direction. The production seam lives inside
+      // createAuthedProjectAPIRoute's auth step and evaluates both pipelines
+      // unconditionally, every outcome captured, neither throwing into the
+      // other (LFE-15034 owns what gets emitted).
       if (routeConfig.action !== null) {
-        const context = await authenticate(params.req.headers);
-        mustAuthorize(context, routeConfig.action, {
-          projectId: params.auth.scope.projectId,
-        });
+        const outcome = await evaluateProjectAction(
+          params.req.headers,
+          routeConfig.action,
+          params.auth.scope.projectId,
+        );
+        if (authzMigrationMode === "enforce" && !outcome.success) {
+          throw outcome.error;
+        }
+        if (authzMigrationMode === "shadow") {
+          // placeholder sink — the counter/log contract is LFE-15034's
+          logger.info("PROTOTYPE(LFE-15038) authz shadow decision", {
+            route: routeConfig.name,
+            action: routeConfig.action,
+            success: outcome.success,
+            error: outcome.success ? undefined : outcome.error.message,
+          });
+        }
       }
       return routeConfig.fn(params);
     },
@@ -91,3 +115,26 @@ export async function authenticate(
     "PROTOTYPE(LFE-15038): ApiAuthService.auth() = Verifier (LFE-15032) → Resolver (LFE-15458); not built on this branch",
   );
 }
+
+/** evaluateProjectAction runs the new pipeline capturing every failure as an outcome, so shadow mode can log what enforce mode would throw. */
+async function evaluateProjectAction(
+  headers: IncomingHttpHeaders,
+  action: ProjectAction,
+  projectId: string,
+): Promise<AuthzOutcome> {
+  try {
+    const context = await authenticate(headers);
+    return {
+      success: true,
+      access: mustAuthorize(context, action, { projectId }),
+    };
+  } catch (error) {
+    if (error instanceof Error) return { success: false, error };
+    throw error;
+  }
+}
+
+/** AuthzOutcome is a whole-pipeline result as a value: the residual access, or the error enforce mode would throw. */
+type AuthzOutcome =
+  | { success: true; access: Access }
+  | { success: false; error: Error };
