@@ -12,7 +12,7 @@ import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { v4 } from "uuid";
+import { v4, v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemV1Response,
   GetDatasetItemsV1Response,
@@ -30,7 +30,6 @@ import {
   DeleteDatasetRunV1Response,
   GetDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { v4 as uuidv4 } from "uuid";
 import {
   createObservation,
   createObservationsCh,

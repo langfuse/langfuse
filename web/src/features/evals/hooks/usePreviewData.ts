@@ -14,7 +14,7 @@ import {
   type ToolCallForEval,
 } from "@langfuse/shared";
 
-export type PreviewDataFields = {
+type PreviewDataFields = {
   input: unknown;
   output: unknown;
   metadata: unknown;

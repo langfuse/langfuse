@@ -28,17 +28,16 @@ import {
   InAppAgentRunStatus,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  dropEmptyAssistantMessages,
+  dropUnpairedAssistantToolCalls,
+  type AgUiEvent,
+  type InAppAgentRunRequest,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
 } from "@/src/features/in-app-agent/ids";
-import {
-  dropEmptyAssistantMessages,
-  dropUnpairedAssistantToolCalls,
-  type AgUiEvent,
-} from "@langfuse/shared/in-app-agent";
-import type { InAppAgentRunRequest } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
 import {
   deserializeInAppAgentDisplayState,
@@ -58,7 +57,6 @@ import {
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),

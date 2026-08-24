@@ -33,6 +33,14 @@ const testBedrockModel = (modelId: string) => ({
   region: "eu-central-1",
 });
 
+const testAnthropicModel = (modelId: string) => ({
+  provider: "anthropic" as const,
+  modelId,
+  titleModelId: modelId,
+  apiKey: "sk-ant-test",
+  baseURL: "https://api.anthropic.com/v1",
+});
+
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
 // does not allow property access, so tests read it through this view.
@@ -55,10 +63,23 @@ const getAgentTools = (
 type MockedAgentConfig = {
   instructions?: (() => string) | string;
   model?: {
+    provider?: string;
+    supportedUrls?: unknown;
     doStream: (options: unknown) => Promise<{
       stream: ReadableStream<unknown>;
     }>;
   };
+  inputProcessors?: Array<{
+    id: string;
+    processInputStep?: (args: {
+      stepNumber: number;
+      sendSignal?: (signal: unknown) => Promise<unknown>;
+    }) => Promise<unknown>;
+    processLLMRequest?: (args: {
+      prompt: unknown;
+      stepNumber?: number;
+    }) => { prompt?: unknown } | undefined;
+  }>;
   defaultOptions?: {
     onIterationComplete?: (context: {
       iteration: number;
@@ -259,6 +280,41 @@ vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
     doStream: bedrockMocks.doStream,
   })),
 }));
+
+// Match @ai-sdk/anthropic: provider/supportedUrls are prototype getters,
+// not own enumerable properties. A plain object spread drops them.
+vi.mock("ai-sdk-anthropic-v4", () => {
+  class AnthropicMessagesLanguageModel {
+    specificationVersion = "v3";
+    modelId: string;
+
+    constructor(modelId: string) {
+      this.modelId = modelId;
+    }
+
+    get provider() {
+      return "anthropic.messages";
+    }
+
+    get supportedUrls() {
+      return {};
+    }
+
+    doGenerate(options: unknown) {
+      return bedrockMocks.doGenerate(options);
+    }
+
+    doStream(options: unknown) {
+      return bedrockMocks.doStream(options);
+    }
+  }
+
+  return {
+    createAnthropic: vi.fn(
+      () => (modelId: string) => new AnthropicMessagesLanguageModel(modelId),
+    ),
+  };
+});
 
 vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain: vi.fn(() => vi.fn()),
@@ -589,6 +645,46 @@ describe("createAgUiStream", () => {
     });
   });
 
+  it("uses Anthropic Messages with the namespaced API key and thinking options", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+    const { createAnthropic } = await import("ai-sdk-anthropic-v4");
+
+    await initializeBasicTracedAgent(
+      "run-anthropic-messages",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    expect(createAmazonBedrock).not.toHaveBeenCalled();
+    expect(createAnthropic).toHaveBeenCalledWith({
+      apiKey: "sk-ant-test",
+      baseURL: "https://api.anthropic.com/v1",
+    });
+
+    const { Agent } = await import("@mastra/core/agent");
+    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0] as
+      | MockedAgentConfig
+      | undefined;
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      providerOptions: {
+        anthropic: {
+          thinking: { type: "adaptive", display: "summarized" },
+        },
+      },
+    });
+  });
+
+  it("keeps Anthropic provider getters on the traced model wrapper", async () => {
+    await initializeBasicTracedAgent(
+      "run-anthropic-provider-getters",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    const model = getLastAgentConfig()?.model;
+    expect(model?.provider).toBe("anthropic.messages");
+    expect(model?.supportedUrls).toEqual({});
+    expect(model?.provider?.includes("anthropic")).toBe(true);
+  });
+
   it("forwards model stream parts when finish tracing throws", async () => {
     instrumentationMocks.instrumentation.recordModelStreamPart
       .mockImplementationOnce(() => undefined)
@@ -632,28 +728,175 @@ describe("createAgUiStream", () => {
     ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
-  it("injects wrap-up instructions after the penultimate Mastra iteration", async () => {
+  it("adds Bedrock cache points to Claude model prompts so later steps can reuse prior turns", async () => {
+    await initializeBasicTracedAgent(
+      "run-bedrock-prompt-cache",
+      testBedrockModel("eu.anthropic.claude-opus-4-8"),
+    );
+
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const options = {
+      prompt: [
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+      ],
+    };
+    await model.doStream(options);
+
+    const cachedPrompt = [
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: { bedrock: { cachePoint: { type: "default" } } },
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: { bedrock: { cachePoint: { type: "default" } } },
+      },
+    ];
+    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
+      prompt: cachedPrompt,
+    });
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
+  it("adds Anthropic cacheControl to Claude Messages prompts so later steps can reuse prior turns", async () => {
+    await initializeBasicTracedAgent(
+      "run-anthropic-prompt-cache",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const options = {
+      prompt: [
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+      ],
+    };
+    await model.doStream(options);
+
+    const cachedPrompt = [
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+    ];
+    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
+      prompt: cachedPrompt,
+    });
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
+  it("appends a trailing current-time message on each model request", async () => {
+    await initializeBasicTracedAgent("run-current-time");
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+
+    const result = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+    });
+
+    const lastText = (
+      result?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+    expect(lastText).toContain("<current_time");
+  });
+
+  it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {
     await initializeBasicTracedAgent("run-step-limit-wrap-up");
     const agentConfig = getLastAgentConfig();
-    const onIterationComplete =
-      agentConfig?.defaultOptions?.onIterationComplete;
-    expect(onIterationComplete).toEqual(expect.any(Function));
-
+    const processor = agentConfig?.inputProcessors?.find(
+      (item) => item.id === "ensure-final-response",
+    );
+    expect(processor?.processInputStep).toEqual(expect.any(Function));
     expect(readAgentInstructions(agentConfig)).not.toContain(
       "Do not call any more tools",
     );
+    expect(readAgentInstructions(agentConfig)).not.toContain("system-reminder");
 
-    const wrapUp = await onIterationComplete?.({
+    const sendSignal = vi.fn();
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 2,
+      sendSignal,
+    });
+    expect(sendSignal).not.toHaveBeenCalled();
+
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 1,
+      sendSignal,
+    });
+    expect(sendSignal).toHaveBeenCalledWith({
+      type: "reactive",
+      tagName: "step_limit_wrap_up",
+      contents: expect.stringContaining("Do not call any more tools"),
+      attributes: {
+        reason: "max-steps-reached",
+        step: IN_APP_AGENT_MAX_STEPS,
+      },
+    });
+
+    const wrapUp = await agentConfig?.defaultOptions?.onIterationComplete?.({
       iteration: IN_APP_AGENT_MAX_STEPS - 1,
       maxIterations: IN_APP_AGENT_MAX_STEPS,
       isFinal: false,
       finishReason: "tool-calls",
     });
-
-    expect(wrapUp).toEqual({
-      feedback: expect.stringContaining("<step_limit_wrap_up>"),
-    });
-    expect(readAgentInstructions(agentConfig)).toContain(
+    expect(wrapUp).toBeUndefined();
+    expect(readAgentInstructions(agentConfig)).not.toContain(
       "Do not call any more tools",
     );
   });
@@ -883,6 +1126,7 @@ describe("createAgUiStream", () => {
         bedrock: {
           additionalModelRequestFields: {
             thinking: { type: "adaptive", display: "summarized" },
+            output_config: { effort: "medium" },
           },
         },
       },
@@ -947,10 +1191,10 @@ describe("createAgUiStream", () => {
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentDate: expect.any(String),
+        currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
-        screenContext: expect.stringContaining("<screen_context>"),
+        screenContext: "",
         userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
@@ -959,15 +1203,31 @@ describe("createAgUiStream", () => {
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        screenContext: expect.stringContaining(
-          '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
-        ),
         userContext: expect.stringContaining('"user_name": "Ada Lovelace"'),
       }),
     );
-    expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).not.toContain(
-      '"user_name"',
+    expect(promptMocks.compile.mock.calls[0]?.[0].userContext).not.toContain(
+      '"current_url"',
     );
+
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const laterStep = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 1,
+    });
+    const laterStepText = (
+      laterStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+
+    expect(laterStepText).toContain("<screen_context>");
+    expect(laterStepText).toContain(
+      '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
+    );
+    expect(laterStepText).not.toContain('"user_name"');
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));
     expect((baseInstructions as () => string)()).toBe(
@@ -1921,8 +2181,20 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
 
-    const screenContext = promptMocks.compile.mock.calls[0]?.[0]
-      .screenContext as string;
+    expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).toBe("");
+
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const firstStep = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 0,
+    });
+    const screenContext = (
+      firstStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
 
     expect(screenContext).toContain("<screen_context>");
     expect(screenContext).toContain("</screen_context>");

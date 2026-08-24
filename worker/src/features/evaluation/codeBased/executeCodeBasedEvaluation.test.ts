@@ -67,6 +67,7 @@ describe("executeCodeBasedEvaluation", () => {
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
+      evaluatorId: "evaluator-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -143,7 +144,10 @@ describe("executeCodeBasedEvaluation", () => {
     });
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        scope: expect.objectContaining({ organizationId: "org-1" }),
+        scope: expect.objectContaining({
+          organizationId: "org-1",
+          evaluatorId: "evaluator-1",
+        }),
         payload: expectedPayload,
       }),
     );
@@ -207,6 +211,7 @@ describe("executeCodeBasedEvaluation", () => {
     ]);
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
+        scope: expect.objectContaining({ evaluatorId: "template-1" }),
         payload: {
           observation: {
             input: null,
