@@ -7,7 +7,9 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-export const organizationManageableFeaturePreviewFlags = featurePreviewFlags;
+export const organizationManageableFeaturePreviewFlags = [
+  ...featurePreviewFlags,
+] as const;
 
 export type OrganizationManageableFeaturePreviewFlag =
   (typeof organizationManageableFeaturePreviewFlags)[number];
