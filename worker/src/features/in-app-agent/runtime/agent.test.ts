@@ -69,6 +69,13 @@ type MockedAgentConfig = {
       stream: ReadableStream<unknown>;
     }>;
   };
+  inputProcessors?: Array<{
+    id: string;
+    processInputStep?: (args: {
+      stepNumber: number;
+      sendSignal?: (signal: unknown) => Promise<unknown>;
+    }) => Promise<unknown>;
+  }>;
   defaultOptions?: {
     onIterationComplete?: (context: {
       iteration: number;
@@ -733,28 +740,47 @@ describe("createAgUiStream", () => {
     ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
-  it("injects wrap-up instructions after the penultimate Mastra iteration", async () => {
+  it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {
     await initializeBasicTracedAgent("run-step-limit-wrap-up");
     const agentConfig = getLastAgentConfig();
-    const onIterationComplete =
-      agentConfig?.defaultOptions?.onIterationComplete;
-    expect(onIterationComplete).toEqual(expect.any(Function));
-
+    const processor = agentConfig?.inputProcessors?.find(
+      (item) => item.id === "ensure-final-response",
+    );
+    expect(processor?.processInputStep).toEqual(expect.any(Function));
     expect(readAgentInstructions(agentConfig)).not.toContain(
       "Do not call any more tools",
     );
+    expect(readAgentInstructions(agentConfig)).not.toContain("system-reminder");
 
-    const wrapUp = await onIterationComplete?.({
+    const sendSignal = vi.fn();
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 2,
+      sendSignal,
+    });
+    expect(sendSignal).not.toHaveBeenCalled();
+
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 1,
+      sendSignal,
+    });
+    expect(sendSignal).toHaveBeenCalledWith({
+      type: "reactive",
+      tagName: "step_limit_wrap_up",
+      contents: expect.stringContaining("Do not call any more tools"),
+      attributes: {
+        reason: "max-steps-reached",
+        step: IN_APP_AGENT_MAX_STEPS,
+      },
+    });
+
+    const wrapUp = await agentConfig?.defaultOptions?.onIterationComplete?.({
       iteration: IN_APP_AGENT_MAX_STEPS - 1,
       maxIterations: IN_APP_AGENT_MAX_STEPS,
       isFinal: false,
       finishReason: "tool-calls",
     });
-
-    expect(wrapUp).toEqual({
-      feedback: expect.stringContaining("<step_limit_wrap_up>"),
-    });
-    expect(readAgentInstructions(agentConfig)).toContain(
+    expect(wrapUp).toBeUndefined();
+    expect(readAgentInstructions(agentConfig)).not.toContain(
       "Do not call any more tools",
     );
   });

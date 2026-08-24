@@ -520,6 +520,15 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
 
+    // Character count above which trace/observation I/O is rendered as plain
+    // text instead of markdown. Served to the browser via the public tRPC
+    // router, so it works as a runtime env var on prebuilt Docker images.
+    LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(150_000),
+
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
     // rows apart from migrations the worker will actually pick up. The worker
@@ -616,13 +625,6 @@ export const env = createEnv({
       .enum(["true", "false"])
       .optional()
       .default("true"),
-    // Content larger than this is rendered as plain text instead of markdown,
-    // as react-markdown is too slow for large payloads.
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(150_000),
   },
 
   /**
@@ -951,9 +953,6 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
-    // Markdown rendering
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
-      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -1038,6 +1037,8 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
+      process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

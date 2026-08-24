@@ -37,11 +37,16 @@ export * from "./server/llm/promptToolConfig";
 
 // evals
 export * from "./features/evals/types";
+export * from "./features/evals/evalExecutionMetadata";
 export * from "./features/evals/outputDefinition";
-export * from "./features/evals/utilities";
+export {
+  extractValueFromObject,
+  extractValueFromObjectAsString,
+} from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
+export * from "./features/evals/experimentRuleNormalization";
 // table actions
 export * from "./features/batchExport/types";
 export * from "./features/batchAction/types";

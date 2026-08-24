@@ -1,5 +1,5 @@
 import {
-  fetchObservationEvalConfigs,
+  fetchObservationEvalRules,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
   type ObservationForEval,
@@ -16,7 +16,7 @@ export async function scheduleExperimentObservationEvals(
   const { observation } = params;
 
   try {
-    const configs = await fetchObservationEvalConfigs(observation.project_id);
+    const configs = await fetchObservationEvalRules(observation.project_id);
     if (configs.length === 0) {
       return;
     }
