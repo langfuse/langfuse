@@ -426,6 +426,71 @@ describe("default-model-prices.json", () => {
     ).toBe("Flex · Large context (>272K)");
   });
 
+  it("should price GPT-5.4 mini and nano reasoning tokens at the output rate", () => {
+    const modelNames = [
+      "gpt-5.4-mini",
+      "gpt-5.4-mini-2026-03-17",
+      "gpt-5.4-nano",
+      "gpt-5.4-nano-2026-03-17",
+    ];
+
+    for (const modelName of modelNames) {
+      const model = defaultModelPrices.find(
+        (candidate) => candidate.modelName === modelName,
+      );
+      expect(model, modelName).toBeDefined();
+
+      for (const tier of model!.pricingTiers) {
+        const prices = tier.prices as Record<string, number>;
+        expect(
+          prices.output_reasoning_tokens,
+          `${modelName}/${tier.name}`,
+        ).toBe(prices.output);
+        expect(prices.output_reasoning, `${modelName}/${tier.name}`).toBe(
+          prices.output,
+        );
+        expect(prices.reasoning_tokens, `${modelName}/${tier.name}`).toBe(
+          prices.output,
+        );
+      }
+    }
+
+    const mini = defaultModelPrices.find(
+      (model) => model.modelName === "gpt-5.4-mini",
+    );
+    expect(mini).toBeDefined();
+
+    const miniTiers: PricingTierWithPrices[] = mini!.pricingTiers.map(
+      (tier) => ({
+        id: tier.id,
+        name: tier.name,
+        isDefault: tier.isDefault,
+        priority: tier.priority,
+        conditions: tier.conditions,
+        prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      }),
+    );
+
+    const reportedUsage = {
+      input: 1932,
+      output: 26,
+      output_reasoning: 45,
+      input_cache_read: 0,
+    };
+    const reportedResult = matchPricingTier(miniTiers, reportedUsage);
+    expect(reportedResult?.pricingTierName).toBe("Standard");
+
+    const reportedCost = Object.entries(reportedUsage).reduce(
+      (total, [usageType, units]) =>
+        total + (reportedResult?.prices[usageType]?.toNumber() ?? 0) * units,
+      0,
+    );
+    expect(reportedCost).toBeCloseTo(0.0017685, 12);
+  });
+
   it.each(["fast", "priority"])(
     "should match GPT-5.5 Fast mode for the %s service tier value",
     (serviceTier) => {

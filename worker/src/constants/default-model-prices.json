@@ -5314,7 +5314,7 @@
     "modelName": "gpt-5.4-mini",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-mini)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-21T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5333,6 +5333,9 @@
           "input_cached_tokens": 0.075e-6,
           "input_cache_read": 0.075e-6,
           "output": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "reasoning_tokens": 4.5e-6,
           "cache_read_input_tokens": 0.075e-6
         }
       },
@@ -5354,6 +5357,9 @@
           "input_cached_tokens": 0.15e-6,
           "input_cache_read": 0.15e-6,
           "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6,
           "cache_read_input_tokens": 0.15e-6
         }
       },
@@ -5375,6 +5381,9 @@
           "input_cached_tokens": 0.0375e-6,
           "input_cache_read": 0.0375e-6,
           "output": 2.25e-6,
+          "output_reasoning_tokens": 2.25e-6,
+          "output_reasoning": 2.25e-6,
+          "reasoning_tokens": 2.25e-6,
           "cache_read_input_tokens": 0.0375e-6
         }
       }
@@ -5385,7 +5394,7 @@
     "modelName": "gpt-5.4-mini-2026-03-17",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-mini-2026-03-17)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-21T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5404,6 +5413,9 @@
           "input_cached_tokens": 0.075e-6,
           "input_cache_read": 0.075e-6,
           "output": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "reasoning_tokens": 4.5e-6,
           "cache_read_input_tokens": 0.075e-6
         }
       },
@@ -5425,6 +5437,9 @@
           "input_cached_tokens": 0.15e-6,
           "input_cache_read": 0.15e-6,
           "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6,
           "cache_read_input_tokens": 0.15e-6
         }
       },
@@ -5446,6 +5461,9 @@
           "input_cached_tokens": 0.0375e-6,
           "input_cache_read": 0.0375e-6,
           "output": 2.25e-6,
+          "output_reasoning_tokens": 2.25e-6,
+          "output_reasoning": 2.25e-6,
+          "reasoning_tokens": 2.25e-6,
           "cache_read_input_tokens": 0.0375e-6
         }
       }
@@ -5456,7 +5474,7 @@
     "modelName": "gpt-5.4-nano",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-nano)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-21T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5475,6 +5493,9 @@
           "input_cached_tokens": 0.02e-6,
           "input_cache_read": 0.02e-6,
           "output": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
+          "reasoning_tokens": 1.25e-6,
           "cache_read_input_tokens": 0.02e-6
         }
       },
@@ -5496,6 +5517,9 @@
           "input_cached_tokens": 0.01e-6,
           "input_cache_read": 0.01e-6,
           "output": 0.625e-6,
+          "output_reasoning_tokens": 0.625e-6,
+          "output_reasoning": 0.625e-6,
+          "reasoning_tokens": 0.625e-6,
           "cache_read_input_tokens": 0.01e-6
         }
       }
@@ -5506,7 +5530,7 @@
     "modelName": "gpt-5.4-nano-2026-03-17",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-nano-2026-03-17)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-21T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5525,6 +5549,9 @@
           "input_cached_tokens": 0.02e-6,
           "input_cache_read": 0.02e-6,
           "output": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
+          "reasoning_tokens": 1.25e-6,
           "cache_read_input_tokens": 0.02e-6
         }
       },
@@ -5546,6 +5573,9 @@
           "input_cached_tokens": 0.01e-6,
           "input_cache_read": 0.01e-6,
           "output": 0.625e-6,
+          "output_reasoning_tokens": 0.625e-6,
+          "output_reasoning": 0.625e-6,
+          "reasoning_tokens": 0.625e-6,
           "cache_read_input_tokens": 0.01e-6
         }
       }
