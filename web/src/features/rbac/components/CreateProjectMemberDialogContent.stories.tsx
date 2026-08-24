@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import {
@@ -70,12 +70,14 @@ export const Submitting = meta.story({
 export const SubmitsInvitation = meta.story({
   name: "(Test) Submits invitation",
   args: defaultArgs,
-  play: async ({ args, canvas }) => {
+  play: async ({ args, canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
     await userEvent.type(
-      canvas.getByRole("textbox", { name: "Email" }),
+      body.getByRole("textbox", { name: "Email" }),
       "member@example.com",
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Grant access" }));
+    await userEvent.click(body.getByRole("button", { name: "Grant access" }));
 
     await expect(args.createProjectMember).toHaveBeenCalledWith({
       email: "member@example.com",
