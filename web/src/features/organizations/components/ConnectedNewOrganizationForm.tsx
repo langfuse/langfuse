@@ -9,7 +9,7 @@ import { NewOrganizationForm } from "./NewOrganizationForm";
 export function ConnectedNewOrganizationForm({
   onSuccess,
 }: {
-  onSuccess: (orgId: string) => void | Promise<void>;
+  onSuccess: (orgId: string, sessionRefreshed: boolean) => void | Promise<void>;
 }) {
   const { update: updateSession } = useSession();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -26,14 +26,15 @@ export function ConnectedNewOrganizationForm({
         throw error;
       });
 
-    // Refreshing the session is best-effort once the organization exists.
+    let sessionRefreshed = true;
     try {
       await updateSession();
     } catch (error) {
+      sessionRefreshed = false;
       reportTrpcErrorWithoutToast(error, "organizations");
     }
 
-    await onSuccess(organization.id);
+    await onSuccess(organization.id, sessionRefreshed);
   }
 
   return (

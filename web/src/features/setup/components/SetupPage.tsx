@@ -82,8 +82,14 @@ export function SetupPage() {
                 Organizations are used to manage your projects and teams.
               </p>
               <ConnectedNewOrganizationForm
-                onSuccess={(orgId) => {
-                  router.push(createProjectRoute(orgId));
+                onSuccess={async (orgId, sessionRefreshed) => {
+                  const projectRoute = createProjectRoute(orgId);
+                  await router.push(projectRoute);
+
+                  if (!sessionRefreshed) {
+                    // The setup page resolves the new organization from the session.
+                    router.reload();
+                  }
                 }}
               />
             </div>
