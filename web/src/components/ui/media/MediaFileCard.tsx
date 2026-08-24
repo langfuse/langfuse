@@ -5,7 +5,7 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
-import { getMappedMediaLabel } from "./mediaUtils";
+import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
 
 export type MediaFileCardProps = {
   contentType: string;

@@ -20,7 +20,7 @@ import {
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
-import { getMappedMediaLabel } from "./mediaUtils";
+import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
 
 /**
  * Resolution state of the previewable content. The collapsed chip renders the
