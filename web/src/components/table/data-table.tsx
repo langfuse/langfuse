@@ -163,7 +163,7 @@ function isValidCssVariableName({
 const INTERACTIVE_ROW_CLICK_SELECTOR =
   "a, button, input, select, textarea, summary, [role='button'], [role='link']";
 
-const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
   if (!(target instanceof Element)) return false;
 
   return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));

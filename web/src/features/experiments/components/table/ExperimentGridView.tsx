@@ -21,6 +21,7 @@ import {
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/data-table";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
 const GRID_VIEW_ROW_HEIGHTS = {
@@ -177,6 +178,18 @@ export const ExperimentGridView = ({
               baselineTraceScores={baselineData?.traceScores}
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onExperimentClick={
+                peekView?.openPeek
+                  ? (event) => {
+                      if (shouldIgnoreRowClickTarget(event.target)) return;
+                      event.stopPropagation();
+                      peekView.openPeek?.(row.original.itemId, {
+                        ...row.original,
+                        clickedExperimentId: expId,
+                      });
+                    }
+                  : undefined
+              }
             />
           );
         },
@@ -193,6 +206,7 @@ export const ExperimentGridView = ({
     columnVisibility,
     useExperimentColors,
     singleLine,
+    peekView,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
