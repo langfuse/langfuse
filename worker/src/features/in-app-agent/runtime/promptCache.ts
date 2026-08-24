@@ -1,16 +1,22 @@
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
+export type PromptCacheProvider = "bedrock" | "anthropic";
+
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
+const ANTHROPIC_CLAUDE_MODEL_ID_PART = "claude";
 
 const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
+const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
 
 /**
- * Bedrock Converse prompt cache.
+ * Prompt cache for Claude on Bedrock Converse and native Anthropic Messages.
  *
- * A cachePoint writes the prefix `tools → that message`. The next call
+ * A checkpoint writes the prefix `tools → that message`. The next call
  * cache-reads only if that prefix is byte-identical. Hits last 5 minutes
- * and refresh on read. Claude-only: Bedrock Converse ignores Anthropic
- * `cacheControl`, so we do not dual-write it.
+ * and refresh on read.
+ *
+ * Stamp only the matching provider field. Bedrock Converse ignores Anthropic
+ * `cacheControl`; Anthropic Messages ignores Bedrock `cachePoint`.
  *
  * Three checkpoints, each for a different prefix:
  *
@@ -26,25 +32,34 @@ const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
  *    not the closing assistant (that was model output). Skip trailing
  *    assistants, then stamp that predecessor.
  */
-export function applyBedrockPromptCacheToCall<T>(
-  modelId: string,
-  options: T,
-): T {
+export function applyPromptCacheToCall<T>({
+  provider,
+  modelId,
+  options,
+}: {
+  provider: string;
+  modelId: string;
+  options: T;
+}): T {
+  const cacheProvider = resolvePromptCacheProvider(provider, modelId);
   if (
+    cacheProvider == null ||
     !isRecord(options) ||
-    !Array.isArray(options.prompt) ||
-    !shouldApplyBedrockPromptCache(modelId)
+    !Array.isArray(options.prompt)
   ) {
     return options;
   }
 
   return {
     ...options,
-    prompt: applyBedrockPromptCachePoints(options.prompt),
+    prompt: applyPromptCachePoints(options.prompt, cacheProvider),
   };
 }
 
-export function applyBedrockPromptCachePoints(prompt: unknown) {
+export function applyPromptCachePoints(
+  prompt: unknown,
+  cacheProvider: PromptCacheProvider,
+) {
   if (!Array.isArray(prompt) || prompt.length === 0) {
     return prompt;
   }
@@ -76,12 +91,27 @@ export function applyBedrockPromptCachePoints(prompt: unknown) {
   }
 
   return prompt.map((message, index) =>
-    cacheIndices.has(index) ? withBedrockCachePoint(message) : message,
+    cacheIndices.has(index) ? withPromptCache(message, cacheProvider) : message,
   );
 }
 
-function shouldApplyBedrockPromptCache(modelId: string) {
-  return modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART);
+function resolvePromptCacheProvider(
+  provider: string,
+  modelId: string,
+): PromptCacheProvider | undefined {
+  if (
+    provider.includes("bedrock") &&
+    modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)
+  ) {
+    return "bedrock";
+  }
+  if (
+    provider.includes("anthropic") &&
+    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+  ) {
+    return "anthropic";
+  }
+  return undefined;
 }
 
 function getLastConversationIndex(prompt: unknown[]) {
@@ -146,6 +176,12 @@ function getMessageRole(message: unknown) {
     : undefined;
 }
 
+function withPromptCache(message: unknown, cacheProvider: PromptCacheProvider) {
+  return cacheProvider === "bedrock"
+    ? withBedrockCachePoint(message)
+    : withAnthropicCacheControl(message);
+}
+
 function withBedrockCachePoint(message: unknown) {
   if (!isRecord(message)) {
     return message;
@@ -169,6 +205,34 @@ function withBedrockCachePoint(message: unknown) {
       bedrock: {
         ...bedrock,
         cachePoint: BEDROCK_PROMPT_CACHE_POINT,
+      },
+    },
+  };
+}
+
+function withAnthropicCacheControl(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  const providerOptions = isRecord(message.providerOptions)
+    ? message.providerOptions
+    : {};
+  const anthropic = isRecord(providerOptions.anthropic)
+    ? providerOptions.anthropic
+    : {};
+
+  if (isRecord(anthropic.cacheControl)) {
+    return message;
+  }
+
+  return {
+    ...message,
+    providerOptions: {
+      ...providerOptions,
+      anthropic: {
+        ...anthropic,
+        cacheControl: ANTHROPIC_CACHE_CONTROL,
       },
     },
   };

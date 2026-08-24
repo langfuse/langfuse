@@ -1017,9 +1017,13 @@ describe("executeInAppAgentRun", () => {
 
   it("claims a run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
     const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+    const originalAiRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
     (
       sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
     ).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (
+      sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+    ).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     try {
       const { projectId, run } = await seedBackgroundRun();
@@ -1033,6 +1037,9 @@ describe("executeInAppAgentRun", () => {
       (
         sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
       ).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
+      (
+        sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+      ).LANGFUSE_AI_AWS_BEDROCK_REGION = originalAiRegion;
     }
   });
 

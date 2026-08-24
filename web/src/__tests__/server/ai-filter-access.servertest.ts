@@ -144,6 +144,7 @@ describe("Ask AI filter generation access", () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
     const originalAiFeaturesProjectId =
       sharedEnv.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
@@ -156,6 +157,9 @@ describe("Ask AI filter generation access", () => {
     (
       env as { LANGFUSE_AWS_BEDROCK_SMALL_MODEL?: string }
     ).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
+    (
+      sharedEnv as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
+    ).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     (
       sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
     ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
@@ -195,6 +199,9 @@ describe("Ask AI filter generation access", () => {
       (
         env as { LANGFUSE_AWS_BEDROCK_SMALL_MODEL?: string }
       ).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+      (
+        sharedEnv as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
+      ).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
       (
         sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;

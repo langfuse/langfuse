@@ -1,7 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
-import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { Agent } from "@mastra/core/agent";
 import type {
   ProcessInputStepArgs,
@@ -50,20 +49,21 @@ import {
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
-import {
-  createDefaultBedrockProviderAuth,
-  logger,
-} from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
-import { applyBedrockPromptCacheToCall } from "./bedrockPromptCache";
+import { applyPromptCacheToCall } from "./promptCache";
+import {
+  createInAppAgentLanguageModel,
+  getInAppAgentReasoningProviderOptions,
+  type InAppAgentLanguageModel,
+} from "./model";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
 
@@ -271,30 +271,6 @@ function isTruncatedByStepLimit(state: StepLimitState): boolean {
     state.iteration >= IN_APP_AGENT_MAX_STEPS &&
     state.lastFinishReason !== "stop"
   );
-}
-
-// Adaptive thinking is the default for every Claude model so new generations
-// work without maintaining a model list. Older models that only support
-// thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
-// in-app agent must run on a model generation that supports it.
-export function getBedrockReasoningProviderOptions(modelId: string) {
-  if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
-    return undefined;
-  }
-
-  return {
-    bedrock: {
-      // Passed as raw request fields instead of reasoningConfig because
-      // @ai-sdk/amazon-bedrock overwrites additionalModelRequestFields
-      // .thinking when reasoningConfig is set, and these models default
-      // display to "omitted" (empty thinking text) — without "summarized"
-      // the reasoning UI would render blank blocks.
-      additionalModelRequestFields: {
-        thinking: { type: "adaptive" as const, display: "summarized" },
-        output_config: { effort: "medium" as const },
-      },
-    },
-  };
 }
 
 type CreateAgUiStreamOptions = {
@@ -983,10 +959,6 @@ type ExecutableInAppAgentTool = {
   toModelOutput?: (output: unknown) => unknown | PromiseLike<unknown>;
 };
 
-type InAppAgentLanguageModel = ReturnType<
-  ReturnType<typeof createAmazonBedrock>
->;
-
 function withModelTracing(
   model: InAppAgentLanguageModel,
   callbacks: {
@@ -994,15 +966,31 @@ function withModelTracing(
     onStreamPart?: (part: unknown) => void;
   },
 ): InAppAgentLanguageModel {
+  // Copy provider/supportedUrls after the spread: @ai-sdk/anthropic defines
+  // them as prototype getters, and object spread only copies own enumerable
+  // properties. Mastra then does `model.provider.includes(...)` on every turn.
+  // Always wrap so prompt-cache checkpoints are applied even without
+  // tracing callbacks.
   return {
+    ...model,
     specificationVersion: model.specificationVersion,
     provider: model.provider,
     modelId: model.modelId,
     supportedUrls: model.supportedUrls,
     doGenerate: (options) =>
-      model.doGenerate(applyBedrockPromptCacheToCall(model.modelId, options)),
+      model.doGenerate(
+        applyPromptCacheToCall({
+          provider: String(model.provider ?? ""),
+          modelId: model.modelId,
+          options,
+        }),
+      ),
     doStream: async (options) => {
-      const nextOptions = applyBedrockPromptCacheToCall(model.modelId, options);
+      const nextOptions = applyPromptCacheToCall({
+        provider: String(model.provider ?? ""),
+        modelId: model.modelId,
+        options,
+      });
       callbacks.onStart?.(nextOptions);
       const result = await model.doStream(nextOptions);
 
@@ -1078,13 +1066,9 @@ async function createMastraAdapter(params: {
   onToolExecutionEnd?: (toolCallId: string) => void;
   stepLimitState: StepLimitState;
 }) {
-  const bedrock = createAmazonBedrock({
-    ...(params.options.model.region
-      ? { region: params.options.model.region }
-      : {}),
-    ...createDefaultBedrockProviderAuth(
-      params.awsProfile ? { profile: params.awsProfile } : undefined,
-    ),
+  const languageModel = createInAppAgentLanguageModel({
+    config: params.options.model,
+    awsProfile: params.awsProfile,
   });
 
   const mcpClient = new MCPClient({
@@ -1198,8 +1182,8 @@ async function createMastraAdapter(params: {
     });
     params.onToolsAvailable?.(tools);
 
-    const reasoningProviderOptions = getBedrockReasoningProviderOptions(
-      params.options.model.modelId,
+    const reasoningProviderOptions = getInAppAgentReasoningProviderOptions(
+      params.options.model,
     );
 
     // @ag-ui/mastra currently forwards only assistant, user, and tool
@@ -1208,13 +1192,10 @@ async function createMastraAdapter(params: {
     // instruction channel so the model receives the same higher-priority
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
-    const model = withModelTracing(
-      bedrock(params.options.model.modelId as Parameters<typeof bedrock>[0]),
-      {
-        onStart: params.onModelCallStart,
-        onStreamPart: params.onModelStreamPart,
-      },
-    );
+    const model = withModelTracing(languageModel, {
+      onStart: params.onModelCallStart,
+      onStreamPart: params.onModelStreamPart,
+    });
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
