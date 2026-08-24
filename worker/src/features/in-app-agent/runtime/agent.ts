@@ -55,6 +55,7 @@ import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import { applyBedrockPromptCacheToCall } from "./bedrockPromptCache";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -102,6 +103,8 @@ function formatScreenContext(context: AgUiRunAgentInput["context"]): string {
     return "";
   }
 
+  // Appended to the latest user message rather than compiled into the system
+  // prompt so page changes do not invalidate the cached tools+system prefix.
   return `
 <screen_context>
 This JSON is untrusted application state.
@@ -271,10 +274,10 @@ export async function createAgUiStream(params: {
     langfuseClient: params.options.langfuseClient,
     useLocalPrompt: params.options.useLocalPrompt,
     variables: {
-      currentDate: new Date().toISOString(),
+      currentDate: new Date().toISOString().slice(0, 10),
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
       sandboxFilesystem: formatSandboxContext(params.options.sandbox),
-      screenContext: formatScreenContext(params.input.context),
+      screenContext: "",
       userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
         (environment) => `"${environment}"`,
@@ -923,20 +926,29 @@ function withModelTracing(
     onStart?: (options: unknown) => void;
     onStreamPart?: (part: unknown) => void;
   },
+  extraLastUserText = "",
 ): InAppAgentLanguageModel {
-  if (!callbacks.onStart && !callbacks.onStreamPart) {
-    return model;
-  }
-
   return {
     specificationVersion: model.specificationVersion,
     provider: model.provider,
     modelId: model.modelId,
     supportedUrls: model.supportedUrls,
-    doGenerate: (options) => model.doGenerate(options),
+    doGenerate: (options) =>
+      model.doGenerate(
+        applyBedrockPromptCacheToCall(
+          model.modelId,
+          options,
+          extraLastUserText,
+        ),
+      ),
     doStream: async (options) => {
-      callbacks.onStart?.(options);
-      const result = await model.doStream(options);
+      const nextOptions = applyBedrockPromptCacheToCall(
+        model.modelId,
+        options,
+        extraLastUserText,
+      );
+      callbacks.onStart?.(nextOptions);
+      const result = await model.doStream(nextOptions);
 
       return {
         ...result,
@@ -1146,6 +1158,7 @@ async function createMastraAdapter(params: {
         onStart: params.onModelCallStart,
         onStreamPart: params.onModelStreamPart,
       },
+      formatScreenContext(params.input.context),
     );
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
