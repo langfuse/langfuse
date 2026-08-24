@@ -7941,6 +7941,100 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails["reasoning.output_tokens"]).toBeUndefined();
     });
 
+    it("should not double count gen_ai.usage.details.text_prompt_tokens against input_tokens (PydanticAI/Gemini)", async () => {
+      // PydanticAI's Gemini export sets gen_ai.usage.input_tokens to the full
+      // prompt token count, but also emits Gemini's prompt modality
+      // breakdown as gen_ai.usage.details.text_prompt_tokens. For a text-only
+      // prompt this equals input_tokens exactly, so keeping it as its own
+      // usage bucket doubles the input total wherever all buckets are summed
+      // (e.g. the ingestion pipeline's total fallback).
+      const traceId = "abcdef1234567890abcdef1234567897";
+
+      const geminiDetailsSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde6", "hex"),
+                name: "pydantic-ai-gemini-usage-details",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 50, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.text_prompt_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.thoughts_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        geminiDetailsSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      expect(usageDetails.input).toBe(100);
+      expect(usageDetails.output).toBe(50);
+      // The redundant modality breakdown must not be passed through as its
+      // own bucket, since it duplicates the already-counted input tokens.
+      expect(usageDetails["text_prompt_tokens"]).toBeUndefined();
+      // thoughts_tokens is genuinely additional (not included in
+      // output_tokens), so it stays as its own bucket.
+      expect(usageDetails["thoughts_tokens"]).toBe(20);
+      // No double count: the sum of all input* buckets must equal the
+      // reported input token count, not 2x.
+      const inputSum = Object.entries(usageDetails)
+        .filter(([key]) => key.startsWith("input"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(inputSum).toBe(100);
+    });
+
     it("should clamp output at 0 when reasoning details exceed the emitted output count", async () => {
       // Reasoning > output must floor output at 0 (negatives are dropped downstream); breaks the output-sum invariant by design.
       const traceId = "abcdef1234567890abcdef1234567896";

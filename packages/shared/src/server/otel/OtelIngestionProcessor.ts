@@ -2956,6 +2956,10 @@ export class OtelIngestionProcessor {
             "reasoning.output_tokens",
             "completion_details.reasoning",
             "completion_details.audio",
+            // Gemini's prompt modality breakdown (via PydanticAI's OTel
+            // export) always sums back to prompt_tokens/input_tokens, so
+            // keeping it as its own bucket double-counts it against input.
+            "details.text_prompt_tokens",
           ].includes(key)
         ) {
           return acc;
