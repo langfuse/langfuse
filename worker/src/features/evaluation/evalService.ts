@@ -462,6 +462,7 @@ export const createEvalJobs = async ({
             jobConfigurationId: true,
             jobInputDatasetItemId: true,
             jobInputObservationId: true,
+            jobInputDatasetItemValidFrom: true,
           },
           where: {
             projectId: event.projectId,
@@ -475,17 +476,22 @@ export const createEvalJobs = async ({
     `Batched query for ${configIds.length} configs, found ${allExistingJobs.length} existing jobs`,
   );
 
-  // Helper function to find matching job for a config
+  // Helper function to find matching job for a config. Compares by
+  // validFrom too, so distinct versions of the same dataset item are not
+  // treated as duplicates of one another.
   const findMatchingJob = (
     configId: string,
     datasetItemId: string | null,
     observationId: string | null,
+    datasetItemValidFrom: Date | null,
   ) => {
     return allExistingJobs.find(
       (job) =>
         job.jobConfigurationId === configId &&
         job.jobInputDatasetItemId === datasetItemId &&
-        job.jobInputObservationId === observationId,
+        job.jobInputObservationId === observationId &&
+        (job.jobInputDatasetItemValidFrom?.getTime() ?? null) ===
+          (datasetItemValidFrom?.getTime() ?? null),
     );
   };
 
@@ -716,12 +722,18 @@ export const createEvalJobs = async ({
       }
     }
 
+    const datasetItemValidFrom =
+      datasetItem && "validFrom" in datasetItem
+        ? datasetItem.validFrom
+        : undefined;
+
     // Find the existing job for the given configuration from the batched results.
     // We either use it for deduplication or we cancel it in case it became "deselected".
     const matchingJob = findMatchingJob(
       config.id,
       datasetItem?.id ?? null,
       observationId ?? null,
+      datasetItemValidFrom ?? null,
     );
     const existingJob = matchingJob ? [matchingJob] : [];
 
@@ -765,6 +777,7 @@ export const createEvalJobs = async ({
         event.traceId,
         datasetItem?.id ?? "",
         observationId ?? "",
+        datasetItemValidFrom?.toISOString() ?? "",
       ].join(":");
 
       const wasInserted = await prisma.$transaction(async (tx) => {
@@ -779,6 +792,7 @@ export const createEvalJobs = async ({
             jobInputTraceId: event.traceId,
             jobInputDatasetItemId: datasetItem?.id ?? null,
             jobInputObservationId: observationId ?? null,
+            jobInputDatasetItemValidFrom: datasetItemValidFrom ?? null,
           },
           select: { id: true },
         });

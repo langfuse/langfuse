@@ -1354,6 +1354,98 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(1);
     }, 10_000);
 
+    test("creates separate job executions for distinct dataset item versions", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const datasetId = randomUUID();
+      const datasetItemId = randomUUID();
+      const validFromV1 = new Date("2024-01-01T00:00:00.000Z");
+      const validFromV2 = new Date("2024-06-01T00:00:00.000Z");
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.dataset.create({
+        data: {
+          id: datasetId,
+          projectId,
+          name: "test-dataset",
+        },
+      });
+
+      // Create version 1 (superseded) with validTo set
+      await prisma.datasetItem.create({
+        data: {
+          id: datasetItemId,
+          projectId,
+          datasetId,
+          validFrom: validFromV1,
+          validTo: validFromV2,
+        },
+      });
+
+      // Create version 2 (current) with validTo = null
+      await prisma.datasetItem.create({
+        data: {
+          id: datasetItemId,
+          projectId,
+          datasetId,
+          validFrom: validFromV2,
+          validTo: null,
+        },
+      });
+
+      await createMigratedEvalConfig({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.DATASET,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: {
+          projectId,
+          traceId,
+          datasetItemId,
+          datasetItemValidFrom: validFromV1,
+        },
+        jobTimestamp,
+      });
+
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: {
+          projectId,
+          traceId,
+          datasetItemId,
+          datasetItemValidFrom: validFromV2,
+        },
+        jobTimestamp,
+      });
+
+      const jobs = await prisma.jobExecution.findMany({
+        where: { projectId },
+      });
+
+      expect(jobs.length).toBe(2);
+      expect(
+        jobs.map((j) => j.jobInputDatasetItemValidFrom?.toISOString()).sort(),
+      ).toEqual([validFromV1.toISOString(), validFromV2.toISOString()].sort());
+    }, 10_000);
+
     test("does not create job for inactive config", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
