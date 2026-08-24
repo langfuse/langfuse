@@ -55,7 +55,7 @@ import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
-import { applyBedrockPromptCacheToCall } from "./bedrockPromptCache";
+import { applyPromptCacheToCall } from "./promptCache";
 import {
   createInAppAgentLanguageModel,
   getInAppAgentReasoningProviderOptions,
@@ -969,7 +969,7 @@ function withModelTracing(
   // Copy provider/supportedUrls after the spread: @ai-sdk/anthropic defines
   // them as prototype getters, and object spread only copies own enumerable
   // properties. Mastra then does `model.provider.includes(...)` on every turn.
-  // Always wrap so Bedrock prompt-cache points are applied even without
+  // Always wrap so prompt-cache checkpoints are applied even without
   // tracing callbacks.
   return {
     ...model,
@@ -978,9 +978,19 @@ function withModelTracing(
     modelId: model.modelId,
     supportedUrls: model.supportedUrls,
     doGenerate: (options) =>
-      model.doGenerate(applyBedrockPromptCacheToCall(model.modelId, options)),
+      model.doGenerate(
+        applyPromptCacheToCall({
+          provider: String(model.provider ?? ""),
+          modelId: model.modelId,
+          options,
+        }),
+      ),
     doStream: async (options) => {
-      const nextOptions = applyBedrockPromptCacheToCall(model.modelId, options);
+      const nextOptions = applyPromptCacheToCall({
+        provider: String(model.provider ?? ""),
+        modelId: model.modelId,
+        options,
+      });
       callbacks.onStart?.(nextOptions);
       const result = await model.doStream(nextOptions);
 

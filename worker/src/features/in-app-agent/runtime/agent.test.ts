@@ -797,6 +797,63 @@ describe("createAgUiStream", () => {
     ).toHaveBeenCalledWith({ prompt: cachedPrompt });
   });
 
+  it("adds Anthropic cacheControl to Claude Messages prompts so later steps can reuse prior turns", async () => {
+    await initializeBasicTracedAgent(
+      "run-anthropic-prompt-cache",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const options = {
+      prompt: [
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+      ],
+    };
+    await model.doStream(options);
+
+    const cachedPrompt = [
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+    ];
+    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
+      prompt: cachedPrompt,
+    });
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
   it("appends a trailing current-time message on each model request", async () => {
     await initializeBasicTracedAgent("run-current-time");
     const processor = getLastAgentConfig()?.inputProcessors?.find(
