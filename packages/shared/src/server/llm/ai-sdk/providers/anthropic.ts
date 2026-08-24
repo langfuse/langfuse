@@ -6,8 +6,8 @@ import { ensureBaseURLSuffix, isPlainObject } from "./utils";
 
 /**
  * The stored Anthropic base URL is the API origin, without `/v1/messages`.
- * The AI SDK expects the `/v1` prefix to be part of `baseURL` (default
- * `https://api.anthropic.com/v1`) and appends only `/messages`.
+ * The AI SDK expects the `/v1` prefix to be part of `baseURL` and appends
+ * only `/messages`.
  */
 export function toAnthropicBaseURL(
   baseURL: string | null | undefined,
@@ -24,10 +24,7 @@ export function buildAnthropicModel(params: {
 }): LanguageModel {
   const provider = createAnthropic({
     apiKey: params.apiKey,
-    // Always pass a base URL so the SDK cannot fall back to ambient
-    // ANTHROPIC_BASE_URL (e.g. a local Claude Code proxy).
-    baseURL:
-      toAnthropicBaseURL(params.baseURL) ?? "https://api.anthropic.com/v1",
+    baseURL: toAnthropicBaseURL(params.baseURL),
     headers: params.extraHeaders,
     fetch: params.fetch,
   });
