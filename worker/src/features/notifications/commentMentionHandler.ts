@@ -19,13 +19,18 @@ type CommentMentionPayload = Omit<
  * Converts @[DisplayName](user:userId) to @DisplayName. The display name is
  * matched lazily and anchored on the "](user:" suffix so it may contain
  * brackets (e.g. SSO display names like "John Doe[ Platform Team ]"); the
- * userId is the authoritative part of a mention.
+ * userId is the authoritative part of a mention. A tempered lookahead
+ * forbids the capture from spanning another mention's "](user:" delimiter,
+ * so a malformed mention can never merge with a later valid one.
  */
 export function buildCommentPreview(content: string): string {
   const truncated =
     content.length > 500 ? content.substring(0, 497) + "..." : content;
   // Convert @[DisplayName](user:userId) to @DisplayName
-  return truncated.replace(/@\[(.{1,100}?)\]\(user:[^)]+\)/g, "@$1");
+  return truncated.replace(
+    /@\[((?:(?!\]\(user:).){1,100}?)\]\(user:[^)]+\)/g,
+    "@$1",
+  );
 }
 
 async function buildCommentLink(opts: {

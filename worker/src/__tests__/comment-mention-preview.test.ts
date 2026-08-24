@@ -17,6 +17,13 @@ describe("buildCommentPreview", () => {
     );
   });
 
+  it("does not merge a malformed mention with a later valid one", () => {
+    // The capture must not span the "](user:" delimiter of another mention,
+    // which would swallow the text between the two tokens
+    const content = "@[A](user:bad!id) keep me @[Bob](user:bob456)";
+    expect(buildCommentPreview(content)).toBe("@A keep me @Bob");
+  });
+
   it("truncates long content to 500 characters with an ellipsis", () => {
     const content = "a".repeat(600);
     const result = buildCommentPreview(content);

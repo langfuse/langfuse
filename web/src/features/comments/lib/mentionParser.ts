@@ -14,12 +14,15 @@ export const MENTION_USER_PREFIX = "user:";
  * Regex pattern with bounded quantifiers to prevent ReDoS attacks
  * - Display name: lazily matches 1-100 arbitrary characters anchored on the
  *   literal "](user:" suffix, so names may contain brackets (e.g. SSO display
- *   names like "John Doe[ Platform Team ]")
+ *   names like "John Doe[ Platform Team ]"). A tempered lookahead forbids the
+ *   capture from spanning another mention's "](user:" delimiter, so a
+ *   malformed mention can never merge with a later valid one and cause
+ *   sanitizeMentions to delete the text between them.
  * - User ID: 1-30 characters (CUID is 25 chars, custom IDs may include hyphens/underscores)
  * The user ID - not the display name - is the authoritative part of a mention.
  */
 const MENTION_REGEX = new RegExp(
-  `@\\[(.{1,100}?)\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
+  `@\\[((?:(?!\\]\\(${MENTION_USER_PREFIX}).){1,100}?)\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
   "gi",
 );
 
