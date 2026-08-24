@@ -38,6 +38,8 @@ export function isSettledInAppAgentRunStatus(
   return !isUnsettledInAppAgentRunStatus(status);
 }
 
+export const IN_APP_AGENT_REASONING_SIGNATURE_SUBTYPE = "signature";
+
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE = "silent-mcp-output";
 export const IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE =
   "Output saved to /workspace/tool_calls";

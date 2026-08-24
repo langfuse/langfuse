@@ -696,6 +696,77 @@ describe("createAgUiStream", () => {
     ).toHaveBeenCalledWith({ prompt: cachedPrompt });
   });
 
+  it("persists Bedrock reasoning signatures from the model stream", async () => {
+    const { createAgUiStream } = await import("./agent");
+    const onEvent = vi.fn();
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-reasoning-signature",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "reasoning-1",
+        role: "reasoning",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        onEvent,
+      },
+    });
+    await readStream(stream);
+
+    bedrockMocks.streamParts = [
+      { type: "reasoning-signature", signature: "bedrock-signature" },
+    ];
+    const model = getLastAgentConfig()?.model;
+    const modelResult = await model!.doStream({});
+    for await (const _part of modelResult.stream) {
+      // Drain the wrapped stream so signature parts reach onEvent.
+    }
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onEvent).toHaveBeenCalledWith({
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: "signature",
+      entityId: "reasoning-1",
+      encryptedValue: "bedrock-signature",
+    });
+  });
+
   it("appends a trailing current-time message on each model request", async () => {
     await initializeBasicTracedAgent("run-current-time");
     const processor = getLastAgentConfig()?.inputProcessors?.find(
