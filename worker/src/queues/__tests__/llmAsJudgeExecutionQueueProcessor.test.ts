@@ -139,7 +139,13 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     }>,
   ) => Promise<unknown>;
 
-  const createMockJob = (overrides: Record<string, unknown> = {}): Job<any> => {
+  const createMockJob = (
+    overrides: {
+      data?: Record<string, unknown>;
+      attemptsMade?: number;
+      opts?: { attempts?: number };
+    } = {},
+  ): Job<any> => {
     return {
       data: {
         id: "queue-job-123",
@@ -151,8 +157,10 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           observationS3Path,
         },
         retryBaggage: { attempt: 0 },
-        ...overrides,
+        ...overrides.data,
       },
+      attemptsMade: overrides.attemptsMade ?? 0,
+      opts: overrides.opts ?? { attempts: 10 },
     } as Job<any>;
   };
 
@@ -399,11 +407,27 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
-    it("should set ERROR status with generic message for unexpected errors", async () => {
+    it("should rethrow retryable errors without writing ERROR while retries remain", async () => {
       const unexpectedError = new Error("Database connection failed");
       (processObservationEval as Mock).mockRejectedValue(unexpectedError);
 
-      const job = createMockJob();
+      const job = createMockJob({ attemptsMade: 0, opts: { attempts: 10 } });
+
+      // Should rethrow for BullMQ retry
+      await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
+        "Database connection failed",
+      );
+
+      // Persisting ERROR here would make observationEvalProcessor
+      // short-circuit every subsequent BullMQ retry attempt as a no-op.
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+    });
+
+    it("should set ERROR status with generic message on the final retry attempt", async () => {
+      const unexpectedError = new Error("Database connection failed");
+      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+
+      const job = createMockJob({ attemptsMade: 9, opts: { attempts: 10 } });
 
       // Should rethrow for BullMQ retry
       await expect(llmAsJudgeExecutionQueueProcessor(job)).rejects.toThrow(
@@ -473,7 +497,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       (processObservationEval as Mock).mockResolvedValue(undefined);
 
       const job = createMockJob({
-        retryBaggage: { attempt: 3 },
+        data: { retryBaggage: { attempt: 3 } },
       });
       await llmAsJudgeExecutionQueueProcessor(job as Job<any>);
 
