@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     completeMutateAsyncMock: vi.fn(),
     routerMock: {
       replace: vi.fn(),
+      query: {} as Record<string, unknown>,
     },
     statusSetDataMock: vi.fn(),
     statusUseQueryMock: vi.fn(),
@@ -62,6 +63,7 @@ describe("OnboardingSurvey", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.routerMock.query = {};
 
     onboardingStatus = { completed: false };
     mocks.statusUseQueryMock.mockImplementation(() => ({
@@ -108,5 +110,45 @@ describe("OnboardingSurvey", () => {
 
     expect(screen.getByText("Setting up your project")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("preserves the demo callback URL for new OAuth users after onboarding", async () => {
+    mocks.routerMock.query = {
+      callbackUrl: `${window.location.origin}/demo`,
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/demo",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith("/demo");
+    });
+  });
+
+  it("ignores non-demo callback URLs after onboarding", async () => {
+    mocks.routerMock.query = {
+      callbackUrl: `${window.location.origin}/project/project-2`,
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/project/project-1/traces",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith(
+        "/project/project-1/traces",
+      );
+    });
   });
 });
