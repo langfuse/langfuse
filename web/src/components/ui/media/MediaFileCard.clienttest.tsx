@@ -25,7 +25,9 @@ describe("MediaFileCard", () => {
         />,
       );
 
-      expect(screen.getByText(label)).toHaveAttribute("title", contentType);
+      const labelElement = screen.getByText(label);
+      expect(labelElement).toHaveAttribute("title", contentType);
+      expect(labelElement).not.toHaveClass("truncate");
     },
   );
 });
