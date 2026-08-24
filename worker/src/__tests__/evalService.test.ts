@@ -1292,6 +1292,68 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].endTime).to.be.null;
     }, 10_000);
 
+    test("does not create duplicate job executions when createEvalJobs races concurrently", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await prisma.llmApiKeys.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          secretKey: encrypt(String(OPENAI_API_KEY)),
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          customModels: [],
+          displaySecretKey: "123456",
+        },
+      });
+
+      await createMigratedEvalConfig({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      // Simulate independent producers (trace-upsert, dataset-run-item-upsert,
+      // CreateEvalQueue) delivering near-simultaneously for the same trace.
+      await Promise.all(
+        Array.from({ length: 8 }, () =>
+          createEvalJobs({
+            sourceEventType: "trace-upsert",
+            event: payload,
+            jobTimestamp,
+          }),
+        ),
+      );
+
+      const jobs = await prisma.jobExecution.findMany({
+        where: { projectId },
+      });
+
+      expect(jobs.length).toBe(1);
+    }, 10_000);
+
     test("does not create job for inactive config", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();

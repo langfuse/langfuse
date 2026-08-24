@@ -755,27 +755,67 @@ export const createEvalJobs = async ({
         `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
 
-      await prisma.jobExecution.create({
-        data: {
-          id: jobExecutionId,
-          projectId: event.projectId,
-          jobConfigurationId: config.id,
-          jobInputTraceId: event.traceId,
-          jobInputTraceTimestamp: traceTimestamp,
-          jobTemplateId: config.evalTemplateId,
-          status: "PENDING",
-          startTime: new Date(),
-          ...(datasetItem
-            ? {
-                jobInputDatasetItemId: datasetItem.id,
-                ...("validFrom" in datasetItem && {
-                  jobInputDatasetItemValidFrom: datasetItem.validFrom,
-                }),
-                jobInputObservationId: observationId || null,
-              }
-            : {}),
-        },
+      // The batched existence check above is a point-in-time read shared by every
+      // producer that can reach this line for the same dedup key (trace-upsert,
+      // dataset-run-item-upsert, and CreateEvalQueue workers). Serialize the final
+      // recheck-and-insert on that key so a concurrent race can't create two rows.
+      const dedupeLockKey = [
+        event.projectId,
+        config.id,
+        event.traceId,
+        datasetItem?.id ?? "",
+        observationId ?? "",
+      ].join(":");
+
+      const wasInserted = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw(
+          Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${dedupeLockKey}, 0))`,
+        );
+
+        const existingRow = await tx.jobExecution.findFirst({
+          where: {
+            projectId: event.projectId,
+            jobConfigurationId: config.id,
+            jobInputTraceId: event.traceId,
+            jobInputDatasetItemId: datasetItem?.id ?? null,
+            jobInputObservationId: observationId ?? null,
+          },
+          select: { id: true },
+        });
+        if (existingRow) {
+          return false;
+        }
+
+        await tx.jobExecution.create({
+          data: {
+            id: jobExecutionId,
+            projectId: event.projectId,
+            jobConfigurationId: config.id,
+            jobInputTraceId: event.traceId,
+            jobInputTraceTimestamp: traceTimestamp,
+            jobTemplateId: config.evalTemplateId,
+            status: "PENDING",
+            startTime: new Date(),
+            ...(datasetItem
+              ? {
+                  jobInputDatasetItemId: datasetItem.id,
+                  ...("validFrom" in datasetItem && {
+                    jobInputDatasetItemValidFrom: datasetItem.validFrom,
+                  }),
+                  jobInputObservationId: observationId || null,
+                }
+              : {}),
+          },
+        });
+        return true;
       });
+
+      if (!wasInserted) {
+        logger.debug(
+          `Eval job for config ${config.id} and trace ${event.traceId} was created by a concurrent worker`,
+        );
+        continue;
+      }
 
       // add the job to the next queue so that eval can be executed
       const shardingKey = `${event.projectId}-${jobExecutionId}`;
