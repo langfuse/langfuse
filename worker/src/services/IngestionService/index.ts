@@ -10,6 +10,7 @@ import {
   Prompt,
   safeJsonParse,
   type JsonNested,
+  getEvalExecutionMetadata,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -303,6 +304,7 @@ export class IngestionService {
     const modelParameters = parseEventModelParameters(
       eventData.modelParameters,
     );
+    const metadata = eventData.metadata ?? {};
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -337,7 +339,7 @@ export class IngestionService {
             projectId: eventData.projectId,
             pricingMatchAttributeValues: {
               modelParameters,
-              metadata: eventData.metadata,
+              metadata,
             },
             observationRecord: {
               id: eventData.spanId,
@@ -356,13 +358,13 @@ export class IngestionService {
     const now = this.getMicrosecondTimestamp();
 
     // Flatten raw metadata first (before stringification destroys nested structure)
-    const flattened = eventData.metadata
-      ? flattenJsonToPathArrays(eventData.metadata)
-      : { names: [], values: [] };
+    const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
+    const { evaluatorId, ruleId, evaluatorExecutionIsTest } =
+      getEvalExecutionMetadata(metadata);
 
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
@@ -439,6 +441,9 @@ export class IngestionService {
       // Metadata
       metadata_names: metadataNames,
       metadata_values: metadataValues,
+      evaluator_id: evaluatorId,
+      evaluation_rule_id: ruleId,
+      evaluator_execution_is_test: evaluatorExecutionIsTest,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -651,7 +656,9 @@ export class IngestionService {
               scoreId: entityId,
               projectId,
             });
-
+            const metadata = scoreEvent.body.metadata
+              ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
+              : {};
             return {
               id: entityId,
               project_id: projectId,
@@ -667,9 +674,7 @@ export class IngestionService {
               observation_id: validatedScore.observationId,
               config_id: validatedScore.configId,
               comment: validatedScore.comment,
-              metadata: scoreEvent.body.metadata
-                ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
-                : {},
+              metadata,
               string_value: validatedScore.stringValue,
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
@@ -1121,9 +1126,13 @@ export class IngestionService {
     );
 
     // If metadata exists, it is an object due to previous parsing
-    mergedRecord.metadata = convertRecordValuesToString(
+    const metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
+    mergedRecord.metadata = metadata;
+    const { evaluatorId, ruleId } = getEvalExecutionMetadata(metadata);
+    mergedRecord.evaluator_id = evaluatorId;
+    mergedRecord.evaluation_rule_id = ruleId;
 
     return scoreRecordInsertSchema.parse(mergedRecord);
   }

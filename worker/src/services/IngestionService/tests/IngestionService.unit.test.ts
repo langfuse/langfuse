@@ -157,6 +157,39 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
+  it("persists evaluator and legacy rule identifiers on direct events", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "evaluator",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-08-03T00:00:00.000Z",
+        endTimeISO: "2026-08-03T00:00:01.000Z",
+        metadata: {
+          evaluator_id: "evaluator-1",
+          evaluator_test: "true",
+          job_configuration_id: "legacy-rule-1",
+        },
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.evaluator_id).toBe("evaluator-1");
+    expect(eventRecord.evaluation_rule_id).toBe("legacy-rule-1");
+    expect(eventRecord.evaluator_execution_is_test).toBe(true);
+  });
+
   it("preserves non-JSON model parameter strings on direct events", async () => {
     const ingestionService = new IngestionService(
       {} as any,
@@ -493,6 +526,61 @@ describe("IngestionService unit tests", () => {
     ).resolves.toBeUndefined();
 
     expect(addToQueue).not.toHaveBeenCalled();
+  });
+
+  it("persists evaluator and preferred rule identifiers on scores", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [
+        {
+          id: "event-id",
+          timestamp,
+          type: "score-create",
+          body: {
+            id: "score-id",
+            dataType: "NUMERIC",
+            name: "quality",
+            value: 1,
+            source: "EVAL",
+            traceId: "trace-id",
+            environment: "default",
+            metadata: {
+              evaluator_id: "evaluator-1",
+              evaluation_rule_id: "rule-1",
+              job_configuration_id: "legacy-rule-1",
+            },
+          },
+        },
+      ] satisfies ScoreEventType[],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).toHaveBeenCalledWith(
+      TableName.Scores,
+      expect.objectContaining({
+        evaluator_id: "evaluator-1",
+        evaluation_rule_id: "rule-1",
+      }),
+    );
   });
 
   it("does not silently reject score batches with unexpected record errors", async () => {
