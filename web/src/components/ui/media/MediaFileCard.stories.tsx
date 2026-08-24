@@ -23,6 +23,15 @@ export const VerboseMimeType = meta.story({
   },
 });
 
+export const TruncatedMimeType = meta.story({
+  args: {
+    contentType:
+      "application/vnd.example.intentionally-verbose-archive-format-for-truncation",
+    fileName: "archive.bin",
+    onClick: fn(),
+  },
+});
+
 export const OfficeFormats = meta.story({
   render: () => (
     <div className="flex flex-wrap gap-3">
