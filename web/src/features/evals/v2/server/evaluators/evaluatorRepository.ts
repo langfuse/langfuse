@@ -473,23 +473,6 @@ export function updateEvaluatorMetadata(params: {
   });
 }
 
-export function findRuleMappingOverridesForEvaluator(params: {
-  prisma: PrismaClient | PrismaTransaction;
-  projectId: string;
-  evaluatorId: string;
-}) {
-  return params.prisma.evaluationRuleEvaluatorAssignment.findMany({
-    where: {
-      projectId: params.projectId,
-      evaluatorId: params.evaluatorId,
-      evaluationRule: {
-        targetObject: { in: ["event", "experiment"] },
-      },
-    },
-    select: { variableMapping: true },
-  });
-}
-
 export async function appendEvaluatorVersion(params: {
   tx: PrismaTransaction;
   evaluatorId: string;
