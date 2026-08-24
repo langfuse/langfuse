@@ -569,28 +569,29 @@ export async function updatePublicEvaluationRule(params: {
   if (nextEnabled && existingPublic.status !== "active") {
     await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
   }
-  const nextTarget =
-    "target" in params.input && params.input.target !== undefined
-      ? params.input.target
-      : existingPublic.target;
-  if ("filter" in params.input && params.input.filter !== undefined) {
+  const suppliedTarget =
+    "target" in params.input ? params.input.target : undefined;
+  const suppliedFilter =
+    "filter" in params.input ? params.input.filter : undefined;
+  const nextTarget = suppliedTarget ?? existingPublic.target;
+  if (suppliedFilter !== undefined) {
     await assertEvaluationRuleFilterValuesExistForProject({
       projectId: params.projectId,
       target: nextTarget,
-      filters: params.input.filter,
+      filters: suppliedFilter,
     });
   }
-  const nextFilter =
-    "filter" in params.input && params.input.filter !== undefined
-      ? params.input.filter
-      : existingPublic.filter;
-
+  const updatesFilterOrTarget =
+    suppliedFilter !== undefined || suppliedTarget !== undefined;
   const ruleFields = toEvaluationRuleFields({
     name: params.input.name ?? existingPublic.name,
     target: nextTarget,
     enabled: nextEnabled,
     sampling: params.input.sampling ?? existingPublic.sampling,
-    filter: nextFilter,
+    // Target changes must also validate the effective filter against the new target.
+    filter: updatesFilterOrTarget
+      ? (suppliedFilter ?? existingPublic.filter)
+      : [],
   });
 
   const firstAssignment = existing.assignments[0];
@@ -687,9 +688,11 @@ export async function updatePublicEvaluationRule(params: {
       orgId: params.orgId,
       projectId: params.projectId,
       assignments: effectiveAssignments,
-      targetObject: ruleFields.targetObject as EvalTargetObject,
+      targetObject: ruleFields.targetObject,
       scoreName: ruleFields.scoreName,
-      filter: ruleFields.filter,
+      filter: updatesFilterOrTarget
+        ? ruleFields.filter
+        : (existing.filter as FilterCondition[]),
     });
   }
 
@@ -774,14 +777,20 @@ async function updateRuleWithRuleService(params: {
     ruleService.update({
       projectId: params.projectId,
       ruleId: params.evaluationRuleId,
-      targetObject: params.fields.targetObject as EvalTargetObject,
-      name: params.fields.scoreName,
+      targetObject:
+        "target" in params.input ? params.fields.targetObject : undefined,
+      name: params.input.name,
       enabled:
-        params.effectiveAssignmentCount > 0 &&
-        params.fields.status === JobConfigState.ACTIVE,
-      sampling: params.fields.sampling,
-      filter: params.fields.filter as FilterState,
-      ...(evaluatorMappings === undefined ? {} : { evaluatorMappings }),
+        params.input.enabled === undefined
+          ? undefined
+          : params.effectiveAssignmentCount > 0 &&
+            params.fields.status === JobConfigState.ACTIVE,
+      sampling: params.input.sampling,
+      filter:
+        "filter" in params.input || "target" in params.input
+          ? (params.fields.filter as FilterState)
+          : undefined,
+      evaluatorMappings,
     }),
   );
   return findPublicV2EvaluationRuleOrThrow({
