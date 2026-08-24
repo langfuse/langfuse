@@ -18,11 +18,7 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
     mocks.isCodeEvalSourceCodeLanguageSupported,
 }));
 
-import {
-  assertCompleteEvaluatorVariableMapping,
-  assertEvaluatorConfigurationValid,
-  pruneEvaluatorVariableMappingToPrompt,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import { CreateEvaluatorSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("evaluator configuration validation", () => {
@@ -186,29 +182,6 @@ describe("evaluator configuration validation", () => {
     ).rejects.toThrow(
       "Mappings reference unknown evaluator variables: item_metadata",
     );
-  });
-
-  it("prunes stale assignment mappings that no longer appear in the prompt", () => {
-    const pruned = pruneEvaluatorVariableMappingToPrompt({
-      prompt: "Judge {{output}}",
-      variableMapping: [
-        { templateVariable: "output", selectedColumnId: "output" },
-        {
-          templateVariable: "item_metadata",
-          selectedColumnId: "experimentItemMetadata",
-        },
-      ],
-    });
-
-    expect(pruned).toEqual([
-      { templateVariable: "output", selectedColumnId: "output" },
-    ]);
-    expect(() =>
-      assertCompleteEvaluatorVariableMapping({
-        prompt: "Judge {{output}}",
-        variableMapping: pruned,
-      }),
-    ).not.toThrow();
   });
 
   it("rejects incomplete evaluator default mappings", async () => {
