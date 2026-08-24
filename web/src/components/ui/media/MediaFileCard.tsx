@@ -12,11 +12,11 @@ export type MediaFileCardProps = {
   onClick: () => void;
 };
 
-const MEDIA_TYPE_ICON = {
+const MEDIA_TYPE_ICON: Record<string, LucideIcon> = {
   image: ImageIcon,
   audio: Volume2,
   video: Video,
-} satisfies Record<string, LucideIcon>;
+};
 
 export function MediaFileCard({
   contentType,
@@ -24,8 +24,9 @@ export function MediaFileCard({
   onClick,
 }: MediaFileCardProps) {
   const mediaType = contentType.split("/")[0] ?? "";
-  const Icon = MEDIA_TYPE_ICON[mediaType] ?? File;
-  const isPreviewable = mediaType in MEDIA_TYPE_ICON;
+  const MediaIcon = MEDIA_TYPE_ICON[mediaType];
+  const Icon = MediaIcon ?? File;
+  const isPreviewable = MediaIcon !== undefined;
   const fileExtension = contentType.split("/")[1]?.toUpperCase() || "FILE";
 
   return (
