@@ -266,6 +266,46 @@ function toTraceEvalConfig(rule: TraceRule): TraceEvalConfig | null {
   };
 }
 
+// Serializes concurrent check-then-create attempts for the same dedup key so that two
+// producers racing on the same trace/config cannot both pass the existence check and
+// insert duplicate job_executions rows (there is no DB unique constraint on this key).
+async function createJobExecutionIfAbsent(params: {
+  projectId: string;
+  jobConfigurationId: string;
+  jobInputTraceId: string;
+  jobInputDatasetItemId: string | null;
+  jobInputObservationId: string | null;
+  data: Prisma.JobExecutionUncheckedCreateInput;
+}): Promise<JobExecution | null> {
+  const lockKey = [
+    params.projectId,
+    params.jobConfigurationId,
+    params.jobInputTraceId,
+    params.jobInputDatasetItemId ?? "",
+    params.jobInputObservationId ?? "",
+  ].join(":");
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+
+    const existing = await tx.jobExecution.findFirst({
+      where: {
+        projectId: params.projectId,
+        jobConfigurationId: params.jobConfigurationId,
+        jobInputTraceId: params.jobInputTraceId,
+        jobInputDatasetItemId: params.jobInputDatasetItemId,
+        jobInputObservationId: params.jobInputObservationId,
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      return null;
+    }
+
+    return tx.jobExecution.create({ data: params.data });
+  });
+}
+
 export const createEvalJobs = async ({
   event,
   sourceEventType,
@@ -755,7 +795,12 @@ export const createEvalJobs = async ({
         `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
 
-      await prisma.jobExecution.create({
+      const createdJob = await createJobExecutionIfAbsent({
+        projectId: event.projectId,
+        jobConfigurationId: config.id,
+        jobInputTraceId: event.traceId,
+        jobInputDatasetItemId: datasetItem?.id ?? null,
+        jobInputObservationId: observationId ?? null,
         data: {
           id: jobExecutionId,
           projectId: event.projectId,
@@ -776,6 +821,14 @@ export const createEvalJobs = async ({
             : {}),
         },
       });
+
+      if (!createdJob) {
+        // Lost the race to a concurrent producer that inserted the same dedup key first.
+        logger.debug(
+          `Eval job for config ${config.id} and trace ${event.traceId} was created concurrently, skipping`,
+        );
+        continue;
+      }
 
       // add the job to the next queue so that eval can be executed
       const shardingKey = `${event.projectId}-${jobExecutionId}`;

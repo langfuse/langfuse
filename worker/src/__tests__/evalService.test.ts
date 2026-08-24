@@ -751,6 +751,54 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].startTime).not.toBeNull();
     }, 10_000);
 
+    test("does not create duplicate 'trace' eval jobs when producers race on the same trace", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await createMigratedEvalConfig({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = {
+        projectId,
+        traceId: traceId,
+      };
+
+      // Simulate many producers (e.g. trace-upsert and dataset-run-item-upsert
+      // shard workers) delivering near-simultaneously for the same trace + config.
+      await Promise.all(
+        Array.from({ length: 20 }, () =>
+          createEvalJobs({
+            sourceEventType: "trace-upsert",
+            event: payload,
+            jobTimestamp,
+          }),
+        ),
+      );
+
+      await expect(
+        prisma.jobExecution.count({ where: { projectId } }),
+      ).resolves.toBe(1);
+    }, 10_000);
+
     test("creates new 'dataset' eval job", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
