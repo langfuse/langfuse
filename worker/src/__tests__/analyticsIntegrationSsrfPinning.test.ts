@@ -145,6 +145,25 @@ vi.mock("../env", () => ({
     e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy",
 }));
 
+vi.mock("posthog-node", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("posthog-node")>();
+  return {
+    ...actual,
+    PostHog: class extends actual.PostHog {
+      constructor(
+        apiKey: string,
+        options: ConstructorParameters<typeof actual.PostHog>[1],
+      ) {
+        super(apiKey, {
+          ...options,
+          requestTimeout: 1_000,
+          fetchRetryCount: 0,
+        });
+      }
+    },
+  };
+});
+
 // Imported after mocks are registered.
 import {
   handlePostHogIntegrationProjectJob,
