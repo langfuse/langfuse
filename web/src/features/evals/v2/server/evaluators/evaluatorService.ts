@@ -42,6 +42,7 @@ import {
 import {
   assertCompleteEvaluatorVariableMapping,
   assertEvaluatorConfigurationValid,
+  pruneEvaluatorVariableMappingToPrompt,
 } from "./evaluatorValidation";
 
 type SuggestEvaluatorTextParams = {
@@ -597,11 +598,25 @@ async function updateEvaluator(params: {
       evaluatorId: input.evaluatorId,
     });
     for (const assignment of assignments) {
-      assertCompleteEvaluatorVariableMapping({
+      const resolvedMapping = pruneEvaluatorVariableMappingToPrompt({
         prompt: input.definition.prompt,
         variableMapping:
           assignment.variableMapping ?? input.definition.variableMapping ?? [],
       });
+      assertCompleteEvaluatorVariableMapping({
+        prompt: input.definition.prompt,
+        variableMapping: resolvedMapping,
+      });
+      if (
+        assignment.variableMapping !== null &&
+        !isDeepStrictEqual(assignment.variableMapping, resolvedMapping)
+      ) {
+        await repository.updateAssignmentVariableMapping({
+          tx,
+          assignmentId: assignment.id,
+          variableMapping: resolvedMapping,
+        });
+      }
     }
   }
 

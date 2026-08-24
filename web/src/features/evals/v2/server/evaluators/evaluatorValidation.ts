@@ -31,6 +31,26 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
   }
 }
 
+// Rule assignment overrides can retain mappings after a prompt variable is
+// removed. Drop those extras before completeness checks so an evaluator save
+// is not blocked by stale override keys. Missing required mappings still fail.
+export function pruneEvaluatorVariableMappingToPrompt(params: {
+  prompt: string;
+  variableMapping: unknown;
+}) {
+  const parsed = observationVariableMappingList.safeParse(
+    params.variableMapping,
+  );
+  if (!parsed.success) {
+    throw new InvalidRequestError("Evaluator variable mapping is invalid");
+  }
+
+  const promptVariables = new Set(extractVariables(params.prompt));
+  return parsed.data.filter((mapping) =>
+    promptVariables.has(mapping.templateVariable),
+  );
+}
+
 export function assertCompleteEvaluatorVariableMapping(params: {
   prompt: string;
   variableMapping: unknown;

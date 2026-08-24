@@ -486,7 +486,18 @@ export function findRuleMappingOverridesForEvaluator(params: {
         targetObject: { in: ["event", "experiment"] },
       },
     },
-    select: { variableMapping: true },
+    select: { id: true, variableMapping: true },
+  });
+}
+
+export function updateAssignmentVariableMapping(params: {
+  tx: PrismaTransaction;
+  assignmentId: string;
+  variableMapping: Prisma.InputJsonValue;
+}) {
+  return params.tx.evaluationRuleEvaluatorAssignment.update({
+    where: { id: params.assignmentId },
+    data: { variableMapping: params.variableMapping },
   });
 }
 

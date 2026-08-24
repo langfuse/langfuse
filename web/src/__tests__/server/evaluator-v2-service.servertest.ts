@@ -638,6 +638,81 @@ describe("EvaluatorService", () => {
     });
   });
 
+  it("prunes stale rule override mappings when the prompt drops a variable", async () => {
+    const service = createService();
+    const input = llmInput("Assigned evaluator prune");
+    const created = await service.create(
+      {
+        ...input,
+        definition: {
+          ...input.definition,
+          prompt: "Judge {{output}} using {{item_metadata}}",
+          vars: ["output", "item_metadata"],
+          variableMapping: [
+            { templateVariable: "output", selectedColumnId: "output" },
+            {
+              templateVariable: "item_metadata",
+              selectedColumnId: "experimentItemMetadata",
+            },
+          ],
+        },
+      },
+      null,
+    );
+    const rule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "Assigned prune rule",
+        status: "ACTIVE",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        assignments: {
+          create: {
+            projectId,
+            evaluatorId: created.id,
+            variableMapping: [
+              { templateVariable: "output", selectedColumnId: "output" },
+              {
+                templateVariable: "item_metadata",
+                selectedColumnId: "experimentItemMetadata",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    await expect(
+      service.update(
+        {
+          ...input,
+          evaluatorId: created.id,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+            vars: ["output"],
+            variableMapping: [
+              { templateVariable: "output", selectedColumnId: "output" },
+            ],
+          },
+        },
+        null,
+      ),
+    ).resolves.toMatchObject({
+      versions: [expect.objectContaining({ version: 2 })],
+    });
+
+    const assignment =
+      await prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+        where: { evaluationRuleId: rule.id, evaluatorId: created.id },
+      });
+    expect(assignment.variableMapping).toEqual([
+      { templateVariable: "output", selectedColumnId: "output" },
+    ]);
+  });
+
   it("returns a retryable conflict when an evaluator version advances concurrently", async () => {
     const service = createService();
     const input = llmInput("Concurrent version update");
