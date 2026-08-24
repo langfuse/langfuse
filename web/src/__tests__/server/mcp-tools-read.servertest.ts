@@ -943,9 +943,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should return public-compatible observation filter schema", async () => {
-      const { context } = await createMcpTestSetup();
-
-      const result = (await handleGetObservationFilterSchema({}, context)) as {
+      const result = (await handleGetObservationFilterSchema(
+        {},
+        mockServerContext(),
+      )) as {
         resource: string;
         columns: Record<string, { type: string; operators: string[] }>;
       };
@@ -956,9 +957,13 @@ describe("MCP Read Tools", () => {
       expect(result.columns.metadata).toEqual(
         expect.objectContaining({
           type: "stringObject",
+          operators: expect.arrayContaining(["matches"]),
           requiresKey: true,
         }),
       );
+      expect(result.columns.input.operators).toEqual(["=", "matches"]);
+      expect(result.columns.output.operators).toEqual(["=", "matches"]);
+      expect(result.columns.version.operators).not.toContain("matches");
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -1007,6 +1012,29 @@ describe("MCP Read Tools", () => {
     );
   });
 
+  it.each([
+    ["input", "contains"],
+    ["version", "matches"],
+  ] as const)("should reject %s filters using %s", async (column, operator) => {
+    await expect(
+      handleListObservations(
+        {
+          traceId: randomUUID(),
+          filter: [
+            {
+              type: "string",
+              column,
+              operator,
+              value: "needle",
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        mockServerContext(),
+      ),
+    ).rejects.toThrow();
+  });
   maybeEventsTable("listObservations tool", () => {
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
@@ -1394,7 +1422,7 @@ describe("MCP Read Tools", () => {
       const matchingObservation = createObservationEvent({
         projectId,
         traceId,
-        input: `${"x".repeat(250)}${needle}`,
+        input: `${"x".repeat(250)} ${needle}`,
       });
 
       await createEventsCh([
@@ -1413,7 +1441,7 @@ describe("MCP Read Tools", () => {
             {
               type: "string",
               column: "input",
-              operator: "contains",
+              operator: "matches",
               value: needle,
             },
           ],
@@ -1452,7 +1480,7 @@ describe("MCP Read Tools", () => {
               {
                 type: "string",
                 column: "input",
-                operator: "contains",
+                operator: "matches",
                 value: "secret",
               },
             ],
