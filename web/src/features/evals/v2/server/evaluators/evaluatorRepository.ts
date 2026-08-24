@@ -84,13 +84,16 @@ function versionData(
 
 type EvaluatorModelFilter = Extract<
   FilterState[number],
-  { type: "stringOptions" }
+  { type: "string" | "stringOptions" }
 > & { column: "model" };
 
 function isModelFilter(
   filter: FilterState[number],
 ): filter is EvaluatorModelFilter {
-  return filter.column === "model" && filter.type === "stringOptions";
+  return (
+    filter.column === "model" &&
+    (filter.type === "string" || filter.type === "stringOptions")
+  );
 }
 
 async function evaluatorIdsMatchingModelFilters(params: {
@@ -106,15 +109,34 @@ async function evaluatorIdsMatchingModelFilters(params: {
     END
   `;
   const predicates = params.filters.map((filter) => {
-    if (filter.value.length === 0) {
+    const normalizedModel = Prisma.sql`LOWER(${effectiveModel})`;
+    if (filter.type === "stringOptions") {
+      if (filter.value.length === 0) {
+        return filter.operator === "any of"
+          ? Prisma.sql`FALSE`
+          : Prisma.sql`TRUE`;
+      }
+      const values = Prisma.join(
+        filter.value.map((value) => value.toLowerCase()),
+      );
       return filter.operator === "any of"
-        ? Prisma.sql`FALSE`
-        : Prisma.sql`TRUE`;
+        ? Prisma.sql`${normalizedModel} IN (${values})`
+        : Prisma.sql`(${effectiveModel} IS NULL OR ${normalizedModel} NOT IN (${values}))`;
     }
-    const values = Prisma.join(filter.value);
-    return filter.operator === "any of"
-      ? Prisma.sql`${effectiveModel} IN (${values})`
-      : Prisma.sql`(${effectiveModel} IS NULL OR ${effectiveModel} NOT IN (${values}))`;
+
+    const normalizedValue = filter.value.toLowerCase();
+    switch (filter.operator) {
+      case "=":
+        return Prisma.sql`${normalizedModel} = ${normalizedValue}`;
+      case "contains":
+        return Prisma.sql`STRPOS(${normalizedModel}, ${normalizedValue}) > 0`;
+      case "does not contain":
+        return Prisma.sql`STRPOS(${normalizedModel}, ${normalizedValue}) = 0`;
+      case "starts with":
+        return Prisma.sql`LEFT(${normalizedModel}, LENGTH(${normalizedValue})) = ${normalizedValue}`;
+      case "ends with":
+        return Prisma.sql`RIGHT(${normalizedModel}, LENGTH(${normalizedValue})) = ${normalizedValue}`;
+    }
   });
   const matches = await params.prisma.$queryRaw<Array<{ id: string }>>(
     Prisma.sql`

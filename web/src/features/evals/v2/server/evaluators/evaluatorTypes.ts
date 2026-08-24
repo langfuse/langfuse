@@ -110,9 +110,9 @@ const EvaluatorListFilterSchema = z
   .superRefine((filters, ctx) => {
     for (const [index, filter] of filters.entries()) {
       const valid =
-        ((filter.column === "name" || filter.column === "creator") &&
+        (["name", "creator", "model"].includes(filter.column) &&
           (filter.type === "string" || filter.type === "stringOptions")) ||
-        (["status", "type", "model"].includes(filter.column) &&
+        (["status", "type"].includes(filter.column) &&
           filter.type === "stringOptions");
       const validOptions =
         filter.type !== "stringOptions" ||

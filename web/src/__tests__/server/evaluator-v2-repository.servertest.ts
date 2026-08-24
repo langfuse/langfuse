@@ -513,6 +513,26 @@ describe("evaluator v2 repository", () => {
           filter: [
             {
               column: "model",
+              type: "string",
+              operator: "contains",
+              value: "DEFAULT",
+            },
+          ],
+        }),
+      ).resolves.toMatchObject({
+        evaluators: [expect.objectContaining({ id: inheritedMatch.id })],
+        totalItems: 1,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 50,
+          filter: [
+            {
+              column: "model",
               type: "stringOptions",
               operator: "none of",
               value: ["selected-model", "project-default-model"],
