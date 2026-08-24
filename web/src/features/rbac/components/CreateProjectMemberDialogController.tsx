@@ -93,7 +93,7 @@ export function CreateProjectMemberDialogController({
         <>
           <DialogHeader>
             <DialogTitle>
-              Add new member to{" "}
+              Add new member to the{" "}
               {hasOnlySingleProjectAccess ? "project" : "organization"}
             </DialogTitle>
           </DialogHeader>
