@@ -534,6 +534,7 @@ export function DataTableControls({
           onChange={filter.onChange}
           onOnlyChange={filter.onOnlyChange}
           renderIcon={filter.renderIcon}
+          renderOptionSuffix={filter.renderOptionSuffix}
           isActive={filter.isActive}
           onReset={filter.onReset}
           operator={filter.operator}
@@ -1256,6 +1257,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
+  renderOptionSuffix?: (value: string) => React.ReactNode;
   operator?: "any of" | "all of" | "none of";
   onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
@@ -1556,6 +1558,7 @@ export function CategoricalFacet({
   onChange,
   onOnlyChange,
   renderIcon,
+  renderOptionSuffix,
   isActive,
   isDisabled,
   disabledReason,
@@ -1635,6 +1638,7 @@ export function CategoricalFacet({
             onChange={onChange}
             onOnlyChange={onOnlyChange}
             renderIcon={renderIcon}
+            renderOptionSuffix={renderOptionSuffix}
             operator={operator}
             onOperatorChange={onOperatorChange}
           />
@@ -1675,6 +1679,7 @@ function CategoricalSelectContent({
   onChange,
   onOnlyChange,
   renderIcon,
+  renderOptionSuffix,
   operator,
   onOperatorChange,
 }: Pick<
@@ -1688,6 +1693,7 @@ function CategoricalSelectContent({
   | "onChange"
   | "onOnlyChange"
   | "renderIcon"
+  | "renderOptionSuffix"
   | "operator"
   | "onOperatorChange"
 >) {
@@ -1771,6 +1777,7 @@ function CategoricalSelectContent({
         id={`${filterKey}-${option}`}
         label={displayLabel}
         icon={renderIcon?.(option)}
+        suffix={renderOptionSuffix?.(option)}
         count={counts.get(option) || 0}
         checked={value.includes(option)}
         onCheckedChange={(checked) => {
@@ -2591,6 +2598,7 @@ interface FilterValueCheckboxProps {
   id: string;
   label: string;
   icon?: React.ReactNode;
+  suffix?: React.ReactNode;
   count: number;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
@@ -2603,6 +2611,7 @@ export function FilterValueCheckbox({
   id,
   label,
   icon,
+  suffix,
   count,
   checked = false,
   onCheckedChange,
@@ -2655,6 +2664,7 @@ export function FilterValueCheckbox({
         >
           {displayLabel}
         </span>
+        {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
 
         {/* "Only" or "All" indicator when hovering label. shrink-0 +
             whitespace-nowrap: appearing may only re-truncate the label —

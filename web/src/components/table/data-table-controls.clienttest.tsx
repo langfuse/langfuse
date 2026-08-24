@@ -34,6 +34,37 @@ beforeAll(() => {
 });
 
 describe("CategoricalFacet", () => {
+  it("renders an option suffix after its label", () => {
+    render(
+      <Accordion type="multiple" value={["model"]}>
+        <CategoricalFacet
+          label="Model"
+          filterKey="model"
+          expanded
+          loading={false}
+          options={["gpt-4.1", "claude-sonnet"]}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          renderOptionSuffix={(value) =>
+            value === "gpt-4.1" ? <span>Project default</span> : null
+          }
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+      { wrapper: TooltipProvider },
+    );
+
+    const label = screen.getByText("gpt-4.1");
+    const suffix = screen.getByText("Project default");
+    expect(
+      label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
+  });
+
   it("shows selected values even when the backend returns no options", () => {
     render(
       <Accordion type="multiple" value={["type"]}>

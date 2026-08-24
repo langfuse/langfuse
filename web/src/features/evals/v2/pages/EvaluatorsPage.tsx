@@ -15,6 +15,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { EvaluatorsEmptyState } from "../components/EvaluatorsEmptyState/EvaluatorsEmptyState";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -162,6 +163,10 @@ export default function EvaluatorsPage() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
+  const projectDefaultModel = useProjectDefaultModel({
+    projectId,
+    source: "overview",
+  });
   const [pagination, setPagination] = usePaginationState(1, 50);
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "evaluatorsV2",
@@ -189,19 +194,34 @@ export default function EvaluatorsPage() {
     }),
     [filterOptionsQuery.data],
   );
-  const queryFilter = useSidebarFilterState(
-    evaluatorTableFilterConfig,
-    filterOptions,
-    {
-      loading: filterOptionsQuery.isPending,
-      stateLocation: "urlAndSessionStorage",
-      sessionFilterContextId: projectId,
-      onExplicitFilterStateChange: () => {
-        setPagination({ page: 1, limit: pagination.limit });
-        selectionStore.getState().actions.clearSelection();
-      },
-    },
+  const filterConfig = useMemo(
+    () => ({
+      ...evaluatorTableFilterConfig,
+      facets: evaluatorTableFilterConfig.facets.map((facet) =>
+        facet.column === "model"
+          ? {
+              ...facet,
+              renderOptionSuffix: (model: string) =>
+                model === projectDefaultModel.defaultModel?.model ? (
+                  <Badge variant="secondary" size="sm">
+                    Project default
+                  </Badge>
+                ) : null,
+            }
+          : facet,
+      ),
+    }),
+    [projectDefaultModel.defaultModel?.model],
   );
+  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
+    loading: filterOptionsQuery.isPending,
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId: projectId,
+    onExplicitFilterStateChange: () => {
+      setPagination({ page: 1, limit: pagination.limit });
+      selectionStore.getState().actions.clearSelection();
+    },
+  });
   const filterState = queryFilter.filterState;
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const [deleteAll, setDeleteAll] = useState(false);
@@ -237,10 +257,6 @@ export default function EvaluatorsPage() {
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:read",
-  });
-  const projectDefaultModel = useProjectDefaultModel({
-    projectId,
-    source: "overview",
   });
   const defaultModelConnection = projectDefaultModel.connections.find(
     ({ provider }) => provider === projectDefaultModel.defaultModel?.provider,
@@ -383,6 +399,20 @@ export default function EvaluatorsPage() {
         cell: ({ row }) => <EvaluatorTypeBadge type={row.original.type} />,
       },
       {
+        accessorKey: "totalCost",
+        id: "totalCost",
+        header: "Total cost (7d)",
+        size: 140,
+        enableHiding: true,
+        cell: ({ row }) => {
+          if (costs.isPending && hasExecutionReadAccess) {
+            return <Skeleton className="h-4 w-16" />;
+          }
+          const cost = costs.data?.[row.original.id];
+          return cost == null ? "—" : usdFormatter(cost, 2, 4);
+        },
+      },
+      {
         accessorKey: "effectiveModel",
         id: "model",
         header: "Model",
@@ -397,20 +427,6 @@ export default function EvaluatorsPage() {
           ) : (
             "—"
           );
-        },
-      },
-      {
-        accessorKey: "totalCost",
-        id: "totalCost",
-        header: "Total cost (7d)",
-        size: 140,
-        enableHiding: true,
-        cell: ({ row }) => {
-          if (costs.isPending && hasExecutionReadAccess) {
-            return <Skeleton className="h-4 w-16" />;
-          }
-          const cost = costs.data?.[row.original.id];
-          return cost == null ? "—" : usdFormatter(cost, 2, 4);
         },
       },
       {
@@ -529,9 +545,7 @@ export default function EvaluatorsPage() {
     validationContext: {
       columns,
       filterColumnDefinition: evaluatorTableFilterColumns,
-      expandableFilterColumns: evaluatorTableFilterConfig.facets.map(
-        (facet) => facet.column,
-      ),
+      expandableFilterColumns: filterConfig.facets.map((facet) => facet.column),
     },
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
@@ -607,9 +621,7 @@ export default function EvaluatorsPage() {
           onBrowseLibrary={() => setGalleryOpen(true)}
         />
       ) : (
-        <DataTableControlsProvider
-          tableName={evaluatorTableFilterConfig.tableName}
-        >
+        <DataTableControlsProvider tableName={filterConfig.tableName}>
           <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
             <EvaluatorsTableToolbar
               selectionStore={selectionStore}
