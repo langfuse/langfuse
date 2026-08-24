@@ -2832,7 +2832,7 @@ describe("automations trpc", () => {
           type: "GITHUB_DISPATCH",
           config: {
             type: "GITHUB_DISPATCH",
-            url: "https://api.github.com/repos/owner/repo/dispatches",
+            url: "https://github.com/api/v3/repos/owner/repo/dispatches",
             eventType: "original-event-type",
             githubToken: encryptedToken,
             displayGitHubToken: "ghp_...xyz",
@@ -2849,7 +2849,9 @@ describe("automations trpc", () => {
         },
       });
 
-      // Update the event type without changing the URL or providing a token.
+      // Update the event type using an equivalent URL representation without
+      // providing a token. Hostnames are case-insensitive and :443 is the
+      // default port for HTTPS, so this remains the same destination.
       await caller.automations.updateAutomation({
         projectId: project.id,
         automationId: automation.id,
@@ -2861,7 +2863,7 @@ describe("automations trpc", () => {
         actionType: "GITHUB_DISPATCH",
         actionConfig: {
           type: "GITHUB_DISPATCH",
-          url: "https://api.github.com/repos/owner/repo/dispatches",
+          url: "https://GITHUB.COM:443/api/v3/repos/owner/repo/dispatches",
           eventType: "new-event-type",
           // githubToken intentionally omitted
         },
@@ -2882,7 +2884,7 @@ describe("automations trpc", () => {
 
       // Verify URL and eventType were updated
       expect(dbConfig.url).toBe(
-        "https://api.github.com/repos/owner/repo/dispatches",
+        "https://GITHUB.COM:443/api/v3/repos/owner/repo/dispatches",
       );
       expect(dbConfig.eventType).toBe("new-event-type");
     });

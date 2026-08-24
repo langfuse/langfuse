@@ -11,6 +11,7 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { areGitHubDispatchUrlsEquivalent } from "../githubDispatchUrl";
 
 interface GitHubDispatchConfigOptions {
   actionConfig: ActionCreate;
@@ -83,7 +84,8 @@ export async function processGitHubDispatchActionConfig({
   }
 
   const isUrlChanged =
-    existingActionConfig !== undefined && urlToUse !== existingActionConfig.url;
+    existingActionConfig !== undefined &&
+    !areGitHubDispatchUrlsEquivalent(urlToUse, existingActionConfig.url);
   const newGithubToken =
     typeof gitHubDispatchConfig.githubToken === "string" &&
     gitHubDispatchConfig.githubToken.trim() !== ""
