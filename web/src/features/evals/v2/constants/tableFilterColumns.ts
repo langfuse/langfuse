@@ -38,6 +38,13 @@ export const evaluatorTableFilterColumns: ColumnDefinition[] = [
     options: evaluatorTypeOptions,
   },
   {
+    name: "Model",
+    id: "model",
+    type: "stringOptions",
+    internal: "model",
+    options: [],
+  },
+  {
     name: "Creator",
     id: "creator",
     type: "stringOptions",
@@ -83,6 +90,7 @@ export const evaluatorTableFilterConfig: FilterConfig = {
     { type: "categorical", column: "name", label: "Name" },
     { type: "categorical", column: "status", label: "Status" },
     { type: "categorical", column: "type", label: "Type" },
+    { type: "categorical", column: "model", label: "Model" },
     { type: "categorical", column: "creator", label: "Creator" },
   ],
 };

@@ -185,6 +185,7 @@ export default function EvaluatorsPage() {
       ...evaluatorTableFilterOptions,
       name: filterOptionsQuery.data?.name ?? [],
       creator: filterOptionsQuery.data?.creator ?? [],
+      model: filterOptionsQuery.data?.model ?? [],
     }),
     [filterOptionsQuery.data],
   );
@@ -380,6 +381,23 @@ export default function EvaluatorsPage() {
         size: 160,
         enableHiding: true,
         cell: ({ row }) => <EvaluatorTypeBadge type={row.original.type} />,
+      },
+      {
+        accessorKey: "effectiveModel",
+        id: "model",
+        header: "Model",
+        size: 180,
+        enableHiding: true,
+        cell: ({ row }) => {
+          const model = row.original.effectiveModel;
+          return model ? (
+            <span className="block truncate" title={model}>
+              {model}
+            </span>
+          ) : (
+            "—"
+          );
+        },
       },
       {
         accessorKey: "totalCost",

@@ -112,7 +112,7 @@ const EvaluatorListFilterSchema = z
       const valid =
         ((filter.column === "name" || filter.column === "creator") &&
           (filter.type === "string" || filter.type === "stringOptions")) ||
-        ((filter.column === "status" || filter.column === "type") &&
+        (["status", "type", "model"].includes(filter.column) &&
           filter.type === "stringOptions");
       const validOptions =
         filter.type !== "stringOptions" ||
@@ -126,7 +126,9 @@ const EvaluatorListFilterSchema = z
                   value as EvalTemplateType,
                 ),
               )
-            : filter.column === "name" || filter.column === "creator");
+            : filter.column === "name" ||
+              filter.column === "creator" ||
+              filter.column === "model");
       if (!valid || !validOptions) {
         ctx.addIssue({
           code: "custom",
