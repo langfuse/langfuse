@@ -22,3 +22,30 @@ export const VerboseMimeType = meta.story({
     onClick: fn(),
   },
 });
+
+export const OfficeFormats = meta.story({
+  render: () => (
+    <div className="flex flex-wrap gap-3">
+      <MediaFileCard
+        contentType="application/msword"
+        fileName="report.doc"
+        onClick={fn()}
+      />
+      <MediaFileCard
+        contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        fileName="report.docx"
+        onClick={fn()}
+      />
+      <MediaFileCard
+        contentType="application/vnd.ms-excel"
+        fileName="report.xls"
+        onClick={fn()}
+      />
+      <MediaFileCard
+        contentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        fileName="report.xlsx"
+        onClick={fn()}
+      />
+    </div>
+  ),
+});

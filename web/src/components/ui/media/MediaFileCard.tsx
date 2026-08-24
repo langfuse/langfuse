@@ -18,6 +18,14 @@ const MEDIA_TYPE_ICON: Record<string, LucideIcon> = {
   video: Video,
 };
 
+const OFFICE_CONTENT_TYPE_LABEL: Record<string, string> = {
+  "application/msword": "DOC",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "DOCX",
+  "application/vnd.ms-excel": "XLS",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
+};
+
 export function MediaFileCard({
   contentType,
   fileName,
@@ -27,7 +35,10 @@ export function MediaFileCard({
   const MediaIcon = MEDIA_TYPE_ICON[mediaType];
   const Icon = MediaIcon ?? File;
   const isPreviewable = MediaIcon !== undefined;
-  const fileExtension = contentType.split("/")[1]?.toUpperCase() || "FILE";
+  const fileLabel =
+    OFFICE_CONTENT_TYPE_LABEL[contentType.toLowerCase()] ??
+    contentType.split("/")[1]?.toUpperCase() ??
+    "FILE";
 
   return (
     <button
@@ -44,11 +55,8 @@ export function MediaFileCard({
     >
       <Icon className="h-5 w-5 transition-transform group-hover:scale-110" />
       <div className="flex w-full min-w-0 flex-col items-center gap-1">
-        <span
-          className="w-full truncate text-sm font-bold"
-          title={fileExtension}
-        >
-          {fileExtension}
+        <span className="w-full truncate text-sm font-bold" title={contentType}>
+          {fileLabel}
         </span>
         <span
           className="text-muted-foreground w-full truncate text-xs"
