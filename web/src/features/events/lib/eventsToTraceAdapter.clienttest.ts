@@ -88,6 +88,24 @@ describe("adaptEventsToTraceFormat", () => {
     expect(result.trace.name).toBe("Root span");
   });
 
+  it("uses an explicit trace name from a later child observation", () => {
+    const result = adaptEventsToTraceFormat({
+      events: [
+        createEvent({ traceName: null }),
+        createEvent({
+          id: "obs-2",
+          name: "Child span",
+          parentObservationId: "obs-1",
+          startTime: new Date(baseDate.getTime() + 1_000),
+          traceName: "Trace name from child",
+        }),
+      ],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.name).toBe("Trace name from child");
+  });
+
   it("does not double-stringify root I/O already stringified for tRPC", () => {
     const input = JSON.stringify({
       prototype: "input",

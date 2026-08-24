@@ -57,6 +57,27 @@ export function adaptEventsToTraceFormat(params: {
   const root = events.find((e) => !e.parentObservationId);
   const primaryObservation = root ?? earliest;
 
+  const latestExplicitTraceNameEvent =
+    events.reduce<EventsTraceObservation | null>((latest, event) => {
+      const isRootNameFallback =
+        !event.parentObservationId && event.traceName === event.name;
+      if (!event.traceName || isRootNameFallback) return latest;
+      if (!latest) return event;
+
+      if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
+      if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
+
+      return event.createdAt.getTime() > latest.createdAt.getTime()
+        ? event
+        : latest;
+    }, null);
+
+  const traceName =
+    latestExplicitTraceNameEvent?.traceName ||
+    primaryObservation.traceName ||
+    primaryObservation.name ||
+    null;
+
   const latestTaggedEvent = events.reduce<EventsTraceObservation | null>(
     (latest, event) => {
       if (event.traceTags.length === 0) return latest;
@@ -87,7 +108,7 @@ export function adaptEventsToTraceFormat(params: {
   const trace: SyntheticTrace = {
     id: traceId,
     projectId: earliest.projectId,
-    name: primaryObservation.traceName || primaryObservation.name || null,
+    name: traceName,
     timestamp: earliest.startTime,
     input: rootIO?.input ?? null,
     output: rootIO?.output ?? null,
