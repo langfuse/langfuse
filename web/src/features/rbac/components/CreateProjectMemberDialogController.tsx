@@ -8,7 +8,10 @@ import {
   type DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateProjectMemberDialogContent } from "@/src/features/rbac/components/CreateProjectMemberDialogContent";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import {
+  useEntitlementLimit,
+  useHasEntitlement,
+} from "@/src/features/entitlements/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
