@@ -77,8 +77,6 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
     return completingContent;
   }
 
-  const referralSource = form.watch("referralSource");
-  const showSkip = !referralSource?.trim();
   const submitForm = form.handleSubmit(async (data) => props.onSubmit(data));
 
   return (
@@ -89,16 +87,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
 
       <div className="bg-background mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
         <Form {...form}>
-          <form
-            className="flex h-full flex-col"
-            onSubmit={submitForm}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && showSkip) {
-                event.preventDefault();
-                submitForm().catch(() => undefined);
-              }
-            }}
-          >
+          <form className="flex h-full flex-col" onSubmit={submitForm}>
             <div className="flex-1">
               <FormField
                 control={form.control}
@@ -169,20 +158,9 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
             </div>
 
             <div className="flex justify-end pt-6">
-              {showSkip ? (
-                <Button
-                  type="button"
-                  onClick={() => submitForm().catch(() => undefined)}
-                  variant="ghost"
-                  className="w-20"
-                >
-                  Next
-                </Button>
-              ) : (
-                <Button type="submit" variant="default" className="w-20">
-                  Finish
-                </Button>
-              )}
+              <Button type="submit" variant="default" className="w-20">
+                Next
+              </Button>
             </div>
           </form>
         </Form>
