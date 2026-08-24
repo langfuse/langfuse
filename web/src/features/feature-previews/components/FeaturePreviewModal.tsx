@@ -89,23 +89,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       alt: "A whole trace as dense coloured lines, one per observation, cascading across a time axis.",
     },
   },
-  {
-    flag: "v4UpgradeUi",
-    title: "V4 Migration",
-    sidebarLabel: "V4 Migration",
-    description:
-      "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
-    details:
-      "The V4 Migration experience adds a migration status page, project-level readiness indicators, and contextual upgrade guidance for SDKs, evaluators, deprecated APIs, and integrations.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-    illustration: {
-      light: "/assets/v4-beta-intro.jpg",
-      dark: "/assets/v4-beta-intro.jpg",
-      alt: "Langfuse v4 performance improvements across common observability workflows.",
-      width: 1024,
-      height: 598,
-    },
-  },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
   // events tables and no longer surfaced in the dialog (no state entry in
   // ControlledFeaturePreviewModal), so this is filtered out and never renders.

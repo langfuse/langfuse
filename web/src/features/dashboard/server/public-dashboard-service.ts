@@ -9,13 +9,13 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { DashboardSchema } from "@/src/features/public-api/types/unstable-dashboards";
-import type {
-  DashboardPlacementSchema,
-  PatchDashboardPlacementBody,
-  PatchUnstableDashboardBody,
-  PostDashboardPlacementBody,
-  PostUnstableDashboardBody,
+import {
+  DashboardSchema,
+  type DashboardPlacementSchema,
+  type PatchDashboardPlacementBody,
+  type PatchUnstableDashboardBody,
+  type PostDashboardPlacementBody,
+  type PostUnstableDashboardBody,
 } from "@/src/features/public-api/types/unstable-dashboards";
 import type { z } from "zod";
 import { randomUUID } from "crypto";

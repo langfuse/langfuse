@@ -397,6 +397,7 @@ export const CreateExperimentsForm = ({
       handleExperimentSettled={handleExperimentSettled}
       handleExperimentSuccess={handleExperimentSuccess}
       enableLegacyNameValidation={!isInitializing && !isExperimentsBetaActive}
+      useV2Evaluators={!isInitializing && isExperimentsBetaActive}
     />
   );
 };

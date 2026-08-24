@@ -239,8 +239,9 @@ const main = async (): Promise<number> => {
       console.log(JSON.stringify({ scenarios: listed }));
     } else {
       for (const scenario of listed) {
+        const v4Marker = scenario.supportsV4 ? "  [v4]" : "";
         console.log(
-          `${scenario.name}\n  ${truncateDescription(scenario.description)}`,
+          `${scenario.name}${v4Marker}\n  ${truncateDescription(scenario.description)}`,
         );
         for (const flag of scenario.flags) {
           console.log(

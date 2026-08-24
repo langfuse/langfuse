@@ -9,8 +9,7 @@ import {
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import { DashboardWidgetViews } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   DashboardService,
