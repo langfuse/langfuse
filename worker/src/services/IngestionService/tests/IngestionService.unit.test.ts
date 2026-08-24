@@ -365,6 +365,64 @@ describe("IngestionService unit tests", () => {
     }
   });
 
+  it("preserves an explicit usage.total of 0 instead of overwriting it with input + output", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-07-22T00:00:00.000Z";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          startTime: timestamp,
+          usage: {
+            input: 100,
+            output: 50,
+            total: 0,
+          },
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: false,
+      attribution: {
+        ingestionApiKey: "api-key",
+        ingestionSdkName: "sdk",
+        ingestionSdkVersion: "1.0.0",
+      },
+    });
+
+    const queuedRecord = addToQueue.mock.calls.find(
+      ([table]) => table === TableName.Observations,
+    )?.[1];
+    expect(queuedRecord).toMatchObject({
+      provided_usage_details: { input: 100, output: 50, total: 0 },
+      usage_details: { input: 100, output: 50, total: 0 },
+    });
+  });
+
   it("correctly sorts events in ascending order by timestamp", async () => {
     const firstTrace = { timestamp: 1, type: "observation-create" };
     const secondTrace = { timestamp: 1, type: "observation-update" };
