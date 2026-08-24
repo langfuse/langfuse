@@ -2148,6 +2148,7 @@ export default function ObservationsEventsTable({
                     projectId={projectId}
                     actionId={ActionId.ObservationAddToAnnotationQueue}
                     tableName={BatchExportTableName.Events}
+                    alternateTableName={BatchExportTableName.Observations}
                     objectLabel="observations"
                     description={`Add ${itemCountDisplay} selected observations to an annotation queue.`}
                     onAddToQueue={handleAddToAnnotationQueue}

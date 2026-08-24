@@ -13,6 +13,7 @@ type AddTracesToAnnotationQueueDialogControllerProps = {
   description: string;
   actionId?: ActionId;
   tableName?: BatchExportTableName;
+  alternateTableName?: BatchExportTableName;
   objectLabel?: string;
   onAddToQueue: (params: {
     projectId: string;
@@ -30,6 +31,7 @@ export function AddTracesToAnnotationQueueDialogController({
   description,
   actionId = ActionId.TraceAddToAnnotationQueue,
   tableName = BatchExportTableName.Traces,
+  alternateTableName,
   objectLabel = "traces",
   onAddToQueue,
   children,
@@ -71,6 +73,17 @@ export function AddTracesToAnnotationQueueDialogController({
     },
     {
       enabled: open,
+      refetchInterval: 2 * 60 * 1000,
+    },
+  );
+  const isAlternateInProgress = api.table.getIsBatchActionInProgress.useQuery(
+    {
+      projectId,
+      tableName: alternateTableName ?? tableName,
+      actionId,
+    },
+    {
+      enabled: open && alternateTableName !== undefined,
       refetchInterval: 2 * 60 * 1000,
     },
   );
@@ -134,9 +147,9 @@ export function AddTracesToAnnotationQueueDialogController({
                 createQueueState={createQueueState}
                 hasAccess={hasQueueAccess}
                 batchActionState={
-                  isInProgress.isLoading
+                  isInProgress.isLoading || isAlternateInProgress.isLoading
                     ? { status: "checking" }
-                    : isInProgress.data
+                    : isInProgress.data || isAlternateInProgress.data
                       ? { status: "inProgress" }
                       : { status: "ready" }
                 }
