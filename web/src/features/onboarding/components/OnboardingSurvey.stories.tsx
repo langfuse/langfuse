@@ -61,7 +61,7 @@ export const SubmitsAiFeaturesDefault = meta.story({
     await expect(
       canvas.getByRole("switch", { name: "Enable AI powered features" }),
     ).toBeChecked();
-    await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
 
     await expect(defaultSubmit).toHaveBeenCalledWith({
       referralSource: undefined,
@@ -85,7 +85,7 @@ export const SubmitsAiFeaturesOptOut = meta.story({
     await userEvent.click(
       canvas.getByRole("switch", { name: "Enable AI powered features" }),
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Skip" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Next" }));
 
     await expect(optOutSubmit).toHaveBeenCalledWith({
       referralSource: undefined,

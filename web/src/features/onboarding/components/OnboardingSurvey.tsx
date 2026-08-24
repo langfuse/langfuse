@@ -128,9 +128,8 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                       Organizational settings
                     </h2>
                     <p className="text-muted-foreground text-sm">
-                      These settings apply to all users and projects in your
-                      organization. You can change them later in organization
-                      settings.
+                      This setting applies to all users in your organization.
+                      You can change it later in organization settings.
                     </p>
                   </div>
                   <FormField
@@ -177,7 +176,7 @@ export function OnboardingSurvey(props: OnboardingSurveyProps) {
                   variant="ghost"
                   className="w-20"
                 >
-                  Skip
+                  Next
                 </Button>
               ) : (
                 <Button type="submit" variant="default" className="w-20">
