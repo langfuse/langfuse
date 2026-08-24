@@ -35,10 +35,9 @@ export function MediaFileCard({
   const MediaIcon = MEDIA_TYPE_ICON[mediaType];
   const Icon = MediaIcon ?? File;
   const isPreviewable = MediaIcon !== undefined;
+  const officeFileLabel = OFFICE_CONTENT_TYPE_LABEL[contentType.toLowerCase()];
   const fileLabel =
-    OFFICE_CONTENT_TYPE_LABEL[contentType.toLowerCase()] ??
-    contentType.split("/")[1]?.toUpperCase() ??
-    "FILE";
+    officeFileLabel ?? contentType.split("/")[1]?.toUpperCase() ?? "FILE";
 
   return (
     <button
@@ -55,7 +54,14 @@ export function MediaFileCard({
     >
       <Icon className="h-5 w-5 transition-transform group-hover:scale-110" />
       <div className="flex w-full min-w-0 flex-col items-center gap-1">
-        <span className="w-full truncate text-sm font-bold" title={contentType}>
+        <span
+          className={
+            officeFileLabel
+              ? "shrink-0 text-sm font-bold whitespace-nowrap"
+              : "w-full truncate text-sm font-bold"
+          }
+          title={contentType}
+        >
           {fileLabel}
         </span>
         <span
