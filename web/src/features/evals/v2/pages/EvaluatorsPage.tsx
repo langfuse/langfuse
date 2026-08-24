@@ -524,7 +524,7 @@ export default function EvaluatorsPage() {
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<EvaluatorRow>("evaluatorsV2ColumnVisibility", columns);
   const [columnOrder, setColumnOrder] = useColumnOrder<EvaluatorRow>(
-    "evaluatorsV2ColumnOrder-v2",
+    "evaluatorsV2ColumnOrder-v3",
     columns,
   );
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
