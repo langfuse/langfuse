@@ -45,11 +45,9 @@ export function handleOtelRequestBodyTooLarge(
     maxBodyBytes: error.maxBytes,
     afterDecompression: error.afterDecompression,
   });
-  recordIncrement(
-    "langfuse.ingestion.otel.request_body_limit_exceeded",
-    1,
-    { stage },
-  );
+  recordIncrement("langfuse.ingestion.otel.request_body_limit_exceeded", 1, {
+    stage,
+  });
   getCurrentSpan()?.setAttributes({
     "langfuse.ingestion.otel.request_body_limit_exceeded": true,
     "langfuse.ingestion.otel.request_body_limit_bytes": error.maxBytes,
