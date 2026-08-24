@@ -162,6 +162,26 @@ async function enqueueAutomationAction({
     );
   }
 
+  // Guard against duplicate deliveries when BullMQ retries this job after a
+  // partial failure: skip triggers that already have a non-errored execution
+  // for this exact source instead of creating a second one and re-enqueuing.
+  const existingExecution = await prisma.automationExecution.findFirst({
+    where: {
+      projectId,
+      triggerId,
+      actionId,
+      sourceId: promptData.id,
+      status: { not: ActionExecutionStatus.ERROR },
+    },
+  });
+
+  if (existingExecution) {
+    logger.debug(
+      `Automation execution ${existingExecution.id} already exists for trigger ${triggerId}, action ${actionId}, and source ${promptData.id}; skipping duplicate enqueue`,
+    );
+    return;
+  }
+
   const executionId = v4();
 
   // Create execution record
@@ -190,7 +210,12 @@ async function enqueueAutomationAction({
 
   // Queue to webhook processor (handles both webhook and Slack actions)
   try {
-    await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
+    const webhookQueue = WebhookQueue.getInstance();
+    if (!webhookQueue) {
+      throw new Error("Webhook queue is unavailable");
+    }
+
+    await webhookQueue.add(QueueName.WebhookQueue, {
       timestamp: new Date(),
       id: v4(),
       payload: {

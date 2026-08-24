@@ -14,6 +14,7 @@ import { ActionType, prisma } from "@langfuse/shared/src/db";
 import { promptVersionProcessor } from "../features/entityChange/promptVersionProcessor";
 
 const webhookQueueAddMock = vi.fn();
+const webhookQueueGetInstanceMock = vi.fn();
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
@@ -21,7 +22,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...actual,
     WebhookQueue: {
-      getInstance: () => ({ add: webhookQueueAddMock }),
+      getInstance: () => webhookQueueGetInstanceMock(),
     },
   };
 });
@@ -34,6 +35,8 @@ describe("promptVersionChangeWorker", () => {
     projectId = result.projectId;
     webhookQueueAddMock.mockReset();
     webhookQueueAddMock.mockResolvedValue(undefined);
+    webhookQueueGetInstanceMock.mockReset();
+    webhookQueueGetInstanceMock.mockReturnValue({ add: webhookQueueAddMock });
   });
 
   it.each([
@@ -275,5 +278,171 @@ describe("promptVersionChangeWorker", () => {
     // The execution record must not be left stuck PENDING forever.
     expect(executions[0].status).toBe(ActionExecutionStatus.ERROR);
     expect(executions[0].error).toContain("redis connection lost");
+  });
+
+  it("marks the execution as ERROR and rethrows when the webhook queue is unavailable", async () => {
+    webhookQueueGetInstanceMock.mockReturnValue(null);
+
+    const promptId = v4();
+    const actionId = v4();
+    await prisma.action.create({
+      data: {
+        id: actionId,
+        projectId,
+        type: ActionType.WEBHOOK,
+        config: {
+          type: "WEBHOOK",
+          url: "https://webhook.example.com/test",
+          headers: {},
+          method: "POST",
+        },
+      },
+    });
+
+    const triggerId = v4();
+    await prisma.trigger.create({
+      data: {
+        id: triggerId,
+        projectId,
+        eventSource: TriggerEventSource.Prompt,
+        eventActions: ["created"],
+        status: JobConfigState.ACTIVE,
+        filter: [],
+      },
+    });
+
+    const automationId = v4();
+    await prisma.automation.create({
+      data: {
+        id: automationId,
+        name: `automation-${v4()}`,
+        projectId,
+        triggerId,
+        actionId,
+      },
+    });
+
+    const event: EntityChangeEventType = {
+      entityType: "prompt-version",
+      projectId,
+      promptId,
+      action: "created",
+      prompt: {
+        id: promptId,
+        projectId,
+        name: "test-prompt",
+        version: 1,
+        prompt: { messages: [{ role: "user", content: "Hello" }] },
+        config: null,
+        tags: [],
+        labels: [],
+        type: PromptType.Chat,
+        isActive: true,
+        createdBy: "test-user",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        commitMessage: null,
+      },
+      user: {
+        id: "test-user",
+        name: "Test User",
+        email: "test@example.com",
+      },
+    };
+
+    // A null queue instance (e.g. Redis unavailable) must not be silently
+    // skipped by optional chaining; it must fail loudly so BullMQ retries.
+    await expect(promptVersionProcessor(event)).rejects.toThrow();
+
+    const executions = await prisma.automationExecution.findMany({
+      where: { projectId, automationId },
+    });
+
+    expect(executions).toHaveLength(1);
+    expect(executions[0].status).toBe(ActionExecutionStatus.ERROR);
+    expect(executions[0].error).toContain("Webhook queue is unavailable");
+  });
+
+  it("does not create a duplicate execution or re-enqueue a trigger that already succeeded", async () => {
+    const promptId = v4();
+    const actionId = v4();
+    await prisma.action.create({
+      data: {
+        id: actionId,
+        projectId,
+        type: ActionType.WEBHOOK,
+        config: {
+          type: "WEBHOOK",
+          url: "https://webhook.example.com/test",
+          headers: {},
+          method: "POST",
+        },
+      },
+    });
+
+    const triggerId = v4();
+    await prisma.trigger.create({
+      data: {
+        id: triggerId,
+        projectId,
+        eventSource: TriggerEventSource.Prompt,
+        eventActions: ["created"],
+        status: JobConfigState.ACTIVE,
+        filter: [],
+      },
+    });
+
+    const automationId = v4();
+    await prisma.automation.create({
+      data: {
+        id: automationId,
+        name: `automation-${v4()}`,
+        projectId,
+        triggerId,
+        actionId,
+      },
+    });
+
+    const event: EntityChangeEventType = {
+      entityType: "prompt-version",
+      projectId,
+      promptId,
+      action: "created",
+      prompt: {
+        id: promptId,
+        projectId,
+        name: "test-prompt",
+        version: 1,
+        prompt: { messages: [{ role: "user", content: "Hello" }] },
+        config: null,
+        tags: [],
+        labels: [],
+        type: PromptType.Chat,
+        isActive: true,
+        createdBy: "test-user",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        commitMessage: null,
+      },
+      user: {
+        id: "test-user",
+        name: "Test User",
+        email: "test@example.com",
+      },
+    };
+
+    await promptVersionProcessor(event);
+    expect(webhookQueueAddMock).toHaveBeenCalledTimes(1);
+
+    // Simulate BullMQ replaying the same entity-change job, e.g. because a
+    // different trigger failed and the aggregate error triggered a retry.
+    await promptVersionProcessor(event);
+
+    const executions = await prisma.automationExecution.findMany({
+      where: { projectId, automationId },
+    });
+
+    expect(executions).toHaveLength(1);
+    expect(webhookQueueAddMock).toHaveBeenCalledTimes(1);
   });
 });
