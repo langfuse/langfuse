@@ -112,16 +112,6 @@ export const PreviewFile = meta.story({
   },
 });
 
-// Office formats use verbose MIME subtypes. The chip must stay within its
-// container instead of expanding to the label's intrinsic width.
-export const VerboseMimeType = meta.story({
-  render: () => (
-    <div className="w-64">
-      <MediaTag contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
-    </div>
-  ),
-});
-
 // Oversized observation fields are preserved as attachments rather than
 // looking like discarded data.
 export const OversizedField = meta.story({
