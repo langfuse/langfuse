@@ -1,6 +1,8 @@
 import type { IncomingMessage } from "node:http";
 import { gunzip } from "node:zlib";
 
+import { logger } from "@langfuse/shared/src/server";
+import type { NextApiResponse } from "next";
 import getRawBody from "raw-body";
 
 export class OtelRequestBodyTooLargeError extends Error {
@@ -17,6 +19,28 @@ export class OtelRequestBodyTooLargeError extends Error {
     super(`OTel request body exceeds the ${limit} limit${suffix}`);
     this.name = "OtelRequestBodyTooLargeError";
   }
+}
+
+export function handleOtelRequestBodyTooLarge(
+  error: OtelRequestBodyTooLargeError,
+  req: IncomingMessage,
+  res: NextApiResponse,
+  projectId: string,
+) {
+  if (!error.afterDecompression) {
+    // raw-body intentionally pauses on overflow. Drain what remains while
+    // closing this connection so subsequent requests are not queued here.
+    req.resume();
+    res.setHeader("Connection", "close");
+  }
+
+  logger.warn("Rejecting oversized OTEL request body", {
+    projectId,
+    maxBodyBytes: error.maxBytes,
+    afterDecompression: error.afterDecompression,
+  });
+  res.status(413);
+  return { error: error.message };
 }
 
 type RawBodyError = Error & {

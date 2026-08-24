@@ -17,6 +17,7 @@ import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import {
   gunzipOtelRequestBody,
+  handleOtelRequestBodyTooLarge,
   OtelRequestBodyTooLargeError,
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
@@ -47,46 +48,27 @@ export default withMiddlewares({
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
       let body: Buffer;
+      let bodyFailureMessage = "Failed to read request body";
       try {
         body = await readOtelRequestBody(req, maxBodyBytes);
+
+        if (req.headers["content-encoding"]?.includes("gzip")) {
+          bodyFailureMessage = "Failed to decompress request body";
+          body = await gunzipOtelRequestBody(body, maxBodyBytes);
+        }
       } catch (error) {
         if (error instanceof OtelRequestBodyTooLargeError) {
-          // raw-body intentionally pauses on overflow. Drain what remains while
-          // closing this connection so subsequent requests are not queued here.
-          req.resume();
-          res.setHeader("Connection", "close");
-          logger.warn("Rejecting oversized OTEL request body", {
-            projectId: auth.scope.projectId,
-            maxBodyBytes,
-            afterDecompression: false,
-          });
-          res.status(413);
-          return { error: error.message };
+          return handleOtelRequestBodyTooLarge(
+            error,
+            req,
+            res,
+            auth.scope.projectId,
+          );
         }
 
-        logger.error(`Failed to read request body`, error);
+        logger.error(bodyFailureMessage, error);
         res.status(400);
-        return { error: "Failed to read request body" };
-      }
-
-      if (req.headers["content-encoding"]?.includes("gzip")) {
-        try {
-          body = await gunzipOtelRequestBody(body, maxBodyBytes);
-        } catch (error) {
-          if (error instanceof OtelRequestBodyTooLargeError) {
-            logger.warn("Rejecting oversized OTEL request body", {
-              projectId: auth.scope.projectId,
-              maxBodyBytes,
-              afterDecompression: true,
-            });
-            res.status(413);
-            return { error: error.message };
-          }
-
-          logger.error(`Failed to decompress request body`, error);
-          res.status(400);
-          return { error: "Failed to decompress request body" };
-        }
+        return { error: bodyFailureMessage };
       }
 
       let resourceSpans: any;

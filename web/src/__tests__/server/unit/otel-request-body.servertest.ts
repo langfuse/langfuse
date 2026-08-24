@@ -169,6 +169,7 @@ describe("OTel request body limits", () => {
       error: "OTel request body exceeds the 64 bytes limit after decompression",
     });
     expect(res.status).toHaveBeenCalledWith(413);
+    expect(res.setHeader).not.toHaveBeenCalled();
     req.destroy();
   });
 });
