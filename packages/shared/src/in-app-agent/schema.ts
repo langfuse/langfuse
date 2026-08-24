@@ -193,6 +193,9 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
     role: z.literal("reasoning"),
     content: z.string(),
     encryptedValue: z.string().optional(),
+    // Bedrock returns this with the thinking block. Replay must send it back
+    // unmodified or the next tool-loop call 400s.
+    signature: z.string().optional(),
   }),
 ]);
 

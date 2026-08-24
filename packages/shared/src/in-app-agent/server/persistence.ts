@@ -31,6 +31,7 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
+import { IN_APP_AGENT_REASONING_SIGNATURE_SUBTYPE } from "../constants";
 import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
@@ -601,14 +602,25 @@ function getMessagesFromPersistedEvents(
   return redactSilentToolMessages(accumulator.getMessages());
 }
 
+function isReasoningSignatureEvent(event: AgUiEvent) {
+  return (
+    event.type === EventType.REASONING_ENCRYPTED_VALUE &&
+    getString(event, "subtype") === IN_APP_AGENT_REASONING_SIGNATURE_SUBTYPE &&
+    Boolean(getString(event, "entityId")) &&
+    Boolean(getString(event, "encryptedValue"))
+  );
+}
+
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
 ): readonly AgUiMessage[] {
-  const messagesWithoutReasoning = messages.filter(
-    (message) => message.role !== "reasoning",
+  // Unsigned reasoning cannot be sent back to Bedrock (missing signature).
+  // Keep signed blocks so the next turn can cache-read the in-loop prefix.
+  const messagesWithoutUnsignedReasoning = messages.filter(
+    (message) => message.role !== "reasoning" || Boolean(message.signature),
   );
   const messagesWithoutRedirectActions = dropRedirectActionToolResults(
-    messagesWithoutReasoning,
+    messagesWithoutUnsignedReasoning,
   );
   const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
     messagesWithoutRedirectActions,
@@ -644,6 +656,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
     event.type === EventType.TOOL_CALL_RESULT ||
     event.type === EventType.ACTIVITY_SNAPSHOT ||
     event.type === EventType.REASONING_END ||
+    isReasoningSignatureEvent(event) ||
     event.type === EventType.RUN_FINISHED ||
     event.type === EventType.RUN_ERROR
   );
@@ -886,6 +899,19 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     });
   }
 
+  if (event.type === EventType.REASONING_ENCRYPTED_VALUE) {
+    if (!isReasoningSignatureEvent(event)) {
+      return null;
+    }
+
+    return compactObject({
+      type: event.type,
+      subtype: IN_APP_AGENT_REASONING_SIGNATURE_SUBTYPE,
+      entityId: getString(event, "entityId"),
+      encryptedValue: getString(event, "encryptedValue"),
+    });
+  }
+
   if (event.type === EventType.RUN_FINISHED) {
     return compactObject({
       type: event.type,
@@ -913,7 +939,6 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_STARTED ||
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
-    event.type === EventType.REASONING_ENCRYPTED_VALUE ||
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     event.type === EventType.THINKING_START ||
     // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -940,7 +965,10 @@ export function createConversationMessageAccumulator(
     string,
     { id: string; content: string; runId?: string }
   >();
-  const reasoningDrafts = new Map<string, { id: string; content: string }>();
+  const reasoningDrafts = new Map<
+    string,
+    { id: string; content: string; signature?: string }
+  >();
   const toolCallDrafts = new Map<
     string,
     {
@@ -971,6 +999,18 @@ export function createConversationMessageAccumulator(
 
     return true;
   };
+
+  const upsertReasoningMessage = (draft: {
+    id: string;
+    content: string;
+    signature?: string;
+  }) =>
+    upsertMessage({
+      id: draft.id,
+      role: "reasoning",
+      content: draft.content,
+      ...(draft.signature ? { signature: draft.signature } : {}),
+    });
 
   for (const message of initialMessages) {
     upsertMessage(message);
@@ -1107,11 +1147,7 @@ export function createConversationMessageAccumulator(
       draft.content += getString(event, "delta") ?? "";
       reasoningDrafts.set(messageId, draft);
 
-      return upsertMessage({
-        id: draft.id,
-        role: "reasoning",
-        content: draft.content,
-      });
+      return upsertReasoningMessage(draft);
     }
 
     if (event.type === EventType.REASONING_MESSAGE_END) {
@@ -1122,13 +1158,31 @@ export function createConversationMessageAccumulator(
         return false;
       }
 
-      const changed = upsertMessage({
-        id: draft.id,
-        role: "reasoning",
-        content: draft.content,
-      });
+      const changed = upsertReasoningMessage(draft);
       reasoningDrafts.delete(draft.id);
       return changed;
+    }
+
+    if (isReasoningSignatureEvent(event)) {
+      const messageId = getString(event, "entityId");
+      const signature = getString(event, "encryptedValue");
+
+      if (!messageId || !signature) {
+        return false;
+      }
+
+      const existingIndex = messageIndexes.get(messageId);
+      const existingMessage =
+        existingIndex === undefined ? undefined : messages[existingIndex];
+      const draft = reasoningDrafts.get(messageId) ?? {
+        id: messageId,
+        content:
+          existingMessage?.role === "reasoning" ? existingMessage.content : "",
+      };
+
+      draft.signature = signature;
+      reasoningDrafts.set(messageId, draft);
+      return upsertReasoningMessage(draft);
     }
 
     if (event.type === EventType.TOOL_CALL_START) {
@@ -1328,6 +1382,15 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
       ...next,
       content: next.content ?? existing.content,
       toolCalls: mergeToolCalls(existing.toolCalls, next.toolCalls),
+    }) as AgUiMessage;
+  }
+
+  if (existing.role === "reasoning" && next.role === "reasoning") {
+    return compactObject({
+      ...existing,
+      ...next,
+      content: next.content || existing.content,
+      signature: next.signature ?? existing.signature,
     }) as AgUiMessage;
   }
 

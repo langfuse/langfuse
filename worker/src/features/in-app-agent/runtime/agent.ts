@@ -56,10 +56,12 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_REASONING_SIGNATURE_SUBTYPE,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { applyBedrockPromptCacheToCall } from "./bedrockPromptCache";
+import { applyReplayReasoningToPrompt } from "./replayReasoning";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -200,6 +202,21 @@ function formatCurrentTime(context: AgUiRunAgentInput["context"]): string {
   return `<current_time tz="${timezone}">${stamp}</current_time>`;
 }
 
+class ReplayReasoningProcessor implements Processor {
+  readonly id = "replay-reasoning";
+
+  constructor(private readonly messages: AgUiRunAgentInput["messages"]) {}
+
+  processLLMRequest({ prompt }: ProcessLLMRequestArgs) {
+    return {
+      prompt: applyReplayReasoningToPrompt(
+        prompt,
+        this.messages,
+      ) as ProcessLLMRequestArgs["prompt"],
+    };
+  }
+}
+
 class TrailingContextProcessor implements Processor {
   readonly id = "current-time";
 
@@ -277,6 +294,34 @@ function isTruncatedByStepLimit(state: StepLimitState): boolean {
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
 // in-app agent must run on a model generation that supports it.
+function getBedrockReasoningSignature(part: unknown) {
+  if (!part || typeof part !== "object") {
+    return undefined;
+  }
+
+  const record = part as Record<string, unknown>;
+  if (record.type !== "reasoning-signature") {
+    return undefined;
+  }
+
+  if (typeof record.signature === "string" && record.signature.length > 0) {
+    return record.signature;
+  }
+
+  const payload = record.payload;
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "signature" in payload &&
+    typeof payload.signature === "string" &&
+    payload.signature.length > 0
+  ) {
+    return payload.signature;
+  }
+
+  return undefined;
+}
+
 export function getBedrockReasoningProviderOptions(modelId: string) {
   if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
     return undefined;
@@ -387,6 +432,7 @@ export async function createAgUiStream(params: {
     lastFinishReason: undefined,
     wrapUp: false,
   };
+  let lastReasoningMessageId: string | undefined;
   const onModelCallStart = (options: unknown) => {
     recordInstrumentation("recordModelCallStart", (instrumentation) =>
       instrumentation.recordModelCallStart?.(options),
@@ -395,6 +441,21 @@ export async function createAgUiStream(params: {
   const onModelStreamPart = (part: unknown) => {
     recordInstrumentation("recordModelStreamPart", (instrumentation) =>
       instrumentation.recordModelStreamPart?.(part),
+    );
+
+    const signature = getBedrockReasoningSignature(part);
+    if (!signature || !lastReasoningMessageId) {
+      return;
+    }
+
+    const reasoningMessageId = lastReasoningMessageId;
+    eventQueue = eventQueue.then(() =>
+      params.options.onEvent?.({
+        type: EventType.REASONING_ENCRYPTED_VALUE,
+        subtype: IN_APP_AGENT_REASONING_SIGNATURE_SUBTYPE,
+        entityId: reasoningMessageId,
+        encryptedValue: signature,
+      }),
     );
   };
   const onToolExecutionStart = instrumentation
@@ -531,6 +592,13 @@ export async function createAgUiStream(params: {
         agUiEvent: AgUiEvent,
         afterPersist?: () => void | Promise<void>,
       ) => {
+        if (
+          agUiEvent.type === EventType.REASONING_MESSAGE_START &&
+          typeof agUiEvent.messageId === "string"
+        ) {
+          lastReasoningMessageId = agUiEvent.messageId;
+        }
+
         eventQueue = eventQueue
           .then(async () => {
             if (closed) {
@@ -1225,6 +1293,7 @@ async function createMastraAdapter(params: {
       tools,
       maxRetries: 2,
       inputProcessors: [
+        new ReplayReasoningProcessor(params.input.messages),
         new EnsureFinalResponseProcessor(IN_APP_AGENT_MAX_STEPS, () => {
           params.stepLimitState.wrapUp = true;
           logger.info("In-app agent step-limit wrap-up injected", {
