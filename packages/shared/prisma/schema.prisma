@@ -430,6 +430,7 @@ enum Role {
   ADMIN
   MEMBER
   VIEWER
+  ANNOTATOR
   NONE
 }
 
