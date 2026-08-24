@@ -178,6 +178,12 @@ afterEach(async () => {
   await prisma.evaluator.deleteMany({
     where: { projectId: { in: [projectId, otherProjectId] } },
   });
+  await prisma.defaultLlmModel.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
+  await prisma.llmApiKeys.deleteMany({
+    where: { projectId: { in: [projectId, otherProjectId] } },
+  });
 });
 
 afterAll(async () => {
