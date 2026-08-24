@@ -238,6 +238,7 @@ export const ruleRouter = createTRPCRouter({
           evaluatorId: input.evaluatorId,
           variableMapping: input.variableMapping,
         },
+        enableRule: input.enableRule,
       });
     }),
 

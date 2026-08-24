@@ -513,6 +513,7 @@ export class RuleService {
     projectId: string;
     ruleId: string;
     assignment: RuleAssignmentInput;
+    enableRule?: boolean;
   }) {
     await this.prisma.$transaction(async (prisma) => {
       const rule = await this.requireRule(
@@ -528,9 +529,24 @@ export class RuleService {
       });
       await repository.attachEvaluator({
         prisma,
-        ...params,
+        projectId: params.projectId,
+        ruleId: params.ruleId,
         assignment: assignment!,
       });
+      if (params.enableRule) {
+        this.assertLegacyRuleCanBeEnabled(rule.targetObject, true);
+        await assertActiveRuleLimitNotExceeded({
+          prisma,
+          projectId: params.projectId,
+          additionalActiveRules: rule.status === JobConfigState.ACTIVE ? 0 : 1,
+        });
+        await repository.setRuleStatus({
+          prisma,
+          projectId: params.projectId,
+          ruleIds: [params.ruleId],
+          enabled: true,
+        });
+      }
     });
     await invalidateProjectEvalConfigCaches(params.projectId);
     const rule = await this.get(params.projectId, params.ruleId);

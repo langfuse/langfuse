@@ -74,7 +74,6 @@ export function EvaluatorSavedDialogContainer({
       projectId,
       page: 1,
       limit: 100,
-      enabled: true,
       targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
     },
     { enabled: dialogPhase === "saved" },
@@ -126,6 +125,7 @@ export function EvaluatorSavedDialogContainer({
       ruleId: rule.id,
       evaluatorId: evaluator.id,
       variableMapping: null,
+      enableRule: !rule.enabled,
     });
     capture("evaluation_rules:attach_evaluator", {
       evaluatorCount: 1,
