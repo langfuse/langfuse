@@ -19,7 +19,10 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
 }));
 
 import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
-import { CreateEvaluatorSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  CreateEvaluatorSchema,
+  ListEvaluatorsSchema,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("evaluator configuration validation", () => {
   beforeEach(() => {
@@ -50,6 +53,22 @@ describe("evaluator configuration validation", () => {
             reasoning: { description: "Reasoning" },
           },
         },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts text filters for evaluator models", () => {
+    expect(
+      ListEvaluatorsSchema.safeParse({
+        projectId: "project-id",
+        filter: [
+          {
+            column: "model",
+            type: "string",
+            operator: "contains",
+            value: "gpt",
+          },
+        ],
       }).success,
     ).toBe(true);
   });
