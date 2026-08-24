@@ -130,6 +130,21 @@ describe("queryBuilder filter type validation", () => {
     },
   );
 
+  it("rejects filters on pair-expanded dimensions", async () => {
+    await expect(
+      buildQueryWithFilter(
+        {
+          column: "usageType",
+          operator: "contains",
+          value: "cache",
+          type: "string",
+        },
+        undefined,
+        "v2",
+      ),
+    ).rejects.toThrow("Field 'usageType' cannot be used as a filter.");
+  });
+
   it.each([
     {
       name: "arrayOptions on string array dimension",
