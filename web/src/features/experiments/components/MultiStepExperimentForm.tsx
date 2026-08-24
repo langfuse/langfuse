@@ -534,6 +534,7 @@ export const MultiStepExperimentForm = ({
         search: v2EvaluatorSelection.search,
         onSearchChange: v2EvaluatorSelection.onSearchChange,
         onSaveAssignments: v2EvaluatorSelection.onSaveAssignments,
+        isLoadingAssignments: v2EvaluatorSelection.isLoadingAssignments,
         isUpdating: v2EvaluatorSelection.isUpdating,
       }
     : {
@@ -697,7 +698,8 @@ export const MultiStepExperimentForm = ({
                     loading={
                       activeStep === "evaluators" &&
                       useV2Evaluators &&
-                      v2EvaluatorSelection.isUpdating
+                      (v2EvaluatorSelection.isLoadingAssignments ||
+                        v2EvaluatorSelection.isUpdating)
                     }
                   >
                     Next
