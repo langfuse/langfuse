@@ -30,4 +30,16 @@ describe("MediaFileCard", () => {
       expect(labelElement).not.toHaveClass("truncate");
     },
   );
+
+  it("renders FILE when the MIME subtype is empty", () => {
+    render(
+      <MediaFileCard
+        contentType="text/"
+        fileName="attachment"
+        onClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("FILE")).toHaveAttribute("title", "text/");
+  });
 });
