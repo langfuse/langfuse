@@ -6,9 +6,9 @@ import {
 } from "@/src/components/ui/hover-card";
 import { SelectItem } from "@/src/components/ui/select";
 import {
-  Role,
   projectNoneRoleComment,
   projectRoleAccessRights,
+  type Role,
 } from "@langfuse/shared";
 import {
   organizationRoleAccessRights,
