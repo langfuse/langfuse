@@ -1,9 +1,6 @@
 import { randomUUID } from "crypto";
-import {
-  encrypt,
-  getCodeEvalVariableMapping,
-  LLMAdapter,
-} from "@langfuse/shared";
+import { getCodeEvalVariableMapping, LLMAdapter } from "@langfuse/shared";
+import { encrypt } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
