@@ -36,8 +36,8 @@ export function MediaFileCard({
   const Icon = MediaIcon ?? File;
   const isPreviewable = MediaIcon !== undefined;
   const officeFileLabel = OFFICE_CONTENT_TYPE_LABEL[contentType.toLowerCase()];
-  const fileLabel =
-    officeFileLabel ?? contentType.split("/")[1]?.toUpperCase() ?? "FILE";
+  const mimeSubtypeLabel = contentType.split("/")[1]?.toUpperCase() || "FILE";
+  const fileLabel = officeFileLabel ?? mimeSubtypeLabel;
 
   return (
     <button
