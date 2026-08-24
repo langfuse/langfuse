@@ -1,13 +1,32 @@
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
+import { isCurrentTimePromptMessage } from "./currentTime";
+
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 
 const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
 
-function shouldApplyBedrockPromptCache(modelId: string) {
-  return modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART);
-}
-
+/**
+ * Bedrock Converse prompt cache.
+ *
+ * A cachePoint writes the prefix `tools → that message`. The next call
+ * cache-reads only if that prefix is byte-identical. Hits last 5 minutes
+ * and refresh on read. Claude-only: Bedrock Converse ignores Anthropic
+ * `cacheControl`, so we do not dual-write it.
+ *
+ * Three checkpoints, each for a different prefix:
+ *
+ * 1. Last leading system — tools + compiled system. Must stay byte-stable
+ *    across turns (calendar day only; screen lives on the last user).
+ * 2. Last conversation message — grows as this turn adds tool results so
+ *    the next in-loop step can read it. A trailing `<current_time>` suffix
+ *    is excluded: that clock changes every request and must not steal this
+ *    checkpoint or the previous-turn walk.
+ * 3. Previous-turn prefix — only when the last conversation message is a
+ *    new user turn. The previous write sat on a tool result or prior user,
+ *    not the closing assistant (that was model output). Skip trailing
+ *    assistants, then stamp that predecessor.
+ */
 export function applyBedrockPromptCacheToCall<T>(
   modelId: string,
   options: T,
@@ -17,6 +36,11 @@ export function applyBedrockPromptCacheToCall<T>(
     return options;
   }
 
+  // Screen (and any other turn-scoped text) is appended to the latest user
+  // message so it does not sit in the cached tools+system prefix. After the
+  // current-time processor adds a trailing user suffix, that suffix is the
+  // latest user — so screen rides the volatile tail instead of mutating
+  // earlier conversation messages.
   const prompt =
     extraLastUserText && extraLastUserText.length > 0
       ? appendTextToLastUserMessage(options.prompt, extraLastUserText)
@@ -37,6 +61,79 @@ export function applyBedrockPromptCacheToCall<T>(
     ...options,
     prompt: applyBedrockPromptCachePoints(prompt),
   };
+}
+
+export function applyBedrockPromptCachePoints(prompt: unknown) {
+  if (!Array.isArray(prompt) || prompt.length === 0) {
+    return prompt;
+  }
+
+  let lastLeadingSystemIndex = -1;
+  for (let i = 0; i < prompt.length; i++) {
+    if (getMessageRole(prompt[i]) !== "system") {
+      break;
+    }
+    lastLeadingSystemIndex = i;
+  }
+
+  const lastConversationIndex = getLastConversationIndex(prompt);
+  const cacheIndices = new Set<number>();
+  if (lastConversationIndex >= 0) {
+    cacheIndices.add(lastConversationIndex);
+  }
+  if (lastLeadingSystemIndex >= 0) {
+    cacheIndices.add(lastLeadingSystemIndex);
+  }
+
+  const previousTurnIndex = findPreviousTurnCacheIndex(
+    prompt,
+    lastLeadingSystemIndex,
+    lastConversationIndex,
+  );
+  if (previousTurnIndex >= 0) {
+    cacheIndices.add(previousTurnIndex);
+  }
+
+  return prompt.map((message, index) =>
+    cacheIndices.has(index) ? withBedrockCachePoint(message) : message,
+  );
+}
+
+function shouldApplyBedrockPromptCache(modelId: string) {
+  return modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART);
+}
+
+function getLastConversationIndex(prompt: unknown[]) {
+  const lastIndex = prompt.length - 1;
+  if (lastIndex < 0) {
+    return -1;
+  }
+
+  return isCurrentTimePromptMessage(prompt[lastIndex])
+    ? lastIndex - 1
+    : lastIndex;
+}
+
+function findPreviousTurnCacheIndex(
+  prompt: unknown[],
+  lastLeadingSystemIndex: number,
+  lastConversationIndex: number,
+) {
+  if (lastConversationIndex < 0) {
+    return -1;
+  }
+
+  if (getMessageRole(prompt[lastConversationIndex]) !== "user") {
+    return -1;
+  }
+
+  for (let i = lastConversationIndex - 1; i > lastLeadingSystemIndex; i--) {
+    if (getMessageRole(prompt[i]) !== "assistant") {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 function appendTextToLastUserMessage(
@@ -72,66 +169,6 @@ function appendTextToLastUserMessage(
   return prompt.map((item, index) =>
     index === lastUserIndex ? nextMessage : item,
   );
-}
-
-/**
- * Places Bedrock cache checkpoints on:
- * - the last leading system message (tools + static system)
- * - the previous turn's last cached prefix, when this call starts a new user turn
- * - the last message (growing agent-loop prefix)
- *
- * Checkpoints cover tools → system → messages. A new user message is never
- * part of the previous write, so the previous-turn checkpoint is the last
- * non-assistant message before that user turn (tool result or prior user).
- */
-export function applyBedrockPromptCachePoints(prompt: unknown) {
-  if (!Array.isArray(prompt) || prompt.length === 0) {
-    return prompt;
-  }
-
-  let lastLeadingSystemIndex = -1;
-  for (let i = 0; i < prompt.length; i++) {
-    if (getMessageRole(prompt[i]) !== "system") {
-      break;
-    }
-    lastLeadingSystemIndex = i;
-  }
-
-  const lastIndex = prompt.length - 1;
-  const cacheIndices = new Set<number>([lastIndex]);
-  if (lastLeadingSystemIndex >= 0) {
-    cacheIndices.add(lastLeadingSystemIndex);
-  }
-
-  const previousTurnIndex = findPreviousTurnCacheIndex(
-    prompt,
-    lastLeadingSystemIndex,
-  );
-  if (previousTurnIndex >= 0) {
-    cacheIndices.add(previousTurnIndex);
-  }
-
-  return prompt.map((message, index) =>
-    cacheIndices.has(index) ? withBedrockCachePoint(message) : message,
-  );
-}
-
-function findPreviousTurnCacheIndex(
-  prompt: unknown[],
-  lastLeadingSystemIndex: number,
-) {
-  const lastIndex = prompt.length - 1;
-  if (getMessageRole(prompt[lastIndex]) !== "user") {
-    return -1;
-  }
-
-  for (let i = lastIndex - 1; i > lastLeadingSystemIndex; i--) {
-    if (getMessageRole(prompt[i]) !== "assistant") {
-      return i;
-    }
-  }
-
-  return -1;
 }
 
 function appendTextContent(content: unknown, text: string) {

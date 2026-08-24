@@ -65,6 +65,9 @@ type MockedAgentConfig = {
       stepNumber: number;
       sendSignal?: (signal: unknown) => Promise<unknown>;
     }) => Promise<unknown>;
+    processLLMRequest?: (args: {
+      prompt: unknown;
+    }) => { prompt?: unknown } | undefined;
   }>;
   defaultOptions?: {
     onIterationComplete?: (context: {
@@ -690,6 +693,32 @@ describe("createAgUiStream", () => {
     expect(
       instrumentationMocks.instrumentation.recordModelCallStart,
     ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
+  it("appends a trailing current-time message on each model request", async () => {
+    await initializeBasicTracedAgent("run-current-time");
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+
+    const result = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+    });
+
+    expect(result?.prompt).toEqual([
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: expect.stringMatching(
+              /^<current_time tz="UTC">\d{4}-\d{2}-\d{2} \d{2}:\d{2}<\/current_time>$/,
+            ),
+          },
+        ],
+      },
+    ]);
   });
 
   it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {

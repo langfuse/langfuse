@@ -98,6 +98,74 @@ describe("applyBedrockPromptCachePoints", () => {
     ]);
   });
 
+  it("keeps the previous-turn checkpoint when a trailing current-time suffix is present", () => {
+    expect(
+      applyBedrockPromptCachePoints([
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "You have 20 prompts." }],
+        },
+        {
+          role: "user",
+          content: [{ type: "text", text: "and the versions?" }],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
+            },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: cachePoint,
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: cachePoint,
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "You have 20 prompts." }],
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "and the versions?" }],
+        providerOptions: cachePoint,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
+          },
+        ],
+      },
+    ]);
+  });
+
   it("writes a single checkpoint when the prompt is only system messages", () => {
     expect(
       applyBedrockPromptCachePoints([

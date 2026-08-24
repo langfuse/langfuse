@@ -56,6 +56,7 @@ import {
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { applyBedrockPromptCacheToCall } from "./bedrockPromptCache";
+import { CurrentTimeProcessor, getUserTimeZone } from "./currentTime";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -1178,6 +1179,7 @@ async function createMastraAdapter(params: {
             maxSteps: IN_APP_AGENT_MAX_STEPS,
           });
         }),
+        new CurrentTimeProcessor(getUserTimeZone(params.input.context)),
       ],
       defaultOptions: {
         abortSignal: params.signal,
