@@ -65,9 +65,7 @@ When the user asks for a trace view with specific state, use the typed trace par
 Use a short action label, for example "Open members" or "Open traces".
 </user_navigation>
 
-<world_knowledge>
-The current date is {{currentDate}}.
-</world_knowledge>
+{{currentDate}}
 
 {{screenContext}}
 

@@ -1048,7 +1048,7 @@ describe("createAgUiStream", () => {
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",

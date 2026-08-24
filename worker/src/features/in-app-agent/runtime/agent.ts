@@ -167,28 +167,37 @@ The sandbox workspace from earlier turns in this conversation expired and has be
 const STEP_LIMIT_WRAP_UP_INSTRUCTION =
   "This is your final step. Do not call any more tools. Summarize what you have found and give the user a complete final answer now.";
 
+function formatDateTime(
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, ...options }).format(
+      new Date(),
+    );
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      ...options,
+    }).format(new Date());
+  }
+}
+
 function formatCurrentTime(context: AgUiRunAgentInput["context"]): string {
   const timezone =
     context
       .find((item) => item.description === "current_timezone")
       ?.value.trim() || "UTC";
+  const stamp = formatDateTime(timezone, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).replace(", ", " ");
 
-  try {
-    const stamp = new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .format(new Date())
-      .replace(", ", " ");
-    return `<current_time tz="${timezone}">${stamp}</current_time>`;
-  } catch {
-    return `<current_time tz="UTC">${new Date().toISOString().slice(0, 16).replace("T", " ")}</current_time>`;
-  }
+  return `<current_time tz="${timezone}">${stamp}</current_time>`;
 }
 
 class TrailingContextProcessor implements Processor {
@@ -332,7 +341,7 @@ export async function createAgUiStream(params: {
     langfuseClient: params.options.langfuseClient,
     useLocalPrompt: params.options.useLocalPrompt,
     variables: {
-      currentDate: new Date().toISOString().slice(0, 10),
+      currentDate: "",
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
       sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       screenContext: "",
