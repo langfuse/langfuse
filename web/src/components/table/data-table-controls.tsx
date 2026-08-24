@@ -2657,7 +2657,8 @@ export function FilterValueCheckbox({
         {icon ? <span className="mr-2">{icon}</span> : null}
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-xs",
+            "min-w-0 truncate text-xs",
+            !suffix && "flex-1",
             label === "" && "text-muted-foreground italic",
           )}
           title={displayTitle}

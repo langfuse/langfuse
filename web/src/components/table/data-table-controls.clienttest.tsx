@@ -62,6 +62,7 @@ describe("CategoricalFacet", () => {
     expect(
       label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(label).not.toHaveClass("flex-1");
     expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
   });
 
