@@ -87,7 +87,7 @@ export function adaptEventsToTraceFormat(params: {
   const trace: SyntheticTrace = {
     id: traceId,
     projectId: earliest.projectId,
-    name: primaryObservation.name ?? null,
+    name: primaryObservation.traceName || primaryObservation.name || null,
     timestamp: earliest.startTime,
     input: rootIO?.input ?? null,
     output: rootIO?.output ?? null,

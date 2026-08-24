@@ -70,6 +70,24 @@ const createEvent = (overrides: Partial<EventInput> = {}) =>
   }) satisfies EventInput;
 
 describe("adaptEventsToTraceFormat", () => {
+  it("uses the explicit trace name for the synthetic trace", () => {
+    const result = adaptEventsToTraceFormat({
+      events: [createEvent()],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.name).toBe("Trace name");
+  });
+
+  it("falls back to the root observation name when the trace name is missing", () => {
+    const result = adaptEventsToTraceFormat({
+      events: [createEvent({ traceName: null })],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.name).toBe("Root span");
+  });
+
   it("does not double-stringify root I/O already stringified for tRPC", () => {
     const input = JSON.stringify({
       prototype: "input",
