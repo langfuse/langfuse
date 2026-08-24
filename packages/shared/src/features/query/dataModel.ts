@@ -851,11 +851,10 @@ const createScoreSpecificDimensions = (
     description: "Name of the score (e.g., accuracy, toxicity).",
   },
   evaluatorId: {
-    sql: `coalesce(nullIf(${tableAlias}.evaluator_id, ''), ${tableAlias}.evaluation_rule_id)`,
+    sql: `${tableAlias}.evaluator_id`,
     alias: "evaluatorId",
     type: "string",
-    description:
-      "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
+    description: "Identifier of the evaluator that produced the score.",
     highCardinality: true,
     uiHidden: true,
   },

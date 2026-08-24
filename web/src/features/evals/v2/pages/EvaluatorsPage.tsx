@@ -483,7 +483,6 @@ export default function EvaluatorsPage() {
                     row.original.id,
                     row.original.name,
                     row.original.type,
-                    row.original.assignedRuleIds,
                   ),
                 )
               }
