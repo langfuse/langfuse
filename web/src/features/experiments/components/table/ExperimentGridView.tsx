@@ -1,4 +1,7 @@
-import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTable,
+  shouldIgnoreRowClickTarget,
+} from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
@@ -21,7 +24,6 @@ import {
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { shouldIgnoreRowClickTarget } from "@/src/components/table/data-table";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
 const GRID_VIEW_ROW_HEIGHTS = {

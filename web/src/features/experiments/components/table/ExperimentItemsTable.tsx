@@ -336,6 +336,68 @@ export default function ExperimentItemsTable({
     hasBaseline,
     hideControls,
   });
+
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: [
+      "observation",
+      "display",
+      "timestamp",
+      "traceId",
+      "peekExperimentId",
+    ],
+    extractParamsValuesFromRow: (
+      row: ExperimentItemsTableRow & { clickedExperimentId?: string },
+    ) => {
+      // A specific experiment cell click targets that experiment directly.
+      // Otherwise, use the explicit baseline when present; without one, use
+      // the first selected experiment only as the primary trace for
+      // URL-compatible peek navigation (it is not treated as a baseline in
+      // comparison logic).
+      const targetExp = row.clickedExperimentId
+        ? row.experiments.find(
+            (e) => e.experimentId === row.clickedExperimentId,
+          )
+        : baselineId
+          ? row.experiments.find((e) => e.experimentId === baselineId)
+          : row.experiments[0];
+      return {
+        traceId: targetExp?.traceId || "",
+        timestamp: targetExp?.startTime.toISOString() || "",
+        observation: targetExp?.observationId || "",
+        ...(row.clickedExperimentId
+          ? { peekExperimentId: row.clickedExperimentId }
+          : {}),
+      };
+    },
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      pathParam: "traceId",
+    },
+  });
+
+  // Avoids invalidating memoized column builders below: usePeekNavigation's
+  // config object is a fresh literal every render, so openPeek is not
+  // referentially stable. Mirrors the queryFilterRef pattern further down.
+  const peekNavigationRef = useRef(peekNavigationProps);
+  peekNavigationRef.current = peekNavigationProps;
+
+  const handleExperimentCellClick = useCallback(
+    (
+      event: React.MouseEvent,
+      row: ExperimentItemsTableRow,
+      experimentId: string,
+    ) => {
+      if (!canUsePeek) return;
+      if (shouldIgnoreRowClickTarget(event.target)) return;
+      event.stopPropagation();
+      peekNavigationRef.current.openPeek(row.itemId, {
+        ...row,
+        clickedExperimentId: experimentId,
+      });
+    },
+    [canUsePeek],
+  );
+
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
     return experimentNames.filter((exp) =>
@@ -674,7 +736,13 @@ export default function ExperimentItemsTable({
           );
         },
       })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
-    [allExperimentIds, baselineId, colorExperimentIds, hasBaseline],
+    [
+      allExperimentIds,
+      baselineId,
+      colorExperimentIds,
+      hasBaseline,
+      handleExperimentCellClick,
+    ],
   );
 
   const observationExperimentScoreColumns = useMemo(
@@ -969,61 +1037,6 @@ export default function ExperimentItemsTable({
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentItemsTableRow>(
     `experimentItemsColumnOrder-${projectId}`,
     columns,
-  );
-
-  const peekNavigationProps = usePeekNavigation({
-    queryParams: [
-      "observation",
-      "display",
-      "timestamp",
-      "traceId",
-      "peekExperimentId",
-    ],
-    extractParamsValuesFromRow: (
-      row: ExperimentItemsTableRow & { clickedExperimentId?: string },
-    ) => {
-      // A specific experiment cell click targets that experiment directly.
-      // Otherwise, use the explicit baseline when present; without one, use
-      // the first selected experiment only as the primary trace for
-      // URL-compatible peek navigation (it is not treated as a baseline in
-      // comparison logic).
-      const targetExp = row.clickedExperimentId
-        ? row.experiments.find(
-            (e) => e.experimentId === row.clickedExperimentId,
-          )
-        : baselineId
-          ? row.experiments.find((e) => e.experimentId === baselineId)
-          : row.experiments[0];
-      return {
-        traceId: targetExp?.traceId || "",
-        timestamp: targetExp?.startTime.toISOString() || "",
-        observation: targetExp?.observationId || "",
-        ...(row.clickedExperimentId
-          ? { peekExperimentId: row.clickedExperimentId }
-          : {}),
-      };
-    },
-    expandConfig: {
-      basePath: `/project/${projectId}/traces`,
-      pathParam: "traceId",
-    },
-  });
-
-  const handleExperimentCellClick = useCallback(
-    (
-      event: React.MouseEvent,
-      row: ExperimentItemsTableRow,
-      experimentId: string,
-    ) => {
-      if (!canUsePeek) return;
-      if (shouldIgnoreRowClickTarget(event.target)) return;
-      event.stopPropagation();
-      peekNavigationProps.openPeek(row.itemId, {
-        ...row,
-        clickedExperimentId: experimentId,
-      });
-    },
-    [canUsePeek, peekNavigationProps],
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
