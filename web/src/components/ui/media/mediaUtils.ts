@@ -5,6 +5,18 @@ const LANGFUSE_MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:[^@]*@@@/g;
 const DATA_URI_PREFIX = "data:";
 const MAX_LANGFUSE_REFERENCE_LENGTH = 512;
 
+const MAPPED_MEDIA_LABELS: Record<string, string> = {
+  "application/msword": "DOC",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "DOCX",
+  "application/vnd.ms-excel": "XLS",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
+};
+
+export function getMappedMediaLabel(contentType: string): string | undefined {
+  return MAPPED_MEDIA_LABELS[contentType.toLowerCase()];
+}
+
 // Only surface a bare http(s) URL as media when its extension is unambiguous —
 // otherwise every link in a payload would become a chip.
 const URL_EXTENSION_TO_MIME: Record<string, string> = {

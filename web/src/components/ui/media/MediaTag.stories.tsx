@@ -129,6 +129,24 @@ export const OversizedField = meta.story({
   },
 });
 
+export const TruncatedMimeType = meta.story({
+  args: {
+    contentType:
+      "application/vnd.example.intentionally-verbose-archive-format-for-truncation",
+  },
+});
+
+export const OfficeFormats = meta.story({
+  render: () => (
+    <div className="flex flex-wrap items-center gap-3">
+      <MediaTag contentType="application/msword" />
+      <MediaTag contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+      <MediaTag contentType="application/vnd.ms-excel" />
+      <MediaTag contentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+    </div>
+  ),
+});
+
 // Design showcase: one chip per media kind, collapsed.
 export const AllKinds = meta.story({
   render: () => (

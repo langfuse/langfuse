@@ -5,6 +5,7 @@ import {
   Volume2,
   type LucideIcon,
 } from "lucide-react";
+import { getMappedMediaLabel } from "./mediaUtils";
 
 export type MediaFileCardProps = {
   contentType: string;
@@ -18,14 +19,6 @@ const MEDIA_TYPE_ICON: Record<string, LucideIcon> = {
   video: Video,
 };
 
-const OFFICE_CONTENT_TYPE_LABEL: Record<string, string> = {
-  "application/msword": "DOC",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-    "DOCX",
-  "application/vnd.ms-excel": "XLS",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
-};
-
 export function MediaFileCard({
   contentType,
   fileName,
@@ -35,9 +28,9 @@ export function MediaFileCard({
   const MediaIcon = MEDIA_TYPE_ICON[mediaType];
   const Icon = MediaIcon ?? File;
   const isPreviewable = MediaIcon !== undefined;
-  const officeFileLabel = OFFICE_CONTENT_TYPE_LABEL[contentType.toLowerCase()];
+  const mappedFileLabel = getMappedMediaLabel(contentType);
   const mimeSubtypeLabel = contentType.split("/")[1]?.toUpperCase() || "FILE";
-  const fileLabel = officeFileLabel ?? mimeSubtypeLabel;
+  const fileLabel = mappedFileLabel ?? mimeSubtypeLabel;
 
   return (
     <button
@@ -56,7 +49,7 @@ export function MediaFileCard({
       <div className="flex w-full min-w-0 flex-col items-center gap-1">
         <span
           className={
-            officeFileLabel
+            mappedFileLabel
               ? "shrink-0 text-sm font-bold whitespace-nowrap"
               : "w-full truncate text-sm font-bold"
           }

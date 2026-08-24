@@ -19,6 +19,8 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { cn } from "@/src/utils/tailwind";
+import { getMappedMediaLabel } from "./mediaUtils";
 
 /**
  * Resolution state of the previewable content. The collapsed chip renders the
@@ -74,7 +76,7 @@ function getMediaKind(contentType: string): MediaKind {
 /** "image/svg+xml" -> "SVG", "application/pdf" -> "PDF". */
 function getDefaultLabel(contentType: string): string {
   const subtype = contentType.split("/")[1]?.split("+")[0];
-  return (subtype || "file").toUpperCase();
+  return getMappedMediaLabel(contentType) ?? (subtype || "file").toUpperCase();
 }
 
 function formatFileSize(bytes: number): string {
@@ -224,6 +226,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
   ) => {
     const kind = getMediaKind(contentType);
     const chipLabel = label ?? getDefaultLabel(contentType);
+    const hasGeneratedLabel = label === undefined;
     const canOpen = status === "ready" && Boolean(url);
     const [failedPreviewUrl, setFailedPreviewUrl] = React.useState<
       string | null
@@ -271,11 +274,14 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
             )}
             <span
-              className="relative top-0.25 truncate align-baseline font-mono leading-none"
+              className={cn(
+                "relative top-0.25 truncate align-baseline font-mono leading-none",
+                hasGeneratedLabel && "max-w-[10ch]",
+              )}
               // Empty while the peek is open: a native tooltip would render on
               // top of the peek. Ancestors with a title still tooltip over the
               // peek — containers must suppress theirs too (see IOTableCell).
-              title={isOpen ? "" : chipLabel}
+              title={isOpen ? "" : hasGeneratedLabel ? contentType : chipLabel}
             >
               {chipLabel}
             </span>
