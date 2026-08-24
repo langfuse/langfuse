@@ -1,5 +1,5 @@
 import { fn } from "storybook/test";
-import preview from "../../../../.storybook/preview";
+import preview from "../../../.storybook/preview";
 import { MediaTag } from "./MediaTag";
 
 // Inline SVG so the "ready" image preview renders without any network.

@@ -1,5 +1,5 @@
 import { fn } from "storybook/test";
-import preview from "../../../../.storybook/preview";
+import preview from "../../../.storybook/preview";
 import { MediaFileCard } from "./MediaFileCard";
 
 const meta = preview.meta({

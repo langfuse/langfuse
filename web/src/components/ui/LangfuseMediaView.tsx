@@ -19,7 +19,7 @@ import {
   type MediaReturnType,
 } from "@/src/features/media/validation";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
-import { MediaFileCard } from "@/src/components/ui/media/MediaFileCard";
+import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
