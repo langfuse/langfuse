@@ -11,9 +11,14 @@ import {
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
-import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import {
+  gunzipOtelRequestBody,
+  handleOtelRequestBodyTooLarge,
+  OtelRequestBodyTooLargeError,
+  readOtelRequestBody,
+} from "@/src/server/otel/otelRequestBody";
 
 export const config = {
   api: {
@@ -38,32 +43,30 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
-      let body: Buffer;
-      try {
-        body = await new Promise((resolve, reject) => {
-          let data: any[] = [];
-          req.on("data", (chunk) => data.push(chunk));
-          req.on("end", () => resolve(Buffer.concat(data)));
-          req.on("error", reject);
-        });
-      } catch (e) {
-        logger.error(`Failed to read request body`, e);
-        res.status(400);
-        return { error: "Failed to read request body" };
-      }
+      const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
-      if (req.headers["content-encoding"]?.includes("gzip")) {
-        try {
-          body = await new Promise((resolve, reject) => {
-            gunzip(new Uint8Array(body), (err, result) =>
-              err ? reject(err) : resolve(result),
-            );
-          });
-        } catch (e) {
-          logger.error(`Failed to decompress request body`, e);
-          res.status(400);
-          return { error: "Failed to decompress request body" };
+      let body: Buffer;
+      let bodyFailureMessage = "Failed to read request body";
+      try {
+        body = await readOtelRequestBody(req, maxBodyBytes);
+
+        if (req.headers["content-encoding"]?.includes("gzip")) {
+          bodyFailureMessage = "Failed to decompress request body";
+          body = await gunzipOtelRequestBody(body, maxBodyBytes);
         }
+      } catch (error) {
+        if (error instanceof OtelRequestBodyTooLargeError) {
+          return handleOtelRequestBodyTooLarge(
+            error,
+            req,
+            res,
+            auth.scope.projectId,
+          );
+        }
+
+        logger.error(bodyFailureMessage, error);
+        res.status(400);
+        return { error: bodyFailureMessage };
       }
 
       let resourceSpans: any;
