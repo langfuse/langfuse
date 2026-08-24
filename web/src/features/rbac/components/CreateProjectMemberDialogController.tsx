@@ -76,6 +76,8 @@ export function CreateProjectMemberDialogController({
   const utils = api.useUtils();
   const createProjectMemberMutation = api.members.create.useMutation({
     onSuccess: () => utils.members.invalidate(),
+    // The form owns error presentation; avoid a duplicate global toast.
+    onError: () => undefined,
   });
   const usageLimit =
     typeof orgMemberLimit === "number"
