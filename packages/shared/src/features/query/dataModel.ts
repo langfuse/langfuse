@@ -725,7 +725,17 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     sql: "scores.session_id",
     alias: "sessionId",
     type: "string",
-    description: "Identifier of the session.",
+    description:
+      "Session the score is directly attached to (session-level scores only).",
+    highCardinality: true,
+  },
+  traceSessionId: {
+    sql: "nullIf(events_traces.session_id, '')",
+    alias: "traceSessionId",
+    type: "string",
+    relationTable: "events_traces",
+    description:
+      "Session of the parent trace (for trace- and observation-level scores).",
     highCardinality: true,
   },
   // Run-level scores (dataset_run_id on scores table). Used by experiment

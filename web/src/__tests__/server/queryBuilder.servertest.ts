@@ -5287,6 +5287,71 @@ describe("query builder measure-aggregation validation", () => {
     });
   });
 
+  describe("v2 scores sessionId vs traceSessionId dimensions", () => {
+    it("should resolve traceSessionId via the events_traces join and keep sessionId on the scores table", async () => {
+      const projectId = randomUUID();
+
+      // sessionId: trace/observation scores never populate scores.session_id
+      // (only session-level scores do), so it must not pull in the events_traces
+      // join and must filter the scores table directly.
+      const sessionIdBuilder = new QueryBuilder(undefined, "v2");
+      const { query: sessionIdQuery } = await sessionIdBuilder.build(
+        {
+          view: "scores-numeric",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "sessionId",
+              operator: "=",
+              value: "session-1",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            Date.now() - 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          toTimestamp: new Date(Date.now()).toISOString(),
+          orderBy: null,
+        },
+        projectId,
+      );
+      expect(sessionIdQuery).toContain("scores.session_id");
+      expect(sessionIdQuery).not.toContain("JOIN events_core");
+
+      // traceSessionId: resolves the parent trace's session via the
+      // events_traces join, matching v3's sessionId semantics.
+      const traceSessionIdBuilder = new QueryBuilder(undefined, "v2");
+      const { query: traceSessionIdQuery } = await traceSessionIdBuilder.build(
+        {
+          view: "scores-numeric",
+          dimensions: [],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "traceSessionId",
+              operator: "=",
+              value: "session-1",
+              type: "string",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            Date.now() - 7 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+          toTimestamp: new Date(Date.now()).toISOString(),
+          orderBy: null,
+        },
+        projectId,
+      );
+      expect(traceSessionIdQuery).toContain(
+        "INNER JOIN events_core AS events_traces",
+      );
+      expect(traceSessionIdQuery).toContain("events_traces.session_id =");
+    });
+  });
+
   describe("rootEventCondition threshold gating", () => {
     const rootEventSubqueryPrefix =
       "IN (SELECT events_traces.trace_id FROM events_core events_traces";
