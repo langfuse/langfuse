@@ -47,7 +47,11 @@ export const promptVersionProcessor = async (
       action: event.action,
     });
 
-    // Process each trigger
+    // Process each trigger. Collect failures instead of swallowing them so
+    // that infra failures (e.g. a dropped webhook enqueue) still surface as
+    // a job failure and get retried by BullMQ, while a bad trigger doesn't
+    // block the remaining ones from being processed.
+    const triggerErrors: unknown[] = [];
     for (const trigger of triggers) {
       try {
         const eventMatches = matchesTriggerFilter(
@@ -109,7 +113,15 @@ export const promptVersionProcessor = async (
           `Error processing trigger ${trigger.id} for prompt ${event.promptId} for project ${event.projectId}: ${error}`,
         );
         // Continue processing other triggers instead of failing the entire operation
+        triggerErrors.push(error);
       }
+    }
+
+    if (triggerErrors.length > 0) {
+      throw new AggregateError(
+        triggerErrors,
+        `Failed to process ${triggerErrors.length} of ${triggers.length} trigger(s) for prompt ${event.promptId} for project ${event.projectId}`,
+      );
     }
   } catch (error) {
     logger.error(
@@ -177,24 +189,39 @@ async function enqueueAutomationAction({
   );
 
   // Queue to webhook processor (handles both webhook and Slack actions)
-  await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
-    timestamp: new Date(),
-    id: v4(),
-    payload: {
-      projectId,
-      automationId: automations[0].id,
-      executionId,
+  try {
+    await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
+      timestamp: new Date(),
+      id: v4(),
       payload: {
-        action: action as TriggerEventAction,
-        type: "prompt-version",
-        prompt: {
-          ...promptData,
-          prompt: jsonSchemaNullable.parse(promptData.prompt),
-          config: jsonSchemaNullable.parse(promptData.config),
+        projectId,
+        automationId: automations[0].id,
+        executionId,
+        payload: {
+          action: action as TriggerEventAction,
+          type: "prompt-version",
+          prompt: {
+            ...promptData,
+            prompt: jsonSchemaNullable.parse(promptData.prompt),
+            config: jsonSchemaNullable.parse(promptData.config),
+          },
+          ...(user ? { user } : {}),
         },
-        ...(user ? { user } : {}),
       },
-    },
-    name: QueueJobs.WebhookJob,
-  });
+      name: QueueJobs.WebhookJob,
+    });
+  } catch (error) {
+    // The execution row was already created as PENDING above. If enqueueing
+    // fails, mark it as ERROR so it doesn't stay stuck PENDING forever, and
+    // rethrow so the caller's retry mechanism applies.
+    await prisma.automationExecution.update({
+      where: { id: executionId, projectId },
+      data: {
+        status: ActionExecutionStatus.ERROR,
+        finishedAt: new Date(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+    });
+    throw error;
+  }
 }
