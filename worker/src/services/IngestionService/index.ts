@@ -155,6 +155,17 @@ function withSerializedEventByteLength(
   };
 }
 
+// Usage detail keys that represent reasoning/thinking tokens across
+// different provider integrations and OTel gen_ai semconv variants. Providers
+// bill these at the standard output token rate, so we fall back to the
+// model's "output" price when no price is defined for the exact key.
+const REASONING_TOKEN_USAGE_TYPE_ALIASES = new Set([
+  "reasoning_tokens",
+  "thoughts_tokens",
+  "output_reasoning_tokens",
+  "output_reasoning",
+]);
+
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -1658,7 +1669,15 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
+      const price =
+        modelPrices?.find((price) => price.usageType === key) ??
+        // Providers report reasoning tokens under a range of usage keys
+        // (OTel gen_ai semconv, provider-specific SDKs, etc.). If the model's
+        // price list has no entry for the exact key, price reasoning tokens
+        // like standard output tokens rather than leaving them uncosted.
+        (REASONING_TOKEN_USAGE_TYPE_ALIASES.has(key)
+          ? modelPrices?.find((price) => price.usageType === "output")
+          : undefined);
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);
