@@ -87,6 +87,7 @@ export const SetRuleEnabledSchema = RuleIdSchema.extend({
 export const RuleAssignmentSchema = RuleIdSchema.extend({
   evaluatorId: z.string(),
   variableMapping: observationVariableMappingList.nullable(),
+  enableRule: z.boolean().optional(),
 });
 
 export const RuleAssignmentIdSchema = RuleIdSchema.extend({
