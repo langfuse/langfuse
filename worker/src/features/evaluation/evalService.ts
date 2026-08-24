@@ -800,7 +800,7 @@ export const createEvalJobs = async ({
         jobConfigurationId: config.id,
         jobInputTraceId: event.traceId,
         jobInputDatasetItemId: datasetItem?.id ?? null,
-        jobInputObservationId: observationId ?? null,
+        jobInputObservationId: datasetItem ? (observationId ?? null) : null,
         data: {
           id: jobExecutionId,
           projectId: event.projectId,

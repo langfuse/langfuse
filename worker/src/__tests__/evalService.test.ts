@@ -799,6 +799,69 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       ).resolves.toBe(1);
     }, 10_000);
 
+    test("does not create duplicate 'trace' eval jobs when a dataset-run-item event carrying an observationId is delivered twice", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await upsertObservation({
+        id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+        type: "GENERATION",
+        start_time: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await createMigratedEvalConfig({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      // A dataset-run-item-upsert event carries an observationId even when it is
+      // evaluated against a TRACE-target rule, where no datasetItem is ever
+      // looked up. Delivering the same event twice must not create two rows.
+      const payload = {
+        projectId,
+        traceId,
+        datasetItemId: randomUUID(),
+        observationId,
+      };
+
+      await createEvalJobs({
+        sourceEventType: "dataset-run-item-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+      await createEvalJobs({
+        sourceEventType: "dataset-run-item-upsert",
+        event: payload,
+        jobTimestamp,
+      });
+
+      await expect(
+        prisma.jobExecution.count({ where: { projectId } }),
+      ).resolves.toBe(1);
+    }, 10_000);
+
     test("creates new 'dataset' eval job", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
