@@ -120,14 +120,15 @@ export default function Dataset() {
     scope: "evalJob:CUD",
   });
 
-  const evalTemplates = api.evals.latestTemplates.useQuery({
-    projectId,
-  });
+  const evalTemplates = api.evals.latestTemplates.useQuery(
+    { projectId },
+    { enabled: !isExperimentsBetaActive },
+  );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: hasEvalReadAccess && !!datasetId,
+      enabled: !isExperimentsBetaActive && hasEvalReadAccess && !!datasetId,
     },
   );
 
@@ -147,7 +148,6 @@ export default function Dataset() {
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
   });
-
   // Callback for preprocessing evaluator form values
   // For experiment evaluators, we only run on new data (not historic)
   const preprocessFormValues = useCallback((values: any) => values, []);
@@ -201,19 +201,6 @@ export default function Dataset() {
                   />
                 </DialogContent>
               </Dialog>
-
-              {hasEvalReadAccess && (
-                <div className="w-fit">
-                  <TemplateSelector
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    evalTemplates={evalTemplates.data?.templates ?? []}
-                    onConfigureTemplate={handleConfigureEvaluator}
-                    onSelectEvaluator={handleSelectEvaluator}
-                    disabled={!hasEvalWriteAccess}
-                  />
-                </div>
-              )}
             </>
           ),
         }}

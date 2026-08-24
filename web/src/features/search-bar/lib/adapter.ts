@@ -24,12 +24,13 @@ import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
+  EVENTS_FIELD_REGISTRY,
   isDanglingDotPrefix,
   negationIssue,
   operatorIssue,
-  resolveField,
   SCORE_COLUMNS,
   type FieldDef,
+  type FieldRegistry,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
 
@@ -139,17 +140,20 @@ type LowerContext = {
   searchTerms: string[];
   errors: string[];
   scoreTypes?: ScoreTypeContext;
+  registry: FieldRegistry;
 };
 
 export function astToFilterState(
   ast: ASTNode | null,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): AstToFilterStateResult {
   const ctx: LowerContext = {
     filters: [],
     searchTerms: [],
     errors: [],
     scoreTypes,
+    registry,
   };
 
   if (ast !== null) {
@@ -185,7 +189,11 @@ function lowerTopLevel(
       // committing it would silently set searchQuery to the prefix. Reject it
       // here so every commit path (typed Enter and structured pick) is gated.
       // Quoted text is an explicit literal search and is allowed.
-      if (!node.quoted && isDanglingDotPrefix(node.value)) {
+      if (!ctx.registry.allowFreeText) {
+        ctx.errors.push("Free-text search is not supported by this view");
+        return;
+      }
+      if (!node.quoted && isDanglingDotPrefix(node.value, ctx.registry)) {
         ctx.errors.push(
           `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
         );
@@ -232,7 +240,14 @@ function lowerFilterNode(
   negated: boolean,
   ctx: LowerContext,
 ): void {
-  lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
+  lowerFilter(
+    node,
+    negated,
+    ctx.filters,
+    ctx.errors,
+    ctx.scoreTypes,
+    ctx.registry,
+  );
 }
 
 function lowerFilter(
@@ -241,6 +256,7 @@ function lowerFilter(
   out: SingleEventsFilter[],
   errors: string[],
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
   if (node.values.length === 0) {
     // The parser already flags every empty-value FilterNode at this span — and
@@ -251,7 +267,7 @@ function lowerFilter(
     return;
   }
 
-  const ref = resolveField(node.key);
+  const ref = registry.resolveField(node.key);
   if (ref === null) {
     errors.push(`Unknown field "${node.key}"`);
     return;
@@ -273,7 +289,7 @@ function lowerFilter(
   switch (ref.type) {
     case "pseudo":
       // `has` is the only pseudo-field.
-      lowerHas(node, negated, out, errors);
+      lowerHas(node, negated, out, errors, registry);
       return;
     case "metadata":
       lowerMetadata(node, ref.key, negated, out, errors);
@@ -794,6 +810,7 @@ function lowerHas(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  registry: FieldRegistry,
 ): void {
   if (node.values.length > 1 && !negated) {
     // has:(a OR b) would be an OR of null checks — not flat. The negated
@@ -804,7 +821,7 @@ function lowerHas(
     return;
   }
   for (const v of node.values) {
-    const target = resolveField(v);
+    const target = registry.resolveField(v);
     if (target === null || target.type !== "field") {
       errors.push(`has: expects a field name, got "${v}"`);
       continue;

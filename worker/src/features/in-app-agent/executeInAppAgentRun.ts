@@ -33,6 +33,7 @@ import {
 import {
   getInAppAgentModelConfig,
   isInAppAgentInstanceEnabled,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
 } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   claimQueuedRun,
@@ -203,9 +204,7 @@ export async function executeInAppAgentRun(params: {
     const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
     if (!modelConfig) {
-      throw new InAppAgentRunInitError(
-        "In-app agent Bedrock model is not configured",
-      );
+      throw new InAppAgentRunInitError(LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE);
     }
 
     const useBundledPrompt =

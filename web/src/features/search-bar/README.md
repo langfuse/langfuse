@@ -1,13 +1,13 @@
-# Search Bar (Observations v4)
+# Search Bar
 
-Grammar-based query bar for the observations (v4 events) table. It does NOT
-replace the facet sidebar — it is an ADDITIONAL keyboard-driven editor that
-coexists with the sidebar and stays in sync with it. The facet
-sidebar's `FilterState` (+ the table's full-text search) remains the single
-source of truth; the bar reads from and writes to it. Only the legacy toolbar
-search field is replaced (full-text search goes inline in the bar).
-Generally available on the v4 events tables (no opt-in). Based on the
-`langfuse-search-bar` prototype.
+Grammar-based query bar shared by the observations (v4 events) table and
+evaluation-rule observation filters. On the events table it does NOT replace
+the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
+with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
+(+ the table's full-text search) remains the single source of truth; the bar
+reads from and writes to it. Only the legacy toolbar search field is replaced
+(full-text search goes inline in the bar). Generally available on the v4 events
+tables (no opt-in). Based on the `langfuse-search-bar` prototype.
 
 ## Enablement
 
@@ -278,11 +278,15 @@ traces table). Self-hosted uses Ask AI on this bar only.
   blur-to-exit — leaving is explicit so a stray click never loses your prompt).
 - **The endpoint.** `server/router.ts` (`searchBar.generateFilter`), NOT the
   legacy `naturalLanguageFilters.createCompletion`. Its prompt is built from
-  THIS registry (`server/buildFilterPrompt.ts`, derived from `FIELDS` +
-  `SCORE_COLUMNS`), so the model's vocabulary IS the grammar. It asks for a flat
-  `FilterState` (an array of `singleFilter`), then **round-trips it through
+  the selected view's `FieldRegistry` (`server/buildFilterPrompt.ts`), so the
+  model's vocabulary IS that view's grammar. The events registry compiles the
+  managed `search-bar-filter` prompt with its catalog; other registries use
+  their registry-derived local prompt until they have a managed prompt of their
+  own. Observed-value grounding is selected from the same registry, so it cannot
+  advertise columns the view rejects. The endpoint asks for a flat `FilterState`
+  (an array of `singleFilter`), then **round-trips it through
   `filterStateToQueryText` server-side and returns only the filters that lower
-  to bar pills** — a hallucinated/non-v4 column lands in `skippedFilters` and is
+  to bar pills** — a hallucinated/unsupported column lands in `skippedFilters` and is
   dropped before it reaches the client. A unit test
   (`__tests__/server/unit/searchBarFilterPrompt.servertest.ts`) asserts every
   field's prompt-recommended `type` round-trips, so the prompt can't drift from
@@ -350,7 +354,7 @@ analysis is deferred (until CH26), so `metadata.` completions are fed
 The bar is intended to become the primary filter interface for **every**
 filterable view, not just the v4 events table. That is cheap _by design_ — but
 only if new views extend it through the seam below instead of forking the
-grammar. Read this before adding a second view.
+grammar. Read this before adding another view.
 
 **Why it's cheap: the back half is already universal.** Langfuse has ~15
 filterable views (traces, sessions, observations, events v4, scores, prompts,
@@ -373,23 +377,23 @@ lowering, the URL contract, and the facet sidebar are **already shared** with
 the bar. The only thing forked per view is the **front half**: the field
 registry + grammar + value validation. Keep it that way.
 
-**The seam to open before the 2nd view.** Today `FIELDS` is a module-level const
-hardcoded to `eventsTableCols`, and `resolveField`/`operatorIssue` close over
-it. Multi-view requires making the registry an **injected parameter** of the
-grammar — parser, validator, adapter, and completion planner take a
-`FieldRegistry` instead of importing the const. This is the one structural
-refactor; everything after it is data, not code.
+**The multi-view seam is implemented.** Parser, validator, adapter, reverse
+adapter, serializer, completion planner, token projection, store, and AI prompt
+all take an injected `FieldRegistry`. `EVENTS_FIELD_REGISTRY` remains the default
+for existing call sites; evaluation rules pass `RULE_FIELD_REGISTRY`, which is
+derived from the same `eventsEvalFilterColumns` used by backend validation.
 
 **Recipe to add the bar to a view:**
 
 1. **Derive the field registry from that view's `ColumnDefinition[]`** — do NOT
    hand-author a second 47-entry list. ~70% is mechanical: `type → kind`
    (`number`/`datetime`/`boolean` map directly, everything else → `text`),
-   `nullable`, `options → observed values`, `unit`. Write a
-   `fieldRegistryFromColumns(cols)` helper.
+   `nullable`, `options → observed values`, `unit`. Use the existing
+   `fieldRegistryFromColumns(cols, overlay)` helper.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
-   user-facing **aliases** (`env`, `tags`, `ttft`), **dot-path roots**
+   user-facing **field aliases** (`env`, `tags`, `ttft`), **inline filter
+   aliases/macros**, **AI context fields**, **dot-path roots**
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
    declarative.
@@ -413,10 +417,8 @@ reserved token to one, add it to the other, or the round-trip test fails),
 operator precedence, and the `has:` pseudo-field. These are language, not
 data — a new view inherits them unchanged.
 
-**Do not couple to `ColumnDefinition` speculatively.** Build the derivation +
-overlay when the first real second view lands, validated against that consumer —
-not ahead of it (the same no-half-finished rule that removed the prototype's
-unused planners).
+**Do not add speculative registries.** Build each derivation + overlay with a
+real consumer and validate it against that view's backend filter contract.
 
 ## Hardening before default-on
 
@@ -440,12 +442,9 @@ unused planners).
     the parser rejects. Verified to fail when that fix is reverted.)
 
   The harness is **pure and registry-shaped**: it generates the matrix from the
-  passed `view.fields`, so it auto-covers added/changed fields, and a second
+  passed `view.registry`, so it auto-covers added/changed fields. Each
   filterable view gets the same coverage by adding one block to the
-  `.clienttest.ts` with its registry — see "Extending to other views". When the
-  grammar is parameterized over an injected registry, thread `view.registry`
-  into the harness's parse/validate/lower calls; the generators and assertions
-  do not change.
+  `.clienttest.ts` with its registry — see "Extending to other views".
 
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`

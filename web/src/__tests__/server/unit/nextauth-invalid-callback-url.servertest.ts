@@ -1,10 +1,38 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
-const { mockNextAuth, mockGetAuthOptions } = vi.hoisted(() => ({
-  mockNextAuth: vi.fn(async (_req: unknown, res: any) => res.status(200).end()),
-  mockGetAuthOptions: vi.fn(async () => ({})),
-}));
+type NextAuthRequestSnapshot = Pick<NextApiRequest, "query" | "cookies">;
+
+const {
+  mockNextAuth,
+  mockGetAuthOptions,
+  mockLoggerWarn,
+  mockNextAuthRequestSnapshot,
+} = vi.hoisted(() => {
+  const mockNextAuthRequestSnapshot =
+    vi.fn<(snapshot: NextAuthRequestSnapshot) => void>();
+  const mockNextAuth = vi.fn(
+    async (req: NextApiRequest, res: NextApiResponse) => {
+      mockNextAuthRequestSnapshot({
+        query: Object.fromEntries(
+          Object.entries(req.query).map(([key, value]) => [
+            key,
+            Array.isArray(value) ? [...value] : value,
+          ]),
+        ),
+        cookies: { ...req.cookies },
+      });
+      res.status(200).end();
+    },
+  );
+
+  return {
+    mockNextAuth,
+    mockGetAuthOptions: vi.fn(async () => ({})),
+    mockLoggerWarn: vi.fn(),
+    mockNextAuthRequestSnapshot,
+  };
+});
 
 vi.mock("next-auth", () => ({ default: mockNextAuth }));
 
@@ -17,7 +45,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
-    warn: vi.fn(),
+    warn: mockLoggerWarn,
     error: vi.fn(),
   },
   ClickHouseClientManager: {
@@ -39,6 +67,13 @@ vi.mock("@/src/env.mjs", () => ({
 
 import handler from "@/src/pages/api/auth/[...nextauth]";
 
+const callbackUrlCookieName = "next-auth.callback-url";
+
+const getNextAuthRequest = (): NextAuthRequestSnapshot => {
+  expect(mockNextAuthRequestSnapshot).toHaveBeenCalledTimes(1);
+  return mockNextAuthRequestSnapshot.mock.calls[0]![0];
+};
+
 const callHandler = async (options: Parameters<typeof createMocks>[0] = {}) => {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
     method: "GET",
@@ -46,7 +81,7 @@ const callHandler = async (options: Parameters<typeof createMocks>[0] = {}) => {
     ...options,
   });
   await handler(req, res);
-  return { req, res };
+  return { res };
 };
 
 describe("[...nextauth] invalid callbackUrl handling", () => {
@@ -122,6 +157,9 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().query.callbackUrl).toBe(
+      "https://cloud.langfuse.com/project/abc",
+    );
   });
 
   it("passes through a relative callbackUrl", async () => {
@@ -134,6 +172,7 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().query.callbackUrl).toBe("/project/abc");
   });
 
   it("passes through a valid callback-url cookie", async () => {
@@ -143,6 +182,9 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().cookies[callbackUrlCookieName]).toBe(
+      "https://cloud.langfuse.com",
+    );
   });
 
   it("passes through when no callbackUrl is present", async () => {
@@ -150,6 +192,8 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().query.callbackUrl).toBeUndefined();
+    expect(getNextAuthRequest().cookies[callbackUrlCookieName]).toBeUndefined();
   });
 
   it("passes through an empty callbackUrl query param (next-auth treats it as absent)", async () => {
@@ -159,6 +203,7 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().query.callbackUrl).toBe("");
   });
 
   it("passes through an empty callback-url cookie (next-auth treats it as absent)", async () => {
@@ -168,15 +213,58 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().cookies[callbackUrlCookieName]).toBe("");
   });
 
-  it("passes an invalid callbackUrl through on GET signin (next-auth redirects to its error page instead of 500ing)", async () => {
+  it("removes an invalid callbackUrl before passing GET signin to next-auth", async () => {
     const { res } = await callHandler({
       query: { nextauth: ["signin"], callbackUrl: "www.example.com/foo" },
     });
 
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
+    expect(getNextAuthRequest().query.callbackUrl).toBeUndefined();
+  });
+
+  it("removes invalid callbackUrl query and cookie independently before GET signin", async () => {
+    const { res } = await callHandler({
+      query: {
+        nextauth: ["signin"],
+        callbackUrl: ["https://evil.com", "/home"],
+      },
+      cookies: { [callbackUrlCookieName]: "https://evil.com%0d%0a" },
+    });
+
+    expect(res._getStatusCode()).toBe(200);
+    const nextAuthRequest = getNextAuthRequest();
+    expect(nextAuthRequest.query.callbackUrl).toBeUndefined();
+    expect(nextAuthRequest.cookies[callbackUrlCookieName]).toBeUndefined();
+    expect(mockLoggerWarn).toHaveBeenCalledTimes(2);
+
+    const warningMetadata = mockLoggerWarn.mock.calls.map(
+      ([message, metadata]) => {
+        expect(message).toBe("[NEXT_AUTH] Invalid callback URL");
+        expect(Object.keys(metadata).sort()).toEqual(
+          ["action", "path", "inputSource", "valueType"].sort(),
+        );
+        expect(JSON.stringify(metadata)).not.toContain("evil.com");
+        return metadata;
+      },
+    );
+    expect(warningMetadata).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "signin",
+          inputSource: "query",
+          valueType: "array",
+        }),
+        expect.objectContaining({
+          action: "signin",
+          inputSource: "cookie",
+          valueType: "string",
+        }),
+      ]),
+    );
   });
 
   it("rejects an invalid callbackUrl on POST signin with 400 (no HTML error-page carve-out for POST)", async () => {

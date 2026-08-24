@@ -5,8 +5,8 @@ import {
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  organizationFormSchema,
   organizationOptionalNameSchema,
-  organizationNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -176,7 +176,7 @@ export const organizationsRouter = createTRPCRouter({
       };
     }),
   create: authenticatedProcedure
-    .input(organizationNameSchema)
+    .input(organizationFormSchema)
     .mutation(async ({ input, ctx }) => {
       if (!ctx.session.user.canCreateOrganizations)
         throw new TRPCError({
@@ -198,6 +198,7 @@ export const organizationsRouter = createTRPCRouter({
         const organization = await tx.organization.create({
           data: {
             name: input.name,
+            aiFeaturesEnabled: input.aiFeaturesEnabled,
             organizationMemberships: {
               create: {
                 userId: ctx.session.user.id,

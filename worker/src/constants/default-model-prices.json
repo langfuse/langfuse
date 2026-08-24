@@ -5761,7 +5761,7 @@
     "modelName": "gpt-5.6-sol",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-sol)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-20T00:00:00.000Z",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -5776,16 +5776,16 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 5e-6,
-          "input_cached_tokens": 0.5e-6,
-          "input_cache_read": 0.5e-6,
-          "cache_read_input_tokens": 0.5e-6,
-          "input_cache_creation": 6.25e-6,
-          "cache_write_tokens": 6.25e-6,
-          "output": 30e-6,
-          "output_reasoning_tokens": 30e-6,
-          "output_reasoning": 30e-6,
-          "reasoning_tokens": 30e-6
+          "input": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "output": 20e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "reasoning_tokens": 20e-6
         }
       },
       {
@@ -5808,16 +5808,16 @@
           }
         ],
         "prices": {
-          "input": 20e-6,
-          "input_cached_tokens": 2e-6,
-          "input_cache_read": 2e-6,
-          "cache_read_input_tokens": 2e-6,
-          "input_cache_creation": 25e-6,
-          "cache_write_tokens": 25e-6,
-          "output": 90e-6,
-          "output_reasoning_tokens": 90e-6,
-          "output_reasoning": 90e-6,
-          "reasoning_tokens": 90e-6
+          "input": 16e-6,
+          "input_cached_tokens": 1.6e-6,
+          "input_cache_read": 1.6e-6,
+          "cache_read_input_tokens": 1.6e-6,
+          "input_cache_creation": 20e-6,
+          "cache_write_tokens": 20e-6,
+          "output": 60e-6,
+          "output_reasoning_tokens": 60e-6,
+          "output_reasoning": 60e-6,
+          "reasoning_tokens": 60e-6
         }
       },
       {
@@ -5840,16 +5840,16 @@
           }
         ],
         "prices": {
-          "input": 5e-6,
-          "input_cached_tokens": 0.5e-6,
-          "input_cache_read": 0.5e-6,
-          "cache_read_input_tokens": 0.5e-6,
-          "input_cache_creation": 6.25e-6,
-          "cache_write_tokens": 6.25e-6,
-          "output": 22.5e-6,
-          "output_reasoning_tokens": 22.5e-6,
-          "output_reasoning": 22.5e-6,
-          "reasoning_tokens": 22.5e-6
+          "input": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
         }
       },
       {
@@ -5866,16 +5866,16 @@
           }
         ],
         "prices": {
-          "input": 10e-6,
-          "input_cached_tokens": 1e-6,
-          "input_cache_read": 1e-6,
-          "cache_read_input_tokens": 1e-6,
-          "input_cache_creation": 12.5e-6,
-          "cache_write_tokens": 12.5e-6,
-          "output": 60e-6,
-          "output_reasoning_tokens": 60e-6,
-          "output_reasoning": 60e-6,
-          "reasoning_tokens": 60e-6
+          "input": 8e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "output": 40e-6,
+          "output_reasoning_tokens": 40e-6,
+          "output_reasoning": 40e-6,
+          "reasoning_tokens": 40e-6
         }
       },
       {
@@ -5892,16 +5892,16 @@
           }
         ],
         "prices": {
-          "input": 2.5e-6,
-          "input_cached_tokens": 0.25e-6,
-          "input_cache_read": 0.25e-6,
-          "cache_read_input_tokens": 0.25e-6,
-          "input_cache_creation": 3.125e-6,
-          "cache_write_tokens": 3.125e-6,
-          "output": 15e-6,
-          "output_reasoning_tokens": 15e-6,
-          "output_reasoning": 15e-6,
-          "reasoning_tokens": 15e-6
+          "input": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "output": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
         }
       },
       {
@@ -5918,16 +5918,16 @@
           }
         ],
         "prices": {
-          "input": 10e-6,
-          "input_cached_tokens": 1e-6,
-          "input_cache_read": 1e-6,
-          "cache_read_input_tokens": 1e-6,
-          "input_cache_creation": 12.5e-6,
-          "cache_write_tokens": 12.5e-6,
-          "output": 45e-6,
-          "output_reasoning_tokens": 45e-6,
-          "output_reasoning": 45e-6,
-          "reasoning_tokens": 45e-6
+          "input": 8e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
         }
       }
     ]

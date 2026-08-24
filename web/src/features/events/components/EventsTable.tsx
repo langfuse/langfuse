@@ -154,6 +154,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type EventsTableRow = {
   // Identity fields
@@ -1079,9 +1080,8 @@ export default function ObservationsEventsTable({
       id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
-      description: "Add selected observations to an annotation queue.",
-      targetLabel: "Annotation Queue",
-      execute: handleAddToAnnotationQueue,
+      description: `Add ${itemCountDisplay} selected observations to an annotation queue.`,
+      customDialog: true,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -2143,25 +2143,49 @@ export default function ObservationsEventsTable({
                 />,
                 !chartActive &&
                 (selectedObservationIds.length > 0 || selectAll) ? (
-                  <TableActionMenu
+                  <AddTracesToAnnotationQueueDialogController
                     key="observations-multi-select-actions"
                     projectId={projectId}
-                    actions={tableActions}
-                    tableName={BatchExportTableName.Observations}
-                    selectedCount={selectedObservationCount}
-                    onClearSelection={() => {
+                    actionId={ActionId.ObservationAddToAnnotationQueue}
+                    tableName={BatchExportTableName.Events}
+                    alternateTableName={BatchExportTableName.Observations}
+                    objectLabel="observations"
+                    description={`Add ${itemCountDisplay} selected observations to an annotation queue.`}
+                    onAddToQueue={handleAddToAnnotationQueue}
+                    onSuccess={() => {
                       setSelectedRows({});
                       setSelectAll(false);
                     }}
-                    onCustomAction={(actionType) => {
-                      if (actionType === ActionId.ObservationBatchEvaluation) {
-                        setShowRunEvaluationDialog(true);
-                      }
-                      if (actionType === ActionId.ObservationAddToDataset) {
-                        setShowAddToDatasetDialog(true);
-                      }
-                    }}
-                  />
+                  >
+                    {({ openDialog }) => (
+                      <TableActionMenu
+                        projectId={projectId}
+                        actions={tableActions}
+                        tableName={BatchExportTableName.Observations}
+                        selectedCount={selectedObservationCount}
+                        onClearSelection={() => {
+                          setSelectedRows({});
+                          setSelectAll(false);
+                        }}
+                        onCustomAction={(actionType) => {
+                          if (
+                            actionType ===
+                            ActionId.ObservationAddToAnnotationQueue
+                          ) {
+                            openDialog();
+                          }
+                          if (
+                            actionType === ActionId.ObservationBatchEvaluation
+                          ) {
+                            setShowRunEvaluationDialog(true);
+                          }
+                          if (actionType === ActionId.ObservationAddToDataset) {
+                            setShowAddToDatasetDialog(true);
+                          }
+                        }}
+                      />
+                    )}
+                  </AddTracesToAnnotationQueueDialogController>
                 ) : null,
               ]}
               // No row selection in chart mode — the table (and its select-all
