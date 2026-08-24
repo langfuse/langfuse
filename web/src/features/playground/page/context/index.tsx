@@ -845,7 +845,7 @@ async function getChatCompletionWithStructuredOutput(
   }
 }
 
-async function* getChatCompletionStream(
+export async function* getChatCompletionStream(
   projectId: string | undefined,
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
@@ -895,10 +895,17 @@ async function* getChatCompletionStream(
       const { done, value } = await reader.read();
       if (done) break;
 
-      const token = decoder.decode(value);
+      // `stream: true` keeps a trailing incomplete UTF-8 sequence buffered
+      // until the next chunk. Without it a multi-byte character split across
+      // two network chunks decodes to replacement characters.
+      const token = decoder.decode(value, { stream: true });
 
       yield token;
     }
+
+    // Flush any bytes the decoder held back from the final chunk.
+    const tail = decoder.decode();
+    if (tail) yield tail;
   } catch (error) {
     throw error;
   } finally {
