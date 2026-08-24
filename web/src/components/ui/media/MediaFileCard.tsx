@@ -42,10 +42,18 @@ export function MediaFileCard({
       className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 shrink-0 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
     >
       <Icon className="h-5 w-5 transition-transform group-hover:scale-110" />
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-sm font-bold">{fileExtension}</span>
-        <span className="text-muted-foreground text-xs">
-          {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
+      <div className="flex w-full min-w-0 flex-col items-center gap-1">
+        <span
+          className="w-full truncate text-sm font-bold"
+          title={fileExtension}
+        >
+          {fileExtension}
+        </span>
+        <span
+          className="text-muted-foreground w-full truncate text-xs"
+          title={fileName}
+        >
+          {fileName}
         </span>
       </div>
     </button>
