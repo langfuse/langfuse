@@ -404,7 +404,7 @@ export function EvaluatorSavedDialogContainer({
             />
             {selectedRule.assignments.length > 0 ? (
               <p className="text-muted-foreground text-sm">
-                Already assigned to this rule:{" "}
+                Already attached to:{" "}
                 {selectedRule.assignments
                   .map(({ evaluator }) => evaluator.name)
                   .join(", ")}
