@@ -23,8 +23,8 @@ export const RoleSelectItem = ({
   role: Role;
   isProjectRole?: boolean;
 }) => {
-  const isProjectNoneRole = role === Role.NONE && isProjectRole;
-  const isOrgNoneRole = role === Role.NONE && !isProjectRole;
+  const isProjectNoneRole = role === "NONE" && isProjectRole;
+  const isOrgNoneRole = role === "NONE" && !isProjectRole;
   const orgScopes = reduceScopesToListItems(organizationRoleAccessRights, role);
   const projectScopes = reduceScopesToListItems(projectRoleAccessRights, role);
 
