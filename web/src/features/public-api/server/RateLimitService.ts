@@ -10,9 +10,9 @@ import {
   type Plan,
 } from "@langfuse/shared";
 // PROTOTYPE(LFE-15038): rate limiting also accepts the new path's context
-import { coveringOrg } from "@/src/features/auth/policy/enforce.prototype";
 import {
   type AuthorizationContext,
+  type PrincipalOrganization,
   type Resource,
 } from "@/src/features/auth/policy/policy.prototype";
 import {
@@ -219,7 +219,7 @@ export type RateLimitRequestParams = {
 function rateLimitScopeOf(
   p: RateLimitRequestParams,
 ): RateLimitScope | undefined {
-  const org = coveringOrg(p.context, p);
+  const org = coveringOrgOf(p.context, p);
   if (!org) {
     return undefined;
   }
@@ -229,6 +229,19 @@ function rateLimitScopeOf(
     rateLimitOverrides: org.rateLimitConfig,
   };
 }
+
+/** coveringOrgOf returns the principal organization covering the target, when one exists. */
+const coveringOrgOf = (
+  context: AuthorizationContext,
+  target: Resource,
+): PrincipalOrganization | undefined =>
+  context.principal.kind === "admin"
+    ? undefined
+    : context.principal.organizations.find((o) =>
+        "orgId" in target
+          ? o.orgId === target.orgId
+          : o.projectIds.includes(target.projectId),
+      );
 
 export class RateLimitHelper {
   res: RateLimitResult | undefined;

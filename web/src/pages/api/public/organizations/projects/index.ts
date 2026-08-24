@@ -37,12 +37,12 @@ export default async function handler(
   // on the span while legacy keeps gating, enforce acts on it below
   const authz = await enforceOrgAuth({
     headers: req.headers,
-    action: "project:read",
+    action: "projects:read",
   });
 
   let orgId: string;
   if (authzMigrationMode === "shadow") {
-    tagAuthzOutcome(authz);
+    tagAuthzOutcome(authz, "projects:read");
 
     // legacy gate, restored verbatim (dies with LFE-15033)
     const authCheck = await new ApiAuthService(

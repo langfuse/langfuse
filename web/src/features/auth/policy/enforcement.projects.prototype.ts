@@ -18,7 +18,6 @@ import {
 } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   authorize,
-  type Access,
   type AuthorizationContext,
   type ErrorResult,
   type ProjectAction,
@@ -58,7 +57,7 @@ export async function enforceProjectAuth(params: {
   if (!decision.success) {
     return { success: false, error: decision.error };
   }
-  return { success: true, context, projectId, access: decision.access };
+  return { success: true, context, projectId };
 }
 
 /** createAuthedProjectAPIRoute is the migration seam over the legacy factory: same config plus an optional action, evaluated before legacy auth so every request is observed. */
@@ -82,7 +81,7 @@ export const createAuthedProjectAPIRoute = <
       action: routeConfig.action,
     });
     if (authzMigrationMode === "shadow") {
-      tagAuthzOutcome(result);
+      tagAuthzOutcome(result, routeConfig.action);
       return legacyHandler(req, res);
     }
     if (!result.success) {
@@ -131,11 +130,10 @@ function boundProjectIdOf(context: AuthorizationContext): string | undefined {
   return undefined;
 }
 
-/** ProjectAccessResult is the project seam's success outcome: the resolved context and target with the residual access. */
+/** ProjectAccessResult is the project seam's success outcome: the resolved context and target. */
 type ProjectAccessResult = Success & {
   context: AuthorizationContext;
   projectId: string;
-  access?: Access;
 };
 
 /** ResolvedProject is project target resolution's success outcome. */

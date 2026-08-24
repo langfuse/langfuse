@@ -5,7 +5,7 @@ import { type Session } from "next-auth";
 import { useSession } from "next-auth/react";
 // PROTOTYPE(LFE-15038): policy-core overload, proven unambiguous by typecheck
 import {
-  mustAuthorize,
+  authorize,
   type AuthorizationContext,
   type ProjectAction,
 } from "@/src/features/auth/policy/policy.prototype";
@@ -34,7 +34,8 @@ export function throwIfNoProjectAccess(
   p: HasProjectAccessParams | PolicyProjectAccessParams,
 ): void {
   if ("context" in p) {
-    mustAuthorize(p.context, p.action, { projectId: p.projectId });
+    const decision = authorize(p.context, p.action, { projectId: p.projectId });
+    if (!decision.success) throw decision.error;
     return;
   }
   if (!hasProjectAccess(p))

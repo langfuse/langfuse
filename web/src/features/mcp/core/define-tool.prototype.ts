@@ -10,7 +10,7 @@ import { z } from "zod";
 
 import { UnauthorizedError } from "@langfuse/shared";
 import {
-  mustAuthorize,
+  authorize,
   type ProjectAction,
 } from "@/src/features/auth/policy/policy.prototype";
 import {
@@ -46,7 +46,10 @@ export function defineAuthorizedTool<TInput, const TName extends string>(
 function assertToolAccess(action: ProjectAction, context: ServerContext): void {
   if (!context.authz)
     throw new UnauthorizedError("No authorization context on MCP request");
-  mustAuthorize(context.authz, action, { projectId: context.projectId });
+  const decision = authorize(context.authz, action, {
+    projectId: context.projectId,
+  });
+  if (!decision.success) throw decision.error;
 }
 
 if (import.meta.vitest) {

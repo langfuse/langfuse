@@ -17,7 +17,6 @@ import {
 import { getCurrentSpan } from "@langfuse/shared/src/server";
 import {
   authorize,
-  type Access,
   type Action,
   type AuthorizationContext,
   type ErrorResult,
@@ -56,7 +55,7 @@ export async function enforceOrgAuth(params: {
   if (!decision.success) {
     return { success: false, error: decision.error };
   }
-  return { success: true, context, orgId, access: decision.access };
+  return { success: true, context, orgId };
 }
 
 /** getOrgId resolves the target org as `header ?? boundResource ?? 400`: disagreement 400s; coverage is the PDP's question. */
@@ -89,6 +88,7 @@ function getOrgId(
 /** tagAuthzOutcome stamps the shadow decision onto the active http.server span, where legacy's status code also lands. */
 export function tagAuthzOutcome(
   result: TaggableAccessResult | ErrorResult<AuthError>,
+  action: Action | undefined,
 ) {
   const span = getCurrentSpan();
   if (!span) {
@@ -97,7 +97,7 @@ export function tagAuthzOutcome(
   // attribute names are placeholders — the parity contract is LFE-15034's
   if (result.success) {
     span.setAttribute("langfuse.authz.decision", "allow");
-    span.setAttribute("langfuse.authz.action", result.access?.action ?? "none");
+    span.setAttribute("langfuse.authz.action", action ?? "none");
     if ("projectId" in result) {
       span.setAttribute("langfuse.authz.projectId", result.projectId);
       return;
@@ -121,11 +121,10 @@ function boundOrgIdOf(context: AuthorizationContext): string | undefined {
   return undefined;
 }
 
-/** OrgAccessResult is the org seam's success outcome: the resolved context and target with the residual access. */
+/** OrgAccessResult is the org seam's success outcome: the resolved context and target. */
 export type OrgAccessResult = Success & {
   context: AuthorizationContext;
   orgId: string;
-  access?: Access;
 };
 
 /** AuthError enumerates the new pipeline's failures: bad credential, bad or missing target, ungranted action. */
@@ -134,8 +133,8 @@ export type AuthError = UnauthorizedError | InvalidRequestError | ForbiddenError
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
 
-/** TaggableAccessResult is either seam's success outcome as the span tagger sees it: the resolved target with the residual access. */
-type TaggableAccessResult = Success & { access?: Access } & (
+/** TaggableAccessResult is either seam's success outcome as the span tagger sees it: the resolved target. */
+type TaggableAccessResult = Success & (
     | { projectId: string }
     | { orgId: string }
   );
