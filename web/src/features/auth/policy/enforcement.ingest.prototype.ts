@@ -11,6 +11,7 @@ import { type IncomingHttpHeaders } from "http";
 import { ForbiddenError } from "@langfuse/shared";
 import { getCurrentSpan } from "@langfuse/shared/src/server";
 import {
+  allProjectActions,
   authorize,
   systemRuleMessages,
   type AuthorizationContext,
@@ -216,7 +217,7 @@ if (import.meta.vitest) {
     },
     {
       kind: "project",
-      source: { kind: "system", rule: "mcp_disabled" },
+      source: { kind: "system", rule: "mcp_suspended" },
       actions: ["mcp:access"],
       resources: projectIds.map((projectId) => ({ projectId })),
       effect: "deny",
@@ -224,7 +225,7 @@ if (import.meta.vitest) {
   ];
 
   const projectKey = (
-    policies: Policy[] = [grantProject(["*"], [PRJ])],
+    policies: Policy[] = [grantProject(allProjectActions, [PRJ])],
   ): AuthorizationContext => ({
     principal: {
       kind: "apiKey",
@@ -239,7 +240,7 @@ if (import.meta.vitest) {
   const scoresKey = () => projectKey([grantProject(["scores:create"], [PRJ])]);
 
   const suspendedKey = () =>
-    projectKey([grantProject(["*"], [PRJ]), ...suspensionDenies([PRJ])]);
+    projectKey([grantProject(allProjectActions, [PRJ]), ...suspensionDenies([PRJ])]);
 
   describe("evaluateIngestionBatch", () => {
     const batch = [

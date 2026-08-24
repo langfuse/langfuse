@@ -23,20 +23,20 @@ import {
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
 
-/** wildcard matches any org, project, or action in a policy. */
-const wildcard = "*" as const;
+/** wildcard matches any resource in a policy. */
+export const wildcard = "*" as const;
 
-/** Wildcard is the type of the wildcard matcher literal. */
+/** Wildcard is the type of the wildcard resource matcher literal. */
 type Wildcard = typeof wildcard;
 
-/** SystemRule is a system-originated deny rule the PIP can attach. */
-type SystemRule = "ingestion_suspended" | "mcp_disabled";
+/** SystemRule is a system-originated deny rule the PIP attaches for an org entitlement suspension. */
+export type SystemRule = "ingestion_suspended" | "mcp_suspended";
 
 /** systemRuleMessages maps each system deny rule to the 403 message its endpoint throws. */
 export const systemRuleMessages: Record<SystemRule, string> = {
   ingestion_suspended:
     "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
-  mcp_disabled:
+  mcp_suspended:
     "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
 };
 
@@ -58,7 +58,7 @@ export const pendingProjectApiActions = [
 export type PendingProjectApiAction = (typeof pendingProjectApiActions)[number];
 
 /** ProjectAction is an action assignable to a project policy. */
-export type ProjectAction = ProjectScope | PendingProjectApiAction | Wildcard;
+export type ProjectAction = ProjectScope | PendingProjectApiAction;
 
 /** pendingOrganizationApiActions holds net-new org-level public-API tokens absent from organizationScopes. */
 export const pendingOrganizationApiActions = ["projects:read"] as const;
@@ -68,13 +68,22 @@ export type PendingOrganizationApiAction =
   (typeof pendingOrganizationApiActions)[number];
 
 /** OrganizationAction is an action assignable to an organization policy. */
-export type OrganizationAction =
-  | OrganizationScope
-  | PendingOrganizationApiAction
-  | Wildcard;
+export type OrganizationAction = OrganizationScope | PendingOrganizationApiAction;
 
 /** Action is any checkable action. */
 export type Action = ProjectAction | OrganizationAction;
+
+/** allProjectActions is the full project vocabulary — every project action, spelled out for grants that cover everything at project level. */
+export const allProjectActions: ProjectAction[] = [
+  ...projectScopes,
+  ...pendingProjectApiActions,
+];
+
+/** allOrganizationActions is the full org vocabulary — every org action. */
+export const allOrganizationActions: OrganizationAction[] = [
+  ...organizationScopes,
+  ...pendingOrganizationApiActions,
+];
 
 /** PrincipalOrganization carries the org's static caps the entitlement and rate-limit seams read: the resolved plan and its rate-limit config, not the billing blob. */
 export type PrincipalOrganization = {
@@ -96,7 +105,7 @@ export type Principal =
       boundResource?: Resource; // legacy single-target; absent on granular keys, which require the request header
     };
 
-/** Source describes where a policy came from. */
+/** Source describes where a policy came from: a role, an explicit grant, or a system suspension rule. */
 export type Source =
   | { kind: "role"; id: string }
   | { kind: "grant" }
@@ -114,27 +123,38 @@ export type Resource = ProjectResource | OrgResource;
 /** ResourceRef is any resource matcher evaluation can meet: the wildcard or a single atomic resource. */
 export type ResourceRef = Wildcard | Resource;
 
-/** PolicyBase carries the fields every policy kind shares. */
-type PolicyBase = {
+/** BasePolicy carries the fields every policy shares: its origin and whether it allows or denies. */
+export type BasePolicy = {
   source: Source;
   effect: "allow" | "deny";
 };
 
-/** OrganizationPolicy grants or denies org-level actions on org nodes. */
-export type OrganizationPolicy = PolicyBase & {
+/** OrganizationSystemPolicy is a resource-less org-level policy: actions without the org node they bind to. */
+export type OrganizationSystemPolicy = BasePolicy & {
   kind: "organization";
   actions: OrganizationAction[];
+};
+
+/** ProjectSystemPolicy is a resource-less project-level policy: actions without the project they bind to. */
+export type ProjectSystemPolicy = BasePolicy & {
+  kind: "project";
+  actions: ProjectAction[];
+};
+
+/** SystemPolicy is a policy before its resource is bound — the shape scope grants and system denies take as templates. */
+export type SystemPolicy = OrganizationSystemPolicy | ProjectSystemPolicy;
+
+/** OrganizationPolicy is an OrganizationSystemPolicy bound to org nodes. */
+export type OrganizationPolicy = OrganizationSystemPolicy & {
   resources: (Wildcard | OrgResource)[];
 };
 
-/** ProjectPolicy grants or denies project-level actions on atomic project refs. */
-export type ProjectPolicy = PolicyBase & {
-  kind: "project";
-  actions: ProjectAction[];
+/** ProjectPolicy is a ProjectSystemPolicy bound to atomic project refs. */
+export type ProjectPolicy = ProjectSystemPolicy & {
   resources: (Wildcard | ProjectResource)[];
 };
 
-/** Policy is kind-discriminated to compile-enforce action/resource pairing; evaluation reads only actions and resources. */
+/** Policy is a SystemPolicy bound to resources; kind-discriminated so a wildcard and evaluation stay within one kind. */
 export type Policy = OrganizationPolicy | ProjectPolicy;
 
 /** AuthorizationContext is the PIP output and PDP input for one principal. */
@@ -193,19 +213,9 @@ const matchesResource =
     return "orgId" in ref && ref.orgId === resource.orgId;
   };
 
-/** hasAction matches a policy granting the action explicitly, or by wildcard within the policy kind's own vocabulary. */
+/** hasAction matches a policy granting the action explicitly; actions are always spelled out, never wildcarded. */
 const hasAction = (action: Action) => (p: Policy) =>
-  p.actions.some((a) => a === action) ||
-  (p.actions.some((a) => a === wildcard) && kindVocabularyHas(p.kind, action));
-
-/** kindVocabularyHas reports whether action belongs to the policy kind's vocabulary, so a wildcard never grants across kinds. */
-const kindVocabularyHas = (kind: Policy["kind"], action: Action): boolean =>
-  action === wildcard ||
-  (kind === "organization"
-    ? (organizationScopes as readonly string[]).includes(action) ||
-      (pendingOrganizationApiActions as readonly string[]).includes(action)
-    : (projectScopes as readonly string[]).includes(action) ||
-      (pendingProjectApiActions as readonly string[]).includes(action));
+  p.actions.some((a) => a === action);
 
 /** hasEffect matches a policy of the given effect. */
 const hasEffect = (effect: Policy["effect"]) => (p: Policy) =>
@@ -344,7 +354,10 @@ if (import.meta.vitest) {
 
   describe("authorize — admin wildcard has no PDP branch", () => {
     const admin = ctx(
-      [allowOrg([wildcard], [wildcard]), allowProject([wildcard], [wildcard])],
+      [
+        allowOrg(allOrganizationActions, [wildcard]),
+        allowProject(allProjectActions, [wildcard]),
+      ],
       {
         kind: "admin",
         userId: null,
@@ -438,18 +451,18 @@ if (import.meta.vitest) {
 
   describe("ingestion suspension boundary", () => {
     const suspended = ctx([
-      allowProject([wildcard], [{ projectId: PRJ }]),
+      allowProject(allProjectActions, [{ projectId: PRJ }]),
       denyProject(
         ["traces:create", "scores:create", "media:create"],
         [{ projectId: PRJ }],
       ),
-      denyProject(["mcp:access"], [{ projectId: PRJ }], "mcp_disabled"),
+      denyProject(["mcp:access"], [{ projectId: PRJ }], "mcp_suspended"),
     ]);
     it.each([
       ["traces:create", systemRuleMessages.ingestion_suspended],
       ["scores:create", systemRuleMessages.ingestion_suspended],
       ["media:create", systemRuleMessages.ingestion_suspended],
-      ["mcp:access", systemRuleMessages.mcp_disabled],
+      ["mcp:access", systemRuleMessages.mcp_suspended],
     ] as const)("suspends %s with its rule's message", (action, message) => {
       const decision = authorize(suspended, action, { projectId: PRJ });
       expect(decision.success).toBe(false);
