@@ -652,6 +652,42 @@ describe("Annotation Queues API Endpoints", () => {
       expect(observationItem?.status).toBe(AnnotationQueueStatus.PENDING);
     });
 
+    it("should return the existing item instead of creating a duplicate", async () => {
+      const objectId = uuidv4();
+      const body = {
+        objectId,
+        objectType: AnnotationQueueObjectType.TRACE,
+      };
+
+      const firstResponse = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        body,
+        auth,
+      );
+      const secondResponse = await makeZodVerifiedAPICall(
+        CreateAnnotationQueueItemResponse,
+        "POST",
+        `/api/public/annotation-queues/${queueId}/items`,
+        body,
+        auth,
+      );
+
+      expect(firstResponse.status).toBe(200);
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.body.id).toBe(firstResponse.body.id);
+
+      const items = await prisma.annotationQueueItem.findMany({
+        where: {
+          queueId,
+          objectId,
+          objectType: AnnotationQueueObjectType.TRACE,
+        },
+      });
+      expect(items).toHaveLength(1);
+    });
+
     it("should return 404 for non-existent queue", async () => {
       const nonExistentId = uuidv4();
       const response = await makeAPICall(

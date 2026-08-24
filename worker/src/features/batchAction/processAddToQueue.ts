@@ -1,5 +1,9 @@
-import { logger, traceException } from "@langfuse/shared/src/server";
-import { AnnotationQueueObjectType, prisma } from "@langfuse/shared/src/db";
+import {
+  insertAnnotationQueueItems,
+  logger,
+  traceException,
+} from "@langfuse/shared/src/server";
+import { AnnotationQueueObjectType } from "@langfuse/shared/src/db";
 
 const addToQueue = async ({
   projectId,
@@ -12,34 +16,12 @@ const addToQueue = async ({
   objectType: AnnotationQueueObjectType;
   targetId: string;
 }) => {
-  // cannot use prisma `createMany` operation as we do not have unique constraint enforced on schema level
-  // conflict must be handled on query level by reading existing items and filtering out traces that already exist
-
-  // First get existing items
-  const existingItems = await prisma.annotationQueueItem.findMany({
-    where: {
-      projectId,
-      queueId: targetId,
-      objectId: { in: objectIds },
-      objectType,
-    },
-    select: { objectId: true },
+  await insertAnnotationQueueItems({
+    projectId,
+    queueId: targetId,
+    objectType,
+    objectIds,
   });
-
-  // Filter out objects that already exist
-  const existingObjectIds = new Set(existingItems.map((item) => item.objectId));
-  const newObjectIds = objectIds.filter((id) => !existingObjectIds.has(id));
-
-  if (newObjectIds.length > 0) {
-    await prisma.annotationQueueItem.createMany({
-      data: newObjectIds.map((objectId) => ({
-        projectId,
-        queueId: targetId,
-        objectId,
-        objectType,
-      })),
-    });
-  }
 };
 
 export const processAddTracesToQueue = async (

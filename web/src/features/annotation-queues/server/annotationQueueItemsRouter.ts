@@ -23,6 +23,7 @@ import {
   getObservationByIdFromEventsTable,
   getObservationsTraceIdsFromEventsTable,
   getTraceIdsForObservations,
+  insertAnnotationQueueItems,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
@@ -318,26 +319,13 @@ export const queueItemRouter = createTRPCRouter({
           targetId: input.queueId,
         });
       } else {
-        const { count } = await ctx.prisma.annotationQueueItem.createMany({
-          data: input.objectIds.map((objectId) => ({
-            projectId: input.projectId,
-            queueId: input.queueId,
-            objectId,
-            objectType: input.objectType,
-          })),
-          skipDuplicates: true,
+        const { createdItems } = await insertAnnotationQueueItems({
+          projectId: input.projectId,
+          queueId: input.queueId,
+          objectType: input.objectType,
+          objectIds: input.objectIds,
         });
-        createdCount = count;
-
-        const createdItems = await ctx.prisma.annotationQueueItem.findMany({
-          where: {
-            projectId: input.projectId,
-            queueId: input.queueId,
-            objectId: { in: input.objectIds },
-            objectType: input.objectType,
-          },
-          orderBy: { createdAt: "desc" },
-        });
+        createdCount = createdItems.length;
 
         for (const item of createdItems) {
           await auditLog(
@@ -346,7 +334,14 @@ export const queueItemRouter = createTRPCRouter({
               resourceType: "annotationQueueItem",
               resourceId: item.id,
               action: "create",
-              after: item,
+              after: {
+                id: item.id,
+                projectId: input.projectId,
+                queueId: input.queueId,
+                objectId: item.objectId,
+                objectType: input.objectType,
+                status: AnnotationQueueStatus.PENDING,
+              },
             },
             ctx.prisma,
           );
