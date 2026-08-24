@@ -1,7 +1,5 @@
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
-import { isCurrentTimePromptMessage } from "./currentTime";
-
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 
 const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
@@ -17,7 +15,8 @@ const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
  * Three checkpoints, each for a different prefix:
  *
  * 1. Last leading system — tools + compiled system. Must stay byte-stable
- *    across turns (calendar day only; screen lives on the last user).
+ *    across turns (calendar day only; screen and clock live on a trailing
+ *    suffix that is not persisted).
  * 2. Last conversation message — grows as this turn adds tool results so
  *    the next in-loop step can read it. A trailing `<current_time>` suffix
  *    is excluded: that clock changes every request and must not steal this
@@ -30,36 +29,18 @@ const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
 export function applyBedrockPromptCacheToCall<T>(
   modelId: string,
   options: T,
-  extraLastUserText?: string,
 ): T {
-  if (!isRecord(options) || !Array.isArray(options.prompt)) {
+  if (
+    !isRecord(options) ||
+    !Array.isArray(options.prompt) ||
+    !shouldApplyBedrockPromptCache(modelId)
+  ) {
     return options;
-  }
-
-  // Screen (and any other turn-scoped text) is appended to the latest user
-  // message so it does not sit in the cached tools+system prefix. After the
-  // current-time processor adds a trailing user suffix, that suffix is the
-  // latest user — so screen rides the volatile tail instead of mutating
-  // earlier conversation messages.
-  const prompt =
-    extraLastUserText && extraLastUserText.length > 0
-      ? appendTextToLastUserMessage(options.prompt, extraLastUserText)
-      : options.prompt;
-
-  if (!shouldApplyBedrockPromptCache(modelId)) {
-    if (prompt === options.prompt) {
-      return options;
-    }
-
-    return {
-      ...options,
-      prompt,
-    };
   }
 
   return {
     ...options,
-    prompt: applyBedrockPromptCachePoints(prompt),
+    prompt: applyBedrockPromptCachePoints(options.prompt),
   };
 }
 
@@ -109,9 +90,32 @@ function getLastConversationIndex(prompt: unknown[]) {
     return -1;
   }
 
-  return isCurrentTimePromptMessage(prompt[lastIndex])
+  return isTrailingCurrentTimeMessage(prompt[lastIndex])
     ? lastIndex - 1
     : lastIndex;
+}
+
+function isTrailingCurrentTimeMessage(message: unknown) {
+  if (getMessageRole(message) !== "user" || !isRecord(message)) {
+    return false;
+  }
+
+  const content = message.content;
+  if (typeof content === "string") {
+    return content.startsWith("<current_time");
+  }
+
+  if (!Array.isArray(content)) {
+    return false;
+  }
+
+  const text = content.find(
+    (part) =>
+      isRecord(part) && part.type === "text" && typeof part.text === "string",
+  );
+  return isRecord(text) && typeof text.text === "string"
+    ? text.text.startsWith("<current_time")
+    : false;
 }
 
 function findPreviousTurnCacheIndex(
@@ -134,53 +138,6 @@ function findPreviousTurnCacheIndex(
   }
 
   return -1;
-}
-
-function appendTextToLastUserMessage(
-  prompt: unknown[],
-  text: string,
-): unknown[] {
-  if (!text) {
-    return prompt;
-  }
-
-  let lastUserIndex = -1;
-  for (let i = prompt.length - 1; i >= 0; i--) {
-    if (getMessageRole(prompt[i]) === "user") {
-      lastUserIndex = i;
-      break;
-    }
-  }
-
-  if (lastUserIndex < 0) {
-    return [...prompt, { role: "user", content: [{ type: "text", text }] }];
-  }
-
-  const message = prompt[lastUserIndex];
-  if (!isRecord(message)) {
-    return prompt;
-  }
-
-  const nextMessage = {
-    ...message,
-    content: appendTextContent(message.content, text),
-  };
-
-  return prompt.map((item, index) =>
-    index === lastUserIndex ? nextMessage : item,
-  );
-}
-
-function appendTextContent(content: unknown, text: string) {
-  if (typeof content === "string") {
-    return `${content}\n\n${text}`;
-  }
-
-  if (Array.isArray(content)) {
-    return [...content, { type: "text", text }];
-  }
-
-  return [{ type: "text", text }];
 }
 
 function getMessageRole(message: unknown) {

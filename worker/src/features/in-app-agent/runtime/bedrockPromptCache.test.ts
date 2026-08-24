@@ -246,29 +246,4 @@ describe("applyBedrockPromptCacheToCall", () => {
       ],
     });
   });
-
-  it("appends turn-scoped context to the last user message for every model", () => {
-    const options = {
-      prompt: [
-        { role: "system", content: "You are the Langfuse assistant." },
-        { role: "user", content: "hello" },
-      ],
-    };
-
-    expect(
-      applyBedrockPromptCacheToCall(
-        "meta.llama3-70b-instruct-v1:0",
-        options,
-        "<screen_context>current page</screen_context>",
-      ),
-    ).toEqual({
-      prompt: [
-        { role: "system", content: "You are the Langfuse assistant." },
-        {
-          role: "user",
-          content: "hello\n\n<screen_context>current page</screen_context>",
-        },
-      ],
-    });
-  });
 });

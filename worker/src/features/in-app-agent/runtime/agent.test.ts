@@ -67,6 +67,7 @@ type MockedAgentConfig = {
     }) => Promise<unknown>;
     processLLMRequest?: (args: {
       prompt: unknown;
+      stepNumber?: number;
     }) => { prompt?: unknown } | undefined;
   }>;
   defaultOptions?: {
@@ -705,20 +706,12 @@ describe("createAgUiStream", () => {
       prompt: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
     });
 
-    expect(result?.prompt).toEqual([
-      { role: "user", content: [{ type: "text", text: "hello" }] },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: expect.stringMatching(
-              /^<current_time tz="UTC">\d{4}-\d{2}-\d{2} \d{2}:\d{2}<\/current_time>$/,
-            ),
-          },
-        ],
-      },
-    ]);
+    const lastText = (
+      result?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+    expect(lastText).toContain("<current_time");
   });
 
   it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {
@@ -1074,29 +1067,24 @@ describe("createAgUiStream", () => {
       '"current_url"',
     );
 
-    const model = getLastAgentConfig()?.model;
-    expect(model).toBeDefined();
-    await model!.doStream({
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const laterStep = processor?.processLLMRequest?.({
       prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 1,
     });
-    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
-      prompt: [
-        {
-          role: "user",
-          content: expect.stringContaining(
-            '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
-          ),
-          providerOptions: { bedrock: { cachePoint: { type: "default" } } },
-        },
-      ],
-    });
-    const streamedUserContent = (
-      bedrockMocks.doStream.mock.calls.at(-1)?.[0] as {
-        prompt: Array<{ content: string }>;
-      }
-    ).prompt[0].content;
-    expect(streamedUserContent).toContain("<screen_context>");
-    expect(streamedUserContent).not.toContain('"user_name"');
+    const laterStepText = (
+      laterStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+
+    expect(laterStepText).toContain("<screen_context>");
+    expect(laterStepText).toContain(
+      '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
+    );
+    expect(laterStepText).not.toContain('"user_name"');
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));
     expect((baseInstructions as () => string)()).toBe(
@@ -2052,16 +2040,18 @@ describe("createAgUiStream", () => {
 
     expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).toBe("");
 
-    const model = getLastAgentConfig()?.model;
-    expect(model).toBeDefined();
-    await model!.doStream({
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const firstStep = processor?.processLLMRequest?.({
       prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 0,
     });
     const screenContext = (
-      bedrockMocks.doStream.mock.calls.at(-1)?.[0] as {
-        prompt: Array<{ content: string }>;
-      }
-    ).prompt[0].content;
+      firstStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
 
     expect(screenContext).toContain("<screen_context>");
     expect(screenContext).toContain("</screen_context>");
