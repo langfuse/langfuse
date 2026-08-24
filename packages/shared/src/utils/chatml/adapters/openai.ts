@@ -285,22 +285,26 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
   let normalized = removeNullFields(working);
 
   // Extract text from OpenAI Agents output_text format
-  // Format: content: [{type: "output_text", text: "..."}]
+  // Format: content: [{type: "output_text", text: "..."}, ...]
+  // A message can carry multiple output_text parts (e.g. text segments
+  // around web-search citations); join them so no segment is silently
+  // dropped. Mixed arrays keep their shape so non-text parts survive.
   if (
     normalized.content &&
     Array.isArray(normalized.content) &&
-    normalized.content.length > 0
+    normalized.content.length > 0 &&
+    normalized.content.every(
+      (item: unknown) =>
+        item &&
+        typeof item === "object" &&
+        (item as Record<string, unknown>).type === "output_text" &&
+        typeof (item as Record<string, unknown>).text === "string",
+    )
   ) {
-    const firstItem = normalized.content[0];
-    if (
-      firstItem &&
-      typeof firstItem === "object" &&
-      (firstItem as Record<string, unknown>).type === "output_text" &&
-      typeof (firstItem as Record<string, unknown>).text === "string"
-    ) {
-      // Extract just the text for simple output
-      normalized.content = (firstItem as Record<string, unknown>).text;
-    }
+    const texts = normalized.content.map(
+      (item: unknown) => (item as Record<string, unknown>).text as string,
+    );
+    normalized.content = texts.join("");
   }
 
   // Normalize camelCase toolCalls to snake_case tool_calls (VAPI framework does this, otherwise it matches OpenAI)
