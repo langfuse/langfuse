@@ -1,0 +1,198 @@
+{
+  "isoWeek": "2026-W35",
+  "kind": "trailing-7-days",
+  "analyzedAt": "2026-08-24",
+  "note": "Run 22. Window is the trailing 7 calendar days ending 2026-08-24 UTC, so it overlaps history/2026-W34-partial-0818.json on 08-18. 2026-08-24 itself had ZERO successful merge-group runs at analysis time and is omitted from every median and chart per the zero-run-day rule.",
+  "window": {
+    "from": "2026-08-18T00:00:00Z",
+    "to": "2026-08-24T23:59:59Z",
+    "kind": "trailing-7-days"
+  },
+  "population": {
+    "timingStatsFrom": "successful merge_group runs only",
+    "successfulMergeGroupRunsInWindow": {
+      "2026-08-18": 30,
+      "2026-08-19": 36,
+      "2026-08-20": 34,
+      "2026-08-21": 29,
+      "2026-08-22": 4,
+      "2026-08-23": 1,
+      "2026-08-24": 0,
+      "total": 134
+    },
+    "successfulPullRequestRunsInWindow": 506,
+    "jobsSampledForTiming": 37,
+    "sampleNote": "Per-day medians below come from a 37-run jobs-API sample (8/8/8/8/4/1 per day). 08-18..08-21 meet the >=5-run bar. 08-22 (n=4) and 08-23 (n=1) are ALL of that day's successful merge-group runs, but they are thin and NOT load-bearing for any judgement."
+  },
+  "merge_group": {
+    "perceivedByDay": {
+      "2026-08-18": 219,
+      "2026-08-19": 231.5,
+      "2026-08-20": 200.5,
+      "2026-08-21": 196,
+      "2026-08-22": 195.5,
+      "2026-08-23": 195
+    },
+    "executionByDay": {
+      "2026-08-18": 202.5,
+      "2026-08-19": 223.5,
+      "2026-08-20": 189.5,
+      "2026-08-21": 181,
+      "2026-08-22": 180,
+      "2026-08-23": 180
+    },
+    "runnerWaitByDay": {
+      "2026-08-18": 16.5,
+      "2026-08-19": 16,
+      "2026-08-20": 15,
+      "2026-08-21": 15.5,
+      "2026-08-22": 15,
+      "2026-08-23": 15,
+      "method": "median of per-run (perceived - execution); execution is the UNION of successful-job intervals, not their sum."
+    },
+    "segmentsByDay": {
+      "webBuildStepMed": {
+        "2026-08-18": 47.5,
+        "2026-08-19": 57,
+        "2026-08-20": 48.5,
+        "2026-08-21": 47,
+        "2026-08-22": 48.5,
+        "2026-08-23": 46
+      },
+      "webRunTestsStepMed": {
+        "2026-08-18": 79,
+        "2026-08-19": 81,
+        "2026-08-20": 78,
+        "2026-08-21": 73.5,
+        "2026-08-22": 77.5,
+        "2026-08-23": 76
+      },
+      "workerRunTestsStepMed": {
+        "2026-08-18": 103,
+        "2026-08-19": 108,
+        "2026-08-20": 111,
+        "2026-08-21": 107,
+        "2026-08-22": 105,
+        "2026-08-23": 105
+      },
+      "e2eTestsJobSec": {
+        "2026-08-18": 163.5,
+        "2026-08-19": 181,
+        "2026-08-20": 153,
+        "2026-08-21": 140,
+        "2026-08-22": 175.5,
+        "2026-08-23": 133
+      }
+    },
+    "pooledWeekly": {
+      "perceivedP50": 198,
+      "perceivedP90": 284.6,
+      "executionP50": 186,
+      "executionP90": 264.8,
+      "runnerWaitP50": 16,
+      "runnerWaitP90": 21,
+      "unit": "s",
+      "population": "all 37 sampled runs"
+    },
+    "weeklyMedianOfDailyMedians": {
+      "perceived": 198.3,
+      "execution": 185.3,
+      "runnerWait": 15.3,
+      "webBuildStep": 48,
+      "webRunTestsStep": 77.8,
+      "workerRunTestsStep": 106,
+      "e2eTestsJob": 158.3,
+      "unit": "s"
+    }
+  },
+  "comparisonToBaselineAndPriorCheckpoint": {
+    "baseline2026W28": { "perceivedP50": 396, "perceivedP90": 522 },
+    "prior2026W34": { "perceivedP50": 224, "perceivedP90": 675.4 },
+    "thisWindow": { "perceivedP50": 198, "perceivedP90": 284.6 },
+    "verdict": "Best week on record on BOTH statistics. p50 is -50% vs baseline and -12% vs last week; p90 is -45% vs baseline and -58% vs last week. Last week's heavy tail (driven by 08-13/08-14 runner contention) did not recur. Every segment median is flat or down vs last week except workerRunTests (102.5 -> 106, +3.4%, well inside noise)."
+  },
+  "intraWeekShiftCheck": {
+    "result": "no actionable shift",
+    "detail": "No step median moved >=50% across 3+ consecutive days, and no median regressed >=10% in a sustained way. The largest single-day excursion is 08-19 (perceived 231.5, execution 223.5, Build 57, e2e 181) — one day only, and it recovers on 08-20. Perceived medians trend monotonically down from 08-19 onward: 231.5 -> 200.5 -> 196 -> 195.5 -> 195."
+  },
+  "flakyTests": [
+    {
+      "file": "web/src/__tests__/server/unstable-evaluator-v2-api.servertest.ts",
+      "test": "unstable evaluator API on stable evaluator storage > paginates evaluator lists",
+      "retries": 2,
+      "marker": "[flaky]",
+      "firstSeen": "2026-08-23",
+      "occurrences": 1,
+      "job": 97210390870,
+      "shard": "tests-web (node24, pg15, mode)"
+    }
+  ],
+  "flakyNote": "This was the ONLY `Retried tests` block across 8 sampled job logs spanning 6 runs and 5 distinct days (08-18, 08-19, 08-21, 08-22, 08-23) and all three shard types. Absent block = zero retries. `otelToObservationForEval.test.ts` did NOT recur; it stays a 2-instance pattern (07-30, 08-13) and has not reached a 3rd occurrence.",
+  "slowestTests": {
+    "source": "run 32646061806 (2026-08-23), representative of the whole window",
+    "client": {
+      "job": 97210390848,
+      "shape": "350 files / 3633 tests, Duration 63.13s (transform 11.73s, setup 10.48s, import 79.53s, tests 33.07s, environment 37.63s)",
+      "topFiles": [
+        ["src/features/traces/fns/timeline/layout.clienttest.ts", 6.61, 16],
+        ["src/__tests__/json-utils.clienttest.ts", 6.04, 106],
+        ["src/features/trace-graph-view/layout/elkLayout.clienttest.ts", 1.6, 12],
+        ["src/__tests__/posthog-session-replay-mask.clienttest.ts", 1.01, 1]
+      ],
+      "topTest": ["layout > stays finite on degenerate shapes, degenerate boxes and compression", 5.69]
+    },
+    "webServer": {
+      "job": 97210390870,
+      "topFiles": [
+        ["src/__tests__/server/repositories/event-repository.servertest.ts", 16.54, 92],
+        ["src/__tests__/server/score-comparison-analytics.servertest.ts", 15.98, 46],
+        ["src/__tests__/server/ingestion-api.servertest.ts", 13.67, 63],
+        ["src/__tests__/server/traces-api.servertest.ts", 13.09, 82],
+        ["src/__tests__/server/dataset-service.servertest.ts", 10.51, 35]
+      ]
+    },
+    "worker": {
+      "job": 97210390864,
+      "shape": "164 files / 2330 tests, Duration 108.88s (transform 4.33s, setup 0ms, import 145.58s, tests 167.93s)",
+      "topFiles": [
+        ["src/__tests__/analyticsIntegrationSsrfPinning.test.ts", 36.08, 13],
+        ["src/__tests__/webhooks.test.ts", 23.3, 22],
+        ["src/__tests__/batchExport.test.ts", 14.94, 77],
+        ["src/services/IngestionService/tests/IngestionService.integration.test.ts", 11.25, 59],
+        ["src/__tests__/evalService.test.ts", 9.66, 106]
+      ]
+    }
+  },
+  "investigation": {
+    "candidateTestedAndDropped": {
+      "file": "web/src/features/traces/fns/timeline/layout.clienttest.ts",
+      "carriedFrom": "run 21 (2026-08-18)",
+      "pathNote": "The file MOVED in a refactor: it was src/features/traces/components/TraceTimelineV2/layout.clienttest.ts in the 08-18 and 08-19 logs and is src/features/traces/fns/timeline/layout.clienttest.ts from 08-21 onward. Test count grew 12 -> 16. Last run's 'file missing from the checkout' diagnosis was staleness plus this move, not a deletion.",
+      "hypothesis": "run() re-calls prepareTimeline(roots, collapsed) on every loop iteration though both args are loop-invariant; hoisting it per shape should cut the two hot tests.",
+      "safetyGate": "CLEARED. layout() only reads `prepared` — LayoutInput documents it as a 'memoized tree walk; recomputed here when absent', and timeCompressionFor's JSDoc says to memoize on [prepared, box.width, compress]. Reuse across box widths and compress values is the intended production path. prepareTimeline is a pure iterative tree walk returning a fresh object.",
+      "verification": {
+        "command": "npx --yes pnpm@10 exec vitest run --project client src/features/traces/fns/timeline/layout.clienttest.ts (cwd web/)",
+        "baseline": "Tests 16 passed (16); Duration 15.58s (tests 14.81s); slowest test 12.74s",
+        "hoisted": "Tests 16 passed (16); Duration 15.66s (tests 14.90s); slowest test 12.82s",
+        "result": "NO WIN — the delta is inside run-to-run noise."
+      },
+      "whyTheHypothesisWasWrong": "prepareTimeline is not the cost. With no rowRange, layout() positions ALL rows, so TIMELINE_SHAPES.huge (manySpans(10_000)) drives ~140,000 positionRow calls across the 10 shapes x 7 boxes x 2 compress combinations in the 'stays finite' test alone. The tree walk is noise beside that. Cutting the positioning work would mean cutting coverage, which the rules forbid.",
+      "disposition": "DEAD. Do not re-attempt. Temporary edits were reverted; working tree confirmed clean."
+    },
+    "notARegression": {
+      "file": "worker/src/__tests__/analyticsIntegrationSsrfPinning.test.ts",
+      "observed": "18.07s over 7 tests (08-18) -> 36.08s over 13 tests (08-22/08-23)",
+      "conclusion": "Test count nearly doubled — this is added coverage, not a slowdown. Per-test cost is flat (~2.6s -> ~2.8s). The two heaviest cases are 18.05s and 18.02s SSRF connect-timeout waits, which are the point of the test. Do not re-flag without a per-test-cost change."
+    }
+  },
+  "structuralObservations": [
+    "Client shard remains import/environment-bound: import 79.53s + environment 37.63s + transform 11.73s against only tests 33.07s over 350 files. Per-file jsdom construction and module import dominate; single-test fixes have a low ceiling there. Unchanged conclusion from run 21.",
+    "Worker shard is import-bound too: import 145.58s against tests 167.93s over 164 files.",
+    "The tests-web job again logged 'Failed to save: Unable to reserve cache with key Linux-turbo-tests-web-compile-<sha>, another job may be creating this cache.' This is the known concurrent-matrix cache-reservation race. It costs a cache write, not the run; Build medians stayed at 46-48.5s on 5 of 6 days."
+  ],
+  "toolingBlockers": [
+    "No issue-search/issue-read MCP tool exists (only actions_get, actions_list, get_job_logs, list_pull_requests, pull_request_read, search_pull_requests). The run checklist's 'backfill the previous run's issue number/url' step is therefore impossible; issues.json entries stay number:null, url:null. missing_tool filed.",
+    "DB connectivity via host.docker.internal remains standing-blocked (EAI_AGAIN since 08-03; github/gh-aw#52140, github/gh-aw-firewall#7268). All DB-backed candidates, including the parked score-comparison-analytics fix, remain unverifiable."
+  ],
+  "action": "No diff proposed. No regression met the acting threshold, and the one optimization candidate carried into this week was verified in-sandbox and measured to deliver no win, so it was dropped per the 'never ship an unverified or failed diff' rule. One issue filed with the full report."
+}

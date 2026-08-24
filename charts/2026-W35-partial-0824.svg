@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="430" viewBox="0 0 780 430" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="780" height="430" fill="#ffffff"/>
+
+  <text x="390" y="26" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2328">CI pipeline: daily merge-group medians, 2026-08-18..08-23</text>
+
+  <!-- gridlines and y-axis labels: 0..300s over y 350..40 -->
+  <g stroke="#d8dee4" stroke-width="1">
+    <line x1="70" y1="350.0" x2="720" y2="350.0"/>
+    <line x1="70" y1="298.3" x2="720" y2="298.3"/>
+    <line x1="70" y1="246.7" x2="720" y2="246.7"/>
+    <line x1="70" y1="195.0" x2="720" y2="195.0"/>
+    <line x1="70" y1="143.3" x2="720" y2="143.3"/>
+    <line x1="70" y1="91.7" x2="720" y2="91.7"/>
+    <line x1="70" y1="40.0" x2="720" y2="40.0"/>
+  </g>
+  <g font-size="11" fill="#57606a" text-anchor="end">
+    <text x="62" y="354">0</text>
+    <text x="62" y="302">50</text>
+    <text x="62" y="250">100</text>
+    <text x="62" y="199">150</text>
+    <text x="62" y="147">200</text>
+    <text x="62" y="96">250</text>
+    <text x="62" y="44">300</text>
+  </g>
+  <text x="22" y="195" font-size="12" fill="#57606a" text-anchor="middle" transform="rotate(-90 22 195)">seconds</text>
+
+  <!-- axes -->
+  <line x1="70" y1="40" x2="70" y2="350" stroke="#57606a" stroke-width="1.5"/>
+  <line x1="70" y1="350" x2="720" y2="350" stroke="#57606a" stroke-width="1.5"/>
+
+  <!-- x-axis labels -->
+  <g font-size="11" fill="#57606a" text-anchor="middle">
+    <text x="70" y="370">08-18</text>
+    <text x="200" y="370">08-19</text>
+    <text x="330" y="370">08-20</text>
+    <text x="460" y="370">08-21</text>
+    <text x="590" y="370">08-22</text>
+    <text x="720" y="370">08-23</text>
+  </g>
+  <text x="395" y="392" font-size="11" fill="#8c959f" text-anchor="middle">08-22 (n=4) and 08-23 (n=1) are thin days; 08-24 had zero merge-group runs and is omitted.</text>
+
+  <!-- series 1: overall incl. wait (perceived) -->
+  <polyline fill="none" stroke="#3987e5" stroke-width="2.5"
+    points="70,123.7 200,110.8 330,142.8 460,147.5 590,148.0 720,148.5"/>
+  <g fill="#3987e5">
+    <circle cx="70" cy="123.7" r="3.5"/><circle cx="200" cy="110.8" r="3.5"/>
+    <circle cx="330" cy="142.8" r="3.5"/><circle cx="460" cy="147.5" r="3.5"/>
+    <circle cx="590" cy="148.0" r="3.5"/><circle cx="720" cy="148.5" r="3.5"/>
+  </g>
+
+  <!-- series 2: overall excl. wait (execution) -->
+  <polyline fill="none" stroke="#de5a20" stroke-width="2.5"
+    points="70,140.8 200,119.1 330,154.2 460,163.0 590,164.0 720,164.0"/>
+  <g fill="#de5a20">
+    <circle cx="70" cy="140.8" r="3.5"/><circle cx="200" cy="119.1" r="3.5"/>
+    <circle cx="330" cy="154.2" r="3.5"/><circle cx="460" cy="163.0" r="3.5"/>
+    <circle cx="590" cy="164.0" r="3.5"/><circle cx="720" cy="164.0" r="3.5"/>
+  </g>
+
+  <!-- series 3: runner wait -->
+  <polyline fill="none" stroke="#8875e0" stroke-width="2.5"
+    points="70,333.0 200,333.5 330,334.5 460,334.0 590,334.5 720,334.5"/>
+  <g fill="#8875e0">
+    <circle cx="70" cy="333.0" r="3.5"/><circle cx="200" cy="333.5" r="3.5"/>
+    <circle cx="330" cy="334.5" r="3.5"/><circle cx="460" cy="334.0" r="3.5"/>
+    <circle cx="590" cy="334.5" r="3.5"/><circle cx="720" cy="334.5" r="3.5"/>
+  </g>
+
+  <!-- legend, top-right, clear of the data -->
+  <rect x="536" y="48" width="182" height="62" rx="6" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/>
+  <rect x="548" y="59" width="14" height="4" rx="2" fill="#3987e5"/>
+  <text x="570" y="65" font-size="11" fill="#1f2328">overall incl. wait</text>
+  <rect x="548" y="77" width="14" height="4" rx="2" fill="#de5a20"/>
+  <text x="570" y="83" font-size="11" fill="#1f2328">overall excl. wait</text>
+  <rect x="548" y="95" width="14" height="4" rx="2" fill="#8875e0"/>
+  <text x="570" y="101" font-size="11" fill="#1f2328">runner wait</text>
+
+  <text x="390" y="416" font-size="10" fill="#8c959f" text-anchor="middle">Successful merge_group runs only. Execution = union of successful job intervals. Wait = perceived - execution.</text>
+</svg>

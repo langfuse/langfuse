@@ -4,7 +4,7 @@
     "url": null,
     "openedAt": "2026-08-18",
     "title": "CI Runtime Report: 2026-08-12..08-18 (trailing 7 days)",
-    "note": "First issue under the issue-output regime (workflow switched from PR output to a single report issue, commit 4d1f32ab5). Number/url are null because the issue is created by the safe-outputs pipeline AFTER the agent finishes, so the agent cannot know them. The NEXT run must resolve this entry: find the issue via search (label ci-performance, assignee wochinge, title prefix 'CI Runtime Report:', opened 2026-08-18) and fill in number and url.",
+    "note": "First issue under the issue-output regime (workflow switched from PR output to a single report issue, commit 4d1f32ab5). Number/url are null because the issue is created by the safe-outputs pipeline AFTER the agent finishes, so the agent cannot know them. BACKFILL IS IMPOSSIBLE with the current toolset: run 22 (2026-08-24) confirmed there is no issue-search or issue-read MCP tool available (only actions_get, actions_list, get_job_logs, list_pull_requests, pull_request_read, search_pull_requests). missing_tool was filed. Do not spend budget re-attempting until a human adds an issue-read tool.",
     "suggestedDiff": false,
     "expectedImpact": null,
     "baselineStats": {
@@ -24,8 +24,43 @@
     },
     "appliedOnMain": false,
     "appliedAt": null,
-    "followUps": [],
-    "lastCheckedAt": "2026-08-18",
-    "outcome": "Filed with no suggested diff. No regression met the actionable bar. One strong new optimization candidate (web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts, #1 slowest client file at 6.87s, landed 2026-08-17 in 91970f83d/#16124) was identified but could not be verified: the whole TraceTimelineV2 directory is absent from the analyst's checkout, which is 19 commits behind origin/main. Carried to next week."
+    "followUps": [
+      "Carried candidate layout.clienttest.ts was verified and DROPPED by run 22 — measured, no win. See history/2026-W35-partial-0824.json."
+    ],
+    "lastCheckedAt": "2026-08-24",
+    "outcome": "Filed with no suggested diff. No regression met the actionable bar. One strong new optimization candidate (web/src/features/traces/components/TraceTimelineV2/layout.clienttest.ts, #1 slowest client file at 6.87s, landed 2026-08-17 in 91970f83d/#16124) was identified but could not be verified: the whole TraceTimelineV2 directory was absent from the analyst's checkout, which was 19 commits behind origin/main. Carried to run 22, which verified it in-sandbox and dropped it — the hoist delivered no measurable win because layout() positions all 10,000 rows of the `huge` shape on every combination, dwarfing prepareTimeline. No diff was ever proposed for this entry."
+  },
+  {
+    "number": null,
+    "url": null,
+    "openedAt": "2026-08-24",
+    "title": "CI Runtime Report: 2026-08-18..08-24 (trailing 7 days)",
+    "note": "Number/url are null for the same structural reason as the entry above, and cannot be backfilled: no issue-search/issue-read tool exists in this workflow's toolset. Identify it by label ci-performance, assignee wochinge, title prefix 'CI Runtime Report:', opened 2026-08-24.",
+    "suggestedDiff": false,
+    "expectedImpact": null,
+    "baselineStats": {
+      "window": "2026-08-18..2026-08-24",
+      "mergeGroupRuns": 134,
+      "mergeGroupRunsSampledForTiming": 37,
+      "perceivedP50": 198,
+      "perceivedP90": 284.6,
+      "weeklyMedianOfDailyMedians": {
+        "perceived": 198.3,
+        "execution": 185.3,
+        "runnerWait": 15.3,
+        "webBuildStep": 48,
+        "webRunTestsStep": 77.8,
+        "workerRunTestsStep": 106,
+        "e2eTestsJob": 158.3
+      }
+    },
+    "appliedOnMain": false,
+    "appliedAt": null,
+    "followUps": [
+      "Watch web/src/__tests__/server/unstable-evaluator-v2-api.servertest.ts > 'paginates evaluator lists' for a 2nd flaky occurrence (1st was 2026-08-23, retries=2).",
+      "otelToObservationForEval.test.ts stays at 2 historical flaky instances (07-30, 08-13); watch for a 3rd."
+    ],
+    "lastCheckedAt": "2026-08-24",
+    "outcome": "Filed with no suggested diff. Best week on record (p50 198s, p90 284.6s vs baseline 396/522). No regression met the acting threshold. The one carried optimization candidate was verified in-sandbox, measured to deliver no win, and dropped. missing_tool filed for the absent issue-search capability."
   }
 ]
