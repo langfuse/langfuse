@@ -5,16 +5,52 @@ import {
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { type Plan } from "@langfuse/shared";
+// PROTOTYPE(LFE-15038): entitlement checks also accept the new path's context
+import {
+  type AuthorizationContext,
+  type Resource,
+} from "@/src/features/auth/policy/policy.prototype";
 
 type HasEntitlementParams = {
   entitlement: Entitlement;
   sessionUser: NonNullable<Session["user"]>;
 } & ({ projectId: string } | { orgId: string });
 
+/** HasEntitlementPolicyParams resolves the plan from the AuthorizationContext's org covering the resource. */
+type HasEntitlementPolicyParams = {
+  entitlement: Entitlement;
+  context: AuthorizationContext;
+} & Resource;
+
 /**
  * Check if user has access to a specific entitlement based on the session user (to be used server-side).
  */
-export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
+export function hasEntitlement(
+  p: HasEntitlementParams | HasEntitlementPolicyParams,
+): boolean {
+  if ("context" in p) {
+    return hasEntitlementFromContext(p);
+  }
+  return hasEntitlementFromSession(p);
+}
+
+/** hasEntitlementFromContext checks the entitlement against the plan of the context's org covering the resource; admins are always entitled. */
+function hasEntitlementFromContext(p: HasEntitlementPolicyParams): boolean {
+  if (p.context.principal.kind === "admin") {
+    return true;
+  }
+  const org = p.context.principal.organizations.find((o) => {
+    if ("orgId" in p) {
+      return o.orgId === p.orgId;
+    }
+    return o.projectIds.includes(p.projectId);
+  });
+  const plan = org?.plan ?? "oss";
+  return hasEntitlementBasedOnPlan({ plan, entitlement: p.entitlement });
+}
+
+/** hasEntitlementFromSession checks the entitlement against the plan of the session org owning the target; admins are always entitled. */
+function hasEntitlementFromSession(p: HasEntitlementParams): boolean {
   if (p.sessionUser.admin) return true;
   const org =
     "projectId" in p
@@ -24,7 +60,7 @@ export const hasEntitlement = (p: HasEntitlementParams): Boolean => {
       : p.sessionUser.organizations.find((org) => org.id === p.orgId);
   const plan = org?.plan ?? "oss";
   return hasEntitlementBasedOnPlan({ plan, entitlement: p.entitlement });
-};
+}
 
 /**
  * Check if user has access to a specific entitlement based on the plan.

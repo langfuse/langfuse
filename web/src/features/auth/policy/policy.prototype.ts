@@ -51,7 +51,6 @@ export const pendingProjectApiActions = [
   "metrics:read",
   "models:read",
   "experiments:read",
-  "projects:read",
   "mcp:access",
 ] as const;
 
@@ -630,14 +629,14 @@ if (import.meta.vitest) {
     });
     it("any project action is org-checkable, returning the residual for list filtering", () => {
       const c = ctx([
-        allowProject(["projects:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
+        allowProject(["project:read"], [{ orgId: ORG, projectIds: [PRJ] }]),
       ]);
-      expect(authorize(c, "projects:read", { projectId: PRJ }).success).toBe(
+      expect(authorize(c, "project:read", { projectId: PRJ }).success).toBe(
         true,
       );
-      const list = authorize(c, "projects:read", { orgId: ORG });
+      const list = authorize(c, "project:read", { orgId: ORG });
       expect(list.success && list.access).toEqual({
-        action: "projects:read",
+        action: "project:read",
         includes: [{ orgId: ORG, projectIds: [PRJ] }],
         excludes: [],
       });

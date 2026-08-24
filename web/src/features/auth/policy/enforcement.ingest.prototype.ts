@@ -3,7 +3,7 @@
  * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/enforcement-seams`,
  * LFE-15038). The ingestion authorization pipeline: per-event batch evaluation
  * over the PDP, the fused seam, and the shadow span diff against legacy's 207
- * errors. Run: `pnpm --filter web run test:in-source apiAdapterIngest.prototype`.
+ * errors. Run: `pnpm --filter web run test:in-source enforcement.ingest.prototype`.
  */
 
 import { type IncomingHttpHeaders } from "http";
@@ -20,8 +20,8 @@ import {
   type ProjectAction,
   type Success,
 } from "./policy.prototype";
-import { type AuthError } from "./apiAdapter.organizations.prototype";
-import { enforceProjectAuth } from "./apiAdapter.projects.prototype";
+import { type AuthError } from "./enforcement.organizations.prototype";
+import { enforceProjectAuth } from "./enforcement.projects.prototype";
 
 /** ingestionActionByEventType maps each authorization-relevant ingestion event type to its action; sdk-log needs bare authentication only. */
 const ingestionActionByEventType: Record<string, ProjectAction> = {

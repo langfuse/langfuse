@@ -4,7 +4,7 @@
  * LFE-15038). The project api adapter: the fused project seam with its own
  * target resolution, and the migration factory for project routes — shadow
  * stamps the outcome on the request span, enforce throws.
- * Run: `pnpm --filter web run test:in-source apiAdapter.projects.prototype`.
+ * Run: `pnpm --filter web run test:in-source enforcement.projects.prototype`.
  */
 
 import { type IncomingHttpHeaders } from "http";
@@ -12,7 +12,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodType } from "zod";
 
 import { InvalidRequestError } from "@langfuse/shared";
-import { getCurrentSpan } from "@langfuse/shared/src/server";
 import {
   createAuthedProjectAPIRoute as legacyCreateAuthedProjectAPIRoute,
   type AuthedProjectAPIRouteConfig,
@@ -29,9 +28,9 @@ import { headerValue } from "./enforce.prototype";
 import { authenticate } from "./identity.prototype";
 import {
   authzMigrationMode,
+  tagAuthzOutcome,
   type AuthError,
-  type OrgAccessResult,
-} from "./apiAdapter.organizations.prototype";
+} from "./enforcement.organizations.prototype";
 
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
@@ -130,29 +129,6 @@ function boundProjectIdOf(context: AuthorizationContext): string | undefined {
     return bound.projectId;
   }
   return undefined;
-}
-
-/** tagAuthzOutcome stamps the shadow decision onto the active http.server span, where legacy's status code also lands. */
-function tagAuthzOutcome(
-  result: ProjectAccessResult | OrgAccessResult | ErrorResult<AuthError>,
-) {
-  const span = getCurrentSpan();
-  if (!span) {
-    return;
-  }
-  // attribute names are placeholders — the parity contract is LFE-15034's
-  if (result.success) {
-    span.setAttribute("langfuse.authz.decision", "allow");
-    span.setAttribute("langfuse.authz.action", result.access?.action ?? "none");
-    if ("projectId" in result) {
-      span.setAttribute("langfuse.authz.projectId", result.projectId);
-      return;
-    }
-    span.setAttribute("langfuse.authz.orgId", result.orgId);
-    return;
-  }
-  span.setAttribute("langfuse.authz.decision", "deny");
-  span.setAttribute("langfuse.authz.error", result.error.message);
 }
 
 /** ProjectAccessResult is the project seam's success outcome: the resolved context and target with the residual access. */

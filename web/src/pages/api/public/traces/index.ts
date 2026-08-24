@@ -14,7 +14,7 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 // PROTOTYPE(LFE-15038): action-aware factory replacing the legacy one
-import { createAuthedProjectAPIRoute } from "@/src/features/auth/policy/apiAdapter.projects.prototype";
+import { createAuthedProjectAPIRoute } from "@/src/features/auth/policy/enforcement.projects.prototype";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   createIngestionAttribution,

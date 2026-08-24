@@ -19,11 +19,17 @@ export const RateLimitResource = z.enum([
   "feedback",
 ]);
 
+/** RateLimitScope is the slice of the access scope rate limiting reads: the org key, its plan, and any per-org overrides. */
+export type RateLimitScope = Pick<
+  ApiAccessScope,
+  "orgId" | "plan" | "rateLimitOverrides"
+>;
+
 // result of the rate limit check.
 export type RateLimitResult = {
   resource: z.infer<typeof RateLimitResource>;
   points: number;
-  scope: ApiAccessScope;
+  scope: RateLimitScope;
 
   // from rate-limiter-flexible
   remainingPoints: number;

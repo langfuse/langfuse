@@ -25,12 +25,12 @@ import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
-import { authzMigrationMode } from "@/src/features/auth/policy/apiAdapter.organizations.prototype";
+import { authzMigrationMode } from "@/src/features/auth/policy/enforcement.organizations.prototype";
 import {
   enforceIngestionAuth,
   tagIngestionAuthzOutcome,
   type IngestionAuthzRejection,
-} from "@/src/features/auth/policy/apiAdapter.ingest.prototype";
+} from "@/src/features/auth/policy/enforcement.ingest.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";

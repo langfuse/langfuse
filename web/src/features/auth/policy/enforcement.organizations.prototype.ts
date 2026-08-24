@@ -4,7 +4,7 @@
  * LFE-15038). The organization api adapter: the fused org seam with its own
  * target resolution, plus the shadow/enforce mode flag and the error
  * vocabulary the sibling adapters share.
- * Run: `pnpm --filter web run test:in-source apiAdapter.organizations.prototype`.
+ * Run: `pnpm --filter web run test:in-source enforcement.organizations.prototype`.
  */
 
 import { type IncomingHttpHeaders } from "http";
@@ -14,6 +14,7 @@ import {
   type ForbiddenError,
   type UnauthorizedError,
 } from "@langfuse/shared";
+import { getCurrentSpan } from "@langfuse/shared/src/server";
 import {
   authorize,
   type Access,
@@ -85,6 +86,29 @@ function getOrgId(
   return { success: true, orgId };
 }
 
+/** tagAuthzOutcome stamps the shadow decision onto the active http.server span, where legacy's status code also lands. */
+export function tagAuthzOutcome(
+  result: TaggableAccessResult | ErrorResult<AuthError>,
+) {
+  const span = getCurrentSpan();
+  if (!span) {
+    return;
+  }
+  // attribute names are placeholders — the parity contract is LFE-15034's
+  if (result.success) {
+    span.setAttribute("langfuse.authz.decision", "allow");
+    span.setAttribute("langfuse.authz.action", result.access?.action ?? "none");
+    if ("projectId" in result) {
+      span.setAttribute("langfuse.authz.projectId", result.projectId);
+      return;
+    }
+    span.setAttribute("langfuse.authz.orgId", result.orgId);
+    return;
+  }
+  span.setAttribute("langfuse.authz.decision", "deny");
+  span.setAttribute("langfuse.authz.error", result.error.message);
+}
+
 /** boundOrgIdOf returns the org an api key is bound to, when any. */
 function boundOrgIdOf(context: AuthorizationContext): string | undefined {
   if (context.principal.kind !== "apiKey") {
@@ -109,6 +133,12 @@ export type AuthError = UnauthorizedError | InvalidRequestError | ForbiddenError
 
 /** ResolvedOrg is org target resolution's success outcome. */
 type ResolvedOrg = Success & { orgId: string };
+
+/** TaggableAccessResult is either seam's success outcome as the span tagger sees it: the resolved target with the residual access. */
+type TaggableAccessResult = Success & { access?: Access } & (
+    | { projectId: string }
+    | { orgId: string }
+  );
 
 if (import.meta.vitest) {
   const { describe, it, expect } = import.meta.vitest;

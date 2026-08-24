@@ -1,12 +1,22 @@
-// PROTOTYPE(LFE-15038): legacy accessLevel gate replaced by enforceOrgAuth
+// PROTOTYPE(LFE-15038): the new org pipeline runs on every request — shadow
+// stamps it on the span while the legacy gate decides, enforce gates alone
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { logger } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { logger, redis } from "@langfuse/shared/src/server";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
-import { enforceOrgAuth } from "@/src/features/auth/policy/apiAdapter.organizations.prototype";
-import { coveringOrg } from "@/src/features/auth/policy/enforce.prototype";
+import {
+  authzMigrationMode,
+  enforceOrgAuth,
+  tagAuthzOutcome,
+} from "@/src/features/auth/policy/enforcement.organizations.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasEntitlement,
+  hasEntitlementBasedOnPlan,
+} from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,30 +33,84 @@ export default async function handler(
     });
   }
 
-  // one call: 401 on bad credential, 400 on missing/disagreeing org target,
-  // 404 outside the grant, 403 when no policy covers projects:read on the org
-  const result = await enforceOrgAuth({
+  // the new path evaluates every request and never throws: shadow stamps it
+  // on the span while legacy keeps gating, enforce acts on it below
+  const authz = await enforceOrgAuth({
     headers: req.headers,
-    action: "projects:read",
+    action: "project:read",
   });
-  if (!result.success) {
-    return res
-      .status(result.error.httpCode)
-      .json({ error: result.error.message });
-  }
-  const { orgId, context } = result;
 
-  // the covering PrincipalOrganization carries plan and rateLimitConfig; rate
-  // limiting rejoins here once RateLimitService's input narrows to that shape
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: coveringOrg(context, { orgId })?.plan ?? "oss",
-      entitlement: "admin-api",
-    })
-  ) {
-    return res.status(403).json({
-      error: "This feature is not available on your current plan.",
-    });
+  let orgId: string;
+  if (authzMigrationMode === "shadow") {
+    tagAuthzOutcome(authz);
+
+    // legacy gate, restored verbatim (dies with LFE-15033)
+    const authCheck = await new ApiAuthService(
+      prisma,
+      redis,
+    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    if (!authCheck.validKey) {
+      return res.status(401).json({
+        error: authCheck.error,
+      });
+    }
+    if (
+      authCheck.scope.accessLevel !== "organization" ||
+      !authCheck.scope.orgId
+    ) {
+      return res.status(403).json({
+        error:
+          "Invalid API key. Organization-scoped API key required for this operation.",
+      });
+    }
+    if (
+      !hasEntitlementBasedOnPlan({
+        plan: authCheck.scope.plan,
+        entitlement: "admin-api",
+      })
+    ) {
+      return res.status(403).json({
+        error: "This feature is not available on your current plan.",
+      });
+    }
+    const rateLimitCheck =
+      await RateLimitService.getInstance().rateLimitRequest(
+        authCheck.scope,
+        "public-api",
+      );
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
+    orgId = authCheck.scope.orgId;
+  } else {
+    // one call: 401 on bad credential, 400 on missing/disagreeing org target,
+    // 403 when no policy covers projects:read on the org
+    if (!authz.success) {
+      return res
+        .status(authz.error.httpCode)
+        .json({ error: authz.error.message });
+    }
+    if (
+      !hasEntitlement({
+        entitlement: "admin-api",
+        context: authz.context,
+        orgId: authz.orgId,
+      })
+    ) {
+      return res.status(403).json({
+        error: "This feature is not available on your current plan.",
+      });
+    }
+    const rateLimitCheck =
+      await RateLimitService.getInstance().rateLimitRequest({
+        resource: "public-api",
+        context: authz.context,
+        orgId: authz.orgId,
+      });
+    if (rateLimitCheck?.isRateLimited()) {
+      return rateLimitCheck.sendRestResponseIfLimited(res);
+    }
+    orgId = authz.orgId;
   }
 
   try {

@@ -6,8 +6,15 @@ import {
   type RateLimitResult,
   type RateLimitResource,
   type RateLimitConfig,
+  type RateLimitScope,
   type Plan,
 } from "@langfuse/shared";
+// PROTOTYPE(LFE-15038): rate limiting also accepts the new path's context
+import { coveringOrg } from "@/src/features/auth/policy/enforce.prototype";
+import {
+  type AuthorizationContext,
+  type Resource,
+} from "@/src/features/auth/policy/policy.prototype";
 import {
   recordIncrement,
   type ApiAccessScope,
@@ -77,9 +84,14 @@ export class RateLimitService {
     RateLimitService.instance = null;
   }
 
+  async rateLimitRequest(params: RateLimitRequestParams): Promise<RateLimitHelper>;
   async rateLimitRequest(
     scope: ApiAccessScope,
     resource: z.infer<typeof RateLimitResource>,
+  ): Promise<RateLimitHelper>;
+  async rateLimitRequest(
+    scopeOrParams: ApiAccessScope | RateLimitRequestParams,
+    positionalResource?: z.infer<typeof RateLimitResource>,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -95,11 +107,28 @@ export class RateLimitService {
       return new RateLimitHelper(undefined);
     }
 
-    return new RateLimitHelper(await this.checkRateLimit(scope, resource));
+    if ("context" in scopeOrParams) {
+      const scope = rateLimitScopeOf(scopeOrParams);
+      if (!scope) {
+        return new RateLimitHelper(undefined);
+      }
+      return new RateLimitHelper(
+        await this.checkRateLimit(scope, scopeOrParams.resource),
+      );
+    }
+
+    if (positionalResource === undefined) {
+      throw new Error(
+        "rateLimitRequest requires a resource with an ApiAccessScope",
+      );
+    }
+    return new RateLimitHelper(
+      await this.checkRateLimit(scopeOrParams, positionalResource),
+    );
   }
 
   async checkRateLimit(
-    scope: ApiAccessScope,
+    scope: RateLimitScope,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     const effectiveConfig = getRateLimitConfig(scope, resource);
@@ -180,6 +209,27 @@ export class RateLimitService {
   }
 }
 
+/** RateLimitRequestParams meters the resource by the org covering the target, resolved from the new path's AuthorizationContext. */
+export type RateLimitRequestParams = {
+  resource: z.infer<typeof RateLimitResource>;
+  context: AuthorizationContext;
+} & Resource;
+
+/** rateLimitScopeOf resolves the slice rate limiting reads from the org covering the params' target; a principal with no covering org fails open. */
+function rateLimitScopeOf(
+  p: RateLimitRequestParams,
+): RateLimitScope | undefined {
+  const org = coveringOrg(p.context, p);
+  if (!org) {
+    return undefined;
+  }
+  return {
+    orgId: org.orgId,
+    plan: org.plan,
+    rateLimitOverrides: org.rateLimitConfig,
+  };
+}
+
 export class RateLimitHelper {
   res: RateLimitResult | undefined;
 
@@ -233,7 +283,7 @@ export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
 };
 
 const getRateLimitConfig = (
-  scope: ApiAccessScope,
+  scope: RateLimitScope,
   resource: z.infer<typeof RateLimitResource>,
 ) => {
   const planBasedConfig = getPlanBasedRateLimitConfig(scope.plan, resource);
