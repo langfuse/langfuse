@@ -12,6 +12,7 @@ import {
   useEntitlementLimit,
   useHasEntitlement,
 } from "@/src/features/entitlements/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -74,6 +75,7 @@ export function CreateProjectMemberDialogController({
   ).data?.totalCount;
 
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const createProjectMemberMutation = api.members.create.useMutation({
     onSuccess: () => utils.members.invalidate(),
     // The form owns error presentation; avoid a duplicate global toast.
@@ -104,8 +106,18 @@ export function CreateProjectMemberDialogController({
             hasOnlySingleProjectAccess={hasOnlySingleProjectAccess}
             hasProjectRoleEntitlement={hasProjectRoleEntitlement}
             isSubmitting={createProjectMemberMutation.isPending}
-            createProjectMember={(values) =>
-              createProjectMemberMutation
+            createProjectMember={(values) => {
+              capture(
+                project
+                  ? "project_settings:send_membership_invitation"
+                  : "organization_settings:send_membership_invitation",
+                {
+                  orgRole: values.orgRole,
+                  projectRole: values.projectRole,
+                },
+              );
+
+              return createProjectMemberMutation
                 .mutateAsync({
                   orgId,
                   email: values.email,
@@ -116,8 +128,8 @@ export function CreateProjectMemberDialogController({
                       ? undefined
                       : values.projectRole,
                 })
-                .then(() => undefined)
-            }
+                .then(() => undefined);
+            }}
             onSuccess={closeDialog}
           />
         </>

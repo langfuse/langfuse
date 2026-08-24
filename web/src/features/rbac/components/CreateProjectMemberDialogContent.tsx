@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
@@ -50,7 +49,6 @@ export function CreateProjectMemberDialogContent({
   createProjectMember,
   onSuccess,
 }: CreateProjectMemberDialogContentProps) {
-  const capture = usePostHogClientCapture();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -61,16 +59,6 @@ export function CreateProjectMemberDialogContent({
   });
 
   async function onSubmit(values: FormValues) {
-    capture(
-      project
-        ? "project_settings:send_membership_invitation"
-        : "organization_settings:send_membership_invitation",
-      {
-        orgRole: values.orgRole,
-        projectRole: values.projectRole,
-      },
-    );
-
     try {
       await createProjectMember(values);
       form.reset();
