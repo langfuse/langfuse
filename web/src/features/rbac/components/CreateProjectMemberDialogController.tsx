@@ -1,5 +1,4 @@
 import { type ReactNode } from "react";
-import { Role } from "@langfuse/shared";
 
 import {
   DialogController,
@@ -124,7 +123,7 @@ export function CreateProjectMemberDialogController({
                   orgRole: values.orgRole,
                   projectId: project?.id,
                   projectRole:
-                    values.projectRole === Role.NONE
+                    values.projectRole === "NONE"
                       ? undefined
                       : values.projectRole,
                 })

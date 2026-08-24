@@ -1,5 +1,4 @@
 import { type ComponentProps } from "react";
-import { Role } from "@langfuse/shared";
 import { expect, fn, userEvent } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -80,8 +79,8 @@ export const SubmitsInvitation = meta.story({
 
     await expect(args.createProjectMember).toHaveBeenCalledWith({
       email: "member@example.com",
-      orgRole: Role.MEMBER,
-      projectRole: Role.NONE,
+      orgRole: "MEMBER",
+      projectRole: "NONE",
     });
     await expect(args.onSuccess).toHaveBeenCalledOnce();
   },

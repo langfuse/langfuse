@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Role } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -24,10 +24,18 @@ import {
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { reportTrpcErrorWithoutToast } from "@/src/utils/api";
 
+const roleValues = {
+  OWNER: "OWNER",
+  ADMIN: "ADMIN",
+  MEMBER: "MEMBER",
+  VIEWER: "VIEWER",
+  NONE: "NONE",
+} as const satisfies Record<Role, Role>;
+
 const formSchema = z.object({
   email: z.string().trim().pipe(z.email()),
-  orgRole: z.enum(Role),
-  projectRole: z.enum(Role),
+  orgRole: z.enum(roleValues),
+  projectRole: z.enum(roleValues),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -53,8 +61,10 @@ export function CreateProjectMemberDialogContent({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
-      orgRole: hasOnlySingleProjectAccess ? Role.NONE : Role.MEMBER,
-      projectRole: hasOnlySingleProjectAccess ? Role.MEMBER : Role.NONE,
+      orgRole: hasOnlySingleProjectAccess ? roleValues.NONE : roleValues.MEMBER,
+      projectRole: hasOnlySingleProjectAccess
+        ? roleValues.MEMBER
+        : roleValues.NONE,
     },
   });
 
@@ -100,7 +110,9 @@ export function CreateProjectMemberDialogContent({
                   <Select
                     defaultValue={field.value}
                     onValueChange={(value) =>
-                      field.onChange(value as (typeof Role)[keyof typeof Role])
+                      field.onChange(
+                        value as (typeof roleValues)[keyof typeof roleValues],
+                      )
                     }
                   >
                     <FormControl>
@@ -109,7 +121,7 @@ export function CreateProjectMemberDialogContent({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.values(Role).map((role) => (
+                      {Object.values(roleValues).map((role) => (
                         <RoleSelectItem role={role} key={role} />
                       ))}
                     </SelectContent>
@@ -129,7 +141,9 @@ export function CreateProjectMemberDialogContent({
                   <Select
                     defaultValue={field.value}
                     onValueChange={(value) =>
-                      field.onChange(value as (typeof Role)[keyof typeof Role])
+                      field.onChange(
+                        value as (typeof roleValues)[keyof typeof roleValues],
+                      )
                     }
                   >
                     <FormControl>
@@ -138,10 +152,11 @@ export function CreateProjectMemberDialogContent({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.values(Role)
+                      {Object.values(roleValues)
                         .filter(
                           (role) =>
-                            !hasOnlySingleProjectAccess || role !== Role.NONE,
+                            !hasOnlySingleProjectAccess ||
+                            role !== roleValues.NONE,
                         )
                         .map((role) => (
                           <RoleSelectItem
