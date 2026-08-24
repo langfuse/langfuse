@@ -13,13 +13,14 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
+import { ActionButton } from "@/src/components/ActionButton";
+import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
-import { Trash } from "lucide-react";
+import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -384,7 +385,29 @@ export function MembersTable({
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
         actionButtons={
-          <CreateProjectMemberButton orgId={orgId} project={project} />
+          <CreateProjectMemberDialogController orgId={orgId} project={project}>
+            {({
+              hasAccess,
+              hasOnlySingleProjectAccess,
+              isSubmitting,
+              usageLimit,
+              Trigger,
+            }) => (
+              <Trigger asChild>
+                <ActionButton
+                  variant="secondary"
+                  loading={isSubmitting}
+                  hasAccess={hasAccess}
+                  usageLimit={usageLimit}
+                  icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+                >
+                  {hasOnlySingleProjectAccess
+                    ? "Add project member"
+                    : "Add new member"}
+                </ActionButton>
+              </Trigger>
+            )}
+          </CreateProjectMemberDialogController>
         }
         searchConfig={{
           metadataSearchFields: ["Name", "Email"],
