@@ -1,7 +1,11 @@
 import type { IncomingMessage } from "node:http";
 import { gunzip } from "node:zlib";
 
-import { logger } from "@langfuse/shared/src/server";
+import {
+  getCurrentSpan,
+  logger,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import type { NextApiResponse } from "next";
 import getRawBody from "raw-body";
 
@@ -27,6 +31,8 @@ export function handleOtelRequestBodyTooLarge(
   res: NextApiResponse,
   projectId: string,
 ) {
+  const stage = error.afterDecompression ? "decompressed" : "encoded";
+
   if (!error.afterDecompression) {
     // raw-body intentionally pauses on overflow. Drain what remains while
     // closing this connection so subsequent requests are not queued here.
@@ -38,6 +44,16 @@ export function handleOtelRequestBodyTooLarge(
     projectId,
     maxBodyBytes: error.maxBytes,
     afterDecompression: error.afterDecompression,
+  });
+  recordIncrement(
+    "langfuse.ingestion.otel.request_body_limit_exceeded",
+    1,
+    { stage },
+  );
+  getCurrentSpan()?.setAttributes({
+    "langfuse.ingestion.otel.request_body_limit_exceeded": true,
+    "langfuse.ingestion.otel.request_body_limit_bytes": error.maxBytes,
+    "langfuse.ingestion.otel.request_body_limit_stage": stage,
   });
   res.status(413);
   return { error: error.message };
