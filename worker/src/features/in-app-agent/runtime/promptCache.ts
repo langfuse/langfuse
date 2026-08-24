@@ -91,9 +91,7 @@ export function applyPromptCachePoints(
   }
 
   return prompt.map((message, index) =>
-    cacheIndices.has(index)
-      ? withPromptCache(message, cacheProvider)
-      : message,
+    cacheIndices.has(index) ? withPromptCache(message, cacheProvider) : message,
   );
 }
 
@@ -178,10 +176,7 @@ function getMessageRole(message: unknown) {
     : undefined;
 }
 
-function withPromptCache(
-  message: unknown,
-  cacheProvider: PromptCacheProvider,
-) {
+function withPromptCache(message: unknown, cacheProvider: PromptCacheProvider) {
   return cacheProvider === "bedrock"
     ? withBedrockCachePoint(message)
     : withAnthropicCacheControl(message);

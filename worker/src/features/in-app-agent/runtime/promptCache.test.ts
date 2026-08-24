@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  applyPromptCachePoints,
-  applyPromptCacheToCall,
-} from "./promptCache";
+import { applyPromptCachePoints, applyPromptCacheToCall } from "./promptCache";
 
 const bedrockCachePoint = {
   bedrock: { cachePoint: { type: "default" } },
