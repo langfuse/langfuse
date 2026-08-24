@@ -35,10 +35,8 @@ import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
 import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-// PROTOTYPE(LFE-15038): MCP calls the header-free PEP directly per LFE-15053;
-// suspension arrives as the mcp_disabled system deny
-import { authenticate } from "@/src/features/auth/policy/apiAdapter.prototype";
-import { enforceProjectAuthz } from "@/src/features/auth/policy/enforce.prototype";
+// PROTOTYPE(LFE-15038): suspension arrives as the mcp_disabled system deny
+import { enforceProjectAuth } from "@/src/features/auth/policy/apiAdapter.projects.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, safeJsonParse } from "@langfuse/shared";
@@ -95,14 +93,16 @@ export default async function handler(
       throw new UnauthorizedError(authCheck.error);
     }
 
-    // PEP: 400 without a project target (org keys), 403 from the mcp_disabled
+    // 400 without a project target (org keys), 403 from the mcp_disabled
     // system deny with today's message
-    const authz = await authenticate(req.headers);
-    const { projectId } = enforceProjectAuthz({
-      context: authz,
+    const enforced = await enforceProjectAuth({
       headers: req.headers,
       action: "mcp:access",
     });
+    if (!enforced.success) {
+      throw enforced.error;
+    }
+    const projectId = enforced.projectId;
 
     addUserToSpan({
       apiKeyId: authCheck.scope.apiKeyId,
@@ -137,7 +137,7 @@ export default async function handler(
       rateLimitOverrides: authCheck.scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
-      authz,
+      authz: enforced.context,
     };
 
     logger.debug("MCP request authenticated", {

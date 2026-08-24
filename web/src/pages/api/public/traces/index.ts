@@ -13,8 +13,8 @@ import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
-// PROTOTYPE(LFE-15038): required-action factory replacing the legacy one
-import { createAuthedProjectAPIRoute } from "@/src/features/auth/policy/apiAdapter.prototype";
+// PROTOTYPE(LFE-15038): action-aware factory replacing the legacy one
+import { createAuthedProjectAPIRoute } from "@/src/features/auth/policy/apiAdapter.projects.prototype";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   createIngestionAttribution,

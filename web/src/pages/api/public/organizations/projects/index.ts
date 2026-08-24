@@ -1,9 +1,8 @@
 // PROTOTYPE(LFE-15038): legacy accessLevel gate replaced by enforceOrgAuth
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
-import { BaseError } from "@langfuse/shared";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
-import { enforceOrgAuth } from "@/src/features/auth/policy/apiAdapter.prototype";
+import { enforceOrgAuth } from "@/src/features/auth/policy/apiAdapter.organizations.prototype";
 import { coveringOrg } from "@/src/features/auth/policy/enforce.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -24,21 +23,18 @@ export default async function handler(
     });
   }
 
-  let orgId: string;
-  let context;
-  try {
-    // one call: 401 on bad credential, 400 on missing/disagreeing org target,
-    // 404 outside the grant, 403 when no policy covers projects:read on the org
-    ({ orgId, context } = await enforceOrgAuth({
-      headers: req.headers,
-      action: "projects:read",
-    }));
-  } catch (error) {
-    if (error instanceof BaseError) {
-      return res.status(error.httpCode).json({ error: error.message });
-    }
-    throw error;
+  // one call: 401 on bad credential, 400 on missing/disagreeing org target,
+  // 404 outside the grant, 403 when no policy covers projects:read on the org
+  const result = await enforceOrgAuth({
+    headers: req.headers,
+    action: "projects:read",
+  });
+  if (!result.success) {
+    return res
+      .status(result.error.httpCode)
+      .json({ error: result.error.message });
   }
+  const { orgId, context } = result;
 
   // the covering PrincipalOrganization carries plan and rateLimitConfig; rate
   // limiting rejoins here once RateLimitService's input narrows to that shape

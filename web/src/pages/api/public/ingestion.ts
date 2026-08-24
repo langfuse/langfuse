@@ -18,17 +18,19 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import {
   MethodNotAllowedError,
   BaseError,
+  ForbiddenError,
   UnauthorizedError,
 } from "@langfuse/shared";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
-import { authenticate } from "@/src/features/auth/policy/apiAdapter.prototype";
+import { authzMigrationMode } from "@/src/features/auth/policy/apiAdapter.organizations.prototype";
 import {
-  enforceIngestionAuthz,
-  getProjectId,
-} from "@/src/features/auth/policy/enforce.prototype";
+  enforceIngestionAuth,
+  tagIngestionAuthzOutcome,
+  type IngestionAuthzRejection,
+} from "@/src/features/auth/policy/apiAdapter.ingest.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -84,10 +86,8 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // two fully independent paths: the legacy authCheck keeps shaping
-    // processEventBatch, attribution and rate limiting (dies with LFE-15033);
-    // the new path resolves its own context, and suspension is no longer a
-    // flag check — it arrives as a system deny asserted on the batch
+    // the legacy path gates alone in shadow mode and dies with LFE-15033;
+    // the new path evaluates independently once the batch has parsed
     const authCheck = await new ApiAuthService(
       prisma,
       redis,
@@ -95,9 +95,22 @@ export default async function handler(
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
     }
-    const context = await authenticate(req.headers);
-    const projectId = getProjectId(context, req.headers);
+    if (!authCheck.scope.projectId) {
+      throw new UnauthorizedError(
+        "Missing projectId in scope. Are you using an organization key?",
+      );
+    }
+    const projectId = authCheck.scope.projectId;
     projectIdForIngestFailure = projectId;
+
+    // legacy suspension gate, restored verbatim: in shadow it fires before
+    // the new path sees the batch, so suspended traffic stays a shadow blind
+    // spot until enforce
+    if (authCheck.scope.isIngestionSuspended) {
+      throw new ForbiddenError(
+        "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+      );
+    }
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -144,14 +157,21 @@ export default async function handler(
 
         await telemetry();
 
-        // authorization: a system deny (suspension) throws the whole-request
-        // 403 with today's message; a grant deny rejects per event (207)
-        const { allowedBatch, rejectedEvents: authzRejections } =
-          enforceIngestionAuthz({
-            context,
-            headers: req.headers,
-            batch: parsedSchema.data.batch,
-          });
+        // the new path evaluates the same batch and never throws: enforce
+        // gates with the result, shadow only observes it on the span
+        const authz = await enforceIngestionAuth({
+          headers: req.headers,
+          batch: parsedSchema.data.batch,
+        });
+        if (authzMigrationMode === "enforce" && !authz.success) {
+          throw authz.error;
+        }
+        let batch = parsedSchema.data.batch;
+        let authzRejections: IngestionAuthzRejection[] = [];
+        if (authzMigrationMode === "enforce" && authz.success) {
+          batch = authz.allowedBatch;
+          authzRejections = authz.rejectedEvents;
+        }
 
         // V4 events_only mode: refuse trace/observation events because their
         // writes would land in the legacy ClickHouse tables this deployment no
@@ -160,7 +180,7 @@ export default async function handler(
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
-          allowedBatch,
+          batch,
           isEventsOnlyMode,
         );
 
@@ -183,7 +203,14 @@ export default async function handler(
           attribution,
         });
         if (rejectedErrors.length > 0 || authzRejections.length > 0) {
-          result.errors = [...result.errors, ...rejectedErrors, ...authzRejections];
+          result.errors = [
+            ...result.errors,
+            ...rejectedErrors,
+            ...authzRejections,
+          ];
+        }
+        if (authzMigrationMode === "shadow") {
+          tagIngestionAuthzOutcome(authz, result.errors);
         }
         return res.status(207).json(result);
       } catch (error) {

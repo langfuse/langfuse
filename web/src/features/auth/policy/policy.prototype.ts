@@ -149,8 +149,9 @@ export type Success = { success: true; error?: never };
 /** ErrorResult is a failed outcome carrying the typed error. */
 export type ErrorResult<E extends BaseError> = { success: false; error: E };
 
-/** Access is the residual resource filter a successful decision carries: consumers include the covered refs and exclude the denied ones (IN … AND NOT IN …). */
+/** Access is the residual resource filter a successful decision carries: the asserted action, with the covered refs minus the denied ones (IN … AND NOT IN …). */
 export type Access = {
+  action: Action;
   includes: ResourceRef[];
   excludes: ScopedRef[]; // never the wildcard — a wildcard deny is a 403
 };
@@ -164,7 +165,7 @@ export type Decision = AccessResult | ErrorResult<ForbiddenError>;
 /** authorize decides whether the context permits action on resource, overload-typed: org actions check org nodes; project actions check a project, or an org for list filtering. */
 export function authorize(
   ctx: AuthorizationContext,
-  action: OrganizationAction,
+  action: Action,
   resource: OrgResource,
 ): Decision;
 export function authorize(
@@ -228,7 +229,10 @@ function decide(
 
   if (!survives(resource, includes, excludes))
     return forbidden(denies.find(hasSource("system")));
-  return access(includes.includes(wildcard) ? [wildcard] : includes, excludes);
+  if (includes.includes(wildcard)) {
+    return access(action, [wildcard], excludes);
+  }
+  return access(action, includes, excludes);
 }
 
 /** getResources returns a policy's resource refs. */
@@ -294,10 +298,11 @@ const notWild = <T>(value: T | Wildcard): value is T => value !== wildcard;
 
 /** access builds a successful Decision carrying the residual filter. */
 function access(
+  action: Action,
   includes: ResourceRef[],
   excludes: ScopedRef[] = [],
 ): AccessResult {
-  return { success: true, access: { includes, excludes } };
+  return { success: true, access: { action, includes, excludes } };
 }
 
 /** forbidden builds a 403 Decision, using the deny policy's message when given one. */
@@ -482,6 +487,7 @@ if (import.meta.vitest) {
       ]);
       const decision = authorize(c, "auditLogs:read", { orgId: ORG });
       expect(decision.success && decision.access).toEqual({
+        action: "auditLogs:read",
         includes: [{ orgId: ORG, projectIds: [PRJ, OTHER_PRJ] }],
         excludes: [{ orgId: ORG, projectIds: [OTHER_PRJ] }],
       });
@@ -631,6 +637,7 @@ if (import.meta.vitest) {
       );
       const list = authorize(c, "projects:read", { orgId: ORG });
       expect(list.success && list.access).toEqual({
+        action: "projects:read",
         includes: [{ orgId: ORG, projectIds: [PRJ] }],
         excludes: [],
       });
@@ -718,7 +725,7 @@ if (import.meta.vitest) {
     it("Success and ErrorResult discriminate under strict", () => {
       const d = {
         success: true,
-        access: { includes: [], excludes: [] },
+        access: { action: "prompts:read", includes: [], excludes: [] },
       } as Decision;
       const typecheckOnly = () => {
         if (d.success) {
