@@ -11,6 +11,7 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { areGitHubDispatchUrlsEquivalent } from "../githubDispatchUrl";
 
 interface GitHubDispatchConfigOptions {
   actionConfig: ActionCreate;
@@ -82,6 +83,23 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
+  const isUrlChanged =
+    existingActionConfig !== undefined &&
+    !areGitHubDispatchUrlsEquivalent(urlToUse, existingActionConfig.url);
+  const newGithubToken =
+    typeof gitHubDispatchConfig.githubToken === "string" &&
+    gitHubDispatchConfig.githubToken.trim() !== ""
+      ? gitHubDispatchConfig.githubToken
+      : undefined;
+
+  if (isUrlChanged && !newGithubToken) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "GitHub Personal Access Token is required when changing the dispatch URL",
+    });
+  }
+
   // Determine event type to use
   let eventTypeToUse: string;
   if (
@@ -102,11 +120,8 @@ export async function processGitHubDispatchActionConfig({
   let displayToken: string;
   let returnToken: string | undefined;
 
-  if (
-    gitHubDispatchConfig.githubToken &&
-    gitHubDispatchConfig.githubToken.trim() !== ""
-  ) {
-    tokenToUse = gitHubDispatchConfig.githubToken;
+  if (newGithubToken) {
+    tokenToUse = newGithubToken;
     displayToken = maskGitHubToken(tokenToUse);
     returnToken = tokenToUse;
   } else if (existingActionConfig?.githubToken) {
