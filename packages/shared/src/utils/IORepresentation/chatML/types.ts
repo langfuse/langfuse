@@ -269,6 +269,11 @@ export const BaseChatMlMessageSchema = z
     // Thinking/reasoning content from models
     thinking: z.array(ThinkingContentPartSchema).optional(),
     redacted_thinking: z.array(RedactedThinkingContentPartSchema).optional(),
+    // Legacy OpenAI Chat Completions `{"completion": "", "reasoning": "..."}`
+    // shape (no Responses API reasoning item wrapper). The OpenAI adapter
+    // normalizes this into a top-level `reasoning` field on the message
+    // rather than nesting it under `json`.
+    reasoning: z.string().nullish(),
   })
   .loose();
 
@@ -337,6 +342,7 @@ export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
       tool_call_id,
       thinking,
       redacted_thinking,
+      reasoning,
       ...other
     }) => ({
       role,
@@ -349,6 +355,7 @@ export const ChatMlMessageSchema = BaseChatMlMessageSchema.refine(
       tool_call_id,
       thinking,
       redacted_thinking,
+      reasoning,
       ...(Object.keys(other).length === 0 ? {} : { json: other }),
     }),
   );
