@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MediaTag } from "./MediaTag";
 
+const OFFICE_CONTENT_TYPES = [
+  ["application/msword", "DOC"],
+  [
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "DOCX",
+  ],
+  ["application/vnd.ms-excel", "XLS"],
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "XLSX"],
+] as const;
+
 describe("MediaTag", () => {
   it("opens the preview on click", async () => {
     const onOpenChange = vi.fn();
@@ -54,11 +64,29 @@ describe("MediaTag", () => {
     expect(chip.querySelector("span")?.getAttribute("title")).toBe("");
   });
 
-  it("keeps the label title while the peek is closed", () => {
+  it("keeps the MIME type title while the peek is closed", () => {
     render(<MediaTag contentType="image/png" open={false} />);
 
     const chip = screen.getByRole("button", { name: "PNG media" });
-    expect(chip.querySelector("span")?.getAttribute("title")).toBe("PNG");
+    expect(chip.querySelector("span")?.getAttribute("title")).toBe("image/png");
+  });
+
+  it.each(OFFICE_CONTENT_TYPES)("renders %s as %s", (contentType, label) => {
+    render(<MediaTag contentType={contentType} />);
+
+    expect(
+      screen.getByRole("button", { name: `${label} media` }),
+    ).toBeInTheDocument();
+  });
+
+  it("caps generated MIME labels at ten characters", () => {
+    const contentType =
+      "application/vnd.example.intentionally-verbose-archive-format";
+    render(<MediaTag contentType={contentType} />);
+
+    const label = screen.getByRole("button").querySelector("span");
+    expect(label).toHaveClass("max-w-[10ch]", "truncate");
+    expect(label).toHaveAttribute("title", contentType);
   });
 
   it("shows the fallback when resolved image media fails to render", async () => {
