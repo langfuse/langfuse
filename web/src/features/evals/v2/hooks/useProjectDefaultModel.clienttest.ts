@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { LLMAdapter } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useProjectDefaultModel } from "./useProjectDefaultModel";
@@ -82,7 +83,7 @@ describe("useProjectDefaultModel", () => {
       result.current.update.requestUpdate({
         provider: "openai",
         model: "gpt-4.1",
-        adapter: "openai",
+        adapter: LLMAdapter.OpenAI,
         modelParams: {},
       }),
     );
