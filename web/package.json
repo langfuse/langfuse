@@ -142,6 +142,7 @@
     "prism-react-renderer": "^2.4.1",
     "protobufjs": "7.6.5",
     "rate-limiter-flexible": "^5.0.4",
+    "raw-body": "3.0.2",
     "react": "19.2.4",
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.4",

@@ -488,6 +488,12 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
+    // Maximum encoded and decompressed OTLP request body size in bytes.
+    LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES: z.coerce
+      .number()
+      .positive()
+      .int()
+      .default(512 * 1024 * 1024),
     // API Traces endpoint controls (may induce breaking changes on API when changed!)
     LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
       .number()
@@ -1016,6 +1022,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
+    LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
+      process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
 
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:
