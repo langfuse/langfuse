@@ -5,6 +5,11 @@ import { useProjectDefaultModel } from "./useProjectDefaultModel";
 
 const mocks = vi.hoisted(() => ({
   refetchConnections: vi.fn(),
+  invalidateDefaultModel: vi.fn(),
+  invalidateEvaluatorList: vi.fn(),
+  invalidateEvaluatorOptions: vi.fn(),
+  invalidateEvaluatorFilterOptions: vi.fn(),
+  upsertDefaultModel: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({
@@ -27,11 +32,12 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
       defaultLlmModel: {
-        fetchDefaultModel: { invalidate: vi.fn() },
+        fetchDefaultModel: { invalidate: mocks.invalidateDefaultModel },
       },
       evalsV2: {
-        list: { invalidate: vi.fn() },
-        options: { invalidate: vi.fn() },
+        list: { invalidate: mocks.invalidateEvaluatorList },
+        options: { invalidate: mocks.invalidateEvaluatorOptions },
+        filterOptions: { invalidate: mocks.invalidateEvaluatorFilterOptions },
       },
     }),
     defaultLlmModel: {
@@ -39,7 +45,10 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: null }),
       },
       upsertDefaultModel: {
-        useMutation: () => ({ isPending: false, mutate: vi.fn() }),
+        useMutation: () => ({
+          isPending: false,
+          mutate: mocks.upsertDefaultModel,
+        }),
       },
     },
     llmApiKey: {
@@ -60,8 +69,29 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
 
 describe("useProjectDefaultModel", () => {
   beforeEach(() => {
-    mocks.refetchConnections.mockReset();
+    Object.values(mocks).forEach((mock) => mock.mockReset());
     vi.spyOn(window, "open").mockImplementation(() => null);
+  });
+
+  it("refreshes model filter options after updating the project default", async () => {
+    const { result } = renderHook(() =>
+      useProjectDefaultModel({ projectId: "project-1", source: "overview" }),
+    );
+
+    act(() =>
+      result.current.update.requestUpdate({
+        provider: "openai",
+        model: "gpt-4.1",
+        adapter: "openai",
+        modelParams: {},
+      }),
+    );
+    const mutationOptions = mocks.upsertDefaultModel.mock.calls[0]?.[1];
+    await act(async () => mutationOptions?.onSuccess());
+
+    expect(mocks.invalidateEvaluatorFilterOptions).toHaveBeenCalledWith({
+      projectId: "project-1",
+    });
   });
 
   it("refreshes model connections after returning from provider settings", () => {
