@@ -75,6 +75,10 @@ type MockedAgentConfig = {
       stepNumber: number;
       sendSignal?: (signal: unknown) => Promise<unknown>;
     }) => Promise<unknown>;
+    processLLMRequest?: (args: {
+      prompt: unknown;
+      stepNumber?: number;
+    }) => { prompt?: unknown } | undefined;
   }>;
   defaultOptions?: {
     onIterationComplete?: (context: {
@@ -740,6 +744,77 @@ describe("createAgUiStream", () => {
     ).toHaveBeenNthCalledWith(2, finishPart);
   });
 
+  it("adds Bedrock cache points to Claude model prompts so later steps can reuse prior turns", async () => {
+    await initializeBasicTracedAgent(
+      "run-bedrock-prompt-cache",
+      testBedrockModel("eu.anthropic.claude-opus-4-8"),
+    );
+
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const options = {
+      prompt: [
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+      ],
+    };
+    await model.doStream(options);
+
+    const cachedPrompt = [
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: { bedrock: { cachePoint: { type: "default" } } },
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: { bedrock: { cachePoint: { type: "default" } } },
+      },
+    ];
+    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
+      prompt: cachedPrompt,
+    });
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
+  it("appends a trailing current-time message on each model request", async () => {
+    await initializeBasicTracedAgent("run-current-time");
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+
+    const result = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+    });
+
+    const lastText = (
+      result?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+    expect(lastText).toContain("<current_time");
+  });
+
   it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {
     await initializeBasicTracedAgent("run-step-limit-wrap-up");
     const agentConfig = getLastAgentConfig();
@@ -1075,10 +1150,10 @@ describe("createAgUiStream", () => {
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentDate: expect.any(String),
+        currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
-        screenContext: expect.stringContaining("<screen_context>"),
+        screenContext: "",
         userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
@@ -1087,15 +1162,31 @@ describe("createAgUiStream", () => {
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        screenContext: expect.stringContaining(
-          '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
-        ),
         userContext: expect.stringContaining('"user_name": "Ada Lovelace"'),
       }),
     );
-    expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).not.toContain(
-      '"user_name"',
+    expect(promptMocks.compile.mock.calls[0]?.[0].userContext).not.toContain(
+      '"current_url"',
     );
+
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const laterStep = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 1,
+    });
+    const laterStepText = (
+      laterStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+
+    expect(laterStepText).toContain("<screen_context>");
+    expect(laterStepText).toContain(
+      '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
+    );
+    expect(laterStepText).not.toContain('"user_name"');
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));
     expect((baseInstructions as () => string)()).toBe(
@@ -2049,8 +2140,20 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
 
-    const screenContext = promptMocks.compile.mock.calls[0]?.[0]
-      .screenContext as string;
+    expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).toBe("");
+
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const firstStep = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 0,
+    });
+    const screenContext = (
+      firstStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
 
     expect(screenContext).toContain("<screen_context>");
     expect(screenContext).toContain("</screen_context>");

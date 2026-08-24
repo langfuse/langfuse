@@ -152,6 +152,38 @@ describe("evaluator configuration validation", () => {
     ).rejects.toThrow("Evaluator variables must match the prompt variables");
   });
 
+  it("rejects mappings that reference variables not in the prompt", async () => {
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{output}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: [
+            { templateVariable: "output", selectedColumnId: "output" },
+            {
+              templateVariable: "item_metadata",
+              selectedColumnId: "experimentItemMetadata",
+            },
+          ],
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Mappings reference unknown evaluator variables: item_metadata",
+    );
+  });
+
   it("rejects incomplete evaluator default mappings", async () => {
     await expect(
       assertEvaluatorConfigurationValid({

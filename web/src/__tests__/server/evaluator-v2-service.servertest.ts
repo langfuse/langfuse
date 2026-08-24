@@ -588,11 +588,18 @@ describe("EvaluatorService", () => {
     ).rejects.toThrow("Evaluator not found");
   });
 
-  it("rejects prompt changes that make existing rule mappings incomplete", async () => {
+  it("changes the prompt without validating or rewriting rule mappings", async () => {
     const service = createService();
     const input = llmInput("Assigned evaluator update");
     const created = await service.create(input, null);
-    await prisma.evaluationRule.create({
+    const staleMapping = [
+      { templateVariable: "output", selectedColumnId: "output" },
+      {
+        templateVariable: "item_metadata",
+        selectedColumnId: "experimentItemMetadata",
+      },
+    ];
+    const rule = await prisma.evaluationRule.create({
       data: {
         projectId,
         name: "Assigned rule",
@@ -605,19 +612,18 @@ describe("EvaluatorService", () => {
           create: {
             projectId,
             evaluatorId: created.id,
-            variableMapping: input.definition
-              .variableMapping as Prisma.InputJsonValue,
+            variableMapping: staleMapping as Prisma.InputJsonValue,
           },
         },
       },
     });
 
+    // The override maps a variable the new prompt drops and misses one it adds.
     await expect(
       service.update(
         {
           ...input,
           evaluatorId: created.id,
-          name: "Invalid renamed evaluator",
           definition: {
             ...input.definition,
             prompt: "Judge {{input}} and {{output}}",
@@ -630,12 +636,15 @@ describe("EvaluatorService", () => {
         },
         null,
       ),
-    ).rejects.toThrow("Missing mappings for evaluator variables: input");
-
-    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
-      name: input.name,
-      versions: [expect.objectContaining({ version: 1 })],
+    ).resolves.toMatchObject({
+      versions: [expect.objectContaining({ version: 2 })],
     });
+
+    const assignment =
+      await prisma.evaluationRuleEvaluatorAssignment.findFirstOrThrow({
+        where: { evaluationRuleId: rule.id, evaluatorId: created.id },
+      });
+    expect(assignment.variableMapping).toEqual(staleMapping);
   });
 
   it("returns a retryable conflict when an evaluator version advances concurrently", async () => {
