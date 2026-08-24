@@ -7,6 +7,7 @@
 // reserialize — structured edits NEVER produce an uncommittable string.
 
 import { type ASTNode, type Span, astEquals, removeNodeBySpan } from "./ast";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { findClosingQuote, parse, serialize } from "./langQ";
 
 function spliceSpan(
@@ -41,10 +42,11 @@ function removeWithFallback(
   ast: ASTNode,
   span: Span,
   originalValid: boolean,
+  registry: FieldRegistry,
 ): string {
   const surgical = removeNodeBySpan(ast, span);
   const spliced = spliceSpan(text, span.from, span.to, "");
-  const reparsed = parse(spliced);
+  const reparsed = parse(spliced, registry);
   // Accept the splice when it reparses to the SAME AST as the surgical removal
   // AND it is no worse than before: either valid, or the query was ALREADY
   // invalid so we're not introducing breakage. The latter preserves a fragment
@@ -56,7 +58,7 @@ function removeWithFallback(
   if (astEquals(reparsed.ast, surgical) && (reparsed.valid || !originalValid)) {
     return spliced;
   }
-  return serialize(surgical);
+  return serialize(surgical, registry);
 }
 
 function scanParenPairs(text: string): Array<{ open: number; close: number }> {
@@ -114,9 +116,12 @@ function collapseSpacesOutsideQuotes(text: string): string {
  * can never be lost. Only structured edits normalize; typed text is
  * preserved as-is.
  */
-export function tidyQueryText(text: string): string {
+export function tidyQueryText(
+  text: string,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
   let current = collapseSpacesOutsideQuotes(text).trim();
-  let parsed = parse(current);
+  let parsed = parse(current, registry);
   if (!parsed.valid) return current;
 
   let changed = true;
@@ -128,7 +133,7 @@ export function tidyQueryText(text: string): string {
           current.slice(open + 1, close) +
           current.slice(close + 1),
       ).trim();
-      const res = parse(candidate);
+      const res = parse(candidate, registry);
       if (res.valid && astEquals(res.ast, parsed.ast)) {
         current = candidate;
         parsed = res;
@@ -171,12 +176,17 @@ function findParenExtent(node: ASTNode, target: Span): Span | null {
  * removal). Span-local splice first; AST surgery + reserialize when the
  * splice would not reparse.
  */
-export function removeToken(text: string, span: Span): string {
-  const parsed = parse(text);
+export function removeToken(
+  text: string,
+  span: Span,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): string {
+  const parsed = parse(text, registry);
   if (parsed.ast === null) return text;
   // Prefer the paren extent when the span identifies a parenthesized node.
   const target = findParenExtent(parsed.ast, span) ?? span;
   return tidyQueryText(
-    removeWithFallback(text, parsed.ast, target, parsed.valid),
+    removeWithFallback(text, parsed.ast, target, parsed.valid, registry),
+    registry,
   );
 }
