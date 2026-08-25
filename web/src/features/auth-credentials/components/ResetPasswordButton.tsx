@@ -6,16 +6,15 @@ import { useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
+import { RequestResetPasswordEmailButtonView } from "./RequestResetPasswordEmailButtonView";
 
 export function RequestResetPasswordEmailButton({
   email,
   className,
-  variant = "default",
   callbackUrl,
 }: {
   email: string;
   className?: string;
-  variant?: "default" | "secondary";
   callbackUrl?: string;
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
@@ -108,17 +107,16 @@ export function RequestResetPasswordEmailButton({
           </Button>
         </div>
       ) : (
-        <Button
+        <RequestResetPasswordEmailButtonView
           onClick={handleResetPassword}
-          className={className}
           loading={isLoading}
           disabled={!isValidEmail}
-          variant={variant}
-        >
-          {session.status === "authenticated"
-            ? "Verify email to change password"
-            : "Request password reset"}
-        </Button>
+          buttonLabel={
+            session.status === "authenticated"
+              ? "Verify email to change password"
+              : "Request password reset"
+          }
+        />
       )}
       {errorMessage && (
         <div className="text-destructive mt-3 text-center text-sm">
