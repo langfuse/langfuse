@@ -4,15 +4,21 @@ import {
   DataTable,
   type AsyncTableData,
 } from "@/src/components/table/data-table";
-import { createDecimalTableColumn } from "./createDecimalTableColumn";
+import { createNumberTableColumn } from "./createNumberTableColumn";
 
 type Row = {
+  count: number | null;
   outputTokens: number;
   latency: number | null;
 };
 
 const columns = [
-  createDecimalTableColumn<Row>({
+  createNumberTableColumn<Row>({
+    accessorKey: "count",
+    header: "Count",
+    maximumFractionDigits: 0,
+  }),
+  createNumberTableColumn<Row>({
     id: "tokensPerSecond",
     accessorFn: (row) => (row.latency ? row.outputTokens / row.latency : null),
     header: "Tokens per second",
@@ -20,10 +26,10 @@ const columns = [
   }),
 ];
 
-function DecimalTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
+function NumberTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
   return (
     <DataTable
-      tableName="decimal-column-story"
+      tableName="number-column-story"
       columns={columns}
       data={data}
       hidePagination
@@ -32,7 +38,7 @@ function DecimalTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
 }
 
 const meta = preview.meta({
-  component: DecimalTableColumnStory,
+  component: NumberTableColumnStory,
   parameters: {
     layout: "fullscreen",
   },
@@ -43,7 +49,17 @@ export const Default = meta.story({
     data: {
       isLoading: false,
       isError: false,
-      data: [{ outputTokens: 2469, latency: 2 }],
+      data: [{ count: 1234, outputTokens: 2469, latency: 2 }],
+    },
+  },
+});
+
+export const Zero = meta.story({
+  args: {
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ count: 0, outputTokens: 0, latency: 2 }],
     },
   },
 });
@@ -54,7 +70,7 @@ export const EmptyValue = meta.story({
     data: {
       isLoading: false,
       isError: false,
-      data: [{ outputTokens: 2469, latency: null }],
+      data: [{ count: null, outputTokens: 2469, latency: null }],
     },
   },
 });

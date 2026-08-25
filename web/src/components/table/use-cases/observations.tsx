@@ -74,13 +74,12 @@ import { ProvidedModelNameCell } from "@/src/features/models/components/Provided
 import TableIdOrName from "@/src/components/table/table-id";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createIntegerTableColumn } from "@/src/components/design-system/Table/columns/createIntegerTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
-import { createDecimalTableColumn } from "@/src/components/design-system/Table/columns/createDecimalTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -848,21 +847,23 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
     },
-    createIntegerTableColumn<ObservationsTableRow>({
+    createNumberTableColumn<ObservationsTableRow>({
       accessorKey: "toolDefinitions",
       header: "Available Tools",
       size: 120,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
+      maximumFractionDigits: 0,
     }),
-    createIntegerTableColumn<ObservationsTableRow>({
+    createNumberTableColumn<ObservationsTableRow>({
       accessorKey: "toolCalls",
       header: "Tool Calls",
       size: 100,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
+      maximumFractionDigits: 0,
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1077,7 +1078,7 @@ export default function ObservationsTable({
         return generations.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
-        createDecimalTableColumn<ObservationsTableRow>({
+        createNumberTableColumn<ObservationsTableRow>({
           id: "tokensPerSecond",
           accessorFn: (row) => {
             if (!row.latency || !row.usage.outputUsage) return null;
