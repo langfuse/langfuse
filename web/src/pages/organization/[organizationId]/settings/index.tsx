@@ -21,6 +21,7 @@ import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -39,6 +40,10 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
   const showAuditLogs = useHasEntitlement("audit-logs");
+  const canUpdateOrganization = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organization:update",
+  });
   const plan = usePlan();
   const isLangfuseCloud = isCloudPlan(plan) ?? false;
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
@@ -53,6 +58,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAuditLogs,
     isLangfuseCloud,
     showV4Migration,
+    showFeaturePreviews:
+      canUpdateOrganization && organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID,
   });
 }
 
@@ -63,6 +70,7 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs,
   isLangfuseCloud,
   showV4Migration,
+  showFeaturePreviews,
 }: {
   organization: { id: string; name: string; metadata: Record<string, unknown> };
   showBillingSettings: boolean;
@@ -70,6 +78,7 @@ export const getOrganizationSettingsPages = ({
   showAuditLogs: boolean;
   isLangfuseCloud: boolean;
   showV4Migration: boolean;
+  showFeaturePreviews: boolean;
 }): OrganizationSettingsPage[] => [
   {
     title: "General",
@@ -105,6 +114,13 @@ export const getOrganizationSettingsPages = ({
         />
       </div>
     ),
+  },
+  {
+    title: "Feature Previews",
+    slug: "feature-previews",
+    cmdKKeywords: ["feature", "preview", "flags", "beta"],
+    content: <OrganizationFeaturePreviewsSettings orgId={organization.id} />,
+    show: showFeaturePreviews,
   },
   {
     title: "API Keys",

@@ -11,6 +11,12 @@ import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
 import { formatAuthProviderName } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { env } from "@/src/env.mjs";
+import {
+  EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES,
+  getOrganizationFeaturePreviewStatesByUserId,
+  getUserFeaturePreviewManagementCapabilities,
+} from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
@@ -148,7 +154,58 @@ export const allMembersRoutes = {
         organizationId: input.orgId,
         scope: "organizationMembers:read",
       });
-      return getMembers(ctx.prisma, input);
+      const isDemoOrganization = env.NEXT_PUBLIC_DEMO_ORG_ID === input.orgId;
+      const canManageFeaturePreviews =
+        !isDemoOrganization &&
+        hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organization:update",
+        });
+      const [result, organization] = await Promise.all([
+        getMembers(ctx.prisma, input),
+        canManageFeaturePreviews
+          ? ctx.prisma.organization.findUnique({
+              where: { id: input.orgId },
+              select: { featureFlagOrgDefaults: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      const userIds = result.memberships.map((membership) => membership.userId);
+      const [featurePreviewsByUserId, managementByUserId] =
+        canManageFeaturePreviews
+          ? await Promise.all([
+              getOrganizationFeaturePreviewStatesByUserId({
+                prisma: ctx.prisma,
+                userIds,
+                organizationDefaults:
+                  organization?.featureFlagOrgDefaults ?? [],
+              }),
+              getUserFeaturePreviewManagementCapabilities({
+                prisma: ctx.prisma,
+                actorUserId: ctx.session.user.id,
+                actorIsPlatformAdmin: ctx.session.user.admin === true,
+                targetUserIds: userIds,
+                demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+              }),
+            ])
+          : [new Map(), new Map()];
+
+      return {
+        ...result,
+        memberships: result.memberships.map((membership) => ({
+          ...membership,
+          featurePreviews: canManageFeaturePreviews
+            ? (featurePreviewsByUserId.get(membership.userId) ??
+              EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES)
+            : null,
+          featurePreviewManagement: canManageFeaturePreviews
+            ? (managementByUserId.get(membership.userId) ?? {
+                allowed: false,
+              })
+            : null,
+        })),
+      };
     }),
   allFromProject: protectedProjectProcedure
     .input(projectLevelMemberQuery)
