@@ -406,7 +406,7 @@ describe("IngestionService unit tests", () => {
       entityId: "observation-id",
       createdAtTimestamp: new Date(timestamp),
       observationEventList,
-      writeToStagingTables: false,
+      writeToStagingTables: true,
       attribution: {
         ingestionApiKey: "api-key",
         ingestionSdkName: "sdk",
@@ -414,13 +414,18 @@ describe("IngestionService unit tests", () => {
       },
     });
 
-    const queuedRecord = addToQueue.mock.calls.find(
-      ([table]) => table === TableName.Observations,
-    )?.[1];
-    expect(queuedRecord).toMatchObject({
-      provided_usage_details: { input: 100, output: 50, total: 0 },
-      usage_details: { input: 100, output: 50, total: 0 },
-    });
+    for (const table of [
+      TableName.Observations,
+      TableName.ObservationsBatchStaging,
+    ]) {
+      const queuedRecord = addToQueue.mock.calls.find(
+        ([queuedTable]) => queuedTable === table,
+      )?.[1];
+      expect(queuedRecord).toMatchObject({
+        provided_usage_details: { input: 100, output: 50, total: 0 },
+        usage_details: { input: 100, output: 50, total: 0 },
+      });
+    }
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {
