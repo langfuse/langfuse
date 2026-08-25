@@ -1,10 +1,10 @@
 import { signIn, useSession } from "next-auth/react";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
-import { RequestResetPasswordEmailButtonView } from "./RequestResetPasswordEmailButtonView";
-import { VerifyResetPasswordButtonView } from "./VerifyResetPasswordButtonView";
 
 export function RequestResetPasswordEmailButton({
   email,
@@ -78,23 +78,40 @@ export function RequestResetPasswordEmailButton({
   return (
     <>
       {isEmailSent ? (
-        <VerifyResetPasswordButtonView
-          code={code}
-          loading={isLoading}
-          onCodeChange={setCode}
-          onVerify={handleVerify}
-        />
+        <div>
+          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
+            Check your inbox for the code
+          </label>
+          <Input
+            id="otp-code"
+            type="number"
+            minLength={6}
+            maxLength={6}
+            value={code}
+            onChange={(event) => setCode(event.target.value.trim())}
+            placeholder="One time passcode"
+            className="mb-8 w-full"
+          />
+          <Button
+            onClick={handleVerify}
+            loading={isLoading}
+            disabled={!code || code.length !== 6}
+            className="w-full"
+          >
+            Verify code
+          </Button>
+        </div>
       ) : (
-        <RequestResetPasswordEmailButtonView
+        <Button
           onClick={handleResetPassword}
           loading={isLoading}
           disabled={!isValidEmail}
-          buttonLabel={
-            session.status === "authenticated"
-              ? "Verify email to change password"
-              : "Request password reset"
-          }
-        />
+          className="w-full"
+        >
+          {session.status === "authenticated"
+            ? "Verify email to change password"
+            : "Request password reset"}
+        </Button>
       )}
       {errorMessage && (
         <div className="text-destructive mt-3 text-center text-sm">
