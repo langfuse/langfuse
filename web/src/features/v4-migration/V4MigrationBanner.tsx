@@ -49,7 +49,11 @@ export function V4MigrationBanner() {
   }
 
   return (
-    <DismissController id="v4-migration-banner:v1" ttlMs={DISMISS_TTL_MS}>
+    <DismissController
+      id="v4-migration-banner:v1"
+      family="callouts"
+      ttlMs={DISMISS_TTL_MS}
+    >
       {({ onDismiss }) => (
         <div className="mb-4">
           <Callout

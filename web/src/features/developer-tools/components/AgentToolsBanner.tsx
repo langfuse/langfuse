@@ -14,7 +14,7 @@ const DOCS_HREF =
  */
 export function AgentToolsBanner() {
   return (
-    <DismissController id="agent-tools-banner:v1">
+    <DismissController id="agent-tools-banner:v1" family="callouts">
       {({ onDismiss }) => (
         <div className="mb-4">
           <Callout

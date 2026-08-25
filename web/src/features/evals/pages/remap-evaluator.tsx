@@ -176,6 +176,7 @@ export default function RemapEvaluatorPage() {
         {v4UpgradeUiEnabled ? (
           <DismissController
             id={"v4-evaluator-upgrade:" + evalConfigId}
+            family="callouts"
             ttlMs={7 * 24 * 60 * 60 * 1000}
           >
             {({ onDismiss }) => (

@@ -4,7 +4,6 @@ import { useSyncExternalStore } from "react";
 
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-const DEFAULT_STORAGE_KEY = "dismissed-callouts";
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 type DismissedItem = {
@@ -18,6 +17,7 @@ type DismissControllerRenderProps = {
 
 export type DismissControllerProps = {
   id: string;
+  family: "callouts";
   ttlMs?: number;
   onDismiss?: () => void;
   children: (props: DismissControllerRenderProps) => React.ReactElement;
@@ -29,12 +29,13 @@ const getServerSnapshot = () => false;
 
 export function DismissController({
   id,
+  family,
   ttlMs = DEFAULT_TTL_MS,
   onDismiss,
   children,
 }: DismissControllerProps) {
   const [dismissedItems, setDismissedItems] = useLocalStorage<DismissedItem[]>(
-    `${id}-${DEFAULT_STORAGE_KEY}`,
+    `${id}-dismissed-${family}`,
     [],
   );
   const isHydrated = useSyncExternalStore(
