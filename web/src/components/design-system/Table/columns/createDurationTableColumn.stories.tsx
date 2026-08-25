@@ -14,7 +14,7 @@ const columns = [
   createDurationTableColumn<Row>({
     id: "latency",
     accessorFn: (row) => row.latency,
-    header: "Latency",
+    header: "Duration",
   }),
 ];
 
@@ -25,6 +25,7 @@ function DurationTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
       columns={columns}
       data={data}
       hidePagination
+      cellPadding="comfortable"
     />
   );
 }

@@ -14,7 +14,7 @@ const columns = [
   createItemBadgeTableColumn<Row>({
     id: "type",
     accessorFn: (row) => row.type,
-    header: "Type",
+    header: "Item Badge",
   }),
 ];
 
@@ -25,6 +25,7 @@ function ItemBadgeTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
       columns={columns}
       data={data}
       hidePagination
+      cellPadding="comfortable"
     />
   );
 }

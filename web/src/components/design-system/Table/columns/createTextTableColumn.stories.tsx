@@ -14,7 +14,7 @@ const columns = [
   createTextTableColumn<Row>({
     id: "name",
     accessorFn: (row) => row.name,
-    header: "Name",
+    header: "Text",
   }),
 ];
 
@@ -25,6 +25,7 @@ function TextTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
       columns={columns}
       data={data}
       hidePagination
+      cellPadding="comfortable"
     />
   );
 }

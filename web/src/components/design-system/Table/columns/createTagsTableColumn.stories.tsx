@@ -32,6 +32,7 @@ function TagsTableColumnStory({
       columns={columns}
       data={data}
       hidePagination
+      cellPadding="comfortable"
     />
   );
 }

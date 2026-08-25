@@ -14,7 +14,7 @@ const columns = [
   createIdTableColumn<Row>({
     id: "traceId",
     accessorFn: (row) => row.traceId,
-    header: "Trace ID",
+    header: "ID",
   }),
 ];
 
@@ -25,6 +25,7 @@ function IdTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
       columns={columns}
       data={data}
       hidePagination
+      cellPadding="comfortable"
     />
   );
 }

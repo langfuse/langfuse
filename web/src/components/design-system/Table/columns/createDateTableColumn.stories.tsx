@@ -14,7 +14,7 @@ const columns = [
   createDateTableColumn<Row>({
     id: "timestamp",
     accessorFn: (row) => row.timestamp,
-    header: "Timestamp",
+    header: "Date",
   }),
 ];
 
@@ -25,6 +25,7 @@ function DateTableColumnStory({ data }: { data: AsyncTableData<Row[]> }) {
       columns={columns}
       data={data}
       hidePagination
+      cellPadding="comfortable"
     />
   );
 }
