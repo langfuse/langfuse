@@ -63,7 +63,6 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import TagList from "@/src/features/tag/components/TagList";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import {
@@ -80,6 +79,7 @@ import { createIdTableColumn } from "@/src/components/design-system/Table/column
 import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -955,30 +955,13 @@ export default function ObservationsTable({
       size: 150,
       enableHiding: true,
     }),
-    {
+    createTagsTableColumn<ObservationsTableRow>({
       accessorKey: "traceTags",
-      id: "traceTags",
       header: "Trace Tags",
       size: 250,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("traceTags");
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
