@@ -7,6 +7,7 @@ import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
@@ -2390,6 +2391,22 @@ describe("createAgUiStream", () => {
       toolCallId: "tool-call-1",
       status: "rejected",
     });
+    expect(
+      instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
+        ([events]) => events,
+      ),
+    ).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: EventType.CUSTOM,
+          name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+          value: expect.objectContaining({
+            toolCallId: "tool-call-1",
+            source: "human",
+          }),
+        }),
+      ]),
+    );
     expect(onComplete).toHaveBeenCalledOnce();
   });
 

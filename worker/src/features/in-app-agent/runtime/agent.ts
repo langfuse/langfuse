@@ -674,6 +674,10 @@ export async function createAgUiStream(params: {
             onApprovedToolCallExecuted:
               params.options.onApprovedToolCallExecuted,
           });
+          const humanApprovedToolCallId =
+            runInput.toolCallApproval?.status === "approved"
+              ? runInput.toolCallApproval.toolCallId
+              : undefined;
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
@@ -762,8 +766,7 @@ export async function createAgUiStream(params: {
                   withInAppAgentToolApprovalSidecars({
                     events: agUiEvents,
                     policy: params.options.langfuseMcp.toolPolicy,
-                    humanApprovedToolCallId:
-                      runInput.toolCallApproval?.toolCallId,
+                    humanApprovedToolCallId,
                   }),
                 ),
               );
@@ -799,8 +802,7 @@ export async function createAgUiStream(params: {
                       withInAppAgentToolApprovalSidecars({
                         events: pendingSyntheticEvents,
                         policy: params.options.langfuseMcp.toolPolicy,
-                        humanApprovedToolCallId:
-                          runInput.toolCallApproval?.toolCallId,
+                        humanApprovedToolCallId,
                       }),
                     ),
                   );
