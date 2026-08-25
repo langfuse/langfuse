@@ -365,6 +365,67 @@ describe("IngestionService unit tests", () => {
     }
   });
 
+  it("preserves an explicit usage.total of 0 on legacy ingestion events", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2026-08-25T00:00:00.000Z";
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          startTime: timestamp,
+          usage: {
+            input: 100,
+            output: 50,
+            total: 0,
+          },
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
+    );
+
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: true,
+      attribution: {
+        ingestionApiKey: "api-key",
+        ingestionSdkName: "sdk",
+        ingestionSdkVersion: "1.0.0",
+      },
+    });
+
+    for (const table of [
+      TableName.Observations,
+      TableName.ObservationsBatchStaging,
+    ]) {
+      const record = addToQueue.mock.calls.find(
+        ([queuedTable]) => queuedTable === table,
+      )?.[1];
+      expect(record?.provided_usage_details?.total).toBe(0);
+      expect(record?.usage_details?.total).toBe(0);
+    }
+  });
+
   it("correctly sorts events in ascending order by timestamp", async () => {
     const firstTrace = { timestamp: 1, type: "observation-create" };
     const secondTrace = { timestamp: 1, type: "observation-update" };
