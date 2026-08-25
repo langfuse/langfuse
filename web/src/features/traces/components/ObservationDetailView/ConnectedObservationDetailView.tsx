@@ -54,7 +54,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 import { api } from "@/src/utils/api";
 
 // Extracted components
-import { ConnectedObservationDetailViewHeader } from "./components/ConnectedObservationDetailViewHeader";
+import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
@@ -307,7 +307,7 @@ export function ConnectedObservationDetailView({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <ConnectedObservationDetailViewHeader
+      <ObservationDetailViewHeader
         observation={observation}
         observationWithIO={observationWithIO}
         projectId={projectId}
