@@ -45,6 +45,7 @@ import {
   getInAppAgentRegistryToolName,
   type InAppAgentToolPolicy,
   withInAppAgentToolApproval,
+  withInAppAgentToolApprovalSidecars,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
@@ -673,6 +674,10 @@ export async function createAgUiStream(params: {
             onApprovedToolCallExecuted:
               params.options.onApprovedToolCallExecuted,
           });
+          const humanApprovedToolCallId =
+            runInput.toolCallApproval?.status === "approved"
+              ? runInput.toolCallApproval.toolCallId
+              : undefined;
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
@@ -757,7 +762,13 @@ export async function createAgUiStream(params: {
               );
 
               recordInstrumentation("recordEvents", (instrumentation) =>
-                instrumentation.recordEvents(agUiEvents),
+                instrumentation.recordEvents(
+                  withInAppAgentToolApprovalSidecars({
+                    events: agUiEvents,
+                    policy: params.options.langfuseMcp.toolPolicy,
+                    humanApprovedToolCallId,
+                  }),
+                ),
               );
 
               for (const agUiEvent of agUiEvents) {
@@ -787,7 +798,13 @@ export async function createAgUiStream(params: {
                       ),
                   );
                   recordInstrumentation("recordEvents", (instrumentation) =>
-                    instrumentation.recordEvents(pendingSyntheticEvents),
+                    instrumentation.recordEvents(
+                      withInAppAgentToolApprovalSidecars({
+                        events: pendingSyntheticEvents,
+                        policy: params.options.langfuseMcp.toolPolicy,
+                        humanApprovedToolCallId,
+                      }),
+                    ),
                   );
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
