@@ -11,6 +11,7 @@ import {
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Callout/Callout",
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
   "Dropzone/Dropzone",
