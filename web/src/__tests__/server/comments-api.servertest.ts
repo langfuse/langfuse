@@ -41,6 +41,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (!orgMemberUserId) return;
   await prisma.organizationMembership.deleteMany({
     where: { userId: orgMemberUserId },
   });
