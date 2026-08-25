@@ -97,6 +97,37 @@ export class LocalCache<V extends {}> {
     this.logDebug("Cleared local cache");
   }
 
+  delete(key: string): void {
+    if (!this.config.enabled || !this.cache.delete(key)) {
+      return;
+    }
+
+    this.record("delete");
+    this.recordSizeMetrics();
+  }
+
+  clearByPrefix(prefix: string): void {
+    if (!this.config.enabled) {
+      return;
+    }
+
+    let deleted = 0;
+    for (const key of [...this.cache.keys()]) {
+      if (key.startsWith(prefix) && this.cache.delete(key)) {
+        deleted += 1;
+      }
+    }
+
+    if (deleted > 0) {
+      this.record("delete");
+      this.recordSizeMetrics();
+      this.logDebug("Cleared local cache entries by prefix", {
+        deleted,
+        prefixLength: prefix.length,
+      });
+    }
+  }
+
   async getOrLoad(
     key: string,
     loader: () => Promise<LocalCacheLoadResult<V>>,

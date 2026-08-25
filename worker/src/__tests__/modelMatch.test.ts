@@ -226,6 +226,30 @@ describe("modelMatch", () => {
       expect(await redis?.get(redisKey)).toBeNull();
     });
 
+    it("should not query Redis for a warm local cache hit", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const modelName = `warm-local-model-${uuidv4()}`;
+
+      await prisma.model.create({
+        data: {
+          projectId,
+          modelName,
+          matchPattern: modelName,
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({ projectId, model: modelName });
+
+      const redisGetSpy = vi.spyOn(redis!, "get");
+      try {
+        await findModel({ projectId, model: modelName });
+        expect(redisGetSpy).not.toHaveBeenCalled();
+      } finally {
+        redisGetSpy.mockRestore();
+      }
+    });
+
     it("should locally cache not-found models for a short time", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const modelName = "new-model-after-cache";
@@ -304,6 +328,32 @@ describe("modelMatch", () => {
   });
 
   describe("clearModelCacheForProject", () => {
+    it("should preserve local model pricing for other projects", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+      const modelName = `other-project-model-${uuidv4()}`;
+
+      await prisma.model.create({
+        data: {
+          projectId: otherProjectId,
+          modelName,
+          matchPattern: modelName,
+          unit: "TOKENS",
+        },
+      });
+
+      await findModel({ projectId: otherProjectId, model: modelName });
+      await clearModelCacheForProject(projectId);
+
+      const redisGetSpy = vi.spyOn(redis!, "get");
+      try {
+        await findModel({ projectId: otherProjectId, model: modelName });
+        expect(redisGetSpy).not.toHaveBeenCalled();
+      } finally {
+        redisGetSpy.mockRestore();
+      }
+    });
+
     it("should invalidate local model pricing in another process", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const modelName = `locally-cached-model-${uuidv4()}`;
@@ -348,11 +398,19 @@ describe("modelMatch", () => {
         await import("../../../packages/shared/src/server");
       await otherProcess.clearModelCacheForProject(projectId);
 
-      // Use the original module instance to prove that rotating the shared
-      // project epoch bypasses its stale process-local cache.
-      const refreshedModel = await findModel({ projectId, model: modelName });
-      expect(refreshedModel.pricingTiers[0].prices[0].price.toNumber()).toBe(
-        0.06,
+      // Use the original module instance to prove that its short-lived local
+      // epoch refresh observes the rotation without a per-match Redis lookup.
+      await vi.waitFor(
+        async () => {
+          const refreshedModel = await findModel({
+            projectId,
+            model: modelName,
+          });
+          expect(
+            refreshedModel.pricingTiers[0].prices[0].price.toNumber(),
+          ).toBe(0.06);
+        },
+        { timeout: 2_500, interval: 100 },
       );
     });
 

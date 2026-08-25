@@ -26,6 +26,7 @@ export type ModelWithPrices = {
 
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
 const MODEL_MATCH_CACHE_EPOCH_TTL_SECONDS = 7 * 24 * 60 * 60;
+const MODEL_MATCH_CACHE_EPOCH_REFRESH_MS = 1_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
 // The project cache epoch is part of both Redis and local cache keys. Rotating
@@ -41,6 +42,12 @@ const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
     env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX,
     DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX,
   ),
+});
+const modelMatchEpochLocalCache = new LocalCache<string>({
+  namespace: "model_match_epoch",
+  enabled: env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED !== "false",
+  ttlMs: MODEL_MATCH_CACHE_EPOCH_REFRESH_MS,
+  max: DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX,
 });
 
 export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
@@ -173,6 +180,7 @@ function getPositiveNumberOrDefault(value: unknown, fallback: number): number {
 
 export const clearModelMatchLocalCache = (): void => {
   modelMatchLocalCache.clear();
+  modelMatchEpochLocalCache.clear();
 };
 
 const getModelWithPricesFromRedis = async (
@@ -363,7 +371,7 @@ export const getRedisModelKey = async (
   if (!epoch) return null;
 
   const uriEncodedModel = encodeURIComponent(p.model);
-  return `${getModelMatchKeyPrefix()}:${p.projectId}:${epoch}:${uriEncodedModel}`;
+  return `${getModelMatchProjectKeyPrefix(p.projectId)}:${epoch}:${uriEncodedModel}`;
 };
 
 const getModelMatchEpochKey = (projectId: string): string =>
@@ -379,11 +387,17 @@ const getOrCreateModelMatchCacheEpoch = async (
     return null;
   }
 
+  const cachedEpoch = modelMatchEpochLocalCache.get(projectId);
+  if (cachedEpoch) return cachedEpoch;
+
   const epochKey = getModelMatchEpochKey(projectId);
 
   try {
     const currentEpoch = await redis.get(epochKey);
-    if (currentEpoch) return currentEpoch;
+    if (currentEpoch) {
+      modelMatchEpochLocalCache.set(projectId, currentEpoch);
+      return currentEpoch;
+    }
 
     const newEpoch = newModelMatchCacheEpoch();
     await redis.set(
@@ -395,7 +409,9 @@ const getOrCreateModelMatchCacheEpoch = async (
     );
 
     // Return the winner if multiple processes initialize the epoch together.
-    return (await redis.get(epochKey)) ?? newEpoch;
+    const epoch = (await redis.get(epochKey)) ?? newEpoch;
+    modelMatchEpochLocalCache.set(projectId, epoch);
+    return epoch;
   } catch (error) {
     logger.error(
       `Error resolving model cache epoch for project ${projectId}`,
@@ -413,6 +429,9 @@ const getModelMatchKeyPrefix = () => {
   }
   return "model-price-tiers";
 };
+
+const getModelMatchProjectKeyPrefix = (projectId: string) =>
+  `${getModelMatchKeyPrefix()}:${projectId}`;
 
 export const redisModelToPrismaModel = (redisModel: Model): Model => {
   return {
@@ -441,13 +460,16 @@ export const redisModelToPrismaModel = (redisModel: Model): Model => {
 export async function clearModelCacheForProject(
   projectId: string,
 ): Promise<void> {
-  clearModelMatchLocalCache();
+  modelMatchLocalCache.clearByPrefix(
+    `${getModelMatchProjectKeyPrefix(projectId)}:`,
+  );
 
   if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
     return;
   }
 
   if (!redis) {
+    modelMatchEpochLocalCache.delete(projectId);
     const error = new Error(
       `Cannot invalidate model cache for project ${projectId}: Redis is unavailable`,
     );
@@ -458,13 +480,16 @@ export async function clearModelCacheForProject(
   try {
     // Rotate first so concurrent readers and writers immediately move to a new
     // namespace. Any in-flight write using the old epoch becomes unreachable.
+    const nextEpoch = newModelMatchCacheEpoch();
     await redis.set(
       getModelMatchEpochKey(projectId),
-      newModelMatchCacheEpoch(),
+      nextEpoch,
       "EX",
       MODEL_MATCH_CACHE_EPOCH_TTL_SECONDS,
     );
+    modelMatchEpochLocalCache.set(projectId, nextEpoch);
   } catch (error) {
+    modelMatchEpochLocalCache.delete(projectId);
     logger.error(
       `Error rotating model cache epoch for project ${projectId}: ${error}`,
     );
@@ -473,7 +498,7 @@ export async function clearModelCacheForProject(
 
   try {
     // Delete old and legacy entries during the rolling migration to epoch keys.
-    const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
+    const pattern = `${getModelMatchProjectKeyPrefix(projectId)}:*`;
     const keys = await scanKeys(redis, pattern);
 
     if (keys.length > 0) {
