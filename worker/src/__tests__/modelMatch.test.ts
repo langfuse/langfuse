@@ -20,6 +20,15 @@ let findModelInPostgres: SharedServerModule["findModelInPostgres"];
 let getRedisModelKey: SharedServerModule["getRedisModelKey"];
 let clearModelCacheForProject: SharedServerModule["clearModelCacheForProject"];
 
+const getRequiredRedisModelKey = async (params: {
+  projectId: string;
+  model: string;
+}): Promise<string> => {
+  const key = await getRedisModelKey(params);
+  if (!key) throw new Error("Model match cache is unavailable");
+  return key;
+};
+
 const originalLocalCacheSetting =
   process.env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED;
 
@@ -129,7 +138,7 @@ describe("modelMatch", () => {
       expect(result.pricingTiers[0].prices[0].price.toString()).toEqual("0.03");
 
       // Verify the model with pricing tiers exists in Redis
-      const redisKey = getRedisModelKey({
+      const redisKey = await getRequiredRedisModelKey({
         projectId,
         model: "gpt-4",
       });
@@ -184,7 +193,7 @@ describe("modelMatch", () => {
       expect(result2.pricingTiers).toEqual([]);
 
       // Verify the not-found token exists in Redis
-      const redisKey = getRedisModelKey({
+      const redisKey = await getRequiredRedisModelKey({
         projectId,
         model: nonExistentModel,
       });
@@ -205,7 +214,10 @@ describe("modelMatch", () => {
 
       await findModel({ projectId, model: "gpt-4o" });
 
-      const redisKey = getRedisModelKey({ projectId, model: "gpt-4o" });
+      const redisKey = await getRequiredRedisModelKey({
+        projectId,
+        model: "gpt-4o",
+      });
       await redis?.del(redisKey);
 
       const result = await findModel({ projectId, model: "gpt-4o" });
@@ -220,7 +232,10 @@ describe("modelMatch", () => {
 
       await findModel({ projectId, model: modelName });
 
-      const redisKey = getRedisModelKey({ projectId, model: modelName });
+      const redisKey = await getRequiredRedisModelKey({
+        projectId,
+        model: modelName,
+      });
       await redis?.del(redisKey);
 
       await prisma.model.create({
@@ -289,6 +304,58 @@ describe("modelMatch", () => {
   });
 
   describe("clearModelCacheForProject", () => {
+    it("should invalidate local model pricing in another process", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const modelName = `locally-cached-model-${uuidv4()}`;
+      const modelId = uuidv4();
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: modelName,
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                create: {
+                  modelId,
+                  projectId,
+                  usageType: "input",
+                  price: "0.03",
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const cachedModel = await findModel({ projectId, model: modelName });
+      expect(cachedModel.pricingTiers[0].prices[0].price.toNumber()).toBe(0.03);
+
+      await prisma.price.updateMany({
+        where: { modelId, usageType: "input" },
+        data: { price: "0.06" },
+      });
+
+      vi.resetModules();
+      const otherProcess: SharedServerModule =
+        await import("../../../packages/shared/src/server");
+      await otherProcess.clearModelCacheForProject(projectId);
+
+      // Use the original module instance to prove that rotating the shared
+      // project epoch bypasses its stale process-local cache.
+      const refreshedModel = await findModel({ projectId, model: modelName });
+      expect(refreshedModel.pricingTiers[0].prices[0].price.toNumber()).toBe(
+        0.06,
+      );
+    });
+
     it("should clear all cached models for a project", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -318,8 +385,14 @@ describe("modelMatch", () => {
       await findModel({ projectId, model: "gpt-3.5-turbo" });
 
       // Verify models are cached in Redis
-      const redisKey1 = getRedisModelKey({ projectId, model: "gpt-4" });
-      const redisKey2 = getRedisModelKey({ projectId, model: "gpt-3.5-turbo" });
+      const redisKey1 = await getRequiredRedisModelKey({
+        projectId,
+        model: "gpt-4",
+      });
+      const redisKey2 = await getRequiredRedisModelKey({
+        projectId,
+        model: "gpt-3.5-turbo",
+      });
 
       const cachedModel1 = await redis?.get(redisKey1);
       const cachedModel2 = await redis?.get(redisKey2);
@@ -346,7 +419,10 @@ describe("modelMatch", () => {
       await findModel({ projectId, model: nonExistentModel });
 
       // Verify the not-found token is cached
-      const redisKey = getRedisModelKey({ projectId, model: nonExistentModel });
+      const redisKey = await getRequiredRedisModelKey({
+        projectId,
+        model: nonExistentModel,
+      });
       const cachedValue = await redis?.get(redisKey);
       expect(cachedValue).toBe("LANGFUSE_MODEL_MATCH_NOT_FOUND");
 
