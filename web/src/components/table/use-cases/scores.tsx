@@ -8,6 +8,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -52,7 +53,6 @@ import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -590,18 +590,13 @@ export default function ScoresTable({
         ) : undefined;
       },
     },
-    {
+    createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       enableHiding: true,
       enableSorting: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",

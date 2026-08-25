@@ -19,6 +19,7 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -262,17 +263,12 @@ function buildTraceColumns(
         />
       ),
     },
-    {
+    createDateTableColumn<TraceRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value = row.original.timestamp;
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",
@@ -529,14 +525,12 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
     size: 180,
     cell: ({ row }) => row.original.name,
   },
-  {
+  createDateTableColumn<TraceRow>({
     accessorKey: "timestamp",
-    id: "timestamp",
     header: "Timestamp",
     enableSorting: true,
     size: 200,
-    cell: ({ row }) => <LocalIsoDate date={row.original.timestamp} />,
-  },
+  }),
   {
     accessorKey: "environment",
     id: "environment",

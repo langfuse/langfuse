@@ -5,7 +5,7 @@ import {
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -322,14 +322,12 @@ export function SampleObservationSelectorBase(
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
       ...leadingColumns,
-      {
+      createDateTableColumn<SampleObservation>({
         accessorKey: "startTime",
-        id: "startTime",
         header: "Start time",
         size: 170,
         enableHiding: true,
-        cell: ({ row }) => <LocalIsoDate date={row.original.startTime} />,
-      },
+      }),
       {
         accessorKey: "type",
         id: "type",

@@ -8,7 +8,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -252,25 +252,17 @@ export function DashboardTable() {
         );
       },
     }),
-    columnHelper.accessor("createdAt", {
+    createDateTableColumn<DashboardTableRow>({
+      accessorKey: "createdAt",
       header: "Created At",
-      id: "createdAt",
       enableSorting: true,
       size: 150,
-      cell: (row) => {
-        const createdAt = row.getValue();
-        return <LocalIsoDate date={createdAt} />;
-      },
     }),
-    columnHelper.accessor("updatedAt", {
+    createDateTableColumn<DashboardTableRow>({
+      accessorKey: "updatedAt",
       header: "Updated At",
-      id: "updatedAt",
       enableSorting: true,
       size: 150,
-      cell: (row) => {
-        const updatedAt = row.getValue();
-        return <LocalIsoDate date={updatedAt} />;
-      },
     }),
     columnHelper.display({
       id: "actions",

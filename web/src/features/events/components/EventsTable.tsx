@@ -38,6 +38,7 @@ import {
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -72,7 +73,6 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
@@ -1118,18 +1118,13 @@ export default function ObservationsEventsTable({
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
     ...(hideControls || isMobile ? [] : [selectActionColumn]),
-    {
+    createDateTableColumn<EventsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: getEventsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     createItemBadgeTableColumn<EventsTableRow>({
       accessorKey: "type",
       header: getEventsColumnName("type"),
@@ -1607,19 +1602,14 @@ export default function ObservationsEventsTable({
       },
       columns: scoreColumns,
     },
-    {
+    createDateTableColumn<EventsTableRow>({
       accessorKey: "endTime",
-      id: "endTime",
       header: getEventsColumnName("endTime"),
       size: 150,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("endTime");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "traceId",
       id: "traceId",

@@ -6,6 +6,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -67,7 +68,6 @@ import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
@@ -669,18 +669,13 @@ export default function TracesTable({
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    {
+    createDateTableColumn<TracesTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",
