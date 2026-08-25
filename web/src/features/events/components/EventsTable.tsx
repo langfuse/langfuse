@@ -39,6 +39,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -1306,20 +1307,13 @@ export default function ObservationsEventsTable({
         ) : undefined;
       },
     },
-    {
+    createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
-      id: "latency",
       header: getEventsColumnName("latency"),
       size: 100,
-      cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("latency");
-        return latency !== undefined ? (
-          <span>{formatIntervalSeconds(latency)}</span>
-        ) : undefined;
-      },
       enableHiding: true,
       enableSorting,
-    },
+    }),
     {
       accessorKey: "totalCost",
       header: getEventsColumnName("totalCost"),
