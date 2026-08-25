@@ -104,6 +104,49 @@ function createRequest({
   return { req, res };
 }
 
+const callbackUrlCookieName = "next-auth.callback-url";
+const htmlActions = ["signin", "signout", "error", "verify-request"] as const;
+const expectedHtmlActionStatus = {
+  signin: 302,
+  signout: 200,
+  error: 302,
+  "verify-request": 200,
+} as const;
+const duplicateCallbackUrl = ["/home", "https://evil.com"];
+
+const getHeaderText = (res: NextApiResponse, name: string) => {
+  const value = res.getHeader(name);
+  return Array.isArray(value) ? value.join("\n") : String(value ?? "");
+};
+
+const callAuthWithoutInvalidCallbackUrlError = async (
+  req: NextApiRequest,
+  res: NextApiResponse,
+) => {
+  const consoleError = vi
+    .spyOn(console, "error")
+    .mockImplementation(() => undefined);
+
+  try {
+    await auth(req, res);
+    expect(
+      consoleError.mock.calls.some((args) =>
+        args.some((argument) =>
+          String(argument).includes("INVALID_CALLBACK_URL_ERROR"),
+        ),
+      ),
+    ).toBe(false);
+  } finally {
+    consoleError.mockRestore();
+  }
+};
+
+const expectSafeCallbackUrlResponse = (res: NextApiResponse) => {
+  expect(res.statusCode).toBeLessThan(500);
+  expect(getHeaderText(res, "Location")).not.toContain("evil.com");
+  expect(getHeaderText(res, "Set-Cookie")).not.toContain("evil.com");
+};
+
 describe("NextAuth error route malformed input handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -148,6 +191,32 @@ describe("NextAuth error route malformed input handling", () => {
     expect(res.getHeader("Location")).toBe(
       "/auth/error?error=configuration%0D%0Ascanner-payload",
     );
+  });
+
+  for (const action of htmlActions) {
+    it(`sanitizes duplicated callbackUrl query parameters for GET ${action} (/home first)`, async () => {
+      const { req, res } = createRequest({
+        nextauth: [action],
+        query: { callbackUrl: duplicateCallbackUrl },
+      });
+
+      await callAuthWithoutInvalidCallbackUrlError(req, res);
+
+      expect(res.statusCode).toBe(expectedHtmlActionStatus[action]);
+      expectSafeCallbackUrlResponse(res);
+    });
+  }
+
+  it("sanitizes an invalid callback-url cookie for GET signin", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["signin"],
+      cookies: { [callbackUrlCookieName]: "https://evil.com%0d%0a" },
+    });
+
+    await callAuthWithoutInvalidCallbackUrlError(req, res);
+
+    expect(res.statusCode).toBe(expectedHtmlActionStatus.signin);
+    expectSafeCallbackUrlResponse(res);
   });
 
   it("uses a generic error for an ambiguous array-valued error", async () => {

@@ -573,7 +573,8 @@ describe("legacy compatibility boundary", () => {
       }),
     ).rejects.toMatchObject({
       name: "LLMValidationError",
-      message: "Langfuse credentials are only supported for Amazon Bedrock",
+      message:
+        "Langfuse credentials are only supported for Amazon Bedrock and Anthropic",
       statusCode: 400,
       code: "invalid-connection",
     });

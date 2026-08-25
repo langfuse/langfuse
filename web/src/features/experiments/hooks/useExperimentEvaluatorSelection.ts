@@ -1,7 +1,8 @@
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { useMemo } from "react";
-import { isJobConfigExecutable } from "@langfuse/shared";
+import { isEvalRuleExecutable, singleFilter } from "@langfuse/shared";
 import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
+import { z } from "zod";
 
 /**
  * One entry per evaluator family that already has a job config for this
@@ -23,16 +24,18 @@ export const getExistingEvaluators = (
   > = {};
 
   for (const jobConfig of jobConfigs ?? []) {
+    const parsedFilter = z.array(singleFilter).safeParse(jobConfig.filter);
+    if (!parsedFilter.success) continue;
     const matchesDataset =
-      jobConfig.filter?.length === 0 ||
-      jobConfig.filter?.some(
+      parsedFilter.data.length === 0 ||
+      parsedFilter.data.some(
         ({ type, value }) =>
           type === "stringOptions" && value.includes(datasetId),
       );
     if (!matchesDataset || !jobConfig.evalTemplate) continue;
 
     const familyKey = getEvalTemplateFamilyKey(jobConfig.evalTemplate);
-    const isActive = isJobConfigExecutable({
+    const isActive = isEvalRuleExecutable({
       status: jobConfig.status,
       blockedAt: jobConfig.blockedAt,
     });

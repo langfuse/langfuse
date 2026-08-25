@@ -15,11 +15,17 @@ import {
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  getLatestEvaluatorRunCost,
+  getRecentEvaluatorExecutionTraces,
+  getRecentRuleExecutionTraces,
+  getTotalCostByEvaluatorTraceNames,
+  getTotalCostByRule,
   createScoresCh,
   createTraceScore,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
+  getEventListCursor,
   getEventFilterNumericRange,
   getEventFilterOptions,
   getEventFilterValuePage,
@@ -60,6 +66,256 @@ describe("Clickhouse Events Repository Test", () => {
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
+  });
+
+  maybe("evaluator execution metrics", () => {
+    it("returns evaluator costs from the last seven days excluding test runs", async () => {
+      const evaluatorId = randomUUID();
+      const evaluatorTraceName = `Execute evaluator: Quality ${evaluatorId}`;
+      const testTraceId = randomUUID();
+      const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_name: evaluatorTraceName,
+          cost_details: { total: 1.5 },
+        }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          trace_name: evaluatorTraceName,
+          cost_details: { total: 20 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          trace_name: evaluatorTraceName,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          trace_name: evaluatorTraceName,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
+        }),
+      ]);
+
+      await expect(
+        getTotalCostByEvaluatorTraceNames(projectId, [evaluatorTraceName]),
+      ).resolves.toEqual([{ traceName: evaluatorTraceName, totalCost: 1.5 }]);
+    });
+
+    it("returns the latest evaluator trace cost", async () => {
+      const evaluatorId = randomUUID();
+      const staleEvaluatorId = randomUUID();
+      const traceId = randomUUID();
+      const earlierTestTraceId = randomUUID();
+      const staleTraceId = randomUUID();
+      const now = Date.now() * 1000;
+      const oneHourAgo = now - 60 * 60 * 1_000 * 1_000;
+      const eightDaysAgo = now - 8 * 24 * 60 * 60 * 1_000 * 1_000;
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          start_time: now,
+          type: "SPAN",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          start_time: now,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: earlierTestTraceId,
+          start_time: oneHourAgo,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: earlierTestTraceId,
+          start_time: oneHourAgo,
+          type: "GENERATION",
+          cost_details: { total: 1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: staleTraceId,
+          start_time: eightDaysAgo,
+          type: "SPAN",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [staleEvaluatorId],
+          cost_details: { total: 2 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: staleTraceId,
+          start_time: eightDaysAgo,
+          type: "GENERATION",
+          cost_details: { total: 3 },
+        }),
+      ]);
+
+      await expect(
+        getLatestEvaluatorRunCost(projectId, evaluatorId),
+      ).resolves.toBe(1);
+      await expect(
+        getLatestEvaluatorRunCost(projectId, staleEvaluatorId),
+      ).resolves.toBeNull();
+    });
+
+    it("returns recent evaluator traces without test runs", async () => {
+      const traceId = randomUUID();
+      const testTraceId = randomUUID();
+      const failedTestSpanId = randomUUID();
+      const untaggedTestTraceId = randomUUID();
+      const evaluatorId = randomUUID();
+      const evaluatorTraceName = `Execute evaluator: Quality ${evaluatorId}`;
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: evaluatorTraceName,
+          type: "SPAN",
+          level: "ERROR",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          metadata_names: ["evaluator_id", "evaluator_test"],
+          metadata_values: [evaluatorId, "true"],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          id: failedTestSpanId,
+          span_id: failedTestSpanId,
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          level: "ERROR",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: untaggedTestTraceId,
+          trace_name: "Test evaluator: Legacy code evaluator",
+          type: "SPAN",
+          metadata_names: ["evaluator_id"],
+          metadata_values: [evaluatorId],
+          cost_details: { total: 0 },
+        }),
+      ]);
+
+      await expect(
+        getRecentEvaluatorExecutionTraces(projectId, [evaluatorTraceName]),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: traceId,
+          traceName: evaluatorTraceName,
+          level: "ERROR",
+        }),
+      ]);
+    });
+  });
+
+  maybe("rule execution metrics", () => {
+    it("returns seven-day costs, falling back to job_configuration_id", async () => {
+      const ruleId = randomUUID();
+      const legacyRuleId = randomUUID();
+      const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["evaluation_rule_id", "job_configuration_id"],
+          metadata_values: [ruleId, randomUUID()],
+          cost_details: { total: 4 },
+        }),
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [legacyRuleId],
+          cost_details: { total: 30 },
+        }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          metadata_names: ["evaluation_rule_id"],
+          metadata_values: [ruleId],
+          cost_details: { total: 50 },
+        }),
+      ]);
+
+      // `evaluation_rule_id` wins when both keys are present; executions written before
+      // the rename resolve through `job_configuration_id`.
+      await expect(
+        getTotalCostByRule(projectId, [ruleId, legacyRuleId]),
+      ).resolves.toEqual(
+        expect.arrayContaining([
+          { ruleId, totalCost: 4 },
+          { ruleId: legacyRuleId, totalCost: 30 },
+        ]),
+      );
+    });
+
+    it("returns the last five traces, falling back to job_configuration_id", async () => {
+      const ruleId = randomUUID();
+      const legacyRuleId = randomUUID();
+      const traceIds = Array.from({ length: 6 }, () => randomUUID());
+      const legacyTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        ...traceIds.map((traceId, index) =>
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            start_time: now - index * 1_000_000,
+            metadata_names: ["evaluation_rule_id", "job_configuration_id"],
+            metadata_values: [ruleId, randomUUID()],
+          }),
+        ),
+        createEvent({
+          project_id: projectId,
+          trace_id: legacyTraceId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [legacyRuleId],
+        }),
+      ]);
+
+      const traces = await getRecentRuleExecutionTraces(projectId, [
+        ruleId,
+        legacyRuleId,
+      ]);
+
+      expect(traces.filter((trace) => trace.ruleId === ruleId)).toHaveLength(5);
+      expect(traces.map(({ id }) => id)).not.toContain(traceIds[5]);
+      expect(traces).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: legacyTraceId, ruleId: legacyRuleId }),
+        ]),
+      );
+    });
   });
 
   maybe("getObservationsWithModelDataFromEventsTable", () => {
@@ -328,6 +584,123 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(result1.length).toBeLessThanOrEqual(2);
       expect(result2.length).toBeLessThanOrEqual(2);
+    });
+
+    it("keeps cursor pages disjoint when a newer observation arrives", async () => {
+      const name = `cursor-pagination-${randomUUID()}`;
+      const events = Array.from({ length: 4 }, (_, index) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() - index * 1_000,
+        });
+      });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh(events);
+
+      const original = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 10,
+        cursorPagination: true,
+      });
+      const firstPage = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 2,
+        cursorPagination: true,
+      });
+      const boundary = firstPage.at(-1)!;
+
+      const newerId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          id: newerId,
+          span_id: newerId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() + 60_000,
+        }),
+      ]);
+
+      const secondPage = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 2,
+        cursorPagination: true,
+        cursor: {
+          lastStartTimeTo: boundary.startTime,
+          lastTraceId: boundary.traceId ?? "",
+          lastId: boundary.id,
+        },
+      });
+
+      expect(firstPage.map(({ id }) => id)).not.toContain(newerId);
+      expect(secondPage.map(({ id }) => id)).not.toContain(newerId);
+      expect(
+        new Set([...firstPage, ...secondPage].map(({ id }) => id)).size,
+      ).toBe(4);
+      expect([...firstPage, ...secondPage].map(({ id }) => id)).toEqual(
+        original.map(({ id }) => id),
+      );
+    });
+
+    it("returns a next cursor and a second service page", async () => {
+      const name = `cursor-service-${randomUUID()}`;
+      const events = Array.from({ length: 30 }, (_, index) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() - index * 1_000,
+        });
+      });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh(events);
+
+      const firstPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 25,
+      });
+      expect(firstPage.observations).toHaveLength(25);
+      expect(firstPage.nextCursor).toBeDefined();
+
+      const secondPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 25,
+        cursor: firstPage.nextCursor,
+      });
+
+      expect(secondPage.observations).toHaveLength(5);
+      expect(secondPage.nextCursor).toBeUndefined();
+      expect(
+        new Set(
+          [...firstPage.observations, ...secondPage.observations].map(
+            ({ id }) => id,
+          ),
+        ).size,
+      ).toBe(30);
     });
 
     it("should return release field in the result set", async () => {
