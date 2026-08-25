@@ -412,13 +412,16 @@ function queryPresetSections(
 ): CompletionSection[] {
   const current = currentQueryText.trim();
   const seenIds = new Set<string>();
+  let remaining = MAX_PRESETS_SHOWN;
   return presetSections.flatMap((presetSection) => {
+    if (remaining === 0) return [];
     const options: CompletionOption[] = [];
     for (const option of presetSection.options) {
       if (option.query === current || seenIds.has(option.id)) continue;
       seenIds.add(option.id);
       options.push({ ...option, kind: "preset" });
-      if (options.length === MAX_PRESETS_SHOWN) break;
+      remaining--;
+      if (remaining === 0) break;
     }
     return section(presetSection.title, options);
   });

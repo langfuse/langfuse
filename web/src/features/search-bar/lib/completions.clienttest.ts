@@ -90,14 +90,22 @@ describe("planInputCompletions", () => {
     }
   });
 
-  it("caps preset sections at ten and hides the current query", () => {
+  it("caps all preset sections at ten and hides the current query", () => {
     const presetSections = [
       {
-        title: "Reuse rule filters",
-        options: Array.from({ length: 12 }, (_, index) => ({
+        title: "Primary presets",
+        options: Array.from({ length: 6 }, (_, index) => ({
           id: `rule-filter:${index}`,
           label: `environment:env-${index}`,
           query: `environment:env-${index}`,
+        })),
+      },
+      {
+        title: "Secondary presets",
+        options: Array.from({ length: 7 }, (_, index) => ({
+          id: `rule-filter:${index + 6}`,
+          label: `environment:env-${index + 6}`,
+          query: `environment:env-${index + 6}`,
         })),
       },
     ];
@@ -105,15 +113,16 @@ describe("planInputCompletions", () => {
     const result = plan(`${currentQuery} `, currentQuery.length + 1, {
       presetSections,
     });
-    const presets = result?.sections.find(
-      (section) => section.title === "Reuse rule filters",
+    const presets =
+      result?.sections.filter((section) => section.title.endsWith("presets")) ??
+      [];
+    const presetIds = presets.flatMap((section) =>
+      section.options.map((option) => option.id),
     );
 
-    expect(presets?.options).toHaveLength(10);
-    expect(presets?.options.map((option) => option.id)).not.toContain(
-      "rule-filter:2",
-    );
-    expect(presets?.options.map((option) => option.id)).toEqual([
+    expect(presets.map((section) => section.options.length)).toEqual([5, 5]);
+    expect(presetIds).not.toContain("rule-filter:2");
+    expect(presetIds).toEqual([
       "rule-filter:0",
       "rule-filter:1",
       "rule-filter:3",

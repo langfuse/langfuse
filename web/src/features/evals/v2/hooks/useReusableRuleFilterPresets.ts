@@ -20,6 +20,20 @@ export type ReusableRuleFilterPreset = {
   filterCount: number;
 };
 
+function projectRuleFilterToRegistry(
+  filter: FilterState,
+  registry: FieldRegistry,
+): FilterState {
+  return filter.map((condition) => {
+    const source = RULE_FIELD_REGISTRY.resolveField(condition.column);
+    if (source?.type !== "field") return condition;
+    const target = registry.resolveField(source.field.id);
+    return target?.type === "field"
+      ? { ...condition, column: target.field.id }
+      : condition;
+  }) as FilterState;
+}
+
 export function prepareReusableRuleFilterPresets(
   reusableFilters: ReusableFilter[],
   registry: FieldRegistry,
@@ -29,11 +43,11 @@ export function prepareReusableRuleFilterPresets(
 } {
   const presets: ReusableRuleFilterPreset[] = [];
   const options = reusableFilters.flatMap((reusableFilter) => {
-    const query = filterStateToQueryText(
+    const filter = projectRuleFilterToRegistry(
       reusableFilter.filter as FilterState,
-      {},
-      RULE_FIELD_REGISTRY,
+      registry,
     );
+    const query = filterStateToQueryText(filter, {}, registry);
     if (
       query.text.length === 0 ||
       query.skippedFilters.length > 0 ||

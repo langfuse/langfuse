@@ -25,9 +25,13 @@ const reusableFilters = [
 
 describe("prepareReusableRuleFilterPresets", () => {
   it.each([
-    ["evaluator sample observations", EVENTS_FIELD_REGISTRY],
-    ["rule filters", RULE_FIELD_REGISTRY],
-  ])("builds reusable queries for %s", (_surface, registry) => {
+    [
+      "evaluator sample observations",
+      EVENTS_FIELD_REGISTRY,
+      "traceTags:production",
+    ],
+    ["rule filters", RULE_FIELD_REGISTRY, "tags:production"],
+  ])("builds reusable queries for %s", (_surface, registry, expectedQuery) => {
     expect(prepareReusableRuleFilterPresets(reusableFilters, registry)).toEqual(
       {
         sections: [
@@ -36,9 +40,9 @@ describe("prepareReusableRuleFilterPresets", () => {
             options: [
               {
                 id: "rule-filter:rule-1",
-                label: "tags:production",
+                label: expectedQuery,
                 detail: "Used by 3 evaluators",
-                query: "tags:production",
+                query: expectedQuery,
               },
             ],
           },
@@ -52,5 +56,35 @@ describe("prepareReusableRuleFilterPresets", () => {
         ],
       },
     );
+  });
+
+  it("preserves exact name matching when adapting to the events registry", () => {
+    const exactNameFilter = [
+      {
+        latestRuleId: "rule-exact-name",
+        filter: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["checkout"],
+          },
+        ] satisfies FilterState,
+        evaluatorCount: 1,
+        updatedAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+    ];
+
+    const events = prepareReusableRuleFilterPresets(
+      exactNameFilter,
+      EVENTS_FIELD_REGISTRY,
+    );
+    const rules = prepareReusableRuleFilterPresets(
+      exactNameFilter,
+      RULE_FIELD_REGISTRY,
+    );
+
+    expect(events.sections[0]?.options[0]?.query).toBe("name:=checkout");
+    expect(rules.sections[0]?.options[0]?.query).toBe("name:checkout");
   });
 });
