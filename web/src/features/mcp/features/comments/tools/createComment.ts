@@ -14,12 +14,12 @@ const CreateCommentToolBaseSchema = z
     content: z.string().trim().min(1).max(5000),
     objectId: z.string(),
     objectType: z.enum(CommentObjectType),
-    authorUserId: z.string().optional(),
   })
   .strict();
 
 const CreateCommentToolSchema = PostCommentsV1Body.omit({
   projectId: true,
+  authorUserId: true,
 });
 
 export const [createCommentTool, handleCreateComment] = defineTool({

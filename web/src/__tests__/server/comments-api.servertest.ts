@@ -1,8 +1,5 @@
 import { randomUUID } from "crypto";
-import {
-  makeAPICall,
-  makeZodVerifiedAPICall,
-} from "@/src/__tests__/test-utils";
+import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,
   GetCommentV1Response,
@@ -19,11 +16,9 @@ import {
 
 const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-// POST /api/public/comments only accepts an authorUserId that belongs to a
-// member of the project's organization. CI provisions the seed project through
-// LANGFUSE_INIT_* instead of the Postgres seeder, so seeded ids such as
-// "user-1" do not exist there. Create a member of the project's organization
-// and use its id wherever a valid comment author is needed.
+// POST /api/public/comments ignores client-supplied authorUserId. Create an
+// organization member so tests can prove a write key cannot attribute comments
+// to that user.
 let orgMemberUserId: string;
 
 beforeAll(async () => {
@@ -94,7 +89,7 @@ describe("Create and get comments", () => {
       objectId: "1234",
       objectType: "TRACE",
       content: "hello",
-      authorUserId: orgMemberUserId,
+      authorUserId: null,
     });
   });
 
@@ -406,7 +401,6 @@ describe("Public API does NOT process mentions", () => {
         objectId: "no-mention-processing-trace",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: orgMemberUserId,
       },
     );
 
@@ -426,11 +420,12 @@ describe("Public API does NOT process mentions", () => {
   });
 });
 
-describe("POST /api/public/comments authorUserId scoping", () => {
+describe("POST /api/public/comments authorUserId is not client-controlled", () => {
   const projectId = seedProjectId;
   const objectId = "author-scoping-trace";
   let otherOrgId: string;
   let otherOrgUserId: string;
+  let projectMemberUserId: string;
 
   beforeAll(async () => {
     await createTracesCh([
@@ -440,6 +435,35 @@ describe("POST /api/public/comments authorUserId scoping", () => {
         id: objectId,
       }),
     ]);
+
+    const project = await prisma.project.findUniqueOrThrow({
+      where: { id: projectId },
+      select: { orgId: true },
+    });
+
+    const projectMember = await prisma.user.create({
+      data: {
+        name: "Project Member Author",
+        email: `comment-project-member-${randomUUID()}@langfuse.com`,
+      },
+    });
+    projectMemberUserId = projectMember.id;
+
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        orgId: project.orgId,
+        userId: projectMemberUserId,
+        role: "MEMBER",
+      },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        projectId,
+        userId: projectMemberUserId,
+        orgMembershipId: orgMembership.id,
+        role: "MEMBER",
+      },
+    });
 
     const otherOrg = await prisma.organization.create({
       data: { name: `Comment Author Scoping Org ${randomUUID()}` },
@@ -461,86 +485,57 @@ describe("POST /api/public/comments authorUserId scoping", () => {
 
   afterAll(async () => {
     await prisma.comment.deleteMany({ where: { projectId, objectId } });
+    await prisma.projectMembership.deleteMany({
+      where: { userId: projectMemberUserId },
+    });
     await prisma.organizationMembership.deleteMany({
-      where: { userId: otherOrgUserId },
+      where: { userId: { in: [otherOrgUserId, projectMemberUserId] } },
     });
     await prisma.organization.delete({ where: { id: otherOrgId } });
-    await prisma.user.delete({ where: { id: otherOrgUserId } });
-  });
-
-  it("should reject an authorUserId that is not a member of the project's organization", async () => {
-    const response = await makeAPICall<{ message: string; error: string }>(
-      "POST",
-      "/api/public/comments",
-      {
-        content: "spoofed comment",
-        objectId,
-        objectType: "TRACE",
-        projectId,
-        authorUserId: otherOrgUserId,
-      },
-    );
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBe("InvalidRequestError");
-
-    const comments = await prisma.comment.findMany({
-      where: { projectId, authorUserId: otherOrgUserId },
+    await prisma.user.deleteMany({
+      where: { id: { in: [otherOrgUserId, projectMemberUserId] } },
     });
-    expect(comments).toHaveLength(0);
   });
 
-  it("should not disclose whether a rejected authorUserId exists", async () => {
-    const crossOrgResponse = await makeAPICall<{ message: string }>(
-      "POST",
-      "/api/public/comments",
-      {
-        content: "spoofed comment",
-        objectId,
-        objectType: "TRACE",
-        projectId,
-        authorUserId: otherOrgUserId,
-      },
-    );
-
-    const unknownUserResponse = await makeAPICall<{ message: string }>(
-      "POST",
-      "/api/public/comments",
-      {
-        content: "spoofed comment",
-        objectId,
-        objectType: "TRACE",
-        projectId,
-        authorUserId: `does-not-exist-${randomUUID()}`,
-      },
-    );
-
-    expect(crossOrgResponse.status).toBe(400);
-    expect(unknownUserResponse.status).toBe(400);
-    expect(crossOrgResponse.body.message).toBe(
-      unknownUserResponse.body.message,
-    );
-  });
-
-  it("should accept an authorUserId of an organization member without project-level ownership", async () => {
-    // orgMemberUserId has an organization membership but no project membership.
+  const expectUnattributedComment = async (authorUserId: string) => {
     const commentResponse = await makeZodVerifiedAPICall(
       PostCommentsV1Response,
       "POST",
       "/api/public/comments",
       {
-        content: "comment by org member",
+        content: `spoofed comment ${randomUUID()}`,
         objectId,
         objectType: "TRACE",
         projectId,
-        authorUserId: orgMemberUserId,
+        authorUserId,
       },
     );
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentResponse.body.id },
     });
-    expect(comment?.authorUserId).toBe(orgMemberUserId);
+    expect(comment?.authorUserId).toBeNull();
+
+    const attributed = await prisma.comment.findMany({
+      where: { projectId, objectId, authorUserId },
+    });
+    expect(attributed).toHaveLength(0);
+  };
+
+  it("should ignore an authorUserId of an organization member", async () => {
+    await expectUnattributedComment(orgMemberUserId);
+  });
+
+  it("should ignore an authorUserId of a project member", async () => {
+    await expectUnattributedComment(projectMemberUserId);
+  });
+
+  it("should ignore an authorUserId from another organization", async () => {
+    await expectUnattributedComment(otherOrgUserId);
+  });
+
+  it("should ignore an unknown authorUserId without disclosing existence", async () => {
+    await expectUnattributedComment(`does-not-exist-${randomUUID()}`);
   });
 
   it("should still create comments without an authorUserId", async () => {

@@ -9189,9 +9189,10 @@ components:
           type: string
           nullable: true
           description: >-
-            The id of the user who created the comment. Must be a member of the
-            organization that owns the project, otherwise an error will be
-            thrown.
+            Deprecated and ignored. Project API keys are not bound to a user, so
+            comments created via this endpoint are stored without an author. The
+            field remains accepted for backwards compatibility. Use GET filters
+            or the dashboard to read authors of comments created in the UI.
       required:
         - projectId
         - objectType
