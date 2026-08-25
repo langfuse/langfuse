@@ -258,6 +258,21 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
 
+## Host-provided query presets
+
+Views can inject complete-query sections through `EventsSearchBarRow`'s
+`presetSections` prop. These are data, not grammar: the shared planner renders
+them at every blank top-level term, including after existing filters, and a pick
+replaces and commits the complete draft. The host owns fetching, ranking,
+registry compatibility, labels, and optional pick analytics.
+
+Evaluation setup uses this seam for **Reuse rule filters**. It groups equivalent
+modern event/experiment rule filters, ranks them only by distinct attached
+evaluator count (latest rule update breaks ties), and excludes legacy
+trace/dataset rules. Rule `FilterState` is serialized with the rule registry and
+validated against the receiving registry before it is offered, so aliases such
+as rule `tags` can safely lower to the events table's `traceTags` column.
+
 ## AI filter mode (the "Ask AI" button)
 
 The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
