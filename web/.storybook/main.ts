@@ -20,6 +20,14 @@ const DESIGN_COMPONENT_STORIES = [
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "Table/columns/createBadgeTableColumn",
+  "Table/columns/createDateTableColumn",
+  "Table/columns/createDurationTableColumn",
+  "Table/columns/createIdTableColumn",
+  "Table/columns/createItemBadgeTableColumn",
+  "Table/columns/createNumberTableColumn",
+  "Table/columns/createTagsTableColumn",
+  "Table/columns/createTextTableColumn",
 ] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
@@ -27,6 +35,10 @@ const DESIGN_COMPONENT_STORIES = [
 // Playground default. This is not a `stories` entry with a `titlePrefix`
 // because story titles are injected into each meta — see StoryTitleGroup.
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
+  {
+    directory: "src/components/design-system/Table/columns",
+    titlePrefix: "Design/Components/Table",
+  },
   {
     directory: "src/features/evals/v2/components",
     titlePrefix: "Features/Evaluations",
