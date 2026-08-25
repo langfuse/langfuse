@@ -22,9 +22,11 @@ afterEach(() => {
 });
 
 describe("getInAppAgentModelConfig", () => {
-  it("resolves Bedrock from existing env when provider is unset", () => {
+  it("resolves Bedrock from the deprecated LANGFUSE_AWS_BEDROCK_* aliases alone", () => {
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: undefined,
+      LANGFUSE_AI_MODEL: undefined,
+      LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
       LANGFUSE_AI_AWS_BEDROCK_REGION: undefined,
@@ -38,6 +40,28 @@ describe("getInAppAgentModelConfig", () => {
       provider: "bedrock",
       modelId: "eu.anthropic.claude-opus-4-8",
       titleModelId: "eu.anthropic.claude-haiku-4-5",
+      region: "eu-west-1",
+    });
+  });
+
+  it("prefers LANGFUSE_AI_MODEL and LANGFUSE_AI_SMALL_MODEL on Bedrock", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
+      LANGFUSE_AI_SMALL_MODEL: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
+      LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
+      LANGFUSE_AWS_BEDROCK_SMALL_MODEL: "eu.anthropic.claude-haiku-4-5",
+      LANGFUSE_AWS_BEDROCK_REGION: "us-east-1",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toEqual({
+      provider: "bedrock",
+      modelId: "eu.anthropic.claude-opus-5",
+      titleModelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       region: "eu-west-1",
     });
   });
@@ -98,6 +122,8 @@ describe("getInAppAgentModelConfig", () => {
 
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL: undefined,
+      LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
       LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
@@ -124,6 +150,8 @@ describe("getInAppAgentModelConfig", () => {
   it("prefers LANGFUSE_AI_AWS_BEDROCK_REGION over LANGFUSE_AWS_BEDROCK_REGION", () => {
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: undefined,
+      LANGFUSE_AI_MODEL: undefined,
+      LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
       LANGFUSE_AI_AWS_BEDROCK_REGION: "us-east-1",

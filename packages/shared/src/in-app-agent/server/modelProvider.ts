@@ -24,7 +24,7 @@ export type InAppAgentModelConfig =
     };
 
 export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
-  "Langfuse AI model is not configured. Set LANGFUSE_AI_PROVIDER=anthropic with LANGFUSE_AI_MODEL and LANGFUSE_AI_API_KEY, or set LANGFUSE_AWS_BEDROCK_MODEL.";
+  "Langfuse AI model is not configured. Set LANGFUSE_AI_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER=anthropic.";
 
 /**
  * Resolves the instance-wide Langfuse-operated AI model (Assistant + Ask AI).
@@ -35,8 +35,11 @@ export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
  * set. Cloud does not override an explicit Anthropic provider.
  *
  * Region is optional for Bedrock: Cloud web historically omits it and lets
- * the AWS SDK use the task region. Prefer LANGFUSE_AI_AWS_BEDROCK_REGION;
- * LANGFUSE_AWS_BEDROCK_REGION is the fallback during the Cloud cutover.
+ * the AWS SDK use the task region.
+ *
+ * LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+ * are the names for both providers. The LANGFUSE_AWS_BEDROCK_* equivalents are
+ * deprecated fallbacks, kept until the Cloud cutover completes.
  */
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
@@ -58,7 +61,11 @@ export function getInAppAgentModelConfig(params?: {
     };
   }
 
-  const modelId = params?.modelId ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  // Deprecated fallback: LANGFUSE_AWS_BEDROCK_MODEL / _SMALL_MODEL.
+  const modelId =
+    params?.modelId ?? env.LANGFUSE_AI_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const smallModelId =
+    env.LANGFUSE_AI_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
   const region = getLangfuseAIBedrockRegion();
 
   if (!modelId) {
@@ -71,7 +78,7 @@ export function getInAppAgentModelConfig(params?: {
   return {
     provider: "bedrock",
     modelId,
-    titleModelId: env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? modelId,
+    titleModelId: smallModelId ?? modelId,
     region,
   };
 }

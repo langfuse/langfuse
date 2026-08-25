@@ -100,6 +100,10 @@ describe("in-app agent background runs", () => {
   const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
   const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalSharedAiModel = sharedEnv.LANGFUSE_AI_MODEL;
+  const originalSharedAiSmallModel = sharedEnv.LANGFUSE_AI_SMALL_MODEL;
+  const originalSharedAiProvider = sharedEnv.LANGFUSE_AI_PROVIDER;
+  const originalSharedAiApiKey = sharedEnv.LANGFUSE_AI_API_KEY;
   const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
   const originalSharedAiBedrockRegion =
     sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
@@ -114,7 +118,11 @@ describe("in-app agent background runs", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = undefined;
+    (sharedEnv as any).LANGFUSE_AI_API_KEY = undefined;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (sharedEnv as any).LANGFUSE_AI_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = undefined;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
     (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
@@ -134,6 +142,10 @@ describe("in-app agent background runs", () => {
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
       originalSharedCloudRegion;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = originalSharedAiModel;
+    (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = originalSharedAiSmallModel;
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = originalSharedAiProvider;
+    (sharedEnv as any).LANGFUSE_AI_API_KEY = originalSharedAiApiKey;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
       originalSharedBedrockRegion;
     (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION =

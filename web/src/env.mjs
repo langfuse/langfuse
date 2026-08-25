@@ -460,10 +460,10 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
 
-    // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
-    // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
-    // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
-    // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL are Anthropic-only.
+    // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+    // apply to both providers. Their LANGFUSE_AWS_BEDROCK_* equivalents are
+    // deprecated aliases, still read as fallbacks until the Cloud cutover ends.
+    // LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL stay Anthropic-only.
     LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
     LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
@@ -1002,9 +1002,7 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
-    // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
-    // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL.
+    // Deprecated aliases of LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL.
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
     LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
       process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,

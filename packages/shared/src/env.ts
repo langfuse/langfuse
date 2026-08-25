@@ -519,10 +519,10 @@ const EnvSchema = z.object({
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
-  // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
-  // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
-  // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
-  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL are Anthropic-only.
+  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+  // apply to both providers. Their LANGFUSE_AWS_BEDROCK_* equivalents are
+  // deprecated aliases, still read as fallbacks until the Cloud cutover ends.
+  // LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL stay Anthropic-only.
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
