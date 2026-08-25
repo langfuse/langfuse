@@ -68,6 +68,45 @@ describe("PrettyJsonView short-list expansion", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the parent preview when every expanded child is hidden", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={{
+          flags: [null, 0, ""],
+        }}
+        title="Input"
+        showNullValues={false}
+      />,
+    );
+
+    const table = prettyTable();
+    const flagsRow = within(table).getByText("flags").closest("tr");
+    expect(flagsRow).not.toBeNull();
+    const expandButton = within(flagsRow as HTMLElement).getAllByRole(
+      "button",
+    )[0];
+    fireEvent.click(expandButton!);
+
+    const expandedTable = prettyTable();
+    expect(
+      within(expandedTable).getByText('[null, 0, ""]'),
+    ).toBeInTheDocument();
+    expect(within(expandedTable).queryByText("null")).not.toBeInTheDocument();
+  });
+
+  it("escapes quotes in the collapsed list preview", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={{
+          quoted: ['a"b'],
+        }}
+        title="Input"
+      />,
+    );
+
+    expect(within(prettyTable()).getByText('["a\\"b"]')).toBeInTheDocument();
+  });
+
   it("still expands a short list of objects whose preview is incomplete", () => {
     renderPrettyJson(
       <PrettyJsonView

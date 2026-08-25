@@ -95,7 +95,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
     const displayItems = arr
       .map((item) => {
         const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
+        if (itemType === "string") return JSON.stringify(item);
         if (itemType === "object" && item !== null) {
           const obj = item as Record<string, unknown>;
           const keys = Object.keys(obj);
@@ -117,7 +117,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
     .slice(0, ARRAY_PREVIEW_ITEMS)
     .map((item) => {
       const itemType = getValueType(item);
-      if (itemType === "string") return `"${String(item)}"`;
+      if (itemType === "string") return JSON.stringify(item);
       if (itemType === "object" || itemType === "array") return "...";
       return String(item);
     })
@@ -428,9 +428,13 @@ export const ValueCell = memo(
             needsTruncation: false,
           };
         case "array": {
-          // Expanded lists already show each item as a child row; repeating
-          // the same text in the parent preview is just noise.
-          if (row.getIsExpanded()) {
+          // Hide the parent preview only when expanded children are actually
+          // rendered. showNullValues={false} can filter every child out while
+          // leaving the expand chevron (hasChildren is computed on the raw
+          // array), and blanking the cell then loses the only remaining value.
+          const hasVisibleChildRows =
+            row.getIsExpanded() && row.subRows.length > 0;
+          if (hasVisibleChildRows) {
             return {
               content: null,
               needsTruncation: false,
