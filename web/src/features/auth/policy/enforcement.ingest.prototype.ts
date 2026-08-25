@@ -9,7 +9,10 @@
 import { type IncomingHttpHeaders } from "http";
 
 import { ForbiddenError } from "@langfuse/shared";
-import { getCurrentSpan } from "@langfuse/shared/src/server";
+import {
+  getCurrentSpan,
+  type AuthHeaderVerificationResult,
+} from "@langfuse/shared/src/server";
 import {
   allProjectActions,
   authorize,
@@ -21,8 +24,19 @@ import {
   type ProjectAction,
   type Success,
 } from "./policy.prototype";
-import { type AuthError } from "./enforcement.organizations.prototype";
+import {
+  authzMigrationMode,
+  type AuthError,
+} from "./enforcement.organizations.prototype";
 import { enforceProjectAuth } from "./enforcement.projects.prototype";
+import {
+  newVerdict,
+  recordParity,
+  verdictFromStatus,
+  type AuthorizeSeamResult,
+  type ParitySink,
+  type Verdict,
+} from "./parity.prototype";
 
 /** ingestionActionByEventType maps each authorization-relevant ingestion event type to its action; sdk-log needs bare authentication only. */
 const ingestionActionByEventType: Record<string, ProjectAction> = {
@@ -59,6 +73,99 @@ export async function enforceIngestionAuth(params: {
     allowedBatch: evaluation.allowedBatch,
     rejectedEvents: evaluation.rejectedEvents,
   };
+}
+
+/** authorizeIngestionRequest is the ingestion chokepoint's shadow-and-enforce method: one legacy verify, the new per-event pipeline beside it, parity emitted from both, then the mode decides. It swaps in for the route's inline `verifyAuthHeaderAndReturnScope`. */
+export async function authorizeIngestionRequest(params: {
+  headers: IncomingHttpHeaders;
+  batch: unknown[];
+  verify: () => Promise<AuthHeaderVerificationResult>;
+  mode?: "shadow" | "enforce";
+  sink?: ParitySink;
+}): Promise<AuthorizeSeamResult<IngestionAccessResult | ErrorResult<AuthError>>> {
+  const { headers, batch, verify, mode = authzMigrationMode, sink } = params;
+  const authCheck = await verify();
+  const authz = await enforceIngestionAuth({ headers, batch });
+  if (mode === "shadow") recordIngestionParity(authCheck, authz, batch, sink);
+  return { authCheck, authz };
+}
+
+/** recordIngestionParity emits the connection verdict once, then per authz-bearing event compares legacy's reconstructed verdict against the new path's — never against legacy's 207, which mixes validation into an overcount. */
+export function recordIngestionParity(
+  authCheck: AuthHeaderVerificationResult,
+  authz: IngestionAccessResult | ErrorResult<AuthError>,
+  batch: unknown[],
+  sink?: ParitySink,
+): void {
+  const connLegacy = authCheck.validKey
+    ? authCheck.scope.projectId
+      ? 200
+      : 403
+    : 401;
+  const connNew = newVerdict(authz);
+  recordParity(
+    {
+      seam: "ingestion_event",
+      action: "none",
+      legacy: verdictFromStatus(connLegacy),
+      neu: connNew.verdict,
+      legacyCode: connLegacy,
+      newCode: connNew.code,
+    },
+    sink,
+  );
+  if (!authCheck.validKey || !authz.success) return;
+  const accessLevel = ingestionAccessLevel(authCheck.scope.accessLevel);
+  const suspended = Boolean(authCheck.scope.isIngestionSuspended);
+  const rejectedIds = new Set(authz.rejectedEvents.map((e) => e.id));
+  for (const event of batch) {
+    const { id, type } = ingestionEventIdentity(event);
+    const action = type ? ingestionActionByEventType[type] : undefined;
+    if (action === undefined) continue;
+    const legacy = reconstructLegacyIngestionAuthz({
+      accessLevel,
+      eventType: type ?? "",
+      suspended,
+    });
+    const neu: Verdict = rejectedIds.has(id) ? "deny" : "allow";
+    recordParity(
+      {
+        seam: "ingestion_event",
+        action,
+        legacy,
+        neu,
+        legacyCode: legacy === "deny" ? 403 : 200,
+        newCode: neu === "deny" ? 403 : 200,
+      },
+      sink,
+    );
+  }
+}
+
+/** reconstructLegacyIngestionAuthz models legacy's per-event authz verdict as a pure fn of `(accessLevel, eventType, suspension)`; sdk-log and unknown types carry no authz opinion. */
+export function reconstructLegacyIngestionAuthz(params: {
+  accessLevel: "project" | "scores";
+  eventType: string;
+  suspended: boolean;
+}): Verdict {
+  const family = ingestionFamily(params.eventType);
+  if (family === "other") return "absent";
+  if (params.suspended) return "deny";
+  if (params.accessLevel === "scores" && family === "trace") return "deny";
+  return "allow";
+}
+
+/** ingestionFamily buckets an ingestion event type into the authz family legacy gated on. */
+function ingestionFamily(eventType: string): "trace" | "score" | "other" {
+  if (eventType === "score-create") return "score";
+  if (/^(trace|event|span|generation|observation)-/.test(eventType))
+    return "trace";
+  return "other";
+}
+
+/** ingestionAccessLevel narrows the legacy scope's accessLevel to the two the reconstruction distinguishes. */
+function ingestionAccessLevel(accessLevel: string): "project" | "scores" {
+  return accessLevel === "scores" ? "scores" : "project";
 }
 
 /** evaluateIngestionBatch asserts each event family's action on the target project: a system deny fails the whole batch as an error result, a grant deny rejects per event. */
@@ -288,6 +395,58 @@ if (import.meta.vitest) {
         batch: [{ id: "e1", type: "sdk-log" }],
       });
       expect(result.success && result.rejectedEvents).toEqual([]);
+    });
+  });
+
+  describe("reconstructLegacyIngestionAuthz", () => {
+    it.each([
+      ["project key writes traces", "project", "trace-create", false, "allow"],
+      ["scores key cannot write traces", "scores", "trace-create", false, "deny"],
+      ["scores key writes scores", "scores", "score-create", false, "allow"],
+      ["suspension denies scores", "project", "score-create", true, "deny"],
+      ["sdk-log has no authz opinion", "project", "sdk-log", false, "absent"],
+    ] as const)("%s", (_name, accessLevel, eventType, suspended, verdict) => {
+      expect(
+        reconstructLegacyIngestionAuthz({ accessLevel, eventType, suspended }),
+      ).toBe(verdict);
+    });
+  });
+
+  describe("recordIngestionParity", () => {
+    const capture = () => {
+      const calls: Record<string, string | number>[] = [];
+      const sink: ParitySink = {
+        increment: (_stat, tags) => calls.push(tags),
+        span: () => undefined,
+      };
+      return { calls, sink };
+    };
+
+    const scoresAuthCheck = {
+      validKey: true,
+      scope: { projectId: PRJ, accessLevel: "scores", isIngestionSuspended: false },
+    } as AuthHeaderVerificationResult;
+
+    it("agrees per event: scores key denies the trace, allows the score", () => {
+      const batch = [
+        { id: "e1", type: "trace-create" },
+        { id: "e2", type: "score-create" },
+      ];
+      const authz: IngestionAccessResult = {
+        success: true,
+        context: scoresKey(),
+        projectId: PRJ,
+        allowedBatch: [batch[1]],
+        rejectedEvents: [
+          { id: "e1", status: 403, message: "", error: "ForbiddenError" },
+        ],
+      };
+      const { calls, sink } = capture();
+      recordIngestionParity(scoresAuthCheck, authz, batch, sink);
+      // connection + two events, all agreeing
+      expect(calls).toHaveLength(3);
+      expect(calls.every((c) => c.seam === "ingestion_event")).toBe(true);
+      expect(calls.every((c) => c.result === "match")).toBe(true);
     });
   });
 }

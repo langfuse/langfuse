@@ -7,9 +7,8 @@ import { logger, redis } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
 import {
+  authorizeOrgRequest,
   authzMigrationMode,
-  enforceOrgAuth,
-  tagAuthzOutcome,
 } from "@/src/features/auth/policy/enforcement.organizations.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -33,22 +32,20 @@ export default async function handler(
     });
   }
 
-  // the new path evaluates every request and never throws: shadow stamps it
-  // on the span while legacy keeps gating, enforce acts on it below
-  const authz = await enforceOrgAuth({
+  // one method does legacy's single verify + the new path + the parity emit;
+  // legacy still decides in shadow, the new decision acts in enforce
+  const { authCheck, authz } = await authorizeOrgRequest({
     headers: req.headers,
     action: "projects:read",
+    verify: () =>
+      new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        req.headers.authorization,
+      ),
   });
 
   let orgId: string;
   if (authzMigrationMode === "shadow") {
-    tagAuthzOutcome(authz, "projects:read");
-
     // legacy gate, restored verbatim (dies with LFE-15033)
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
     if (!authCheck.validKey) {
       return res.status(401).json({
         error: authCheck.error,

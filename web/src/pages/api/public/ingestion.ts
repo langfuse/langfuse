@@ -27,8 +27,7 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
 import { authzMigrationMode } from "@/src/features/auth/policy/enforcement.organizations.prototype";
 import {
-  enforceIngestionAuth,
-  tagIngestionAuthzOutcome,
+  authorizeIngestionRequest,
   type IngestionAuthzRejection,
 } from "@/src/features/auth/policy/enforcement.ingest.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -157,11 +156,12 @@ export default async function handler(
 
         await telemetry();
 
-        // the new path evaluates the same batch and never throws: enforce
-        // gates with the result, shadow only observes it on the span
-        const authz = await enforceIngestionAuth({
+        // one method reuses the single verify above, runs the new per-event
+        // path, and emits parity in shadow; enforce gates with the result
+        const { authz } = await authorizeIngestionRequest({
           headers: req.headers,
           batch: parsedSchema.data.batch,
+          verify: async () => authCheck,
         });
         if (authzMigrationMode === "enforce" && !authz.success) {
           throw authz.error;
@@ -208,9 +208,6 @@ export default async function handler(
             ...rejectedErrors,
             ...authzRejections,
           ];
-        }
-        if (authzMigrationMode === "shadow") {
-          tagIngestionAuthzOutcome(authz, result.errors);
         }
         return res.status(207).json(result);
       } catch (error) {

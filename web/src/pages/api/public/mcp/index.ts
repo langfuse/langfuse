@@ -35,8 +35,9 @@ import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
 import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-// PROTOTYPE(LFE-15038): suspension arrives as the mcp_disabled system deny
-import { enforceProjectAuth } from "@/src/features/auth/policy/enforcement.projects.prototype";
+// PROTOTYPE(LFE-15559): one method does legacy's verify + the new mcp:access
+// check + the connection parity emit
+import { authorizeMcpConnection } from "@/src/features/mcp/core/define-tool.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, safeJsonParse } from "@langfuse/shared";
@@ -80,25 +81,22 @@ export default async function handler(
       return;
     }
 
-    // two fully independent paths: the legacy authCheck keeps shaping
-    // ServerContext and rate limiting (dies with LFE-15033); the new path
-    // resolves its own context
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
-      allowInAppAgentKey: true,
+    // one method reuses the single legacy verify, runs the new mcp:access
+    // check, and emits connection parity in shadow; legacy authCheck still
+    // shapes ServerContext + rate limiting (dies with LFE-15033)
+    const { authCheck, enforced } = await authorizeMcpConnection({
+      headers: req.headers,
+      verify: () =>
+        new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+          req.headers.authorization,
+          { allowInAppAgentKey: true },
+        ),
     });
     if (!authCheck.validKey) {
       throw new UnauthorizedError(authCheck.error);
     }
-
     // 400 without a project target (org keys), 403 from the mcp_disabled
     // system deny with today's message
-    const enforced = await enforceProjectAuth({
-      headers: req.headers,
-      action: "mcp:access",
-    });
     if (!enforced.success) {
       throw enforced.error;
     }

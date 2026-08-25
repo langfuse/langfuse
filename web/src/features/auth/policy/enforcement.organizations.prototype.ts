@@ -14,7 +14,10 @@ import {
   type ForbiddenError,
   type UnauthorizedError,
 } from "@langfuse/shared";
-import { getCurrentSpan } from "@langfuse/shared/src/server";
+import {
+  getCurrentSpan,
+  type AuthHeaderVerificationResult,
+} from "@langfuse/shared/src/server";
 import {
   authorize,
   type Action,
@@ -24,6 +27,14 @@ import {
 } from "./policy.prototype";
 import { headerValue } from "./enforce.prototype";
 import { authenticate } from "./identity.prototype";
+import {
+  newVerdict,
+  recordParity,
+  verdictFromStatus,
+  type AuthorizeSeamResult,
+  type NewResult,
+  type ParitySink,
+} from "./parity.prototype";
 
 /** authzMigrationMode gates the adapters — shadow stamps the new-path outcome on the request span, enforce acts on it; the flag itself is authored by the shadow slice. */
 export const authzMigrationMode: "shadow" | "enforce" =
@@ -56,6 +67,51 @@ export async function enforceOrgAuth(params: {
     return { success: false, error: decision.error };
   }
   return { success: true, context, orgId };
+}
+
+/** authorizeOrgRequest is the org chokepoint's shadow-and-enforce method: one legacy verify, the new pipeline beside it, parity emitted from both, then the mode decides. It swaps in for the route's inline `verifyAuthHeaderAndReturnScope`. */
+export async function authorizeOrgRequest(params: {
+  headers: IncomingHttpHeaders;
+  action: Action | null;
+  verify: () => Promise<AuthHeaderVerificationResult>;
+  mode?: "shadow" | "enforce";
+  sink?: ParitySink;
+}): Promise<AuthorizeSeamResult<OrgAccessResult | ErrorResult<AuthError>>> {
+  const { headers, action, verify, mode = authzMigrationMode, sink } = params;
+  const authCheck = await verify();
+  const authz = await enforceOrgAuth({ headers, action: action ?? undefined });
+  if (mode === "shadow") recordOrgRouteParity(authCheck, authz, action, sink);
+  return { authCheck, authz };
+}
+
+/** recordOrgRouteParity emits the org-route parity signal from legacy's verify result and the new pipeline's outcome; the `admin-api` entitlement 403 stays outside, identical on both paths. */
+export function recordOrgRouteParity(
+  authCheck: AuthHeaderVerificationResult,
+  authz: NewResult,
+  action: Action | null,
+  sink?: ParitySink,
+): void {
+  const legacyCode = legacyOrgStatus(authCheck);
+  const neu = newVerdict(authz);
+  recordParity(
+    {
+      seam: "org_route",
+      action: action ?? "none",
+      legacy: verdictFromStatus(legacyCode),
+      neu: neu.verdict,
+      legacyCode,
+      newCode: neu.code,
+    },
+    sink,
+  );
+}
+
+/** legacyOrgStatus maps the verify result to the inlined org gate's status: 401 unauthenticated, 403 non-org key, else 200. */
+function legacyOrgStatus(authCheck: AuthHeaderVerificationResult): number {
+  if (!authCheck.validKey) return 401;
+  if (authCheck.scope.accessLevel !== "organization" || !authCheck.scope.orgId)
+    return 403;
+  return 200;
 }
 
 /** getOrgId resolves the target org as `header ?? boundResource ?? 400`: disagreement 400s; coverage is the PDP's question. */
@@ -189,6 +245,40 @@ if (import.meta.vitest) {
         success: false,
         error: expect.any(InvalidRequestError),
       });
+    });
+  });
+
+  const capture = () => {
+    const calls: Record<string, string | number>[] = [];
+    const sink: ParitySink = {
+      increment: (_stat, tags) => calls.push(tags),
+      span: () => undefined,
+    };
+    return { calls, sink };
+  };
+
+  const orgCheck = (accessLevel: string, orgId?: string) =>
+    ({ validKey: true, scope: { accessLevel, orgId } }) as AuthHeaderVerificationResult;
+
+  describe("recordOrgRouteParity", () => {
+    it.each([
+      ["legacy org key, new allows", orgCheck("organization", ORG), { success: true } as const, "match"],
+      [
+        "legacy project key (403), new allows (security)",
+        orgCheck("project"),
+        { success: true } as const,
+        "new_allows",
+      ],
+      [
+        "legacy org key, new denies (breakage)",
+        orgCheck("organization", ORG),
+        { success: false, error: new InvalidRequestError() } as const,
+        "new_denies",
+      ],
+    ] as const)("%s", (_name, authCheck, authz, result) => {
+      const { calls, sink } = capture();
+      recordOrgRouteParity(authCheck, authz, "projects:read", sink);
+      expect(calls[0]).toMatchObject({ seam: "org_route", result });
     });
   });
 }
