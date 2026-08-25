@@ -80,6 +80,7 @@ import { createDurationTableColumn } from "@/src/components/design-system/Table/
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createDecimalTableColumn } from "@/src/components/design-system/Table/columns/createDecimalTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -1076,31 +1077,19 @@ export default function ObservationsTable({
         return generations.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
-        {
-          accessorKey: "tokensPerSecond",
+        createDecimalTableColumn<ObservationsTableRow>({
           id: "tokensPerSecond",
+          accessorFn: (row) => {
+            if (!row.latency || !row.usage.outputUsage) return null;
+            return row.usage.outputUsage / row.latency;
+          },
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }) => {
-            const latency: number | undefined = row.getValue("latency");
-            const usage: {
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
-            } = row.getValue("usage");
-            return latency !== undefined &&
-              (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
-              <span>
-                {usage.completionTokens && latency
-                  ? Number((usage.completionTokens / latency).toFixed(1))
-                  : undefined}
-              </span>
-            ) : undefined;
-          },
+          maximumFractionDigits: 1,
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
+        }),
         {
           accessorKey: "inputTokens",
           id: "inputTokens",
