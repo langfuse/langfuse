@@ -26,10 +26,20 @@ const DESIGN_COMPONENT_STORIES = [
 // Directories that get their own sidebar section instead of the flat
 // Playground default. This is not a `stories` entry with a `titlePrefix`
 // because story titles are injected into each meta — see StoryTitleGroup.
+// Only stories inside a configured directory can appear under its feature;
+// explicit story titles are rejected by the title plugin.
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
   {
     directory: "src/features/evals/v2/components",
     titlePrefix: "Features/Evaluations",
+  },
+  {
+    directory: "src/features/in-app-agent/components",
+    titlePrefix: "Features/In-App Agent",
+  },
+  {
+    directory: "src/features/traces/components",
+    titlePrefix: "Features/Traces",
   },
 ];
 const DESIGN_REFERENCE_STORIES = [
