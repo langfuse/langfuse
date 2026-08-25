@@ -1,24 +1,28 @@
 import type * as React from "react";
+import { useState } from "react";
 
-import { PopoverController } from "@/src/components/ui/popover";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { DeleteAutomationPopoverContent } from "./DeleteAutomationPopoverContent";
+import { DeleteAutomationDialog } from "./DeleteAutomationDialog";
 
-type DeleteAutomationPopoverControllerProps = {
+type DeleteAutomationDialogControllerProps = {
   projectId: string;
   automationId: string;
   onSuccess?: () => void;
-  children: React.ComponentProps<typeof PopoverController>["children"];
+  children: (control: {
+    disabled: { reason: string } | undefined;
+    openDialog: () => void;
+  }) => React.ReactNode;
 };
 
-export const DeleteAutomationPopoverController = ({
+export const DeleteAutomationDialogController = ({
   projectId,
   automationId,
   onSuccess,
   children,
-}: DeleteAutomationPopoverControllerProps) => {
+}: DeleteAutomationDialogControllerProps) => {
+  const [open, setOpen] = useState(false);
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -40,34 +44,37 @@ export const DeleteAutomationPopoverController = ({
     },
   );
 
-  const handleDelete = async (closePopover: () => void) => {
+  const disabled = hasAccess
+    ? undefined
+    : { reason: "You don't have permission to delete this automation." };
+
+  const openDialog = () => {
+    if (!hasAccess) return;
+
+    setOpen(true);
+  };
+
+  const handleDelete = async () => {
     try {
       await deleteAutomationMutation.mutateAsync({
         projectId,
         automationId,
       });
-      closePopover();
+      setOpen(false);
     } catch {
-      // The tRPC error handler owns mutation failures; keep the popover open.
+      // The tRPC error handler owns mutation failures; keep the dialog open.
     }
   };
 
   return (
-    <PopoverController
-      align="center"
-      contentClassName=""
-      disabled={!hasAccess}
-      modal={false}
-      renderContent={({ closePopover }) => (
-        <DeleteAutomationPopoverContent
-          isPending={deleteAutomationMutation.isPending}
-          onConfirm={() => {
-            handleDelete(closePopover);
-          }}
-        />
-      )}
-    >
-      {children}
-    </PopoverController>
+    <>
+      {children({ disabled, openDialog })}
+      <DeleteAutomationDialog
+        open={hasAccess && open}
+        onOpenChange={setOpen}
+        isPending={deleteAutomationMutation.isPending}
+        onConfirm={handleDelete}
+      />
+    </>
   );
 };

@@ -43,7 +43,7 @@ import {
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { DeleteAutomationPopoverController } from "./DeleteAutomationPopoverController";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -813,26 +813,25 @@ export const AutomationForm = ({
               automation?.trigger.id &&
               automation?.action.id && (
                 <div>
-                  <DeleteAutomationPopoverController
+                  <DeleteAutomationDialogController
                     projectId={projectId}
                     automationId={automation.id}
                     onSuccess={() => {
                       router.push(`/project/${projectId}/settings/automations`);
                     }}
                   >
-                    {({ disabled, Trigger }) => (
-                      <Trigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-light-red flex items-center"
-                          disabled={disabled}
-                        >
-                          <span className="text-dark-red">Delete</span>
-                        </Button>
-                      </Trigger>
+                    {({ disabled, openDialog }) => (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-light-red flex items-center"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        <span className="text-dark-red">Delete</span>
+                      </Button>
                     )}
-                  </DeleteAutomationPopoverController>
+                  </DeleteAutomationDialogController>
                 </div>
               )}
             <div className="grow"></div>

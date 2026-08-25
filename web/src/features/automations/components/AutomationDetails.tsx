@@ -19,7 +19,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { DeleteAutomationPopoverController } from "./DeleteAutomationPopoverController";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 interface AutomationDetailsProps {
@@ -125,24 +125,23 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                <DeleteAutomationPopoverController
+                <DeleteAutomationDialogController
                   projectId={projectId}
                   automationId={automationId}
                   onSuccess={onDelete}
                 >
-                  {({ disabled, Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-light-red flex items-center"
-                        disabled={disabled}
-                      >
-                        <span className="text-dark-red">Delete</span>
-                      </Button>
-                    </Trigger>
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-light-red flex items-center"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      <span className="text-dark-red">Delete</span>
+                    </Button>
                   )}
-                </DeleteAutomationPopoverController>
+                </DeleteAutomationDialogController>
               </div>
             }
           />
