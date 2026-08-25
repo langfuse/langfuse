@@ -79,6 +79,7 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createIntegerTableColumn } from "@/src/components/design-system/Table/columns/createIntegerTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -1078,21 +1079,14 @@ export default function ObservationsTable({
       enableSorting,
       defaultHidden: true,
     },
-    {
+    createIdTableColumn<ObservationsTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       header: "Trace ID",
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       enableSorting,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "modelId",
       id: "modelId",
