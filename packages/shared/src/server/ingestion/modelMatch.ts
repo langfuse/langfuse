@@ -387,15 +387,14 @@ const getOrCreateModelMatchCacheEpoch = async (
     return null;
   }
 
-  const cachedEpoch = modelMatchEpochLocalCache.get(projectId);
-  if (cachedEpoch) return cachedEpoch;
-
   const epochKey = getModelMatchEpochKey(projectId);
+  const cachedEpoch = modelMatchEpochLocalCache.get(epochKey);
+  if (cachedEpoch) return cachedEpoch;
 
   try {
     const currentEpoch = await redis.get(epochKey);
     if (currentEpoch) {
-      modelMatchEpochLocalCache.set(projectId, currentEpoch);
+      modelMatchEpochLocalCache.set(epochKey, currentEpoch);
       return currentEpoch;
     }
 
@@ -410,7 +409,7 @@ const getOrCreateModelMatchCacheEpoch = async (
 
     // Return the winner if multiple processes initialize the epoch together.
     const epoch = (await redis.get(epochKey)) ?? newEpoch;
-    modelMatchEpochLocalCache.set(projectId, epoch);
+    modelMatchEpochLocalCache.set(epochKey, epoch);
     return epoch;
   } catch (error) {
     logger.error(
@@ -469,7 +468,7 @@ export async function clearModelCacheForProject(
   }
 
   if (!redis) {
-    modelMatchEpochLocalCache.delete(projectId);
+    modelMatchEpochLocalCache.delete(getModelMatchEpochKey(projectId));
     const error = new Error(
       `Cannot invalidate model cache for project ${projectId}: Redis is unavailable`,
     );
@@ -487,9 +486,9 @@ export async function clearModelCacheForProject(
       "EX",
       MODEL_MATCH_CACHE_EPOCH_TTL_SECONDS,
     );
-    modelMatchEpochLocalCache.set(projectId, nextEpoch);
+    modelMatchEpochLocalCache.set(getModelMatchEpochKey(projectId), nextEpoch);
   } catch (error) {
-    modelMatchEpochLocalCache.delete(projectId);
+    modelMatchEpochLocalCache.delete(getModelMatchEpochKey(projectId));
     logger.error(
       `Error rotating model cache epoch for project ${projectId}: ${error}`,
     );
