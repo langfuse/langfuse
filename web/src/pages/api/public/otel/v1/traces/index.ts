@@ -28,6 +28,8 @@ export const config = {
   },
 };
 
+const OTEL_REQUEST_BODY_WARNING_BYTES = 16 * 1024 * 1024;
+
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "OTel Traces",
@@ -48,9 +50,11 @@ export default withMiddlewares({
       const maxBodyBytes = env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES;
 
       let body: Buffer;
+      let encodedBodyBytes: number;
       let bodyFailureMessage = "Failed to read request body";
       try {
         body = await readOtelRequestBody(req, maxBodyBytes);
+        encodedBodyBytes = body.byteLength;
 
         if (req.headers["content-encoding"]?.includes("gzip")) {
           bodyFailureMessage = "Failed to decompress request body";
@@ -238,9 +242,17 @@ export default withMiddlewares({
         };
       }
 
-      // Warn on oversized OTEL request bodies (16MB threshold)
-      const bodyBytes = body.byteLength;
-      if (bodyBytes > 16 * 1024 * 1024) {
+      // Warn on oversized OTEL request bodies (16MB threshold). Keep one
+      // warning per accepted request, even when both encoded and decoded sizes
+      // cross the threshold.
+      // Keep the encoded size available after optional decompression so the
+      // warning can identify requests that would cross an encoded-only
+      // threshold as well as requests that are large after decompression.
+      const decodedBodyBytes = body.byteLength;
+      if (
+        encodedBodyBytes > OTEL_REQUEST_BODY_WARNING_BYTES ||
+        decodedBodyBytes > OTEL_REQUEST_BODY_WARNING_BYTES
+      ) {
         let spanCount = 0;
         for (const rs of resourceSpans) {
           for (const ss of rs?.scopeSpans ?? []) {
@@ -249,7 +261,10 @@ export default withMiddlewares({
         }
         logger.warn("OTEL request body exceeds 16MB", {
           projectId: auth.scope.projectId,
-          bodyBytes,
+          // Keep bodyBytes as the decoded-size field for existing queries.
+          bodyBytes: decodedBodyBytes,
+          decodedBodyBytes,
+          encodedBodyBytes,
           spanCount,
         });
       }
