@@ -65,7 +65,6 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 
   addUserToSpan({
     userId: session?.user?.id,
-    email: session?.user?.email ?? undefined,
   });
 
   return createInnerTRPCContext({ session, headers });

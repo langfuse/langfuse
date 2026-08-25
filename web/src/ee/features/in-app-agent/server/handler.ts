@@ -109,7 +109,6 @@ export default async function handler(request: Request) {
 
     addUserToSpan({
       userId,
-      email: user.email ?? undefined,
     });
 
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
@@ -257,7 +256,6 @@ export default async function handler(request: Request) {
 
     addUserToSpan({
       userId,
-      email: user.email ?? undefined,
       projectId: rateLimitScope.projectId ?? undefined,
       orgId: rateLimitScope.orgId,
       plan: rateLimitScope.plan,

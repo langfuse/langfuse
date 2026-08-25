@@ -204,7 +204,6 @@ describe("in-app agent public API route auth", () => {
 
     expect(instrumentationMocks.addUserToSpan).toHaveBeenCalledWith({
       userId: "user-1",
-      email: "test@example.com",
     });
   });
 
@@ -880,7 +879,6 @@ describe("in-app agent public API route auth", () => {
       );
       expect(instrumentationMocks.addUserToSpan).toHaveBeenLastCalledWith({
         userId: sessionUser.id,
-        email: sessionUser.email,
         projectId: project.id,
         orgId: org.id,
         plan: "cloud:team",
