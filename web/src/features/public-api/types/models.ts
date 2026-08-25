@@ -215,8 +215,6 @@ export const GetModelV1Query = z.object({
 export const GetModelV1Response = APIModelDefinition.strict();
 
 // PUT /models/{modelId}
-export const PutModelV1Query = GetModelV1Query;
-export const PutModelV1Body = PostModelsV1Body;
 export const PutModelV1Response = APIModelDefinition.strict();
 
 // DELETE /models/{modelId}

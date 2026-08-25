@@ -5,8 +5,7 @@ import {
   DeleteModelV1Response,
   GetModelV1Query,
   GetModelV1Response,
-  PutModelV1Body,
-  PutModelV1Query,
+  PostModelsV1Body,
   PutModelV1Response,
 } from "@/src/features/public-api/types/models";
 import {
@@ -32,8 +31,8 @@ export default withMiddlewares({
   PUT: createAuthedProjectAPIRoute({
     name: "Upsert custom model definition",
     isAdminApiKeyAuthAllowed: true,
-    querySchema: PutModelV1Query,
-    bodySchema: PutModelV1Body,
+    querySchema: GetModelV1Query,
+    bodySchema: PostModelsV1Body,
     responseSchema: PutModelV1Response,
     fn: async ({ query, body, auth }) => {
       return await upsertModelForApi({
