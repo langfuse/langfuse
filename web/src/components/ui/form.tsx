@@ -141,6 +141,23 @@ const FormDescription = React.forwardRef<
 FormDescription.displayName = "FormDescription";
 
 /**
+ * True when the error is on the array/object itself (`message` or `root`),
+ * not only on a nested item. Use this to gate a parent FormMessage that sits
+ * next to per-item FormMessages, so item errors are not rendered twice.
+ */
+function hasArrayLevelFieldError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as Record<string, unknown>;
+  if (typeof record.message === "string" && record.message.length > 0) {
+    return true;
+  }
+  const root = record.root;
+  if (!root || typeof root !== "object") return false;
+  const rootMessage = (root as { message?: unknown }).message;
+  return typeof rootMessage === "string" && rootMessage.length > 0;
+}
+
+/**
  * Zod 4 + react-hook-form nest array-level errors on `root` and item errors
  * on numeric keys. `error.message` is then undefined, so FormMessage used to
  * render nothing even though the field was invalid.
@@ -200,4 +217,5 @@ export {
   FormDescription,
   FormMessage,
   FormField,
+  hasArrayLevelFieldError,
 };

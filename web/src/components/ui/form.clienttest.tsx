@@ -6,6 +6,7 @@ import {
   FormField,
   FormItem,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 
 type Values = {
@@ -122,5 +123,32 @@ describe("FormMessage", () => {
     fireEvent.click(screen.getByRole("button", { name: "empty-message" }));
 
     expect(screen.queryByRole("paragraph")).not.toBeInTheDocument();
+  });
+});
+
+describe("hasArrayLevelFieldError", () => {
+  it("is false for item-only nested errors", () => {
+    expect(
+      hasArrayLevelFieldError({
+        0: { value: { message: "Enter a category value" } },
+      }),
+    ).toBe(false);
+  });
+
+  it("is true for a string message on the field", () => {
+    expect(hasArrayLevelFieldError({ message: "Add at least two" })).toBe(true);
+  });
+
+  it("is true for root.message even when item errors also exist", () => {
+    expect(
+      hasArrayLevelFieldError({
+        root: { message: "Add at least two" },
+        0: { value: { message: "Enter a category value" } },
+      }),
+    ).toBe(true);
+  });
+
+  it("is false for an empty message object", () => {
+    expect(hasArrayLevelFieldError({ message: "" })).toBe(false);
   });
 });
