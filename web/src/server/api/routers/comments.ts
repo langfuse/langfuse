@@ -5,8 +5,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { CommentObjectType } from "@langfuse/shared";
-import { Prisma, CreateCommentData, DeleteCommentData } from "@langfuse/shared";
+import {
+  CommentObjectType,
+  Prisma,
+  CreateCommentData,
+  DeleteCommentData,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
@@ -16,8 +20,8 @@ import {
   logger,
   NotificationQueue,
   QueueJobs,
+  getUserProjectRoles,
 } from "@langfuse/shared/src/server";
-import { getUserProjectRoles } from "@langfuse/shared/src/server";
 import {
   extractUniqueMentionedUserIds,
   sanitizeMentions,

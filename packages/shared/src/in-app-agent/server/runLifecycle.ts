@@ -351,6 +351,12 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
+        ...(params.alwaysAllowToolName
+          ? {
+              alwaysAllow: true as const,
+              toolName: params.alwaysAllowToolName,
+            }
+          : {}),
       }),
     });
 
@@ -746,6 +752,13 @@ export function classifyStaleRun(
   return null;
 }
 
+export function isMissingInAppAgentMcpApiKeyError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  );
+}
+
 /** Retry terminal-run MCP-key cleanup outside the lifecycle transaction. */
 export async function cleanupTerminalRunMcpApiKeys(params: {
   prisma: PrismaClient;
@@ -769,7 +782,14 @@ export async function cleanupTerminalRunMcpApiKeys(params: {
     if (!run.mcpApiKeyId) continue;
 
     try {
-      await params.deleteApiKey(run.mcpApiKeyId);
+      try {
+        await params.deleteApiKey(run.mcpApiKeyId);
+      } catch (error) {
+        // Concurrent cleanup or a prior delete already removed the row.
+        if (!isMissingInAppAgentMcpApiKeyError(error)) {
+          throw error;
+        }
+      }
       await clearRunMcpApiKeyPointer({
         prisma: params.prisma,
         projectId: params.projectId,

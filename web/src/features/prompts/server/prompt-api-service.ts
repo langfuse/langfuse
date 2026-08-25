@@ -1,11 +1,9 @@
 import { prisma } from "@langfuse/shared/src/db";
-import type {
-  CreatePromptSchema,
-  GetPromptByNameSchema,
-  GetPromptsMetaSchema,
-  Prompt,
-} from "@langfuse/shared";
 import {
+  type CreatePromptSchema,
+  type GetPromptByNameSchema,
+  type GetPromptsMetaSchema,
+  type Prompt,
   InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,

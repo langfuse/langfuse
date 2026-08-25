@@ -9,11 +9,6 @@ import {
 } from "@/src/utils/sentryFilters";
 import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
-const isEuOrUsRegionNonHipaa =
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
-    ? ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    : false;
-
 // Isolation-scope tags are copied onto the pageload transaction at start.
 // Session hydrate (and the v4 flag) arrives after that, so apply the last-known
 // cache before init. Missing cache leaves the tag unset rather than guessing false.
@@ -77,8 +72,9 @@ Sentry.init({
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration({
-      maskAllText: !isEuOrUsRegionNonHipaa,
-      blockAllMedia: !isEuOrUsRegionNonHipaa,
+      maskAllText: true,
+      maskAllInputs: true,
+      blockAllMedia: true,
     }),
     Sentry.browserTracingIntegration(),
     Sentry.httpClientIntegration(),

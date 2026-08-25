@@ -54,6 +54,11 @@ export const scoreFilterConfig: FilterConfig = {
       label: "Data Type",
     },
     {
+      type: "stringKeyValue" as const,
+      column: "metadata",
+      label: "Metadata",
+    },
+    {
       type: "numeric" as const,
       column: "value",
       label: "Numeric Value",
