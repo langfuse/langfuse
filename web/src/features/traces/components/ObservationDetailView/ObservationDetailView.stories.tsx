@@ -1,12 +1,40 @@
 import { fn } from "storybook/test";
+import { useState, type ComponentProps } from "react";
 
 import preview from "../../../../../.storybook/preview";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LevelBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationDetailView } from "./ObservationDetailView";
 
+function InteractiveObservationDetailView(
+  args: ComponentProps<typeof ObservationDetailView>,
+) {
+  const [currentView, setCurrentView] = useState(args.currentView);
+  const [jsonBetaEnabled, setJsonBetaEnabled] = useState(args.jsonBetaEnabled);
+
+  return (
+    <ObservationDetailView
+      {...args}
+      currentView={currentView}
+      jsonBetaEnabled={jsonBetaEnabled}
+      onViewTabChange={(tab) => {
+        const nextView =
+          tab === "pretty" ? "pretty" : jsonBetaEnabled ? "json-beta" : "json";
+        setCurrentView(nextView);
+        args.onViewTabChange(tab);
+      }}
+      onBetaToggle={(enabled) => {
+        setJsonBetaEnabled(enabled);
+        setCurrentView(enabled ? "json-beta" : "json");
+        args.onBetaToggle(enabled);
+      }}
+    />
+  );
+}
+
 const meta = preview.meta({
   component: ObservationDetailView,
+  render: (args) => <InteractiveObservationDetailView {...args} />,
 });
 
 export const Default = meta.story({
@@ -46,7 +74,6 @@ export const Default = meta.story({
       showMetadata: true,
       showCorrections: false,
     },
-    scoresTab: <div className="p-2 text-sm">No scores</div>,
     showTabsBar: true,
   },
 });
@@ -88,7 +115,6 @@ export const Error = meta.story({
       showMetadata: true,
       showCorrections: false,
     },
-    scoresTab: <div className="p-2 text-sm">No scores</div>,
     showTabsBar: true,
   },
 });
