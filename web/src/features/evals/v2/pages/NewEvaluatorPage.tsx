@@ -1,11 +1,11 @@
 import { useRouter } from "next/router";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEvalTemplate } from "@/src/features/evals/v2/hooks/useEvalTemplate";
 import { agentEvaluatorDraftToSetupDraft } from "@/src/features/evals/v2/fns/evaluators/agentEvaluatorDraft";
-import { readAgentEvaluatorDraft } from "@/src/features/in-app-agent/lib/evaluatorDraftStorage";
+import { takeAgentEvaluatorDraft } from "@/src/features/in-app-agent/lib/evaluatorDraftStorage";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
 function requestedEvaluatorType(value: string | string[] | undefined) {
@@ -43,26 +43,7 @@ export default function NewEvaluatorPage() {
   }
 
   if (isAgentDraft) {
-    const storedDraft = readAgentEvaluatorDraft(projectId);
-    if (!storedDraft) {
-      return (
-        <div className="p-6">
-          This assistant draft is no longer available. Ask the assistant to
-          propose the evaluator again.
-        </div>
-      );
-    }
-
-    return (
-      <EvaluatorSetupPage
-        mode="create"
-        key="assistant-draft"
-        projectId={projectId}
-        initialDraft={agentEvaluatorDraftToSetupDraft(storedDraft)}
-        initialType={EvalTemplateTypeEnum.LLM_AS_JUDGE}
-        creationSource={{ type: "assistant" }}
-      />
-    );
+    return <AssistantEvaluatorDraftPage projectId={projectId} />;
   }
 
   if (template.isNotFound) {
@@ -84,6 +65,30 @@ export default function NewEvaluatorPage() {
       initialDraft={template.draft}
       initialType={initialType}
       creationSource={creationSource}
+    />
+  );
+}
+
+function AssistantEvaluatorDraftPage({ projectId }: { projectId: string }) {
+  const [draft] = useState(() => takeAgentEvaluatorDraft(projectId));
+
+  if (!draft) {
+    return (
+      <div className="p-6">
+        This assistant draft is no longer available. Ask the assistant to
+        propose the evaluator again.
+      </div>
+    );
+  }
+
+  return (
+    <EvaluatorSetupPage
+      mode="create"
+      key="assistant-draft"
+      projectId={projectId}
+      initialDraft={agentEvaluatorDraftToSetupDraft(draft)}
+      initialType={EvalTemplateTypeEnum.LLM_AS_JUDGE}
+      creationSource={{ type: "assistant" }}
     />
   );
 }

@@ -4,6 +4,7 @@ import {
   clearAgentEvaluatorDraft,
   forgetPendingAgentEvaluatorDraft,
   readAgentEvaluatorDraft,
+  takeAgentEvaluatorDraft,
   writeAgentEvaluatorDraft,
 } from "./evaluatorDraftStorage";
 
@@ -81,5 +82,40 @@ describe("evaluatorDraftStorage", () => {
     forgetPendingAgentEvaluatorDraft("project-1");
 
     expect(readAgentEvaluatorDraft("project-1")?.name).toBe("Helpfulness");
+  });
+
+  it("consumes a draft so a later read cannot reuse it", () => {
+    writeAgentEvaluatorDraft("project-1", {
+      name: "Helpfulness",
+      description: null,
+      definition: {
+        type: "LLM_AS_JUDGE",
+        prompt: "Score {{output}}",
+        provider: null,
+        model: null,
+        modelParams: null,
+        vars: ["output"],
+        variableMapping: [
+          {
+            templateVariable: "output",
+            selectedColumnId: "output",
+          },
+        ],
+        outputDefinition: {
+          version: 2,
+          dataType: "NUMERIC",
+          reasoning: { description: "Explain the score." },
+          score: {
+            description: "Quality of the response.",
+            minValue: 0,
+            maxValue: 1,
+          },
+        },
+      },
+    });
+
+    expect(takeAgentEvaluatorDraft("project-1")?.name).toBe("Helpfulness");
+    expect(readAgentEvaluatorDraft("project-1")).toBeNull();
+    expect(takeAgentEvaluatorDraft("project-1")).toBeNull();
   });
 });

@@ -77,3 +77,14 @@ export function readAgentEvaluatorDraft(
     return null;
   }
 }
+
+/** Reads the pending draft once, then drops it so refresh/history cannot reuse it. */
+export function takeAgentEvaluatorDraft(
+  projectId: string,
+): InAppAgentLlmEvaluatorDraft | null {
+  const draft = readAgentEvaluatorDraft(projectId);
+  if (draft) {
+    clearAgentEvaluatorDraft(projectId);
+  }
+  return draft;
+}
