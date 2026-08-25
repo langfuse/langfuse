@@ -4,12 +4,9 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -850,27 +847,12 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createBadgeTableColumn<TracesTableRow>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["environment"] =
-          row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
+    }),
     {
       accessorKey: "tags",
       id: "tags",

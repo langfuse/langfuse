@@ -37,10 +37,10 @@ import {
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
-  TableBadgeLoadingCell,
   TableIconBadgeLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -75,7 +75,6 @@ import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -1597,27 +1596,12 @@ export default function ObservationsEventsTable({
         return promptName && promptVersion && <TableIdOrName value={value} />;
       },
     },
-    {
+    createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
-      id: "environment",
       size: 150,
       enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value: EventsTableRow["environment"] =
-          row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",
