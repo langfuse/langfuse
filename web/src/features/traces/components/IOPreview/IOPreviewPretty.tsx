@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -16,6 +16,7 @@ import {
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
+import { resolveParsedJsonField } from "./fns/resolveParsedJsonField";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -70,7 +71,7 @@ function JsonInputOutputView({
       {showOutput && (
         <PrettyJsonView
           title="Output"
-          json={parsedOutput}
+          json={parsedOutput ?? null}
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
@@ -159,16 +160,22 @@ export function IOPreviewPretty({
   // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
   const parsedInput = isParsing
     ? undefined // Wait for Web Worker to finish
-    : (preParsedInput ??
-      deepParseJson(input, { maxSize: 300_000, maxDepth: 2 }));
+    : resolveParsedJsonField(preParsedInput, input, {
+        maxSize: 300_000,
+        maxDepth: 2,
+      });
   const parsedOutput = isParsing
     ? undefined
-    : (preParsedOutput ??
-      deepParseJson(output, { maxSize: 300_000, maxDepth: 2 }));
+    : resolveParsedJsonField(preParsedOutput, output, {
+        maxSize: 300_000,
+        maxDepth: 2,
+      });
   const parsedMetadata = isParsing
     ? undefined
-    : (preParsedMetadata ??
-      deepParseJson(metadata, { maxSize: 100_000, maxDepth: 2 }));
+    : resolveParsedJsonField(preParsedMetadata, metadata, {
+        maxSize: 100_000,
+        maxDepth: 2,
+      });
 
   // Enable the metadata rows' actions menu (copy + add-to-filter). Observation
   // metadata filters the observations table; trace metadata the traces table.
@@ -265,7 +272,7 @@ export function IOPreviewPretty({
   };
 
   // Determine if metadata should be shown
-  const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
+  const shouldShowMetadata = showMetadata && parsedMetadata != null;
   const showData = contentMode !== "conversation";
   const shouldRenderMessages =
     canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);

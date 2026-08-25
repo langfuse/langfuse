@@ -8,10 +8,23 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 // PrettyJsonView is the unvirtualized render path we must NOT reach for
 // over-limit fields — mock it so its presence is observable by test id.
+// Capture json/parsedJson so empty-field tests can assert null vs undefined.
+const prettyJsonView = vi.hoisted(() => ({
+  calls: [] as { title?: string; json?: unknown; parsedJson?: unknown }[],
+}));
 vi.mock("@/src/components/ui/PrettyJsonView", () => ({
-  PrettyJsonView: (props: { title?: string }) => (
-    <div data-testid="pretty-json-view">{props.title}</div>
-  ),
+  PrettyJsonView: (props: {
+    title?: string;
+    json?: unknown;
+    parsedJson?: unknown;
+  }) => {
+    prettyJsonView.calls.push({
+      title: props.title,
+      json: props.json,
+      parsedJson: props.parsedJson,
+    });
+    return <div data-testid="pretty-json-view">{props.title}</div>;
+  },
 }));
 
 vi.mock("./components/CorrectedOutputField", () => ({
@@ -34,6 +47,10 @@ import { JSON_VIEW_RENDER_CHAR_LIMIT } from "./fns/jsonViewSizeGate";
 const FALLBACK_TEXT = /too large to render in JSON view/i;
 
 describe("IOPreviewJSONSimple size gating", () => {
+  beforeEach(() => {
+    prettyJsonView.calls = [];
+  });
+
   it("renders the fallback and NOT PrettyJsonView for an over-limit field", () => {
     const huge = "x".repeat(JSON_VIEW_RENDER_CHAR_LIMIT + 1);
     render(
@@ -141,5 +158,53 @@ describe("IOPreviewJSONSimple size gating", () => {
     expect(viewers).toHaveLength(1);
     expect(viewers[0]).toHaveTextContent("Input");
     expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
+  });
+});
+
+describe("IOPreviewJSONSimple empty JSON null vs undefined", () => {
+  beforeEach(() => {
+    prettyJsonView.calls = [];
+  });
+
+  it("keeps parsed JSON null instead of falling through to an undefined raw field", () => {
+    // Call sites pass `output ?? undefined`, so a stored JSON null becomes JS
+    // undefined on the raw prop while the worker still parsed it as null.
+    // `parsedOutput ?? deepParseJson(output)` would discard that null.
+    render(
+      <IOPreviewJSONSimple
+        input={undefined}
+        output={undefined}
+        parsedInput={null}
+        parsedOutput={null}
+        hideIfNull={false}
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    const inputCall = prettyJsonView.calls.find((c) => c.title === "Input");
+    const outputCall = prettyJsonView.calls.find((c) => c.title === "Output");
+    expect(inputCall?.parsedJson).toBeNull();
+    expect(outputCall?.parsedJson).toBeNull();
+  });
+
+  it("renders empty input and empty output as the same JSON null", () => {
+    render(
+      <IOPreviewJSONSimple
+        input={undefined}
+        output={undefined}
+        hideIfNull={false}
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    const inputCall = prettyJsonView.calls.find((c) => c.title === "Input");
+    const outputCall = prettyJsonView.calls.find((c) => c.title === "Output");
+    expect(inputCall?.parsedJson).toBeNull();
+    expect(outputCall?.parsedJson).toBeNull();
+    expect(inputCall?.parsedJson).toEqual(outputCall?.parsedJson);
   });
 });

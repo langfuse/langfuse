@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
@@ -8,6 +8,7 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
+import { resolveParsedJsonField } from "./fns/resolveParsedJsonField";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
@@ -101,19 +102,19 @@ export function IOPreviewJSONSimple({
   const effectiveInput = useMemo(() => {
     if (isParsing) return undefined; // Wait for Web Worker to finish
     if (inputTooLarge) return undefined;
-    return parsedInput ?? deepParseJson(input);
+    return resolveParsedJsonField(parsedInput, input);
   }, [parsedInput, input, isParsing, inputTooLarge]);
 
   const effectiveOutput = useMemo(() => {
     if (isParsing) return undefined;
     if (outputTooLarge) return undefined;
-    return parsedOutput ?? deepParseJson(output);
+    return resolveParsedJsonField(parsedOutput, output);
   }, [parsedOutput, output, isParsing, outputTooLarge]);
 
   const effectiveMetadata = useMemo(() => {
     if (isParsing) return undefined;
     if (metadataTooLarge) return undefined;
-    return parsedMetadata ?? deepParseJson(metadata);
+    return resolveParsedJsonField(parsedMetadata, metadata);
   }, [parsedMetadata, metadata, isParsing, metadataTooLarge]);
 
   // An over-limit field parses to `undefined` above, but it is not empty — it
