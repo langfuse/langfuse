@@ -39,6 +39,15 @@ const contentVariants = cva("flex min-w-0 flex-1 flex-col gap-2", {
   },
 });
 
+const descriptionVariants = cva("ml-1 flex items-start gap-2", {
+  variants: {
+    align: {
+      top: null,
+      middle: "sm:items-center",
+    },
+  },
+});
+
 export type CalloutProps = {
   id: string;
   variant: "info" | "warning";
@@ -85,7 +94,7 @@ export function Callout({
 
   return (
     <div role="alert" className={calloutVariants({ variant })}>
-      <AlertDescription className="ml-1 flex items-start gap-2">
+      <AlertDescription className={descriptionVariants({ align })}>
         <div
           className={`${contentVariants({ align })} sm:flex-row sm:justify-between`}
         >

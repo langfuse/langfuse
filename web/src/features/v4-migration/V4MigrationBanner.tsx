@@ -48,7 +48,7 @@ export function V4MigrationBanner() {
   }
 
   return (
-    <div className="mb-4">
+    <div className="mb-4 empty:mb-0">
       <Callout
         id="v4-migration-banner:v1"
         ttlMs={DISMISS_TTL_MS}

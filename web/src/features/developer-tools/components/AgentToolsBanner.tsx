@@ -13,7 +13,7 @@ const DOCS_HREF =
  */
 export function AgentToolsBanner() {
   return (
-    <div className="mb-4">
+    <div className="mb-4 empty:mb-0">
       <Callout
         id="agent-tools-banner:v1"
         variant="info"
