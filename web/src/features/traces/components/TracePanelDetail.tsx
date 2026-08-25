@@ -21,7 +21,7 @@ import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
-import { ObservationDetailView } from "./ObservationDetailView/ObservationDetailView";
+import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { useMemo } from "react";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
@@ -57,7 +57,7 @@ export function TracePanelDetail() {
     switch (selected.kind) {
       case "observation":
         return (
-          <ObservationDetailView
+          <ConnectedObservationDetailView
             observation={selected.observation}
             projectId={trace.projectId}
             traceId={trace.id}
