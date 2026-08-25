@@ -133,7 +133,9 @@ export function IOPreviewJSONSimple({
 
   return (
     <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-      {status ? <StatusMessageSection status={status} /> : null}
+      {status ? (
+        <StatusMessageSection status={status} currentView="json" />
+      ) : null}
       {showInput &&
         (inputTooLarge ? (
           <LargeJsonFieldFallback

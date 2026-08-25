@@ -276,7 +276,9 @@ export function IOPreviewPretty({
 
   return (
     <div>
-      {showData && status ? <StatusMessageSection status={status} /> : null}
+      {showData && status ? (
+        <StatusMessageSection status={status} currentView="pretty" />
+      ) : null}
 
       {showData ? (
         <SectionToolDefinitions

@@ -38,6 +38,7 @@ import {
 } from "./fns/jsonViewSizeGate";
 import {
   getStatusMessagePresentation,
+  parseStructuredStatusMessage,
   type ObservationStatusMessage,
 } from "./components/statusMessagePresentation";
 
@@ -46,6 +47,16 @@ import {
 // eager virtualized viewer is therefore unreachable for trace I/O — see the
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
+
+const STATUS_MESSAGE_BACKGROUND_COLORS: Record<
+  ObservationStatusMessage["level"],
+  string
+> = {
+  ERROR: "var(--light-red)",
+  WARNING: "var(--light-yellow)",
+  DEBUG: "hsl(var(--muted) / 0.3)",
+  DEFAULT: "hsl(var(--card))",
+};
 
 /**
  * Decode a field's \uXXXX escapes, but only when it fits under the decoder's
@@ -482,8 +493,8 @@ function IOPreviewJSONInner({
       result.push({
         key: "status-message",
         title: statusPresentation.title,
-        data: status.message,
-        backgroundColor: statusPresentation.backgroundColor,
+        data: parseStructuredStatusMessage(status.message) ?? status.message,
+        backgroundColor: STATUS_MESSAGE_BACKGROUND_COLORS[status.level],
         minHeight: "4px",
       });
     }

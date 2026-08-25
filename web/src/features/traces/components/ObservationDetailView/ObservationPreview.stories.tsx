@@ -55,6 +55,42 @@ export const Error = meta.story({
   },
 });
 
+export const JsonError = meta.story({
+  args: {
+    previewKey: "json-error-observation",
+    previewProps: {
+      input: {
+        customerId: "customer-123",
+        question: "How do I reduce API latency?",
+      },
+      output: null,
+      status: {
+        level: "ERROR",
+        message: JSON.stringify(
+          {
+            error: {
+              code: "upstream_timeout",
+              message: "The upstream model did not respond in time.",
+              retryable: true,
+            },
+            requestId: "req_01K3H8TQ9V",
+          },
+          null,
+          2,
+        ),
+      },
+      metadata: {
+        model: "example-model",
+        region: "eu-west-1",
+      },
+      projectId: "storybook-project",
+      traceId: "storybook-trace",
+      showMetadata: true,
+      showCorrections: false,
+    },
+  },
+});
+
 export const Warning = meta.story({
   args: {
     previewKey: "warning-observation",

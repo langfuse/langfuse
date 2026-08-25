@@ -1,41 +1,52 @@
-import type { ObservationLevelType } from "@langfuse/shared";
+import { deepParseJson, type ObservationLevelType } from "@langfuse/shared";
 import { assertUnreachable } from "@/src/utils/types";
+
+// Status messages do not use the async I/O parser. Keep shallow structured
+// values below the eager JSON viewers' tree budget; larger values stay text.
+const STATUS_MESSAGE_JSON_PARSE_LIMIT = 5_000;
 
 export interface ObservationStatusMessage {
   level: ObservationLevelType;
   message: string;
 }
 
+export function parseStructuredStatusMessage(message: string) {
+  if (message.length > STATUS_MESSAGE_JSON_PARSE_LIMIT) return undefined;
+
+  const parsed = deepParseJson(message, {
+    maxSize: STATUS_MESSAGE_JSON_PARSE_LIMIT,
+    maxDepth: 2,
+  });
+
+  return typeof parsed === "object" && parsed !== null ? parsed : undefined;
+}
+
 export function getStatusMessagePresentation(level: ObservationLevelType) {
   if (level === "ERROR") {
     return {
       title: "Error",
-      className: "border-dark-red bg-light-red",
-      backgroundColor: "var(--light-red)",
+      tone: "danger" as const,
     };
   }
 
   if (level === "WARNING") {
     return {
       title: "Warning",
-      className: "border-dark-yellow/40 bg-light-yellow",
-      backgroundColor: "var(--light-yellow)",
+      tone: "warning" as const,
     };
   }
 
   if (level === "DEBUG") {
     return {
       title: "Debug",
-      className: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
-      backgroundColor: "hsl(var(--muted) / 0.3)",
+      tone: "muted" as const,
     };
   }
 
   if (level === "DEFAULT") {
     return {
       title: "Status",
-      className: "bg-card",
-      backgroundColor: "hsl(var(--card))",
+      tone: "neutral" as const,
     };
   }
 
