@@ -89,6 +89,17 @@ describe("MediaTag", () => {
     expect(label).toHaveAttribute("title", contentType);
   });
 
+  it("caps the hover card MIME type at twenty characters", () => {
+    const contentType =
+      "application/vnd.example.intentionally-verbose-archive-format";
+    render(<MediaTag contentType={contentType} open />);
+
+    expect(screen.getByTitle(contentType)).toHaveClass(
+      "max-w-[20ch]",
+      "truncate",
+    );
+  });
+
   it("shows the fallback when resolved image media fails to render", async () => {
     render(
       <MediaTag
