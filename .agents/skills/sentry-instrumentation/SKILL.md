@@ -184,8 +184,10 @@ properly (below).
 ## References
 
 - [references/sentry-capture-contract.md](references/sentry-capture-contract.md)
-  — the capture contract in depth: the shared-helper APIs, the beforeSend /
+  — the capture contract in depth: the shared-helper APIs, the PII/HIPAA
+  compliance boundary (replay mask + reviewer checklist), the beforeSend /
   denylist authoring protocol (field-reading, negative fixtures), fingerprinting
   and `area` tagging, the known noise families, and the shipped-PR case studies
   (#15145 / #15173 / #15174 / #15175 / #15238 / #15243 / #15245). Read when
-  authoring a suppression rule, hardening a capture path, or triaging a family.
+  authoring a suppression rule, hardening a capture path, touching replay/region
+  config, or triaging a family.
