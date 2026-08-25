@@ -932,6 +932,13 @@ export default function ObservationsTable({
         const aggregatedUsage = calculateAggregatedUsage(
           row.original.usageDetails,
         );
+        if (
+          !aggregatedUsage.input &&
+          !aggregatedUsage.output &&
+          !aggregatedUsage.total
+        ) {
+          return null;
+        }
         return (
           <BreakdownTooltip
             details={row.original.usageDetails}

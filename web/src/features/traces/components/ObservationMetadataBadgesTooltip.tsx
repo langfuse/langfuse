@@ -38,6 +38,12 @@ export function CostBadge({
   );
 }
 
+function hasNonZeroUsageDetails(
+  usageDetails: Record<string, number> | undefined,
+): usageDetails is Record<string, number> {
+  return Object.values(usageDetails ?? {}).some((value) => (value ?? 0) !== 0);
+}
+
 export function UsageBadge({
   type,
   inputUsage,
@@ -51,9 +57,7 @@ export function UsageBadge({
   totalUsage: number;
   usageDetails: Record<string, number> | undefined;
 }) {
-  // Only show for generation-like observations
-  if (!isGenerationLike(type) || !usageDetails) return null;
-
+  const hasBreakdown = hasNonZeroUsageDetails(usageDetails);
   const tokenText = formatTokenCounts(
     inputUsage,
     outputUsage,
@@ -62,15 +66,23 @@ export function UsageBadge({
   );
   const hasText = tokenText.length > 0;
 
+  if (!isGenerationLike(type) || (!hasText && !hasBreakdown)) return null;
+
+  const badge = (
+    <Badge
+      variant="tertiary"
+      className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
+    >
+      {hasText ? <span>{tokenText}</span> : null}
+      {hasBreakdown ? <InfoIcon className="h-3 w-3" /> : null}
+    </Badge>
+  );
+
+  if (!hasBreakdown) return badge;
+
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge
-        variant="tertiary"
-        className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
-      >
-        {hasText && <span>{tokenText}</span>}
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      {badge}
     </BreakdownTooltip>
   );
 }
