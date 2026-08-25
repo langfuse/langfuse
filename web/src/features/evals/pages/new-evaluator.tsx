@@ -1,11 +1,13 @@
 import Page from "@/src/components/layouts/page";
-import { BreadcrumbSeparator } from "@/src/components/ui/breadcrumb";
-import { BreadcrumbPage } from "@/src/components/ui/breadcrumb";
-import { BreadcrumbItem } from "@/src/components/ui/breadcrumb";
+import {
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+  BreadcrumbItem,
+  BreadcrumbList,
+  Breadcrumb,
+} from "@/src/components/ui/breadcrumb";
 import { Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { BreadcrumbList } from "@/src/components/ui/breadcrumb";
-import { Breadcrumb } from "@/src/components/ui/breadcrumb";
 import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
 import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-form";
@@ -25,9 +27,9 @@ import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 // Multi-step setup process
-// 1. Select Evaluator: /project/:projectId/evals/new
-// 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/new?evaluator=:evaluatorId
-// 3. Configure Evaluator: /project/:projectId/evals/new?evaluator=:evaluatorId
+// 1. Select Evaluator: /project/:projectId/evals/legacy/new
+// 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
+// 3. Configure Evaluator: /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
 export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -162,7 +164,7 @@ export default function NewEvaluatorPage() {
         breadcrumb: [
           {
             name: "Running Evaluators",
-            href: `/project/${projectId}/evals`,
+            href: `/project/${projectId}/evals/legacy`,
           },
         ],
       }}
@@ -171,7 +173,9 @@ export default function NewEvaluatorPage() {
         <BreadcrumbList>
           <BreadcrumbItem
             className="hover:cursor-pointer"
-            onClick={() => router.push(`/project/${projectId}/evals/new`)}
+            onClick={() =>
+              router.push(`/project/${projectId}/evals/legacy/new`)
+            }
           >
             <BreadcrumbPage
               className={cn(

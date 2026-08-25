@@ -1443,6 +1443,29 @@ describe("InAppAgentInstrumentation", () => {
     expect(finalAgentCreate).not.toHaveProperty("model");
   });
 
+  it("drops circular provider options from model call input", () => {
+    const instrumentation = createInstrumentation();
+    const providerOptions: Record<string, unknown> = {};
+    providerOptions.circular = providerOptions;
+
+    instrumentation.recordModelCallStart({
+      prompt: [{ role: "user", content: "hello" }],
+      providerOptions,
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+      finishReason: "stop",
+    });
+
+    const generation = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "generation-create",
+    )?.[1];
+    expect(generation?.input).toEqual({
+      messages: [{ role: "user", content: "hello" }],
+    });
+  });
+
   it("emits tools after the generation using actual execution timing", () => {
     const instrumentation = createInstrumentation();
     const modelCallStart = new Date("2026-01-01T00:00:00.000Z");

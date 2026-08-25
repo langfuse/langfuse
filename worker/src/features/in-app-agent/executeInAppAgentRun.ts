@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
-  deleteApiKeyFromDb,
+  deleteInAppAgentMcpApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   InAppAgentRunErrorCode,
@@ -33,12 +33,15 @@ import {
 import {
   getInAppAgentModelConfig,
   isInAppAgentInstanceEnabled,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
 } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   claimQueuedRun,
+  cleanupTerminalRunMcpApiKeys,
   clearRunMcpApiKeyPointer,
   finishClaimedRun,
   heartbeatClaimedRun,
+  isMissingInAppAgentMcpApiKeyError,
   reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
@@ -78,6 +81,26 @@ export function abortActiveInAppAgentRuns(): void {
 /** Thrown for claim-time revalidation failures; maps to FAILED (init_failed). */
 class InAppAgentRunInitError extends Error {}
 
+async function deleteInAppAgentMcpApiKey(params: {
+  projectId: string;
+  apiKeyId: string;
+}): Promise<void> {
+  try {
+    await deleteInAppAgentMcpApiKeyFromDb({
+      prisma,
+      id: params.apiKeyId,
+      projectId: params.projectId,
+      redis,
+    });
+  } catch (error) {
+    // Concurrent cleanup or a prior delete already removed the row. Treat
+    // that as success so the mcpApiKeyId pointer can still be cleared.
+    if (!isMissingInAppAgentMcpApiKeyError(error)) {
+      throw error;
+    }
+  }
+}
+
 export async function executeInAppAgentRun(params: {
   projectId: string;
   runId: string;
@@ -105,6 +128,13 @@ export async function executeInAppAgentRun(params: {
         prisma,
         projectId,
         conversationId: existing.conversationId,
+      });
+      await cleanupTerminalRunMcpApiKeys({
+        prisma,
+        projectId,
+        conversationId: existing.conversationId,
+        deleteApiKey: (apiKeyId) =>
+          deleteInAppAgentMcpApiKey({ projectId, apiKeyId }),
       });
     }
 
@@ -145,16 +175,8 @@ export async function executeInAppAgentRun(params: {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
     mcpApiKeyCleanup ??= (async () => {
-      await deleteApiKeyFromDb({
-        prisma,
-        id: keyId,
-        entityId: projectId,
-        scope: "PROJECT",
-        redis,
-      });
-      // Pointer is nulled only after the delete is confirmed; if the delete
-      // failed above, the terminal run keeps the pointer so reconciliation
-      // retries the cleanup.
+      await deleteInAppAgentMcpApiKey({ projectId, apiKeyId: keyId });
+      // Pointer is nulled after delete succeeds or the key is already gone.
       await clearRunMcpApiKeyPointer({ prisma, projectId, runId });
     })().catch((error: unknown) => {
       mcpApiKeyCleanup = undefined;
@@ -183,9 +205,7 @@ export async function executeInAppAgentRun(params: {
     const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
     if (!modelConfig) {
-      throw new InAppAgentRunInitError(
-        "In-app agent Bedrock model is not configured",
-      );
+      throw new InAppAgentRunInitError(LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE);
     }
 
     const useBundledPrompt =
@@ -553,6 +573,10 @@ export async function executeInAppAgentRun(params: {
           });
         },
         onError: async (error) => {
+          // The loop may close the stream after this callback instead of
+          // erroring it. Mark the job span now so Datadog APM status:error
+          // still has @error.message after we ACK the BullMQ job.
+          traceException(error);
           await flushPersistedRunEvents({
             status: InAppAgentRunStatus.FAILED,
             ...(failureCode() ?? {

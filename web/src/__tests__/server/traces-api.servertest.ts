@@ -8,8 +8,6 @@ import {
   createEvent,
   createOrgProjectAndApiKey,
   type EventRecordInsertType,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createTracesCh,
   createEventsCh,

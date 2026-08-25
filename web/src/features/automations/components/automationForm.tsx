@@ -68,6 +68,7 @@ const githubDispatchSchema = z.object({
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),
+  originalUrl: z.string().optional(),
 });
 
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
@@ -499,6 +500,7 @@ export const AutomationForm = ({
           githubToken: githubDefaults.githubDispatch.githubToken || "",
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
+          originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
       };
     }

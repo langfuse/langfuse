@@ -4,6 +4,7 @@ import {
   MessageSquareText,
   Settings,
   Users,
+  PlusIcon,
 } from "lucide-react";
 import {
   Card,
@@ -16,7 +17,6 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";

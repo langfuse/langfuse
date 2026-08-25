@@ -253,6 +253,48 @@ const DropdownMenuContent = React.forwardRef<
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 /**
+ * Owns dropdown open state while callers retain trigger and menu presentation.
+ * Use the supplied primitives in each render prop to preserve Radix behavior.
+ */
+type DropdownMenuControllerProps = {
+  align: React.ComponentProps<typeof DropdownMenuContent>["align"];
+  children: (control: {
+    isOpen: boolean;
+    Trigger: typeof DropdownMenuTrigger;
+  }) => React.ReactNode;
+  maxWidth?: React.CSSProperties["maxWidth"];
+  /** Customizes Radix focus restoration after the menu closes. */
+  onCloseAutoFocus?: React.ComponentProps<
+    typeof DropdownMenuContent
+  >["onCloseAutoFocus"];
+  renderMenu: () => React.ReactNode;
+};
+
+const DropdownMenuController = ({
+  align,
+  children,
+  maxWidth,
+  onCloseAutoFocus,
+  renderMenu,
+}: DropdownMenuControllerProps) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  return (
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      {children({ isOpen, Trigger: DropdownMenuTrigger })}
+      <DropdownMenuContent
+        align={align}
+        style={maxWidth === undefined ? undefined : { maxWidth }}
+        onClick={(event) => event.stopPropagation()}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        {renderMenu()}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+/**
  * Prefer `DropdownMenuItemWithSecondaryAction` for items that do not require JSX content.
  */
 const DropdownMenuItem = React.forwardRef<
@@ -545,6 +587,7 @@ DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
 
 export {
   DropdownMenu,
+  DropdownMenuController,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,

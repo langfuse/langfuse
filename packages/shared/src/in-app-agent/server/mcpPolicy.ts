@@ -136,11 +136,19 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "evalTemplate:read" },
   },
+  listManagedEvaluatorTemplates: {
+    approval: "auto",
+    availability: { scope: "evalTemplate:read" },
+  },
   getEvaluator: {
     approval: "auto",
     availability: { scope: "evalTemplate:read" },
   },
-  upsertEvaluator: {
+  createEvaluator: {
+    approval: "approval",
+    availability: { scope: "evalTemplate:CUD" },
+  },
+  updateEvaluator: {
     approval: "approval",
     availability: { scope: "evalTemplate:CUD" },
   },
@@ -161,6 +169,14 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     availability: { scope: "evalJob:CUD" },
   },
   updateEvaluationRule: {
+    approval: "approval",
+    availability: { scope: "evalJob:CUD" },
+  },
+  attachEvaluatorToEvaluationRule: {
+    approval: "approval",
+    availability: { scope: "evalJob:CUD" },
+  },
+  detachEvaluatorFromEvaluationRule: {
     approval: "approval",
     availability: { scope: "evalJob:CUD" },
   },
