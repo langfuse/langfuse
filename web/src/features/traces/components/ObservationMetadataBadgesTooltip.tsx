@@ -10,6 +10,7 @@ import {
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { hasNonZeroUsageDetails } from "@/src/features/traces/fns/calculateAggregatedUsage";
 import { InfoIcon } from "lucide-react";
 
 export function CostBadge({
@@ -36,12 +37,6 @@ export function CostBadge({
       </Badge>
     </BreakdownTooltip>
   );
-}
-
-function hasNonZeroUsageDetails(
-  usageDetails: Record<string, number> | undefined,
-): usageDetails is Record<string, number> {
-  return Object.values(usageDetails ?? {}).some((value) => (value ?? 0) !== 0);
 }
 
 export function UsageBadge({
