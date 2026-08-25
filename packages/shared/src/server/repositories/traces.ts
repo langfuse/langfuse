@@ -1410,7 +1410,8 @@ export async function getAgentGraphData(params: {
             start_time,
             end_time,
             metadata['langgraph_node'] AS node,
-            metadata['langgraph_step'] AS step
+            metadata['langgraph_step'] AS step,
+            metadata['langgraph_checkpoint_ns'] AS checkpoint_ns
           FROM
             observations
           WHERE

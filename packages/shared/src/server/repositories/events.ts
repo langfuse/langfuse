@@ -2433,7 +2433,8 @@ export async function getAgentGraphDataFromEventsTable(params: {
       e.start_time as start_time,
       e.end_time as end_time,
       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_node'] AS node,
-      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_step'] AS step,
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['langgraph_checkpoint_ns'] AS checkpoint_ns
     FROM events_core e
     WHERE
       e.project_id = {projectId: String}
