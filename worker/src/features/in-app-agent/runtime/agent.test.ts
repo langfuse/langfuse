@@ -1212,6 +1212,36 @@ describe("createAgUiStream", () => {
       },
     });
 
+    await expect(
+      evaluatorDraftTool?.execute?.({
+        name: "Correctness",
+        prompt:
+          "Compare the answer to the expected output.\n\nOutput: {{output}}\nExpected: {{expected_output}}",
+      }),
+    ).resolves.toMatchObject({
+      type: "uiDraftAction",
+      destination: "newEvaluator",
+      draft: {
+        name: "Correctness",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          vars: ["output", "expected_output"],
+          variableMapping: [
+            {
+              templateVariable: "output",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+            {
+              templateVariable: "expected_output",
+              selectedColumnId: "experimentItemExpectedOutput",
+              jsonSelector: null,
+            },
+          ],
+        },
+      },
+    });
+
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
       undefined,

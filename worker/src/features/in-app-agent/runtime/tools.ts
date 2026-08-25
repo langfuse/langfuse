@@ -670,9 +670,22 @@ export function getEvaluatorDraftToolResult({
 }
 
 function inferEvaluatorDraftColumn(variable: string) {
-  return ["output", "response", "answer", "completion"].includes(
-    variable.toLowerCase(),
-  )
-    ? "output"
-    : "input";
+  const normalized = variable.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  if (["output", "response", "answer", "completion"].includes(normalized)) {
+    return "output";
+  }
+
+  if (
+    [
+      "expectedoutput",
+      "expected",
+      "groundtruth",
+      "experimentitemexpectedoutput",
+    ].includes(normalized)
+  ) {
+    return "experimentItemExpectedOutput";
+  }
+
+  return "input";
 }
