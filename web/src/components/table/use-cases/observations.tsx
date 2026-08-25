@@ -48,10 +48,7 @@ import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-tr
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import {
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
@@ -81,7 +78,7 @@ import { createDateTableColumn } from "@/src/components/design-system/Table/colu
 import { createIntegerTableColumn } from "@/src/components/design-system/Table/columns/createIntegerTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -709,22 +706,12 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
     }),
-    {
+    createItemBadgeTableColumn<ObservationsTableRow>({
       accessorKey: "type",
-      id: "type",
       header: "Type",
       size: 50,
-      loadingCell: <TableIconBadgeLoadingCell />,
       enableSorting,
-      cell: ({ row }) => {
-        const value: ObservationType = row.getValue("type");
-        return value ? (
-          <div className="flex items-center gap-1">
-            <ItemBadge type={value} />
-          </div>
-        ) : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       id: "name",
