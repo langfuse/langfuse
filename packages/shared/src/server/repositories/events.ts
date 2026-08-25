@@ -181,6 +181,7 @@ const applyBatchIOStringRendering = (
 type EventsObservationQueryResult = EventsObservationRecordReadType & {
   latency?: string;
   time_to_first_token?: string;
+  tool_calls_count?: number;
 };
 
 /**
@@ -338,6 +339,8 @@ async function enrichObservationsWithTraceFields(
   return observationRecords.map((observation) => {
     // Remove raw tags field as this is re-mapped to traceTags
     const { tags: _tags, ...observationWithoutRawTags } = observation;
+    const dbToolCallsCount = (observation as { tool_calls_count?: number })
+      .tool_calls_count;
     return {
       ...observationWithoutRawTags,
       traceTags: observation.tags ?? [],
@@ -348,9 +351,12 @@ async function enrichObservationsWithTraceFields(
       toolDefinitionsCount: observation.toolDefinitions
         ? Object.keys(observation.toolDefinitions).length
         : null,
-      toolCallsCount: observation.toolCalls
-        ? observation.toolCalls.length
-        : null,
+      toolCallsCount:
+        typeof dbToolCallsCount === "number"
+          ? dbToolCallsCount
+          : observation.toolCalls
+            ? observation.toolCalls.length
+            : null,
     };
   });
 }

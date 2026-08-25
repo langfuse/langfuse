@@ -164,6 +164,8 @@ const EVENTS_FIELDS = {
   toolDefinitions: 'e.tool_definitions as "tool_definitions"',
   toolCalls: 'e.tool_calls as "tool_calls"',
   toolCallNames: 'e.tool_call_names as "tool_call_names"',
+  toolCallsCount:
+    "(SELECT countIf(type = 'TOOL') FROM events_core e2 WHERE e2.trace_id = e.trace_id AND e2.project_id = e.project_id) as \"tool_calls_count\"",
 
   // Pricing tier
   usagePricingTierId: 'e.usage_pricing_tier_id as "usage_pricing_tier_id"',
@@ -257,6 +259,7 @@ const FIELD_SETS = {
     "toolDefinitions",
     "toolCalls",
     "toolCallNames",
+    "toolCallsCount",
   ],
   baseWithoutTools: [
     "id",
@@ -565,6 +568,9 @@ const EVENTS_AGGREGATION_FIELDS = {
   error_count: "countIf(level = 'ERROR') as error_count",
   default_count: "countIf(level = 'DEFAULT') as default_count",
   debug_count: "countIf(level = 'DEBUG') as debug_count",
+
+  // Trace-level tool-call count: number of TOOL spans in the trace.
+  tool_calls_count: "countIf(type = 'TOOL') AS tool_call_count",
 
   tags: "argMaxIf(tags, event_ts, notEmpty(tags)) AS tags",
   release: "argMaxIf(release, event_ts, release <> '') AS release",

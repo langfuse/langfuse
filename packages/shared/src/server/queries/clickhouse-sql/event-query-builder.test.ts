@@ -37,6 +37,7 @@ describe("EventsAggregationQueryBuilder", () => {
     expect(query).toContain(
       "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
     );
+    expect(query).toContain("countIf(type = 'TOOL') AS tool_calls_count");
   });
 });
 
