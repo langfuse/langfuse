@@ -54,3 +54,87 @@ export const Error = meta.story({
     },
   },
 });
+
+export const Warning = meta.story({
+  args: {
+    previewKey: "warning-observation",
+    previewProps: {
+      input: {
+        customerId: "customer-123",
+        question: "How do I reduce API latency?",
+      },
+      output: {
+        recommendation: "Enable prompt caching and stream the response.",
+        latencyMs: 1842,
+      },
+      status: {
+        level: "WARNING",
+        message: "The response completed after one automatic retry.",
+      },
+      metadata: {
+        model: "example-model",
+        region: "eu-west-1",
+      },
+      projectId: "storybook-project",
+      traceId: "storybook-trace",
+      showMetadata: true,
+      showCorrections: false,
+    },
+  },
+});
+
+export const Debug = meta.story({
+  args: {
+    previewKey: "debug-observation",
+    previewProps: {
+      input: {
+        customerId: "customer-123",
+        question: "How do I reduce API latency?",
+      },
+      output: {
+        recommendation: "Enable prompt caching and stream the response.",
+        latencyMs: 842,
+      },
+      status: {
+        level: "DEBUG",
+        message: "Prompt cache lookup completed without a matching entry.",
+      },
+      metadata: {
+        model: "example-model",
+        region: "eu-west-1",
+      },
+      projectId: "storybook-project",
+      traceId: "storybook-trace",
+      showMetadata: true,
+      showCorrections: false,
+    },
+  },
+});
+
+export const Info = meta.story({
+  args: {
+    previewKey: "info-observation",
+    previewProps: {
+      input: {
+        customerId: "customer-123",
+        question: "How do I reduce API latency?",
+      },
+      output: {
+        recommendation: "Enable prompt caching and stream the response.",
+        latencyMs: 842,
+      },
+      status: {
+        level: "DEFAULT",
+        message: "The response completed with additional status details.",
+      },
+      metadata: {
+        model: "example-model",
+        region: "eu-west-1",
+      },
+      projectId: "storybook-project",
+      traceId: "storybook-trace",
+      showMetadata: true,
+      showCorrections: false,
+    },
+  },
+});

@@ -18,7 +18,7 @@ export function getStatusMessagePresentation(level: ObservationLevelType) {
   if (level === "WARNING") {
     return {
       title: "Warning",
-      className: "border-dark-yellow bg-light-yellow",
+      className: "border-dark-yellow/40 bg-light-yellow",
       backgroundColor: "var(--light-yellow)",
     };
   }
@@ -26,8 +26,8 @@ export function getStatusMessagePresentation(level: ObservationLevelType) {
   if (level === "DEBUG") {
     return {
       title: "Debug",
-      className: "border-muted-foreground/30 bg-tertiary",
-      backgroundColor: "hsl(var(--tertiary))",
+      className: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
+      backgroundColor: "hsl(var(--muted) / 0.3)",
     };
   }
 
