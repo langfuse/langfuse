@@ -81,6 +81,16 @@ export function promptsTableColsWithOptions(
   });
 }
 
-export function webhookActionFilterOptions(): ColumnDefinition[] {
-  return promptsTableCols.filter((col) => col.id === "name");
+/** Prompt-source automation trigger columns. Labels use arrayOptions so any-of / all-of / none-of are configurable at the source. */
+export function webhookActionFilterOptions(
+  options?: Pick<PromptOptions, "labels">,
+): ColumnDefinition[] {
+  return promptsTableCols
+    .filter((col) => col.id === "name" || col.id === "labels")
+    .map((col) => {
+      if (col.id === "labels") {
+        return formatColumnOptions(col, options?.labels ?? []);
+      }
+      return col;
+    });
 }

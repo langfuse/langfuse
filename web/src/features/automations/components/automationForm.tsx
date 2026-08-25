@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -270,73 +270,102 @@ const EventSourceField = ({
 const PromptTriggerFields = ({
   control,
   disabled,
+  projectId,
 }: {
   control: Control<FormValues>;
   disabled: boolean;
-}) => (
-  <>
-    <FormField
-      control={control}
-      name="eventAction"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Event Action</FormLabel>
-          <FormControl>
-            <MultiSelect
-              title="Event Actions"
-              label="Actions"
-              values={field.value}
-              onValueChange={field.onChange}
-              options={[
-                {
-                  value: "created",
-                  description: "Whenever a new prompt version is created",
-                },
-                {
-                  value: "updated",
-                  description:
-                    "Whenever tags or labels on a prompt version are updated",
-                },
-                {
-                  value: "deleted",
-                  description: "Whenever a prompt version is deleted",
-                },
-              ]}
-              className="my-0 w-auto overflow-hidden"
-              disabled={disabled}
-              labelTruncateCutOff={4}
-            />
-          </FormControl>
-          <FormDescription>
-            The actions on the event source that trigger this automation.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-    <FormField
-      control={control}
-      name="filter"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Filter</FormLabel>
-          <FormControl>
-            <InlineFilterBuilder
-              columns={webhookActionFilterOptions()}
-              filterState={field.value || []}
-              onChange={field.onChange}
-              disabled={disabled}
-            />
-          </FormControl>
-          <FormDescription>
-            Add conditions to narrow down when this trigger fires.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  </>
-);
+  projectId: string;
+}) => {
+  const promptFilterOptions = api.prompts.filterOptions.useQuery(
+    { projectId },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const filterColumns = useMemo(
+    () =>
+      webhookActionFilterOptions({
+        labels:
+          promptFilterOptions.data?.labels?.map((l) => ({ value: l.value })) ??
+          [],
+      }),
+    [promptFilterOptions.data?.labels],
+  );
+
+  return (
+    <>
+      <FormField
+        control={control}
+        name="eventAction"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Event Action</FormLabel>
+            <FormControl>
+              <MultiSelect
+                title="Event Actions"
+                label="Actions"
+                values={field.value}
+                onValueChange={field.onChange}
+                options={[
+                  {
+                    value: "created",
+                    description: "Whenever a new prompt version is created",
+                  },
+                  {
+                    value: "updated",
+                    description:
+                      "Whenever tags or labels on a prompt version are updated",
+                  },
+                  {
+                    value: "deleted",
+                    description: "Whenever a prompt version is deleted",
+                  },
+                ]}
+                className="my-0 w-auto overflow-hidden"
+                disabled={disabled}
+                labelTruncateCutOff={4}
+              />
+            </FormControl>
+            <FormDescription>
+              The actions on the event source that trigger this automation.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name="filter"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Filter</FormLabel>
+            <FormControl>
+              <InlineFilterBuilder
+                columns={filterColumns}
+                columnsWithCustomSelect={["labels"]}
+                filterState={field.value || []}
+                onChange={field.onChange}
+                disabled={disabled}
+              />
+            </FormControl>
+            <FormDescription>
+              Narrow when this trigger fires by prompt name and/or labels. Label
+              conditions use any-of / all-of / none-of against the saved
+              version&apos;s labels (for example, only dispatch when the version
+              is labelled production).
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </>
+  );
+};
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
@@ -735,6 +764,7 @@ export const AutomationForm = ({
                 <PromptTriggerFields
                   control={form.control}
                   disabled={!hasAccess || !isEditing}
+                  projectId={projectId}
                 />
               )}
             </CardContent>

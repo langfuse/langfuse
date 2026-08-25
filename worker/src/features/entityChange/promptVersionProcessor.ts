@@ -50,8 +50,16 @@ export const promptVersionProcessor = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
+        // Filter builder persists ColumnDefinition.name ("Name", "Labels") by
+        // default; map ids too so either identifier matches.
         const eventMatches = matchesTriggerFilter(
-          { Name: event.prompt.name, action: event.action },
+          {
+            Name: event.prompt.name,
+            name: event.prompt.name,
+            Labels: event.prompt.labels ?? [],
+            labels: event.prompt.labels ?? [],
+            action: event.action,
+          },
           trigger,
         );
 
@@ -121,7 +129,7 @@ export const promptVersionProcessor = async (
 
 /**
  * Enqueue an automation action for a prompt version change.
- * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
+ * Handles webhook, GitHub Dispatch, and Slack actions by enqueueing to the same webhook queue.
  */
 async function enqueueAutomationAction({
   promptData,
@@ -176,7 +184,7 @@ async function enqueueAutomationAction({
     `Created automation execution ${executionId} for project ${projectId} and action ${actionId}`,
   );
 
-  // Queue to webhook processor (handles both webhook and Slack actions)
+  // Queue to webhook processor (handles webhook, GitHub Dispatch, and Slack actions)
   await WebhookQueue.getInstance()?.add(QueueName.WebhookQueue, {
     timestamp: new Date(),
     id: v4(),

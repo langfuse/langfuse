@@ -27,6 +27,11 @@ vi.mock("@/src/utils/api", () => ({
     },
     // Pulled in by the prompt-source filter builder.
     projects: { byId: { useQuery: () => ({ data: undefined }) } },
+    prompts: {
+      filterOptions: {
+        useQuery: () => ({ data: { labels: [{ value: "production" }] } }),
+      },
+    },
     naturalLanguageFilters: {
       createCompletion: { useMutation: () => ({ mutateAsync: vi.fn() }) },
     },
@@ -157,5 +162,20 @@ describe("AutomationForm handleActionTypeChange", () => {
 
     expect(screen.queryByText("API Version")).toBeNull();
     expect(screen.queryByText("Select API version")).toBeNull();
+  });
+
+  it("describes name and label filtering on prompt-source automations", () => {
+    render(
+      <AutomationForm
+        projectId="p1"
+        isEditing={true}
+        prefill={{ actionType: "WEBHOOK" }}
+      />,
+    );
+
+    expect(screen.getByText(/prompt name and\/or labels/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /add filter/i }),
+    ).toBeInTheDocument();
   });
 });
