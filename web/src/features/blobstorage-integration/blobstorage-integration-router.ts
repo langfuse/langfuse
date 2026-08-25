@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -14,6 +15,7 @@ import {
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { TRPCError } from "@trpc/server";
+import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";
 import {
   logger,
@@ -62,14 +64,35 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return error.message;
 };
 
+const assertBlobStorageIntegrationAccess = ({
+  session,
+  projectId,
+}: {
+  session: Session;
+  projectId: string;
+}) => {
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "integrations:CRUD",
+  });
+  if (!session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+  throwIfNoEntitlement({
+    entitlement: "scheduled-blob-exports",
+    projectId,
+    sessionUser: session.user,
+  });
+};
+
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
+      assertBlobStorageIntegrationAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "integrations:CRUD",
       });
       try {
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
@@ -111,10 +134,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
 
         const existingIntegration =
@@ -186,10 +208,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
         await auditLog({
           session: ctx.session,
@@ -204,6 +225,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
       } catch (e) {
+        if (e instanceof TRPCError) {
+          throw e;
+        }
         logger.error(`Failed to delete blob storage integration`, e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -216,10 +240,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
 
         // Check if integration exists and is enabled
@@ -324,10 +347,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
 
         // Get persisted configuration
