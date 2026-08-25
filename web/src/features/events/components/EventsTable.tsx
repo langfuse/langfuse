@@ -41,16 +41,13 @@ import { createBadgeTableColumn } from "@/src/components/design-system/Table/col
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
-import {
-  compactNumberFormatter,
-  numberFormatter,
-  usdFormatter,
-} from "@/src/utils/numbers";
+import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   getRowHeightIOCharLimit,
@@ -1392,36 +1389,26 @@ export default function ObservationsEventsTable({
         },
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
-    {
+    createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolDefinitions",
-      id: "toolDefinitions",
       header: getEventsColumnName("toolDefinitions"),
       size: 120,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("toolDefinitions");
-        return value !== undefined ? (
-          <span>{numberFormatter(value, 0)}</span>
-        ) : undefined;
-      },
-    },
-    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }),
+    createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolCalls",
-      id: "toolCalls",
       header: getEventsColumnName("toolCalls"),
       size: 100,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("toolCalls");
-        return value !== undefined ? (
-          <span>{numberFormatter(value, 0)}</span>
-        ) : undefined;
-      },
-    },
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }),
     {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
@@ -1477,60 +1464,39 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           enableSorting,
         },
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<EventsTableRow>({
           id: "inputTokens",
+          accessorFn: (row) => row.usage.inputUsage,
           header: getEventsColumnName("inputTokens"),
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "outputTokens",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }),
+        createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
+          accessorFn: (row) => row.usage.outputUsage,
           header: getEventsColumnName("outputTokens"),
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "totalTokens",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }),
+        createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
+          accessorFn: (row) => row.usage.totalUsage,
           header: getEventsColumnName("totalTokens"),
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
-        },
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     {

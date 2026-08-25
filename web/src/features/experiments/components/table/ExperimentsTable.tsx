@@ -32,6 +32,7 @@ import { TableHeaderControls } from "@/src/components/table/table-header-control
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -480,16 +481,13 @@ export default function ExperimentsTable({
         return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },
-    {
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
-      id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      cell: ({ row }) => {
-        const value: number = row.getValue("itemCount");
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }),
     {
       accessorKey: "errorCount",
       id: "errorCount",

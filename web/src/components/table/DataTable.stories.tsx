@@ -21,6 +21,7 @@ import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -46,7 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
   InfoIcon,
@@ -1053,15 +1054,13 @@ function buildGroupedColumns(
     id: "scoresGroup",
     header: "Scores",
     columns: [
-      {
+      createNumberTableColumn<TraceRow>({
         accessorKey: "observationCount",
-        id: "observationCount",
         header: "Observations",
         size: 110,
-        cell: ({ row }) => (
-          <span>{numberFormatter(row.original.observationCount, 0)}</span>
-        ),
-      },
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
       {
         accessorKey: "latency",
         id: "latencyScore",
@@ -1083,13 +1082,14 @@ function buildGroupedColumns(
         size: 110,
         cell: ({ row }) => usdFormatter(row.original.totalCost.toNumber()),
       },
-      {
-        accessorKey: "usage",
+      createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
+        accessorFn: (row) => row.usage.totalUsage,
         header: "Tokens",
         size: 100,
-        cell: ({ row }) => numberFormatter(row.original.usage.totalUsage, 0),
-      },
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
     ] satisfies LangfuseColumnDef<TraceRow>[],
   };
   // place groups just before the action column (last entry)
