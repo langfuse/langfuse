@@ -5212,4 +5212,99 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(rows[0].input).toBe("hello");
     expect(rows[0].output).toBe("world");
   });
+  it("should export prompts with all versions", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    await prisma.prompt.createMany({
+      data: [
+        {
+          projectId,
+          name: "prompt-a",
+          version: 1,
+          type: "text",
+          prompt: "Hello {{name}} v1",
+          labels: [],
+          tags: ["tag1"],
+          config: {},
+          createdBy: "test-user",
+        },
+        {
+          projectId,
+          name: "prompt-a",
+          version: 2,
+          type: "text",
+          prompt: "Hello {{name}} v2",
+          labels: ["production"],
+          tags: ["tag1"],
+          config: { temperature: 0.7 },
+          createdBy: "test-user",
+          commitMessage: "improve greeting",
+        },
+        {
+          projectId,
+          name: "prompt-b",
+          version: 1,
+          type: "chat",
+          prompt: [{ role: "system", content: "You are helpful." }],
+          labels: ["latest"],
+          tags: [],
+          config: {},
+          createdBy: "test-user",
+        },
+        {
+          projectId,
+          name: "prompt-future",
+          version: 1,
+          type: "text",
+          prompt: "created after the export cutoff",
+          labels: [],
+          tags: [],
+          config: {},
+          createdBy: "test-user",
+          // Created after the export cutoff — must be excluded
+          createdAt: new Date(Date.now() + 1000 * 60 * 60 * 48),
+        },
+      ],
+    });
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.Prompts,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(3);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "prompt-a",
+          version: 1,
+          prompt: "Hello {{name}} v1",
+          tags: ["tag1"],
+          createdBy: "test-user",
+        }),
+        expect.objectContaining({
+          name: "prompt-a",
+          version: 2,
+          labels: ["production"],
+          commitMessage: "improve greeting",
+        }),
+        expect.objectContaining({
+          name: "prompt-b",
+          version: 1,
+          type: "chat",
+          labels: ["latest"],
+        }),
+      ]),
+    );
+    // The future prompt must be excluded by the cutoff
+    expect(rows.map((r) => r.name)).not.toContain("prompt-future");
+  });
 });
