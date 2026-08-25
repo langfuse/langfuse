@@ -46,7 +46,7 @@ import {
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import {
   Dialog,
   DialogContent,
@@ -510,17 +510,12 @@ export function DatasetRunsTable(props: {
       },
       columns: scoreColumns,
     },
-    {
+    createDateTableColumn<DatasetRunRowData>({
       accessorKey: "createdAt",
       header: "Created",
-      id: "createdAt",
       size: 150,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: DatasetRunRowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
