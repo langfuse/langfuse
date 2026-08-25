@@ -47,7 +47,7 @@ export function createTableColumn<TData extends RowData, TValue>({
     value: NullableTableColumnValue<TValue>,
     context: CellContext<TData, NullableTableColumnValue<TValue>>,
   ) => React.ReactNode;
-}): LangfuseColumnDef<TData, NullableTableColumnValue<TValue>> {
+}): LangfuseColumnDef<TData> {
   const accessor = accessorFn
     ? {
         // Langfuse column visibility still indexes every column by accessorKey.
@@ -60,10 +60,14 @@ export function createTableColumn<TData extends RowData, TValue>({
         id: accessorKey,
       };
 
-  return {
+  const column: LangfuseColumnDef<TData, NullableTableColumnValue<TValue>> = {
     ...columnOptions,
     ...accessor,
     loadingCell,
     cell: (context) => renderCell(context.getValue(), context),
   };
+
+  // TanStack's TValue is invariant, so expose unknown when columns enter a
+  // mixed array while retaining the specialized value type inside the creator.
+  return column as unknown as LangfuseColumnDef<TData>;
 }
