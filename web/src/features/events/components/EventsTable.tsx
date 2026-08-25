@@ -36,11 +36,9 @@ import {
   buildTracePath,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import {
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -77,7 +75,6 @@ import { ProvidedModelNameCell } from "@/src/features/models/components/Provided
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
-import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -1133,22 +1130,12 @@ export default function ObservationsEventsTable({
         return <LocalIsoDate date={value} />;
       },
     },
-    {
+    createItemBadgeTableColumn<EventsTableRow>({
       accessorKey: "type",
-      id: "type",
       header: getEventsColumnName("type"),
       size: 50,
-      loadingCell: <TableIconBadgeLoadingCell />,
       enableSorting,
-      cell: ({ row }) => {
-        const value: ObservationType = row.getValue("type");
-        return value ? (
-          <div className="flex items-center gap-1">
-            <ItemBadge type={value} />
-          </div>
-        ) : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       id: "name",
