@@ -315,6 +315,10 @@ export function ConnectedObservationDetailView({
         observationName: observation.name ?? undefined,
         input: observationWithIOCompat.data?.input ?? undefined,
         output: observationWithIOCompat.data?.output ?? undefined,
+        statusMessage:
+          observation.level === "ERROR"
+            ? (observation.statusMessage ?? undefined)
+            : undefined,
         outputCorrection,
         metadata: observationWithIOCompat.data?.metadata ?? undefined,
         parsedInput,

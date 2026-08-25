@@ -16,6 +16,7 @@ import {
 } from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { isOnlyJsonMessage } from "../../fns/chatMessageUtils";
+import { ErrorSection } from "./components/ErrorSection";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -86,6 +87,7 @@ function JsonInputOutputView({
 export interface IOPreviewPrettyProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  statusMessage?: string;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -126,6 +128,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
 export function IOPreviewPretty({
   input,
   output,
+  statusMessage,
   metadata,
   outputCorrection,
   parsedInput: preParsedInput,
@@ -272,6 +275,10 @@ export function IOPreviewPretty({
 
   return (
     <div>
+      {showData && statusMessage ? (
+        <ErrorSection message={statusMessage} />
+      ) : null}
+
       {showData ? (
         <SectionToolDefinitions
           tools={allTools}

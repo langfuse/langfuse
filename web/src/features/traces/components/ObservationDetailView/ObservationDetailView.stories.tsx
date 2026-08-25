@@ -2,10 +2,7 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import {
-  LevelBadge,
-  StatusMessageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { LevelBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationDetailView } from "./ObservationDetailView";
 
 const meta = preview.meta({
@@ -65,7 +62,6 @@ export const Error = meta.story({
         <div className="text-sm">2026-08-25 10:24:31.842</div>
         <div className="flex flex-wrap items-center gap-1">
           <LevelBadge level="ERROR" />
-          <StatusMessageBadge statusMessage="Upstream model request timed out after 30 seconds" />
         </div>
       </div>
     ),
@@ -82,6 +78,7 @@ export const Error = meta.story({
         question: "How do I reduce API latency?",
       },
       output: null,
+      statusMessage: "Upstream model request timed out after 30 seconds",
       metadata: {
         model: "example-model",
         region: "eu-west-1",

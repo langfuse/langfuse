@@ -60,6 +60,7 @@ function decodeIfWithinBudget(value: unknown, rowCount: number): unknown {
 export interface IOPreviewJSONProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  statusMessage?: string;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
@@ -105,6 +106,7 @@ export interface IOPreviewJSONProps {
 function IOPreviewJSONInner({
   input,
   output,
+  statusMessage,
   metadata,
   parsedInput,
   parsedOutput,
@@ -139,14 +141,16 @@ function IOPreviewJSONInner({
   const isDark = resolvedTheme === "dark";
 
   // Background colors that adapt to theme (memoized to prevent tree rebuilds)
-  const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
-    () => ({
-      inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
-      outputBgColor: isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)", // Dark blue-gray vs light green
-      metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
-    }),
-    [isDark],
-  );
+  const { inputBgColor, outputBgColor, errorBgColor, metadataBgColor } =
+    useMemo(
+      () => ({
+        inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
+        outputBgColor: isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)", // Dark blue-gray vs light green
+        errorBgColor: "var(--light-red)",
+        metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
+      }),
+      [isDark],
+    );
 
   // Fall back to raw values when caller does not provide pre-parsed fields
   // (e.g. session events rows in v4 mode). Parse once here, BEFORE the decode
@@ -469,6 +473,15 @@ function IOPreviewJSONInner({
     });
 
     const result = [];
+    if (statusMessage) {
+      result.push({
+        key: "error",
+        title: "Error",
+        data: statusMessage,
+        backgroundColor: errorBgColor,
+        minHeight: "4px",
+      });
+    }
     if (showInput) {
       result.push(
         inputTooLarge
@@ -554,6 +567,7 @@ function IOPreviewJSONInner({
   }, [
     showInput,
     showOutput,
+    statusMessage,
     showMetadata,
     inputTooLarge,
     outputTooLarge,
@@ -570,6 +584,7 @@ function IOPreviewJSONInner({
     downloadName,
     inputBgColor,
     outputBgColor,
+    errorBgColor,
     metadataBgColor,
     showCorrections,
     observationId,

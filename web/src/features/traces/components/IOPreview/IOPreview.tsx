@@ -53,6 +53,7 @@ export interface ExpansionStateProps {
 export interface IOPreviewProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  statusMessage?: string;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -104,6 +105,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
 export function IOPreview({
   input,
   output,
+  statusMessage,
   outputCorrection,
   metadata,
   parsedInput,
@@ -178,6 +180,7 @@ export function IOPreview({
   const sharedProps = {
     input,
     output,
+    statusMessage,
     outputCorrection,
     metadata,
     parsedInput,
@@ -239,6 +242,7 @@ export function IOPreview({
         <IOPreviewJSON
           input={input}
           output={output}
+          statusMessage={statusMessage}
           metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
@@ -259,12 +263,12 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
-          showCorrections={showCorrections}
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
           input={input}
           output={output}
+          statusMessage={statusMessage}
           metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
@@ -286,6 +290,7 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          showCorrections={showCorrections}
         />
       ) : (
         <IOPreviewPretty

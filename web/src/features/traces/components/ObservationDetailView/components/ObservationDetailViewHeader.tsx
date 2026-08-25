@@ -456,7 +456,13 @@ export const ObservationDetailViewHeader = memo(
                 modelParameters={observation.modelParameters}
               />
               <LevelBadge level={observation.level} />
-              <StatusMessageBadge statusMessage={observation.statusMessage} />
+              <StatusMessageBadge
+                statusMessage={
+                  observation.level === "ERROR"
+                    ? undefined
+                    : observation.statusMessage
+                }
+              />
               {observation.promptId && (
                 <PromptBadge
                   promptId={observation.promptId}
