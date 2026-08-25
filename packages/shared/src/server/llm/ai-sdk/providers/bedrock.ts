@@ -29,12 +29,11 @@ export function assertValidBedrockRegion(region: string | undefined): void {
 }
 
 /**
- * Bedrock region for Langfuse-operated AI (Assistant, Ask AI).
- * `LANGFUSE_AI_AWS_BEDROCK_REGION` is the name to use. Deprecated fallback:
- * `LANGFUSE_AWS_BEDROCK_REGION`, kept until Cloud infra finishes the cutover.
+ * Bedrock region for Langfuse-operated AI (Assistant, Ask AI). Undefined lets
+ * the AWS SDK fall back to the task region.
  */
 export function getLangfuseAIBedrockRegion(): string | undefined {
-  return env.LANGFUSE_AI_AWS_BEDROCK_REGION ?? env.LANGFUSE_AWS_BEDROCK_REGION;
+  return env.LANGFUSE_AI_AWS_BEDROCK_REGION;
 }
 
 /**

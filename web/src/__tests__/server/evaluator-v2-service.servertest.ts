@@ -129,8 +129,8 @@ const createService = () => new EvaluatorService(prisma, async () => undefined);
 const originalSharedAiModel = {
   model: sharedEnv.LANGFUSE_AI_MODEL,
   smallModel: sharedEnv.LANGFUSE_AI_SMALL_MODEL,
-  bedrockModel: sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL,
-  bedrockSmallModel: sharedEnv.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
+  provider: sharedEnv.LANGFUSE_AI_PROVIDER,
+  apiKey: sharedEnv.LANGFUSE_AI_API_KEY,
 };
 
 const setSharedAiModel = (params: {
@@ -138,10 +138,10 @@ const setSharedAiModel = (params: {
   smallModel: string | undefined;
 }) => {
   Object.assign(sharedEnv, {
+    LANGFUSE_AI_PROVIDER: undefined,
+    LANGFUSE_AI_API_KEY: undefined,
     LANGFUSE_AI_MODEL: params.model,
     LANGFUSE_AI_SMALL_MODEL: params.smallModel,
-    LANGFUSE_AWS_BEDROCK_MODEL: undefined,
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: undefined,
   });
 };
 
@@ -186,8 +186,8 @@ afterAll(async () => {
   Object.assign(sharedEnv, {
     LANGFUSE_AI_MODEL: originalSharedAiModel.model,
     LANGFUSE_AI_SMALL_MODEL: originalSharedAiModel.smallModel,
-    LANGFUSE_AWS_BEDROCK_MODEL: originalSharedAiModel.bedrockModel,
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: originalSharedAiModel.bedrockSmallModel,
+    LANGFUSE_AI_PROVIDER: originalSharedAiModel.provider,
+    LANGFUSE_AI_API_KEY: originalSharedAiModel.apiKey,
   });
   await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
 });

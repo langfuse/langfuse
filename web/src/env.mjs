@@ -461,11 +461,8 @@ export const env = createEnv({
     SLACK_STATE_SECRET: z.string().optional(),
 
     // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
-    // apply to both providers. Their LANGFUSE_AWS_BEDROCK_* equivalents are
-    // deprecated aliases, still read as fallbacks until the Cloud cutover ends.
-    // LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL stay Anthropic-only.
-    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+    // apply to both providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL are
+    // Anthropic-only.
     LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
     LANGFUSE_AI_MODEL: z.string().optional(),
     LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
@@ -577,8 +574,6 @@ export const env = createEnv({
       }),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
-    // Deprecated. Fallback for LANGFUSE_AI_AWS_BEDROCK_REGION; remove after cutover.
-    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
       .number()
       .int()
@@ -669,7 +664,6 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
       process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:
@@ -1002,10 +996,6 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // Deprecated aliases of LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL.
-    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
-      process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
     LANGFUSE_AI_PROVIDER: process.env.LANGFUSE_AI_PROVIDER,
     LANGFUSE_AI_MODEL: process.env.LANGFUSE_AI_MODEL,
     LANGFUSE_AI_SMALL_MODEL: process.env.LANGFUSE_AI_SMALL_MODEL,

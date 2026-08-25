@@ -38,8 +38,7 @@ export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
  * the AWS SDK use the task region.
  *
  * LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
- * are the names for both providers. The LANGFUSE_AWS_BEDROCK_* equivalents are
- * deprecated fallbacks, kept until the Cloud cutover completes.
+ * apply to both providers.
  */
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
@@ -61,11 +60,7 @@ export function getInAppAgentModelConfig(params?: {
     };
   }
 
-  // Deprecated fallback: LANGFUSE_AWS_BEDROCK_MODEL / _SMALL_MODEL.
-  const modelId =
-    params?.modelId ?? env.LANGFUSE_AI_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
-  const smallModelId =
-    env.LANGFUSE_AI_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+  const modelId = params?.modelId ?? env.LANGFUSE_AI_MODEL;
   const region = getLangfuseAIBedrockRegion();
 
   if (!modelId) {
@@ -78,7 +73,7 @@ export function getInAppAgentModelConfig(params?: {
   return {
     provider: "bedrock",
     modelId,
-    titleModelId: smallModelId ?? modelId,
+    titleModelId: env.LANGFUSE_AI_SMALL_MODEL ?? modelId,
     region,
   };
 }
