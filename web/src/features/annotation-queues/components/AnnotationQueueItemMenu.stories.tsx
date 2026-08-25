@@ -76,5 +76,15 @@ export const QueueCanBeToggled = meta.story({
       "Support review",
       undefined,
     );
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("menuitemcheckbox", {
+        name: /Quality audit/,
+      }),
+    );
+    await expect(args.onQueueItemToggle).toHaveBeenCalledWith(
+      "queue-2",
+      "Quality audit",
+      "item-2",
+    );
   },
 });
