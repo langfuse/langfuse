@@ -12,7 +12,6 @@ import { env } from "../../env";
 import { Decimal } from "decimal.js";
 import { prisma } from "../../db";
 import type { PricingTierWithPrices } from "../pricing-tiers";
-import { randomBytes } from "crypto";
 
 export type ModelMatchProps = {
   projectId: string;
@@ -25,12 +24,10 @@ export type ModelWithPrices = {
 };
 
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
-const MODEL_MATCH_CACHE_EPOCH_TTL_SECONDS = 7 * 24 * 60 * 60;
-const MODEL_MATCH_CACHE_EPOCH_REFRESH_MS = 1_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
-// The project cache epoch is part of both Redis and local cache keys. Rotating
-// it after a model write makes stale entries unreachable in every process.
+// This L1 cache is intentionally TTL-only. Cross-container consistency continues
+// to come from Redis invalidation plus the short local TTL.
 const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
   namespace: "model_match",
   enabled: env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED === "true",
@@ -42,12 +39,6 @@ const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
     env.LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX,
     DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX,
   ),
-});
-const modelMatchEpochLocalCache = new LocalCache<string>({
-  namespace: "model_match_epoch",
-  enabled: env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED !== "false",
-  ttlMs: MODEL_MATCH_CACHE_EPOCH_REFRESH_MS,
-  max: DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX,
 });
 
 export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
@@ -69,61 +60,55 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
           }),
         );
       }
-      const redisCacheKey = await getRedisModelKey(p);
-      const localCacheKey = redisCacheKey ?? getLocalModelKey(p);
-      const loadModel = async () => {
-        if (redisCacheKey) {
-          const cachedResult = await getModelWithPricesFromRedis(
-            p,
-            redisCacheKey,
-          );
+      const localCacheKey = getRedisModelKey(p);
+      const { source, value } = await modelMatchLocalCache.getOrLoad(
+        localCacheKey,
+        async () => {
+          const cachedResult = await getModelWithPricesFromRedis(p);
           if (cachedResult) {
             return {
               value: cachedResult,
               source: "redis",
             };
           }
-        }
 
-        const postgresModel = await findModelInPostgres(p);
-        if (postgresModel) {
-          const pricingTiers = await findPricingTiersForModel(postgresModel.id);
-
-          if (redisCacheKey) {
-            await addModelWithPricingTiersToRedis(
-              p,
-              redisCacheKey,
-              postgresModel,
-              pricingTiers,
+          const postgresModel = await findModelInPostgres(p);
+          if (postgresModel) {
+            const pricingTiers = await findPricingTiersForModel(
+              postgresModel.id,
             );
+
+            if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+              await addModelWithPricingTiersToRedis(
+                p,
+                postgresModel,
+                pricingTiers,
+              );
+            }
+
+            return {
+              value: { model: postgresModel, pricingTiers },
+              source: "postgres",
+            };
+          }
+
+          if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true") {
+            await addModelNotFoundTokenToRedis(p);
           }
 
           return {
-            value: { model: postgresModel, pricingTiers },
-            source: "postgres",
+            value: { model: null, pricingTiers: [] },
+            source: "none",
           };
-        }
-
-        if (redisCacheKey) {
-          await addModelNotFoundTokenToRedis(p, redisCacheKey);
-        }
-
-        return {
-          value: { model: null, pricingTiers: [] },
-          source: "none",
-        };
-      };
-
-      // Keep the local cache useful when Redis is disabled or unavailable. Its
-      // short TTL bounds staleness until shared epoch invalidation recovers.
-      const { source, value } = await modelMatchLocalCache.getOrLoad(
-        localCacheKey,
-        loadModel,
+        },
       );
 
       if (!value || value.model === null) {
         span.setAttribute("model_match_source", source ?? "none");
-        if (source === "none" && redisCacheKey) {
+        if (
+          source === "none" &&
+          env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true"
+        ) {
           span.setAttribute("model_cache_set", "true");
         }
 
@@ -147,7 +132,10 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
       span.setAttribute("model_match_source", source ?? "unknown");
       span.setAttribute("matched_model_id", value.model.id);
       if (source === "postgres") {
-        span.setAttribute("model_cache_set", String(Boolean(redisCacheKey)));
+        span.setAttribute(
+          "model_cache_set",
+          String(env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "true"),
+        );
       }
 
       if (logger.isLevelEnabled("debug")) {
@@ -185,12 +173,10 @@ function getPositiveNumberOrDefault(value: unknown, fallback: number): number {
 
 export const clearModelMatchLocalCache = (): void => {
   modelMatchLocalCache.clear();
-  modelMatchEpochLocalCache.clear();
 };
 
 const getModelWithPricesFromRedis = async (
   p: ModelMatchProps,
-  key: string,
 ): Promise<ModelWithPrices | null> => {
   if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
     return null;
@@ -205,6 +191,7 @@ const getModelWithPricesFromRedis = async (
       return null;
     }
 
+    const key = getRedisModelKey(p);
     const redisValue = await redis?.get(key);
     if (!redisValue) {
       recordIncrement("langfuse.model_match.cache_miss", 1);
@@ -320,11 +307,9 @@ export async function findModelInPostgres(
 
 const NOT_FOUND_TOKEN = "LANGFUSE_MODEL_MATCH_NOT_FOUND" as const;
 
-const addModelNotFoundTokenToRedis = async (
-  p: ModelMatchProps,
-  key: string,
-) => {
+const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
   try {
+    const key = getRedisModelKey(p);
     await redis?.set(
       key,
       NOT_FOUND_TOKEN,
@@ -341,11 +326,12 @@ const addModelNotFoundTokenToRedis = async (
 
 const addModelWithPricingTiersToRedis = async (
   p: ModelMatchProps,
-  key: string,
   model: Model,
   pricingTiers: PricingTierWithPrices[],
 ) => {
   try {
+    const key = getRedisModelKey(p);
+
     const cachedPricingTiers = pricingTiers.map((tier) => {
       return {
         ...tier,
@@ -369,60 +355,9 @@ const addModelWithPricingTiersToRedis = async (
   }
 };
 
-export const getRedisModelKey = async (
-  p: ModelMatchProps,
-): Promise<string | null> => {
-  const epoch = await getOrCreateModelMatchCacheEpoch(p.projectId);
-  if (!epoch) return null;
-
+export const getRedisModelKey = (p: ModelMatchProps) => {
   const uriEncodedModel = encodeURIComponent(p.model);
-  return `${getModelMatchProjectKeyPrefix(p.projectId)}:${epoch}:${uriEncodedModel}`;
-};
-
-const getModelMatchEpochKey = (projectId: string): string =>
-  `${getModelMatchKeyPrefix()}:epoch:${projectId}`;
-
-const newModelMatchCacheEpoch = (): string =>
-  randomBytes(6).toString("base64url");
-
-const getOrCreateModelMatchCacheEpoch = async (
-  projectId: string,
-): Promise<string | null> => {
-  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
-    return null;
-  }
-
-  const epochKey = getModelMatchEpochKey(projectId);
-  const cachedEpoch = modelMatchEpochLocalCache.get(epochKey);
-  if (cachedEpoch) return cachedEpoch;
-
-  try {
-    const currentEpoch = await redis.get(epochKey);
-    if (currentEpoch) {
-      modelMatchEpochLocalCache.set(epochKey, currentEpoch);
-      return currentEpoch;
-    }
-
-    const newEpoch = newModelMatchCacheEpoch();
-    await redis.set(
-      epochKey,
-      newEpoch,
-      "EX",
-      MODEL_MATCH_CACHE_EPOCH_TTL_SECONDS,
-      "NX",
-    );
-
-    // Return the winner if multiple processes initialize the epoch together.
-    const epoch = (await redis.get(epochKey)) ?? newEpoch;
-    modelMatchEpochLocalCache.set(epochKey, epoch);
-    return epoch;
-  } catch (error) {
-    logger.error(
-      `Error resolving model cache epoch for project ${projectId}`,
-      error,
-    );
-    return null;
-  }
+  return `${getModelMatchKeyPrefix()}:${p.projectId}:${uriEncodedModel}`;
 };
 
 const getModelMatchKeyPrefix = () => {
@@ -433,12 +368,6 @@ const getModelMatchKeyPrefix = () => {
   }
   return "model-price-tiers";
 };
-
-const getModelMatchProjectKeyPrefix = (projectId: string) =>
-  `${getModelMatchKeyPrefix()}:${projectId}`;
-
-const getLocalModelKey = (p: ModelMatchProps): string =>
-  `${getModelMatchProjectKeyPrefix(p.projectId)}:local:${encodeURIComponent(p.model)}`;
 
 export const redisModelToPrismaModel = (redisModel: Model): Model => {
   return {
@@ -467,45 +396,12 @@ export const redisModelToPrismaModel = (redisModel: Model): Model => {
 export async function clearModelCacheForProject(
   projectId: string,
 ): Promise<void> {
-  modelMatchLocalCache.clearByPrefix(
-    `${getModelMatchProjectKeyPrefix(projectId)}:`,
-  );
-
-  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
-    return;
-  }
-
-  if (!redis) {
-    modelMatchEpochLocalCache.delete(getModelMatchEpochKey(projectId));
-    const error = new Error(
-      `Cannot invalidate model cache for project ${projectId}: Redis is unavailable`,
-    );
-    logger.error(error.message);
+  if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
     return;
   }
 
   try {
-    // Rotate first so concurrent readers and writers immediately move to a new
-    // namespace. Any in-flight write using the old epoch becomes unreachable.
-    const nextEpoch = newModelMatchCacheEpoch();
-    await redis.set(
-      getModelMatchEpochKey(projectId),
-      nextEpoch,
-      "EX",
-      MODEL_MATCH_CACHE_EPOCH_TTL_SECONDS,
-    );
-    modelMatchEpochLocalCache.set(getModelMatchEpochKey(projectId), nextEpoch);
-  } catch (error) {
-    modelMatchEpochLocalCache.delete(getModelMatchEpochKey(projectId));
-    logger.error(
-      `Error rotating model cache epoch for project ${projectId}: ${error}`,
-    );
-    return;
-  }
-
-  try {
-    // Delete old and legacy entries during the rolling migration to epoch keys.
-    const pattern = `${getModelMatchProjectKeyPrefix(projectId)}:*`;
+    const pattern = `${getModelMatchKeyPrefix()}:${projectId}:*`;
     const keys = await scanKeys(redis, pattern);
 
     if (keys.length > 0) {
@@ -515,10 +411,8 @@ export async function clearModelCacheForProject(
       );
     }
   } catch (error) {
-    // Rotation already made these keys unreachable for current readers. This
-    // cleanup is only for memory reclamation and compatibility during rollout.
-    logger.warn(
-      `Error deleting old model cache entries for project ${projectId}: ${error}`,
+    logger.error(
+      `Error clearing model cache for project ${projectId}: ${error}`,
     );
   }
 }
@@ -534,8 +428,6 @@ export async function isModelMatchCacheLocked() {
 }
 
 export async function clearFullModelCache() {
-  clearModelMatchLocalCache();
-
   if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false" || !redis) {
     return;
   }
