@@ -69,10 +69,14 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
           }),
         );
       }
-      const cacheKey = await getRedisModelKey(p);
+      const redisCacheKey = await getRedisModelKey(p);
+      const localCacheKey = redisCacheKey ?? getLocalModelKey(p);
       const loadModel = async () => {
-        if (cacheKey) {
-          const cachedResult = await getModelWithPricesFromRedis(p, cacheKey);
+        if (redisCacheKey) {
+          const cachedResult = await getModelWithPricesFromRedis(
+            p,
+            redisCacheKey,
+          );
           if (cachedResult) {
             return {
               value: cachedResult,
@@ -85,10 +89,10 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         if (postgresModel) {
           const pricingTiers = await findPricingTiersForModel(postgresModel.id);
 
-          if (cacheKey) {
+          if (redisCacheKey) {
             await addModelWithPricingTiersToRedis(
               p,
-              cacheKey,
+              redisCacheKey,
               postgresModel,
               pricingTiers,
             );
@@ -100,8 +104,8 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
           };
         }
 
-        if (cacheKey) {
-          await addModelNotFoundTokenToRedis(p, cacheKey);
+        if (redisCacheKey) {
+          await addModelNotFoundTokenToRedis(p, redisCacheKey);
         }
 
         return {
@@ -110,15 +114,16 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
         };
       };
 
-      // If Redis cannot provide the project epoch, bypass both cache layers.
-      // A process-local hit without a shared epoch cannot be invalidated safely.
-      const { source, value } = cacheKey
-        ? await modelMatchLocalCache.getOrLoad(cacheKey, loadModel)
-        : await loadModel();
+      // Keep the local cache useful when Redis is disabled or unavailable. Its
+      // short TTL bounds staleness until shared epoch invalidation recovers.
+      const { source, value } = await modelMatchLocalCache.getOrLoad(
+        localCacheKey,
+        loadModel,
+      );
 
       if (!value || value.model === null) {
         span.setAttribute("model_match_source", source ?? "none");
-        if (source === "none" && cacheKey) {
+        if (source === "none" && redisCacheKey) {
           span.setAttribute("model_cache_set", "true");
         }
 
@@ -142,7 +147,7 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
       span.setAttribute("model_match_source", source ?? "unknown");
       span.setAttribute("matched_model_id", value.model.id);
       if (source === "postgres") {
-        span.setAttribute("model_cache_set", String(Boolean(cacheKey)));
+        span.setAttribute("model_cache_set", String(Boolean(redisCacheKey)));
       }
 
       if (logger.isLevelEnabled("debug")) {
@@ -431,6 +436,9 @@ const getModelMatchKeyPrefix = () => {
 
 const getModelMatchProjectKeyPrefix = (projectId: string) =>
   `${getModelMatchKeyPrefix()}:${projectId}`;
+
+const getLocalModelKey = (p: ModelMatchProps): string =>
+  `${getModelMatchProjectKeyPrefix(p.projectId)}:local:${encodeURIComponent(p.model)}`;
 
 export const redisModelToPrismaModel = (redisModel: Model): Model => {
   return {

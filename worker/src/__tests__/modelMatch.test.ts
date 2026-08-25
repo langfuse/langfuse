@@ -250,6 +250,35 @@ describe("modelMatch", () => {
       }
     });
 
+    it("should preserve local cache hits when Redis is unavailable", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const modelName = `redis-unavailable-model-${uuidv4()}`;
+
+      const model = await prisma.model.create({
+        data: {
+          projectId,
+          modelName,
+          matchPattern: modelName,
+          unit: "TOKENS",
+        },
+      });
+
+      const redisGetSpy = vi
+        .spyOn(redis!, "get")
+        .mockRejectedValue(new Error("Redis unavailable"));
+
+      try {
+        const initialResult = await findModel({ projectId, model: modelName });
+        await prisma.model.delete({ where: { id: model.id } });
+        const cachedResult = await findModel({ projectId, model: modelName });
+
+        expect(initialResult.model?.id).toBe(model.id);
+        expect(cachedResult.model?.id).toBe(model.id);
+      } finally {
+        redisGetSpy.mockRestore();
+      }
+    });
+
     it("should locally cache not-found models for a short time", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const modelName = "new-model-after-cache";
