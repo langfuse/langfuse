@@ -50,3 +50,27 @@ export function selectNodeScores<T extends LeveledScore>(
       )
     : scores.filter((score) => score.observationId === nodeId);
 }
+
+/**
+ * Every node's scores in one pass, rather than an O(scores) filter per row per
+ * render. Same ownership rule as {@link selectNodeScores}: a trace-level score
+ * (no `observationId`) lands on its owner node — the TRACE row, or every
+ * top-level span when there is none — so a badge in the timeline matches the
+ * badge in the tree and the node's own Scores tab.
+ */
+export function groupScoresByNode<T extends LeveledScore>(
+  scores: T[],
+  traceLevelOwnerIds: Set<string>,
+): Map<string, T[]> {
+  const byNode = new Map<string, T[]>();
+  const push = (key: string, score: T) => {
+    const bucket = byNode.get(key);
+    if (bucket) bucket.push(score);
+    else byNode.set(key, [score]);
+  };
+  for (const score of scores) {
+    if (score.observationId) push(score.observationId, score);
+    else for (const ownerId of traceLevelOwnerIds) push(ownerId, score);
+  }
+  return byNode;
+}

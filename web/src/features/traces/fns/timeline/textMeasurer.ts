@@ -78,18 +78,36 @@ function measurerFor(
   const units = new Map<string, number>();
   const cache = new Map<string, number>();
 
+  // A canvas can REFUSE a font string and say nothing: `context.font` keeps its
+  // previous value — `10px sans-serif` on a fresh context — and every width
+  // afterwards is short by the size ratio. That is invisible, and it is the
+  // direction that clips: a caller pricing a 12px label against 10px metrics
+  // admits content that does not fit. So the size is read back and any
+  // difference is corrected rather than trusted.
+  const scale = (() => {
+    if (!context) return 1;
+    context.font = font;
+    const asked = Number.parseFloat(font);
+    const got = Number.parseFloat(context.font);
+    return Number.isFinite(asked) && Number.isFinite(got) && got > 0
+      ? asked / got
+      : 1;
+  })();
+
   if (context) {
     context.font = font;
     // One width for every digit keeps tabular labels stable as they tick.
     let digit = 0;
     for (let i = 0; i < 10; i++) {
-      digit = Math.max(digit, context.measureText(String(i)).width);
+      digit = Math.max(digit, context.measureText(String(i)).width * scale);
     }
     for (let i = 0; i < 10; i++) glyphs.set(String(i), digit);
     for (const char of [".", ",", " "]) {
-      glyphs.set(char, context.measureText(char).width);
+      glyphs.set(char, context.measureText(char).width * scale);
     }
-    for (const unit of UNITS) units.set(unit, context.measureText(unit).width);
+    for (const unit of UNITS) {
+      units.set(unit, context.measureText(unit).width * scale);
+    }
   } else {
     for (const unit of UNITS) units.set(unit, unit.length * PX_PER_LETTER);
   }
@@ -108,7 +126,7 @@ function measurerFor(
         // Set every time: the bold twin shares this context, and whichever
         // measured last would otherwise decide the font for both.
         context.font = font;
-        width += context.measureText(run).width;
+        width += context.measureText(run).width * scale;
       } else {
         width += run.length * PX_PER_LETTER;
       }

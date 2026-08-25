@@ -11,6 +11,10 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { groupScoresByNode } from "@/src/features/traces/fns/nodeScores";
+import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
+import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
@@ -25,8 +29,25 @@ import { detectPointerModality } from "../../fns/timeline/density";
 import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
-  const { roots, nodeMap } = useTraceData();
+  const {
+    roots,
+    nodeMap,
+    serverScores,
+    traceLevelScoreOwnerIds,
+    comments,
+    traceDuration,
+  } = useTraceData();
   const { selectedNodeId, collapsedNodes } = useSelection();
+  // The same five switches the tree honours. They live in one place because a
+  // toggle that works in one view and silently does nothing in the other is
+  // worse than no toggle.
+  const {
+    showDuration,
+    showCostTokens,
+    showScores,
+    showComments,
+    colorCodeMetrics,
+  } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
@@ -81,23 +102,75 @@ export function TraceTimelineCompact() {
     [nodeMap, handleHover],
   );
 
+  // Heat-map denominators: a duration is only alarming next to the trace's own
+  // total, and a cost next to the whole trace's. MILLISECONDS — `traceDuration`
+  // is seconds, and passing it raw inflates every ratio ×1000, which paints
+  // every label dark red.
+  const parentTotalDuration = traceDuration * 1000;
+  const parentTotalCost = useMemo(
+    () =>
+      roots.reduce(
+        (total, root) =>
+          root.totalCost
+            ? total
+              ? total.plus(root.totalCost)
+              : root.totalCost
+            : total,
+        undefined as (typeof roots)[0]["totalCost"],
+      ),
+    [roots],
+  );
+
+  const scoresByNodeId = useMemo(
+    () => groupScoresByNode(serverScores, traceLevelScoreOwnerIds),
+    [serverScores, traceLevelScoreOwnerIds],
+  );
+
   /**
-   * Cost, and only cost. Tokens used to come too, which put six numbers in a
-   * hover — and only on the spans that HAVE usage, so the tooltip changed shape
-   * from row to row. Cost is the one figure that means the same thing on every
-   * kind of span; the token split is a click away in the detail panel. Same
-   * formatter and the same `∑` for a subtotal as the tree row uses.
+   * What a row says about itself. Formatted here — the renderer decides only
+   * what fits — with the same formatters and the same `∑` for a subtotal that a
+   * tree row uses, so the two never disagree about the same number.
    */
-  const factsOf = useCallback(
-    (nodeId: string) => {
+  const metricsOf = useCallback(
+    (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
-      if (!node?.totalCost) return [];
+      if (!node) return {};
       const aggregated = node.children.length > 0 || node.type === "TRACE";
-      return [
-        `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
-      ];
+      const cost =
+        showCostTokens && node.totalCost
+          ? `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`
+          : null;
+      return {
+        costText: cost,
+        durationClass:
+          colorCodeMetrics && parentTotalDuration && node.latency
+            ? heatMapTextColor({
+                max: parentTotalDuration,
+                value: node.latency * 1000,
+              })
+            : undefined,
+        costClass:
+          colorCodeMetrics && parentTotalCost && node.totalCost
+            ? heatMapTextColor({
+                max: parentTotalCost,
+                value: node.totalCost,
+              })
+            : undefined,
+        scores: showScores ? scoresByNodeId.get(nodeId) : undefined,
+        commentCount: showComments ? comments.get(nodeId) : undefined,
+      };
     },
-    [nodeMap],
+    [
+      nodeMap,
+      showCostTokens,
+      showScores,
+      showComments,
+      colorCodeMetrics,
+      parentTotalCost,
+      parentTotalDuration,
+      scoresByNodeId,
+      comments,
+    ],
   );
 
   return (
@@ -117,7 +190,8 @@ export function TraceTimelineCompact() {
           onHover={handleHoverNode}
           activeIds={activeIds}
           playhead={playhead}
-          factsOf={factsOf}
+          metricsOf={metricsOf}
+          showDuration={showDuration}
         />
       ) : null}
     </div>
