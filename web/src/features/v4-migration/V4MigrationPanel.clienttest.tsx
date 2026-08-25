@@ -50,6 +50,12 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   V4MigrationDetailsContent: () => <div>Details</div>,
 }));
 
+vi.mock("@/src/features/v4-migration/V4MigrationWizardToggle", () => ({
+  V4MigrationWizardToggle: () => (
+    <div data-testid="v4-migration-wizard-toggle" />
+  ),
+}));
+
 describe("V4MigrationPanel", () => {
   it("refreshes header readiness when pending checks become actionable", () => {
     const { rerender } = render(<V4MigrationPanel />);
@@ -69,5 +75,13 @@ describe("V4MigrationPanel", () => {
     rerender(<V4MigrationPanel />);
 
     expect(screen.getByTestId("readiness")).toHaveTextContent("action-needed");
+  });
+
+  it("shows a control to dismiss the wizard", () => {
+    render(<V4MigrationPanel />);
+
+    expect(
+      screen.getByTestId("v4-migration-wizard-toggle"),
+    ).toBeInTheDocument();
   });
 });

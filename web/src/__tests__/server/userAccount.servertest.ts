@@ -81,6 +81,26 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 });
 
+describe("userAccountRouter.setV4MigrationWizardEnabled", () => {
+  it("persists the user's wizard preference", async () => {
+    const { caller, userId } = await createCaller();
+
+    const result = await caller.userAccount.setV4MigrationWizardEnabled({
+      enabled: false,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      v4MigrationWizardEnabled: false,
+    });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { v4MigrationWizardEnabled: true },
+    });
+    expect(user.v4MigrationWizardEnabled).toBe(false);
+  });
+});
+
 async function createCaller({
   plan = "cloud:hobby",
   aiFeaturesEnabled = true,

@@ -24,7 +24,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
   useAccountV4MigrationData,
@@ -41,6 +41,7 @@ import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partner
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
 import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { V4MigrationWizardToggle } from "@/src/features/v4-migration/V4MigrationWizardToggle";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -463,9 +464,9 @@ function OrgStatusSection({
 }
 
 export default function V4MigrationStatusPage() {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const v4UpgradeUiAvailable = useV4UpgradeUiFlag();
 
-  if (!v4UpgradeUiEnabled) {
+  if (!v4UpgradeUiAvailable) {
     return null;
   }
 
@@ -691,6 +692,13 @@ function V4MigrationStatusPageContent() {
         </div>
 
         <SwitchBackSection />
+
+        <div className="mt-6">
+          <p className="text-base font-bold">Migration wizard</p>
+          <div className="pt-4">
+            <V4MigrationWizardToggle source="settings" />
+          </div>
+        </div>
       </div>
     </ContainerPage>
   );

@@ -822,6 +822,7 @@ export async function getAuthOptions(signupAttribution?: {
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
+              v4MigrationWizardEnabled: true,
               organizationMemberships: {
                 // Newest first so demo project is last for the `project/~/` sentinel
                 orderBy: {
@@ -916,6 +917,7 @@ export async function getAuthOptions(signupAttribution?: {
                     admin: dbUser.admin,
                     v4BetaEnabled,
                     v4UpgradeUiAvailable,
+                    v4MigrationWizardEnabled: dbUser.v4MigrationWizardEnabled,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud

@@ -54,6 +54,7 @@ model User {
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
+  v4MigrationWizardEnabled  Boolean                     @default(true) @map("v4_migration_wizard_enabled")
   accounts                  Account[]
   sessions                  Session[]
   organizationMemberships   OrganizationMembership[]

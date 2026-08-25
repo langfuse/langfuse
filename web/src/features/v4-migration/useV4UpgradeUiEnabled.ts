@@ -14,14 +14,15 @@ export function useV4UpgradeUiFlag(): boolean {
 }
 
 /**
- * Master gate for the v4 migration/upgrade UI. Every migration surface (nav
- * pill, upgrade badges, panel provider, banner, status page) checks this hook,
- * so returning false for a forced-v3 project hides all of them at once — and
- * automatically restores the sidebar "V4 Preview" toggle, which only renders
- * when the migration UI is off.
+ * Gate for contextual v4 migration wizard surfaces. The account-level status
+ * and settings page uses useV4UpgradeUiFlag instead so users can always
+ * re-enable a dismissed wizard.
  */
 export function useV4UpgradeUiEnabled(projectId?: string): boolean {
-  const available = useV4UpgradeUiFlag();
+  const { data: session } = useSession();
+  const available = session?.user?.v4UpgradeUiAvailable === true;
+  // Default to enabled for sessions issued before the preference was added.
+  const userEnabled = session?.user?.v4MigrationWizardEnabled !== false;
   const forceV3 = useForceV3Experience(projectId);
-  return available && !forceV3;
+  return available && userEnabled && !forceV3;
 }

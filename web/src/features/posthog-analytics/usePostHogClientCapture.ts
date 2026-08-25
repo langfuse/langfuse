@@ -382,6 +382,11 @@ export const events = {
     "project_keys_copied",
     "evals_manual_upgrade_clicked",
     "walkthrough_video_clicked",
+    // Wizard preference funnel. `source` is panel vs settings and `enabled`
+    // is the resulting boolean preference; no user or project ids.
+    "wizard_disable_confirmation_opened",
+    "wizard_disable_confirmation_cancelled",
+    "wizard_toggled",
   ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only

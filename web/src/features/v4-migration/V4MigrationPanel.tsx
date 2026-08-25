@@ -9,6 +9,7 @@ import {
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import { V4MigrationWizardToggle } from "@/src/features/v4-migration/V4MigrationWizardToggle";
 import { cn } from "@/src/utils/tailwind";
 
 export const V4MigrationPanel = ({
@@ -85,6 +86,9 @@ export const V4MigrationPanel = ({
             onNavigate={() => setOpen(false)}
             projectId={project?.id}
           />
+          <div className="border-t pt-6">
+            <V4MigrationWizardToggle source="panel" />
+          </div>
         </div>
       </div>
     </div>

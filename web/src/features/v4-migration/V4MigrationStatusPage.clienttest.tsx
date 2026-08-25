@@ -97,7 +97,13 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
-  useV4UpgradeUiEnabled: () => true,
+  useV4UpgradeUiFlag: () => true,
+}));
+
+vi.mock("@/src/features/v4-migration/V4MigrationWizardToggle", () => ({
+  V4MigrationWizardToggle: () => (
+    <div data-testid="v4-migration-wizard-toggle" />
+  ),
 }));
 
 vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
@@ -174,6 +180,15 @@ describe("V4MigrationStatusPage", () => {
     const table = screen.getByRole("table");
     expect(table).toHaveClass("min-w-[60rem]", "table-auto");
     expect(table.parentElement).toHaveClass("overflow-x-auto");
+  });
+
+  it("keeps the migration wizard preference available in settings", () => {
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Migration wizard")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("v4-migration-wizard-toggle"),
+    ).toBeInTheDocument();
   });
 
   it("shows migration readiness to project members", () => {

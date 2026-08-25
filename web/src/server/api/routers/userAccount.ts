@@ -314,4 +314,18 @@ export const userAccountRouter = createTRPCRouter({
         canToggleV4: true,
       };
     }),
+
+  setV4MigrationWizardEnabled: authenticatedProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      await ctx.prisma.user.update({
+        where: { id: ctx.session.user.id },
+        data: { v4MigrationWizardEnabled: input.enabled },
+      });
+
+      return {
+        success: true,
+        v4MigrationWizardEnabled: input.enabled,
+      };
+    }),
 });

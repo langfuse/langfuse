@@ -16,10 +16,18 @@ vi.mock("./useForceV3Experience", () => ({
 const mockUseSession = vi.mocked(useSession);
 const mockUseForceV3Experience = vi.mocked(useForceV3Experience);
 
-const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
+const mockSessionAvailability = (
+  v4UpgradeUiAvailable: boolean,
+  v4MigrationWizardEnabled = true,
+) => {
   mockUseSession.mockReturnValue({
     data: {
-      user: { admin: false, featureFlags: {}, v4UpgradeUiAvailable },
+      user: {
+        admin: false,
+        featureFlags: {},
+        v4UpgradeUiAvailable,
+        v4MigrationWizardEnabled,
+      },
       environment: { enableExperimentalFeatures: false },
     },
   } as never);
@@ -40,6 +48,14 @@ describe("useV4UpgradeUiEnabled", () => {
 
   it("stays disabled when the deployment cannot act on the migration", () => {
     mockSessionAvailability(false);
+
+    const { result } = renderHook(() => useV4UpgradeUiEnabled());
+
+    expect(result.current).toBe(false);
+  });
+
+  it("suppresses the wizard when the user disabled it", () => {
+    mockSessionAvailability(true, false);
 
     const { result } = renderHook(() => useV4UpgradeUiEnabled());
 

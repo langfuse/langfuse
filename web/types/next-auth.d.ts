@@ -26,6 +26,9 @@ declare module "next-auth" {
           admin?: PrismaUser["admin"];
           v4BetaEnabled?: boolean;
           canToggleV4?: boolean;
+          // User preference for the contextual migration surfaces. The
+          // migration settings page remains available while this is false.
+          v4MigrationWizardEnabled?: boolean;
           // Whether this deployment shows the v4 migration UI (sidebar pill,
           // organization-overview chips and banner, panel, status page). Derived
           // from the write mode in the session callback — see
