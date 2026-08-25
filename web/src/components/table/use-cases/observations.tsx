@@ -78,6 +78,7 @@ import { ProvidedModelNameCell } from "@/src/features/models/components/Provided
 import TableIdOrName from "@/src/components/table/table-id";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createIntegerTableColumn } from "@/src/components/design-system/Table/columns/createIntegerTableColumn";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -869,36 +870,22 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createIntegerTableColumn<ObservationsTableRow>({
       accessorKey: "toolDefinitions",
-      id: "toolDefinitions",
       header: "Available Tools",
       size: 120,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("toolDefinitions");
-        return value !== undefined ? (
-          <span>{numberFormatter(value, 0)}</span>
-        ) : undefined;
-      },
-    },
-    {
+    }),
+    createIntegerTableColumn<ObservationsTableRow>({
       accessorKey: "toolCalls",
-      id: "toolCalls",
       header: "Tool Calls",
       size: 100,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("toolCalls");
-        return value !== undefined ? (
-          <span>{numberFormatter(value, 0)}</span>
-        ) : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
