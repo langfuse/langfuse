@@ -136,6 +136,15 @@ export const TruncatedMimeType = meta.story({
   },
 });
 
+export const TruncatedMimeTypePreview = meta.story({
+  args: {
+    contentType:
+      "application/vnd.example.intentionally-verbose-archive-format-for-truncation",
+    open: true,
+    status: "error",
+  },
+});
+
 export const OfficeFormats = meta.story({
   render: () => (
     <div className="flex flex-wrap items-center gap-3">

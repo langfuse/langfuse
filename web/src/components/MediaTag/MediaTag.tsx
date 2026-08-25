@@ -295,7 +295,7 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
               <KindIcon kind={kind} className="h-3.5 w-3.5 shrink-0" />
               <span
-                className="truncate font-mono leading-none"
+                className="max-w-[20ch] truncate font-mono leading-none"
                 title={contentType}
               >
                 {contentType}
