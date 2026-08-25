@@ -627,6 +627,17 @@ export const env = createEnv({
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+    // Origin that serves this build's `/_next/static/*` output, when it is
+    // fronted by a CDN on its own hostname. The app origin keeps serving the
+    // same files, so this only changes the URLs the browser is handed.
+    // Restricted to a bare origin: a path component would have to be mirrored
+    // by whatever fronts the hostname, and nothing here checks that it is.
+    NEXT_PUBLIC_ASSET_PREFIX: z
+      .url()
+      .refine((value) => new URL(value).pathname === "/", {
+        message: "NEXT_PUBLIC_ASSET_PREFIX must be an origin with no path",
+      })
+      .optional(),
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT: z
       .enum(["true", "false"])
       .optional()
@@ -996,6 +1007,7 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+    NEXT_PUBLIC_ASSET_PREFIX: process.env.NEXT_PUBLIC_ASSET_PREFIX,
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,

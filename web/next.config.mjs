@@ -31,19 +31,30 @@ const localStorageConnectSrc =
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined
     ? "http://localhost:* "
     : "";
+// When build output is served from a dedicated asset hostname, that origin has
+// to be allowed everywhere Next.js can emit an asset URL. A host under
+// langfuse.com would already be covered by the wildcards below, but the policy
+// must not silently depend on where the asset host happens to live.
+// Deliberately NOT added to img-src / media-src, which already allow `https:`,
+// nor to worker-src: workers are skipped entirely when the asset host is
+// cross-origin, because the bundler makes them unloadable there
+// (src/utils/web-workers.ts).
+const assetPrefixSrc = env.NEXT_PUBLIC_ASSET_PREFIX
+  ? `${new URL(env.NEXT_PUBLIC_ASSET_PREFIX).origin} `
+  : "";
 const cspHeader = `
-  default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  default-src 'self' ${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' ${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
+  style-src 'self' 'unsafe-inline' ${assetPrefixSrc}https://fonts.googleapis.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   img-src 'self' https: blob: data: http://localhost:* https://prod-uk-services-workspac-workspacefilespublicbuck-vs4gjqpqjkh6.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsbucket28b3ccf-uwfssb4vt2us.s3.eu-west-2.amazonaws.com https://i0.wp.com;
-  font-src 'self';
+  font-src ${assetPrefixSrc}'self';
   frame-src 'self' https://challenges.cloudflare.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   worker-src 'self' blob:;
   object-src 'none';
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' ${localStorageConnectSrc}${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${localStorageConnectSrc}${mediaUploadConnectSrc}${assetPrefixSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://*.blob.core.windows.net https://storage.googleapis.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
@@ -99,6 +110,26 @@ const nextConfig = {
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
+  // Hand the browser a dedicated hostname for this build's `/_next/static/*`
+  // output so a CDN in front of it can keep serving the chunks of a build that
+  // has already been replaced — a tab that outlives a deploy otherwise 404s on
+  // its own chunks. The app origin keeps serving the same files either way;
+  // this only changes the URLs that get emitted, which is why unsetting the
+  // variable and rebuilding is a complete rollback.
+  //
+  // Baked in at build time, not read at runtime: the bundler writes it into the
+  // client runtime's public path, and the standalone server reads the config
+  // frozen into .next/required-server-files.json rather than this file. The
+  // deploy workflow already builds one image per environment, so this is set
+  // per environment there.
+  assetPrefix: env.NEXT_PUBLIC_ASSET_PREFIX,
+  // Only meaningful alongside an asset prefix, and load-bearing there: without
+  // `crossorigin`, an exception thrown by a cross-origin script reaches
+  // window.onerror as a bare "Script error" with no stack, which would blind
+  // Sentry to exactly the failures this setup exists to observe. Requires the
+  // asset host to send Access-Control-Allow-Origin, so scripts fail closed
+  // rather than silently losing their stacks.
+  crossOrigin: env.NEXT_PUBLIC_ASSET_PREFIX ? "anonymous" : undefined,
   compiler: {
     define: {
       "import.meta.vitest": "undefined",

@@ -27,6 +27,7 @@ import type {
 } from "@/src/workers/json-parser.worker";
 import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
 import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
+import { canUseBundledWorker } from "@/src/utils/web-workers";
 
 type ObservationWithStringifiedIO = ObservationReturnTypeWithMetadata & {
   input: string | null;
@@ -68,8 +69,8 @@ const pendingCallbacks = new Map<
 >();
 
 function getOrCreateWorker(): Worker | null {
-  if (typeof window === "undefined" || !window.Worker) {
-    return null; // SSR or no Worker support
+  if (!canUseBundledWorker()) {
+    return null; // SSR, no Worker support, or build output on another origin
   }
 
   if (!workerInstance) {
