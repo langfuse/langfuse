@@ -14,7 +14,6 @@ import {
   type GraphLayoutDirection,
   type GraphLayoutRequest,
 } from "./elkLayout";
-import { canUseBundledWorker } from "@/src/utils/web-workers";
 
 /**
  * Wall-clock ceiling for one layout, and the real layout budget: cost depends far
@@ -92,7 +91,7 @@ function handleWorkerError(event: ErrorEvent) {
 
 function getLayoutWorker(): LayoutWorker | null {
   if (workerUnavailable) return null;
-  if (!canUseBundledWorker()) return null;
+  if (typeof window === "undefined" || !window.Worker) return null;
   if (active) return active;
   try {
     const worker = new Worker(

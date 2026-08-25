@@ -36,9 +36,9 @@ const localStorageConnectSrc =
 // langfuse.com would already be covered by the wildcards below, but the policy
 // must not silently depend on where the asset host happens to live.
 // Deliberately NOT added to img-src / media-src, which already allow `https:`,
-// nor to worker-src: workers are skipped entirely when the asset host is
-// cross-origin, because the bundler makes them unloadable there
-// (src/utils/web-workers.ts).
+// nor to worker-src: experimental.turbopackWorkerAssetPrefix keeps Worker
+// entrypoints and their module chunks on the app origin, so 'self' blob:
+// remains the right policy even when other /_next/static assets are cross-origin.
 const assetPrefixSrc = env.NEXT_PUBLIC_ASSET_PREFIX
   ? `${new URL(env.NEXT_PUBLIC_ASSET_PREFIX).origin} `
   : "";
@@ -152,6 +152,14 @@ const nextConfig = {
   experimental: {
     // Use the Rust port instead of the Babel transform
     // turbopackRustReactCompiler: true,
+    // Keep `new Worker(new URL(..., import.meta.url))` on the app origin when
+    // assetPrefix points at a CDN. Browsers reject a cross-origin classic
+    // worker (Turbopack always constructs one), and the worker bootstrap also
+    // refuses foreign-origin module chunks, so both the entrypoint and its
+    // imports have to stay same-origin. Empty string is a literal prefix, not
+    // a fallback: it emits `/_next/...` on the page origin. Unset (undefined)
+    // would inherit assetPrefix and break workers on Cloud.
+    turbopackWorkerAssetPrefix: "",
   },
 
   /**

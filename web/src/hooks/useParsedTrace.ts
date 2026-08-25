@@ -24,7 +24,6 @@ import type {
 } from "@/src/workers/json-parser.worker";
 import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
 import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
-import { canUseBundledWorker } from "@/src/utils/web-workers";
 
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
@@ -56,8 +55,8 @@ const pendingCallbacks = new Map<
 >();
 
 function getOrCreateWorker(): Worker | null {
-  if (!canUseBundledWorker()) {
-    return null; // SSR, no Worker support, or build output on another origin
+  if (typeof window === "undefined" || !window.Worker) {
+    return null; // SSR or no Worker support
   }
 
   if (!workerInstance) {
