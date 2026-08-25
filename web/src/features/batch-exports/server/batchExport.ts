@@ -11,6 +11,7 @@ import {
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
+  type AuthedSession,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
@@ -28,7 +29,6 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { type Session } from "next-auth";
 import { z } from "zod";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
@@ -40,58 +40,34 @@ const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
 // signature expiry when the request starts, not while the download streams.
 const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
 
-const isAuditLogBatchExportQuery = (query: unknown): boolean =>
+const isAuditLogExport = (query: unknown): boolean =>
   typeof query === "object" &&
   query !== null &&
   "tableName" in query &&
   query.tableName === BatchExportTableName.AuditLogs;
 
-const assertAuditLogBatchExportAccess = ({
-  session,
-  sessionUser,
-  projectId,
-  query,
-}: {
-  session: Session;
-  sessionUser: NonNullable<Session["user"]>;
-  projectId: string;
-  query: unknown;
-}) => {
-  if (!isAuditLogBatchExportQuery(query)) {
-    return;
-  }
+const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
+  hasEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  }) && hasProjectAccess({ session, projectId, scope: "auditLogs:read" });
+
+// An audit-log export holds actor identifiers and admin actions, so reading
+// one needs the audit-log gates too, not just the batch-export ones.
+const assertAuditLogExportAccess = (
+  session: AuthedSession,
+  projectId: string,
+  query: unknown,
+) => {
+  if (!isAuditLogExport(query)) return;
   throwIfNoEntitlement({
     entitlement: "audit-logs",
-    sessionUser,
+    sessionUser: session.user,
     projectId,
   });
-  throwIfNoProjectAccess({
-    session,
-    projectId,
-    scope: "auditLogs:read",
-  });
+  throwIfNoProjectAccess({ session, projectId, scope: "auditLogs:read" });
 };
-
-const canAccessAuditLogBatchExports = ({
-  session,
-  projectId,
-}: {
-  session: Session;
-  projectId: string;
-}) =>
-  Boolean(
-    session.user &&
-    hasEntitlement({
-      entitlement: "audit-logs",
-      sessionUser: session.user,
-      projectId,
-    }) &&
-    hasProjectAccess({
-      session,
-      projectId,
-      scope: "auditLogs:read",
-    }),
-  );
 
 const isDownloadWindowExpired = (batchExport: {
   finishedAt: Date | null;
@@ -127,12 +103,7 @@ export const batchExportRouter = createTRPCRouter({
           useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
         };
 
-        assertAuditLogBatchExportAccess({
-          session: ctx.session,
-          sessionUser: ctx.session.user,
-          projectId,
-          query,
-        });
+        assertAuditLogExportAccess(ctx.session, projectId, query);
 
         assertLegacyTracingIoSearchCanCreateBatchJob({
           searchQuery: query.searchQuery,
@@ -226,12 +197,11 @@ export const batchExportRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Batch export not found");
       }
 
-      assertAuditLogBatchExportAccess({
-        session: ctx.session,
-        sessionUser: ctx.session.user,
-        projectId: input.projectId,
-        query: batchExport.query,
-      });
+      assertAuditLogExportAccess(
+        ctx.session,
+        input.projectId,
+        batchExport.query,
+      );
 
       if (
         batchExport.status !== BatchExportStatus.COMPLETED ||
@@ -298,10 +268,7 @@ export const batchExportRouter = createTRPCRouter({
 
       const where = {
         projectId: input.projectId,
-        ...(canAccessAuditLogBatchExports({
-          session: ctx.session,
-          projectId: input.projectId,
-        })
+        ...(canReadAuditLogs(ctx.session, input.projectId)
           ? {}
           : {
               NOT: {
