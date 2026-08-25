@@ -170,6 +170,7 @@ export function CategoricalScoreInput({
           initialLabel={pendingLabel}
           source={source}
           onClose={() => setPendingLabel(null)}
+          onCategoryAdded={onValueChange}
         />
       ) : null}
     </>

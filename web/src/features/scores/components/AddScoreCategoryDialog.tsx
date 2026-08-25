@@ -24,12 +24,14 @@ export function AddScoreCategoryDialog({
   initialLabel,
   source,
   onClose,
+  onCategoryAdded,
 }: {
   projectId: string;
   config: ScoreConfigDomain;
   initialLabel: string;
   source: AnalyticsData["source"] | undefined;
   onClose: () => void;
+  onCategoryAdded: (label: string) => void;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -38,7 +40,7 @@ export function AddScoreCategoryDialog({
   const validationError = validateNewCategoryLabel(label, existingCategories);
 
   const appendCategory = api.scoreConfigs.appendCategory.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       capture(
         "score_configs:add_category_inline",
         source ? { source } : undefined,
@@ -47,6 +49,7 @@ export function AddScoreCategoryDialog({
         utils.scoreConfigs.invalidate(),
         utils.annotationQueues.invalidate(),
       ]);
+      onCategoryAdded(variables.label);
       onClose();
     },
     onError: (error) => {
