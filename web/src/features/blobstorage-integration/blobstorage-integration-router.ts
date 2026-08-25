@@ -71,14 +71,14 @@ const assertBlobStorageIntegrationAccess = ({
   session: Session;
   projectId: string;
 }) => {
+  if (!session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
   throwIfNoProjectAccess({
     session,
     projectId,
     scope: "integrations:CRUD",
   });
-  if (!session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
   throwIfNoEntitlement({
     entitlement: "scheduled-blob-exports",
     projectId,
