@@ -335,23 +335,31 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         }
       }
 
-      await prisma.jobExecution.update({
-        where: {
-          id: job.data.payload.jobExecutionId,
-          projectId: job.data.payload.projectId,
-        },
-        data: {
-          status: JobExecutionStatus.ERROR,
-          endTime: new Date(),
-          error:
-            llmError || isUnrecoverableError(e)
+      const isTerminalError = Boolean(llmError) || isUnrecoverableError(e);
+      const totalAttempts = job.opts.attempts ?? 1;
+      const isFinalAttempt = job.attemptsMade + 1 >= totalAttempts;
+
+      // Only persist the terminal ERROR state when there will be no more
+      // retries; otherwise observationEvalProcessor would short-circuit the
+      // retry attempts because it skips jobs already in ERROR status.
+      if (isTerminalError || isFinalAttempt) {
+        await prisma.jobExecution.update({
+          where: {
+            id: job.data.payload.jobExecutionId,
+            projectId: job.data.payload.projectId,
+          },
+          data: {
+            status: JobExecutionStatus.ERROR,
+            endTime: new Date(),
+            error: isTerminalError
               ? (llmError?.message ?? (e as Error).message)
               : "An internal error occurred",
-          executionTraceId,
-        },
-      });
+            executionTraceId,
+          },
+        });
+      }
 
-      if (llmError || isUnrecoverableError(e)) return;
+      if (isTerminalError) return;
 
       traceException(e);
       logger.error(
