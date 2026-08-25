@@ -80,6 +80,7 @@ import { createBadgeTableColumn } from "@/src/components/design-system/Table/col
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createIntegerTableColumn } from "@/src/components/design-system/Table/columns/createIntegerTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -833,20 +834,13 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
+    createDurationTableColumn<ObservationsTableRow>({
       accessorKey: "latency",
-      id: "latency",
       header: "Latency",
       size: 100,
-      cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("latency");
-        return latency !== undefined ? (
-          <span>{formatIntervalSeconds(latency)}</span>
-        ) : undefined;
-      },
       enableHiding: true,
       enableSorting,
-    },
+    }),
     {
       accessorKey: "totalCost",
       header: "Total Cost",
