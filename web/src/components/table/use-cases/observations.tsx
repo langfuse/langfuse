@@ -75,9 +75,9 @@ import {
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import TableIdOrName from "@/src/components/table/table-id";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -699,18 +699,13 @@ export default function ObservationsTable({
 
   const columns: LangfuseColumnDef<ObservationsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    {
+    createDateTableColumn<ObservationsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: "Start Time",
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "type",
       id: "type",
@@ -1062,19 +1057,14 @@ export default function ObservationsTable({
       },
       columns: scoreColumns,
     },
-    {
+    createDateTableColumn<ObservationsTableRow>({
       accessorKey: "endTime",
-      id: "endTime",
       header: "End Time",
       size: 150,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("endTime");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "id",
       id: "id",
