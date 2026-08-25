@@ -12,7 +12,8 @@ type Row = {
 
 const columns = [
   createBadgeTableColumn<Row>({
-    accessorKey: "environment",
+    id: "environment",
+    accessorFn: (row) => row.environment,
     header: "Environment",
   }),
 ];

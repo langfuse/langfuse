@@ -12,7 +12,8 @@ type Row = {
 
 const columns = [
   createDateTableColumn<Row>({
-    accessorKey: "timestamp",
+    id: "timestamp",
+    accessorFn: (row) => row.timestamp,
     header: "Timestamp",
   }),
 ];

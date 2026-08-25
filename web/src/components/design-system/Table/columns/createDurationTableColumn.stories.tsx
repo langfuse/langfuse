@@ -12,7 +12,8 @@ type Row = {
 
 const columns = [
   createDurationTableColumn<Row>({
-    accessorKey: "latency",
+    id: "latency",
+    accessorFn: (row) => row.latency,
     header: "Latency",
   }),
 ];

@@ -12,7 +12,8 @@ type Row = {
 
 const columns = [
   createItemBadgeTableColumn<Row>({
-    accessorKey: "type",
+    id: "type",
+    accessorFn: (row) => row.type,
     header: "Type",
   }),
 ];

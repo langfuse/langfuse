@@ -12,7 +12,8 @@ type Row = {
 
 const columns = [
   createIdTableColumn<Row>({
-    accessorKey: "traceId",
+    id: "traceId",
+    accessorFn: (row) => row.traceId,
     header: "Trace ID",
   }),
 ];

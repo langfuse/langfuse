@@ -12,7 +12,8 @@ type Row = {
 
 const columns = [
   createTextTableColumn<Row>({
-    accessorKey: "name",
+    id: "name",
+    accessorFn: (row) => row.name,
     header: "Name",
   }),
 ];

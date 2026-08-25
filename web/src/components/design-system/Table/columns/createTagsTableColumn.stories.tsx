@@ -19,7 +19,8 @@ function TagsTableColumnStory({
 }) {
   const columns = [
     createTagsTableColumn<Row>({
-      accessorKey: "tags",
+      id: "tags",
+      accessorFn: (row) => row.tags,
       header: "Tags",
       shouldWrap,
     }),

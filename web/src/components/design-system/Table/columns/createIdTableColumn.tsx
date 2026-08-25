@@ -2,35 +2,17 @@ import { type RowData } from "@tanstack/react-table";
 
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import TableIdOrName from "@/src/components/table/table-id";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import {
+  createTableColumn,
+  type TableColumnOptions,
+} from "./createTableColumn";
 
-type StringAccessorKey<TData> = {
-  [TKey in keyof TData]-?: NonNullable<TData[TKey]> extends string
-    ? TKey
-    : never;
-}[keyof TData] &
-  string;
-
-export function createIdTableColumn<TData extends RowData>({
-  accessorKey,
-  id = accessorKey,
-  ...columnOptions
-}: Omit<
-  LangfuseColumnDef<TData>,
-  "accessorFn" | "accessorKey" | "cell" | "id" | "loadingCell"
-> & {
-  accessorKey: StringAccessorKey<TData>;
-  id?: string;
-}): LangfuseColumnDef<TData> {
-  return {
-    ...columnOptions,
-    accessorKey,
-    id,
+export function createIdTableColumn<TData extends RowData>(
+  options: TableColumnOptions<TData, string>,
+) {
+  return createTableColumn<TData, string>({
+    ...options,
     loadingCell: <TableTextLoadingCell />,
-    cell: ({ row }) => {
-      const value = row.getValue<string | null | undefined>(id);
-
-      return value ? <TableIdOrName value={value} /> : null;
-    },
-  };
+    renderCell: (value) => (value ? <TableIdOrName value={value} /> : null),
+  });
 }
