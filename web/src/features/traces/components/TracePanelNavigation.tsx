@@ -25,9 +25,11 @@ import { TraceTimeline } from "./TraceTimeline/TraceTimeline";
 import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
 import { useMemo } from "react";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 
 export function TracePanelNavigation() {
   const { searchQuery } = useSearch();
+  const { trace } = useTraceData();
   const [viewMode] = useQueryParam("view", StringParam);
 
   // The Compact Timeline feature preview changes what the Timeline view IS,
@@ -37,6 +39,7 @@ export function TracePanelNavigation() {
   // it silently — the preview toggle is the way in.
   const isCompactTimelineEnabled = useIsFeatureEnabled("compactTimeline", {
     enableForAdmins: false,
+    projectId: trace.projectId,
   });
   const hasQuery = searchQuery.trim().length > 0;
   const isTimelineView = viewMode === "timeline";

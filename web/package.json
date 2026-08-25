@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.17.0",
+  "version": "4.18.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -52,7 +52,7 @@
     "@dnd-kit/modifiers": "^7.0.0",
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@ferrucc-io/emoji-picker": "^0.0.47",
+    "@ferrucc-io/emoji-picker": "^0.1.2",
     "@hookform/resolvers": "^5.2.2",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
