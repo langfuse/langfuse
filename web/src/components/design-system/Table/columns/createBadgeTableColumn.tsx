@@ -5,7 +5,7 @@ import { Badge } from "@/src/components/ui/badge";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createBadgeTableColumn<TData extends RowData>(
   options: TableColumnOptions<TData, string>,

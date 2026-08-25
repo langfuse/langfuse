@@ -4,7 +4,7 @@ import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createTextTableColumn<TData extends RowData>(
   options: TableColumnOptions<TData, string>,

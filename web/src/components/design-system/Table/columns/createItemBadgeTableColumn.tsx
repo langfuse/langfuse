@@ -5,7 +5,7 @@ import { TableIconBadgeLoadingCell } from "@/src/components/table/loading-cells"
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createItemBadgeTableColumn<TData extends RowData>(
   options: TableColumnOptions<TData, LangfuseItemType>,

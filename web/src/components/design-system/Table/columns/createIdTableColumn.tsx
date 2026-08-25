@@ -5,7 +5,7 @@ import TableIdOrName from "@/src/components/table/table-id";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createIdTableColumn<TData extends RowData>(
   options: TableColumnOptions<TData, string>,

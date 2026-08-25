@@ -6,7 +6,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createTagsTableColumn<TData extends RowData>({
   shouldWrap,

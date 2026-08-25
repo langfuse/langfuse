@@ -5,7 +5,7 @@ import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createDateTableColumn<TData extends RowData>(
   options: TableColumnOptions<TData, Date>,

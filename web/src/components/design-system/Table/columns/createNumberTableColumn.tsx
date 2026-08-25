@@ -5,7 +5,7 @@ import { numberFormatter } from "@/src/utils/numbers";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createNumberTableColumn<TData extends RowData>({
   minimumFractionDigits,

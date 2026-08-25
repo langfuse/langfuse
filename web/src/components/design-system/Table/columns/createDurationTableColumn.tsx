@@ -5,7 +5,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
   createTableColumn,
   type TableColumnOptions,
-} from "./createTableColumn";
+} from "./utils/createTableColumn";
 
 export function createDurationTableColumn<TData extends RowData>(
   options: TableColumnOptions<TData, number>,
