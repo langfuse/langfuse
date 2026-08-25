@@ -290,7 +290,7 @@ describe("InAppAgentInstrumentation", () => {
         value: {
           toolCallId: "tool-1",
           toolName: "read",
-          source: "builtin",
+          source: "auto",
         },
       },
       {
@@ -314,7 +314,7 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         metadata: expect.objectContaining({
           toolCallId: "tool-1",
-          toolCallApprovalSource: "builtin",
+          toolCallApprovalSource: "auto",
         }),
       }),
     );

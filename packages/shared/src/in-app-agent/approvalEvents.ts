@@ -22,10 +22,9 @@ export type InAppAgentApprovalDecision = z.infer<
 >;
 
 export const InAppAgentToolApprovalSourceSchema = z.enum([
+  "auto",
   "human",
-  "session_grant",
-  "role_policy",
-  "builtin",
+  "conversation_grant",
 ]);
 
 export type InAppAgentToolApprovalSource = z.infer<
@@ -72,6 +71,7 @@ export function buildInAppAgentToolApprovalEvent(
   return {
     type: EventType.CUSTOM,
     name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+    toolCallId: approval.toolCallId,
     value: approval,
   };
 }

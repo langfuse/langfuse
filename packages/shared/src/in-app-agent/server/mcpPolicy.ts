@@ -599,7 +599,7 @@ export function getInAppAgentToolApprovalSource(params: {
     params.toolName.startsWith("langfuseDocs_") ||
     IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES.has(params.toolName)
   ) {
-    return "builtin";
+    return "auto";
   }
 
   const registryToolName = getInAppAgentRegistryToolName(params.toolName);
@@ -613,8 +613,8 @@ export function getInAppAgentToolApprovalSource(params: {
 
   return IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[registryToolName].approval ===
     "auto"
-    ? "role_policy"
-    : "session_grant";
+    ? "auto"
+    : "conversation_grant";
 }
 
 export function buildInAppAgentToolApprovalSidecar(params: {

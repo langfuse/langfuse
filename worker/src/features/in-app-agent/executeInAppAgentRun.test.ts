@@ -538,7 +538,7 @@ describe("executeInAppAgentRun", () => {
       value: {
         toolCallId: "tool-call-read",
         toolName: "read",
-        source: "builtin",
+        source: "auto",
       },
     });
   });

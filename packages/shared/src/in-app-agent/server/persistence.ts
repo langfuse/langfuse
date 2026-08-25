@@ -649,7 +649,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
   );
 }
 
-function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   eventsToAppend: AgUiEvent[];
   retainedEvents: AgUiEvent[];
 } {

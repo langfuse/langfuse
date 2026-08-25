@@ -42,22 +42,22 @@ describe("getInAppAgentToolApprovalSource", () => {
       source: "human",
     },
     {
-      name: "session_grant",
+      name: "conversation_grant",
       toolName: "langfuse_createTextPrompt",
       toolCallId: "call-2",
-      source: "session_grant",
+      source: "conversation_grant",
     },
     {
-      name: "role_policy",
+      name: "auto for MCP policy",
       toolName: "langfuse_listAnnotationQueues",
       toolCallId: "call-3",
-      source: "role_policy",
+      source: "auto",
     },
     {
-      name: "builtin",
+      name: "auto for sandbox tools",
       toolName: "read",
       toolCallId: "call-4",
-      source: "builtin",
+      source: "auto",
     },
   ] as const)(
     "classifies $name",
