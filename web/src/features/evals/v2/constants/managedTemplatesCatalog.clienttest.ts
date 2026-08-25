@@ -66,7 +66,11 @@ describe("managed evaluator templates catalog", () => {
     const createEvaluator = new Function(
       `${javascript}\nreturn evaluate;`,
     ) as () => (ctx: { observation: { input: unknown } }) => {
-      scores: Array<{ value: boolean }>;
+      scores: Array<{
+        value: boolean;
+        comment?: string;
+        metadata?: { ratioThreshold?: number };
+      }>;
     };
 
     const evaluate = createEvaluator();
@@ -82,7 +86,25 @@ describe("managed evaluator templates catalog", () => {
     for (const input of [messages, { messages }]) {
       const result = evaluate({ observation: { input } });
       expect(result.scores[0]?.value).toBe(true);
+      expect(result.scores[0]?.comment).toMatch(/uppercase/);
+      expect(result.scores[0]?.metadata?.ratioThreshold).toBe(0.7);
     }
+
+    // 70% threshold allows one lowercase word among mostly uppercase letters
+    // ("THIS IS COMPLETELY broken" → 16/22 ≈ 72.7%, which fails the old 80% cut).
+    const mixedCase = evaluate({
+      observation: {
+        input: [{ role: "user", content: "THIS IS COMPLETELY broken" }],
+      },
+    });
+    expect(mixedCase.scores[0]?.value).toBe(true);
+
+    // Short shoutouts stay false (4-letter floor).
+    const tooShort = evaluate({
+      observation: { input: [{ role: "user", content: "WTF" }] },
+    });
+    expect(tooShort.scores[0]?.value).toBe(false);
+    expect(tooShort.scores[0]?.comment).toMatch(/too short/);
   });
 
   it("ships code evaluator templates that pass client validation", async () => {

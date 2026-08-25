@@ -279,8 +279,84 @@ Last user message: {{last_user_message}}`,
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
-        source:
-          'function evaluate(ctx: EvaluationContext): EvaluationResult {\n  const extractText = (value: unknown): string => {\n    if (typeof value === "string") return value;\n\n    if (Array.isArray(value)) {\n      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");\n    }\n\n    if (value !== null && typeof value === "object") {\n      const record = value as Record<string, unknown>;\n      if ("content" in record) return extractText(record.content);\n      if ("text" in record) return extractText(record.text);\n      if ("parts" in record) return extractText(record.parts);\n    }\n\n    return "";\n  };\n\n  const input = ctx.observation.input;\n  const inputRecord =\n    input !== null && typeof input === "object" && !Array.isArray(input)\n      ? (input as Record<string, unknown>)\n      : null;\n  const messages = Array.isArray(input)\n    ? input\n    : Array.isArray(inputRecord?.messages)\n      ? inputRecord.messages\n      : [];\n\n  let message = messages[messages.length - 1];\n  for (let index = messages.length - 1; index >= 0; index -= 1) {\n    const candidate = messages[index];\n    if (candidate === null || typeof candidate !== "object") continue;\n\n    const record = candidate as Record<string, unknown>;\n    const role = record.role ?? record.type;\n    if (role === "user" || role === "human") {\n      message = candidate;\n      break;\n    }\n  }\n\n  const text = typeof input === "string" ? input : extractText(message ?? input);\n  const letters = text.match(/[A-Za-z]/g) ?? [];\n  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];\n  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;\n  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.8;\n\n  return {\n    scores: [\n      {\n        name: "All CAPS",\n        value: isAllCaps,\n        dataType: "BOOLEAN",\n      },\n    ],\n  };\n}',
+        source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
+  /**
+   * "All CAPS" — true when the latest user message has >= 4 letters and
+   * >= 70% of them are uppercase. Counts ASCII letters only, so digits,
+   * punctuation, and emoji don't affect the ratio.
+   */
+  const extractText = (value: unknown): string => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      return value.map((item) => extractText(item)).filter(Boolean).join("\\n");
+    }
+    if (value !== null && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if ("content" in record) return extractText(record.content);
+      if ("text" in record) return extractText(record.text);
+      if ("parts" in record) return extractText(record.parts);
+    }
+    return "";
+  };
+
+  // Accept all three input shapes: string, message array, { messages: [...] }.
+  const input = ctx.observation.input;
+  const inputRecord =
+    input !== null && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : null;
+  const messages = Array.isArray(input)
+    ? input
+    : Array.isArray(inputRecord?.messages)
+      ? inputRecord.messages
+      : [];
+
+  // Default to the last message, then walk backwards for the latest user turn.
+  let message = messages[messages.length - 1];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const candidate = messages[index];
+    if (candidate === null || typeof candidate !== "object") continue;
+    const record = candidate as Record<string, unknown>;
+    const role = record.role ?? record.type; // some SDKs use \`type\` for role
+    if (role === "user" || role === "human") {
+      message = candidate;
+      break;
+    }
+  }
+
+  // No messages at all: fall back to the whole input object.
+  const text = typeof input === "string" ? input : extractText(message ?? input);
+
+  const letters = text.match(/[A-Za-z]/g) ?? [];
+  const uppercaseLetters = text.match(/[A-Z]/g) ?? [];
+  const uppercaseRatio = letters.length === 0 ? 0 : uppercaseLetters.length / letters.length;
+  // 4-letter floor keeps "OK" and "WTF" out; 0.7 allows one lowercase word.
+  const isAllCaps = letters.length >= 4 && uppercaseRatio >= 0.7;
+
+  const reasoning =
+    letters.length < 4
+      ? \`\${letters.length} letters, too short\`
+      : \`\${Math.round(uppercaseRatio * 100)}% uppercase of \${letters.length} letters\`;
+
+  return {
+    scores: [
+      {
+        name: "All CAPS",
+        value: isAllCaps,
+        dataType: "BOOLEAN",
+        comment: reasoning,
+        metadata: {
+          rule: "all_caps",
+          letterCount: letters.length,
+          uppercaseCount: uppercaseLetters.length,
+          uppercaseRatio,
+          minLetters: 4,
+          ratioThreshold: 0.7,
+        },
+      },
+    ],
+  };
+}`,
       },
     },
     {
