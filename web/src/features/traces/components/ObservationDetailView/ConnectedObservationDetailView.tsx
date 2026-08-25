@@ -20,6 +20,25 @@
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { useCallback, useMemo, useState } from "react";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import {
+  TabsBar,
+  TabsBarContent,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
@@ -35,7 +54,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 import { api } from "@/src/utils/api";
 
 // Extracted components
-import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader";
+import { ConnectedObservationDetailViewHeader } from "./components/ConnectedObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
@@ -45,7 +64,7 @@ import {
 } from "@/src/features/traces/fns/traceAggregation";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
-import { ObservationDetailView } from "./ObservationDetailView";
+import { ObservationPreview } from "./ObservationPreview";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -159,6 +178,8 @@ export function ConnectedObservationDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
+  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -285,115 +306,245 @@ export function ConnectedObservationDetailView({
   }, [observation.latency, observation.startTime, observation.endTime]);
 
   return (
-    <ObservationDetailView
-      header={
-        <ObservationDetailViewHeader
-          observation={observation}
-          observationWithIO={observationWithIO}
-          projectId={projectId}
-          traceId={traceId}
-          latencySeconds={latencySeconds}
-          observationScores={observationScores}
-          commentCount={comments.get(observation.id)}
-          pendingSelection={pendingSelection}
-          onSelectionUsed={handleSelectionUsed}
-          isCommentDrawerOpen={isCommentDrawerOpen}
-          onCommentDrawerOpenChange={setIsCommentDrawerOpen}
-          subtreeMetrics={subtreeMetrics}
-          treeNodeTotalCost={treeNode?.totalCost}
-        />
-      }
-      selectedTab={selectedTab}
-      onSelectedTabChange={setSelectedTab}
-      currentView={currentView}
-      jsonBetaEnabled={jsonBetaEnabled}
-      onViewTabChange={handleViewTabChange}
-      onBetaToggle={handleBetaToggle}
-      tags={isRoot ? observation.traceTags : undefined}
-      previewKey={observation.id}
-      previewProps={{
-        observationName: observation.name ?? undefined,
-        input: observationWithIOCompat.data?.input ?? undefined,
-        output: observationWithIOCompat.data?.output ?? undefined,
-        statusMessage:
-          observation.level === "ERROR"
-            ? (observation.statusMessage ?? undefined)
-            : undefined,
-        outputCorrection,
-        metadata: observationWithIOCompat.data?.metadata ?? undefined,
-        parsedInput,
-        parsedOutput,
-        parsedMetadata,
-        isLoading: observationWithIOCompat.isLoading,
-        isParsing: isWaitingForParsing,
-        media: observationMedia.data,
-        inputExpansionState: formattedExpansion.input,
-        outputExpansionState: formattedExpansion.output,
-        metadataExpansionState: formattedExpansion.metadata,
-        onInputExpansionChange: (exp) =>
-          setFormattedFieldExpansion("input", exp as Record<string, boolean>),
-        onOutputExpansionChange: (exp) =>
-          setFormattedFieldExpansion("output", exp as Record<string, boolean>),
-        onMetadataExpansionChange: (exp) =>
-          setFormattedFieldExpansion(
-            "metadata",
-            exp as Record<string, boolean>,
-          ),
-        advancedJsonExpansionState: advancedJsonExpansion,
-        onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
-        jsonInputExpanded: jsonExpansion.input,
-        jsonOutputExpanded: jsonExpansion.output,
-        jsonMetadataExpanded: jsonExpansion.metadata,
-        onJsonInputExpandedChange: (expanded) =>
-          setJsonFieldExpansion("input", expanded),
-        onJsonOutputExpandedChange: (expanded) =>
-          setJsonFieldExpansion("output", expanded),
-        onJsonMetadataExpandedChange: (expanded) =>
-          setJsonFieldExpansion("metadata", expanded),
-        enableInlineComments: true,
-        onAddInlineComment: handleAddInlineComment,
-        commentedPathsByField,
-        showMetadata: true,
-        observationId: observation.id,
-        projectId,
-        traceId,
-        environment: observation.environment,
-      }}
-      scoresTab={
-        showScoresTab ? (
-          <ScoresTable
-            projectId={projectId}
-            traceId={traceId}
-            observationId={observation.id}
-            includeTraceLevelScores={ownsTraceLevelScores}
-            hiddenColumns={[
-              "traceId",
-              "observationId",
-              "traceName",
-              "traceTags",
-              "jobConfigurationId",
-              "userId",
-            ]}
-            localStorageSuffix="ObservationPreview"
-            disableUrlPersistence={isPeekMode || isAnnotationMode}
+    <div className="flex h-full flex-col overflow-hidden">
+      <ConnectedObservationDetailViewHeader
+        observation={observation}
+        observationWithIO={observationWithIO}
+        projectId={projectId}
+        traceId={traceId}
+        latencySeconds={latencySeconds}
+        observationScores={observationScores}
+        commentCount={comments.get(observation.id)}
+        pendingSelection={pendingSelection}
+        onSelectionUsed={handleSelectionUsed}
+        isCommentDrawerOpen={isCommentDrawerOpen}
+        onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        subtreeMetrics={subtreeMetrics}
+        treeNodeTotalCost={treeNode?.totalCost}
+      />
+
+      <TabsBar
+        value={selectedTab}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        onValueChange={(value) =>
+          setSelectedTab(value as "preview" | "log" | "scores")
+        }
+      >
+        {showTabsBar && (
+          <TooltipProvider>
+            <TabsBarList>
+              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              {showScoresTab ? (
+                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+              ) : null}
+              {showLogViewTab ? (
+                <TabsBarTrigger value="log">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>Log View</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-xs">
+                      {isLogViewVirtualized
+                        ? `Shows all ${observations.length} observations with virtualization enabled.`
+                        : "Shows all observations concatenated. Great for quickly scanning through them."}
+                    </TooltipContent>
+                  </Tooltip>
+                </TabsBarTrigger>
+              ) : null}
+
+              {(selectedTab === "log" ||
+                (selectedTab === "preview" && isPrettyViewAvailable)) && (
+                <>
+                  <Tabs
+                    className="ml-auto h-fit px-2 py-0.5"
+                    value={
+                      selectedTab === "log" && isLogViewVirtualized
+                        ? "pretty"
+                        : selectedViewTab
+                    }
+                    onValueChange={(value) => {
+                      if (
+                        selectedTab === "log" &&
+                        isLogViewVirtualized &&
+                        value === "json"
+                      ) {
+                        return;
+                      }
+                      handleViewTabChange(value);
+                    }}
+                  >
+                    <TabsList className="h-fit py-0.5">
+                      <TabsTrigger
+                        value="pretty"
+                        className="h-fit px-1 text-xs"
+                      >
+                        Formatted
+                      </TabsTrigger>
+                      {selectedTab === "log" && isLogViewVirtualized ? (
+                        <HoverCard openDelay={200}>
+                          <HoverCardTrigger asChild>
+                            <span>
+                              <TabsTrigger
+                                value="json"
+                                className="h-fit px-1 text-xs"
+                                disabled
+                              >
+                                JSON
+                              </TabsTrigger>
+                            </span>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            align="end"
+                            className="w-64 text-sm"
+                            sideOffset={8}
+                          >
+                            <p className="font-bold">JSON view unavailable</p>
+                            <p className="text-muted-foreground mt-1">
+                              Disabled for traces with{" "}
+                              {
+                                TRACE_VIEW_CONFIG.logView
+                                  .virtualizationThreshold
+                              }
+                              + observations to maintain performance.
+                            </p>
+                          </HoverCardContent>
+                        </HoverCard>
+                      ) : (
+                        <TabsTrigger
+                          value="json"
+                          className="h-fit px-1 text-xs"
+                        >
+                          JSON
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                  </Tabs>
+                  {selectedViewTab === "json" &&
+                    !(selectedTab === "log" && isLogViewVirtualized) && (
+                      <div className="mr-1 flex items-center gap-1.5">
+                        <Switch
+                          size="sm"
+                          checked={jsonBetaEnabled}
+                          onCheckedChange={handleBetaToggle}
+                        />
+                        <span className="text-muted-foreground text-xs">
+                          Beta
+                        </span>
+                      </div>
+                    )}
+                </>
+              )}
+            </TabsBarList>
+          </TooltipProvider>
+        )}
+
+        <TabsBarContent
+          value="preview"
+          className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+        >
+          <ObservationPreview
+            currentView={currentView}
+            tags={isRoot ? observation.traceTags : undefined}
+            previewKey={observation.id}
+            onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
+            previewProps={{
+              observationName: observation.name ?? undefined,
+              input: observationWithIOCompat.data?.input ?? undefined,
+              output: observationWithIOCompat.data?.output ?? undefined,
+              status: observation.statusMessage
+                ? {
+                    level: observation.level,
+                    message: observation.statusMessage,
+                  }
+                : undefined,
+              outputCorrection,
+              metadata: observationWithIOCompat.data?.metadata ?? undefined,
+              parsedInput,
+              parsedOutput,
+              parsedMetadata,
+              isLoading: observationWithIOCompat.isLoading,
+              isParsing: isWaitingForParsing,
+              media: observationMedia.data,
+              inputExpansionState: formattedExpansion.input,
+              outputExpansionState: formattedExpansion.output,
+              metadataExpansionState: formattedExpansion.metadata,
+              onInputExpansionChange: (exp) =>
+                setFormattedFieldExpansion(
+                  "input",
+                  exp as Record<string, boolean>,
+                ),
+              onOutputExpansionChange: (exp) =>
+                setFormattedFieldExpansion(
+                  "output",
+                  exp as Record<string, boolean>,
+                ),
+              onMetadataExpansionChange: (exp) =>
+                setFormattedFieldExpansion(
+                  "metadata",
+                  exp as Record<string, boolean>,
+                ),
+              advancedJsonExpansionState: advancedJsonExpansion,
+              onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
+              jsonInputExpanded: jsonExpansion.input,
+              jsonOutputExpanded: jsonExpansion.output,
+              jsonMetadataExpanded: jsonExpansion.metadata,
+              onJsonInputExpandedChange: (expanded) =>
+                setJsonFieldExpansion("input", expanded),
+              onJsonOutputExpandedChange: (expanded) =>
+                setJsonFieldExpansion("output", expanded),
+              onJsonMetadataExpandedChange: (expanded) =>
+                setJsonFieldExpansion("metadata", expanded),
+              enableInlineComments: true,
+              onAddInlineComment: handleAddInlineComment,
+              commentedPathsByField,
+              showMetadata: true,
+              observationId: observation.id,
+              projectId,
+              traceId,
+              environment: observation.environment,
+            }}
           />
-        ) : undefined
-      }
-      logTab={
-        showLogViewTab
-          ? {
-              observationCount: observations.length,
-              content: (
-                <TraceLogView
-                  traceId={traceId}
-                  projectId={projectId}
-                  currentView={isLogViewVirtualized ? "pretty" : currentView}
-                />
-              ),
-            }
-          : undefined
-      }
-      showTabsBar={showTabsBar}
-    />
+        </TabsBarContent>
+
+        {showScoresTab ? (
+          <TabsBarContent
+            value="scores"
+            className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
+          >
+            <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+              <ScoresTable
+                projectId={projectId}
+                traceId={traceId}
+                observationId={observation.id}
+                includeTraceLevelScores={ownsTraceLevelScores}
+                hiddenColumns={[
+                  "traceId",
+                  "observationId",
+                  "traceName",
+                  "traceTags",
+                  "jobConfigurationId",
+                  "userId",
+                ]}
+                localStorageSuffix="ObservationPreview"
+                disableUrlPersistence={isPeekMode || isAnnotationMode}
+              />
+            </div>
+          </TabsBarContent>
+        ) : null}
+
+        {showLogViewTab ? (
+          <TabsBarContent
+            value="log"
+            className="mt-0 flex max-h-full min-h-0 w-full flex-1"
+          >
+            <TraceLogView
+              traceId={traceId}
+              projectId={projectId}
+              currentView={isLogViewVirtualized ? "pretty" : currentView}
+            />
+          </TabsBarContent>
+        ) : null}
+      </TabsBar>
+    </div>
   );
 }

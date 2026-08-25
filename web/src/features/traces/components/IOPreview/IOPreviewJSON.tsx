@@ -36,6 +36,10 @@ import {
   JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
+import {
+  getStatusMessagePresentation,
+  type ObservationStatusMessage,
+} from "./components/statusMessagePresentation";
 
 // A field needing windowing is gated to the lazy byte-engine viewer, so the
 // gate row limit IS the virtualization threshold (single source of truth). The
@@ -60,7 +64,7 @@ function decodeIfWithinBudget(value: unknown, rowCount: number): unknown {
 export interface IOPreviewJSONProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
-  statusMessage?: string;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (from useParsedObservation hook)
@@ -106,7 +110,7 @@ export interface IOPreviewJSONProps {
 function IOPreviewJSONInner({
   input,
   output,
-  statusMessage,
+  status,
   metadata,
   parsedInput,
   parsedOutput,
@@ -141,16 +145,17 @@ function IOPreviewJSONInner({
   const isDark = resolvedTheme === "dark";
 
   // Background colors that adapt to theme (memoized to prevent tree rebuilds)
-  const { inputBgColor, outputBgColor, errorBgColor, metadataBgColor } =
-    useMemo(
-      () => ({
-        inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
-        outputBgColor: isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)", // Dark blue-gray vs light green
-        errorBgColor: "var(--light-red)",
-        metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
-      }),
-      [isDark],
-    );
+  const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
+    () => ({
+      inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
+      outputBgColor: isDark ? "rgb(20, 30, 41)" : "rgb(248, 253, 250)", // Dark blue-gray vs light green
+      metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
+    }),
+    [isDark],
+  );
+  const statusPresentation = status
+    ? getStatusMessagePresentation(status.level)
+    : null;
 
   // Fall back to raw values when caller does not provide pre-parsed fields
   // (e.g. session events rows in v4 mode). Parse once here, BEFORE the decode
@@ -473,12 +478,12 @@ function IOPreviewJSONInner({
     });
 
     const result = [];
-    if (statusMessage) {
+    if (status && statusPresentation) {
       result.push({
-        key: "error",
-        title: "Error",
-        data: statusMessage,
-        backgroundColor: errorBgColor,
+        key: "status-message",
+        title: statusPresentation.title,
+        data: status.message,
+        backgroundColor: statusPresentation.backgroundColor,
         minHeight: "4px",
       });
     }
@@ -567,7 +572,8 @@ function IOPreviewJSONInner({
   }, [
     showInput,
     showOutput,
-    statusMessage,
+    status,
+    statusPresentation,
     showMetadata,
     inputTooLarge,
     outputTooLarge,
@@ -584,7 +590,6 @@ function IOPreviewJSONInner({
     downloadName,
     inputBgColor,
     outputBgColor,
-    errorBgColor,
     metadataBgColor,
     showCorrections,
     observationId,

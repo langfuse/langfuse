@@ -8,12 +8,13 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
-import { ErrorSection } from "./components/ErrorSection";
+import { StatusMessageSection } from "./components/StatusMessageSection";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
-  statusMessage?: string;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -58,7 +59,7 @@ export interface IOPreviewJSONSimpleProps {
 export function IOPreviewJSONSimple({
   input,
   output,
-  statusMessage,
+  status,
   metadata,
   outputCorrection,
   parsedInput,
@@ -132,7 +133,7 @@ export function IOPreviewJSONSimple({
 
   return (
     <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-      {statusMessage ? <ErrorSection message={statusMessage} /> : null}
+      {status ? <StatusMessageSection status={status} /> : null}
       {showInput &&
         (inputTooLarge ? (
           <LargeJsonFieldFallback
