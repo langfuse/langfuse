@@ -11,7 +11,7 @@ import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
-import { DismissibleCallout } from "@/src/components/design-system/DismissibleCallout/DismissibleCallout";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { Separator } from "@/src/components/ui/separator";
 import {
   DropdownMenu,
@@ -173,7 +173,7 @@ export default function RemapEvaluatorPage() {
     >
       <div className="space-y-4">
         {v4UpgradeUiEnabled ? (
-          <DismissibleCallout
+          <Callout
             id={"v4-evaluator-upgrade:" + evalConfigId}
             ttlMs={7 * 24 * 60 * 60 * 1000}
             variant="info"
@@ -221,7 +221,7 @@ export default function RemapEvaluatorPage() {
                 .
               </span>
             </div>
-          </DismissibleCallout>
+          </Callout>
         ) : null}
         <div className="min-w-0">
           <p className="text-muted-foreground text-sm">

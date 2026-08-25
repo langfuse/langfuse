@@ -23,6 +23,7 @@ const message = (
 
 export const Default = meta.story({
   args: {
+    id: "callout-story:default",
     variant: "info",
     align: "middle",
     children: message,
@@ -33,6 +34,7 @@ export const Default = meta.story({
 
 export const Warning = meta.story({
   args: {
+    id: "callout-story:warning",
     variant: "warning",
     align: "top",
     children: (
@@ -48,6 +50,7 @@ export const Warning = meta.story({
 
 export const WithActions = meta.story({
   args: {
+    id: "callout-story:with-actions",
     variant: "info",
     align: "middle",
     children: message,
@@ -63,6 +66,7 @@ export const WithActions = meta.story({
 export const Dismisses = meta.story({
   name: "(Test) Dismisses",
   args: {
+    id: "callout-story:dismisses",
     variant: "info",
     align: "middle",
     children: <span>This callout can be dismissed.</span>,
@@ -72,7 +76,9 @@ export const Dismisses = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await userEvent.click(canvas.getByRole("button", { name: "Dismiss" }));
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Dismiss" }),
+    );
 
     await expect(args.onDismiss).toHaveBeenCalledOnce();
   },

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Zap } from "lucide-react";
-import { DismissibleCallout } from "@/src/components/design-system/DismissibleCallout/DismissibleCallout";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
@@ -49,7 +49,7 @@ export function V4MigrationBanner() {
 
   return (
     <div className="mb-4">
-      <DismissibleCallout
+      <Callout
         id="v4-migration-banner:v1"
         ttlMs={DISMISS_TTL_MS}
         variant="info"
@@ -94,7 +94,7 @@ export function V4MigrationBanner() {
               : `${projectsNeedingMigration} of your ${statuses.length} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
           </span>
         </div>
-      </DismissibleCallout>
+      </Callout>
     </div>
   );
 }

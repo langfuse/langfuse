@@ -1,4 +1,4 @@
-import { DismissibleCallout } from "@/src/components/design-system/DismissibleCallout/DismissibleCallout";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { Bot } from "lucide-react";
@@ -14,7 +14,7 @@ const DOCS_HREF =
 export function AgentToolsBanner() {
   return (
     <div className="mb-4">
-      <DismissibleCallout
+      <Callout
         id="agent-tools-banner:v1"
         variant="info"
         align="middle"
@@ -36,7 +36,7 @@ export function AgentToolsBanner() {
             Langfuse Agent Skill, MCP server, and CLI.
           </span>
         </div>
-      </DismissibleCallout>
+      </Callout>
     </div>
   );
 }
