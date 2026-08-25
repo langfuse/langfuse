@@ -1,20 +1,16 @@
-/* eslint-disable @repo/no-style-props */
 import { signIn, useSession } from "next-auth/react";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
 import { useState } from "react";
 import { z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { env } from "@/src/env.mjs";
 import { RequestResetPasswordEmailButtonView } from "./RequestResetPasswordEmailButtonView";
+import { VerifyResetPasswordButtonView } from "./VerifyResetPasswordButtonView";
 
 export function RequestResetPasswordEmailButton({
   email,
-  className,
   callbackUrl,
 }: {
   email: string;
-  className?: string;
   callbackUrl?: string;
 }) {
   const [isEmailSent, setIsEmailSent] = useState(false);
@@ -56,7 +52,7 @@ export function RequestResetPasswordEmailButton({
     }
   };
 
-  const handleVerify = async (_e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleVerify = async () => {
     if (!code) return;
     setIsLoading(true);
     setErrorMessage(null);
@@ -82,30 +78,12 @@ export function RequestResetPasswordEmailButton({
   return (
     <>
       {isEmailSent ? (
-        <div>
-          <label htmlFor="otp-code" className="mb-2 block text-sm font-bold">
-            Check your inbox for the code
-          </label>
-          <Input
-            id="otp-code"
-            type="number"
-            minLength={6}
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.trim())}
-            placeholder="One time passcode"
-            className="mb-8 w-full"
-          />
-          <Button
-            onClick={handleVerify}
-            className={className}
-            loading={isLoading}
-            disabled={!code || code.length !== 6}
-            variant={variant}
-          >
-            Verify code
-          </Button>
-        </div>
+        <VerifyResetPasswordButtonView
+          code={code}
+          loading={isLoading}
+          onCodeChange={setCode}
+          onVerify={handleVerify}
+        />
       ) : (
         <RequestResetPasswordEmailButtonView
           onClick={handleResetPassword}

@@ -245,7 +245,6 @@ export function ResetPasswordPage({
                     <div className="w-full">
                       <RequestResetPasswordEmailButton
                         email={form.watch("email")}
-                        className="w-full"
                         callbackUrl={
                           isSetMode ? "/auth/setup-password" : undefined
                         }
@@ -269,7 +268,6 @@ export function ResetPasswordPage({
               <div className="w-full">
                 <RequestResetPasswordEmailButton
                   email={form.getValues("email")}
-                  className="w-full"
                   callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
                 />
               </div>

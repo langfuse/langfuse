@@ -14,7 +14,12 @@ export function RequestResetPasswordEmailButtonView({
   onClick,
 }: RequestResetPasswordEmailButtonViewProps) {
   return (
-    <Button onClick={onClick} loading={loading} disabled={disabled}>
+    <Button
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      className="w-full"
+    >
       {buttonLabel}
     </Button>
   );
