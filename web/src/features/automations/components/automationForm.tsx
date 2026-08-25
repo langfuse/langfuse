@@ -817,7 +817,6 @@ export const AutomationForm = ({
                     projectId={projectId}
                     automationId={automation.id}
                     onSuccess={() => {
-                      utils.automations.invalidate();
                       router.push(`/project/${projectId}/settings/automations`);
                     }}
                   >
