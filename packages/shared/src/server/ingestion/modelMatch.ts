@@ -440,7 +440,6 @@ export const redisModelToPrismaModel = (redisModel: Model): Model => {
 
 export async function clearModelCacheForProject(
   projectId: string,
-  options: { throwOnError?: boolean } = {},
 ): Promise<void> {
   clearModelMatchLocalCache();
 
@@ -453,7 +452,6 @@ export async function clearModelCacheForProject(
       `Cannot invalidate model cache for project ${projectId}: Redis is unavailable`,
     );
     logger.error(error.message);
-    if (options.throwOnError) throw error;
     return;
   }
 
@@ -470,7 +468,6 @@ export async function clearModelCacheForProject(
     logger.error(
       `Error rotating model cache epoch for project ${projectId}: ${error}`,
     );
-    if (options.throwOnError) throw error;
     return;
   }
 

@@ -6,8 +6,6 @@ import {
   type GetModelV1Query,
   type GetModelsV1Query,
   type PostModelsV1Body,
-  type PutModelV1Body,
-  type PutModelV1Query,
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
@@ -54,9 +52,9 @@ type CreateModelInput = {
   auditScope: ModelAuditScope;
 };
 
-type UpsertModelInput = z.infer<typeof PutModelV1Query> & {
+type UpsertModelInput = z.infer<typeof GetModelV1Query> & {
   projectId: string;
-  input: z.infer<typeof PutModelV1Body>;
+  input: z.infer<typeof PostModelsV1Body>;
   auditScope: ModelAuditScope;
 };
 
@@ -362,7 +360,7 @@ export const upsertModelForApi = async ({
     return upsertedModelWithTiers;
   });
 
-  await clearModelCacheForProject(projectId, { throwOnError: true });
+  await clearModelCacheForProject(projectId);
 
   return prismaToApiModelDefinition(modelWithTiers);
 };
