@@ -21,11 +21,11 @@ import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBi
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import {
-  filterOrganizationManageableFeaturePreviewFlags,
-  setOrganizationFeatureFlagDefault,
-} from "@/src/features/feature-flags/server/organizationFeatureFlags";
+  featurePreviewFlags,
+  filterFeaturePreviewFlags,
+} from "@/src/features/feature-flags/available-flags";
+import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 import { parseFlags } from "@/src/features/feature-flags/utils";
 
 import { env } from "@/src/env.mjs";
@@ -94,7 +94,7 @@ export const organizationsRouter = createTRPCRouter({
       }
 
       return {
-        defaults: filterOrganizationManageableFeaturePreviewFlags(
+        defaults: filterFeaturePreviewFlags(
           organization.featureFlagOrgDefaults,
         ),
         memberCount: organization._count.organizationMemberships,

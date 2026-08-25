@@ -7,6 +7,15 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
+export const isFeaturePreviewFlag = (
+  flag: string,
+): flag is FeaturePreviewFlag =>
+  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
+
+export const filterFeaturePreviewFlags = (
+  flags: string[],
+): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
+
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
   compactTimeline: "Compact Timeline",

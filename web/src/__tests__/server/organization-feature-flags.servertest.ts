@@ -259,6 +259,45 @@ describe("organization member feature preview overrides", () => {
     });
   });
 
+  it("audits disabling an inherited organization default as a global override", async () => {
+    const { caller, org } = await prepare();
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { featureFlagOrgDefaults: ["compactTimeline"] },
+    });
+    const target = await createUser();
+    const membership = await prisma.organizationMembership.create({
+      data: { orgId: org.id, userId: target.id, role: Role.MEMBER },
+    });
+
+    await caller.members.setUserFeaturePreviewEnabled({
+      orgId: org.id,
+      userId: target.id,
+      flag: "compactTimeline",
+      enabled: false,
+    });
+
+    const auditEntry = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        orgId: org.id,
+        resourceType: "orgMembership",
+        resourceId: membership.id,
+        action: "updateUserFeatureFlag",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(JSON.parse(auditEntry.before!)).toEqual({
+      flag: "compactTimeline",
+      override: "inherit",
+      scope: "global",
+    });
+    expect(JSON.parse(auditEntry.after!)).toEqual({
+      flag: "compactTimeline",
+      override: "disabled",
+      scope: "global",
+    });
+  });
+
   it("allows a platform administrator across organizations and writes a minimal audit entry", async () => {
     const { caller, org } = await prepare("cloud:core", Role.OWNER, true);
     const target = await createUser();
@@ -288,11 +327,13 @@ describe("organization member feature preview overrides", () => {
     });
     expect(JSON.parse(auditEntry.before!)).toEqual({
       flag: "compactTimeline",
-      enabled: false,
+      override: "inherit",
+      scope: "global",
     });
     expect(JSON.parse(auditEntry.after!)).toEqual({
       flag: "compactTimeline",
-      enabled: true,
+      override: "enabled",
+      scope: "global",
     });
   });
 

@@ -680,8 +680,16 @@ export const membersRouter = createTRPCRouter({
         resourceType: "orgMembership",
         resourceId: result.membershipId,
         action: "updateUserFeatureFlag",
-        before: { flag: input.flag, enabled: result.before },
-        after: { flag: input.flag, enabled: result.after },
+        before: {
+          flag: input.flag,
+          override: result.before,
+          scope: "global",
+        },
+        after: {
+          flag: input.flag,
+          override: result.after,
+          scope: "global",
+        },
       });
 
       return {

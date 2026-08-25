@@ -82,10 +82,6 @@ export function OrganizationFeaturePreviewsSettings({
   const memberCount = defaultsQuery.data?.memberCount ?? 0;
   const experimentalFeaturesEnabled =
     session.data?.environment.enableExperimentalFeatures === true;
-  const proposedPreviewEnabledForAdmin =
-    proposedChange !== null &&
-    proposedChange.enabled &&
-    session.data?.user?.featureFlags[proposedChange.flag] === true;
 
   return (
     <div className="flex flex-col gap-4">
@@ -172,7 +168,7 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedPreviewEnabledForAdmin ? (
+          {proposedChange?.enabled ? (
             <Alert>
               <AlertTitle>Already enabled for you</AlertTitle>
               <AlertDescription>

@@ -6,23 +6,20 @@ import {
 } from "@langfuse/shared";
 
 import {
+  filterFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import {
   getFeaturePreviewOptOutFlag,
-  parseFlags,
   parseFlagsWithOrganizationDefaults,
 } from "@/src/features/feature-flags/utils";
 
-export type FeaturePreviewManagementCapability = {
+type FeaturePreviewManagementCapability = {
   allowed: boolean;
 };
 
-export type OrganizationFeaturePreviewStates = Record<
-  FeaturePreviewFlag,
-  boolean
->;
+type OrganizationFeaturePreviewStates = Record<FeaturePreviewFlag, boolean>;
 
 export const EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES = Object.fromEntries(
   featurePreviewFlags.map((flag) => [flag, false]),
@@ -30,18 +27,24 @@ export const EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES = Object.fromEntries(
 
 const MAX_SERIALIZABLE_ATTEMPTS = 3;
 
-const isOrganizationManageableFeaturePreviewFlag = (
-  flag: string,
-): flag is FeaturePreviewFlag =>
-  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
+type FeaturePreviewOverrideState = "inherit" | "enabled" | "disabled";
 
-export const filterOrganizationManageableFeaturePreviewFlags = (
+type FeaturePreviewOverrideChange = {
+  before: FeaturePreviewOverrideState;
+  after: FeaturePreviewOverrideState;
+};
+
+const getFeaturePreviewOverrideState = (
   flags: string[],
-): FeaturePreviewFlag[] =>
-  flags.filter(isOrganizationManageableFeaturePreviewFlag);
+  flag: FeaturePreviewFlag,
+): FeaturePreviewOverrideState => {
+  if (flags.includes(getFeaturePreviewOptOutFlag(flag))) return "disabled";
+  if (flags.includes(flag)) return "enabled";
+  return "inherit";
+};
 
 const pickOrganizationFeaturePreviewStates = (
-  flags: ReturnType<typeof parseFlags>,
+  flags: ReturnType<typeof parseFlagsWithOrganizationDefaults>,
 ): OrganizationFeaturePreviewStates =>
   Object.fromEntries(
     featurePreviewFlags.map((flag) => [flag, flags[flag] === true]),
@@ -167,18 +170,14 @@ export async function setUserFeaturePreviewInTransaction({
   userId: string;
   flag: FeaturePreviewFlag;
   enabled: boolean;
-}): Promise<{ before: boolean; after: boolean }> {
+}): Promise<FeaturePreviewOverrideChange> {
   const rows = await tx.$queryRaw<
     Array<{
-      email: string | null;
       featureFlags: string[];
-      v4BetaEnabled: boolean;
     }>
   >`
     SELECT
-      email,
-      feature_flags AS "featureFlags",
-      v4_beta_enabled AS "v4BetaEnabled"
+      feature_flags AS "featureFlags"
     FROM users
     WHERE id = ${userId}
     FOR UPDATE
@@ -196,16 +195,8 @@ export async function setUserFeaturePreviewInTransaction({
     nextFeatureFlags.push(optOutFlag);
   }
 
-  const before =
-    parseFlags(user.featureFlags, {
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    })[flag] === true;
-  const after =
-    parseFlags(nextFeatureFlags, {
-      email: user.email,
-      v4BetaEnabled: user.v4BetaEnabled,
-    })[flag] === true;
+  const before = getFeaturePreviewOverrideState(user.featureFlags, flag);
+  const after = getFeaturePreviewOverrideState(nextFeatureFlags, flag);
 
   if (
     user.featureFlags.length !== nextFeatureFlags.length ||
@@ -232,7 +223,7 @@ export async function setUserFeaturePreview({
   userId: string;
   flag: FeaturePreviewFlag;
   enabled: boolean;
-}): Promise<{ before: boolean; after: boolean }> {
+}): Promise<FeaturePreviewOverrideChange> {
   return withSerializableRetry(prisma, (tx) =>
     setUserFeaturePreviewInTransaction({ tx, userId, flag, enabled }),
   );
@@ -257,12 +248,7 @@ export async function setUserFeaturePreviewWithAuthorization({
   enabled: boolean;
   demoOrgId?: string;
 }): Promise<
-  | {
-      membershipId: string;
-      before: boolean;
-      after: boolean;
-    }
-  | undefined
+  (FeaturePreviewOverrideChange & { membershipId: string }) | undefined
 > {
   return withSerializableRetry(prisma, async (tx) => {
     const targetMembership = await tx.organizationMembership.findUnique({
@@ -321,15 +307,14 @@ export async function setOrganizationFeatureFlagDefault({
       throw new LangfuseNotFoundError("Organization not found");
     }
 
-    const before = filterOrganizationManageableFeaturePreviewFlags(
+    const before = filterFeaturePreviewFlags(
       organization.featureFlagOrgDefaults,
     );
     const nextStoredDefaults = organization.featureFlagOrgDefaults.filter(
       (currentFlag) => currentFlag !== flag,
     );
     if (enabled) nextStoredDefaults.push(flag);
-    const after =
-      filterOrganizationManageableFeaturePreviewFlags(nextStoredDefaults);
+    const after = filterFeaturePreviewFlags(nextStoredDefaults);
 
     await tx.organization.update({
       where: { id: orgId },

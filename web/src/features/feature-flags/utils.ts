@@ -1,16 +1,12 @@
 import {
   availableFlags,
-  featurePreviewFlags,
+  filterFeaturePreviewFlags,
+  isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
   type FeaturePreviewFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
-
-const isFeaturePreviewFlag = (
-  flag: (typeof availableFlags)[number],
-): flag is FeaturePreviewFlag =>
-  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
 
 export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
@@ -67,11 +63,10 @@ export const parseFlagsWithOrganizationDefaults = (
     email: string | null | undefined;
   },
 ): Flags => {
-  const manageableDefaults = organizationDefaults.filter((flag) =>
-    featurePreviewFlags.some((previewFlag) => previewFlag === flag),
-  );
+  const featurePreviewDefaults =
+    filterFeaturePreviewFlags(organizationDefaults);
 
-  return parseFlags([...dbFlags, ...manageableDefaults], context);
+  return parseFlags(dbFlags.concat(featurePreviewDefaults), context);
 };
 
 type ContextualFeatureFlagUser = {
