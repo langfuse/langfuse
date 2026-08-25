@@ -42,6 +42,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { asSingleQueryParam } from "@/src/hooks/useReadyRouteParams";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { writeAgentEvaluatorDraft } from "@/src/features/in-app-agent/lib/evaluatorDraftStorage";
@@ -751,7 +752,7 @@ function RedirectActionButton({
   isCompact: boolean;
 }) {
   const router = useRouter();
-  const projectId = useProjectIdFromURL();
+  const projectId = asSingleQueryParam(router.query?.projectId);
   const capture = usePostHogClientCapture();
 
   return (
