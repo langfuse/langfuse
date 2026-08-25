@@ -4,7 +4,10 @@ service:
   base-path: /api/public
   endpoints:
     submit:
-      docs: Submit explicit user-approved feedback about Langfuse skills, MCP tools, CLI, docs, or public API. Do not include secrets, credentials, customer data, trace payloads, or unrelated use-case details.
+      docs: |
+        Submit explicit user-approved feedback about Langfuse skills, MCP tools, CLI, docs, or public API. Do not include secrets, credentials, customer data, trace payloads, or unrelated use-case details.
+
+        Not available in the HIPAA cloud region. On self-hosted deployments, available only when a Slack feedback sink is configured.
       method: POST
       path: /feedback
       request: SubmitFeedbackRequest
@@ -48,5 +51,5 @@ types:
         docs: Correlation ID for the submitted feedback.
 errors:
   FeedbackNotConfiguredError:
-    docs: Feedback submission is not configured for this deployment.
+    docs: Feedback submission is not configured for this deployment. Typical for self-hosted instances without a Slack sink. The HIPAA cloud region hides this endpoint instead (404).
     status-code: 409

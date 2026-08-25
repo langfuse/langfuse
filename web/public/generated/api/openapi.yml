@@ -1855,6 +1855,10 @@ paths:
         Submit explicit user-approved feedback about Langfuse skills, MCP tools,
         CLI, docs, or public API. Do not include secrets, credentials, customer
         data, trace payloads, or unrelated use-case details.
+
+
+        Not available in the HIPAA cloud region. On self-hosted deployments,
+        available only when a Slack feedback sink is configured.
       operationId: feedback_submit
       tags:
         - Feedback
