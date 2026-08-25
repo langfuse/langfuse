@@ -52,6 +52,12 @@ export function V4MigrationPanelProvider({
   const [targetProject, setTargetProject] =
     useState<V4MigrationTargetProject | null>(null);
 
+  // Closing via the wizard preference does not call setOpen(false). Clear the
+  // request during render so re-enabling later does not reopen the drawer.
+  if (!v4UpgradeUiEnabled && requestedOpen) {
+    setRequestedOpen(false);
+  }
+
   const open = v4UpgradeUiEnabled && requestedOpen;
   const setOpen = (nextOpen: boolean) => {
     setRequestedOpen(v4UpgradeUiEnabled && nextOpen);

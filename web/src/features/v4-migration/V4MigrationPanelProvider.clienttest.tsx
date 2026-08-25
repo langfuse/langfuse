@@ -120,4 +120,31 @@ describe("V4MigrationPanelProvider", () => {
       source: "status_page_row",
     });
   });
+
+  it("does not reopen after the wizard is dismissed and later re-enabled", () => {
+    flagState.enabled = true;
+    const { result, rerender } = renderHook(() => useV4MigrationPanel(), {
+      wrapper,
+    });
+
+    act(() =>
+      result.current.openForProject(
+        { id: "project-id", name: "Project" },
+        "delay_badge",
+      ),
+    );
+    expect(result.current.open).toBe(true);
+
+    flagState.enabled = false;
+    act(() => {
+      rerender();
+    });
+    expect(result.current.open).toBe(false);
+
+    flagState.enabled = true;
+    act(() => {
+      rerender();
+    });
+    expect(result.current.open).toBe(false);
+  });
 });
