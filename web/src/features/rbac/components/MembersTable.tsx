@@ -39,6 +39,11 @@ import { SettingsTableCard } from "@/src/components/layouts/settings-table-card"
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
 import { useEffect } from "react";
+import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { env } from "@/src/env.mjs";
+import { Button } from "@/src/components/ui/button";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 
 export type MembersTableRow = {
   user: {
@@ -50,6 +55,10 @@ export type MembersTableRow = {
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
+  featurePreviews: Record<FeaturePreviewFlag, boolean> | null;
+  featurePreviewManagement:
+    | RouterOutput["members"]["allFromOrg"]["memberships"][number]["featurePreviewManagement"]
+    | null;
   meta: {
     userId: string;
     orgMembershipId: string;
@@ -290,6 +299,45 @@ export function MembersTable({
           },
         ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
+    ...(!project &&
+    hasCudAccessOrgLevel &&
+    orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
+      ? ([
+          {
+            accessorKey: "featurePreviews",
+            id: "featurePreviews",
+            header: "Feature Previews",
+            enableHiding: true,
+            cell: ({ row }) => {
+              const { featurePreviews, featurePreviewManagement, meta } =
+                row.original;
+              if (!featurePreviews || !featurePreviewManagement) return null;
+
+              return (
+                <Popover>
+                  <UserFeaturePreviewsControl
+                    orgId={orgId}
+                    userId={meta.userId}
+                    featurePreviews={featurePreviews}
+                    management={featurePreviewManagement}
+                  >
+                    {({ enabledCount, totalCount, content }) => (
+                      <>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            {enabledCount}/{totalCount} enabled
+                          </Button>
+                        </PopoverTrigger>
+                        {content}
+                      </>
+                    )}
+                  </UserFeaturePreviewsControl>
+                </Popover>
+              );
+            },
+          },
+        ] satisfies LangfuseColumnDef<MembersTableRow>[])
+      : []),
     {
       accessorKey: "createdAt",
       id: "createdAt",
@@ -346,7 +394,9 @@ export function MembersTable({
   );
 
   const convertToTableRow = (
-    orgMembership: RouterOutput["members"]["allFromOrg"]["memberships"][0], // type of both queries is the same
+    orgMembership:
+      | RouterOutput["members"]["allFromOrg"]["memberships"][number]
+      | RouterOutput["members"]["allFromProject"]["memberships"][number],
   ): MembersTableRow => {
     return {
       meta: {
@@ -362,6 +412,14 @@ export function MembersTable({
       createdAt: orgMembership.createdAt,
       orgRole: orgMembership.role,
       projectRole: orgMembership.projectRole,
+      featurePreviews:
+        "featurePreviews" in orgMembership
+          ? orgMembership.featurePreviews
+          : null,
+      featurePreviewManagement:
+        "featurePreviewManagement" in orgMembership
+          ? orgMembership.featurePreviewManagement
+          : null,
     };
   };
 
