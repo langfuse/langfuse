@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React from "react";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";

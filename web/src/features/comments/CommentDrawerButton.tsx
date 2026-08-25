@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-style-props */
 import Header from "@/src/components/layouts/header";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
