@@ -65,6 +65,11 @@ export const WithActions = meta.story({
 
 export const Dismisses = meta.story({
   name: "(Test) Dismisses",
+  beforeEach: () => {
+    window.localStorage.removeItem(
+      "callout-story:dismisses-dismissed-callouts",
+    );
+  },
   args: {
     id: "callout-story:dismisses",
     variant: "info",
