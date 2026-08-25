@@ -7,7 +7,6 @@ import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import type { Session } from "next-auth";
 
 /** Organization type from user session (can be null when not in project/org context) */
@@ -76,14 +75,6 @@ export const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    const contextualFeatureFlags = getContextualFeatureFlags(
-      ctx.session?.user,
-      {
-        projectId: ctx.routerProjectId,
-        organizationId: ctx.routerOrganizationId,
-      },
-    );
-
     if (route.featureFlag === "experimentsV4Enabled") {
       return ctx.session?.user?.v4BetaEnabled === true ? route : null;
     }
@@ -95,7 +86,7 @@ export const filters = {
     const hasFlag =
       ctx.enableExperimentalFeatures ||
       ctx.cloudAdmin ||
-      contextualFeatureFlags?.[route.featureFlag] === true;
+      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
 
     return hasFlag ? route : null;
   },

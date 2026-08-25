@@ -24,7 +24,6 @@ import * as opentelemetry from "@opentelemetry/api";
 import { type IncomingHttpHeaders } from "node:http";
 import { getTRPCErrorCodeFromHTTPStatusCode } from "@/src/server/utils/trpc-utils";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 
 type CreateContextOptions = {
   session: Session | null;
@@ -405,15 +404,8 @@ export const protectedProjectProcedure = withOtelTracingProcedure
 export const requireFeatureFlag = (flag: Flag) =>
   t.middleware(({ ctx, next }) => {
     const session = ctx.session;
-    const contextualSession = session as
-      | (typeof session & { projectId?: string; orgId?: string })
-      | null;
     const enabled =
-      (getContextualFeatureFlags(session?.user, {
-        projectId: contextualSession?.projectId,
-        organizationId: contextualSession?.orgId,
-      })?.[flag] ??
-        false) ||
+      (session?.user?.featureFlags?.[flag] ?? false) ||
       (session?.user?.admin ?? false) ||
       (session?.environment?.enableExperimentalFeatures ?? false);
     if (!enabled) {
