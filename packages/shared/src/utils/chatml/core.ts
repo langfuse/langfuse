@@ -41,6 +41,12 @@ export function mapToChatMl(
     return ChatMlArraySchema.safeParse(inputObject.data.messages);
   }
 
+  // Single message object, e.g. { role: "user", content: "..." }
+  const singleMessage = ChatMlMessageSchema.safeParse(input);
+  if (singleMessage.success) {
+    return ChatMlArraySchema.safeParse([singleMessage.data]);
+  }
+
   return result;
 }
 
