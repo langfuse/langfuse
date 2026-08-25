@@ -1498,7 +1498,7 @@ export class IngestionService {
         );
 
         const newTotalCount =
-          newInputCount || newOutputCount
+          newInputCount != null || newOutputCount != null
             ? (newInputCount ?? 0) + (newOutputCount ?? 0)
             : undefined;
 
@@ -1922,13 +1922,12 @@ export class IngestionService {
         "usage" in obs.body ? obs.body.usage?.output : undefined;
 
       const newTotalCount =
-        ("usage" in obs.body ? obs.body.usage?.total : undefined) ||
+        ("usage" in obs.body ? obs.body.usage?.total : undefined) ??
         (Object.keys(
           "usageDetails" in obs.body ? (obs.body.usageDetails ?? {}) : {},
-        ).length === 0
-          ? newInputCount && newOutputCount
-            ? newInputCount + newOutputCount
-            : (newInputCount ?? newOutputCount)
+        ).length === 0 &&
+        (newInputCount != null || newOutputCount != null)
+          ? (newInputCount ?? 0) + (newOutputCount ?? 0)
           : undefined);
 
       let provided_usage_details: Record<string, number> = {};
