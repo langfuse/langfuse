@@ -837,6 +837,7 @@ const LoadedSessionEventsPage: React.FC<{
   const capture = usePostHogClientCapture();
   const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
+    projectId,
   });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);

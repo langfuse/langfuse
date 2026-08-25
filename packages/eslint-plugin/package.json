@@ -7,7 +7,7 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "vitest run",
-    "build": "tsc"
+    "build": "node init && tsc"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
