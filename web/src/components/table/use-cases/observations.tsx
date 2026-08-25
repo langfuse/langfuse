@@ -79,6 +79,7 @@ import { createIntegerTableColumn } from "@/src/components/design-system/Table/c
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -712,17 +713,12 @@ export default function ObservationsTable({
       size: 50,
       enableSorting,
     }),
-    {
+    createTextTableColumn<ObservationsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: "Name",
       size: 150,
       enableSorting,
-      cell: ({ row }) => {
-        const value: ObservationsTableRow["name"] = row.getValue("name");
-        return value ?? undefined;
-      },
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -808,10 +804,9 @@ export default function ObservationsTable({
       },
       enableSorting,
     },
-    {
+    createTextTableColumn<ObservationsTableRow>({
       accessorKey: "statusMessage",
       header: "Status Message",
-      id: "statusMessage",
       size: 150,
       headerTooltip: {
         description:
@@ -820,7 +815,7 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     createDurationTableColumn<ObservationsTableRow>({
       accessorKey: "latency",
       header: "Latency",
@@ -1051,15 +1046,14 @@ export default function ObservationsTable({
         ) : null;
       },
     },
-    {
+    createTextTableColumn<ObservationsTableRow>({
       accessorKey: "traceName",
-      id: "traceName",
       header: "Trace Name",
       size: 150,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-    },
+    }),
     createIdTableColumn<ObservationsTableRow>({
       accessorKey: "traceId",
       header: "Trace ID",
