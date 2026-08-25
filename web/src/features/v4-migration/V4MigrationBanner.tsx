@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Zap } from "lucide-react";
-import { DismissibleCallout } from "@/src/components/callout";
+import { DismissibleCallout } from "@/src/components/design-system/DismissibleCallout/DismissibleCallout";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";

@@ -65,7 +65,7 @@ export const Dismisses = meta.story({
   args: {
     variant: "info",
     align: "middle",
-    children: "This callout can be dismissed.",
+    children: <span>This callout can be dismissed.</span>,
     actions: null,
     onDismiss: fn(),
   },

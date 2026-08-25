@@ -11,7 +11,7 @@ import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
-import { DismissibleCallout } from "@/src/components/callout";
+import { DismissibleCallout } from "@/src/components/design-system/DismissibleCallout/DismissibleCallout";
 import { Separator } from "@/src/components/ui/separator";
 import {
   DropdownMenu,

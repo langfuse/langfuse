@@ -28,8 +28,8 @@ const contentVariants = cva("flex min-w-0 flex-1 flex-col gap-2", {
 export type CalloutProps = {
   variant: "info" | "warning";
   align: "top" | "middle";
-  children: React.ReactNode;
-  actions: React.ReactNode;
+  children: React.ReactElement;
+  actions: React.ReactElement | null;
   onDismiss: () => void;
 };
 

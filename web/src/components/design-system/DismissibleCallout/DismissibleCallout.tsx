@@ -1,6 +1,8 @@
 "use client";
 
-import { Callout as PresentationalCallout } from "@/src/components/design-system/Callout/Callout";
+import { useSyncExternalStore } from "react";
+
+import { Callout } from "@/src/components/design-system/Callout/Callout";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
 const DEFAULT_STORAGE_KEY = "dismissed-callouts";
@@ -11,12 +13,16 @@ type DismissedCallout = {
   dismissedAt: number;
 };
 
+const subscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export type DismissibleCalloutProps = {
   id: string;
-  children: React.ReactNode;
+  children: React.ReactElement;
   variant: "info" | "warning";
   align: "top" | "middle";
-  actions: React.ReactNode;
+  actions: React.ReactElement | null;
   ttlMs?: number;
   onDismiss?: () => void;
 };
@@ -33,11 +39,18 @@ export function DismissibleCallout({
   const [dismissedCallouts, setDismissedCallouts] = useLocalStorage<
     DismissedCallout[]
   >(`${id}-${DEFAULT_STORAGE_KEY}`, []);
+  const isHydrated = useSyncExternalStore(
+    subscribe,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
+
   const dismissedCallout = dismissedCallouts.find(
     (callout) => callout.id === id,
   );
   const isVisible =
-    !dismissedCallout || Date.now() - dismissedCallout.dismissedAt > ttlMs;
+    isHydrated &&
+    (!dismissedCallout || Date.now() - dismissedCallout.dismissedAt > ttlMs);
 
   const handleDismiss = () => {
     setDismissedCallouts((currentCallouts) => [
@@ -50,13 +63,13 @@ export function DismissibleCallout({
   if (!isVisible) return null;
 
   return (
-    <PresentationalCallout
+    <Callout
       variant={variant}
       align={align}
       actions={actions}
       onDismiss={handleDismiss}
     >
       {children}
-    </PresentationalCallout>
+    </Callout>
   );
 }

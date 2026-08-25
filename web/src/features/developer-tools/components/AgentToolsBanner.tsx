@@ -1,4 +1,4 @@
-import { DismissibleCallout } from "@/src/components/callout";
+import { DismissibleCallout } from "@/src/components/design-system/DismissibleCallout/DismissibleCallout";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { Bot } from "lucide-react";
