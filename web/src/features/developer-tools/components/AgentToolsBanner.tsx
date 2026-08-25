@@ -1,4 +1,4 @@
-import { Callout } from "@/src/components/ui/callout";
+import { DismissibleCallout } from "@/src/components/callout";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { Bot } from "lucide-react";
@@ -13,29 +13,30 @@ const DOCS_HREF =
  */
 export function AgentToolsBanner() {
   return (
-    <Callout
-      className="mb-4"
-      id="agent-tools-banner:v1"
-      variant="info"
-      align="middle"
-      actions={() => (
-        <Button asChild size="sm" variant="secondary">
-          <Link href={DOCS_HREF} target="_blank">
-            Learn more
-          </Link>
-        </Button>
-      )}
-    >
-      <div className="flex items-start gap-2 sm:items-center">
-        <Bot className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
-        <span>
-          <span className="font-bold">
-            Langfuse works great with your AI coding agents.
-          </span>{" "}
-          Connect Claude Code, Codex, and other agents to your data with the
-          Langfuse Agent Skill, MCP server, and CLI.
-        </span>
-      </div>
-    </Callout>
+    <div className="mb-4">
+      <DismissibleCallout
+        id="agent-tools-banner:v1"
+        variant="info"
+        align="middle"
+        actions={
+          <Button asChild size="sm" variant="secondary">
+            <Link href={DOCS_HREF} target="_blank">
+              Learn more
+            </Link>
+          </Button>
+        }
+      >
+        <div className="flex items-start gap-2 sm:items-center">
+          <Bot className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+          <span>
+            <span className="font-bold">
+              Langfuse works great with your AI coding agents.
+            </span>{" "}
+            Connect Claude Code, Codex, and other agents to your data with the
+            Langfuse Agent Skill, MCP server, and CLI.
+          </span>
+        </div>
+      </DismissibleCallout>
+    </div>
   );
 }

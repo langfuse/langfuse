@@ -11,7 +11,7 @@ import { type PartialConfig } from "@/src/features/evals/types";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
-import { Callout } from "@/src/components/ui/callout";
+import { DismissibleCallout } from "@/src/components/callout";
 import { Separator } from "@/src/components/ui/separator";
 import {
   DropdownMenu,
@@ -173,12 +173,12 @@ export default function RemapEvaluatorPage() {
     >
       <div className="space-y-4">
         {v4UpgradeUiEnabled ? (
-          <Callout
+          <DismissibleCallout
             id={"v4-evaluator-upgrade:" + evalConfigId}
             ttlMs={7 * 24 * 60 * 60 * 1000}
             variant="info"
             align="top"
-            actions={() => (
+            actions={
               <>
                 {isInAppAgentLauncherVisible ? (
                   <Button
@@ -200,7 +200,7 @@ export default function RemapEvaluatorPage() {
                   </a>
                 </Button>
               </>
-            )}
+            }
           >
             <div className="flex items-start gap-2">
               <Zap className="mt-0.5 h-4 w-4 shrink-0" />
@@ -221,7 +221,7 @@ export default function RemapEvaluatorPage() {
                 .
               </span>
             </div>
-          </Callout>
+          </DismissibleCallout>
         ) : null}
         <div className="min-w-0">
           <p className="text-muted-foreground text-sm">
