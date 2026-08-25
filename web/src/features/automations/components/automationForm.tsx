@@ -43,7 +43,7 @@ import {
   webhookActionFilterOptions,
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { DeleteAutomationPopoverController } from "./DeleteAutomationPopoverController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -813,15 +813,27 @@ export const AutomationForm = ({
               automation?.trigger.id &&
               automation?.action.id && (
                 <div>
-                  <DeleteAutomationButton
+                  <DeleteAutomationPopoverController
                     projectId={projectId}
                     automationId={automation.id}
-                    variant="button"
                     onSuccess={() => {
                       utils.automations.invalidate();
                       router.push(`/project/${projectId}/settings/automations`);
                     }}
-                  />
+                  >
+                    {({ disabled, Trigger }) => (
+                      <Trigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-light-red flex items-center"
+                          disabled={disabled}
+                        >
+                          <span className="text-dark-red">Delete</span>
+                        </Button>
+                      </Trigger>
+                    )}
+                  </DeleteAutomationPopoverController>
                 </div>
               )}
             <div className="grow"></div>
