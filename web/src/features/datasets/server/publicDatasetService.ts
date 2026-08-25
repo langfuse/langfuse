@@ -18,6 +18,7 @@ import {
   type GetDatasetRunsV1Query,
   type GetDatasetsV2Query,
   type GetDatasetV2Query,
+  type PatchDatasetV2Body,
   type PostDatasetRunItemsV1Body,
   type PostDatasetsV1Body,
   type PostDatasetsV2Body,
@@ -29,6 +30,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import {
   ApiError,
+  DatasetNameSchema,
   type JSONValue,
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -41,7 +43,11 @@ import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
 } from "@/src/features/media/server/datasetItemMediaReferences";
-import { upsertDataset } from "./actions/createDataset";
+import {
+  upsertDataset,
+  validateDatasetSchemaUpdate,
+} from "./actions/createDataset";
+import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   addToDeleteDatasetQueue,
   createDatasetItemFilterState,
@@ -289,6 +295,144 @@ export const createDatasetForApi = async ({
       orgId: auditScope.orgId,
       apiKeyId: auditScope.apiKeyId,
       before: existingDataset ?? undefined,
+      after: dataset,
+    });
+  }
+
+  return transformDbDatasetToAPIDataset(dataset);
+};
+
+export const updateDatasetForApi = async ({
+  datasetName,
+  body,
+  projectId,
+  auditScope,
+}: {
+  datasetName: string;
+  body: z.infer<typeof PatchDatasetV2Body>;
+  projectId: string;
+  auditScope?: DatasetAuditScope;
+}) => {
+  const existingDataset = await prisma.dataset.findFirst({
+    where: { name: datasetName, projectId },
+  });
+
+  if (!existingDataset) {
+    throw createUnstablePublicApiError({
+      httpCode: 404,
+      code: "resource_not_found",
+      message: "Dataset not found",
+    });
+  }
+
+  const isRenaming =
+    body.name !== undefined && body.name !== existingDataset.name;
+
+  if (isRenaming) {
+    const validation = DatasetNameSchema.safeParse(body.name);
+    if (!validation.success) {
+      throw createUnstablePublicApiError({
+        httpCode: 400,
+        code: "invalid_request",
+        message: "Dataset name not valid. " + validation.error.message,
+      });
+    }
+
+    const conflictingDataset = await prisma.dataset.findUnique({
+      where: { projectId_name: { projectId, name: body.name as string } },
+      select: { id: true },
+    });
+
+    if (conflictingDataset) {
+      throw createUnstablePublicApiError({
+        httpCode: 409,
+        code: "name_conflict",
+        message: "Dataset name already in use",
+      });
+    }
+  }
+
+  const validationResult = await validateDatasetSchemaUpdate({
+    projectId,
+    datasetId: existingDataset.id,
+    currentInputSchema: existingDataset.inputSchema as Record<
+      string,
+      unknown
+    > | null,
+    currentExpectedOutputSchema: existingDataset.expectedOutputSchema as Record<
+      string,
+      unknown
+    > | null,
+    nextInputSchema: body.inputSchema as
+      | Record<string, unknown>
+      | null
+      | undefined,
+    nextExpectedOutputSchema: body.expectedOutputSchema as
+      | Record<string, unknown>
+      | null
+      | undefined,
+  });
+
+  if (validationResult && !validationResult.isValid) {
+    throw createUnstablePublicApiError({
+      httpCode: 400,
+      code: "schema_validation_failed",
+      message: `Schema validation failed for ${validationResult.errors.length === 10 ? "more than 10" : validationResult.errors.length} item(s)`,
+      details: { validationErrors: validationResult.errors },
+    });
+  }
+
+  let dataset;
+  try {
+    dataset = await prisma.dataset.update({
+      where: { id_projectId: { id: existingDataset.id, projectId } },
+      data: {
+        name: body.name,
+        description: body.description,
+        metadata:
+          body.metadata === undefined
+            ? undefined
+            : body.metadata === null
+              ? Prisma.DbNull
+              : body.metadata,
+        inputSchema:
+          body.inputSchema === undefined
+            ? undefined
+            : body.inputSchema === null
+              ? Prisma.DbNull
+              : body.inputSchema,
+        expectedOutputSchema:
+          body.expectedOutputSchema === undefined
+            ? undefined
+            : body.expectedOutputSchema === null
+              ? Prisma.DbNull
+              : body.expectedOutputSchema,
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw createUnstablePublicApiError({
+        httpCode: 409,
+        code: "name_conflict",
+        message: "Dataset name already in use",
+      });
+    }
+
+    throw error;
+  }
+
+  if (auditScope) {
+    await auditLog({
+      action: "update",
+      resourceType: "dataset",
+      resourceId: dataset.id,
+      projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before: existingDataset,
       after: dataset,
     });
   }

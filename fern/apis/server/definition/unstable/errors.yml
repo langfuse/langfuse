@@ -2,7 +2,10 @@
 types:
   PublicApiErrorCode:
     docs: |
-      Machine-readable error code returned by the unstable evaluators API.
+      Machine-readable error code. Originates from the unstable evaluators API
+      and is also used by select endpoints on the stable API (currently
+      `PATCH /api/public/v2/datasets/{datasetName}`) that document this
+      contract explicitly.
 
       SDKs, CLIs, and agents should branch on `code` rather than parsing the human-readable `message`.
       The HTTP status still indicates the broad error class, while `code` gives the specific failure reason.
@@ -20,6 +23,7 @@ types:
       - resource_not_found
       - name_conflict
       - evaluator_preflight_failed
+      - schema_validation_failed
       - conflict
       - unprocessable_content
       - rate_limited
@@ -43,6 +47,38 @@ types:
         type: list<unknown>
         docs: Path to the invalid field, for example `["mapping", 0, "jsonPath"]`.
 
+  PublicApiSchemaValidationFieldError:
+    docs: |
+      One JSON Schema validation failure for a single dataset item field.
+    properties:
+      path:
+        type: string
+        docs: JSON pointer to the invalid location within the field's value, for example `/country`.
+      message:
+        type: string
+        docs: Human-readable explanation of the validation failure.
+      keyword:
+        type: optional<string>
+        docs: The JSON Schema keyword that failed, for example `enum` or `additionalProperties`.
+
+  PublicApiSchemaValidationField:
+    docs: Which of a dataset item's fields failed schema validation.
+    enum:
+      - input
+      - expectedOutput
+
+  PublicApiSchemaValidationError:
+    docs: |
+      One dataset item that fails a newly assigned `inputSchema` or `expectedOutputSchema`.
+    properties:
+      datasetItemId:
+        type: string
+        docs: Id of the failing dataset item.
+      field: PublicApiSchemaValidationField
+      errors:
+        type: list<PublicApiSchemaValidationFieldError>
+        docs: Validation failures for this field. Only the first Ajv error per field is reported.
+
   PublicApiErrorDetails:
     docs: |
       Optional structured context attached to an unstable-evals error.
@@ -54,6 +90,7 @@ types:
       - JSONPath validation failures populate `field`, `variable`, and `value`
       - evaluator preflight failures populate `evaluatorName`, `provider`, and `model`
       - rate limiting populates `retryAfterSeconds`, `limit`, `remaining`, and `resetAt`
+      - schema validation failures populate `validationErrors`
     properties:
       issues:
         type: optional<list<PublicApiValidationIssue>>
@@ -100,6 +137,9 @@ types:
       resetAt:
         type: optional<string>
         docs: ISO-8601 timestamp when the current rate-limit window resets.
+      validationErrors:
+        type: optional<list<PublicApiSchemaValidationError>>
+        docs: Dataset items that fail a newly assigned schema. Capped at 10 entries.
 
   PublicApiError:
     docs: |
@@ -188,6 +228,18 @@ types:
             limit: 1000
             remaining: 0
             resetAt: "2026-03-30T10:00:00.000Z"
+      - name: SchemaValidationFailed
+        value:
+          message: Schema validation failed for 1 item(s)
+          code: schema_validation_failed
+          details:
+            validationErrors:
+              - datasetItemId: item-abc
+                field: input
+                errors:
+                  - path: /country
+                    message: must be equal to one of the allowed values
+                    keyword: enum
 
 errors:
   BadRequestError:
@@ -200,11 +252,16 @@ errors:
       - invalid JSONPath selector
       - missing or duplicate variable mappings
 
+      Typical dataset PATCH examples:
+      - the new `name` fails validation
+      - an updated `inputSchema` or `expectedOutputSchema` rejects existing dataset items
+
       Recovery guidance:
       - read `details.issues` for malformed bodies or queries
       - read `details.column`, `details.invalidValues`, and `details.allowedValues` for filter problems
       - for `details.column=datasetId`, call `GET /api/public/v2/datasets` and retry with dataset `id` values from that response
       - read `details.variable` or `details.variables` for mapping problems
+      - read `details.validationErrors` for dataset items that fail a newly assigned schema; fix or remove those items, or relax the schema, then retry
     status-code: 400
     type: PublicApiError
   UnauthorizedError:
@@ -226,7 +283,7 @@ errors:
     status-code: 403
     type: PublicApiError
   NotFoundError:
-    docs: The requested evaluator or evaluation rule does not exist within the authorized project.
+    docs: The requested resource does not exist within the authorized project.
     status-code: 404
     type: PublicApiError
   MethodNotAllowedError:
@@ -237,14 +294,14 @@ errors:
     docs: |
       The request conflicts with existing state.
 
-      Typical unstable-eval examples:
+      Typical examples:
       - evaluator version changed during concurrent creation
-      - an evaluation rule name already exists in the project, so the caller should PATCH the existing resource instead
+      - an evaluation rule or dataset name already exists in the project, so the caller should PATCH the existing resource instead
       - enabling another evaluation rule would exceed the project limit of 500 active evaluation rules
       - the underlying state changed between read and write operations, so the client should retry
 
       Recovery guidance:
-      - for `name_conflict`, PATCH the existing evaluation rule instead of creating another one
+      - for `name_conflict`, PATCH the existing resource instead of creating or renaming into a duplicate
       - for the active-limit conflict, disable another active evaluation rule before enabling a new one
     status-code: 409
     type: PublicApiError

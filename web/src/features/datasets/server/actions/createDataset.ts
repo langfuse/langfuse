@@ -5,12 +5,62 @@ import {
   Prisma,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { validateAllDatasetItems } from "@langfuse/shared/src/server";
+import {
+  validateAllDatasetItems,
+  type ValidationResult,
+} from "@langfuse/shared/src/server";
 
 type DatasetJson =
   | Prisma.InputJsonObject
   | Prisma.JsonValue
   | typeof Prisma.DbNull;
+
+/**
+ * Runs validateAllDatasetItems only when a schema is actually changing, using
+ * the final (post-update) schema values. Shared by the POST upsert path and
+ * the public API PATCH update path so both apply the identical check; each
+ * caller decides how to surface a failing ValidationResult.
+ */
+export const validateDatasetSchemaUpdate = async ({
+  projectId,
+  datasetId,
+  currentInputSchema,
+  currentExpectedOutputSchema,
+  nextInputSchema,
+  nextExpectedOutputSchema,
+}: {
+  projectId: string;
+  datasetId: string;
+  currentInputSchema: Record<string, unknown> | null;
+  currentExpectedOutputSchema: Record<string, unknown> | null;
+  nextInputSchema?: Record<string, unknown> | null;
+  nextExpectedOutputSchema?: Record<string, unknown> | null;
+}): Promise<ValidationResult | null> => {
+  const isSettingInputSchema = nextInputSchema !== undefined;
+  const isSettingExpectedOutputSchema = nextExpectedOutputSchema !== undefined;
+
+  if (!isSettingInputSchema && !isSettingExpectedOutputSchema) {
+    return null;
+  }
+
+  const finalInputSchema = isSettingInputSchema
+    ? nextInputSchema
+    : currentInputSchema;
+  const finalExpectedOutputSchema = isSettingExpectedOutputSchema
+    ? nextExpectedOutputSchema
+    : currentExpectedOutputSchema;
+
+  if (finalInputSchema === null && finalExpectedOutputSchema === null) {
+    return null;
+  }
+
+  return validateAllDatasetItems({
+    datasetId,
+    projectId,
+    inputSchema: finalInputSchema,
+    expectedOutputSchema: finalExpectedOutputSchema,
+  });
+};
 
 type UpsertDatasetInput = {
   id?: string;
@@ -92,37 +142,28 @@ export const upsertDataset = async ({
 
   // If updating and schemas are being set, validate all existing items
   if (existingDataset) {
-    const isSettingInputSchema = input.inputSchema !== undefined;
-    const isSettingExpectedOutputSchema =
-      input.expectedOutputSchema !== undefined;
+    const validationResult = await validateDatasetSchemaUpdate({
+      projectId,
+      datasetId: existingDataset.id,
+      currentInputSchema: existingDataset.inputSchema as Record<
+        string,
+        unknown
+      > | null,
+      currentExpectedOutputSchema: existingDataset.expectedOutputSchema as Record<
+        string,
+        unknown
+      > | null,
+      nextInputSchema: input.inputSchema as Record<string, unknown> | null,
+      nextExpectedOutputSchema: input.expectedOutputSchema as Record<
+        string,
+        unknown
+      > | null,
+    });
 
-    if (isSettingInputSchema || isSettingExpectedOutputSchema) {
-      // Determine final schemas after update
-      const finalInputSchema = isSettingInputSchema
-        ? input.inputSchema
-        : existingDataset.inputSchema;
-      const finalExpectedOutputSchema = isSettingExpectedOutputSchema
-        ? input.expectedOutputSchema
-        : existingDataset.expectedOutputSchema;
-
-      // Validate if any schema is being set (not null)
-      if (finalInputSchema !== null || finalExpectedOutputSchema !== null) {
-        const validationResult = await validateAllDatasetItems({
-          datasetId: existingDataset.id,
-          projectId,
-          inputSchema: finalInputSchema as Record<string, unknown> | null,
-          expectedOutputSchema: finalExpectedOutputSchema as Record<
-            string,
-            unknown
-          > | null,
-        });
-
-        if (!validationResult.isValid) {
-          throw new InvalidRequestError(
-            `Schema validation failed for ${validationResult.errors.length === 10 ? "more than 10" : validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
-          );
-        }
-      }
+    if (validationResult && !validationResult.isValid) {
+      throw new InvalidRequestError(
+        `Schema validation failed for ${validationResult.errors.length === 10 ? "more than 10" : validationResult.errors.length} item(s). Details: ${JSON.stringify(validationResult.errors)}`,
+      );
     }
   }
 

@@ -1407,6 +1407,89 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+    patch:
+      description: |-
+        Partially update a dataset. Omitted fields are left unchanged; pass
+        `null` for `description`, `metadata`, `inputSchema`, or
+        `expectedOutputSchema` to clear them.
+
+        Renaming a dataset (`name`) changes the URL used to address it, since
+        this API is keyed by name.
+
+        Setting `inputSchema` or `expectedOutputSchema` to a non-null value
+        validates all existing dataset items against it; the request fails
+        with `schema_validation_failed` if any item does not conform.
+
+        This endpoint returns the structured error contract documented on
+        `unstableErrors.PublicApiError` (`message`, `code`, optional
+        `details`) instead of the `message`/`error` shape used by other
+        dataset endpoints.
+      operationId: datasets_update
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDatasetRequest'
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: >-
@@ -11238,6 +11321,35 @@ components:
             schema.
       required:
         - name
+    UpdateDatasetRequest:
+      title: UpdateDatasetRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: >-
+            New name for the dataset. Renaming changes the URL used to address
+            this dataset, since this API is keyed by name.
+        description:
+          type: string
+          nullable: true
+          description: Pass `null` to clear the existing description.
+        metadata:
+          nullable: true
+          description: Replaces the existing metadata. Pass `null` to clear it.
+        inputSchema:
+          nullable: true
+          description: >-
+            JSON Schema for validating dataset item inputs. A non-null value is
+            validated against all existing dataset items. Pass `null` to remove
+            the schema.
+        expectedOutputSchema:
+          nullable: true
+          description: >-
+            JSON Schema for validating dataset item expected outputs. A non-null
+            value is validated against all existing dataset items. Pass `null`
+            to remove the schema.
     PaginatedDatasetRuns:
       title: PaginatedDatasetRuns
       type: object
@@ -15916,13 +16028,20 @@ components:
         - resource_not_found
         - name_conflict
         - evaluator_preflight_failed
+        - schema_validation_failed
         - conflict
         - unprocessable_content
         - rate_limited
         - method_not_allowed
         - internal_error
       description: >-
-        Machine-readable error code returned by the unstable evaluators API.
+        Machine-readable error code. Originates from the unstable evaluators API
+
+        and is also used by select endpoints on the stable API (currently
+
+        `PATCH /api/public/v2/datasets/{datasetName}`) that document this
+
+        contract explicitly.
 
 
         SDKs, CLIs, and agents should branch on `code` rather than parsing the
@@ -15959,6 +16078,58 @@ components:
         - code
         - message
         - path
+    unstablePublicApiSchemaValidationFieldError:
+      title: unstablePublicApiSchemaValidationFieldError
+      type: object
+      description: One JSON Schema validation failure for a single dataset item field.
+      properties:
+        path:
+          type: string
+          description: >-
+            JSON pointer to the invalid location within the field's value, for
+            example `/country`.
+        message:
+          type: string
+          description: Human-readable explanation of the validation failure.
+        keyword:
+          type: string
+          nullable: true
+          description: >-
+            The JSON Schema keyword that failed, for example `enum` or
+            `additionalProperties`.
+      required:
+        - path
+        - message
+    unstablePublicApiSchemaValidationField:
+      title: unstablePublicApiSchemaValidationField
+      type: string
+      enum:
+        - input
+        - expectedOutput
+      description: Which of a dataset item's fields failed schema validation.
+    unstablePublicApiSchemaValidationError:
+      title: unstablePublicApiSchemaValidationError
+      type: object
+      description: >-
+        One dataset item that fails a newly assigned `inputSchema` or
+        `expectedOutputSchema`.
+      properties:
+        datasetItemId:
+          type: string
+          description: Id of the failing dataset item.
+        field:
+          $ref: '#/components/schemas/unstablePublicApiSchemaValidationField'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePublicApiSchemaValidationFieldError'
+          description: >-
+            Validation failures for this field. Only the first Ajv error per
+            field is reported.
+      required:
+        - datasetItemId
+        - field
+        - errors
     unstablePublicApiErrorDetails:
       title: unstablePublicApiErrorDetails
       type: object
@@ -15982,6 +16153,8 @@ components:
 
         - rate limiting populates `retryAfterSeconds`, `limit`, `remaining`, and
         `resetAt`
+
+        - schema validation failures populate `validationErrors`
       properties:
         issues:
           type: array
@@ -16057,6 +16230,14 @@ components:
           type: string
           nullable: true
           description: ISO-8601 timestamp when the current rate-limit window resets.
+        validationErrors:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePublicApiSchemaValidationError'
+          nullable: true
+          description: >-
+            Dataset items that fail a newly assigned schema. Capped at 10
+            entries.
     unstablePublicApiError:
       title: unstablePublicApiError
       type: object

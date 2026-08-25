@@ -15,6 +15,7 @@ export const unstablePublicApiErrorCodes = [
   "name_conflict",
   "evaluator_in_use",
   "evaluator_preflight_failed",
+  "schema_validation_failed",
   "conflict",
   "unprocessable_content",
   "rate_limited",
@@ -31,6 +32,22 @@ const UnstablePublicApiValidationIssue = z
     path: z.array(z.union([z.string(), z.number()])),
   })
   .loose();
+
+const UnstablePublicApiSchemaValidationFieldError = z
+  .object({
+    path: z.string(),
+    message: z.string(),
+    keyword: z.string().optional(),
+  })
+  .strict();
+
+const UnstablePublicApiSchemaValidationError = z
+  .object({
+    datasetItemId: z.string(),
+    field: z.enum(["input", "expectedOutput"]),
+    errors: z.array(UnstablePublicApiSchemaValidationFieldError),
+  })
+  .strict();
 
 export const UnstablePublicApiErrorDetails = z
   .object({
@@ -49,6 +66,7 @@ export const UnstablePublicApiErrorDetails = z
     limit: z.number().int().positive().optional(),
     remaining: z.number().int().nonnegative().optional(),
     resetAt: z.string().optional(),
+    validationErrors: z.array(UnstablePublicApiSchemaValidationError).optional(),
   })
   .strict();
 
