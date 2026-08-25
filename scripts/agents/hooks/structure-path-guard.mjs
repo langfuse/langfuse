@@ -17,7 +17,7 @@
 // most of a full run. This calls the path check directly and costs a
 // directory read.
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -117,9 +117,12 @@ const targetPaths = (payload) => {
   return [...found];
 };
 
+// resolve() normalizes ".." whether or not the target is already absolute,
+// and ignores the base when it is. Branching on a leading "/" skipped that
+// normalization, so an absolute path carrying a ".." segment missed the
+// web/src scope filter below and was allowed.
 /** @type {(cwd: string | undefined, target: string) => string} */
-const absolute = (cwd, target) =>
-  target.startsWith("/") ? target : resolve(cwd || repoRoot, target);
+const absolute = (cwd, target) => resolve(cwd || repoRoot, target);
 
 /** @type {(results: {path: string, findings: any[]}[]) => string} */
 const message = (results) => {
@@ -175,20 +178,24 @@ async function main() {
     allow();
   }
 
-  const candidates = targetPaths(payload).filter((target) => {
-    const path = absolute(payload?.cwd, target);
+  // Resolve once: the scope filter, the check and the message all have to be
+  // talking about the same path, and the message reads better repo-relative
+  // than as whatever shape the tool happened to report.
+  const candidates = targetPaths(payload)
+    .map((target) => absolute(payload?.cwd, target))
     // Creation only: an existing file's name is not this hook's business.
-    return path.startsWith(`${repoRoot}/web/src/`) && !existsSync(path);
-  });
+    .filter(
+      (path) => path.startsWith(`${repoRoot}/web/src/`) && !existsSync(path),
+    );
   if (!candidates.length) allow();
 
   const { checkPath } = await import(
     `file://${repoRoot}/web/scripts/structure/check-path.mjs`
   );
   const results = candidates
-    .map((target) => ({
-      path: target,
-      findings: checkPath(absolute(payload?.cwd, target)),
+    .map((path) => ({
+      path: relative(repoRoot, path),
+      findings: checkPath(path),
     }))
     .filter(({ findings }) => findings.length);
   if (!results.length) allow();

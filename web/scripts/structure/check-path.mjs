@@ -211,11 +211,18 @@ function checkIndexFile(p) {
 /** @type {(p: string) => Finding[]} */
 function checkFrozenUi(p) {
   if (!/^src\/components\/ui\//.test(p) || d.isTestish(p)) return [];
+  const stem = stemOf(p);
+  // A component gets its own folder; a plain module sits flat beside them.
+  // Suggesting a component shape for a `.ts` file sent agents to a path that
+  // is wrong for what they were writing.
+  const home = p.endsWith(".tsx")
+    ? `${toPascal(stem)}/${toPascal(stem)}.tsx`
+    : `${toCamel(stem)}.ts`;
   return [
     finding(
       13,
       "the shadcn folder only shrinks: new files go to the feature that uses it, or to design-system when it is a designed abstraction",
-      `src/components/design-system/${toPascal(stemOf(p))}/${toPascal(stemOf(p))}.tsx`,
+      `src/components/design-system/${home}`,
     ),
   ];
 }

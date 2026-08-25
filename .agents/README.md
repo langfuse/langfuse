@@ -19,7 +19,7 @@ or `.vscode/`.
 
 ## `config.json`
 
-`.agents/config.json` contains five kinds of data:
+`.agents/config.json` contains six kinds of data:
 
 - `shared`: defaults used across tools
 - `mcpServers`: project MCP servers and how to connect to them

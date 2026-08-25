@@ -50,6 +50,7 @@ describe("structure path check", () => {
       ["web/src/features/traces/fns/utils.ts", 4, "deny"],
       ["web/src/features/traces/components/index.ts", 9, "deny"],
       ["web/src/components/ui/newThing.tsx", 13, "deny"],
+      ["web/src/components/ui/exportCsvHelpers.ts", 13, "deny"],
       ["web/src/features/traces/fns/notThere.clienttest.ts", 18, "ask"],
       // legitimate placements
       ["web/src/features/traces/fns/formatCost.ts", null, null],
@@ -108,6 +109,17 @@ describe("structure path check", () => {
         (r) => r.path === "web/src/features/traces/utils/helpers/formatCost.ts",
       )?.findings[0].correctPath,
     ).toBe("src/features/traces/fns/helpers/formatCost.ts");
+    // A component earns a folder; a plain module does not, and neither turns
+    // into the other's extension on the way out of the frozen folder.
+    expect(
+      findings.find((r) => r.path === "web/src/components/ui/newThing.tsx")
+        ?.findings[0].correctPath,
+    ).toBe("src/components/design-system/NewThing/NewThing.tsx");
+    expect(
+      findings.find(
+        (r) => r.path === "web/src/components/ui/exportCsvHelpers.ts",
+      )?.findings[0].correctPath,
+    ).toBe("src/components/design-system/exportCsvHelpers.ts");
   });
 
   it("returns each tool's documented response shape", () => {
@@ -197,6 +209,33 @@ describe("structure path check", () => {
         permissionDecisionReason: expect.stringContaining("rule 5"),
       },
     });
+  });
+
+  it("judges a path by where it lands, not by the shape it arrives in", () => {
+    // An absolute target carrying ".." used to skip normalization, miss the
+    // web/src scope filter, and sail through. All three spellings of the same
+    // destination have to reach the same verdict.
+    const destination = "web/src/features/traces/utils/formatCost.ts";
+    const spellings = [
+      destination,
+      `${repoRoot}/${destination}`,
+      `${repoRoot}/worker/../${destination}`,
+      `worker/../${destination}`,
+    ];
+    for (const spelling of spellings) {
+      const { status, stdout } = runHook("claude", write(spelling));
+      expect({ spelling, status, empty: stdout === "" }).toEqual({
+        spelling,
+        status: 0,
+        empty: false,
+      });
+      const output = JSON.parse(stdout);
+      expect(output.hookSpecificOutput.permissionDecision).toBe("deny");
+      // The message names the path it actually judged, not the raw spelling.
+      expect(output.hookSpecificOutput.permissionDecisionReason).toContain(
+        `\n${destination}\n`,
+      );
+    }
   });
 
   it("fails open, and never fires on anything but a new file in scope", () => {
