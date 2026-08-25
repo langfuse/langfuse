@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
-import { lockModelWrite } from "@/src/features/models/server/modelWriteLock";
 import {
   GetModelResultSchema,
   ModelLastUsedQueryResult,
@@ -270,8 +269,6 @@ export const modelRouter = createTRPCRouter({
       const modelId = providedModelId ?? uuidv4();
 
       const result = await ctx.prisma.$transaction(async (tx) => {
-        await lockModelWrite({ tx, projectId, modelName, modelId });
-
         // Check whether model belongs to project
         // This check is important to prevent users from updating prices for models that they do not have access to
         const existingModel = await tx.model.findUnique({

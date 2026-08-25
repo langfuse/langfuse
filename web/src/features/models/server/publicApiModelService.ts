@@ -1,6 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
-import { lockModelWrite } from "@/src/features/models/server/modelWriteLock";
 import {
   type DeleteModelV1Query,
   type GetModelV1Query,
@@ -207,12 +206,6 @@ export const createModelForApi = async ({
   const { tokenizerConfig, pricingTiers: _pricingTiers, ...rest } = input;
 
   const model = await prisma.$transaction(async (tx) => {
-    await lockModelWrite({
-      tx,
-      projectId,
-      modelName: input.modelName,
-    });
-
     const existingModelName = await tx.model.findFirst({
       where: {
         projectId,
@@ -280,13 +273,6 @@ export const upsertModelForApi = async ({
   }
 
   const modelWithTiers = await prisma.$transaction(async (tx) => {
-    await lockModelWrite({
-      tx,
-      projectId,
-      modelName: input.modelName,
-      modelId,
-    });
-
     const existingModel = await tx.model.findUnique({
       where: { id: modelId },
       include: modelPricingInclude,

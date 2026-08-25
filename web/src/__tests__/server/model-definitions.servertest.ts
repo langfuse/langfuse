@@ -462,27 +462,6 @@ describe("/models API Endpoints", () => {
     });
   });
 
-  it("Serializes concurrent upserts with the same model name", async () => {
-    const modelName = `concurrent-model-${v4()}`;
-    const body = {
-      modelName,
-      matchPattern: `(?i)^${modelName}$`,
-      totalPrice: 0.001,
-      unit: "TOKENS",
-    };
-
-    const responses = await Promise.all(
-      [v4(), v4()].map((modelId) =>
-        makeAPICall("PUT", `/api/public/models/${modelId}`, body, auth),
-      ),
-    );
-
-    expect(responses.map(({ status }) => status).sort()).toEqual([200, 400]);
-    await expect(
-      prisma.model.count({ where: { projectId, modelName } }),
-    ).resolves.toBe(1);
-  });
-
   it("Does not update a model owned by another project", async () => {
     const {
       auth: otherAuth,
