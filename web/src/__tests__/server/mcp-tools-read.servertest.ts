@@ -36,6 +36,7 @@ vi.mock(
 
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -2097,6 +2098,34 @@ describe("MCP Read Tools", () => {
           context,
         ),
       ).rejects.toThrow(/Use returned metric aliases.*getMetricsSchema/i);
+    });
+
+    it("should return an invalid request for filters on pair-expanded dimensions", async () => {
+      const context = mockServerContext();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "usageType",
+                operator: "contains",
+                value: "cache",
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toMatchObject({
+        code: ErrorCode.InvalidRequest,
+        message: expect.stringContaining(
+          "Field 'usageType' cannot be used as a filter.",
+        ),
+      });
     });
 
     it("should apply default row_limit of 100 when omitted", async () => {

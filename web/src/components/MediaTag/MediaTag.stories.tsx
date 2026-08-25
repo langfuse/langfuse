@@ -1,5 +1,5 @@
 import { fn } from "storybook/test";
-import preview from "../../../../.storybook/preview";
+import preview from "../../../.storybook/preview";
 import { MediaTag } from "./MediaTag";
 
 // Inline SVG so the "ready" image preview renders without any network.
@@ -127,6 +127,33 @@ export const OversizedField = meta.story({
     url: "data:text/plain,original%20oversized%20field",
     contentLength: 2.5 * 1024 * 1024,
   },
+});
+
+export const TruncatedMimeType = meta.story({
+  args: {
+    contentType:
+      "application/vnd.example.intentionally-verbose-archive-format-for-truncation",
+  },
+});
+
+export const TruncatedMimeTypePreview = meta.story({
+  args: {
+    contentType:
+      "application/vnd.example.intentionally-verbose-archive-format-for-truncation",
+    open: true,
+    status: "error",
+  },
+});
+
+export const OfficeFormats = meta.story({
+  render: () => (
+    <div className="flex flex-wrap items-center gap-3">
+      <MediaTag contentType="application/msword" />
+      <MediaTag contentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+      <MediaTag contentType="application/vnd.ms-excel" />
+      <MediaTag contentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+    </div>
+  ),
 });
 
 // Design showcase: one chip per media kind, collapsed.

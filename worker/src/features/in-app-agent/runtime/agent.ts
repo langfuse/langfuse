@@ -45,6 +45,7 @@ import {
   getInAppAgentRegistryToolName,
   type InAppAgentToolPolicy,
   withInAppAgentToolApproval,
+  withInAppAgentToolApprovalSidecars,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
 import type { InAppAgentSandbox } from "./sandbox";
@@ -151,17 +152,16 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
 <sandbox_filesystem>
 When working in the sandbox filesystem, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
-- "/workspace/tool_calls" contains all past tool calls and their outputs, including full results requested with the silent argument. Treat this directory as read-only; any changes to it will be discarded before the next tool call.
 </sandbox_filesystem>
 `;
 }
 
 /** Run-scoped, not part of the managed prompt: it describes one turn's environment. */
 const SANDBOX_WORKSPACE_RESET_INSTRUCTION = `<sandbox_workspace_reset>
-The sandbox workspace from earlier turns in this conversation expired and has been replaced with an empty one.
-- Any file you created earlier with write, edit, or bash is gone, along with installed packages and all process state.
-- "/workspace/tool_calls" has been restored in full from the conversation history, so results of earlier successful tool calls are still readable there. Failed tool calls were never stored.
-- Do not assume a path exists because you created it earlier in this conversation. Read it first, and recreate what you still need.
+The sandbox session from earlier turns has expired and been replaced.
+- Files created earlier with write, edit, or bash are gone, along with installed packages and process state.
+- Persisted tool-output files explicitly named in tool results remain available.
+- Do not assume any other path exists; read it first and recreate it if needed.
 </sandbox_workspace_reset>`;
 
 const STEP_LIMIT_WRAP_UP_INSTRUCTION =
@@ -674,6 +674,10 @@ export async function createAgUiStream(params: {
             onApprovedToolCallExecuted:
               params.options.onApprovedToolCallExecuted,
           });
+          const humanApprovedToolCallId =
+            runInput.toolCallApproval?.status === "approved"
+              ? runInput.toolCallApproval.toolCallId
+              : undefined;
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
           currentAdapter.setDeveloperGuidance(runInput.developerGuidance);
 
@@ -758,7 +762,13 @@ export async function createAgUiStream(params: {
               );
 
               recordInstrumentation("recordEvents", (instrumentation) =>
-                instrumentation.recordEvents(agUiEvents),
+                instrumentation.recordEvents(
+                  withInAppAgentToolApprovalSidecars({
+                    events: agUiEvents,
+                    policy: params.options.langfuseMcp.toolPolicy,
+                    humanApprovedToolCallId,
+                  }),
+                ),
               );
 
               for (const agUiEvent of agUiEvents) {
@@ -788,7 +798,13 @@ export async function createAgUiStream(params: {
                       ),
                   );
                   recordInstrumentation("recordEvents", (instrumentation) =>
-                    instrumentation.recordEvents(pendingSyntheticEvents),
+                    instrumentation.recordEvents(
+                      withInAppAgentToolApprovalSidecars({
+                        events: pendingSyntheticEvents,
+                        policy: params.options.langfuseMcp.toolPolicy,
+                        humanApprovedToolCallId,
+                      }),
+                    ),
                   );
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);
