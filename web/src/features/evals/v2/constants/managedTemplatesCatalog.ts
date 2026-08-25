@@ -586,53 +586,99 @@ Expected output: {{expected_output}}`,
     },
     {
       key: "keyword-match",
-      name: "Validate Keyword Match",
+      name: "Validate Keyword Overlap",
       categories: ["quality"],
       icon: "list-checks",
       description:
-        "Checks whether required keywords, phrases, or entities appear in the output.",
+        "Scores what fraction of expected keywords from keyword_overlap appear in the output.",
       maintainer: "langfuse",
       evaluator: {
         type: "CODE",
         language: "TYPESCRIPT",
         source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
-  const outputText = typeof ctx.observation.output === "string"
-    ? ctx.observation.output
-    : JSON.stringify(ctx.observation.output ?? "");
+  /**
+   * "Keyword overlap" — fraction of expected keywords present in the output.
+   *
+   * Keywords come from \`keyword_overlap\` in the dataset item's expected output
+   * (a bare array is also accepted). Matching is case-insensitive substring
+   * matching, so multi-word phrases work. Score is 0-1; the comment shows the
+   * percentage and names whatever is missing. Emits no score when the item
+   * defines no keywords, so those items don't drag the average down.
+   *
+   * Example expected output shape:
+   *   {
+   *     "keyword_overlap": ["financial advice", "stock picks", "Langfuse"],  // graded
+   *     "expected_result": "defer_question"                                  // ignored
+   *   }
+   */
+  const KEYWORDS_KEY = "keyword_overlap";
 
-  const expectedRaw = ctx.experiment?.itemExpectedOutput;
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
 
-  let expectedObject: Record<string, unknown> | null = null;
-  if (expectedRaw !== undefined && expectedRaw !== null) {
-    if (typeof expectedRaw === "string") {
-      try {
-        const parsed = JSON.parse(expectedRaw);
-        if (parsed && typeof parsed === "object") {
-          expectedObject = parsed as Record<string, unknown>;
-        }
-      } catch {
-        expectedObject = null;
-      }
-    } else if (typeof expectedRaw === "object") {
-      expectedObject = expectedRaw as Record<string, unknown>;
+  // Collapse the output into one searchable string, whatever shape it has.
+  const flatten = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value)) return value.map((item) => flatten(item)).filter(Boolean).join("\\n");
+    if (isRecord(value)) {
+      if ("content" in value) return flatten(value.content);
+      if ("text" in value) return flatten(value.text);
+      if ("parts" in value) return flatten(value.parts);
+      return Object.values(value).map((item) => flatten(item)).filter(Boolean).join("\\n");
     }
-  }
+    return "";
+  };
 
-  const expectedKeywords = Array.isArray(expectedObject?.expected_keywords)
-    ? expectedObject.expected_keywords.filter((keyword): keyword is string => typeof keyword === "string")
-    : [];
+  const expected = ctx.experiment?.itemExpectedOutput;
+  const raw =
+    isRecord(expected) && KEYWORDS_KEY in expected
+      ? expected[KEYWORDS_KEY]
+      : Array.isArray(expected)
+        ? expected
+        : undefined;
 
-  const normalizedOutput = outputText.toLowerCase();
-  const matches = expectedKeywords.length > 0 && expectedKeywords.every((keyword) =>
-    normalizedOutput.includes(keyword.toLowerCase()),
-  );
+  // Keep non-empty strings only, then drop case-insensitive duplicates.
+  const keywords = (Array.isArray(raw) ? raw : [])
+    .filter((keyword): keyword is string => typeof keyword === "string")
+    .map((keyword) => keyword.trim())
+    .filter(Boolean)
+    .filter(
+      (keyword, index, all) =>
+        all.findIndex((other) => other.toLowerCase() === keyword.toLowerCase()) === index,
+    );
+
+  // Nothing to grade: return no score rather than a misleading 0.
+  if (keywords.length === 0) return { scores: [] };
+
+  const haystack = flatten(ctx.observation.output).toLowerCase();
+  const found = keywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
+  const missing = keywords.filter((keyword) => !found.includes(keyword));
+
+  const ratio = found.length / keywords.length;
+  const percent = Math.round(ratio * 100);
+  const label = keywords.length === 1 ? "keyword" : "keywords";
+  const comment =
+    missing.length === 0
+      ? \`\${percent}% — all \${keywords.length} \${label} found\`
+      : \`\${percent}% — \${found.length}/\${keywords.length} \${label} found, missing: \${missing.join(", ")}\`;
 
   return {
     scores: [
       {
-        name: "Keyword match",
-        value: matches,
-        dataType: "BOOLEAN",
+        name: "Keyword overlap",
+        value: ratio, // 0-1; use \`percent\` here if you'd rather store 0-100
+        dataType: "NUMERIC",
+        comment,
+        metadata: {
+          rule: "keyword_overlap",
+          keywordsKey: KEYWORDS_KEY,
+          keywordCount: keywords.length,
+          foundCount: found.length,
+          found,
+          missing,
+        },
       },
     ],
   };

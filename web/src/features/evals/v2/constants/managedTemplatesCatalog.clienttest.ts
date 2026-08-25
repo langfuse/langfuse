@@ -199,6 +199,86 @@ describe("managed evaluator templates catalog", () => {
     );
   });
 
+  it("keyword-overlap scores the fraction of keyword_overlap hits", () => {
+    const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      ({ key }) => key === "keyword-match",
+    );
+
+    expect(template?.evaluator.type).toBe("CODE");
+    if (!template || template.evaluator.type !== "CODE") {
+      throw new Error("Keyword-overlap code evaluator template not found");
+    }
+
+    const javascript = template.evaluator.source
+      .replace(
+        "function evaluate(ctx: EvaluationContext): EvaluationResult",
+        "function evaluate(ctx)",
+      )
+      .replace("(value: unknown): value is Record<string, unknown>", "(value)")
+      .replaceAll("(value: unknown): string", "(value)")
+      .replaceAll("(value: unknown)", "(value)")
+      .replace(
+        '(keyword): keyword is string => typeof keyword === "string"',
+        '(keyword) => typeof keyword === "string"',
+      )
+      .replaceAll(" as Record<string, unknown>", "");
+    const createEvaluator = new Function(
+      `${javascript}\nreturn evaluate;`,
+    ) as () => (ctx: {
+      observation: { output: unknown };
+      experiment?: { itemExpectedOutput?: unknown };
+    }) => {
+      scores: Array<{
+        name?: string;
+        value: number;
+        dataType?: string;
+        comment?: string;
+        metadata?: { missing?: string[]; foundCount?: number };
+      }>;
+    };
+
+    const evaluate = createEvaluator();
+
+    const partial = evaluate({
+      observation: {
+        output: "I cannot give financial advice or stock picks.",
+      },
+      experiment: {
+        itemExpectedOutput: {
+          keyword_overlap: ["financial advice", "stock picks", "Langfuse"],
+          expected_result: "defer_question",
+        },
+      },
+    });
+    expect(partial.scores).toHaveLength(1);
+    expect(partial.scores[0]?.name).toBe("Keyword overlap");
+    expect(partial.scores[0]?.dataType).toBe("NUMERIC");
+    expect(partial.scores[0]?.value).toBeCloseTo(2 / 3);
+    expect(partial.scores[0]?.comment).toMatch(/missing: Langfuse/);
+    expect(partial.scores[0]?.metadata?.foundCount).toBe(2);
+    expect(partial.scores[0]?.metadata?.missing).toEqual(["Langfuse"]);
+
+    const allFound = evaluate({
+      observation: {
+        output: "Langfuse helps with financial advice and stock picks.",
+      },
+      experiment: {
+        itemExpectedOutput: ["financial advice", "stock picks", "Langfuse"],
+      },
+    });
+    expect(allFound.scores[0]?.value).toBe(1);
+    expect(allFound.scores[0]?.comment).toMatch(/all 3 keywords found/);
+
+    // No keywords → emit no score so the item does not drag averages down.
+    const noKeywords = evaluate({
+      observation: { output: "anything" },
+      experiment: {
+        itemExpectedOutput: { expected_result: "defer_question" },
+      },
+    });
+    expect(noKeywords.scores).toEqual([]);
+  });
+
   it("ships code evaluator templates that pass client validation", async () => {
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
       if (template.evaluator.type !== "CODE") continue;
