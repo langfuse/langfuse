@@ -47,3 +47,25 @@ export const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
 
 export const isExpectedAuthErrorPageMessage = (message: string): boolean =>
   EXPECTED_AUTH_ERROR_PAGE_MESSAGES.includes(message);
+
+/**
+ * True when `error` is a `SyntaxError` from `Response.json()` / `JSON.parse`
+ * on a non-JSON body (HTML error page, truncated payload, WAF challenge).
+ *
+ * `/api/auth/check-sso` always returns JSON, so a parse failure means
+ * something between server and client replaced the body — transport state
+ * the server owns, not an app bug. Chrome/Firefox/Safari word this
+ * differently; match all three. A SyntaxError that is not a JSON parse
+ * (eval, invalid regexp) still captures.
+ */
+export const isJsonParseSyntaxError = (error: unknown): boolean => {
+  if (!(error instanceof SyntaxError)) return false;
+  const message = error.message;
+  return (
+    message.includes("JSON.parse") ||
+    message.includes("JSON Parse error") ||
+    message.includes("is not valid JSON") ||
+    /in JSON at position/i.test(message) ||
+    message.includes("Unexpected end of JSON input")
+  );
+};

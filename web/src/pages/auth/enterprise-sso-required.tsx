@@ -18,7 +18,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
-import { captureUnknownError } from "@/src/utils/captureUnknownError";
+import { reportError } from "@/src/utils/reportError";
+import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
 
 const enterpriseSsoFormSchema = z.object({
   email: z.email(),
@@ -123,7 +124,11 @@ export default function EnterpriseSsoRequiredPage() {
           "Unable to start the Enterprise SSO sign-in flow. Please try again.",
       );
     } catch (err) {
-      captureUnknownError("auth.enterpriseSso", err);
+      reportError(err, {
+        area: "auth.enterpriseSso",
+        expected: isJsonParseSyntaxError(err),
+        extra: { context: "auth.enterpriseSso" },
+      });
       setError(
         "Something went wrong while checking your Enterprise SSO configuration. Please try again.",
       );
