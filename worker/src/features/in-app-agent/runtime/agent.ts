@@ -30,6 +30,7 @@ import {
 import {
   createSandboxTools,
   createRedirectActionTool,
+  createEvaluatorDraftTool,
   getToolCallId,
   hasCallableExecute,
   withOptionalSilentMcpOutput,
@@ -52,6 +53,7 @@ import type { InAppAgentSandbox } from "./sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import {
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
@@ -319,6 +321,7 @@ export async function createAgUiStream(params: {
     variables: {
       currentDate: "",
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      evaluatorDraftToolName: IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
       sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       screenContext: "",
       userContext: formatUserContext(params.input.context),
@@ -1187,6 +1190,9 @@ async function createMastraAdapter(params: {
             projectId: params.options.redirectAction.projectId,
             isV4Enabled: params.options.redirectAction.isV4Enabled,
           }),
+          [IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME]: createEvaluatorDraftTool({
+            projectId: params.options.redirectAction.projectId,
+          }),
           ...(params.options.sandbox
             ? createSandboxTools(params.options.sandbox)
             : {}),
@@ -1531,6 +1537,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
+    evaluatorDraftToolName: string;
     sandboxFilesystem: string;
     screenContext: string;
     userContext: string;

@@ -114,6 +114,64 @@ describe("createEvaluatorSetupStore", () => {
     expect(store.getState().sampleFilter).toBe(initialSampleFilter);
   });
 
+  it("hydrates an LLM-as-judge draft into the setup form", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Helpfulness",
+        description: "Scores whether the answer helps the user.",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          prompt: "Score {{output}} given {{input}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output", "input"],
+          variableMapping: [
+            {
+              templateVariable: "output",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: null,
+            },
+          ],
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            reasoning: { description: "Explain the score." },
+            score: {
+              description: "Helpfulness from 0 to 1.",
+              minValue: 0,
+              maxValue: 1,
+            },
+          },
+        },
+      },
+      initialType: "LLM_AS_JUDGE",
+      mode: "create",
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "LLM_AS_JUDGE",
+      name: "Helpfulness",
+      description: "Scores whether the answer helps the user.",
+      prompt: "Score {{output}} given {{input}}",
+      scoreOutput: {
+        dataType: "NUMERIC",
+        scoreDescription: "Helpfulness from 0 to 1.",
+        minValue: "0",
+        maxValue: "1",
+      },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: null },
+        input: { selectedColumnId: "input", jsonSelector: null },
+      },
+    });
+  });
+
   it("starts a blank code evaluator from the gallery", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,

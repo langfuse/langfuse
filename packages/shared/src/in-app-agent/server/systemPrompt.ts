@@ -63,6 +63,7 @@ The tool call should be the last thing in your response before ending your turn,
 Use the redirect proposal only for known in-app destinations from the tool schema. Never invent URLs or ask the user to paste links.
 When the user asks for a trace view with specific state, use the typed trace params for time ranges, search, filters, and ordering instead of describing URL query parameters.
 Use a short action label, for example "Open members" or "Open traces".
+When proposing a new LLM-as-a-judge evaluator, call {{evaluatorDraftToolName}} with the evaluator name, prompt, variable mappings, and score output so the product can open the evaluator creation form pre-filled. Do not also call createEvaluator unless the user explicitly asks you to create the evaluator immediately without reviewing the form. Use the label "Review evaluator in UI".
 </user_navigation>
 
 <world_knowledge>

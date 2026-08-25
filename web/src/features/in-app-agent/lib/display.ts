@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import {
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  isInAppAgentUiProposalToolName,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentUiMessage } from "../schema";
@@ -296,7 +296,7 @@ export function projectInAppAgentMessagesForDisplay(
 
     for (const toolCall of message.toolCalls ?? []) {
       if (
-        toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+        !isInAppAgentUiProposalToolName(toolCall.function.name) &&
         !firstToolCallMessageIds.has(toolCall.id)
       ) {
         firstToolCallMessageIds.set(toolCall.id, message.id);
@@ -334,7 +334,7 @@ export function projectInAppAgentMessagesForDisplay(
       const placement = state.toolCallPlacements[toolCall.id];
       if (
         !placement ||
-        toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+        isInAppAgentUiProposalToolName(toolCall.function.name) ||
         firstToolCallMessageIds.get(toolCall.id) !== message.id
       ) {
         continue;
@@ -378,7 +378,7 @@ export function projectInAppAgentMessagesForDisplay(
     toolCall: InAppAgentToolCall,
     messageId: string,
   ) =>
-    toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+    !isInAppAgentUiProposalToolName(toolCall.function.name) &&
     firstToolCallMessageIds.get(toolCall.id) !== messageId;
 
   return messages.flatMap<InAppAgentDisplayMessage>((message) => {
@@ -395,7 +395,7 @@ export function projectInAppAgentMessagesForDisplay(
                 return false;
               }
 
-              if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+              if (isInAppAgentUiProposalToolName(toolCall.function.name)) {
                 return true;
               }
 

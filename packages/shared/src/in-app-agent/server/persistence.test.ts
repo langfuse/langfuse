@@ -2,7 +2,10 @@ import { EventType } from "@ag-ui/core";
 import { describe, expect, it } from "vitest";
 
 import type { PrismaClient } from "../../db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import {
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+} from "../constants";
 import { buildInAppAgentToolApprovalEvent } from "../approvalEvents";
 import {
   createSandboxToolCallFileAccumulator,
@@ -133,6 +136,33 @@ describe("partitionPendingRunEvents", () => {
     const end = {
       type: EventType.TOOL_CALL_END,
       toolCallId: "redirect-1",
+    };
+
+    expect(partitionPendingRunEvents([start, sidecar, args, end])).toEqual({
+      eventsToAppend: [],
+      retainedEvents: [start, sidecar, args, end],
+    });
+  });
+
+  it("retains an evaluator draft proposal until the result arrives", () => {
+    const sidecar = buildInAppAgentToolApprovalEvent({
+      toolCallId: "draft-1",
+      toolName: IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+      source: "auto",
+    });
+    const start = {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "draft-1",
+      toolCallName: IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+    };
+    const args = {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "draft-1",
+      delta: "{}",
+    };
+    const end = {
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "draft-1",
     };
 
     expect(partitionPendingRunEvents([start, sidecar, args, end])).toEqual({

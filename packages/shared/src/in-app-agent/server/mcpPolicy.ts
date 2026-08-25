@@ -4,7 +4,10 @@ import { z } from "zod";
 import type { ProjectScope } from "../../features/rbac/projectAccessRights";
 import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
 import { Role } from "../../db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import {
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+} from "../constants";
 import {
   buildInAppAgentToolApprovalEvent,
   type InAppAgentToolApprovalSource,
@@ -412,6 +415,7 @@ export async function createInAppAgentMcpRunOverride(params: {
 
 export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
 ]);
 
 export const IN_APP_AGENT_SANDBOX_TOOL_NAMES = new Set([

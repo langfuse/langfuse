@@ -114,16 +114,45 @@ export const AssistantTextWithLongFeedbackComment = meta.story({
   },
 });
 
-export const AssistantTextWithRedirectAction = meta.story({
+export const AssistantTextWithEvaluatorDraftAction = meta.story({
   args: {
     role: "assistant",
     content: {
       type: "text",
-      text: "I found the members settings page for this project.",
+      text: "I drafted a helpfulness evaluator you can review in the form.",
       redirectAction: {
         type: "redirectAction",
-        label: "Open members",
-        href: "/project/project-1/settings/members",
+        label: "Review evaluator in UI",
+        href: "/project/project-1/evals/new?agentDraft=1",
+        evaluatorDraft: {
+          name: "Helpfulness",
+          description: null,
+          definition: {
+            type: "LLM_AS_JUDGE",
+            prompt: "Score {{output}}",
+            provider: null,
+            model: null,
+            modelParams: null,
+            vars: ["output"],
+            variableMapping: [
+              {
+                templateVariable: "output",
+                selectedColumnId: "output",
+                jsonSelector: null,
+              },
+            ],
+            outputDefinition: {
+              version: 2,
+              dataType: "NUMERIC",
+              reasoning: { description: "Explain the score." },
+              score: {
+                description: "Quality of the response.",
+                minValue: 0,
+                maxValue: 1,
+              },
+            },
+          },
+        },
       },
     },
   },

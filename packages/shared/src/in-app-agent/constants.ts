@@ -3,6 +3,23 @@ import { InAppAgentRunStatus } from "../features/inAppAgent/types";
 // Avoid renaming this as the FE is aware of this when rendering, renaming it would cause history issues
 export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 
+export const IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME =
+  "langfuse_proposeEvaluatorDraft";
+
+export const IN_APP_AGENT_UI_PROPOSAL_TOOL_NAMES = new Set<string>([
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+]);
+
+export function isInAppAgentUiProposalToolName(
+  toolName: string | undefined,
+): boolean {
+  return (
+    typeof toolName === "string" &&
+    IN_APP_AGENT_UI_PROPOSAL_TOOL_NAMES.has(toolName)
+  );
+}
+
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
 export const IN_APP_AGENT_GENERIC_ERROR_MESSAGE =

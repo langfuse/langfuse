@@ -1,4 +1,5 @@
 import {
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
@@ -34,6 +35,7 @@ const KNOWN_IN_APP_AGENT_PROGRESS_TOOLS = [
   ),
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
   "langfuseDocs_search",
   "langfuseDocs_fetch",
   "skill",
@@ -1182,5 +1184,88 @@ describe("getDrawerMessages", () => {
     if (toolGroup?.content.type === "toolGroup") {
       expect(toolGroup.content.tools[0]).not.toHaveProperty("approval");
     }
+  });
+
+  it("folds an evaluator UI draft into a review action instead of a tool card", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "I drafted a helpfulness evaluator.",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+                arguments: JSON.stringify({ name: "Helpfulness" }),
+              },
+            },
+          ],
+        },
+        {
+          id: "tool-1",
+          role: "tool",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({
+            type: "uiDraftAction",
+            label: "Review evaluator in UI",
+            href: "/project/project-1/evals/new?agentDraft=1",
+            destination: "newEvaluator",
+            draft: {
+              name: "Helpfulness",
+              description: null,
+              definition: {
+                type: "LLM_AS_JUDGE",
+                prompt: "Score {{output}}",
+                provider: null,
+                model: null,
+                modelParams: null,
+                vars: ["output"],
+                variableMapping: [
+                  {
+                    templateVariable: "output",
+                    selectedColumnId: "output",
+                    jsonSelector: null,
+                  },
+                ],
+                outputDefinition: {
+                  version: 2,
+                  dataType: "NUMERIC",
+                  reasoning: { description: "Explain the score." },
+                  score: {
+                    description: "Quality of the response.",
+                    minValue: 0,
+                    maxValue: 1,
+                  },
+                },
+              },
+            },
+          }),
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "assistant-1",
+        content: {
+          type: "text",
+          text: "I drafted a helpfulness evaluator.",
+          redirectAction: {
+            type: "redirectAction",
+            label: "Review evaluator in UI",
+            href: "/project/project-1/evals/new?agentDraft=1",
+            evaluatorDraft: {
+              name: "Helpfulness",
+            },
+          },
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(1);
   });
 });

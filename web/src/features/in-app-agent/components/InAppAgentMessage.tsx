@@ -28,6 +28,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
+import type { InAppAgentLlmEvaluatorDraft } from "@langfuse/shared/in-app-agent";
 import type {
   InAppAgentMessageFeedback,
   InAppAgentMessageFeedbackValue,
@@ -42,6 +43,8 @@ import {
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { writeAgentEvaluatorDraft } from "@/src/features/in-app-agent/lib/evaluatorDraftStorage";
 import {
   expandMarkdownSelection,
   getMarkdownSourceRangeFromRenderedOffsets,
@@ -60,6 +63,7 @@ type InAppAgentRedirectActionContent = {
   type: "redirectAction";
   label: string;
   href: string;
+  evaluatorDraft?: InAppAgentLlmEvaluatorDraft;
 };
 
 export type InAppAgentMessageContent =
@@ -747,6 +751,8 @@ function RedirectActionButton({
   isCompact: boolean;
 }) {
   const router = useRouter();
+  const projectId = useProjectIdFromURL();
+  const capture = usePostHogClientCapture();
 
   return (
     <Button
@@ -755,6 +761,13 @@ function RedirectActionButton({
       variant="outline"
       className={cn("shrink-0", isCompact ? "h-6 px-2 text-xs" : "h-7")}
       onClick={() => {
+        if (content.evaluatorDraft && projectId) {
+          writeAgentEvaluatorDraft(projectId, content.evaluatorDraft);
+          capture("in_app_agent:evaluator_draft_opened", {
+            evaluatorType: content.evaluatorDraft.definition.type,
+          });
+        }
+
         router.push(content.href).catch(() => undefined);
       }}
     >

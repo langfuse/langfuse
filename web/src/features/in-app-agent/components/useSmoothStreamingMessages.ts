@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useReducer } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
 import {
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  isInAppAgentUiProposalToolName,
   type AgUiMessage,
 } from "@langfuse/shared/in-app-agent";
 import { assertUnreachable } from "@/src/utils/types";
@@ -450,7 +450,7 @@ function getTargetTools(
     }
 
     for (const toolCall of message.toolCalls ?? []) {
-      if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+      if (isInAppAgentUiProposalToolName(toolCall.function.name)) {
         continue;
       }
 
@@ -656,7 +656,7 @@ function projectToolMessages(
     }
 
     for (const toolCall of message.toolCalls ?? []) {
-      if (toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+      if (!isInAppAgentUiProposalToolName(toolCall.function.name)) {
         knownToolCallIds.add(toolCall.id);
       }
     }
@@ -679,11 +679,11 @@ function projectToolMessages(
 
     const toolCalls = message.toolCalls.filter(
       (toolCall) =>
-        toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+        isInAppAgentUiProposalToolName(toolCall.function.name) ||
         Boolean(toolDisplayById[toolCall.id]),
     );
     const hasPendingTool = message.toolCalls.some((toolCall) => {
-      if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+      if (isInAppAgentUiProposalToolName(toolCall.function.name)) {
         return false;
       }
 
