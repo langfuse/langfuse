@@ -42,7 +42,7 @@ import {
   convertEventRecordToObservationForEval,
 } from "@langfuse/shared";
 import {
-  fetchObservationEvalConfigs,
+  fetchObservationEvalRules,
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
@@ -775,7 +775,7 @@ export const otelIngestionQueueProcessorBuilder = (
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
 
-      const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
+      const evalConfigs = await fetchObservationEvalRules(projectId).catch(
         (error) => {
           traceException(error);
           logger.warn(

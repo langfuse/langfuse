@@ -14,7 +14,6 @@ type ModernSessionHeaderPillProps = {
   | {
       variant: "link";
       href: ComponentPropsWithoutRef<typeof Link>["href"];
-      title: string;
     }
   | ({
       variant: "button";
@@ -49,7 +48,6 @@ export function ModernSessionHeaderPill(props: ModernSessionHeaderPillProps) {
     return (
       <Link
         href={props.href}
-        title={props.title}
         data-session-header-pill="true"
         className={`${PILL_CLASS_NAME} hover:border-link hover:text-link group max-w-[280px] min-w-0 gap-1.5`}
       >

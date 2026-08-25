@@ -1,5 +1,5 @@
 import { getAuthOptions } from "@/src/server/auth";
-import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
 import { env } from "@/src/env.mjs";
@@ -11,6 +11,10 @@ const maxAuthErrorLength = 1_000;
 const authErrorFallback = "Configuration";
 
 type AuthErrorSource = "query" | "path";
+type CallbackUrlInputSource = "query" | "cookie";
+
+const getCallbackUrlValueType = (value: unknown) =>
+  Array.isArray(value) ? "array" : typeof value;
 
 // Single parse of the [...nextauth] catch-all: [action, provider], e.g.
 // /api/auth/callback/credentials -> ["callback", "credentials"].
@@ -82,31 +86,55 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
 
   // next-auth rejects malformed callbackUrl values (query param or cookie)
   // with a hardcoded 500, so vulnerability scanners probing auth routes page
-  // our server-error monitors. Malformed client input is a 4xx; reject it
-  // before next-auth sees it. Two carve-outs keep parity with next-auth:
-  // falsy values are treated as absent (assertConfig checks truthiness), and
-  // GET requests to next-auth's HTML page actions are exempt — those never
-  // 500; next-auth redirects them to the configured error page.
+  // our server-error monitors. Falsy values are treated as absent because
+  // next-auth's assertConfig checks truthiness. For GET requests to next-auth's
+  // HTML page actions, remove malformed inputs and let next-auth render its
+  // normal flow; other actions retain the 400 boundary.
   const rendersHtmlErrorPage =
     req.method === "GET" &&
     ["signin", "signout", "error", "verify-request"].includes(
       nextAuthAction ?? "",
     );
+  const callbackUrlCookieName = getCookieName("next-auth.callback-url");
   const callbackUrlParam = req.query.callbackUrl;
-  const callbackUrlCookie =
-    req.cookies[getCookieName("next-auth.callback-url")];
-  const invalidCallbackUrl =
-    !rendersHtmlErrorPage &&
-    ((Boolean(callbackUrlParam) && !isValidCallbackUrl(callbackUrlParam)) ||
-      (Boolean(callbackUrlCookie) && !isValidCallbackUrl(callbackUrlCookie)));
-  if (invalidCallbackUrl) {
-    logger.warn("[NEXT_AUTH] Rejected invalid callback URL", {
-      callbackUrlParamType: Array.isArray(callbackUrlParam)
-        ? "array"
-        : typeof callbackUrlParam,
-      callbackUrlCookiePresent: Boolean(callbackUrlCookie),
+  const callbackUrlCookie = req.cookies[callbackUrlCookieName];
+  const invalidCallbackUrlParam =
+    Boolean(callbackUrlParam) && !isValidCallbackUrl(callbackUrlParam);
+  const invalidCallbackUrlCookie =
+    Boolean(callbackUrlCookie) && !isValidCallbackUrl(callbackUrlCookie);
+
+  const logInvalidCallbackUrl = (
+    inputSource: CallbackUrlInputSource,
+    value: unknown,
+  ) => {
+    logger.warn("[NEXT_AUTH] Invalid callback URL", {
+      action: nextAuthAction,
       path: req.url?.split("?")[0]?.slice(0, 200),
+      inputSource,
+      valueType: getCallbackUrlValueType(value),
     });
+  };
+
+  if (invalidCallbackUrlParam) {
+    logInvalidCallbackUrl("query", callbackUrlParam);
+  }
+  if (invalidCallbackUrlCookie) {
+    logInvalidCallbackUrl("cookie", callbackUrlCookie);
+  }
+
+  if (rendersHtmlErrorPage) {
+    if (invalidCallbackUrlParam) {
+      const { callbackUrl: _invalidCallbackUrl, ...sanitizedQuery } = req.query;
+      req.query = sanitizedQuery;
+    }
+    if (invalidCallbackUrlCookie) {
+      const {
+        [callbackUrlCookieName]: _invalidCallbackUrl,
+        ...sanitizedCookies
+      } = req.cookies;
+      req.cookies = sanitizedCookies;
+    }
+  } else if (invalidCallbackUrlParam || invalidCallbackUrlCookie) {
     return res.status(400).json({ message: "Invalid callback URL" });
   }
 
@@ -138,7 +166,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // Pass Google Ads click attribution from first-party cookies so that new
   // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
   const authOptions = await getAuthOptions({
-    gclid: getGclidFromRequest(req),
+    adClickIds: getAdClickIdsFromRequest(req),
   });
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself

@@ -5,9 +5,8 @@ import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAligned
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
-import { costFormatter } from "@/src/utils/numbers";
 import { truncate } from "@/src/utils/string";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";

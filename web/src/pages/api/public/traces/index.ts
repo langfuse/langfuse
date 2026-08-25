@@ -14,8 +14,8 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  processEventBatch,
   createIngestionAttribution,
   eventTypes,
   logger,

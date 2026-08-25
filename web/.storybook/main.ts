@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import {
   flatStoryTitlesPlugin,
   flattenStoryIndexTitles,
+  type StoryTitleGroup,
 } from "./storybook-flat-story-titles";
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
@@ -16,11 +17,31 @@ const DESIGN_COMPONENT_STORIES = [
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
   "Progress/Progress",
+  "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
 ] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
+// Directories that get their own sidebar section instead of the flat
+// Playground default. This is not a `stories` entry with a `titlePrefix`
+// because story titles are injected into each meta — see StoryTitleGroup.
+// Only stories inside a configured directory can appear under its feature;
+// explicit story titles are rejected by the title plugin.
+const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
+  {
+    directory: "src/features/evals/v2/components",
+    titlePrefix: "Features/Evaluations",
+  },
+  {
+    directory: "src/features/in-app-agent/components",
+    titlePrefix: "Features/In-App Agent",
+  },
+  {
+    directory: "src/features/traces/components",
+    titlePrefix: "Features/Traces",
+  },
+];
 const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Color",
   "ThemeTokens/Typography",
@@ -102,7 +123,7 @@ const config: StorybookConfig = {
       titlePrefix: "Playground",
     },
   ],
-  experimental_indexers: flattenStoryIndexTitles,
+  experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),
@@ -122,7 +143,10 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
-    viteConfig.plugins = [flatStoryTitlesPlugin, ...(viteConfig.plugins ?? [])];
+    viteConfig.plugins = [
+      flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
+      ...(viteConfig.plugins ?? []),
+    ];
 
     const sharedSrc = resolve(
       dirname(fileURLToPath(import.meta.url)),

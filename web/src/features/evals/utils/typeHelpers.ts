@@ -3,7 +3,7 @@ import {
   type EvalTargetObject as EvalTargetObjectType,
 } from "@langfuse/shared";
 
-export const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
+const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
 
 const getPartnerName = (partner: string) => {
   return partnerIdentifierToName.get(partner) ?? "Unknown";
@@ -76,13 +76,6 @@ export const isDatasetTarget = (targetObject: string): boolean => {
 
 export const isExperimentTarget = (targetObject: string): boolean => {
   return targetObject === EvalTargetObject.EXPERIMENT;
-};
-
-export const isTraceOrEventTarget = (targetObject: string): boolean => {
-  return (
-    targetObject === EvalTargetObject.TRACE ||
-    targetObject === EvalTargetObject.EVENT
-  );
 };
 
 export const isTraceOrDatasetObject = (object: string): boolean => {

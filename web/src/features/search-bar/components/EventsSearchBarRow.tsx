@@ -17,14 +17,17 @@
 import * as React from "react";
 
 import { type FilterState } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
   ObservedScoreNames,
 } from "@/src/features/search-bar/lib/observed-options";
-import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
+import { aiContextObservedOptionsKeys } from "@/src/features/search-bar/lib/ai-context";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
@@ -45,6 +48,7 @@ export function EventsSearchBarRow({
   aiDataContext,
   aiScoreNames,
   className,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   projectId: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
@@ -71,7 +75,7 @@ export function EventsSearchBarRow({
   /**
    * Lazy filter-options: widen the requested column set on demand. Threaded to
    * the composer (request a field's values when typed) and fired on Ask AI open
-   * (request the grounding columns so the prompt sees real values).
+   * (request the observed-options keys so the prompt sees real values).
    */
   onRequestColumns?: (columns: readonly string[]) => void;
   /** Project data context (observed values + metadata keys + result count) for
@@ -84,21 +88,21 @@ export function EventsSearchBarRow({
    *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
    *  padding so the bar lines up with the sheet's other sections. */
   className?: string;
+  /** The view-specific grammar and filter contract. */
+  registry?: FieldRegistry;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProject();
-  // Mirror the legacy wand gate: Cloud + org-level AI features. The server
+  // Mirror the legacy wand gate: org-level AI features. The server
   // enforces it too, so this only governs whether the affordance is offered.
-  const aiAvailable =
-    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
+  const aiAvailable = Boolean(organization?.aiFeaturesEnabled);
 
   const activateAi = React.useCallback(() => {
     // Ground the model on real project values: lazily request the AI columns so
     // they are loaded by the time the user submits a prompt.
-    onRequestColumns?.(AI_GROUNDING_COLUMNS);
+    onRequestColumns?.(aiContextObservedOptionsKeys(registry));
     setAiOpen(true);
-  }, [onRequestColumns]);
+  }, [onRequestColumns, registry]);
 
   return (
     <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
@@ -109,6 +113,7 @@ export function EventsSearchBarRow({
           store={store}
           dataContext={aiDataContext}
           scoreNames={aiScoreNames}
+          registryId={registry.id}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
@@ -122,6 +127,7 @@ export function EventsSearchBarRow({
             freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            registry={registry}
           />
         </SearchBarStoreProvider>
       )}

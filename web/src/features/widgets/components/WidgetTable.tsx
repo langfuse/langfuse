@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -13,7 +13,6 @@ import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Copy, CopyPlus, FileJson, MoreVertical, Trash } from "lucide-react";
-import { useState } from "react";
 import {
   buildWidgetExport,
   downloadWidgetJson,
