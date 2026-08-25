@@ -3289,6 +3289,58 @@ paths:
               schema: {}
       security: *ref_0
   /api/public/models/{id}:
+    put:
+      description: >-
+        Create or replace a project-owned model using its id. Built-in models
+        cannot be modified.
+      operationId: models_upsert
+      tags:
+        - Models
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
     get:
       description: Get a model
       operationId: models_get
@@ -10773,6 +10825,34 @@ components:
       enum:
         - model_parameters
         - metadata
+    PricingTierConditionInput:
+      title: PricingTierConditionInput
+      oneOf:
+        - $ref: '#/components/schemas/PricingTierUsageConditionInput'
+        - $ref: '#/components/schemas/PricingTierAttributeCondition'
+      description: Condition input for matching a pricing tier.
+    PricingTierUsageConditionInput:
+      title: PricingTierUsageConditionInput
+      type: object
+      description: Input condition that sums usage details whose keys match a regex.
+      properties:
+        usageDetailPattern:
+          type: string
+          description: Regex pattern matched against usage detail keys.
+        operator:
+          $ref: '#/components/schemas/PricingTierOperator'
+        value:
+          type: number
+          format: double
+          description: Numeric threshold for the summed matching usage values.
+        caseSensitive:
+          type: boolean
+          nullable: true
+          description: Whether the usage-detail regex is case-sensitive. Defaults to false.
+      required:
+        - usageDetailPattern
+        - operator
+        - value
     PricingTier:
       title: PricingTier
       type: object
@@ -10935,6 +11015,7 @@ components:
             Volume Tier", "Extended Context"
         isDefault:
           type: boolean
+          nullable: true
           description: >-
             Whether this is the default tier. Exactly one tier per model must be
             marked as default.
@@ -10950,6 +11031,7 @@ components:
 
 
             The default tier acts as a fallback when no conditional tiers match.
+            Defaults to false when omitted.
         priority:
           type: integer
           description: >-
@@ -10965,7 +11047,7 @@ components:
         conditions:
           type: array
           items:
-            $ref: '#/components/schemas/PricingTierCondition'
+            $ref: '#/components/schemas/PricingTierConditionInput'
           description: >-
             Array of conditions that must ALL be met for this tier to match (AND
             logic).
@@ -10999,7 +11081,6 @@ components:
             million input tokens and $15 per million output tokens.
       required:
         - name
-        - isDefault
         - priority
         - conditions
         - prices
@@ -12582,6 +12663,13 @@ components:
             Histograms will return an array with [lower, upper, height] tuples.
       required:
         - data
+    ModelTokenizerId:
+      title: ModelTokenizerId
+      type: string
+      enum:
+        - openai
+        - claude
+      description: Tokenizer supported by Langfuse for model usage inference.
     PaginatedModels:
       title: PaginatedModels
       type: object
@@ -12619,7 +12707,6 @@ components:
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
-          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -12683,7 +12770,7 @@ components:
             which will automatically create a single default tier named
             "Standard".
         tokenizerId:
-          type: string
+          $ref: '#/components/schemas/ModelTokenizerId'
           nullable: true
           description: >-
             Optional. Tokenizer to be applied to observations which match to
@@ -12696,6 +12783,7 @@ components:
       required:
         - modelName
         - matchPattern
+        - unit
     ObservationsV2Response:
       title: ObservationsV2Response
       type: object
