@@ -9,6 +9,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -225,13 +226,10 @@ export function DashboardTable() {
         ) : undefined;
       },
     }),
-    columnHelper.accessor("description", {
+    createTextTableColumn<DashboardTableRow>({
+      accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
-      cell: (row) => {
-        return row.getValue();
-      },
     }),
     columnHelper.display({
       id: "ownerTag",

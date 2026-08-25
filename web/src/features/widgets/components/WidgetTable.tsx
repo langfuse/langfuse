@@ -8,6 +8,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
@@ -288,13 +289,10 @@ export function DashboardWidgetTable() {
         ) : undefined;
       },
     }),
-    columnHelper.accessor("description", {
+    createTextTableColumn<WidgetTableRow>({
+      accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
-      cell: (row) => {
-        return row.getValue();
-      },
     }),
     columnHelper.accessor("view", {
       header: "View Type",

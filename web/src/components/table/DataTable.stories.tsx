@@ -22,6 +22,7 @@ import { createTagsTableColumn } from "@/src/components/design-system/Table/colu
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -271,16 +272,12 @@ function buildTraceColumns(
       size: 150,
       enableSorting: true,
     }),
-    {
+    createTextTableColumn<TraceRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       enableSorting: true,
-      // Returns the raw string — hits DataTable's string-cell branch exactly
-      // like the real Name cell.
-      cell: ({ row }) => row.original.name ?? undefined,
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -511,14 +508,12 @@ function buildTraceColumns(
 
 const plainColumns: LangfuseColumnDef<TraceRow>[] = [
   createIdTableColumn<TraceRow>({ accessorKey: "id", header: "ID", size: 220 }),
-  {
+  createTextTableColumn<TraceRow>({
     accessorKey: "name",
-    id: "name",
     header: "Name",
     enableSorting: true,
     size: 180,
-    cell: ({ row }) => row.original.name,
-  },
+  }),
   createDateTableColumn<TraceRow>({
     accessorKey: "timestamp",
     header: "Timestamp",
@@ -1460,13 +1455,11 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       }
     },
   },
-  {
+  createTextTableColumn<IconCellRow>({
     accessorKey: "detail",
-    id: "detail",
     header: "Status",
     size: 120,
-    cell: ({ getValue }) => getValue<string>(),
-  },
+  }),
 ];
 
 function InlineIconCellsStory() {
