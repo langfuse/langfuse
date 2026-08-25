@@ -6,6 +6,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -106,7 +107,6 @@ import { TableHeaderControls } from "@/src/components/table/table-header-control
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import TagList from "@/src/features/tag/components/TagList";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type TracesTableRow = {
@@ -853,9 +853,8 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
     }),
-    {
+    createTagsTableColumn<TracesTableRow>({
       accessorKey: "tags",
-      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
@@ -876,25 +875,9 @@ export default function TracesTable({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("tags");
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
+      shouldWrap: rowHeight !== "s",
       enableHiding: true,
-    },
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",

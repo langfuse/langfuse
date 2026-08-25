@@ -39,6 +39,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -65,7 +66,6 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
@@ -1589,30 +1589,13 @@ export default function ObservationsEventsTable({
       size: 150,
       enableHiding: true,
     }),
-    {
+    createTagsTableColumn<EventsTableRow>({
       accessorKey: "traceTags",
-      id: "traceTags",
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("traceTags");
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "scores",
       header: "Scores",

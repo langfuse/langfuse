@@ -18,6 +18,7 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -44,7 +45,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import {
   Copy,
   InfoIcon,
@@ -427,35 +427,16 @@ function buildTraceColumns(
         ) : null;
       },
     },
-    {
+    createTagsTableColumn<TraceRow>({
       accessorKey: "tags",
-      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      loadingCell: <TableTextLoadingCell />,
-      // Real Traces Tags cell: TagList inside the `flex gap-x-2 gap-y-1`
-      // wrapper, wrapping only on non-"s" row heights.
-      cell: ({ row }) => {
-        const traceTags = row.original.tags;
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
