@@ -2,7 +2,10 @@ import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
-import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
+import {
+  SMALL_ARRAY_THRESHOLD,
+  type JsonTableRow,
+} from "@/src/components/table/utils/jsonExpansionUtils";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -32,7 +35,6 @@ export type MetadataFilterActions = {
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 export const MAX_CELL_DISPLAY_CHARS = 2000;
-const SMALL_ARRAY_THRESHOLD = 5;
 const ARRAY_PREVIEW_ITEMS = 3;
 const OBJECT_PREVIEW_KEYS = 2;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
@@ -426,6 +428,14 @@ export const ValueCell = memo(
             needsTruncation: false,
           };
         case "array": {
+          // Expanded lists already show each item as a child row; repeating
+          // the same text in the parent preview is just noise.
+          if (row.getIsExpanded()) {
+            return {
+              content: null,
+              needsTruncation: false,
+            };
+          }
           const arrayValue = value as unknown[];
           // Arrays always show previews, never truncate
           return {

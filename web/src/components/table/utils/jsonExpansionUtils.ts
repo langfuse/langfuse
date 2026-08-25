@@ -2,6 +2,11 @@
  * Utility functions for JSON expansion state management across traces
  */
 
+/** Arrays at or below this size show every item in the parent-row preview. */
+export const SMALL_ARRAY_THRESHOLD = 5;
+
+const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
+
 // Convert row ID (e.g., "metadata-settings-theme") to key path (e.g., "metadata.settings.theme")
 export function convertRowIdToKeyPath(rowId: string): string {
   return rowId.replace(/-/g, ".");
@@ -62,6 +67,122 @@ function hasChildren(value: unknown, valueType: JsonTableRow["type"]): boolean {
       Object.keys(value as Record<string, unknown>).length > 0) ||
     (valueType === "array" && Array.isArray(value) && value.length > 0)
   );
+}
+
+function isPrimitiveJsonValue(value: unknown): boolean {
+  const type = getValueType(value);
+  return type !== "object" && type !== "array";
+}
+
+/**
+ * True when the table's single-row array preview already shows every item
+ * completely (a short list of primitives). Those lists should stay collapsed
+ * by default so the preview is not duplicated as child rows.
+ */
+export function arrayFitsInSingleRowPreview(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  if (value.length > SMALL_ARRAY_THRESHOLD) return false;
+  return value.every(isPrimitiveJsonValue);
+}
+
+function findOptimalExpansionLevel(
+  data: JsonTableRow[],
+  maxRows: number,
+): number {
+  if (data.length > maxRows) {
+    return 0;
+  }
+
+  function findOptimalRecursively(
+    rows: JsonTableRow[],
+    currentLevel: number,
+    cumulativeCount: number,
+    visitedData = new WeakSet(),
+  ): number {
+    const rowsAtThisLevel = rows.length;
+    const newCumulativeCount = cumulativeCount + rowsAtThisLevel;
+
+    if (newCumulativeCount > maxRows) {
+      return currentLevel - 1;
+    }
+
+    if (currentLevel >= DEEPEST_DEFAULT_EXPANSION_LEVEL) {
+      return currentLevel;
+    }
+
+    let childRows: JsonTableRow[] = [];
+
+    for (const row of rows) {
+      // Short primitive lists stay collapsed; don't spend the row budget on
+      // children the user will not see by default.
+      if (arrayFitsInSingleRowPreview(row.value)) continue;
+
+      if (row.hasChildren && row.rawChildData) {
+        if (typeof row.rawChildData !== "object" || row.rawChildData === null) {
+          continue;
+        }
+
+        if (visitedData.has(row.rawChildData)) {
+          continue;
+        }
+
+        visitedData.add(row.rawChildData);
+
+        const children = getRowChildren(row);
+        // Use concat instead of spread to avoid stack overflow with large arrays
+        childRows = childRows.concat(children);
+      }
+    }
+
+    if (childRows.length === 0) {
+      return currentLevel;
+    }
+
+    return findOptimalRecursively(
+      childRows,
+      currentLevel + 1,
+      newCumulativeCount,
+      visitedData,
+    );
+  }
+
+  return Math.max(0, findOptimalRecursively(data, 0, 0));
+}
+
+/**
+ * Default expand/collapse map for the pretty JSON table.
+ * Short primitive lists stay collapsed because their parent-row preview
+ * already shows the full contents.
+ */
+export function getSmartExpansionState(
+  data: JsonTableRow[],
+  maxRows: number,
+): Record<string, boolean> {
+  const optimalLevel = findOptimalExpansionLevel(data, maxRows);
+  if (optimalLevel <= 0) return {};
+
+  const smartExpanded: Record<string, boolean> = {};
+
+  const expandRowsToLevel = (rows: JsonTableRow[], currentLevel: number) => {
+    for (const row of rows) {
+      if (
+        !row.hasChildren ||
+        currentLevel >= optimalLevel ||
+        arrayFitsInSingleRowPreview(row.value)
+      ) {
+        continue;
+      }
+
+      smartExpanded[convertRowIdToKeyPath(row.id)] = true;
+      const children = getRowChildren(row);
+      if (children.length > 0) {
+        expandRowsToLevel(children, currentLevel + 1);
+      }
+    }
+  };
+
+  expandRowsToLevel(data, 0);
+  return smartExpanded;
 }
 
 export function transformJsonToTableData(

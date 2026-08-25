@@ -1,0 +1,88 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { type ReactNode } from "react";
+
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
+function renderPrettyJson(ui: ReactNode) {
+  return render(<MarkdownContextProvider>{ui}</MarkdownContextProvider>);
+}
+
+function prettyTable() {
+  return screen.getByRole("table");
+}
+
+describe("PrettyJsonView short-list expansion", () => {
+  it("keeps a short primitive list collapsed so the preview is not duplicated", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={{
+          brand: "Acme",
+          channels: ["email", "paid_social"],
+        }}
+        title="Input"
+      />,
+    );
+
+    const table = prettyTable();
+    expect(within(table).getByText("channels")).toBeInTheDocument();
+    expect(
+      within(table).getByText('["email", "paid_social"]'),
+    ).toBeInTheDocument();
+    // Child index rows would repeat the same strings next to path 0 / 1.
+    expect(within(table).queryByText("0")).not.toBeInTheDocument();
+    expect(within(table).queryByText("1")).not.toBeInTheDocument();
+  });
+
+  it("hides the parent-row list preview after the user expands it", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={{
+          channels: ["email", "paid_social"],
+        }}
+        title="Input"
+      />,
+    );
+
+    const table = prettyTable();
+    const channelsRow = within(table).getByText("channels").closest("tr");
+    expect(channelsRow).not.toBeNull();
+    const expandButton = within(channelsRow as HTMLElement).getAllByRole(
+      "button",
+    )[0];
+    fireEvent.click(expandButton!);
+
+    const expandedTable = prettyTable();
+    expect(
+      within(expandedTable).queryByText('["email", "paid_social"]'),
+    ).not.toBeInTheDocument();
+    expect(within(expandedTable).getByText("0")).toBeInTheDocument();
+    expect(within(expandedTable).getByText("1")).toBeInTheDocument();
+    expect(within(expandedTable).getByText('"email"')).toBeInTheDocument();
+    expect(
+      within(expandedTable).getByText('"paid_social"'),
+    ).toBeInTheDocument();
+  });
+
+  it("still expands a short list of objects whose preview is incomplete", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={{
+          users: [{ name: "Ada" }],
+        }}
+        title="Input"
+      />,
+    );
+
+    const table = prettyTable();
+    // The list itself expands so each object is a child row. Nested object
+    // keys stay collapsed (one-level smart expansion) and show "N items".
+    expect(within(table).getByText("0")).toBeInTheDocument();
+    expect(within(table).getByText("1 items")).toBeInTheDocument();
+    expect(within(table).queryByText("name")).not.toBeInTheDocument();
+  });
+});
