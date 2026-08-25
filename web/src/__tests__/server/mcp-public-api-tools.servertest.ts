@@ -450,11 +450,13 @@ describe("MCP public API tools", () => {
       prompt: "Test prompt",
     });
 
+    const ignoredAuthorUserId = uuidv4();
     const created = (await handleCreateComment(
       {
         objectType: "PROMPT",
         objectId: prompt.id,
         content: "MCP comment",
+        authorUserId: ignoredAuthorUserId,
       },
       context,
     )) as { id: string };
