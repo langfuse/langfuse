@@ -2,8 +2,14 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
 import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasEntitlement,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -22,6 +28,7 @@ import {
   QueueJobs,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { type Session } from "next-auth";
 import { z } from "zod";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
@@ -32,6 +39,57 @@ const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
 // The fresh URL only needs to cover the click-through: object stores check
 // signature expiry when the request starts, not while the download streams.
 const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
+
+const isAuditLogBatchExportQuery = (query: unknown): boolean =>
+  typeof query === "object" &&
+  query !== null &&
+  "tableName" in query &&
+  query.tableName === BatchExportTableName.AuditLogs;
+
+const assertAuditLogBatchExportAccess = ({
+  session,
+  projectId,
+  query,
+}: {
+  session: Session;
+  projectId: string;
+  query: unknown;
+}) => {
+  if (!isAuditLogBatchExportQuery(query)) {
+    return;
+  }
+  throwIfNoEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  });
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "auditLogs:read",
+  });
+};
+
+const canAccessAuditLogBatchExports = ({
+  session,
+  projectId,
+}: {
+  session: Session;
+  projectId: string;
+}) =>
+  Boolean(
+    session.user &&
+    hasEntitlement({
+      entitlement: "audit-logs",
+      sessionUser: session.user,
+      projectId,
+    }) &&
+    hasProjectAccess({
+      session,
+      projectId,
+      scope: "auditLogs:read",
+    }),
+  );
 
 const isDownloadWindowExpired = (batchExport: {
   finishedAt: Date | null;
@@ -67,18 +125,11 @@ export const batchExportRouter = createTRPCRouter({
           useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
         };
 
-        if (query.tableName === BatchExportTableName.AuditLogs) {
-          throwIfNoEntitlement({
-            entitlement: "audit-logs",
-            sessionUser: ctx.session.user,
-            projectId,
-          });
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId,
-            scope: "auditLogs:read",
-          });
-        }
+        assertAuditLogBatchExportAccess({
+          session: ctx.session,
+          projectId,
+          query,
+        });
 
         assertLegacyTracingIoSearchCanCreateBatchJob({
           searchQuery: query.searchQuery,
@@ -171,6 +222,13 @@ export const batchExportRouter = createTRPCRouter({
       if (!batchExport) {
         throw new LangfuseNotFoundError("Batch export not found");
       }
+
+      assertAuditLogBatchExportAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        query: batchExport.query,
+      });
+
       if (
         batchExport.status !== BatchExportStatus.COMPLETED ||
         !batchExport.url
@@ -234,11 +292,26 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:read",
       });
 
+      const where = {
+        projectId: input.projectId,
+        ...(canAccessAuditLogBatchExports({
+          session: ctx.session,
+          projectId: input.projectId,
+        })
+          ? {}
+          : {
+              NOT: {
+                query: {
+                  path: ["tableName"],
+                  equals: BatchExportTableName.AuditLogs,
+                },
+              },
+            }),
+      };
+
       const [exports, totalCount] = await Promise.all([
         ctx.prisma.batchExport.findMany({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
           take: input.limit,
           skip: input.page * input.limit,
           orderBy: {
@@ -246,9 +319,7 @@ export const batchExportRouter = createTRPCRouter({
           },
         }),
         ctx.prisma.batchExport.count({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
         }),
       ]);
 
