@@ -164,7 +164,10 @@ async function enqueueAutomationAction({
 
   // Guard against duplicate deliveries when BullMQ retries this job after a
   // partial failure: skip triggers that already have a non-errored execution
-  // for this exact source instead of creating a second one and re-enqueuing.
+  // for this exact source and event action instead of creating a second one
+  // and re-enqueuing. Filtering on `action` too matters because the same
+  // trigger can legitimately fire for multiple event actions (e.g. "created"
+  // then "deleted") against the same prompt id.
   const existingExecution = await prisma.automationExecution.findFirst({
     where: {
       projectId,
@@ -172,6 +175,7 @@ async function enqueueAutomationAction({
       actionId,
       sourceId: promptData.id,
       status: { not: ActionExecutionStatus.ERROR },
+      input: { path: ["action"], equals: action },
     },
   });
 
@@ -200,6 +204,7 @@ async function enqueueAutomationAction({
         promptId: promptData.id,
         automationId: automations[0].id,
         type: "prompt-version",
+        action,
       },
     },
   });
