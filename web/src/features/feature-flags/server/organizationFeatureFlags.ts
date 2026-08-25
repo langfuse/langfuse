@@ -6,9 +6,8 @@ import {
 } from "@langfuse/shared";
 
 import {
-  organizationManageableFeaturePreviewFlags,
+  featurePreviewFlags,
   type FeaturePreviewFlag,
-  type OrganizationManageableFeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
 import {
   getFeaturePreviewOptOutFlag,
@@ -21,36 +20,31 @@ export type FeaturePreviewManagementCapability = {
 };
 
 export type OrganizationFeaturePreviewStates = Record<
-  OrganizationManageableFeaturePreviewFlag,
+  FeaturePreviewFlag,
   boolean
 >;
 
 export const EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES = Object.fromEntries(
-  organizationManageableFeaturePreviewFlags.map((flag) => [flag, false]),
+  featurePreviewFlags.map((flag) => [flag, false]),
 ) as OrganizationFeaturePreviewStates;
 
 const MAX_SERIALIZABLE_ATTEMPTS = 3;
 
 const isOrganizationManageableFeaturePreviewFlag = (
   flag: string,
-): flag is OrganizationManageableFeaturePreviewFlag =>
-  organizationManageableFeaturePreviewFlags.some(
-    (manageableFlag) => manageableFlag === flag,
-  );
+): flag is FeaturePreviewFlag =>
+  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
 
 export const filterOrganizationManageableFeaturePreviewFlags = (
   flags: string[],
-): OrganizationManageableFeaturePreviewFlag[] =>
+): FeaturePreviewFlag[] =>
   flags.filter(isOrganizationManageableFeaturePreviewFlag);
 
 const pickOrganizationFeaturePreviewStates = (
   flags: ReturnType<typeof parseFlags>,
 ): OrganizationFeaturePreviewStates =>
   Object.fromEntries(
-    organizationManageableFeaturePreviewFlags.map((flag) => [
-      flag,
-      flags[flag] === true,
-    ]),
+    featurePreviewFlags.map((flag) => [flag, flags[flag] === true]),
   ) as OrganizationFeaturePreviewStates;
 
 export async function getOrganizationFeaturePreviewStatesByUserId({
@@ -259,7 +253,7 @@ export async function setUserFeaturePreviewWithAuthorization({
   actorIsPlatformAdmin: boolean;
   currentOrgId: string;
   targetUserId: string;
-  flag: OrganizationManageableFeaturePreviewFlag;
+  flag: FeaturePreviewFlag;
   enabled: boolean;
   demoOrgId?: string;
 }): Promise<
@@ -312,11 +306,11 @@ export async function setOrganizationFeatureFlagDefault({
 }: {
   prisma: PrismaClient;
   orgId: string;
-  flag: OrganizationManageableFeaturePreviewFlag;
+  flag: FeaturePreviewFlag;
   enabled: boolean;
 }): Promise<{
-  before: OrganizationManageableFeaturePreviewFlag[];
-  after: OrganizationManageableFeaturePreviewFlag[];
+  before: FeaturePreviewFlag[];
+  after: FeaturePreviewFlag[];
 }> {
   return withSerializableRetry(prisma, async (tx) => {
     const organization = await tx.organization.findUnique({

@@ -10,10 +10,10 @@ import {
 } from "@/src/components/ui/hover-card";
 import { PopoverContent } from "@/src/components/ui/popover";
 import {
-  organizationManageableFeaturePreviewFlags,
-  type OrganizationManageableFeaturePreviewFlag,
+  featurePreviewFlags,
+  featurePreviewLabels,
+  type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { featurePreviewLabels } from "@/src/features/feature-previews/components/FeaturePreviewModal";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -32,7 +32,7 @@ export function UserFeaturePreviewsControl({
 }: {
   orgId: string;
   userId: string;
-  featurePreviews: Record<OrganizationManageableFeaturePreviewFlag, boolean>;
+  featurePreviews: Record<FeaturePreviewFlag, boolean>;
   management: FeaturePreviewManagement;
   children: (props: {
     enabledCount: number;
@@ -41,9 +41,9 @@ export function UserFeaturePreviewsControl({
   }) => ReactNode;
 }) {
   const session = useSession();
-  const [pendingFlags, setPendingFlags] = useState<
-    Set<OrganizationManageableFeaturePreviewFlag>
-  >(new Set());
+  const [pendingFlags, setPendingFlags] = useState<Set<FeaturePreviewFlag>>(
+    new Set(),
+  );
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const updatePreview = api.members.setUserFeaturePreviewEnabled.useMutation({
@@ -72,7 +72,7 @@ export function UserFeaturePreviewsControl({
     },
   });
   const enabledCount = Object.values(featurePreviews).filter(Boolean).length;
-  const totalCount = organizationManageableFeaturePreviewFlags.length;
+  const totalCount = featurePreviewFlags.length;
 
   if (!management.allowed) {
     return (
@@ -106,7 +106,7 @@ export function UserFeaturePreviewsControl({
               Changes apply to this user in every organization.
             </p>
           </div>
-          {organizationManageableFeaturePreviewFlags.map((flag) => (
+          {featurePreviewFlags.map((flag) => (
             <div key={flag} className="flex items-center justify-between gap-4">
               <span className="text-sm">{featurePreviewLabels[flag]}</span>
               <Switch

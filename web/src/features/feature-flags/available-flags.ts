@@ -7,12 +7,10 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
-export const organizationManageableFeaturePreviewFlags = [
-  ...featurePreviewFlags,
-] as const;
-
-export type OrganizationManageableFeaturePreviewFlag =
-  (typeof organizationManageableFeaturePreviewFlags)[number];
+export const featurePreviewLabels = {
+  modernSession: "Compact Session View",
+  compactTimeline: "Compact Timeline",
+} satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;

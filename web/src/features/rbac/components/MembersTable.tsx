@@ -39,7 +39,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
 import { useEffect } from "react";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
-import type { OrganizationManageableFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { env } from "@/src/env.mjs";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
@@ -54,10 +54,7 @@ export type MembersTableRow = {
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
-  featurePreviews: Record<
-    OrganizationManageableFeaturePreviewFlag,
-    boolean
-  > | null;
+  featurePreviews: Record<FeaturePreviewFlag, boolean> | null;
   featurePreviewManagement:
     | RouterOutput["members"]["allFromOrg"]["memberships"][number]["featurePreviewManagement"]
     | null;

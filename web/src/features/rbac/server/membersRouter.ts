@@ -33,7 +33,7 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import { organizationManageableFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
@@ -636,7 +636,7 @@ export const membersRouter = createTRPCRouter({
       z.object({
         orgId: z.string(),
         userId: z.string(),
-        flag: z.enum(organizationManageableFeaturePreviewFlags),
+        flag: z.enum(featurePreviewFlags),
         enabled: z.boolean(),
       }),
     )

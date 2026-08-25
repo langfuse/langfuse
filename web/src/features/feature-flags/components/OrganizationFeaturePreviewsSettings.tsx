@@ -16,17 +16,17 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Card } from "@/src/components/ui/card";
 import {
-  organizationManageableFeaturePreviewFlags,
-  type OrganizationManageableFeaturePreviewFlag,
+  featurePreviewFlags,
+  featurePreviewLabels,
+  type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { featurePreviewLabels } from "@/src/features/feature-previews/components/FeaturePreviewModal";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 
 type ProposedChange = {
-  flag: OrganizationManageableFeaturePreviewFlag;
+  flag: FeaturePreviewFlag;
   enabled: boolean;
 };
 
@@ -109,7 +109,7 @@ export function OrganizationFeaturePreviewsSettings({
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {organizationManageableFeaturePreviewFlags.map((flag) => {
+        {featurePreviewFlags.map((flag) => {
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;

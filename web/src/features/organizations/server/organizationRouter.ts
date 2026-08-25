@@ -21,7 +21,7 @@ import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBi
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { organizationManageableFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import {
   filterOrganizationManageableFeaturePreviewFlags,
   setOrganizationFeatureFlagDefault,
@@ -104,7 +104,7 @@ export const organizationsRouter = createTRPCRouter({
     .input(
       z.object({
         orgId: z.string(),
-        flag: z.enum(organizationManageableFeaturePreviewFlags),
+        flag: z.enum(featurePreviewFlags),
         enabled: z.boolean(),
       }),
     )

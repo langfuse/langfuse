@@ -12,7 +12,10 @@ import {
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import {
+  featurePreviewLabels,
+  type FeaturePreviewFlag,
+} from "@/src/features/feature-flags/available-flags";
 
 import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
 import compactTimelineLightIllustration from "../assets/compact-timeline-light.svg";
@@ -33,7 +36,6 @@ type PreviewIllustration = {
 
 type PreviewRegistryItem = {
   flag: PreviewFlag;
-  title: string;
   description: string;
   details: string;
   feedbackUrl: string;
@@ -55,7 +57,6 @@ export type PreviewState = {
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
     flag: "modernSession",
-    title: "Compact Session View",
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
     details:
@@ -69,7 +70,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
   {
     flag: "compactTimeline",
-    title: "Compact Timeline",
     description:
       "See a whole trace at once — every observation a single dense line, coloured by type — then zoom and pan it like a map.",
     details:
@@ -82,10 +82,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     },
   },
 ];
-
-export const featurePreviewLabels = Object.fromEntries(
-  PREVIEW_REGISTRY.map(({ flag, title }) => [flag, title]),
-) as Record<PreviewFlag, string>;
 
 const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
 const FEATURE_PREVIEW_MODAL_SUBTITLE =

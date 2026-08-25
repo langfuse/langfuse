@@ -2,7 +2,6 @@ import {
   availableFlags,
   featurePreviewFlags,
   isFeaturePreviewAvailable,
-  organizationManageableFeaturePreviewFlags,
   type FeaturePreviewAvailabilityContext,
   type FeaturePreviewFlag,
 } from "./available-flags";
@@ -69,9 +68,7 @@ export const parseFlagsWithOrganizationDefaults = (
   },
 ): Flags => {
   const manageableDefaults = organizationDefaults.filter((flag) =>
-    organizationManageableFeaturePreviewFlags.some(
-      (manageableFlag) => manageableFlag === flag,
-    ),
+    featurePreviewFlags.some((previewFlag) => previewFlag === flag),
   );
 
   return parseFlags([...dbFlags, ...manageableDefaults], context);

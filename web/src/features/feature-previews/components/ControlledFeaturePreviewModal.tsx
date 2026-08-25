@@ -4,10 +4,10 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
 import { api } from "@/src/utils/api";
 
 import {
-  featurePreviewLabels,
   FeaturePreviewModal,
   type PreviewFlag,
   type PreviewState,
