@@ -1,4 +1,4 @@
-import { useMemo, useState, type UIEvent } from "react";
+import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 import {
   type FilterState,
@@ -32,6 +32,8 @@ import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Tes
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
+import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -167,6 +169,28 @@ export function SampleObservationSelectorBase(
     formatCount,
     mapObservedOptions,
   } = props;
+  const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
+  const reusableRuleFilters = useReusableRuleFilterPresets(
+    projectId,
+    activeRegistry,
+  );
+  const capture = usePostHogClientCapture();
+  const onQueryPresetPick = useCallback(
+    (presetId: string) => {
+      const preset = reusableRuleFilters.presets.find(
+        (candidate) => candidate.id === presetId,
+      );
+      if (!preset) return;
+      capture("evaluation_rules:filter_reused", {
+        tableName,
+        evaluatorCount: preset.evaluatorCount,
+        filterCount: preset.filterCount,
+        replacedFilterCount: filterState.length,
+        isV4: true,
+      });
+    },
+    [capture, filterState.length, reusableRuleFilters.presets, tableName],
+  );
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -304,16 +328,21 @@ export function SampleObservationSelectorBase(
         resultCount: observationQuery.isSuccess
           ? matchingObservations.length
           : null,
-        registry: registry ?? EVENTS_FIELD_REGISTRY,
+        registry: activeRegistry,
       }),
-    [matchingObservations, observationQuery.isSuccess, observed, registry],
+    [
+      activeRegistry,
+      matchingObservations,
+      observationQuery.isSuccess,
+      observed,
+    ],
   );
   const aiScoreNames = useMemo(
     () =>
-      (registry ?? EVENTS_FIELD_REGISTRY).scores
+      activeRegistry.scores
         ? observedScoreNamesFromOptions(observed)
         : undefined,
-    [observed, registry],
+    [activeRegistry, observed],
   );
   const selectionToReconcile = observationQuery.isSuccess
     ? resolveSelection(matchingObservations, selectedObservationId)
@@ -462,6 +491,8 @@ export function SampleObservationSelectorBase(
           {...(registry ? { registry } : {})}
           onApplyFilters={search.applyFilters}
           onRequestColumns={options.requestColumns}
+          presetSections={reusableRuleFilters.sections}
+          onQueryPresetPick={onQueryPresetPick}
           aiDataContext={aiDataContext}
           aiScoreNames={aiScoreNames}
           className="p-0"

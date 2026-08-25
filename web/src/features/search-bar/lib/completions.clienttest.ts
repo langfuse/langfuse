@@ -55,6 +55,119 @@ describe("planInputCompletions", () => {
     expect(titles).toContain(SECTION_RECENT);
   });
 
+  it("always includes injected query presets at a blank top-level term", () => {
+    const presetSections = [
+      {
+        title: "Reuse rule filters",
+        options: [
+          {
+            id: "rule-filter:popular",
+            label: "environment:production",
+            detail: "Used by 8 evaluators",
+            query: "environment:production",
+          },
+        ],
+      },
+    ];
+
+    const empty = plan("", 0, { presetSections });
+    const afterExistingFilters = plan("level:ERROR ", 12, {
+      presetSections,
+    });
+
+    for (const result of [empty, afterExistingFilters]) {
+      expect(result?.sections[0]).toMatchObject({
+        title: "Reuse rule filters",
+        options: [
+          {
+            kind: "preset",
+            id: "rule-filter:popular",
+            query: "environment:production",
+          },
+        ],
+      });
+      expect(result?.autoHighlight).not.toBe(true);
+    }
+  });
+
+  it("caps preset sections at ten and hides the current query", () => {
+    const presetSections = [
+      {
+        title: "Reuse rule filters",
+        options: Array.from({ length: 12 }, (_, index) => ({
+          id: `rule-filter:${index}`,
+          label: `environment:env-${index}`,
+          query: `environment:env-${index}`,
+        })),
+      },
+    ];
+    const currentQuery = "environment:env-2";
+    const result = plan(`${currentQuery} `, currentQuery.length + 1, {
+      presetSections,
+    });
+    const presets = result?.sections.find(
+      (section) => section.title === "Reuse rule filters",
+    );
+
+    expect(presets?.options).toHaveLength(10);
+    expect(presets?.options.map((option) => option.id)).not.toContain(
+      "rule-filter:2",
+    );
+    expect(presets?.options.map((option) => option.id)).toEqual([
+      "rule-filter:0",
+      "rule-filter:1",
+      "rule-filter:3",
+      "rule-filter:4",
+      "rule-filter:5",
+      "rule-filter:6",
+      "rule-filter:7",
+      "rule-filter:8",
+      "rule-filter:9",
+      "rule-filter:10",
+    ]);
+  });
+
+  it("keeps only the first host preset when ids are duplicated", () => {
+    const result = plan("", 0, {
+      presetSections: [
+        {
+          title: "Reuse rule filters",
+          options: [
+            {
+              id: "rule-filter:duplicate",
+              label: "environment:first",
+              query: "environment:first",
+            },
+            {
+              id: "rule-filter:duplicate",
+              label: "environment:second",
+              query: "environment:second",
+            },
+            {
+              id: "rule-filter:unique",
+              label: "environment:third",
+              query: "environment:third",
+            },
+          ],
+        },
+      ],
+    });
+    const presets = result?.sections.find(
+      (section) => section.title === "Reuse rule filters",
+    );
+
+    expect(presets?.options).toMatchObject([
+      {
+        id: "rule-filter:duplicate",
+        query: "environment:first",
+      },
+      {
+        id: "rule-filter:unique",
+        query: "environment:third",
+      },
+    ]);
+  });
+
   it("ranks fields against the typed key prefix but does NOT arm Enter (free-text-first)", () => {
     // A bare prefix lists the field but must not hijack Enter — the user may be
     // typing a free-text search. Enter commits the text; the field is one
@@ -874,7 +987,7 @@ describe("planInputCompletions", () => {
       const opt = flattenOptions(p).find((o) => o.id === "match:toolNames:mcp");
       expect(opt).toBeDefined();
       const r = applyPick(
-        opt as Exclude<CompletionOption, { kind: "recent" }>,
+        opt as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
         "mcp",
         p!,
       );
@@ -886,9 +999,9 @@ describe("planInputCompletions", () => {
 });
 
 describe("applyPick", () => {
-  // Narrowing helper: the popover only picks non-recent options here.
-  const nonRecent = (o: CompletionOption | undefined) =>
-    o as Exclude<CompletionOption, { kind: "recent" }>;
+  // Narrowing helper: applyPick only handles span-local options here.
+  const spanLocal = (o: CompletionOption | undefined) =>
+    o as Exclude<CompletionOption, { kind: "recent" | "preset" }>;
 
   it("keeps the caret INSIDE the block after picking a numeric operator", () => {
     // LFE-10501 BUG A. Picking `>` for a numeric field must not append a
@@ -900,7 +1013,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === ">",
     );
     expect(gt).toBeDefined();
-    const result = applyPick(nonRecent(gt), "latency:", p!);
+    const result = applyPick(spanLocal(gt), "latency:", p!);
     expect(result.next).toBe("latency:>"); // no trailing space appended
     expect(result.caret).toBe(9); // caret sits right after `>`, inside the block
   });
@@ -911,7 +1024,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === ">=",
     );
     expect(gte).toBeDefined();
-    const result = applyPick(nonRecent(gte), "startTime:", p!);
+    const result = applyPick(spanLocal(gte), "startTime:", p!);
     expect(result.next).toBe("startTime:>=");
     expect(result.caret).toBe(12);
   });
@@ -923,7 +1036,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === "<",
     );
     expect(lt).toBeDefined();
-    const result = applyPick(nonRecent(lt), q, p!);
+    const result = applyPick(spanLocal(lt), q, p!);
     expect(result.next).toBe(`${q}<`);
     expect(result.caret).toBe(q.length + 1);
   });
@@ -937,7 +1050,7 @@ describe("applyPick", () => {
       (o) => o.kind === "value" && o.value === "ERROR",
     );
     expect(err).toBeDefined();
-    const result = applyPick(nonRecent(err), "level:", p!);
+    const result = applyPick(spanLocal(err), "level:", p!);
     expect(result.next).toBe("level:ERROR ");
     expect(result.caret).toBe(12);
     expect(result.keepOpen).toBe(true);
@@ -951,7 +1064,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === "NOT",
     );
     expect(not).toBeDefined();
-    const result = applyPick(nonRecent(not), "level:ERROR N", p!);
+    const result = applyPick(spanLocal(not), "level:ERROR N", p!);
     expect(result.next).toBe("level:ERROR NOT ");
     expect(result.caret).toBe("level:ERROR NOT ".length);
   });

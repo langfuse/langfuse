@@ -191,6 +191,7 @@ export const events = {
     "status_change",
     "attach_evaluator",
     "detach_evaluator",
+    "filter_reused",
   ],
   integrations: [
     "posthog_form_submitted",

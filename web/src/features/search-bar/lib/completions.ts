@@ -74,9 +74,26 @@ export type CompletionOption =
        *  the token under the caret. */
       replaceSpan?: { from: number; to: number };
     }
-  | { id: string; kind: "recent"; label: string; query: string };
+  | { id: string; kind: "recent"; label: string; query: string }
+  | {
+      id: string;
+      kind: "preset";
+      label: string;
+      detail?: string;
+      query: string;
+    };
 
 export type CompletionSection = { title: string; options: CompletionOption[] };
+
+export type QueryPresetSection = {
+  title: string;
+  options: Array<{
+    id: string;
+    label: string;
+    detail?: string;
+    query: string;
+  }>;
+};
 
 export type CompletionPlan = {
   stage: CompletionStage;
@@ -118,6 +135,7 @@ export const SECTION_SCORE_NAMES = "Score names";
 export const SECTION_SEARCH_IN = "Full-text search";
 
 const MAX_RECENTS_SHOWN = 5;
+const MAX_PRESETS_SHOWN = 10;
 
 // Operators insert with a trailing space so they tokenize out of the input
 // immediately; patterns are complete expressions and merge on accept.
@@ -386,6 +404,24 @@ function recentOptions(
       label: q,
       query: q,
     }));
+}
+
+function queryPresetSections(
+  presetSections: QueryPresetSection[],
+  currentQueryText: string,
+): CompletionSection[] {
+  const current = currentQueryText.trim();
+  const seenIds = new Set<string>();
+  return presetSections.flatMap((presetSection) => {
+    const options: CompletionOption[] = [];
+    for (const option of presetSection.options) {
+      if (option.query === current || seenIds.has(option.id)) continue;
+      seenIds.add(option.id);
+      options.push({ ...option, kind: "preset" });
+      if (options.length === MAX_PRESETS_SHOWN) break;
+    }
+    return section(presetSection.title, options);
+  });
 }
 
 function section(
@@ -1000,6 +1036,9 @@ export type InputCompletionContext = {
    */
   erroredColumns?: ReadonlySet<string>;
   recents: string[];
+  /** Complete queries supplied by a host view, shown at every blank top-level
+   * term. Picking one replaces the full draft. */
+  presetSections?: QueryPresetSection[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
 };
@@ -1150,6 +1189,10 @@ export function planInputCompletions(
         to,
         loading: false,
         sections: [
+          ...queryPresetSections(
+            ctx.presetSections ?? [],
+            ctx.currentQueryText,
+          ),
           ...section(
             SECTION_SUGGESTIONS,
             querySuggestionOptions(ctx.observed, registry),
@@ -1436,8 +1479,8 @@ export function planInputCompletions(
 /**
  * Apply a picked completion option to the draft — the pure text/caret half of
  * the composer's `pickOption` (the composer keeps the DOM/selection side
- * effects and the whole-query `recent` replacement, which is why `recent` is
- * excluded here). Returns the rewritten draft, the caret offset to place inside
+ * effects and whole-query `recent`/`preset` replacements, which is why those
+ * are excluded here). Returns the rewritten draft, the caret offset to place inside
  * it, and whether the popover should stay open.
  *
  * The classification is the crux: an option that INVITES MORE INPUT leaves the
@@ -1448,7 +1491,7 @@ export function planInputCompletions(
  * field suggestions for the next filter.
  */
 export function applyPick(
-  option: Exclude<CompletionOption, { kind: "recent" }>,
+  option: Exclude<CompletionOption, { kind: "recent" | "preset" }>,
   current: string,
   plan: CompletionPlan,
 ): { next: string; caret: number; keepOpen: boolean } {
