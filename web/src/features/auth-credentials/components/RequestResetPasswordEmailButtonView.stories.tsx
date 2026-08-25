@@ -1,6 +1,6 @@
 import { expect, fn, userEvent } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { RequestResetPasswordEmailButtonView } from "./RequestResetPasswordEmailButtonView";
 
 const meta = preview.meta({
