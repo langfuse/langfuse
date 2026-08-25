@@ -2,10 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { describe, expect, it } from "vitest";
 
 import type { PrismaClient } from "../../db";
-import {
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
-} from "../constants";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { buildInAppAgentToolApprovalEvent } from "../approvalEvents";
 import {
   createSandboxToolCallFileAccumulator,
@@ -18,6 +15,8 @@ describe("getConversationMessages", () => {
     const content = JSON.stringify({
       type: "silent-mcp-output",
       output: { data: [{ id: "observation-1" }] },
+      toolCallId: "tool-call-1",
+      toolName: "langfuse_getHealth",
     });
     const prisma = {
       inAppAgentEvent: {
@@ -48,7 +47,8 @@ describe("getConversationMessages", () => {
         id: "tool-result-1",
         role: "tool",
         toolCallId: "tool-call-1",
-        content: IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
+        content:
+          "Output saved to /workspace/tool_calls/langfuse_getHealth_tool-call-1.json",
       },
     ]);
   });
@@ -98,7 +98,7 @@ describe("createSandboxToolCallFileAccumulator", () => {
 
     expect(accumulator.getFiles()).toEqual([
       {
-        path: "tool_calls/2026-08-05T00-00-00.000Z_langfuse_getHealth_tool-call-1.json",
+        path: "tool_calls/langfuse_getHealth_tool-call-1.json",
         content: JSON.stringify(
           {
             request: { projectId: "project-1" },
