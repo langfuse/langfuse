@@ -48,10 +48,12 @@ const isAuditLogBatchExportQuery = (query: unknown): boolean =>
 
 const assertAuditLogBatchExportAccess = ({
   session,
+  sessionUser,
   projectId,
   query,
 }: {
   session: Session;
+  sessionUser: NonNullable<Session["user"]>;
   projectId: string;
   query: unknown;
 }) => {
@@ -60,7 +62,7 @@ const assertAuditLogBatchExportAccess = ({
   }
   throwIfNoEntitlement({
     entitlement: "audit-logs",
-    sessionUser: session.user,
+    sessionUser,
     projectId,
   });
   throwIfNoProjectAccess({
@@ -127,6 +129,7 @@ export const batchExportRouter = createTRPCRouter({
 
         assertAuditLogBatchExportAccess({
           session: ctx.session,
+          sessionUser: ctx.session.user,
           projectId,
           query,
         });
@@ -225,6 +228,7 @@ export const batchExportRouter = createTRPCRouter({
 
       assertAuditLogBatchExportAccess({
         session: ctx.session,
+        sessionUser: ctx.session.user,
         projectId: input.projectId,
         query: batchExport.query,
       });
