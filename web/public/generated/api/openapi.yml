@@ -1857,8 +1857,7 @@ paths:
         data, trace payloads, or unrelated use-case details.
 
 
-        Not available in the HIPAA cloud region. On self-hosted deployments,
-        available only when a Slack feedback sink is configured.
+        Not available in the HIPAA cloud region.
       operationId: feedback_submit
       tags:
         - Feedback
