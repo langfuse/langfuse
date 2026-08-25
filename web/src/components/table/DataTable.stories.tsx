@@ -20,6 +20,7 @@ import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -466,15 +467,13 @@ function buildTraceColumns(
       },
       enableSorting: true,
     },
-    {
+    createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
-      id: "id",
       size: 90,
       defaultHidden: true,
-      cell: ({ row }) => <TableIdOrName value={row.original.id} />,
       enableSorting: true,
-    },
+    }),
     {
       accessorKey: "action",
       header: "Action",
@@ -510,13 +509,7 @@ function buildTraceColumns(
 // pagination, and selection stories where the full Traces column set is noise.
 
 const plainColumns: LangfuseColumnDef<TraceRow>[] = [
-  {
-    accessorKey: "id",
-    id: "id",
-    header: "ID",
-    size: 220,
-    cell: ({ row }) => <TableIdOrName value={row.original.id} />,
-  },
+  createIdTableColumn<TraceRow>({ accessorKey: "id", header: "ID", size: 220 }),
   {
     accessorKey: "name",
     id: "name",
