@@ -500,32 +500,70 @@ Expected output: {{expected_output}}`,
         type: "CODE",
         language: "TYPESCRIPT",
         source: `function evaluate(ctx: EvaluationContext): EvaluationResult {
-  const expected = ctx.experiment?.itemExpectedOutput;
-  const output = ctx.observation.output;
+  /**
+   * "Exact match" on one graded field.
+   *
+   * Compares only \`expected_result\` from the dataset item's expected output;
+   * sibling keys ride along for other evaluators and are ignored here. Falls
+   * back to comparing the whole value if the key is absent. Object keys are
+   * sorted before comparing, so key order doesn't matter; array order does.
+   *
+   * Example expected output shape:
+   *   {
+   *     "expected_result": "defer_question",     // graded
+   *     "sample_reply": "I cannot give financial advice...",   // ignored
+   *     "keyword_overlap": ["financial advice", "stock picks"]  // ignored
+   *   }
+   * \`expected_result\` can be any JSON value — string, number, array, object.
+   */
+  const RESULT_KEY = "expected_result";
 
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+
+  // Unwrap the graded field when present, otherwise grade the whole value.
+  const pick = (value: unknown) =>
+    isRecord(value) && RESULT_KEY in value
+      ? { value: value[RESULT_KEY], unwrapped: true }
+      : { value, unwrapped: false };
+
+  // Sort keys recursively so {a,b} and {b,a} stringify identically.
   const normalize = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-      return value.map((item) => normalize(item));
-    }
-
-    if (value !== null && typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      return Object.keys(record)
+    if (Array.isArray(value)) return value.map((item) => normalize(item));
+    if (isRecord(value)) {
+      return Object.keys(value)
         .sort()
         .reduce((acc, key) => {
-          acc[key] = normalize(record[key]);
+          acc[key] = normalize(value[key]);
           return acc;
         }, {} as Record<string, unknown>);
     }
-
     return value;
   };
 
-  const valuesMatch = (left: unknown, right: unknown) =>
-    JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+  const preview = (value: unknown) => {
+    const serialized = JSON.stringify(normalize(value)) ?? "undefined";
+    return serialized.length > 80 ? \`\${serialized.slice(0, 77)}...\` : serialized;
+  };
 
-  const hasExpected = expected !== undefined && expected !== null;
-  const matches = hasExpected && valuesMatch(output, expected);
+  const expectedPick = pick(ctx.experiment?.itemExpectedOutput);
+  // The task may return the bare value or an object carrying the same key.
+  const actualPick = pick(ctx.observation.output);
+
+  const hasExpected = expectedPick.value !== undefined && expectedPick.value !== null;
+  const matches =
+    hasExpected &&
+    JSON.stringify(normalize(actualPick.value)) === JSON.stringify(normalize(expectedPick.value));
+
+  // Comment records both the verdict and which field was actually compared.
+  const scope = expectedPick.unwrapped
+    ? \`compared \${RESULT_KEY} only, other expected keys ignored\`
+    : \`no \${RESULT_KEY} key, compared the whole expected output\`;
+  const verdict = !hasExpected
+    ? \`nothing to compare (\${RESULT_KEY} is null or missing)\`
+    : matches
+      ? \`match: \${preview(expectedPick.value)}\`
+      : \`mismatch: expected \${preview(expectedPick.value)}, got \${preview(actualPick.value)}\`;
 
   return {
     scores: [
@@ -533,6 +571,13 @@ Expected output: {{expected_output}}`,
         name: "Exact match",
         value: matches,
         dataType: "BOOLEAN",
+        comment: \`\${verdict} — \${scope}\`,
+        metadata: {
+          rule: "exact_match_on_expected_result",
+          resultKey: RESULT_KEY,
+          expectedUnwrapped: expectedPick.unwrapped,
+          outputUnwrapped: actualPick.unwrapped,
+        },
       },
     ],
   };

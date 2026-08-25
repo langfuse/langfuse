@@ -107,6 +107,98 @@ describe("managed evaluator templates catalog", () => {
     expect(tooShort.scores[0]?.comment).toMatch(/too short/);
   });
 
+  it("exact-match grades only expected_result and ignores sibling keys", () => {
+    const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      ({ key }) => key === "exact-match",
+    );
+
+    expect(template?.evaluator.type).toBe("CODE");
+    if (!template || template.evaluator.type !== "CODE") {
+      throw new Error("Exact-match code evaluator template not found");
+    }
+
+    const javascript = template.evaluator.source
+      .replace(
+        "function evaluate(ctx: EvaluationContext): EvaluationResult",
+        "function evaluate(ctx)",
+      )
+      .replace("(value: unknown): value is Record<string, unknown>", "(value)")
+      .replaceAll("(value: unknown): unknown", "(value)")
+      .replaceAll("(value: unknown)", "(value)")
+      .replaceAll(" as Record<string, unknown>", "");
+    const createEvaluator = new Function(
+      `${javascript}\nreturn evaluate;`,
+    ) as () => (ctx: {
+      observation: { output: unknown };
+      experiment?: { itemExpectedOutput?: unknown };
+    }) => {
+      scores: Array<{
+        value: boolean;
+        comment?: string;
+        metadata?: {
+          expectedUnwrapped?: boolean;
+          outputUnwrapped?: boolean;
+        };
+      }>;
+    };
+
+    const evaluate = createEvaluator();
+
+    const match = evaluate({
+      observation: { output: "defer_question" },
+      experiment: {
+        itemExpectedOutput: {
+          expected_result: "defer_question",
+          sample_reply: "I cannot give financial advice...",
+          keyword_overlap: ["financial advice", "stock picks"],
+        },
+      },
+    });
+    expect(match.scores[0]?.value).toBe(true);
+    expect(match.scores[0]?.comment).toMatch(/compared expected_result only/);
+    expect(match.scores[0]?.metadata?.expectedUnwrapped).toBe(true);
+    expect(match.scores[0]?.metadata?.outputUnwrapped).toBe(false);
+
+    const wrappedOutputMatch = evaluate({
+      observation: {
+        output: {
+          expected_result: "defer_question",
+          extra: "ignored",
+        },
+      },
+      experiment: {
+        itemExpectedOutput: {
+          expected_result: "defer_question",
+          sample_reply: "ignored",
+        },
+      },
+    });
+    expect(wrappedOutputMatch.scores[0]?.value).toBe(true);
+    expect(wrappedOutputMatch.scores[0]?.metadata?.outputUnwrapped).toBe(true);
+
+    const mismatch = evaluate({
+      observation: { output: "answer_directly" },
+      experiment: {
+        itemExpectedOutput: {
+          expected_result: "defer_question",
+          sample_reply: "ignored",
+        },
+      },
+    });
+    expect(mismatch.scores[0]?.value).toBe(false);
+    expect(mismatch.scores[0]?.comment).toMatch(/mismatch/);
+
+    // Without expected_result, compare the whole expected output (key order ignored).
+    const wholeObjectMatch = evaluate({
+      observation: { output: { b: 2, a: 1 } },
+      experiment: { itemExpectedOutput: { a: 1, b: 2 } },
+    });
+    expect(wholeObjectMatch.scores[0]?.value).toBe(true);
+    expect(wholeObjectMatch.scores[0]?.comment).toMatch(
+      /no expected_result key/,
+    );
+  });
+
   it("ships code evaluator templates that pass client validation", async () => {
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
       if (template.evaluator.type !== "CODE") continue;
