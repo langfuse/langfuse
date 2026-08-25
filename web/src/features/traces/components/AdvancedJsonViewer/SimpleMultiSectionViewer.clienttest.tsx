@@ -5,7 +5,7 @@
  * Row/header internals are stubbed so this file does not pull the media
  * viewer (and `@langfuse/shared`) just to assert scroll behavior.
  */
-import { createRef } from "react";
+import { createRef, type RefObject } from "react";
 import { render } from "@testing-library/react";
 
 vi.mock("./components/JsonRowFixed", () => ({
@@ -76,7 +76,7 @@ describe("SimpleMultiSectionViewer jump-to", () => {
           sections={sections}
           expansionVersion={0}
           theme={theme}
-          scrollContainerRef={scrollContainerRef}
+          scrollContainerRef={scrollContainerRef as RefObject<HTMLDivElement>}
         />
       </div>,
     );
