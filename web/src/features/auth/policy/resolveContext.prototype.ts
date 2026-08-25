@@ -30,11 +30,9 @@ import {
   wildcard,
   type AuthorizationContext,
   type ErrorResult,
-  type OrganizationPolicy,
   type Policy,
   type Principal,
   type PrincipalOrganization,
-  type ProjectPolicy,
   type Resource,
   type SystemPolicy,
   type Success,
@@ -170,27 +168,27 @@ function bind(policy: SystemPolicy, principal: Principal): Policy {
     : { ...policy, resources: projectResources(principal) };
 }
 
-/** projectResources are the project refs a project-kind policy binds to: the bound project; the bound org's projects; or every org's projects — the wildcard for admin. */
-function projectResources(principal: Principal): ProjectPolicy["resources"] {
-  if (principal.kind === "admin") return [wildcard];
+/** projectResources are the project ids a project-kind policy binds to: the bound project; the bound org's projects; or every org's projects — the wildcard for admin. */
+function projectResources(principal: Principal): Policy["resources"] {
+  if (principal.kind === "admin") return wildcard;
   const bound = principal.kind === "apiKey" ? principal.boundResource : undefined;
-  if (bound && "projectId" in bound) return [{ projectId: bound.projectId }];
+  if (bound && "projectId" in bound) return [bound.projectId];
   const orgs =
     bound && "orgId" in bound
       ? principal.organizations.filter((o) => o.orgId === bound.orgId)
       : principal.organizations;
-  return orgs.flatMap((o) => o.projectIds).map((projectId) => ({ projectId }));
+  return orgs.flatMap((o) => o.projectIds);
 }
 
-/** orgResources are the org refs an org-kind policy binds to: the bound org, or every org — the wildcard for admin. */
-function orgResources(principal: Principal): OrganizationPolicy["resources"] {
-  if (principal.kind === "admin") return [wildcard];
+/** orgResources are the org ids an org-kind policy binds to: the bound org, or every org — the wildcard for admin. */
+function orgResources(principal: Principal): Policy["resources"] {
+  if (principal.kind === "admin") return wildcard;
   const bound = principal.kind === "apiKey" ? principal.boundResource : undefined;
   const orgs =
     bound && "orgId" in bound
       ? principal.organizations.filter((o) => o.orgId === bound.orgId)
       : principal.organizations;
-  return orgs.map((o) => ({ orgId: o.orgId }));
+  return orgs.map((o) => o.orgId);
 }
 
 /** adminContext is the admin context — no key row; the ADMIN role, whose policies bind to the wildcard resource; the core never sees the secret (LFE-15026). */
@@ -506,28 +504,21 @@ if (import.meta.vitest) {
 
     it("admin binds to the wildcard resource for both kinds", () => {
       const admin: Principal = { kind: "admin", userId: null };
-      expect(projectResources(admin)).toEqual(["*"]);
-      expect(orgResources(admin)).toEqual(["*"]);
+      expect(projectResources(admin)).toEqual(wildcard);
+      expect(orgResources(admin)).toEqual(wildcard);
     });
     it("a project-bound key binds to that project alone", () => {
-      expect(projectResources(keyPrincipal({ projectId: PRJ }))).toEqual([
-        { projectId: PRJ },
-      ]);
+      expect(projectResources(keyPrincipal({ projectId: PRJ }))).toEqual([PRJ]);
     });
     it("an org-bound key binds to that org's materialized projects", () => {
       expect(projectResources(keyPrincipal({ orgId: ORG }))).toEqual([
-        { projectId: PRJ },
-        { projectId: OTHER_PRJ },
+        PRJ,
+        OTHER_PRJ,
       ]);
-      expect(orgResources(keyPrincipal({ orgId: ORG }))).toEqual([
-        { orgId: ORG },
-      ]);
+      expect(orgResources(keyPrincipal({ orgId: ORG }))).toEqual([ORG]);
     });
     it("an unbound key binds to every org's projects", () => {
-      expect(projectResources(keyPrincipal())).toEqual([
-        { projectId: PRJ },
-        { projectId: OTHER_PRJ },
-      ]);
+      expect(projectResources(keyPrincipal())).toEqual([PRJ, OTHER_PRJ]);
     });
   });
 }

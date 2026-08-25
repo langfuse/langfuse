@@ -203,7 +203,7 @@ if (import.meta.vitest) {
     kind: "project",
     source: { kind: "grant" },
     actions,
-    resources: projectIds.map((projectId) => ({ projectId })),
+    resources: projectIds,
     effect: "allow",
   });
 
@@ -212,14 +212,14 @@ if (import.meta.vitest) {
       kind: "project",
       source: { kind: "system", rule: "ingestion_suspended" },
       actions: ["traces:create", "scores:create", "media:create"],
-      resources: projectIds.map((projectId) => ({ projectId })),
+      resources: projectIds,
       effect: "deny",
     },
     {
       kind: "project",
       source: { kind: "system", rule: "mcp_suspended" },
       actions: ["mcp:access"],
-      resources: projectIds.map((projectId) => ({ projectId })),
+      resources: projectIds,
       effect: "deny",
     },
   ];
