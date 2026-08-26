@@ -1,12 +1,5 @@
-import { ChevronDown, PlusIcon } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
+import { ChevronDown, CopyIcon, LockIcon, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,15 +9,12 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import Link from "next/link";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
-import { AddDatasetItemButton } from "./AddDatasetItemButton";
-import { AddDatasetItemMenuItem } from "./AddDatasetItemMenuItem";
-import { CopyDatasetItemButton } from "./CopyDatasetItemButton";
+import { ActionButton } from "@/src/components/ActionButton";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { NewDatasetItemFromExistingObjectDialogController } from "./NewDatasetItemFromExistingObjectDialogController";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -71,7 +61,6 @@ export const NewDatasetItemFromExistingObject = (props: {
   const parsedInput = normalizePrefillValue(props.input);
   const parsedOutput = normalizePrefillValue(props.output);
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
@@ -86,148 +75,157 @@ export const NewDatasetItemFromExistingObject = (props: {
         enabled: isAuthenticatedAndProjectMember && !!props.traceId,
       },
     );
-  const hasAccess = useHasProjectAccess({
-    projectId: props.projectId,
-    scope: "datasets:CUD",
-  });
   const capture = usePostHogClientCapture();
   const buttonVariant = props.buttonVariant || "secondary";
   const buttonSize = props.size || "default";
 
   return (
-    <>
-      {props.isCopyItem ? (
-        <CopyDatasetItemButton
-          hasAccess={hasAccess}
-          size={buttonSize}
-          onClick={() => setIsFormOpen(true)}
-        />
-      ) : observationInDatasets.data &&
-        observationInDatasets.data.length > 0 ? (
-        isMenu ? (
-          <DropdownMenu open={hasAccess ? undefined : false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!hasAccess}
-                className="w-full justify-start gap-2 font-normal"
-              >
-                <PlusIcon className="h-4 w-4" aria-hidden="true" />
-                <span className="text-sm">
-                  In {observationInDatasets.data.length} dataset(s)
-                </span>
-                <ChevronDown className="ml-auto h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {observationInDatasets.data.map(
-                ({ id: datasetItemId, datasetName, datasetId }) => (
-                  <DropdownMenuItem
-                    key={datasetItemId}
-                    className="capitalize"
-                    asChild
-                  >
-                    <Link
-                      href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+    <NewDatasetItemFromExistingObjectDialogController
+      projectId={props.projectId}
+      traceId={props.traceId}
+      observationId={props.observationId}
+      fromDatasetId={props.fromDatasetId}
+      input={parsedInput}
+      output={parsedOutput}
+      metadata={props.metadata}
+      onOpen={
+        props.isCopyItem
+          ? undefined
+          : () => {
+              capture("dataset_item:new_from_trace_form_open", {
+                object: props.observationId ? "observation" : "trace",
+              });
+            }
+      }
+    >
+      {({ disabled, openDialog }) => {
+        const hasAccess = disabled === undefined;
+
+        return props.isCopyItem ? (
+          <ActionButton
+            variant="outline"
+            size={buttonSize === "sm" ? "icon-xs" : "icon"}
+            hasAccess={hasAccess}
+            title="Copy item"
+            aria-label="Copy item"
+            onClick={openDialog}
+          >
+            <CopyIcon className="size-3" />
+          </ActionButton>
+        ) : observationInDatasets.data &&
+          observationInDatasets.data.length > 0 ? (
+          isMenu ? (
+            <DropdownMenu open={hasAccess ? undefined : false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!hasAccess}
+                  className="w-full justify-start gap-2 font-normal"
+                >
+                  <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                  <span className="text-sm">
+                    In {observationInDatasets.data.length} dataset(s)
+                  </span>
+                  <ChevronDown className="ml-auto h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {observationInDatasets.data.map(
+                  ({ id: datasetItemId, datasetName, datasetId }) => (
+                    <DropdownMenuItem
+                      key={datasetItemId}
+                      className="capitalize"
+                      asChild
                     >
-                      {datasetName}
-                    </Link>
-                  </DropdownMenuItem>
-                ),
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="capitalize"
-                onClick={() => setIsFormOpen(true)}
-              >
-                <PlusIcon size={16} className="mr-2" aria-hidden="true" />
-                Add to more datasets
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                      <Link
+                        href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+                      >
+                        {datasetName}
+                      </Link>
+                    </DropdownMenuItem>
+                  ),
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="capitalize" onClick={openDialog}>
+                  <PlusIcon size={16} className="mr-2" aria-hidden="true" />
+                  Add to more datasets
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DropdownMenu open={hasAccess ? undefined : false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size={buttonSize}
+                  disabled={!hasAccess}
+                >
+                  <span>In {observationInDatasets.data.length} dataset(s)</span>
+                  <ChevronDown className="ml-2 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {observationInDatasets.data.map(
+                  ({ id: datasetItemId, datasetName, datasetId }) => (
+                    <DropdownMenuItem
+                      key={datasetItemId}
+                      className="capitalize"
+                      asChild
+                    >
+                      <Link
+                        href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+                      >
+                        {datasetName}
+                      </Link>
+                    </DropdownMenuItem>
+                  ),
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="capitalize" onClick={openDialog}>
+                  <PlusIcon size={16} className="mr-2" aria-hidden="true" />
+                  Add to more datasets
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        ) : isMenu ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!hasAccess}
+            className="w-full justify-start gap-2 font-normal"
+            onClick={openDialog}
+          >
+            {hasAccess ? (
+              <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <LockIcon className="h-3 w-3" aria-hidden="true" />
+            )}
+            <span className="text-sm">Add to datasets</span>
+          </Button>
         ) : (
-          <DropdownMenu open={hasAccess ? undefined : false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="secondary"
-                size={buttonSize}
-                disabled={!hasAccess}
-              >
-                <span>In {observationInDatasets.data.length} dataset(s)</span>
-                <ChevronDown className="ml-2 h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {observationInDatasets.data.map(
-                ({ id: datasetItemId, datasetName, datasetId }) => (
-                  <DropdownMenuItem
-                    key={datasetItemId}
-                    className="capitalize"
-                    asChild
-                  >
-                    <Link
-                      href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
-                    >
-                      {datasetName}
-                    </Link>
-                  </DropdownMenuItem>
-                ),
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="capitalize"
-                onClick={() => setIsFormOpen(true)}
-              >
-                <PlusIcon size={16} className="mr-2" aria-hidden="true" />
-                Add to more datasets
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      ) : isMenu ? (
-        <AddDatasetItemMenuItem
-          hasAccess={hasAccess}
-          onClick={() => {
-            setIsFormOpen(true);
-            capture("dataset_item:new_from_trace_form_open", {
-              object: props.observationId ? "observation" : "trace",
-            });
-          }}
-        />
-      ) : (
-        <AddDatasetItemButton
-          hasAccess={hasAccess}
-          variant={buttonVariant}
-          size={buttonSize}
-          onClick={() => {
-            setIsFormOpen(true);
-            capture("dataset_item:new_from_trace_form_open", {
-              object: props.observationId ? "observation" : "trace",
-            });
-          }}
-        />
-      )}
-      <Dialog open={hasAccess && isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
-          <DialogHeader>
-            <DialogTitle>Add item to datasets</DialogTitle>
-          </DialogHeader>
-          {isFormOpen && (
-            <NewDatasetItemForm
-              traceId={props.traceId}
-              observationId={props.observationId}
-              projectId={props.projectId}
-              input={parsedInput}
-              output={parsedOutput}
-              metadata={props.metadata}
-              onFormSuccess={() => setIsFormOpen(false)}
-              className="h-full overflow-y-auto"
-              currentDatasetId={props.fromDatasetId}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+          <Button
+            onClick={openDialog}
+            variant={buttonVariant}
+            size={buttonSize}
+            disabled={!hasAccess}
+          >
+            {hasAccess ? (
+              <PlusIcon
+                className={`mr-1.5 -ml-0.5 ${
+                  buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"
+                }`}
+                aria-hidden="true"
+              />
+            ) : null}
+            Add to datasets
+            {!hasAccess ? (
+              <LockIcon className="ml-1.5 h-3 w-3" aria-hidden="true" />
+            ) : null}
+          </Button>
+        );
+      }}
+    </NewDatasetItemFromExistingObjectDialogController>
   );
 };
