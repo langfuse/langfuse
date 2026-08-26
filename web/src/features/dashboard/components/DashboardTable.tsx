@@ -40,11 +40,9 @@ type DashboardTableRow = {
 function CloneDashboardButton({
   dashboardId,
   projectId,
-  owner,
 }: {
   dashboardId: string;
   projectId: string;
-  owner: DashboardTableRow["owner"];
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
@@ -53,11 +51,7 @@ function CloneDashboardButton({
   const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: () => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard", {
-        source: "list_clone_button",
-        dashboardId,
-        owner,
-      });
+      capture("dashboard:clone_dashboard", { source: "list_clone_button" });
       showSuccessToast({
         title: "Dashboard cloned",
         description: "The dashboard has been cloned successfully",
@@ -308,7 +302,6 @@ export function DashboardTable() {
                   <CloneDashboardButton
                     dashboardId={id}
                     projectId={projectId}
-                    owner={owner}
                   />
                 </DropdownMenuItem>
                 {owner === "PROJECT" && (
