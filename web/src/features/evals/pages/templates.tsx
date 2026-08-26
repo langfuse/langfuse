@@ -19,12 +19,12 @@ export default function TemplatesPage() {
   const capture = usePostHogClientCapture();
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evaluator:read",
   });
 
   if (!hasReadAccess) {

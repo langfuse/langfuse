@@ -279,7 +279,7 @@ export default function ExperimentItemsTable({
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const {
@@ -1063,7 +1063,7 @@ export default function ExperimentItemsTable({
           icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
           customDialog: true,
           accessCheck: {
-            scope: "evalJob:CUD",
+            scope: "evaluationRule:CUD",
           },
         } as TableAction,
       ]
