@@ -397,7 +397,7 @@ export function CodeEvalTemplateFormBody({
     >
       {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
       Format
-      <span className="ml-2">
+      <span className="ml-2 hidden md:inline-flex">
         <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
       </span>
     </Button>

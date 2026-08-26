@@ -86,7 +86,7 @@ function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
 }
 
 const keyboardShortcutVariants = cva(
-  "pointer-events-none hidden items-center justify-center gap-1 rounded-md border font-mono leading-none font-bold select-none",
+  "pointer-events-none inline-flex items-center justify-center gap-1 rounded-md border font-mono leading-none font-bold select-none",
   {
     variants: {
       variant: {
@@ -100,15 +100,10 @@ const keyboardShortcutVariants = cva(
         sm: "h-4 min-w-4 px-1 text-[9px]",
         xs: "h-3.5 min-w-3.5 px-1 text-[9px]",
       },
-      display: {
-        responsive: "md:inline-flex",
-        groupFocus: "md:hidden md:group-focus-within:inline-flex",
-      },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
-      display: "responsive",
     },
   },
 );
@@ -125,14 +120,13 @@ export function KeyboardShortcut({
   title,
   variant,
   size,
-  display,
 }: KeyboardShortcutProps) {
   const isMac = useIsMac();
 
   return (
     <kbd
       ref={ref}
-      className={keyboardShortcutVariants({ variant, size, display })}
+      className={keyboardShortcutVariants({ variant, size })}
       title={title}
     >
       {keys.map((key, index) => (

@@ -538,7 +538,7 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <span className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50">
+                  <span className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 md:inline-flex">
                     <KeyboardShortcut keys={["Mod", "F"]} />
                   </span>
                 )}
@@ -798,7 +798,9 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <KeyboardShortcut keys={["Mod", "Enter"]} />
+                          <span className="hidden md:inline-flex">
+                            <KeyboardShortcut keys={["Mod", "Enter"]} />
+                          </span>
                         </div>
                       </HoverCardContent>
                     </HoverCard>

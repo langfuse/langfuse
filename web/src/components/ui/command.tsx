@@ -177,7 +177,7 @@ type CommandShortcutProps = KeyboardShortcutProps & {
 
 const CommandShortcut = ({ className, ...props }: CommandShortcutProps) => {
   return (
-    <span className={cn("ml-auto", className)}>
+    <span className={cn("ml-auto hidden md:inline-flex", className)}>
       <KeyboardShortcut {...props} />
     </span>
   );

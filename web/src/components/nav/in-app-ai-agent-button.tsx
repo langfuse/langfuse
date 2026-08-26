@@ -123,7 +123,9 @@ export const InAppAiAgentButton = ({
       {!prominent && (
         <>
           <span className="hidden sm:inline">Assistant</span>
-          <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
+          <span className="hidden md:inline-flex">
+            <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
+          </span>
         </>
       )}
     </Button>

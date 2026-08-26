@@ -7,12 +7,6 @@ const meta = preview.meta({
   component: KeyboardShortcut,
 });
 
-// Hidden below the `md` breakpoint (768px, the same cutoff `useIsMobile`
-// uses) by default: a keyboard-shortcut hint is noise on a touch device with
-// no physical keyboard. The underlying shortcut still fires there
-// — only this visual chip is gated. Resize the Storybook canvas below 768px
-// to see it disappear (CSS-only; jsdom-based story tests don't apply media
-// queries, so this is only visible when the canvas renders in a real browser).
 export const Default = meta.story({
   args: {
     keys: ["K"],
@@ -39,7 +33,6 @@ export const VariantMatrix = meta.story({
       <div className="flex items-center gap-2">
         <KeyboardShortcut size="sm" keys={["K"]} />
         <KeyboardShortcut size="xs" keys={["K"]} />
-        <KeyboardShortcut display="groupFocus" keys={["K"]} />
       </div>
     </div>
   ),
@@ -56,6 +49,8 @@ export const TestRendersMultipleKeys = meta.story({
     const shortcut = canvas.getByText(modLabel).closest("kbd");
 
     await expect(shortcut).toBeInTheDocument();
+    await expect(shortcut).toHaveClass("inline-flex");
+    await expect(shortcut).not.toHaveClass("hidden");
     await expect(shortcut).toHaveTextContent(`${modLabel}↵`);
     await expect(shortcut?.querySelectorAll("span")).toHaveLength(2);
   },

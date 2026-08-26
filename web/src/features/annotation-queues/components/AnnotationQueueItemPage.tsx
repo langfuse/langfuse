@@ -48,7 +48,7 @@ const ShortcutRow: React.FC<{
 }> = ({ label, children }) => (
   <div className="flex items-center justify-between gap-6 py-1.5">
     <span className="text-sm">{label}</span>
-    <span className="flex items-center gap-1">{children}</span>
+    <span className="hidden items-center gap-1 md:flex">{children}</span>
   </div>
 );
 
@@ -443,12 +443,14 @@ export const AnnotationQueueItemPage: React.FC<{
                   aria-label="Previous item"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <KeyboardShortcut keys={["ArrowLeft"]} />
+                  <span className="hidden md:inline-flex">
+                    <KeyboardShortcut keys={["ArrowLeft"]} />
+                  </span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <span>Previous item</span>
-                <span className="ml-2">
+                <span className="ml-2 hidden md:inline-flex">
                   <KeyboardShortcut keys={["ArrowLeft"]} />
                 </span>
               </TooltipContent>
@@ -489,12 +491,14 @@ export const AnnotationQueueItemPage: React.FC<{
                   aria-label="Skip to next item"
                 >
                   <ArrowRight className="h-4 w-4" />
-                  <KeyboardShortcut keys={["ArrowRight"]} />
+                  <span className="hidden md:inline-flex">
+                    <KeyboardShortcut keys={["ArrowRight"]} />
+                  </span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <span>Skip to next item</span>
-                <span className="ml-2">
+                <span className="ml-2 hidden md:inline-flex">
                   <KeyboardShortcut keys={["ArrowRight"]} />
                 </span>
               </TooltipContent>
@@ -519,10 +523,12 @@ export const AnnotationQueueItemPage: React.FC<{
                   >
                     <span>Mark Completed</span>
                     {!isSingleItem && (
-                      <KeyboardShortcut
-                        variant="onPrimary"
-                        keys={["Mod", "Enter"]}
-                      />
+                      <span className="hidden md:inline-flex">
+                        <KeyboardShortcut
+                          variant="onPrimary"
+                          keys={["Mod", "Enter"]}
+                        />
+                      </span>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -533,7 +539,7 @@ export const AnnotationQueueItemPage: React.FC<{
                       : "Mark completed + go to next item"}
                   </span>
                   {!isSingleItem && (
-                    <span className="ml-2">
+                    <span className="ml-2 hidden md:inline-flex">
                       <KeyboardShortcut keys={["Mod", "Enter"]} />
                     </span>
                   )}
@@ -592,10 +598,15 @@ export const AnnotationQueueItemPage: React.FC<{
               </ShortcutRow>
             </div>
             <p className="text-muted-foreground border-t pt-3 text-xs">
-              Bare <KeyboardShortcut size="sm" keys={["Enter"]} /> inside a text
-              field (e.g. Feedback) inserts a new line — use{" "}
-              <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} /> to
-              complete.
+              Bare{" "}
+              <span className="hidden md:inline-flex">
+                <KeyboardShortcut size="sm" keys={["Enter"]} />
+              </span>{" "}
+              inside a text field (e.g. Feedback) inserts a new line — use{" "}
+              <span className="hidden md:inline-flex">
+                <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
+              </span>{" "}
+              to complete.
             </p>
           </DialogBody>
         </DialogContent>

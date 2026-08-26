@@ -143,12 +143,8 @@ export function CategoricalScoreInput({
                       ) ?? -1;
                     const digitShortcut = DIGIT_SHORTCUTS[categoryIndex];
                     return digitShortcut ? (
-                      <span className="ml-0.5">
-                        <KeyboardShortcut
-                          size="xs"
-                          display="groupFocus"
-                          keys={[digitShortcut]}
-                        />
+                      <span className="ml-0.5 hidden md:group-focus-within:inline-flex">
+                        <KeyboardShortcut size="xs" keys={[digitShortcut]} />
                       </span>
                     ) : null;
                   })()}

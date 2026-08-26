@@ -160,7 +160,11 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowUp className="h-4 w-4" />
-              {!compact && <KeyboardShortcut keys={["K"]} />}
+              {!compact && (
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut keys={["K"]} />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -184,7 +188,11 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              {!compact && <KeyboardShortcut keys={["J"]} />}
+              {!compact && (
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut keys={["J"]} />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
