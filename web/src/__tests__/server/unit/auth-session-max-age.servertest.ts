@@ -14,8 +14,8 @@ import {
 import { getAuthOptions } from "@/src/server/auth";
 
 describe("AUTH_SESSION_MAX_AGE", () => {
-  it("defaults to 24 hours in minutes", () => {
-    expect(DEFAULT_AUTH_SESSION_MAX_AGE_MINUTES).toBe(24 * 60);
+  it("defaults to 14 days in minutes", () => {
+    expect(DEFAULT_AUTH_SESSION_MAX_AGE_MINUTES).toBe(14 * 24 * 60);
     expect(authSessionMaxAgeMinutesSchema.parse(undefined)).toBe(
       DEFAULT_AUTH_SESSION_MAX_AGE_MINUTES,
     );
