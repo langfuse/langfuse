@@ -34,7 +34,6 @@ import {
   ReleaseBadge,
   VersionBadge,
   LevelBadge,
-  StatusMessageBadge,
 } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
@@ -554,7 +553,6 @@ export const ObservationDetailViewHeader = memo(
                 modelParameters={observation.modelParameters}
               />
               <LevelBadge level={observation.level} />
-              <StatusMessageBadge statusMessage={observation.statusMessage} />
               {observation.promptId && (
                 <PromptBadge
                   promptId={observation.promptId}
