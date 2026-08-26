@@ -6,6 +6,7 @@ import {
   isRecord,
   parseIfString,
   parseRecord,
+  remainingProviderMetadata,
   toJsonValue,
 } from "../utils/json";
 import type { JsonObject, ToolDefinition } from "../../types";
@@ -35,17 +36,12 @@ export function toolDefinitionProviderMetadata(
   wrapper: Record<string, unknown>,
   definition: Record<string, unknown>,
 ): JsonObject | undefined {
-  const inferred = Object.fromEntries(
-    [...Object.entries(wrapper), ...Object.entries(definition)].filter(
-      ([key]) => !CONSUMED_DEFINITION_KEYS.has(key),
-    ),
-  );
   const explicit = asRecord(wrapper.providerMetadata);
-  const providerMetadata = toJsonValue({ ...inferred, ...explicit });
-
-  return isRecord(providerMetadata) && Object.keys(providerMetadata).length > 0
-    ? providerMetadata
-    : undefined;
+  return remainingProviderMetadata(
+    [wrapper, definition],
+    CONSUMED_DEFINITION_KEYS,
+    explicit,
+  );
 }
 
 /**

@@ -30,7 +30,6 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
               citations: [
                 { type: "char_location", cited_text: "latest report" },
               ],
-              cache_control: { type: "ephemeral" },
             },
             {
               type: "image",
@@ -520,6 +519,7 @@ export const anthropicMessagesRichContentFixture = {
               text: "The user wants a comparison across two pricing versions plus recent release notes. I should search two sources in parallel: current pricing docs and release notes.",
               signature: "sig_1a2b3c",
             },
+            providerMetadata: { index: 0 },
           },
           {
             type: "tool-call",
@@ -527,6 +527,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: inputToolInput1,
             index: 1,
+            providerMetadata: { caller: { type: "direct" } },
           },
           {
             type: "tool-call",
@@ -534,6 +535,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: inputToolInput2,
             index: 2,
+            providerMetadata: { caller: { type: "direct" } },
           },
         ],
         source: "input",
@@ -548,6 +550,7 @@ export const anthropicMessagesRichContentFixture = {
               text: "Both searches are running in parallel to gather the current and legacy pricing details plus any recent release notes.",
               signature: "sig_4d5e6f",
             },
+            providerMetadata: { index: 0 },
           },
           {
             type: "tool-call",
@@ -555,6 +558,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: outputToolInput1,
             index: 1,
+            providerMetadata: { caller: { type: "direct" } },
           },
           {
             type: "tool-call",
@@ -562,6 +566,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: outputToolInput2,
             index: 2,
+            providerMetadata: { caller: { type: "direct" } },
           },
         ],
         source: "output",

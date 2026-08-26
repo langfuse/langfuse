@@ -19,8 +19,9 @@ export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
 
 /**
  * Semantics the parser computes are typed fields on their parts (e.g.
- * `refusal`, `reasoning`, `invalid`); `providerMetadata` carries verbatim
- * provider payloads only (citations, transcripts, server labels, statuses).
+ * `refusal`, `reasoning`, `invalid`); `providerMetadata` preserves every raw
+ * provider field that the canonical part did not consume, plus parser-derived
+ * provider payloads such as unified citations.
  * Part types encode what a consumer can do with a part; new provider
  * concepts start as providerMetadata and get promoted to a typed field once
  * they are cross-provider semantics we compute and consumers filter on.
@@ -164,6 +165,7 @@ export type ToolDefinition = {
   description?: string;
   inputSchema?: JsonValue;
   type?: string;
+  /** Raw provider fields not consumed by the canonical definition. */
   providerMetadata?: JsonObject;
 };
 

@@ -256,6 +256,7 @@ export const vercelAiSdkMixedToolMessagesFixture = {
               reasoning:
                 "The last user message is a how-to question asking for guidance on using Langfuse evaluation features. It does not express feedback about a feature.",
             },
+            providerMetadata: { caller: { type: "direct" } },
           },
         ],
         source: "output",

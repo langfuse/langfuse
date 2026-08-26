@@ -72,6 +72,33 @@ export function toProviderMetadata(
   return isRecord(value) && Object.keys(value).length > 0 ? value : undefined;
 }
 
+/**
+ * Preserve the fields a normalizer did not consume. Records are folded in
+ * order and explicit metadata wins last, matching object-spread semantics
+ * without requiring every provider handler to rebuild the same remainder.
+ */
+export function remainingProviderMetadata(
+  records: readonly Record<string, unknown>[],
+  consumedKeys: ReadonlySet<string>,
+  explicitMetadata?: Record<string, unknown>,
+): JsonObject | undefined {
+  const remaining: Record<string, unknown> = {};
+
+  for (const record of records) {
+    for (const [key, value] of Object.entries(record)) {
+      if (!consumedKeys.has(key)) remaining[key] = value;
+    }
+  }
+
+  if (explicitMetadata) {
+    for (const [key, value] of Object.entries(explicitMetadata)) {
+      remaining[key] = value;
+    }
+  }
+
+  return toProviderMetadata(remaining);
+}
+
 /** Strip undefined-valued keys so optional fields are absent, not undefined. */
 export function compact<T extends Record<string, unknown>>(obj: T): T {
   return Object.fromEntries(

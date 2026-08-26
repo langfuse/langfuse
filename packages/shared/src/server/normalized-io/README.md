@@ -29,8 +29,11 @@ type NormalizeIOSource =
 
 ## The part union
 
-Parts encode _what a consumer can do with the content_; provider-specific
-semantics ride in part-level `providerMetadata`, never as extra part types.
+Parts encode _what a consumer can do with the content_. Once known fields are
+normalized, every unconsumed provider field is preserved in part-level
+`providerMetadata`, never as an extra part type. Tool definitions follow the
+same remainder rule. Entirely unknown typed blocks remain lossless `custom`
+parts, while untyped structured values remain lossless `data` parts.
 
 | Part          | Content                                                                                                                                 | Notes                                                                                                                                                                                       |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -46,10 +49,11 @@ Parser-computed semantics are typed fields on their parts:
 `TextPart.refusal` (model refusals stay findable text), `FilePart.reasoning`
 (reasoning-generated files), `ToolCallPart.invalid` (unparsable tool-call
 attempts — visible in the stream, excluded from tool columns).
-`providerMetadata` carries verbatim provider payloads only (citations,
-transcripts, server labels, statuses); a provider concept graduates to a
-typed field once it is a cross-provider semantic we compute and consumers
-filter on.
+`providerMetadata` carries the verbatim provider-field remainder plus
+parser-derived provider payloads (citations, transcripts, server labels,
+statuses). Canonical fields and provider metadata do not duplicate the same
+raw field. A provider concept graduates to a typed field once it is a
+cross-provider semantic we compute and consumers filter on.
 
 `finishReason` is `{ type, raw }`: provider vocabularies (OpenAI
 `finish_reason`, Anthropic `stop_reason`, Gemini `finishReason`, AI-SDK
@@ -174,7 +178,6 @@ or the fixture documents it.
 
 ### Intentional losses
 
-- Anthropic `cache_control` (request caching hint).
 - LangChain `tool_call_chunks` (streaming deltas, redundant with parsed
   `tool_calls` on final messages).
 - Response-envelope metadata (Gemini `usageMetadata`/`modelVersion`, OpenAI

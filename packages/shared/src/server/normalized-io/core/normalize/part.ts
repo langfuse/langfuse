@@ -4,7 +4,11 @@ import type {
   PartHandlerContext,
 } from "../../conventions/IOConvention";
 import type { NormalizedMessagePart } from "../../types";
-import { asRecord, isRecord, toProviderMetadata } from "../utils/json";
+import {
+  asRecord,
+  isRecord,
+  remainingProviderMetadata,
+} from "../utils/json";
 import { normalizeFallbackPart } from "./message-parts/fallback";
 import {
   filePartFromMediaReference,
@@ -92,23 +96,148 @@ function normalizePartBase(value: unknown): NormalizedMessagePart | null {
   return normalizeFallbackPart(value);
 }
 
+const COMMON_CONSUMED_PART_KEYS = [
+  "type",
+  "providerMetadata",
+  "providerOptions",
+] as const;
+
+const CONSUMED_PART_KEYS_BY_TYPE: Record<
+  NormalizedMessagePart["type"],
+  ReadonlySet<string>
+> = {
+  text: new Set([
+    ...COMMON_CONSUMED_PART_KEYS,
+    "text",
+    "content",
+    "thought",
+    "thoughtSignature",
+    "thought_signature",
+    "refusal",
+    "citations",
+    "annotations",
+  ]),
+  reasoning: new Set([
+    ...COMMON_CONSUMED_PART_KEYS,
+    "text",
+    "content",
+    "thinking",
+    "signature",
+    "data",
+    "encrypted_content",
+    "summary",
+    "thought",
+    "thoughtSignature",
+    "thought_signature",
+  ]),
+  "tool-call": new Set([
+    ...COMMON_CONSUMED_PART_KEYS,
+    "id",
+    "call_id",
+    "toolCallId",
+    "name",
+    "toolName",
+    "input",
+    "arguments",
+    "args",
+    "function",
+    "function_call",
+    "functionCall",
+    "custom",
+    "executable_code",
+    "executableCode",
+    "index",
+    "providerExecuted",
+  ]),
+  "tool-result": new Set([
+    ...COMMON_CONSUMED_PART_KEYS,
+    "id",
+    "call_id",
+    "toolCallId",
+    "tool_use_id",
+    "name",
+    "toolName",
+    "tool_name",
+    "output",
+    "response",
+    "result",
+    "content",
+    "value",
+    "error",
+    "is_error",
+    "isError",
+    "function_response",
+    "functionResponse",
+    "code_execution_result",
+    "codeExecutionResult",
+  ]),
+  file: new Set([
+    ...COMMON_CONSUMED_PART_KEYS,
+    "image",
+    "data",
+    "url",
+    "mediaType",
+    "mimeType",
+    "mime_type",
+    "filename",
+    "file",
+    "file_id",
+    "file_data",
+    "file_url",
+    "image_url",
+    "input_image",
+    "input_audio",
+    "inline_data",
+    "inlineData",
+    "fileData",
+    "source",
+    "format",
+  ]),
+  // These fallback parts already preserve the complete raw value. Inferring a
+  // remainder would duplicate it, but explicit providerOptions/metadata still
+  // merge below for consistency with recognized parts.
+  data: new Set(),
+  custom: new Set(),
+};
+
 /**
- * AI SDK carries provider extras as `providerOptions` on every part —
- * promoted here, in the one choke point every path shares (content arrays,
- * standalone items, direct tool parts).
+ * Known part fields normalize into the canonical union; every unconsumed raw
+ * field becomes providerMetadata. AI SDK providerOptions and explicit/parser-
+ * computed metadata win over the inferred remainder.
  */
-function withProviderOptions<T extends NormalizedMessagePart>(
+function withProviderMetadata<T extends NormalizedMessagePart>(
   part: T,
   value: Record<string, unknown>,
 ): T {
   const providerOptions = asRecord(value.providerOptions);
-  if (!providerOptions) return part;
-
-  const providerMetadata = toProviderMetadata({
+  const explicitProviderMetadata = asRecord(value.providerMetadata);
+  const explicitMetadata = {
     ...providerOptions,
+    ...explicitProviderMetadata,
     ...part.providerMetadata,
-  });
-  return { ...part, providerMetadata } as T;
+  };
+  const inferRemainder = part.type !== "data" && part.type !== "custom";
+  const consumedKeys = new Set(CONSUMED_PART_KEYS_BY_TYPE[part.type]);
+
+  // Provider-executed built-ins commonly turn every remaining raw payload
+  // field (action, queries, code, results, ...) into their canonical input.
+  // Exclude those dynamic keys so the same payload is not duplicated in
+  // providerMetadata.
+  if (
+    part.type === "tool-call" &&
+    part.providerExecuted === true &&
+    isRecord(part.input)
+  ) {
+    for (const key of Object.keys(part.input)) consumedKeys.add(key);
+  }
+
+  const providerMetadata = remainingProviderMetadata(
+    inferRemainder ? [value] : [],
+    consumedKeys,
+    explicitMetadata,
+  );
+
+  return providerMetadata ? ({ ...part, providerMetadata } as T) : part;
 }
 
 export function normalizePart(value: unknown): NormalizedMessagePart | null {
@@ -116,5 +245,5 @@ export function normalizePart(value: unknown): NormalizedMessagePart | null {
   if (!part) return null;
   const record = asRecord(value);
   if (!record) return part;
-  return withProviderOptions(part, record);
+  return withProviderMetadata(part, record);
 }

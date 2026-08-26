@@ -376,6 +376,13 @@ export const langgraphProductionShapeFixture = {
           {
             type: "text",
             text: "You are a helpful synthetic assistant 007.",
+            providerMetadata: {
+              synthetic_field_001: {
+                type: "You are a helpful synthetic assistant 008.",
+                synthetic_field_002:
+                  "You are a helpful synthetic assistant 009.",
+              },
+            },
           },
         ],
         source: "input",
@@ -404,6 +411,7 @@ export const langgraphProductionShapeFixture = {
             input: {
               synthetic_field_003: "Synthetic assistant response 012.",
             },
+            providerMetadata: { caller: { type: "direct" } },
           },
           {
             type: "tool-call",
@@ -412,6 +420,7 @@ export const langgraphProductionShapeFixture = {
             input: {
               synthetic_field_003: "Synthetic assistant response 013.",
             },
+            providerMetadata: { caller: { type: "direct" } },
           },
         ],
         source: "input",

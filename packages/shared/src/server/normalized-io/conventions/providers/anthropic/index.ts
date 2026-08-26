@@ -1,4 +1,4 @@
-import { claimed, dropped, unmatched } from "../..";
+import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
@@ -187,7 +187,6 @@ const ANTHROPIC_PART_HANDLERS = {
   redacted_thinking: normalizeAnthropicRedactedThinking,
   document: normalizeAnthropicDocument,
   container_upload: normalizeAnthropicContainerUpload,
-  cache_control: () => dropped,
   ...Object.fromEntries(
     ANTHROPIC_TOOL_RESULT_PART_TYPES.map((type) => [
       type,

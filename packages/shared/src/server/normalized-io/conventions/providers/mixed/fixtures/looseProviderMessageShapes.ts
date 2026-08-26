@@ -19,7 +19,10 @@ export const looseProviderMessageShapesFixture = {
   spanIO: {
     input: [
       "role='system' content='Answer politely.' name=None tool_call_id=None",
-      { text: "What is the weather in Berlin?" },
+      {
+        text: "What is the weather in Berlin?",
+        provider_extension: { confidence: 0.9 },
+      },
       {
         role: "tool",
         content:
@@ -46,7 +49,15 @@ export const looseProviderMessageShapesFixture = {
       },
       {
         role: "user",
-        parts: [{ type: "text", text: "What is the weather in Berlin?" }],
+        parts: [
+          {
+            type: "text",
+            text: "What is the weather in Berlin?",
+            providerMetadata: {
+              provider_extension: { confidence: 0.9 },
+            },
+          },
+        ],
         source: "input",
       },
       {

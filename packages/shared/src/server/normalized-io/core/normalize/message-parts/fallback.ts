@@ -1,5 +1,5 @@
 import { NormalizedMessagePart } from "../../../types";
-import { asRecord, omitKeys, toJsonValue } from "../../utils/json";
+import { asRecord, toJsonValue } from "../../utils/json";
 import { toolCallPart } from "./toolCalls";
 
 // `type` strings that count as tool-call evidence for the flat sniff below,
@@ -81,12 +81,9 @@ export function normalizeFallbackPart(
     return { type: "data", value: toJsonValue(value) };
   }
 
-  // Anthropic cache_control is a request transport hint, not conversation
-  // content — stripped universally so it never leaks into an unknown
-  // block's custom-part payload.
   return {
     type: "custom",
     kind: value.type,
-    value: toJsonValue(omitKeys(value, ["cache_control"])),
+    value: toJsonValue(value),
   };
 }
