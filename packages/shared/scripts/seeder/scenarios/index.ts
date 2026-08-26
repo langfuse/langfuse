@@ -11,6 +11,7 @@ import { sessionShapesScenario } from "./session-shapes";
 import { supportAgentScenario } from "./support-agent";
 import { timelineShapesScenario } from "./timeline-shapes";
 import { traceTreeScenario } from "./trace-tree";
+import { v4MigrationPendingScenario } from "./v4-migration-pending";
 import { ScenarioDefinition } from "./types";
 
 /**
@@ -30,6 +31,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "custom-models": customModelsScenario,
   "support-agent": supportAgentScenario,
   "timeline-shapes": timelineShapesScenario,
+  "v4-migration-pending": v4MigrationPendingScenario,
 };
 
 export * from "./types";
