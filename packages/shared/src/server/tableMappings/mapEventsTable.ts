@@ -131,8 +131,9 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "events_proto",
     clickhouseSelect: "level",
     queryPrefix: "e",

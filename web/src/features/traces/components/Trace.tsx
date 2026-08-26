@@ -45,16 +45,42 @@ export type TraceProps = {
   truncatedAtObservations?: number;
 };
 
+const DESKTOP_LAYOUT_BY_CONTEXT = {
+  fullscreen: {
+    groupId: "trace-layout-v3",
+    defaultNavigationCollapsed: false,
+    expandDetailOnMount: false,
+  },
+  peek: {
+    groupId: "trace-layout-peek-v1",
+    defaultNavigationCollapsed: false,
+    expandDetailOnMount: false,
+  },
+  annotation: {
+    groupId: "trace-layout-annotation-v1",
+    defaultNavigationCollapsed: true,
+    expandDetailOnMount: true,
+  },
+} as const;
+
+type DesktopLayout =
+  (typeof DESKTOP_LAYOUT_BY_CONTEXT)[keyof typeof DESKTOP_LAYOUT_BY_CONTEXT];
+
 /**
  * SelectionProvider sits ABOVE the trace data so the selected observation can be
  * resolved before the tree is built: past the observation cap the selected row is
  * missing from the loaded list and has to be fetched and merged in.
  */
 export function Trace({ context, ...props }: TraceProps) {
+  const traceContext = context ?? "fullscreen";
+
   return (
-    <ViewPreferencesProvider traceContext={context}>
+    <ViewPreferencesProvider traceContext={traceContext}>
       <SelectionProvider>
-        <TraceWithSelection {...props} />
+        <TraceWithSelection
+          {...props}
+          desktopLayout={DESKTOP_LAYOUT_BY_CONTEXT[traceContext]}
+        />
       </SelectionProvider>
     </ViewPreferencesProvider>
   );
@@ -67,7 +93,10 @@ function TraceWithSelection({
   corrections,
   projectId,
   truncatedAtObservations,
-}: Omit<TraceProps, "context">) {
+  desktopLayout,
+}: Omit<TraceProps, "context"> & {
+  desktopLayout: DesktopLayout;
+}) {
   const { selectedNodeId } = useSelection();
 
   // Fetch comment counts using existing hook
@@ -136,7 +165,7 @@ function TraceWithSelection({
         <SearchProvider>
           <JsonExpansionProvider>
             <PlayheadProvider>
-              <TraceContent />
+              <TraceContent desktopLayout={desktopLayout} />
             </PlayheadProvider>
           </JsonExpansionProvider>
         </SearchProvider>
@@ -158,7 +187,7 @@ function TraceWithSelection({
  * - useViewPreferences() - for graph toggle state
  * - useTraceGraphData() - for graph availability
  */
-function TraceContent() {
+function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { showGraph } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
@@ -167,7 +196,10 @@ function TraceContent() {
   return isMobile ? (
     <MobileTraceContent shouldShowGraph={shouldShowGraph} />
   ) : (
-    <DesktopTraceContent shouldShowGraph={shouldShowGraph} />
+    <DesktopTraceContent
+      shouldShowGraph={shouldShowGraph}
+      desktopLayout={desktopLayout}
+    />
   );
 }
 
@@ -181,11 +213,13 @@ function TraceContent() {
  */
 function DesktopTraceContent({
   shouldShowGraph,
+  desktopLayout,
 }: {
   shouldShowGraph: boolean;
+  desktopLayout: DesktopLayout;
 }) {
   return (
-    <TraceLayoutDesktop>
+    <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
       <TraceLayoutDesktop.NavigationPanel>
         <TracePanelNavigationLayoutDesktop
           secondaryContent={shouldShowGraph ? <TraceGraphView /> : undefined}

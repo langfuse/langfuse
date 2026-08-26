@@ -717,6 +717,26 @@ describe("RuleService", () => {
       });
     });
 
+    it("enables a disabled rule when attaching with activation", async () => {
+      const evaluator = await createEvaluator();
+      const service = createService();
+      const rule = await service.create(
+        { ...createInput(), enabled: false },
+        null,
+      );
+      const attachment = {
+        projectId,
+        ruleId: rule.id,
+        assignment: { evaluatorId: evaluator.id, variableMapping: null },
+        enableRule: true,
+      };
+
+      await expect(service.attach(attachment)).resolves.toMatchObject({
+        enabled: true,
+        assignments: [expect.objectContaining({ evaluatorId: evaluator.id })],
+      });
+    });
+
     it("updates experiment filters and assignments", async () => {
       const [first, second] = await Promise.all([
         createEvaluator(),
