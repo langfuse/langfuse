@@ -85,8 +85,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   },
   {
     flag: "sessionsSearchBar",
-    title: "Sessions Search Bar",
-    sidebarLabel: "Sessions Search Bar",
     description:
       "Filter sessions by typing instead of clicking — the same query bar the observations table uses, now over the sessions table.",
     details:

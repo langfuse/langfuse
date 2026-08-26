@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
+import { featurePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -123,6 +124,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
+        sessionsSearchBar: false,
       },
       management: {
         allowed: false,
@@ -135,7 +137,11 @@ describe("UserFeaturePreviewsControl", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /0\/2 enabled/i }),
+      screen.getByRole("button", {
+        // Derived: the counter's denominator is the number of registered
+        // previews, so a new preview must not fail this test.
+        name: new RegExp(`0/${featurePreviewFlags.length} enabled`, "i"),
+      }),
     ).toBeDisabled();
   });
 
@@ -146,6 +152,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
+        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -182,6 +189,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
+        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -209,6 +217,7 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
+        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
