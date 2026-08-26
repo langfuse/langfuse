@@ -36,11 +36,11 @@ import {
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
 import {
   isSilentInAppAgentMcpToolOutput,
+  toAiSdkToolModelOutput,
   type CompletedInAppAgentMcpToolCall,
   type SilentInAppAgentMcpToolOutput,
 } from "@langfuse/shared/in-app-agent/server/toolResults";
@@ -205,7 +205,7 @@ export function withOptionalSilentMcpOutput(params: {
         // Never silence a failure. A tool that reports its error in the result
         // (the MCP `isError` convention) would otherwise be collapsed to a
         // pointer at a tool_calls file that is deliberately not written.
-        if (failureMessage || !silent) {
+        if (failureMessage || !silent || !toolCallId) {
           return result;
         }
 
@@ -213,14 +213,18 @@ export function withOptionalSilentMcpOutput(params: {
         return {
           type: IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
           output: result,
+          toolCallId,
+          toolName,
         } satisfies SilentInAppAgentMcpToolOutput;
       };
       tool.toModelOutput = (output) => {
         if (isSilentInAppAgentMcpToolOutput(output)) {
-          return IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE;
+          return toAiSdkToolModelOutput(output);
         }
 
-        return toModelOutput ? toModelOutput(output) : output;
+        return toAiSdkToolModelOutput(
+          toModelOutput ? toModelOutput(output) : output,
+        );
       };
 
       return [toolName, tool];

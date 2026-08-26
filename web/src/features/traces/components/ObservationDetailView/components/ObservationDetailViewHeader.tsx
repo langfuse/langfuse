@@ -6,11 +6,21 @@ import {
   type ScoreDomain,
 } from "@langfuse/shared";
 import type Decimal from "decimal.js";
-import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
+import {
+  ChevronDown,
+  EllipsisVertical,
+  ListPlus,
+  LockIcon,
+  MessageSquare,
+  MessageSquareOff,
+  MoreHorizontal,
+  SquarePen,
+} from "lucide-react";
 
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   Drawer,
   DrawerContent,
@@ -21,8 +31,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -31,7 +42,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
@@ -121,7 +132,7 @@ export const ObservationDetailViewHeader = memo(
             >
               {observation.name || observation.id}
             </span>
-            <DetailHeaderActionsMenu
+            <DetailHeaderActionsMenuController
               idItems={[
                 { id: traceId, name: "Trace ID" },
                 { id: observation.id, name: "Observation ID" },
@@ -134,7 +145,23 @@ export const ObservationDetailViewHeader = memo(
                 observationId: observation.id,
                 sessionId: observation.sessionId ?? null,
               }}
-            />
+            >
+              {({ Trigger }) => (
+                <Trigger asChild>
+                  <Button
+                    aria-label="Options"
+                    className="mt-0.5 shrink-0"
+                    size="icon-xs"
+                    title="Options"
+                    variant="ghost"
+                  >
+                    <EllipsisVertical className="h-4 w-4" />
+                  </Button>
+                </Trigger>
+              )}
+            </DetailHeaderActionsMenuController>
+            {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
+                full-width labeled rows, next to the `⋮` utility menu. */}
             {isMobile ? (
               <Popover>
                 <PopoverTrigger asChild>
@@ -149,7 +176,11 @@ export const ObservationDetailViewHeader = memo(
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  // CommentDrawerButton must remain mounted for deep-link and inline-selection flows.
+                  // forceMount + hide-when-closed: CommentDrawerController lives in
+                  // here, and its deep-link auto-open effect (?comments=open) and
+                  // controlled inline-selection flow only work while mounted. A
+                  // default Popover unmounts its content when closed (the default
+                  // state), silently breaking both. Keep it mounted, just hidden.
                   forceMount
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
@@ -214,34 +245,69 @@ export const ObservationDetailViewHeader = memo(
                           layout="menu"
                         />
                       )}
-                      <CreateNewAnnotationQueueItem
+                      <AnnotationQueueItemDropdownMenuController
                         projectId={projectId}
                         objectId={observation.id}
                         objectType={AnnotationQueueObjectType.OBSERVATION}
-                        layout="menu"
-                      />
+                      >
+                        {({ disabled, totalCount }) => (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled !== undefined}
+                            className="w-full justify-start gap-2 font-normal"
+                          >
+                            <ListPlus className="h-4 w-4" />
+                            <span className="text-sm">Add to queue</span>
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="menu"
+                            />
+                          </Button>
+                        )}
+                      </AnnotationQueueItemDropdownMenuController>
                     </>
                   ) : null}
                   {observationWithIO &&
-                  isGenerationLike(observationWithIO.type) ? (
-                    <JumpToPlaygroundButton
-                      source="generation"
-                      generation={observationWithIO}
-                      analyticsEventName="trace_detail:test_in_playground_button_click"
-                      layout="menu"
-                    />
-                  ) : null}
-                  <CommentDrawerButton
+                    isGenerationLike(observationWithIO.type) && (
+                      <JumpToPlaygroundButton
+                        source="generation"
+                        generation={observationWithIO}
+                        analyticsEventName="trace_detail:test_in_playground_button_click"
+                        layout="menu"
+                      />
+                    )}
+                  <CommentDrawerController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType="OBSERVATION"
                     count={commentCount}
-                    layout="menu"
                     pendingSelection={pendingSelection}
                     onSelectionUsed={onSelectionUsed}
                     isOpen={isCommentDrawerOpen}
                     onOpenChange={onCommentDrawerOpenChange}
-                  />
+                  >
+                    {({ disabled, openDrawer }) => (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={openDrawer}
+                        className="w-full justify-start gap-2 font-normal"
+                      >
+                        {disabled ? (
+                          <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4" />
+                        )}
+                        <span className="text-sm">Add comment</span>
+                        {!disabled && commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </Button>
+                    )}
+                  </CommentDrawerController>
                 </PopoverContent>
               </Popover>
             ) : null}
@@ -309,33 +375,72 @@ export const ObservationDetailViewHeader = memo(
                       size="sm"
                     />
                   )}
-                  <CreateNewAnnotationQueueItem
+                  <AnnotationQueueItemDropdownMenuController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
-                    size="sm"
-                  />
+                  >
+                    {({ disabled, totalCount }) => (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={disabled !== undefined}
+                        className="rounded-l-none rounded-r-md border-l-2"
+                      >
+                        <span className="relative mr-1 text-xs">
+                          <ChevronDown className="h-3 w-3" />
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="toolbar"
+                          />
+                        </span>
+                      </Button>
+                    )}
+                  </AnnotationQueueItemDropdownMenuController>
                 </div>
               ) : null}
-              {observationWithIO && isGenerationLike(observationWithIO.type) ? (
-                <JumpToPlaygroundButton
-                  source="generation"
-                  generation={observationWithIO}
-                  analyticsEventName="trace_detail:test_in_playground_button_click"
-                  size="sm"
-                />
-              ) : null}
-              <CommentDrawerButton
+              {observationWithIO &&
+                isGenerationLike(observationWithIO.type) && (
+                  <JumpToPlaygroundButton
+                    source="generation"
+                    generation={observationWithIO}
+                    analyticsEventName="trace_detail:test_in_playground_button_click"
+                    size="sm"
+                  />
+                )}
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={observation.id}
                 objectType="OBSERVATION"
                 count={commentCount}
-                size="sm"
                 pendingSelection={pendingSelection}
                 onSelectionUsed={onSelectionUsed}
                 isOpen={isCommentDrawerOpen}
                 onOpenChange={onCommentDrawerOpenChange}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="gap-1"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>Add comment</span>
+                        {!!commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CommentDrawerController>
             </div>
           ) : null}
         </div>

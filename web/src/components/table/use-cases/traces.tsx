@@ -4,12 +4,12 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { Badge } from "@/src/components/ui/badge";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -69,7 +69,6 @@ import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type TableAction } from "@/src/features/table/types";
@@ -109,7 +108,6 @@ import { TableHeaderControls } from "@/src/components/table/table-header-control
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import TagList from "@/src/features/tag/components/TagList";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type TracesTableRow = {
@@ -672,18 +670,13 @@ export default function TracesTable({
 
   const columns: LangfuseColumnDef<TracesTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    {
+    createDateTableColumn<TracesTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",
@@ -850,30 +843,14 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createBadgeTableColumn<TracesTableRow>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["environment"] =
-          row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
-    {
+    }),
+    createTagsTableColumn<TracesTableRow>({
       accessorKey: "tags",
-      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
@@ -894,25 +871,9 @@ export default function TracesTable({
         ),
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("tags");
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
+      shouldWrap: rowHeight !== "s",
       enableHiding: true,
-    },
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
@@ -1064,7 +1025,7 @@ export default function TracesTable({
     {
       accessorKey: "level",
       id: "level",
-      header: "Level",
+      header: "Status",
       size: 75,
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
@@ -1169,54 +1130,36 @@ export default function TracesTable({
         return traceMetrics.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createNumberTableColumn<TracesTableRow>({
+          accessorFn: (row) => row.cost?.inputCost?.toNumber(),
           id: "inputCost",
           header: "Input Cost",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const cost: TracesTableRow["cost"] = row.getValue("cost");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return (
-              <div>
-                {cost?.inputCost ? (
-                  <span>{usdFormatter(cost.inputCost.toNumber())}</span>
-                ) : (
-                  <span>-</span>
-                )}
-              </div>
-            );
+          emptyValue: "-",
+          formatter: usdFormatter,
+          getValue: (value, { row }) => {
+            if (isMetricPending(row.original.id)) return { type: "loading" };
+            return value ?? undefined;
           },
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<TracesTableRow>({
+          accessorFn: (row) => row.cost?.outputCost?.toNumber(),
           id: "outputCost",
           header: "Output Cost",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const cost: TracesTableRow["cost"] = row.getValue("cost");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return (
-              <div>
-                {cost?.outputCost ? (
-                  <span>{usdFormatter(cost.outputCost.toNumber())}</span>
-                ) : (
-                  <span>-</span>
-                )}
-              </div>
-            );
+          emptyValue: "-",
+          formatter: usdFormatter,
+          getValue: (value, { row }) => {
+            if (isMetricPending(row.original.id)) return { type: "loading" };
+            return value ?? undefined;
           },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<TracesTableRow>[],
     },
     {

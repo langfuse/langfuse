@@ -51,7 +51,7 @@ import {
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   convertRowIdToKeyPath,
-  getRowChildren,
+  getSmartExpansionState,
   type JsonTableRow,
   transformJsonToTableData,
 } from "@/src/components/table/utils/jsonExpansionUtils";
@@ -77,7 +77,6 @@ const DEFAULT_MAX_ROWS = 20;
 // Used for root-level objects where user has no parent to expand from. Therefore,
 // set higher to ensure objects like metadata with many keys are still displayed
 const DEFAULT_MAX_ROWS_IF_ROOT = 100;
-const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
 const MAX_CELL_DISPLAY_CHARS = 2000;
 
@@ -295,70 +294,6 @@ function generateAllChildrenRecursively(
       generateAllChildrenRecursively(child, onRowGenerated);
     });
   }
-}
-
-function findOptimalExpansionLevel(
-  data: JsonTableRow[],
-  maxRows: number,
-): number {
-  if (data.length > maxRows) {
-    return 0;
-  }
-
-  function findOptimalRecursively(
-    rows: JsonTableRow[],
-    currentLevel: number,
-    cumulativeCount: number,
-    visitedData = new WeakSet(),
-  ): number {
-    const rowsAtThisLevel = rows.length;
-    const newCumulativeCount = cumulativeCount + rowsAtThisLevel;
-
-    // If expanding to this level exceeds maxRows, return previous level
-    if (newCumulativeCount > maxRows) {
-      return currentLevel - 1;
-    }
-
-    if (currentLevel >= DEEPEST_DEFAULT_EXPANSION_LEVEL) {
-      return currentLevel;
-    }
-
-    // Get all children for next level
-    let childRows: JsonTableRow[] = [];
-
-    for (const row of rows) {
-      if (row.hasChildren && row.rawChildData) {
-        if (typeof row.rawChildData !== "object" || row.rawChildData === null) {
-          continue; // Skip non-objects
-        }
-
-        // Skip if we've already processed this exact data to prevent cycles
-        if (visitedData.has(row.rawChildData)) {
-          continue;
-        }
-
-        // Mark data as visited
-        visitedData.add(row.rawChildData);
-
-        const children = getRowChildren(row);
-        // Use concat instead of spread to avoid stack overflow with large arrays
-        childRows = childRows.concat(children);
-      }
-    }
-
-    if (childRows.length === 0) {
-      return currentLevel;
-    }
-
-    return findOptimalRecursively(
-      childRows,
-      currentLevel + 1,
-      newCumulativeCount,
-      visitedData,
-    );
-  }
-
-  return Math.max(0, findOptimalRecursively(data, 0, 0));
 }
 
 function handleRowExpansion(
@@ -1084,37 +1019,9 @@ export function PrettyJsonView(props: {
       return enhancedState;
     }
 
-    // No external state -> use smart expansion
-    const optimalLevel = findOptimalExpansionLevel(
-      baseTableData,
-      DEFAULT_MAX_ROWS,
-    );
-
-    if (optimalLevel > 0) {
-      const smartExpanded: ExpandedState = {};
-
-      const expandRowsToLevel = (
-        rows: JsonTableRow[],
-        currentLevel: number,
-      ) => {
-        rows.forEach((row) => {
-          if (row.hasChildren && currentLevel < optimalLevel) {
-            const keyPath = convertRowIdToKeyPath(row.id);
-            smartExpanded[keyPath] = true;
-
-            const children = getRowChildren(row);
-            if (children.length > 0) {
-              expandRowsToLevel(children, currentLevel + 1);
-            }
-          }
-        });
-      };
-      expandRowsToLevel(baseTableData, 0);
-
-      return smartExpanded;
-    }
-
-    return {};
+    // No external state -> use smart expansion. Short primitive lists stay
+    // collapsed because the parent-row preview already shows their contents.
+    return getSmartExpansionState(baseTableData, DEFAULT_MAX_ROWS);
   }, [baseTableData, props.externalExpansionState]);
 
   // actual expansion state used by the table (combines initial + user changes)
