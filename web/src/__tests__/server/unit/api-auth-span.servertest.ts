@@ -185,6 +185,8 @@ describe("ApiAuthService span metadata", () => {
   it("rejects Basic auth when the submitted public key does not match the resolved key", async () => {
     // Basic auth resolves the key via the secret-key hash; a (pk, sk) pair
     // whose halves belong to different keys must not authenticate.
+    // verifyAuthHeaderAndReturnScope catches the mismatch error and
+    // returns validKey:false rather than throwing.
     const { apiKey, secretKey } = createProjectApiKey();
     const prisma = {
       apiKey: {
@@ -192,10 +194,16 @@ describe("ApiAuthService span metadata", () => {
       },
     };
 
-    await expect(
-      new ApiAuthService(prisma as any, null).verifyAuthHeaderAndReturnScope(
-        createBasicAuthHeader("pk-lf-mismatch", secretKey),
-      ),
-    ).rejects.toThrow("Invalid credentials");
+    const result = await new ApiAuthService(
+      prisma as any,
+      null,
+    ).verifyAuthHeaderAndReturnScope(
+      createBasicAuthHeader("pk-lf-mismatch", secretKey),
+    );
+
+    expect(result.validKey).toBe(false);
+    expect((result as { error: string }).error).toContain(
+      "Invalid credentials",
+    );
   });
 });
