@@ -26,12 +26,13 @@ const toggleVariants = cva(
         compact: "h-8 p-1 text-xs",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
   },
 );
+
+type ToggleVariant = NonNullable<
+  VariantProps<typeof toggleVariants>["variant"]
+>;
+type ToggleSize = NonNullable<VariantProps<typeof toggleVariants>["size"]>;
 
 type ToggleProps = Pick<
   React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root>,
@@ -43,10 +44,11 @@ type ToggleProps = Pick<
   | "onMouseLeave"
   | "onPressedChange"
   | "pressed"
-> &
-  VariantProps<typeof toggleVariants> & {
-    ref?: React.Ref<React.ComponentRef<typeof TogglePrimitive.Root>>;
-  };
+> & {
+  ref?: React.Ref<React.ComponentRef<typeof TogglePrimitive.Root>>;
+  size: ToggleSize;
+  variant: ToggleVariant;
+};
 
 export function Toggle({ ref, variant, size, ...props }: ToggleProps) {
   return (
