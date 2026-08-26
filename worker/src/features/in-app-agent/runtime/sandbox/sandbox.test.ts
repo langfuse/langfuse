@@ -181,9 +181,10 @@ describe("in-app agent sandbox", () => {
       toolCallId: "tool-call-1",
       toolName: "search",
     });
-    expect(tool.toModelOutput?.(output)).toBe(
-      "Output saved to /workspace/tool_calls/search_tool-call-1.json",
-    );
+    expect(tool.toModelOutput?.(output)).toEqual({
+      type: "text",
+      value: "Output saved to /workspace/tool_calls/search_tool-call-1.json",
+    });
   });
 
   it("supports silent output for the listObservations JSON Schema", async () => {
@@ -311,7 +312,11 @@ describe("in-app agent sandbox", () => {
     // Not wrapped, so the model reads the failure inline rather than being
     // pointed at a tool_calls file that is never written for failures.
     expect(output).toEqual(mcpErrorResult);
-    expect(tools.search.toModelOutput?.(output)).toEqual(mcpErrorResult);
+    expect(tools.search.toModelOutput?.(output)).toEqual({
+      type: "error-text",
+      value:
+        "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
+    });
     expect(toolCallFiles.getFiles()).toEqual([]);
   });
 
