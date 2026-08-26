@@ -12,8 +12,6 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { groupScoresByNode } from "@/src/features/traces/fns/nodeScores";
-import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { type RowMetrics } from "./TimelineRowMetrics";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -29,25 +27,12 @@ import { detectPointerModality } from "../../fns/timeline/density";
 import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
-  const {
-    roots,
-    nodeMap,
-    serverScores,
-    traceLevelScoreOwnerIds,
-    comments,
-    traceDuration,
-  } = useTraceData();
+  const { roots, nodeMap } = useTraceData();
   const { selectedNodeId, collapsedNodes } = useSelection();
   // The same five switches the tree honours. They live in one place because a
   // toggle that works in one view and silently does nothing in the other is
   // worse than no toggle.
-  const {
-    showDuration,
-    showCostTokens,
-    showScores,
-    showComments,
-    colorCodeMetrics,
-  } = useViewPreferences();
+  const { showDuration, showCostTokens } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
@@ -102,75 +87,23 @@ export function TraceTimelineCompact() {
     [nodeMap, handleHover],
   );
 
-  // Heat-map denominators: a duration is only alarming next to the trace's own
-  // total, and a cost next to the whole trace's. MILLISECONDS — `traceDuration`
-  // is seconds, and passing it raw inflates every ratio ×1000, which paints
-  // every label dark red.
-  const parentTotalDuration = traceDuration * 1000;
-  const parentTotalCost = useMemo(
-    () =>
-      roots.reduce(
-        (total, root) =>
-          root.totalCost
-            ? total
-              ? total.plus(root.totalCost)
-              : root.totalCost
-            : total,
-        undefined as (typeof roots)[0]["totalCost"],
-      ),
-    [roots],
-  );
-
-  const scoresByNodeId = useMemo(
-    () => groupScoresByNode(serverScores, traceLevelScoreOwnerIds),
-    [serverScores, traceLevelScoreOwnerIds],
-  );
-
   /**
-   * What a row says about itself. Formatted here — the renderer decides only
-   * what fits — with the same formatters and the same `∑` for a subtotal that a
-   * tree row uses, so the two never disagree about the same number.
+   * What a row says about itself: its cost, formatted the way a tree row states
+   * it. Scores, comment counts and heat-map colouring were tried here and taken
+   * back out — a row beside a bar cannot carry them consistently, and colour
+   * already means observation type. `showScores` and `showComments` mean what
+   * their storage keys have always said: the observation tree.
    */
   const metricsOf = useCallback(
     (nodeId: string): RowMetrics => {
       const node = nodeMap.get(nodeId);
-      if (!node) return {};
+      if (!node?.totalCost || !showCostTokens) return {};
       const aggregated = node.children.length > 0 || node.type === "TRACE";
-      const cost =
-        showCostTokens && node.totalCost
-          ? `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`
-          : null;
       return {
-        costText: cost,
-        durationClass:
-          colorCodeMetrics && parentTotalDuration && node.latency
-            ? heatMapTextColor({
-                max: parentTotalDuration,
-                value: node.latency * 1000,
-              })
-            : undefined,
-        costClass:
-          colorCodeMetrics && parentTotalCost && node.totalCost
-            ? heatMapTextColor({
-                max: parentTotalCost,
-                value: node.totalCost,
-              })
-            : undefined,
-        scores: showScores ? scoresByNodeId.get(nodeId) : undefined,
-        commentCount: showComments ? comments.get(nodeId) : undefined,
+        costText: `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
       };
     },
-    [
-      nodeMap,
-      showCostTokens,
-      showScores,
-      showComments,
-      colorCodeMetrics,
-      parentTotalCost,
-      parentTotalDuration,
-      scoresByNodeId,
-      comments,
-    ],
+    [nodeMap, showCostTokens],
   );
 
   return (

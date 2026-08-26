@@ -2173,13 +2173,13 @@ export const TheFirstTokenHasItsMark = meta.story({
 });
 
 /**
- * Scores and comments in the renderer itself, through the path the app uses: a
- * measurer seeded from a probe of the font the labels render in. The wide
- * timeline has shown these on a row since long before this one existed, and
- * making the compact renderer the only Timeline means it owes them too.
+ * The cluster stays inside its box, and it moves to the side that has room. It
+ * used to inherit the side `layout()` chose by measuring the duration alone,
+ * which is why annotations vanished mid-zoom: growing a bar turned the budget
+ * from "the rest of the lane" into "this bar".
  */
-export const ScoresAndCommentsReachTheRow = meta.story({
-  name: "(Test) Scores And Comments Reach The Row",
+export const TheClusterTakesTheRoomierSide = meta.story({
+  name: "(Test) The Cluster Takes The Roomier Side",
   args: {
     roots: threeSpans(),
     box: DESKTOP,
@@ -2191,22 +2191,7 @@ export const ScoresAndCommentsReachTheRow = meta.story({
     selectedId: null,
     onSelect: fn(),
     onHover: fn(),
-    metricsOf: () => ({
-      costText: "$0.0021",
-      commentCount: 3,
-      scores: [
-        {
-          id: "s1",
-          name: "helpfulness",
-          value: 0.92,
-          stringValue: null,
-          dataType: "NUMERIC",
-          comment: null,
-          metadata: null,
-          observationId: "n0",
-        },
-      ] as never,
-    }),
+    metricsOf: () => ({ costText: "$0.0021" }),
   },
   play: async ({ canvasElement }) => {
     const clusters = [
@@ -2216,24 +2201,25 @@ export const ScoresAndCommentsReachTheRow = meta.story({
     ];
     await expect(clusters.length).toBeGreaterThan(0);
 
-    const withScores = clusters.filter((cluster) =>
-      cluster.querySelector('[data-testid="timeline-dense-scores"]'),
-    );
-    await expect(withScores.length).toBeGreaterThan(0);
-    await expect(withScores[0]!.innerText).toContain("helpfulness");
-
-    // Whole or absent, on every row — the same rule the wide timeline follows.
     for (const cluster of clusters) {
+      const row = cluster.closest('[data-testid="timeline-dense-row"]');
+      const bar = row?.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      if (!bar) continue;
+      const barBox = bar.getBoundingClientRect();
+      const lane = cluster.parentElement!.getBoundingClientRect();
+      // Whichever side it picked, it must be the one with the most room.
+      const after = lane.right - barBox.right;
+      const before = barBox.left - lane.left;
+      if (cluster.dataset.placement === "after") {
+        await expect(after).toBeGreaterThanOrEqual(before - 0.5);
+      }
+      // And it never spills: the cluster clips, so what it admits has to fit.
       await expect(cluster.scrollWidth).toBeLessThanOrEqual(
         cluster.clientWidth + 0.5,
       );
+      await expect(cluster.innerText).toContain("$0.0021");
     }
-    // And the surface still has nothing to scroll.
-    const surface = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-surface"]',
-    );
-    await expect(surface!.scrollWidth).toBeLessThanOrEqual(
-      surface!.clientWidth,
-    );
   },
 });

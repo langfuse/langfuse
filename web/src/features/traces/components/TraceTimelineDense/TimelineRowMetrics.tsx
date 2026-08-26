@@ -14,16 +14,9 @@
  * is the one thing this timeline promises never to do.
  */
 
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
-import { cn } from "@/src/utils/tailwind";
 import {
   CLUSTER_ITEM_GAP_PX,
-  MAX_SCORE_GROUPS,
-  commentIconWidth,
   createClusterFitter,
-  scoreBadgesWidth,
-  type ClusterScore,
 } from "../../fns/timeline/metricCluster";
 import { type Density } from "../../fns/timeline/density";
 import { type TextMeasurer } from "../../fns/timeline/textMeasurer";
@@ -32,16 +25,20 @@ import { type PositionedNode } from "../../fns/timeline/layout";
 /**
  * What a row has to say about itself, formatted by whoever owns the trace data.
  * The renderer stays presentational: it decides what FITS, never what a cost
- * looks like or whether a duration is alarming.
+ * looks like.
+ *
+ * Deliberately just the cost. Scores, comment counts and heat-map colouring were
+ * all tried here and all removed for the same reason: a row beside a bar cannot
+ * hold them CONSISTENTLY. Whether they fit depends on where the bar happens to
+ * sit and how far you have zoomed, so identical rows showed different things —
+ * and the heat map put a second meaning on colour that already means observation
+ * type, painting dark red text on a blue bar whose label had already been given
+ * white for contrast. They belong somewhere that does not move: the tree, the
+ * detail panel, or a fixed column of their own.
  */
 export type RowMetrics = {
   /** Already formatted, e.g. `∑ $0.02`. */
   costText?: string | null;
-  /** Heat-map classes, empty when the user has that colouring off. */
-  durationClass?: string;
-  costClass?: string;
-  scores?: ClusterScore[];
-  commentCount?: number;
 };
 
 export function TimelineRowMetrics({
@@ -65,16 +62,23 @@ export function TimelineRowMetrics({
   const gapPx = density.labelGapPx;
   const insetPx = density.labelPaddingPx;
 
-  // `hidden` is layout()'s verdict on the DURATION, not on the icons, which are
-  // narrower and may well fit. Send the cluster to whichever side is roomier
-  // rather than always falling in with `after` — in a narrow lane that is often
-  // the side with nothing left.
+  // `layout()` chooses a side by measuring the DURATION alone. The cluster is
+  // wider than that, so it chooses its own — by room, not by inheritance.
+  //
+  // Inheriting was the bug behind "they disappear when I zoom in": zooming grows
+  // the bar until the duration fits inside it, at which point the budget stops
+  // being "the rest of the lane" and becomes "this bar", so a cluster that fit a
+  // moment ago no longer does. More space for the bar meant less for the label.
+  // Inside is now the LAST resort, taken only when neither flank has room.
   const spaceBefore = Math.max(row.x - gapPx, 0);
   const spaceAfter = Math.max(laneWidth - (row.x + row.width + gapPx), 0);
+  const spaceInside = Math.max(row.width - insetPx * 2, 0);
   const placement =
-    row.labelPlacement === "hidden" && spaceBefore > spaceAfter
-      ? "before"
-      : row.labelPlacement;
+    spaceAfter >= spaceBefore && spaceAfter >= spaceInside
+      ? "after"
+      : spaceBefore >= spaceInside
+        ? "before"
+        : "inside";
 
   const style =
     placement === "before"
@@ -104,29 +108,13 @@ export function TimelineRowMetrics({
       : null;
   const showDuration = durationText != null && fitsText(durationText);
   const showCost = Boolean(metrics.costText) && fitsText(metrics.costText!);
-  const commentCount = metrics.commentCount ?? 0;
-  const showComment =
-    commentCount > 0 && fits(commentIconWidth(commentCount, measurer));
-  const scores = metrics.scores ?? [];
-  const showScores =
-    scores.length > 0 &&
-    fits(scoreBadgesWidth(scores, measurer, MAX_SCORE_GROUPS));
+  if (!showDuration && !showCost) return null;
 
-  if (!showDuration && !showCost && !showComment && !showScores) return null;
-
-  // Everything the row HAS stays reachable on hover when something was dropped:
-  // the items are admitted last against the smallest budget, so they are the
-  // likeliest to go, and a row that never mentions its own score is worse than
-  // one that mentions it in a title.
+  // What did not fit stays reachable on hover: a row that silently omits its
+  // cost reads as a row without one.
   const dropped = [
     durationText != null && !showDuration ? durationText : null,
     metrics.costText && !showCost ? metrics.costText : null,
-    commentCount > 0 && !showComment
-      ? `${commentCount} comment${commentCount === 1 ? "" : "s"}`
-      : null,
-    scores.length > 0 && !showScores
-      ? `${scores.length} score${scores.length === 1 ? "" : "s"}`
-      : null,
   ].filter(Boolean);
 
   return (
@@ -137,13 +125,11 @@ export function TimelineRowMetrics({
       data-testid="timeline-dense-metrics"
       data-placement={placement}
     >
-      {showComment ? <CommentCountIcon count={commentCount} /> : null}
       {showDuration ? (
         <span
-          className={cn(
-            placement === "inside" ? toneClass : "text-muted-foreground",
-            metrics.durationClass,
-          )}
+          className={
+            placement === "inside" ? toneClass : "text-muted-foreground"
+          }
           data-testid="timeline-dense-duration"
           data-placement={placement}
         >
@@ -152,24 +138,12 @@ export function TimelineRowMetrics({
       ) : null}
       {showCost ? (
         <span
-          className={cn(
-            placement === "inside" ? toneClass : "text-muted-foreground",
-            metrics.costClass,
-          )}
+          className={
+            placement === "inside" ? toneClass : "text-muted-foreground"
+          }
         >
           {metrics.costText}
         </span>
-      ) : null}
-      {showScores ? (
-        <div className="flex max-h-5 gap-1" data-testid="timeline-dense-scores">
-          {/* Not expandable: this box was measured for exactly `MAX_SCORE_GROUPS`
-              chips, so expanding in place would clip the ones already drawn. */}
-          <GroupedScoreBadges
-            scores={scores}
-            maxVisible={MAX_SCORE_GROUPS}
-            expandable={false}
-          />
-        </div>
       ) : null}
     </div>
   );
