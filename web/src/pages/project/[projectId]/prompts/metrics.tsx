@@ -8,6 +8,7 @@ import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -258,21 +259,19 @@ export default function PromptVersionTable({
         return !!value ? <span>{String(value)}</span> : undefined;
       },
     },
-    {
+    createNumberTableColumn<PromptVersionTableRow>({
       accessorKey: "medianCost",
-      id: "medianCost",
       header: "Median cost",
       size: 120,
-      cell: ({ row }) => {
-        const value: number | undefined | null = row.getValue("medianCost");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
+      formatter: usdFormatter,
+      getValue: (value) => {
+        if (!promptMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
 
-        return !!value ? <span>{usdFormatter(value)}</span> : undefined;
+        return value;
       },
       enableHiding: true,
-    },
+    }),
     {
       accessorKey: "generationCount",
       id: "generationCount",

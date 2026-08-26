@@ -485,8 +485,7 @@ export default function ExperimentsTable({
       accessorKey: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "errorCount",

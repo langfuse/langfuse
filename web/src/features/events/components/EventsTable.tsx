@@ -47,7 +47,11 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import {
   formatObservationCost,
   isObservationCostDisplayable,
@@ -1409,8 +1413,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolCalls",
@@ -1419,8 +1422,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1485,8 +1487,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
@@ -1496,8 +1497,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
@@ -1507,8 +1507,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
