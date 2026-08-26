@@ -8,6 +8,18 @@ vi.mock("@langfuse/shared/src/server", () => ({
   hasPricingTierUsageDetails: (usage?: Record<string, number>) =>
     Object.keys(usage ?? {}).length > 0,
   matchPricingTier: mockMatchPricingTier,
+  redis: null,
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+  ClickHouseClientManager: {
+    getInstance: () => ({
+      closeAllConnections: vi.fn(async () => undefined),
+    }),
+  },
 }));
 
 import { evaluateTestModelMatch } from "@/src/features/models/server/evaluateTestModelMatch";
