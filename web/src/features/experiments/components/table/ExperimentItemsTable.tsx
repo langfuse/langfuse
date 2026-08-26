@@ -35,6 +35,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -671,17 +672,12 @@ export default function ExperimentItemsTable({
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
-    {
+    createIdTableColumn<ExperimentItemsTableRow>({
       accessorKey: "itemId",
-      id: "itemId",
       header: "Item ID",
       size: 150,
       enableHiding: true,
-      cell: ({ row }) => {
-        const itemId = row.original.itemId;
-        return <TableIdOrName value={itemId} />;
-      },
-    },
+    }),
     {
       accessorKey: "observationId",
       id: "observationId",

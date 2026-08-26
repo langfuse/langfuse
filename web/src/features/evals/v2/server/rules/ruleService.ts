@@ -43,7 +43,9 @@ import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { assertCompleteEvaluatorVariableMapping } from "../evaluators/evaluatorValidation";
-import { fallbackRuleName } from "./ruleFilterMatching";
+import { fallbackRuleName, filterStateKey } from "./ruleFilterMatching";
+
+const MAX_REUSABLE_FILTERS = 10;
 
 export type RuleAuditEvent = {
   action: "create" | "update" | "delete";
@@ -120,6 +122,58 @@ export class RuleService {
     return Object.fromEntries(
       costs.map(({ ruleId, totalCost }) => [ruleId, totalCost]),
     );
+  }
+
+  async listReusableFilters(projectId: string) {
+    const candidates = await repository.listReusableFilterCandidates({
+      prisma: this.prisma,
+      projectId,
+    });
+    // FilterState equality ignores condition order and multi-value order. A SQL
+    // JSONB GROUP BY would need to canonicalize both array levels first, so the
+    // service owns semantic deduplication and ranking over repository rows.
+    const grouped = new Map<
+      string,
+      {
+        latestRuleId: string;
+        filter: FilterState;
+        updatedAt: Date;
+        evaluatorIds: Set<string>;
+      }
+    >();
+
+    for (const candidate of candidates) {
+      const filter = candidate.filter as FilterState;
+      if (filter.length === 0) continue;
+      const key = filterStateKey(filter);
+      const group = grouped.get(key) ?? {
+        latestRuleId: candidate.id,
+        filter,
+        updatedAt: candidate.updatedAt,
+        evaluatorIds: new Set<string>(),
+      };
+      if (candidate.updatedAt > group.updatedAt) {
+        group.latestRuleId = candidate.id;
+        group.filter = filter;
+        group.updatedAt = candidate.updatedAt;
+      }
+      for (const { evaluatorId } of candidate.assignments) {
+        group.evaluatorIds.add(evaluatorId);
+      }
+      grouped.set(key, group);
+    }
+
+    return [...grouped.values()]
+      .map(({ evaluatorIds, ...group }) => ({
+        ...group,
+        evaluatorCount: evaluatorIds.size,
+      }))
+      .sort(
+        (left, right) =>
+          right.evaluatorCount - left.evaluatorCount ||
+          right.updatedAt.getTime() - left.updatedAt.getTime(),
+      )
+      .slice(0, MAX_REUSABLE_FILTERS);
   }
 
   async listRulesForEvaluator(projectId: string, evaluatorId: string) {

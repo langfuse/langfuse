@@ -6,6 +6,7 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import type * as EnvModule from "@/src/env.mjs";
 import type * as EvaluatorPreflightModule from "@/src/features/evals/server/evaluator-preflight";
 import type * as TestEvaluatorModule from "@/src/features/evals/v2/server/evaluators/testEvaluator";
@@ -42,13 +43,9 @@ const mocks = vi.hoisted(() => ({
   testEvaluator: vi.fn(),
   env: {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: "test-small-model",
-    LANGFUSE_AWS_BEDROCK_MODEL: "test-model",
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
   } as {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: string | undefined;
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: string | undefined;
-    LANGFUSE_AWS_BEDROCK_MODEL: string | undefined;
     LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy" | "dual" | "events_only";
   },
 }));
@@ -65,8 +62,6 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   return {
     env: Object.assign(mocks.env, actual.env, {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
-      LANGFUSE_AWS_BEDROCK_SMALL_MODEL: "test-small-model",
-      LANGFUSE_AWS_BEDROCK_MODEL: "test-model",
       LANGFUSE_MIGRATION_V4_WRITE_MODE: "events_only",
     }),
   };
@@ -130,6 +125,27 @@ const llmInput = (
 
 const createService = () => new EvaluatorService(prisma, async () => undefined);
 
+// Langfuse AI availability resolves the model through the shared env, so drive
+// it there rather than through the web env mock.
+const originalSharedAiModel = {
+  model: sharedEnv.LANGFUSE_AI_MODEL,
+  smallModel: sharedEnv.LANGFUSE_AI_SMALL_MODEL,
+  provider: sharedEnv.LANGFUSE_AI_PROVIDER,
+  apiKey: sharedEnv.LANGFUSE_AI_API_KEY,
+};
+
+const setSharedAiModel = (params: {
+  model: string | undefined;
+  smallModel: string | undefined;
+}) => {
+  Object.assign(sharedEnv, {
+    LANGFUSE_AI_PROVIDER: undefined,
+    LANGFUSE_AI_API_KEY: undefined,
+    LANGFUSE_AI_MODEL: params.model,
+    LANGFUSE_AI_SMALL_MODEL: params.smallModel,
+  });
+};
+
 beforeAll(async () => {
   const [first, second] = await Promise.all([
     createOrgProjectAndApiKey(),
@@ -155,9 +171,8 @@ beforeEach(() => {
   mocks.getEvaluatorDefinitionPreflightError.mockResolvedValue(null);
   mocks.testEvaluator.mockReset();
   mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
-  mocks.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "test-small-model";
-  mocks.env.LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
   mocks.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+  setSharedAiModel({ model: "test-model", smallModel: "test-small-model" });
 });
 
 afterEach(async () => {
@@ -170,6 +185,12 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  Object.assign(sharedEnv, {
+    LANGFUSE_AI_MODEL: originalSharedAiModel.model,
+    LANGFUSE_AI_SMALL_MODEL: originalSharedAiModel.smallModel,
+    LANGFUSE_AI_PROVIDER: originalSharedAiModel.provider,
+    LANGFUSE_AI_API_KEY: originalSharedAiModel.apiKey,
+  });
   await prisma.organization.deleteMany({ where: { id: { in: orgIds } } });
 });
 
@@ -864,7 +885,7 @@ describe("EvaluatorService", () => {
     ).resolves.toBeNull();
 
     mocks.generateLangfuseAIText.mockClear();
-    mocks.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
+    setSharedAiModel({ model: "test-model", smallModel: undefined });
     mocks.generateLangfuseAIText.mockResolvedValueOnce("Main model fallback");
     await expect(
       service.suggestName({ projectId, userId: null, definition }),
@@ -874,13 +895,13 @@ describe("EvaluatorService", () => {
     );
 
     mocks.generateLangfuseAIText.mockClear();
-    mocks.env.LANGFUSE_AWS_BEDROCK_MODEL = undefined;
+    setSharedAiModel({ model: undefined, smallModel: undefined });
     await expect(
       service.suggestName({ projectId, userId: null, definition }),
     ).resolves.toBeNull();
     expect(mocks.generateLangfuseAIText).not.toHaveBeenCalled();
 
-    mocks.env.LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    setSharedAiModel({ model: "test-model", smallModel: undefined });
     await expect(
       service.suggestName({
         projectId: otherProjectId,

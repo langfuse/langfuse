@@ -31,7 +31,8 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -480,16 +481,12 @@ export default function ExperimentsTable({
         return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
       },
     },
-    {
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
-      id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      cell: ({ row }) => {
-        const value: number = row.getValue("itemCount");
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0, 0),
+    }),
     {
       accessorKey: "errorCount",
       id: "errorCount",
@@ -508,18 +505,13 @@ export default function ExperimentsTable({
       },
       enableHiding: true,
     },
-    {
+    createDateTableColumn<ExperimentsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: getExperimentsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "datasetId",
       id: "datasetId",
@@ -587,33 +579,23 @@ export default function ExperimentsTable({
         );
       },
     },
-    {
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "latencyAvg",
-      id: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined || value === null) return undefined;
-        return <span>{numberFormatter(value / 1000, 4)}s</span>;
-      },
-    },
-    {
+      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "totalCost",
-      id: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined || value === null) return undefined;
-        return <span>${numberFormatter(value, 6)}</span>;
-      },
-    },
+      formatter: (value) => `$${numberFormatter(value, 6)}`,
+    }),
     {
       accessorKey: "traceItemScores",
       header: "Trace Item Scores",

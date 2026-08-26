@@ -22,9 +22,12 @@ import type {
   UpdateRuleInput,
 } from "./ruleTypes";
 import { creatorOptionsWhere, creatorWhere } from "../creatorFilterPrisma";
+import { batchEligibleEvaluatorWhere } from "../evaluators/evaluatorRepository";
 import { filtersMatch } from "./ruleFilterMatching";
 
 export type RulePrisma = PrismaClient | Prisma.TransactionClient;
+
+const MAX_REUSABLE_FILTER_CANDIDATES = 20;
 
 const latestVersion = {
   orderBy: { version: "desc" as const },
@@ -181,6 +184,39 @@ export async function listRulesCursor(params: {
     nextCursor:
       hasMore && last ? { createdAt: last.createdAt, id: last.id } : undefined,
   };
+}
+
+export async function listReusableFilterCandidates(params: {
+  prisma: PrismaClient;
+  projectId: string;
+}) {
+  const rules = await params.prisma.evaluationRule.findMany({
+    where: {
+      projectId: params.projectId,
+      targetObject: {
+        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: MAX_REUSABLE_FILTER_CANDIDATES,
+    select: {
+      id: true,
+      filter: true,
+      updatedAt: true,
+      assignments: {
+        where: {
+          projectId: params.projectId,
+          evaluator: {
+            projectId: params.projectId,
+            ...batchEligibleEvaluatorWhere,
+          },
+        },
+        select: { evaluatorId: true },
+      },
+    },
+  });
+
+  return rules;
 }
 
 export async function listRuleFilterOptions(params: {

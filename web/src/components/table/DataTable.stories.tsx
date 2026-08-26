@@ -18,6 +18,11 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -44,7 +49,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import {
   Copy,
   InfoIcon,
@@ -262,27 +266,18 @@ function buildTraceColumns(
         />
       ),
     },
-    {
+    createDateTableColumn<TraceRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value = row.original.timestamp;
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<TraceRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       enableSorting: true,
-      // Returns the raw string — hits DataTable's string-cell branch exactly
-      // like the real Name cell.
-      cell: ({ row }) => row.original.name ?? undefined,
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -427,35 +422,16 @@ function buildTraceColumns(
         ) : null;
       },
     },
-    {
+    createTagsTableColumn<TraceRow>({
       accessorKey: "tags",
-      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      loadingCell: <TableTextLoadingCell />,
-      // Real Traces Tags cell: TagList inside the `flex gap-x-2 gap-y-1`
-      // wrapper, wrapping only on non-"s" row heights.
-      cell: ({ row }) => {
-        const traceTags = row.original.tags;
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
@@ -489,15 +465,13 @@ function buildTraceColumns(
       },
       enableSorting: true,
     },
-    {
+    createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
-      id: "id",
       size: 90,
       defaultHidden: true,
-      cell: ({ row }) => <TableIdOrName value={row.original.id} />,
       enableSorting: true,
-    },
+    }),
     {
       accessorKey: "action",
       header: "Action",
@@ -533,29 +507,19 @@ function buildTraceColumns(
 // pagination, and selection stories where the full Traces column set is noise.
 
 const plainColumns: LangfuseColumnDef<TraceRow>[] = [
-  {
-    accessorKey: "id",
-    id: "id",
-    header: "ID",
-    size: 220,
-    cell: ({ row }) => <TableIdOrName value={row.original.id} />,
-  },
-  {
+  createIdTableColumn<TraceRow>({ accessorKey: "id", header: "ID", size: 220 }),
+  createTextTableColumn<TraceRow>({
     accessorKey: "name",
-    id: "name",
     header: "Name",
     enableSorting: true,
     size: 180,
-    cell: ({ row }) => row.original.name,
-  },
-  {
+  }),
+  createDateTableColumn<TraceRow>({
     accessorKey: "timestamp",
-    id: "timestamp",
     header: "Timestamp",
     enableSorting: true,
     size: 200,
-    cell: ({ row }) => <LocalIsoDate date={row.original.timestamp} />,
-  },
+  }),
   {
     accessorKey: "environment",
     id: "environment",
@@ -1085,15 +1049,12 @@ function buildGroupedColumns(
     id: "scoresGroup",
     header: "Scores",
     columns: [
-      {
+      createNumberTableColumn<TraceRow>({
         accessorKey: "observationCount",
-        id: "observationCount",
         header: "Observations",
         size: 110,
-        cell: ({ row }) => (
-          <span>{numberFormatter(row.original.observationCount, 0)}</span>
-        ),
-      },
+        formatter: (value) => numberFormatter(value, 0, 0),
+      }),
       {
         accessorKey: "latency",
         id: "latencyScore",
@@ -1108,20 +1069,20 @@ function buildGroupedColumns(
     id: "usageGroup",
     header: "Cost & usage",
     columns: [
-      {
-        accessorKey: "totalCost",
+      createNumberTableColumn<TraceRow>({
         id: "totalCostGrouped",
+        accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        cell: ({ row }) => usdFormatter(row.original.totalCost.toNumber()),
-      },
-      {
-        accessorKey: "usage",
+        formatter: usdFormatter,
+      }),
+      createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
+        accessorFn: (row) => row.usage.totalUsage,
         header: "Tokens",
         size: 100,
-        cell: ({ row }) => numberFormatter(row.original.usage.totalUsage, 0),
-      },
+        formatter: (value) => numberFormatter(value, 0, 0),
+      }),
     ] satisfies LangfuseColumnDef<TraceRow>[],
   };
   // place groups just before the action column (last entry)
@@ -1492,13 +1453,11 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       }
     },
   },
-  {
+  createTextTableColumn<IconCellRow>({
     accessorKey: "detail",
-    id: "detail",
     header: "Status",
     size: 120,
-    cell: ({ getValue }) => getValue<string>(),
-  },
+  }),
 ];
 
 function InlineIconCellsStory() {
