@@ -513,7 +513,7 @@
     {
       "id": "cmtdm68000003ad07afj8ag4o",
       "createdAt": "2026-08-26T00:00:00.000Z",
-      "updatedAt": "2026-08-26T00:00:00.000Z",
+      "updatedAt": "2026-08-26T12:00:00.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
@@ -523,8 +523,47 @@
       "dimensions": [{"field": "calledToolNames"}],
       "metrics": [{"agg": "count", "measure": "count"}],
       "filters": [],
-      "chartType": "VERTICAL_BAR",
-      "chartConfig": {"type": "VERTICAL_BAR", "row_limit": 20},
+      "chartType": "HORIZONTAL_BAR",
+      "chartConfig": {"type": "HORIZONTAL_BAR", "row_limit": 20},
+      "owner": "LANGFUSE"
+    },
+    {
+      "id": "cmtdm68000007ad07terrbytl",
+      "createdAt": "2026-08-26T12:00:00.000Z",
+      "updatedAt": "2026-08-26T12:00:00.000Z",
+      "createdBy": null,
+      "updatedBy": null,
+      "projectId": null,
+      "name": "Tool Errors by Tool",
+      "description": "Failed tool executions (ERROR level) per tool, limited to the top 20",
+      "view": "OBSERVATIONS",
+      "dimensions": [{"field": "name"}],
+      "metrics": [{"agg": "count", "measure": "count"}],
+      "filters": [
+        {"column": "type", "type": "stringOptions", "operator": "any of", "value": ["TOOL"]},
+        {"column": "level", "type": "stringOptions", "operator": "any of", "value": ["ERROR"]}
+      ],
+      "chartType": "HORIZONTAL_BAR",
+      "chartConfig": {"type": "HORIZONTAL_BAR", "row_limit": 20},
+      "owner": "LANGFUSE"
+    },
+    {
+      "id": "cmtdm68000008ad07p95bytl0",
+      "createdAt": "2026-08-26T12:00:00.000Z",
+      "updatedAt": "2026-08-26T12:00:00.000Z",
+      "createdBy": null,
+      "updatedBy": null,
+      "projectId": null,
+      "name": "P 95 Tool Latency by Tool",
+      "description": "P95 execution latency of TOOL observations per tool, limited to the top 20",
+      "view": "OBSERVATIONS",
+      "dimensions": [{"field": "name"}],
+      "metrics": [{"agg": "p95", "measure": "latency"}],
+      "filters": [
+        {"column": "type", "type": "stringOptions", "operator": "any of", "value": ["TOOL"]}
+      ],
+      "chartType": "HORIZONTAL_BAR",
+      "chartConfig": {"type": "HORIZONTAL_BAR", "row_limit": 20},
       "owner": "LANGFUSE"
     },
     {
@@ -639,12 +678,12 @@
     {
       "id": "cmtdm68000006ad07dzdb73zw",
       "createdAt": "2026-08-26T00:00:00.000Z",
-      "updatedAt": "2026-08-26T00:00:00.000Z",
+      "updatedAt": "2026-08-26T12:00:00.000Z",
       "createdBy": null,
       "updatedBy": null,
       "projectId": null,
       "name": "Langfuse Agent Dashboard",
-      "description": "Monitor agent tool usage: total tool calls, most-called tools, and observation type breakdowns.",
+      "description": "Monitor agent tool usage: total tool calls, most-called tools, tool errors and latency, and observation type breakdowns.",
       "owner": "LANGFUSE",
       "definition": {
         "widgets": [
@@ -652,7 +691,9 @@
           {"x": 4, "y": 0, "id": "8c5d70ff-9ca1-4879-893f-187c5a62ea1d", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmtdm68000004ad07qwlf51rv"},
           {"x": 8, "y": 0, "id": "11c3f92f-76f8-46c9-a89e-8211812dd6d9", "type": "widget", "x_size": 4, "y_size": 5, "widgetId": "cmtdm68000003ad07afj8ag4o"},
           {"x": 0, "y": 5, "id": "7c8ecb81-c586-4819-8c5f-0cd2155fda2d", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmtdm68000002ad076rurfiln"},
-          {"x": 6, "y": 5, "id": "df9d14b2-0133-4d1c-a83a-f1437470fc0e", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmtdm68000005ad07q12mamip"}
+          {"x": 6, "y": 5, "id": "df9d14b2-0133-4d1c-a83a-f1437470fc0e", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmtdm68000005ad07q12mamip"},
+          {"x": 0, "y": 10, "id": "3f6a1c2e-91b4-4c8a-a7d2-5e0b8c94d711", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmtdm68000007ad07terrbytl"},
+          {"x": 6, "y": 10, "id": "b82d4e57-3a19-4f06-9c3d-1a7e6f25c842", "type": "widget", "x_size": 6, "y_size": 5, "widgetId": "cmtdm68000008ad07p95bytl0"}
         ]
       }
     }
