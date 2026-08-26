@@ -91,7 +91,10 @@ const session = {
   },
 } as Session;
 
-function prepare() {
+function prepare({
+  v4BetaEnabled = false,
+  foundEvaluatorIds = [evaluatorId],
+} = {}) {
   const batchActionCreate = vi
     .fn()
     .mockResolvedValue({ id: "batch-action-id" });
@@ -100,9 +103,21 @@ function prepare() {
     jobConfiguration: {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
     },
+    evaluationRule: {
+      findMany: vi.fn(async () => [{ id: evaluatorId }]),
+    },
+    evaluator: {
+      findMany: vi.fn(async () => foundEvaluatorIds.map((id) => ({ id }))),
+    },
   } as unknown as PrismaClient;
   const ctx = {
-    ...createInnerTRPCContext({ session, headers: {} }),
+    ...createInnerTRPCContext({
+      session: {
+        ...session,
+        user: { ...session.user, v4BetaEnabled },
+      } as Session,
+      headers: {},
+    }),
     prisma,
   };
 
@@ -225,4 +240,88 @@ describe("event batch-action comment filter preflight", () => {
       });
     },
   );
+});
+
+describe("batched evaluation version selection", () => {
+  beforeEach(() => {
+    mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+    Object.values(mocks).forEach((mock) => mock.mockReset());
+    mocks.getObservationsCountFromEventsTable.mockResolvedValue(1);
+    mocks.queueAdd.mockResolvedValue(undefined);
+    resolveComments();
+  });
+
+  it("validates and queues stable evaluators for fast-preview users", async () => {
+    const context = prepare({ v4BetaEnabled: true });
+
+    await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      evalVersion: "v2",
+    });
+
+    expect(context.prisma.evaluator.findMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: [evaluatorId] },
+        projectId,
+        assignments: {
+          none: {
+            evaluationRule: {
+              targetObject: { in: ["trace", "dataset"] },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    expect(context.prisma.jobConfiguration.findMany).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ evalVersion: "v2" }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("rejects evaluator v2 for users outside fast preview", async () => {
+    const context = prepare();
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(context.prisma.evaluator.findMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects legacy-backed evaluators that are not batch eligible", async () => {
+    const context = prepare({
+      v4BetaEnabled: true,
+      foundEvaluatorIds: [],
+    });
+
+    await expect(
+      context.runEvaluation.create({
+        projectId,
+        query,
+        evaluatorIds: [evaluatorId],
+        sourceTable: BatchEvalSourceTable.EVENTS,
+        evalVersion: "v2",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: `Evaluators [${evaluatorId}] are missing or incompatible with batch evaluation.`,
+    });
+
+    expect(context.batchActionCreate).not.toHaveBeenCalled();
+    expect(mocks.queueAdd).not.toHaveBeenCalled();
+  });
 });

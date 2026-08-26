@@ -48,7 +48,9 @@ export const createModelCache = (projectId: string) => {
         OR: [{ projectId }, { projectId: null }],
       },
       include: {
-        Price: true,
+        Price: {
+          where: { pricingTier: { isDefault: true } },
+        },
       },
     });
 

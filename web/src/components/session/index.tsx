@@ -86,6 +86,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { SessionMetadataJsonPathControl } from "@/src/components/session/SessionMetadataJsonPathControl";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
 import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
@@ -362,6 +363,7 @@ export const SessionPage: React.FC<{
       projectId: projectId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(sessionId),
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -402,11 +404,14 @@ export const SessionPage: React.FC<{
     [sessionDetailStore, setShowCorrections],
   );
 
-  const sessionComments = api.comments.getByObjectId.useQuery({
-    projectId,
-    objectId: sessionId,
-    objectType: "SESSION",
-  });
+  const sessionComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId: sessionId,
+      objectType: "SESSION",
+    },
+    { enabled: Boolean(projectId) && Boolean(sessionId) },
+  );
 
   const onDownloadSessionAsJson = useCallback(async () => {
     await downloadSessionAsJson({
@@ -832,6 +837,7 @@ const LoadedSessionEventsPage: React.FC<{
   const capture = usePostHogClientCapture();
   const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
+    projectId,
   });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
@@ -893,7 +899,7 @@ const LoadedSessionEventsPage: React.FC<{
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: userSession.status === "authenticated" },
+    { enabled: userSession.status === "authenticated" && Boolean(sessionId) },
   );
 
   const traceCommentCounts =
@@ -902,7 +908,7 @@ const LoadedSessionEventsPage: React.FC<{
         projectId,
         sessionId,
       },
-      { enabled: userSession.status === "authenticated" },
+      { enabled: userSession.status === "authenticated" && Boolean(sessionId) },
     );
 
   const peekNavigationConfig = React.useMemo(
@@ -1377,6 +1383,9 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
+  const modernSessionTraces = isTracesSuccess
+    ? ({ state: "loaded", data: traces ?? [] } as const)
+    : ({ state: "loading" } as const);
 
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
@@ -1557,22 +1566,29 @@ const LoadedSessionEventsPage: React.FC<{
           }
         >
           {isModernSessionEnabled ? (
-            <ModernSessionHeader
+            <SessionMetadataJsonPathControl
+              key={`${projectId}:${sessionId}`}
               projectId={projectId}
-              countTraces={session.countTraces}
-              traces={
-                isTracesSuccess
-                  ? { state: "loaded", data: traces ?? [] }
-                  : { state: "loading" }
-              }
-              tokensIn={session.inputUsage}
-              tokensOut={session.outputUsage}
-              totalTokens={session.totalTokens}
-              totalCost={session.totalCost ?? 0}
-              environment={session.environment ?? null}
-              users={session.users ?? []}
-              scores={session.scores}
-            />
+              sessionId={sessionId}
+              traces={modernSessionTraces}
+              filterState={visibleFilterState}
+            >
+              {(metadataJsonPaths) => (
+                <ModernSessionHeader
+                  projectId={projectId}
+                  countTraces={session.countTraces}
+                  traces={modernSessionTraces}
+                  tokensIn={session.inputUsage}
+                  tokensOut={session.outputUsage}
+                  totalTokens={session.totalTokens}
+                  totalCost={session.totalCost ?? 0}
+                  environment={session.environment ?? null}
+                  users={session.users ?? []}
+                  metadataJsonPaths={metadataJsonPaths}
+                  scores={session.scores}
+                />
+              )}
+            </SessionMetadataJsonPathControl>
           ) : null}
           {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar

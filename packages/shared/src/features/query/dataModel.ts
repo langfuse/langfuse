@@ -13,6 +13,7 @@ import {
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -849,6 +850,15 @@ const createScoreSpecificDimensions = (
     alias: "name",
     type: "string",
     description: "Name of the score (e.g., accuracy, toxicity).",
+  },
+  evaluatorId: {
+    sql: `coalesce(nullIf(${tableAlias}.metadata['${EvalExecutionMetadataKey.EVALUATOR_ID}'], ''), ${tableAlias}.metadata['${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}'])`,
+    alias: "evaluatorId",
+    type: "string",
+    description:
+      "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
+    highCardinality: true,
+    uiHidden: true,
   },
   source: {
     sql: `${tableAlias}.source`,

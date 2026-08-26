@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
@@ -100,6 +101,8 @@ describe("in-app agent background runs", () => {
   const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
   const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  const originalSharedAiBedrockRegion =
+    sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
   const originalSharedInAppAgentEnabled =
     sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
   const originalMaxActiveRunsPerUser =
@@ -113,6 +116,7 @@ describe("in-app agent background runs", () => {
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
@@ -132,6 +136,8 @@ describe("in-app agent background runs", () => {
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
       originalSharedBedrockRegion;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION =
+      originalSharedAiBedrockRegion;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
       originalSharedInAppAgentEnabled;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
@@ -292,6 +298,7 @@ describe("in-app agent background runs", () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     await expect(
       caller.startRun({
@@ -318,8 +325,7 @@ describe("in-app agent background runs", () => {
       }),
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message:
-        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
+      message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
     });
 
     expect(enqueuedJobs).toHaveLength(0);
@@ -726,7 +732,31 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant" },
+      value: {
+        toolCallId: "tool-call-grant",
+        approved: true,
+        alwaysAllow: true,
+        toolName: "langfuse_createTextPrompt",
+      },
+    });
+
+    const onceDecisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: onceConversation.id,
+        runId: onceRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(onceDecisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: {
+        toolCallId: "tool-call-once",
+        approved: true,
+      },
+    });
+    expect(onceDecisionEvent.event).not.toMatchObject({
+      value: { alwaysAllow: true },
     });
   });
 

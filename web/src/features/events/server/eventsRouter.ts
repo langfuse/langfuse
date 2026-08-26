@@ -1,5 +1,4 @@
-import { type z } from "zod";
-import { z as zodSchema } from "zod";
+import { type z, z as zodSchema } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -17,9 +16,10 @@ import {
   toDomainWithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { EventsTableOptions } from "./types";
+import { EventsCursorTableOptions, EventsTableOptions } from "./types";
 import {
   getEventList,
+  getEventListCursor,
   getEventCount,
   getEventFilterOptions,
   getEventMetadataValues,
@@ -45,6 +45,17 @@ import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
+});
+
+const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
+  limit: paginationZod.limit,
+  cursor: zodSchema
+    .object({
+      lastStartTimeTo: zodSchema.date(),
+      lastTraceId: zodSchema.string(),
+      lastId: zodSchema.string(),
+    })
+    .optional(),
 });
 
 export type EventBatchIOOutput = {
@@ -141,6 +152,44 @@ export const eventsRouter = createTRPCRouter({
             orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
+          });
+        },
+      );
+    }),
+  listCursor: protectedProjectProcedure
+    .input(GetEventsCursorInput)
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return {
+          observations: [],
+          hasMore: false,
+          nextCursor: undefined,
+        };
+      }
+
+      return instrumentAsync(
+        { name: "get-event-list-cursor-trpc" },
+        async (span) => {
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: { column: "startTime", order: "DESC" },
+          });
+
+          return getEventListCursor({
+            projectId: ctx.session.projectId,
+            filter: filterState,
+            searchQuery: input.searchQuery ?? undefined,
+            searchType: input.searchType,
+            limit: input.limit,
+            cursor: input.cursor,
           });
         },
       );

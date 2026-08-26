@@ -1677,3 +1677,455 @@ export const TheTooltipEscapesTheSurface = meta.story({
     );
   },
 });
+
+/** The shared args for the feedback-round stories: names visible, one trace. */
+const READABLE = {
+  roots: deepNesting(6),
+  box: DESKTOP,
+  gutter: "expanded" as const,
+  pointer: "fine" as const,
+  barColor: "type" as const,
+  compress: false,
+  showReadout: true,
+  selectedId: null,
+};
+
+/**
+ * A row is one thing. The tooltip used to be gated on the pointer being past the
+ * gutter — so hovering a span's NAME, the most obvious way to ask what it is,
+ * told you nothing, while the row highlighted across its full width anyway.
+ */
+export const TheTooltipCoversTheWholeRow = meta.story({
+  name: "(Test) The Tooltip Covers The Whole Row",
+  args: { ...READABLE, onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    // Over the NAME, well inside the gutter.
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + 30,
+        clientY: rect.top + 40,
+      }),
+    );
+    const tooltip = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+      if (!el) throw new Error("hovering a name said nothing");
+      return el;
+    });
+    await expect(tooltip.innerText).toContain("level-");
+  },
+});
+
+/**
+ * Hue means observation type and nothing else. Focus used to repaint the bar in
+ * the accent — which is the same blue that means SPAN — so a hovered generation
+ * changed species under the cursor.
+ */
+export const HoverDoesNotRecolourTheBar = meta.story({
+  name: "(Test) Hover Does Not Recolour The Bar",
+  args: {
+    ...READABLE,
+    roots: manySpans(40),
+    selectedId: "n0",
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const bars = () => [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      ),
+    ];
+    const hueOf = (bar: HTMLElement) =>
+      [...bar.classList].find((name) => name.startsWith("bg-")) ?? "";
+
+    const before = bars().map(hueOf);
+    await expect(before.length).toBeGreaterThan(3);
+
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.7,
+        clientY: rect.top + 60,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-testid="timeline-dense-tooltip"]'),
+      ).not.toBeNull(),
+    );
+
+    // Same hues, hovered or not — and the accent never paints a bar at all.
+    await expect(bars().map(hueOf)).toEqual(before);
+    await expect(before.some((hue) => hue.includes("primary-accent"))).toBe(
+      false,
+    );
+    // Selection still reads, as a ring rather than a repaint.
+    const ringed = bars().filter((bar) =>
+      [...bar.classList].some((name) => name.startsWith("ring-")),
+    );
+    await expect(ringed.length).toBe(1);
+  },
+});
+
+/** A control that can do nothing should say so rather than look broken. */
+export const FitIsDisabledWhenItWouldDoNothing = meta.story({
+  name: "(Test) Fit Is Disabled When It Would Do Nothing",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const fit = () =>
+      canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label*="fits"], button[aria-label="Fit whole trace"]',
+      );
+    const button = fit();
+    if (!button) throw new Error("no fit button");
+    // At rest the whole trace already fits.
+    await expect(button.disabled).toBe(true);
+
+    const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Zoom in"]',
+    );
+    if (!zoomIn) throw new Error("no zoom button");
+    await userEvent.click(zoomIn);
+    await waitFor(() => expect(fit()?.disabled).toBe(false));
+  },
+});
+
+/** Collapse in the tree means collapse here: the same set, honoured. */
+export const CollapsedRowsAreNotDrawn = meta.story({
+  name: "(Test) Collapsed Rows Are Not Drawn",
+  args: {
+    ...READABLE,
+    collapsed: new Set(["n0"]),
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    // A six-deep chain with its root collapsed is one row.
+    await expect(
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-row"]')
+        .length,
+    ).toBe(1);
+  },
+});
+
+/**
+ * The tooltip does not say when a span started. The bar's position on the axis
+ * already says it, and in words it was one more number to read past: `@0ms` on a
+ * root means nothing, and a row that starts 11m 52s in and runs 11m 52s put two
+ * identical unlabelled durations side by side.
+ */
+export const TheTooltipDoesNotRepeatTheAxis = meta.story({
+  name: "(Test) The Tooltip Does Not Repeat The Axis",
+  args: { ...READABLE, onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    const hover = (offsetY: number) =>
+      surface.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          pointerType: "mouse",
+          clientX: rect.left + rect.width * 0.7,
+          clientY: rect.top + offsetY,
+        }),
+      );
+    const tooltip = () =>
+      document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+
+    // The root, which starts the trace...
+    hover(6);
+    await waitFor(() => expect(tooltip()).not.toBeNull());
+    const rootText = tooltip()!.innerText;
+    await expect(rootText).not.toContain("@");
+    await expect(rootText).not.toContain("starts at");
+
+    // ...and a row that starts well into it. Neither mentions when.
+    hover(6 + 26 * 3);
+    await waitFor(() => expect(tooltip()!.innerText).not.toBe(rootText));
+    await expect(tooltip()!.innerText).not.toContain("@");
+    await expect(tooltip()!.innerText).not.toContain("starts at");
+    // What it DOES say: the name, and how long it took.
+    await expect(tooltip()!.innerText).toMatch(/\d/);
+  },
+});
+
+/** Drag draws the zoom box — no modifier, because scroll already pans. */
+export const DragZoomsWithoutAModifier = meta.story({
+  name: "(Test) Drag Zooms Without A Modifier",
+  args: { ...READABLE, roots: manySpans(150), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    // Spy rather than stub: WHEN the pointer is captured is the contract here.
+    // Capture retargets the click that follows to the capturing element, so
+    // taking it on pointerdown kills click-to-select on every row — and no
+    // synthetic event in a test can observe the retargeting itself, which is
+    // exactly how that shipped once already.
+    const captures: number[] = [];
+    surface.setPointerCapture = (pointerId: number) => {
+      captures.push(pointerId);
+    };
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    await expect(readout()).toContain("fitted");
+
+    const rect = surface.getBoundingClientRect();
+    const drag = (type: string, x: number, y: number) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          buttons: type === "pointerup" ? 0 : 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    drag("pointerdown", rect.left + rect.width * 0.3, rect.top + 100);
+    // A press is not a drag yet, so nothing is captured and no box exists.
+    await expect(captures).toEqual([]);
+    await expect(
+      canvasElement.querySelector('[data-testid="timeline-dense-marquee"]'),
+    ).toBeNull();
+
+    drag("pointermove", rect.left + rect.width * 0.6, rect.top + 240);
+    // Past the threshold it is a drag, and only now does it take the pointer.
+    await expect(captures).toEqual([1]);
+
+    drag("pointerup", rect.left + rect.width * 0.6, rect.top + 240);
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+  },
+});
+
+/** ...but a finger still pans, because a finger has no scroll wheel. */
+export const AFingerDragStillPans = meta.story({
+  name: "(Test) A Finger Drag Still Pans",
+  args: {
+    ...READABLE,
+    // More rows than the box holds, or there is no window left to pan.
+    roots: manySpans(3000),
+    pointer: "coarse" as const,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const rowsLabel = () =>
+      canvasElement.querySelector<HTMLElement>('[data-testid="dense-rows"]')
+        ?.textContent ?? "";
+
+    const rect = surface.getBoundingClientRect();
+    const before = rowsLabel();
+    const heightBefore =
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent ?? "";
+    touch(
+      surface,
+      "pointerdown",
+      1,
+      rect.left + rect.width * 0.5,
+      rect.top + 400,
+    );
+    touch(
+      surface,
+      "pointermove",
+      1,
+      rect.left + rect.width * 0.5,
+      rect.top + 120,
+    );
+    touch(
+      surface,
+      "pointerup",
+      1,
+      rect.left + rect.width * 0.5,
+      rect.top + 120,
+    );
+
+    // The window MOVED...
+    await waitFor(() => expect(rowsLabel()).not.toBe(before));
+    // ...and did not resize: a box zoom would have changed the row height.
+    await expect(
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="dense-rowheight"]',
+      )?.textContent,
+    ).toBe(heightBefore);
+  },
+});
+
+/**
+ * The cursor should not promise a gesture the surface does not perform. It was a
+ * grab hand, from when drag meant pan; drag draws a zoom box now, so the surface
+ * says nothing at rest and the bars carry the only real affordance — a click
+ * that selects.
+ */
+export const TheCursorMatchesTheGesture = meta.story({
+  name: "(Test) The Cursor Matches The Gesture",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    await expect(getComputedStyle(surface).cursor).toBe("default");
+
+    const bar = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-bar"]',
+    );
+    if (!bar) throw new Error("no bar");
+    await expect(getComputedStyle(bar).cursor).toBe("pointer");
+  },
+});
+
+/**
+ * The toolbar does not explain the surface. Every gesture it supports is one you
+ * would have tried anyway, and the space is better spent saying where you ARE —
+ * which is worth saying only once you are somewhere other than the whole trace.
+ */
+export const TheToolbarDoesNotExplainItself = meta.story({
+  name: "(Test) The Toolbar Does Not Explain Itself",
+  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  play: async ({ canvasElement }) => {
+    const toolbar = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-toolbar"]',
+    );
+    if (!toolbar) throw new Error("no toolbar");
+
+    // At rest: no tutorial, and nothing about where you are — you are nowhere in
+    // particular, you are looking at all of it.
+    for (const word of ["drag", "scroll", "pinch", "double-click", "window"]) {
+      await expect(toolbar.innerText.toLowerCase()).not.toContain(word);
+    }
+
+    // Three controls, all of them about the view: out, in, fit. No colour
+    // reference card (the tooltip names a type where you are asking) and no
+    // names toggle (`auto` decides, and the rail peeks when you want a look).
+    const labels = [
+      ...toolbar.querySelectorAll<HTMLButtonElement>("button"),
+    ].map((button) => button.getAttribute("aria-label"));
+    await expect(labels).toEqual([
+      "Zoom out",
+      "Zoom in",
+      "Whole trace already fits",
+    ]);
+
+    const zoomIn = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Zoom in"]',
+    );
+    if (!zoomIn) throw new Error("no zoom button");
+    await userEvent.click(zoomIn);
+
+    // Zoomed: it says where you are, and still explains nothing.
+    await waitFor(() =>
+      expect(toolbar.innerText.toLowerCase()).toContain("window"),
+    );
+    await expect(toolbar.innerText.toLowerCase()).not.toContain("drag");
+    await expect(toolbar.innerText.toLowerCase()).not.toContain("px");
+  },
+});
+
+/**
+ * A second finger abandons a box the first one had started. Every release commits
+ * whatever box it finds, so a rectangle left behind by an interrupted drag flies
+ * the viewport somewhere nobody asked to go — one pinch later, on a release that
+ * had nothing to do with it.
+ */
+export const APinchAbandonsAnUnfinishedBox = meta.story({
+  name: "(Test) A Pinch Abandons An Unfinished Box",
+  args: {
+    ...READABLE,
+    roots: manySpans(150),
+    pointer: "coarse" as const,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const marquee = () =>
+      canvasElement.querySelector('[data-testid="timeline-dense-marquee"]');
+    const rect = surface.getBoundingClientRect();
+    await expect(readout()).toContain("fitted");
+
+    // A finger WITH shift draws a box — the one way touch asks for one.
+    const shifted = (type: string, x: number, y: number) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "touch",
+          isPrimary: true,
+          shiftKey: true,
+          buttons: type === "pointerup" ? 0 : 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    shifted("pointerdown", rect.left + rect.width * 0.3, rect.top + 100);
+    shifted("pointermove", rect.left + rect.width * 0.6, rect.top + 260);
+    await waitFor(() => expect(marquee()).not.toBeNull());
+
+    // A second finger arrives: that is a pinch now, and the box is abandoned.
+    touch(
+      surface,
+      "pointerdown",
+      2,
+      rect.left + rect.width * 0.5,
+      rect.top + 300,
+    );
+    await waitFor(() => expect(marquee()).toBeNull());
+
+    // Releasing must not fly anywhere: there is no box left to fly to.
+    shifted("pointerup", rect.left + rect.width * 0.6, rect.top + 260);
+    let flew = false;
+    try {
+      await waitFor(() => expect(readout()).toContain("zoomed"), {
+        timeout: 600,
+      });
+      flew = true;
+    } catch {
+      // Still fitted, which is the point.
+    }
+    await expect(flew).toBe(false);
+  },
+});

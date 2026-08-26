@@ -144,7 +144,7 @@ describe("useOrganizationSettingsPages", () => {
     );
   });
 
-  it("gates the v4 migration link on the v4UpgradeUi flag", () => {
+  it("gates the v4 migration link on deployment availability", () => {
     const { result } = renderHook(() => useOrganizationSettingsPages());
 
     expect(
