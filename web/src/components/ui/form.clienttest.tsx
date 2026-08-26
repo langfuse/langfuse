@@ -18,6 +18,11 @@ function FormMessageProbe() {
     defaultValues: { categories: [{ value: "" }, { value: "" }] },
   });
 
+  // RHF FieldPath omits Zod nested keys like `.root` / `.config`.
+  const setNestedError = (name: string, message: string) => {
+    form.setError(name as never, { message });
+  };
+
   return (
     <Form {...form}>
       <FormField
@@ -55,9 +60,7 @@ function FormMessageProbe() {
           form.setError("categories.0.value", {
             message: "Category cannot be empty",
           });
-          form.setError("categories.root", {
-            message: "Add at least two categories",
-          });
+          setNestedError("categories.root", "Add at least two categories");
         }}
       >
         item-and-root
@@ -65,9 +68,7 @@ function FormMessageProbe() {
       <button
         type="button"
         onClick={() => {
-          form.setError("categories.config", {
-            message: "Expected string",
-          });
+          setNestedError("categories.config", "Expected string");
         }}
       >
         union
