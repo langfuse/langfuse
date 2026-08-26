@@ -10,6 +10,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { getAiFeatureConfigTelemetry } from "@/src/features/telemetry/aiFeatures";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
@@ -237,6 +238,23 @@ async function posthogTelemetry({
       0,
     );
 
+    // AI features. Organizations opt in individually, so the enabled count
+    // needs the total as its denominator. Runs are counted unconditionally:
+    // zero on an instance that never enabled the Assistant is itself the
+    // answer we are looking for.
+    const totalOrganizations = await prisma.organization.count();
+    const aiFeaturesEnabledOrganizations = await prisma.organization.count({
+      where: { aiFeaturesEnabled: true },
+    });
+    const countAssistantRuns = await prisma.inAppAgentRun.count({
+      where: {
+        createdAt: {
+          gte: startTimeframe?.toISOString(),
+          lt: endTimeframe.toISOString(),
+        },
+      },
+    });
+
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
       SELECT
@@ -267,6 +285,10 @@ async function posthogTelemetry({
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        totalOrganizations: totalOrganizations,
+        aiFeaturesEnabledOrganizations: aiFeaturesEnabledOrganizations,
+        assistantRuns: countAssistantRuns,
+        ...getAiFeatureConfigTelemetry(),
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,
