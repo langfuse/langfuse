@@ -11,9 +11,6 @@ const original = {
   LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
   LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
   LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
-  LANGFUSE_AWS_BEDROCK_MODEL: env.LANGFUSE_AWS_BEDROCK_MODEL,
-  LANGFUSE_AWS_BEDROCK_SMALL_MODEL: env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
-  LANGFUSE_AWS_BEDROCK_REGION: env.LANGFUSE_AWS_BEDROCK_REGION,
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
 };
 
@@ -22,22 +19,21 @@ afterEach(() => {
 });
 
 describe("getInAppAgentModelConfig", () => {
-  it("resolves Bedrock from existing env when provider is unset", () => {
+  it("resolves Bedrock from LANGFUSE_AI_MODEL and LANGFUSE_AI_SMALL_MODEL", () => {
     Object.assign(env, {
-      LANGFUSE_AI_PROVIDER: undefined,
+      LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
+      LANGFUSE_AI_SMALL_MODEL: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
-      LANGFUSE_AI_AWS_BEDROCK_REGION: undefined,
-      LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
-      LANGFUSE_AWS_BEDROCK_SMALL_MODEL: "eu.anthropic.claude-haiku-4-5",
-      LANGFUSE_AWS_BEDROCK_REGION: "eu-west-1",
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     });
 
     expect(getInAppAgentModelConfig()).toEqual({
       provider: "bedrock",
-      modelId: "eu.anthropic.claude-opus-4-8",
-      titleModelId: "eu.anthropic.claude-haiku-4-5",
+      modelId: "eu.anthropic.claude-opus-5",
+      titleModelId: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       region: "eu-west-1",
     });
   });
@@ -49,7 +45,6 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: "claude-haiku-4-5",
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
-      LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     });
 
@@ -80,7 +75,6 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: "claude-haiku-4-5",
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
-      LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
 
@@ -98,19 +92,18 @@ describe("getInAppAgentModelConfig", () => {
 
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
-      LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
-      LANGFUSE_AWS_BEDROCK_SMALL_MODEL: undefined,
-      LANGFUSE_AWS_BEDROCK_REGION: "eu-west-1",
-      LANGFUSE_AI_AWS_BEDROCK_REGION: undefined,
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
 
     expect(getInAppAgentModelConfig()).toEqual({
       provider: "bedrock",
-      modelId: "eu.anthropic.claude-opus-4-8",
-      titleModelId: "eu.anthropic.claude-opus-4-8",
+      modelId: "eu.anthropic.claude-opus-5",
+      titleModelId: "eu.anthropic.claude-opus-5",
       region: "eu-west-1",
     });
     expect(warn).toHaveBeenCalledTimes(1);
@@ -121,23 +114,36 @@ describe("getInAppAgentModelConfig", () => {
     warn.mockRestore();
   });
 
-  it("prefers LANGFUSE_AI_AWS_BEDROCK_REGION over LANGFUSE_AWS_BEDROCK_REGION", () => {
+  it("treats an invalid LANGFUSE_AI_AWS_BEDROCK_REGION as unconfigured", () => {
     Object.assign(env, {
-      LANGFUSE_AI_PROVIDER: undefined,
+      LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
-      LANGFUSE_AI_AWS_BEDROCK_REGION: "us-east-1",
-      LANGFUSE_AWS_BEDROCK_MODEL: "eu.anthropic.claude-opus-4-8",
-      LANGFUSE_AWS_BEDROCK_SMALL_MODEL: undefined,
-      LANGFUSE_AWS_BEDROCK_REGION: "eu-west-1",
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "us-east-1.attacker.test",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
+    });
+
+    expect(getInAppAgentModelConfig()).toBeUndefined();
+  });
+
+  it("leaves the Bedrock region undefined when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: undefined,
+      LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_AWS_BEDROCK_REGION: undefined,
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
 
     expect(getInAppAgentModelConfig()).toEqual({
       provider: "bedrock",
-      modelId: "eu.anthropic.claude-opus-4-8",
-      titleModelId: "eu.anthropic.claude-opus-4-8",
-      region: "us-east-1",
+      modelId: "eu.anthropic.claude-opus-5",
+      titleModelId: "eu.anthropic.claude-opus-5",
+      region: undefined,
     });
   });
 });

@@ -119,6 +119,7 @@ export const events = {
     "create_form_submit",
     "update_form_submit",
     "manage_configs_item_click",
+    "add_category_inline",
     "archive_form_open",
     "archive_form_submit",
   ],
@@ -191,6 +192,7 @@ export const events = {
     "status_change",
     "attach_evaluator",
     "detach_evaluator",
+    "filter_reused",
   ],
   integrations: [
     "posthog_form_submitted",
@@ -210,6 +212,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -398,6 +402,7 @@ export const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
+    "facet_fold_toggled",
     "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",

@@ -187,6 +187,7 @@ if (
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
       idToken: env.AUTH_CUSTOM_ID_TOKEN === "true",
+      fetchUserInfo: env.AUTH_CUSTOM_FETCH_USERINFO === "true",
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
@@ -780,7 +781,7 @@ export async function getAuthOptions(signupAttribution?: {
     logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's
