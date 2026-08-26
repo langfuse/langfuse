@@ -7,6 +7,7 @@ import {
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -456,23 +457,24 @@ export default function SessionsTable({
 
   const columns: LangfuseColumnDef<SessionTableRow>[] = [
     selectActionColumn,
-    {
+    createLinkTableColumn<SessionTableRow>({
       accessorKey: "id",
-      id: "id",
       header: "ID",
       size: 200,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const value: SessionTableRow["id"] = row.getValue("id");
-        return value && typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
-            value={value}
-          />
-        ) : undefined;
+      getCell: (value) => {
+        if (!value || typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/sessions/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
       enableSorting: true,
-    },
+    }),
     createDateTableColumn<SessionTableRow>({
       accessorKey: "createdAt",
       header: "Created At",

@@ -7,8 +7,8 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
-import TableLink from "@/src/components/table/table-link";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
@@ -211,19 +211,23 @@ export function DashboardTable() {
 
   const columnHelper = createColumnHelper<DashboardTableRow>();
   const dashboardColumns = [
-    columnHelper.accessor("name", {
+    createLinkTableColumn<DashboardTableRow>({
+      accessorKey: "name",
       header: "Name",
-      id: "name",
       enableSorting: true,
       size: 200,
-      cell: (row) => {
-        const name = row.getValue();
-        return name ? (
-          <TableLink
-            path={`/project/${projectId}/dashboards/${encodeURIComponent(row.row.original.id)}`}
-            value={name}
-          />
-        ) : undefined;
+      getCell: (name, { row }) => {
+        if (name) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/dashboards/${encodeURIComponent(row.original.id)}`,
+              value: name,
+            },
+          };
+        }
+
+        return undefined;
       },
     }),
     createTextTableColumn<DashboardTableRow>({
