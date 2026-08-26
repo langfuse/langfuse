@@ -276,10 +276,6 @@ function toTraceEvalConfig(rule: TraceRule): TraceEvalConfig | null {
  * spend and — because score ids are derived from the job execution id — shows
  * up as duplicate scores. Deriving the id from the dedup key lets the primary
  * key reject the loser instead.
- *
- * Rows written before this change still carry random ids; they keep
- * deduplicating through the existence check, which matches on the key columns
- * rather than on the id.
  */
 function createDeterministicJobExecutionId(params: {
   projectId: string;
