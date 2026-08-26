@@ -13,7 +13,7 @@ export function createNumberTableColumn<TData extends RowData>({
   getValue,
   ...options
 }: TableColumnOptions<TData, number> & {
-  emptyValue?: React.ReactNode;
+  emptyValue?: string;
   formatter?: (value: number) => string;
   getValue?: (
     value: number | null | undefined,

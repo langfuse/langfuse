@@ -483,25 +483,20 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
     }),
-    {
+    createNumberTableColumn<SessionTableRow>({
       accessorKey: "sessionDuration",
-      id: "sessionDuration",
       header: "Duration",
       size: 130,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["sessionDuration"] =
-          row.getValue("sessionDuration");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value && typeof value === "number"
-          ? formatIntervalSeconds(value)
-          : undefined;
+      formatter: formatIntervalSeconds,
+      getValue: (value) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
+
+        return value;
       },
       enableSorting: true,
-    },
+    }),
     createBadgeTableColumn<SessionTableRow>({
       accessorKey: "environment",
       header: "Environment",
@@ -545,9 +540,8 @@ export default function SessionsTable({
         ) : undefined;
       },
     },
-    {
+    createNumberTableColumn<SessionTableRow>({
       accessorKey: "countTraces",
-      id: "countTraces",
       header: "Traces",
       size: 100,
       headerTooltip: {
@@ -555,16 +549,14 @@ export default function SessionsTable({
       },
       enableHiding: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["countTraces"] =
-          row.getValue("countTraces");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value ? <span>{numberFormatter(value, 0)}</span> : undefined;
+      formatter: (value) => numberFormatter(value, 0),
+      getValue: (value) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
+
+        return value;
       },
-    },
+    }),
     createNumberTableColumn<SessionTableRow>({
       accessorFn: (row) => row.inputCost?.toNumber(),
       id: "inputCost",
@@ -612,66 +604,51 @@ export default function SessionsTable({
         return value;
       },
     }),
-    {
+    createNumberTableColumn<SessionTableRow>({
       accessorKey: "inputTokens",
-      id: "inputTokens",
       header: "Input Tokens",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["inputTokens"] =
-          row.getValue("inputTokens");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value ? (
-          <span>{numberFormatter(Number(value), 0)}</span>
-        ) : undefined;
+      formatter: (value) => numberFormatter(value, 0),
+      getValue: (value) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
+
+        return value;
       },
-    },
-    {
+    }),
+    createNumberTableColumn<SessionTableRow>({
       accessorKey: "outputTokens",
-      id: "outputTokens",
       header: "Output Tokens",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["outputTokens"] =
-          row.getValue("outputTokens");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value ? (
-          <span>{numberFormatter(Number(value), 0)}</span>
-        ) : undefined;
+      formatter: (value) => numberFormatter(value, 0),
+      getValue: (value) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
+
+        return value;
       },
-    },
-    {
+    }),
+    createNumberTableColumn<SessionTableRow>({
       accessorKey: "totalTokens",
-      id: "totalTokens",
       header: "Total Tokens",
       size: 110,
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["totalTokens"] =
-          row.getValue("totalTokens");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value ? (
-          <span>{numberFormatter(Number(value), 0)}</span>
-        ) : undefined;
+      formatter: (value) => numberFormatter(value, 0),
+      getValue: (value) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
+
+        return value;
       },
-    },
+    }),
     {
       accessorKey: "usage",
       id: "usage",

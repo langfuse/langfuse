@@ -1100,60 +1100,36 @@ export default function ObservationsTable({
           enableHiding: true,
           enableSorting,
         }),
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.inputUsage,
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "outputTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.outputUsage,
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "totalTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.totalUsage,
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
-        },
+          formatter: (value) => numberFormatter(value, 0),
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {

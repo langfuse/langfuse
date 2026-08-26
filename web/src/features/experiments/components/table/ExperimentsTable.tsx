@@ -579,33 +579,23 @@ export default function ExperimentsTable({
         );
       },
     },
-    {
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "latencyAvg",
-      id: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined || value === null) return undefined;
-        return <span>{numberFormatter(value / 1000, 4)}s</span>;
-      },
-    },
-    {
+      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "totalCost",
-      id: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined || value === null) return undefined;
-        return <span>${numberFormatter(value, 6)}</span>;
-      },
-    },
+      formatter: (value) => `$${numberFormatter(value, 6)}`,
+    }),
     {
       accessorKey: "traceItemScores",
       header: "Trace Item Scores",

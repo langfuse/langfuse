@@ -209,56 +209,45 @@ export default function PromptVersionTable({
       },
       enableHiding: true,
     },
-    {
+    createNumberTableColumn<PromptVersionTableRow>({
       accessorKey: "medianLatency",
-      id: "medianLatency",
       header: "Median latency",
       size: 140,
-      cell: ({ row }) => {
-        const latency: number | undefined | null =
-          row.getValue("medianLatency");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
+      formatter: (value) => formatIntervalSeconds(value / 1000, 3),
+      getValue: (value) => {
+        if (!promptMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
 
-        return !!latency ? (
-          // latency is in milliseconds, divide by 1000 to get seconds
-          <span>{formatIntervalSeconds(latency / 1000, 3)}</span>
-        ) : undefined;
+        return value;
       },
       enableHiding: true,
-    },
-    {
+    }),
+    createNumberTableColumn<PromptVersionTableRow>({
       accessorKey: "medianInputTokens",
-      id: "medianInputTokens",
       header: "Median input tokens",
       size: 160,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined | null =
-          row.getValue("medianInputTokens");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
+      formatter: String,
+      getValue: (value) => {
+        if (!promptMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
 
-        return !!value ? <span>{String(value)}</span> : undefined;
+        return value;
       },
-    },
-    {
+    }),
+    createNumberTableColumn<PromptVersionTableRow>({
       accessorKey: "medianOutputTokens",
-      id: "medianOutputTokens",
       header: "Median output tokens",
       size: 170,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined | null =
-          row.getValue("medianOutputTokens");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-        return !!value ? <span>{String(value)}</span> : undefined;
+      formatter: String,
+      getValue: (value) => {
+        if (!promptMetrics.isSuccess) return { type: "loading" };
+        if (!value) return undefined;
+
+        return value;
       },
-    },
+    }),
     createNumberTableColumn<PromptVersionTableRow>({
       accessorKey: "medianCost",
       header: "Median cost",
