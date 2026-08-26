@@ -4,6 +4,9 @@ import {
   createTracesCh,
   createObservationsCh,
   createEventsCh,
+  convertCallsToArrays,
+  convertDefinitionsToMap,
+  extractToolsFromObservation,
   ObservationRecordInsertType,
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
@@ -516,7 +519,20 @@ const run = async (
     const inputCost = prices ? usageInput * prices.input : 0;
     const outputCost = prices ? usageOutput * prices.output : 0;
 
+    // Direct ClickHouse writes bypass ingestion, so run the same tool
+    // extraction the ingestion pipeline applies — otherwise the tool_calls /
+    // tool_call_names columns (dashboard tool-call measures) stay empty even
+    // though the generation outputs contain OpenAI-style tool_calls.
+    const { toolDefinitions, toolArguments } = extractToolsFromObservation(
+      p.input,
+      p.output,
+    );
+    const toolCallArrays = convertCallsToArrays(toolArguments);
+
     return createObservation({
+      tool_definitions: convertDefinitionsToMap(toolDefinitions),
+      tool_calls: toolCallArrays.tool_calls,
+      tool_call_names: toolCallArrays.tool_call_names,
       id: keyToId.get(p.key)!,
       trace_id: traceId,
       project_id: ctx.projectId,
