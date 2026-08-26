@@ -74,6 +74,12 @@ function parseSpec(source: string): OpenApiDocument {
   return parse(source, { maxAliasCount: -1 }) as OpenApiDocument;
 }
 
+function v3SunsetOperations() {
+  return getFernDeprecatedOperations(definitionDirectory).filter(
+    ({ message }) => message.includes("Langfuse v3 is deprecated"),
+  );
+}
+
 function withDefinition(
   files: Record<string, string>,
   assertions: (directory: string) => void,
@@ -122,10 +128,8 @@ describe("OpenAPI deprecations", () => {
     }
   });
 
-  it("states the runtime sunset date in every Fern deprecation message", () => {
-    for (const { method, endpointPath, message } of getFernDeprecatedOperations(
-      definitionDirectory,
-    )) {
+  it("states the runtime sunset date in v3 sunset messages", () => {
+    for (const { method, endpointPath, message } of v3SunsetOperations()) {
       expect(message, `${method.toUpperCase()} ${endpointPath}`).toContain(
         `will be removed on ${V3_SUNSET_HUMAN}.`,
       );
@@ -133,10 +137,8 @@ describe("OpenAPI deprecations", () => {
   });
 
   // The date is a Cloud commitment; self-hosted is not bound by it.
-  it("scopes every sunset message to Langfuse Cloud", () => {
-    for (const { method, endpointPath, message } of getFernDeprecatedOperations(
-      definitionDirectory,
-    )) {
+  it("scopes v3 sunset messages to Langfuse Cloud", () => {
+    for (const { method, endpointPath, message } of v3SunsetOperations()) {
       const operation = `${method.toUpperCase()} ${endpointPath}`;
       expect(message, operation).toContain("On Langfuse Cloud,");
       expect(message, operation).toContain(

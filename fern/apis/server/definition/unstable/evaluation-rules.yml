@@ -11,7 +11,7 @@ service:
     create:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluation-rules` API instead."
       docs: |
         Create an evaluation rule.
 
@@ -241,7 +241,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluation-rules` API instead."
       docs: |
         List evaluation rules in the authenticated project.
 
@@ -269,7 +269,7 @@ service:
     get:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluation-rules` API instead."
       docs: |
         Get one evaluation rule by its identifier.
 
@@ -293,7 +293,7 @@ service:
     update:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluation-rules` API instead."
       docs: |
         Update an evaluation rule.
 
@@ -337,7 +337,7 @@ service:
     delete:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluation-rules` API instead."
       docs: |
         Delete an evaluation rule.
 

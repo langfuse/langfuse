@@ -3,10 +3,8 @@ import {
   extractVariables,
   InternalServerError,
   observationVariableMappingList,
-  parseEvaluatorChatPrompt,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
-  serializeEvaluatorChatPrompt,
   variableMappingList,
   type FilterState,
   type ObservationVariableMapping,
@@ -236,7 +234,7 @@ export function toEvaluatorServiceDefinition(
         }
       : {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: serializeEvaluatorChatPrompt(definition.prompt),
+          prompt: definition.prompt[0]!.content,
           modelConfig: definition.modelConfig ?? null,
           variableMapping:
             definition.variableMapping == null
@@ -280,9 +278,7 @@ export function toPublicEvaluatorVersion(
   if (!version.prompt) {
     throw new InternalServerError("Evaluator prompt is corrupted");
   }
-  const prompt = parseEvaluatorChatPrompt(version.prompt) ?? [
-    { role: "user" as const, content: version.prompt },
-  ];
+  const prompt = [{ role: "user" as const, content: version.prompt }];
   return EvaluatorVersion.parse({
     ...common,
     type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,

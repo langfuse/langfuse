@@ -69,6 +69,13 @@ describe("stable evaluators public API", () => {
       minValue: 0,
       maxValue: 1,
     });
+    await expect(
+      prisma.evaluatorVersion.findFirstOrThrow({
+        where: { evaluatorId: llmEvaluator.body.id },
+        orderBy: { version: "desc" },
+        select: { prompt: true },
+      }),
+    ).resolves.toEqual({ prompt: "Input: {{input}}" });
 
     const categoricalEvaluator = await makeZodVerifiedAPICall(
       Evaluator,
@@ -434,6 +441,63 @@ describe("stable evaluators public API", () => {
     expect(new Set(listedIds)).toEqual(
       new Set(created.map(({ body }) => body.id)),
     );
+  });
+
+  it("preserves model configuration when patching another field", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const evaluator = await new EvaluatorService(
+      prisma,
+      async () => undefined,
+    ).create(
+      {
+        projectId,
+        name: "configured evaluator",
+        description: null,
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{input}}",
+          vars: ["input"],
+          provider: "openai",
+          model: "gpt-4.1-mini",
+          modelParams: { temperature: 0.2 },
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "BOOLEAN",
+            reasoning: { description: "Explain the score" },
+            score: { description: "Return the score" },
+          },
+        },
+      },
+      null,
+    );
+
+    await makeZodVerifiedAPICall(
+      Evaluator,
+      "PATCH",
+      `/api/public/v2/evaluators/${evaluator.id}`,
+      {
+        type: "llm_as_judge",
+        prompt: "Judge carefully: {{input}}",
+        outputDefinition: { dataType: "BOOLEAN" },
+      },
+      auth,
+    );
+
+    await expect(
+      prisma.evaluatorVersion.findFirstOrThrow({
+        where: { evaluatorId: evaluator.id },
+        orderBy: { version: "desc" },
+        select: {
+          provider: true,
+          model: true,
+          modelParams: true,
+        },
+      }),
+    ).resolves.toEqual({
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      modelParams: { temperature: 0.2 },
+    });
   });
 
   it("patches an evaluator", async () => {

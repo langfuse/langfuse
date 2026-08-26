@@ -11,7 +11,7 @@ service:
     create:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluators` API instead."
       docs: |
         Create an evaluator in the authenticated project.
 
@@ -262,7 +262,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluators` API instead."
       docs: |
         List the evaluators available to the authenticated project.
 
@@ -292,7 +292,7 @@ service:
     get:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluators` API instead."
       docs: |
         Get one evaluator by `id`.
 
@@ -316,7 +316,7 @@ service:
     delete:
       availability:
         status: deprecated
-        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
+        message: "This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluators` API instead."
       docs: |
         Delete an evaluator.
 

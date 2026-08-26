@@ -8571,11 +8571,9 @@ paths:
   /api/public/unstable/evaluation-rules:
     post:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
-        are unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -8744,11 +8742,9 @@ paths:
       deprecated: true
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
-        are unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -8826,11 +8822,9 @@ paths:
   /api/public/unstable/evaluation-rules/{evaluationRuleId}:
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
-        are unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -8900,11 +8894,9 @@ paths:
       deprecated: true
     patch:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
-        are unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -9027,11 +9019,9 @@ paths:
       deprecated: true
     delete:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
-        are unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -9099,11 +9089,9 @@ paths:
   /api/public/unstable/evaluators:
     post:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluators` API instead. Self-hosted deployments are
-        unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -9250,7 +9238,7 @@ paths:
       deprecated: true
     get:
       description: |-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
         List the evaluators available to the authenticated project.
 
@@ -9324,11 +9312,9 @@ paths:
   /api/public/unstable/evaluators/{evaluatorId}:
     get:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluators` API instead. Self-hosted deployments are
-        unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
@@ -9397,11 +9383,9 @@ paths:
       deprecated: true
     delete:
       description: >-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
-        `/api/public/v2/evaluators` API instead. Self-hosted deployments are
-        unaffected by this date; the endpoint becomes unavailable when they
-        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4
+        upgrade
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 

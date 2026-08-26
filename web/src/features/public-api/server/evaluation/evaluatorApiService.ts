@@ -1,3 +1,4 @@
+import { EvalTemplateType, ZodModelConfig } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -97,17 +98,38 @@ export async function updateEvaluatorForPublicApi(params: {
   input: UpdateEvaluatorBodyType;
   auditScope: ApiAccessScope;
 }) {
+  const service = evaluatorService(params.auditScope);
+  let definition =
+    "type" in params.input
+      ? toEvaluatorServiceDefinition(params.input)
+      : undefined;
+
+  if (
+    definition?.type === EvalTemplateType.LLM_AS_JUDGE &&
+    "type" in params.input &&
+    params.input.type === "llm_as_judge" &&
+    params.input.modelConfig === undefined
+  ) {
+    const current = await service.get(params.projectId, params.evaluatorId);
+    const latestVersion = current.versions[0];
+    if (current.type === EvalTemplateType.LLM_AS_JUDGE && latestVersion) {
+      definition = {
+        ...definition,
+        provider: latestVersion.provider,
+        model: latestVersion.model,
+        modelParams: ZodModelConfig.nullable().parse(latestVersion.modelParams),
+      };
+    }
+  }
+
   return toPublicEvaluator(
-    await evaluatorService(params.auditScope).patch(
+    await service.patch(
       {
         projectId: params.projectId,
         evaluatorId: params.evaluatorId,
         name: params.input.name,
         description: params.input.description,
-        definition:
-          "type" in params.input
-            ? toEvaluatorServiceDefinition(params.input)
-            : undefined,
+        definition,
       },
       null,
     ),
