@@ -160,7 +160,7 @@ export function toolDefinition(
 ): ToolDefinition | null {
   if (typeof fields.name !== "string" || fields.name.length === 0) return null;
 
-  return {
+  return compact<ToolDefinition>({
     name: fields.name,
     description:
       typeof fields.description === "string" ? fields.description : undefined,
@@ -170,7 +170,7 @@ export function toolDefinition(
         : toJsonValue(parseIfString(fields.inputSchema)),
     type: typeof fields.type === "string" ? fields.type : undefined,
     providerMetadata: fields.providerMetadata,
-  };
+  });
 }
 
 // Keys consumed as definition fields by SOME dialect's extraction; everything

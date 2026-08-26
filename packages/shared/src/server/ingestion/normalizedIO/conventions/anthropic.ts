@@ -97,13 +97,15 @@ const normalizeAnthropicImage: PartHandler = (value) => {
   return part ? claimed(part) : unmatched;
 };
 
-// Anthropic call blocks: { type, id, name, input }.
+// Anthropic call blocks: { type, id, name, input } — streamed emissions
+// also carry the content-block `index`.
 const anthropicToolCall = (value: Record<string, unknown>, toolType?: string) =>
   toolCallPart({
     toolCallId: value.id,
     toolName: value.name,
     input: value.input,
     toolType,
+    index: value.index,
   });
 
 const normalizeAnthropicServerToolCall: PartHandler = (value) =>

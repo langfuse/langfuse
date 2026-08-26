@@ -18,8 +18,6 @@ import type {
  * types no SDK's own vocabulary claims, and the `gen_ai.tool.definitions`/
  * `llm.tools.N` attribute carriers.
  */
-
-// TODO: check if we can remove this? just rely on fallback?
 function normalizeOtelGenaiToolResult(
   value: Record<string, unknown>,
 ): ConventionResult<ToolResultPart> {
