@@ -14,6 +14,18 @@ import { selectAdapter, type NormalizerContext } from "./adapters";
 
 type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
+function isSingleChatMlMessage(
+  input: unknown,
+): input is Record<string, unknown> {
+  return (
+    input !== null &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    typeof (input as Record<string, unknown>).role === "string" &&
+    "content" in input
+  );
+}
+
 export function mapToChatMl(
   input: unknown,
 ): ReturnType<typeof ChatMlArraySchema.safeParse> {
@@ -42,17 +54,8 @@ export function mapToChatMl(
   }
 
   // Single message object, e.g. { role: "user", content: "..." }
-  if (
-    input &&
-    typeof input === "object" &&
-    !Array.isArray(input) &&
-    typeof (input as Record<string, unknown>).role === "string" &&
-    "content" in input
-  ) {
-    const singleMessage = ChatMlMessageSchema.safeParse(input);
-    if (singleMessage.success) {
-      return ChatMlArraySchema.safeParse([singleMessage.data]);
-    }
+  if (isSingleChatMlMessage(input)) {
+    return ChatMlArraySchema.safeParse([input]);
   }
 
   return result;
@@ -98,6 +101,8 @@ export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
 export function extractAdditionalInput(
   input: unknown,
 ): Record<string, unknown> | undefined {
+  if (isSingleChatMlMessage(input)) return undefined;
+
   const adapter = selectAdapter({ metadata: input, data: input });
   const consumedInputKeys = new Set(
     ["messages"].concat(adapter.getConsumedInputKeys?.(input) ?? []),
