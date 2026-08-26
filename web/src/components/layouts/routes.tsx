@@ -201,6 +201,8 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    // Keep Action required first in the secondary nav so it is not sandwiched
+    // between regular items like Upgrade Plan and Settings.
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
