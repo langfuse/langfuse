@@ -112,6 +112,23 @@ export function toAiSdkToolModelOutput(output: unknown): AiSdkToolModelOutput {
   return { type: "json", value: output };
 }
 
+/** AG-UI tool messages store a string. Unwrap LanguageModelV3 `{ type, value }`. */
+export function toAgUiToolResultContent(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (isRecord(value) && typeof value.type === "string" && "value" in value) {
+    return toAgUiToolResultContent(value.value);
+  }
+
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return String(value);
+  }
+}
+
 /** Withhold private persisted event payloads from browser-facing streams. */
 export function toPublicInAppAgentEvent(event: AgUiEvent): AgUiEvent {
   if (event.type === EventType.RUN_STARTED && event.input !== undefined) {
