@@ -1,7 +1,14 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
+  hasEntitlement,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  type AuthedSession,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
@@ -19,6 +26,24 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
+
+const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
+  hasEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  }) && hasProjectAccess({ session, projectId, scope: "auditLogs:read" });
+
+// An audit-log export holds actor identifiers and admin actions, so reading
+// one needs the audit-log gates too, not just the batch-export ones.
+const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
+  throwIfNoEntitlement({
+    entitlement: "audit-logs",
+    sessionUser: session.user,
+    projectId,
+  });
+  throwIfNoProjectAccess({ session, projectId, scope: "auditLogs:read" });
+};
 
 export const batchExportRouter = createTRPCRouter({
   create: protectedProjectProcedure
@@ -43,16 +68,7 @@ export const batchExportRouter = createTRPCRouter({
         };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
-          throwIfNoEntitlement({
-            entitlement: "audit-logs",
-            sessionUser: ctx.session.user,
-            projectId,
-          });
-          throwIfNoProjectAccess({
-            session: ctx.session,
-            projectId,
-            scope: "auditLogs:read",
-          });
+          assertCanReadAuditLogs(ctx.session, projectId);
         }
 
         assertLegacyTracingIoSearchCanCreateBatchJob({
@@ -140,11 +156,23 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:read",
       });
 
+      const where = {
+        projectId: input.projectId,
+        ...(canReadAuditLogs(ctx.session, input.projectId)
+          ? {}
+          : {
+              NOT: {
+                query: {
+                  path: ["tableName"],
+                  equals: BatchExportTableName.AuditLogs,
+                },
+              },
+            }),
+      };
+
       const [exports, totalCount] = await Promise.all([
         ctx.prisma.batchExport.findMany({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
           take: input.limit,
           skip: input.page * input.limit,
           orderBy: {
@@ -152,9 +180,7 @@ export const batchExportRouter = createTRPCRouter({
           },
         }),
         ctx.prisma.batchExport.count({
-          where: {
-            projectId: input.projectId,
-          },
+          where,
         }),
       ]);
 

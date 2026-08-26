@@ -5,6 +5,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import {
   BatchExportFileFormat,
+  BatchExportStatus,
   BatchTableNames,
   type Plan,
 } from "@langfuse/shared";
@@ -164,6 +165,114 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
       expect(job?.query).toMatchObject({ tableName: "audit_logs" });
     },
   );
+});
+
+const seedCompletedExport = (opts: {
+  projectId: string;
+  name: string;
+  tableName: BatchTableNames;
+}) =>
+  prisma.batchExport.create({
+    data: {
+      projectId: opts.projectId,
+      userId: "user-test",
+      status: BatchExportStatus.COMPLETED,
+      name: opts.name,
+      format: BatchExportFileFormat.CSV,
+      url: "not-a-valid-url",
+      finishedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      query: {
+        tableName: opts.tableName,
+        filter: null,
+        orderBy: null,
+      },
+    },
+  });
+
+describe("batchExport tRPC – audit_logs list authorization", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: { id: { in: __orgIds } },
+    });
+  });
+
+  it("hides audit_logs exports from all for a MEMBER without auditLogs:read", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "audit export hidden",
+      tableName: BatchTableNames.AuditLogs,
+    });
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "traces export visible",
+      tableName: BatchTableNames.Traces,
+    });
+
+    const memberCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "MEMBER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await memberCaller.batchExport.all({
+      projectId: project.id,
+      page: 0,
+      limit: 50,
+    });
+
+    expect(result.exports.map((e) => e.name)).toEqual([
+      "traces export visible",
+    ]);
+    expect(result.totalCount).toBe(1);
+  });
+
+  it("includes audit_logs exports in all for an OWNER with entitlement", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "audit export listed",
+      tableName: BatchTableNames.AuditLogs,
+    });
+    await seedCompletedExport({
+      projectId: project.id,
+      name: "traces export listed",
+      tableName: BatchTableNames.Traces,
+    });
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          plan: "cloud:team",
+          projectRole: "OWNER",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const result = await caller.batchExport.all({
+      projectId: project.id,
+      page: 0,
+      limit: 50,
+    });
+
+    expect(result.exports.map((e) => e.name).sort()).toEqual([
+      "audit export listed",
+      "traces export listed",
+    ]);
+    expect(result.totalCount).toBe(2);
+  });
 });
 
 describe("batchExport tRPC – useEventsTable snapshot", () => {
