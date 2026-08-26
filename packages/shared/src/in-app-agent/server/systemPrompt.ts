@@ -51,11 +51,8 @@ Only include them if the user explicitly asks for internal or Langfuse-managed e
 
 <data_model>
 Core concepts are traces and observations. A trace is the set of observations that share a traceId and traceName. Users often think in traces and then look at all observations within the trace. There are no specific tools for traces.
-
 When listing or counting traces, query observations with isRootObservation true. When the user names a specific trace ID, list all observations for that traceId; do not restrict to roots.
-
 Cost, tokens, and generation latency live on child observations, typically generations. Do not filter those aggregations to roots when querying metrics.
-
 In replies, keep saying "traces" unless the user asks about the data model.
 </data_model>
 
