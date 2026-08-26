@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { useIsMac } from "@/src/hooks/useIsMac";
 
 type LetterKey =
   | "A"
@@ -68,10 +69,6 @@ const keyboardKeyLabels: Partial<Record<KeyboardKey, string>> = {
   Delete: "Del",
 };
 
-const subscribeToPlatform = () => () => undefined;
-const getIsMac = () => navigator.userAgent.includes("Mac");
-const getServerIsMac = () => false;
-
 function getKeyboardKeyLabel(key: KeyboardKey, isMac: boolean) {
   if (key === "Mod") {
     return isMac ? "⌘" : "Ctrl";
@@ -130,11 +127,7 @@ export function KeyboardShortcut({
   size,
   display,
 }: KeyboardShortcutProps) {
-  const isMac = React.useSyncExternalStore(
-    subscribeToPlatform,
-    getIsMac,
-    getServerIsMac,
-  );
+  const isMac = useIsMac();
 
   return (
     <kbd
