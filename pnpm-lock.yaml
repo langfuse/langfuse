@@ -302,6 +302,9 @@ importers:
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0(supports-color@8.1.1)
+      '@hypequery/clickhouse':
+        specifier: 2.5.4
+        version: 2.5.4
       '@opentelemetry/api':
         specifier: '>=1.0.0 <1.10.0'
         version: 1.9.1
@@ -2238,6 +2241,21 @@ packages:
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
 
+  '@hypequery/clickhouse@2.5.4':
+    resolution: {integrity: sha512-q9TYG74xtWN5I2RYtS3cxMDl9mHoMy4d7UCPYxXIoZEPpGA2zr/qOMYJA4birWFEtna9lg8cVgFdiXkfE0Z9sA==}
+    hasBin: true
+    peerDependencies:
+      '@clickhouse/client-web': ^0.2.0 || ^1.0.0
+      '@hypequery/datasets': '>=0.1.0'
+    peerDependenciesMeta:
+      '@clickhouse/client-web':
+        optional: true
+      '@hypequery/datasets':
+        optional: true
+
+  '@hypequery/protocol@0.10.1':
+    resolution: {integrity: sha512-WfGVdtg3bdWIHZ0TxUWn+LXbDjxNQe9fF95A40dt79J7K/t8plSoXjUAgPipaiL6vPhAksL+T1bwdppQOexAbQ==}
+
   '@iarna/toml@3.0.0':
     resolution: {integrity: sha512-td6ZUkz2oS3VeleBcN+m//Q6HlCFCPrnI0FZhrt/h4XqLEdOyYp2u21nd8MdsR+WJy5r9PTDaHTDDfhf4H4l6Q==}
 
@@ -2846,6 +2864,10 @@ packages:
 
   '@noble/hashes@1.7.1':
     resolution: {integrity: sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ==}
+    engines: {node: ^14.21.3 || >=16}
+
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
 
   '@nodable/entities@2.1.0':
@@ -12831,6 +12853,16 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.3': {}
 
+  '@hypequery/clickhouse@2.5.4':
+    dependencies:
+      '@clickhouse/client': 1.23.1
+      '@hypequery/protocol': 0.10.1
+      dotenv: 16.6.1
+
+  '@hypequery/protocol@0.10.1':
+    dependencies:
+      '@noble/hashes': 1.8.0
+
   '@iarna/toml@3.0.0': {}
 
   '@iconify/types@2.0.0': {}
@@ -13483,6 +13515,8 @@ snapshots:
     optional: true
 
   '@noble/hashes@1.7.1': {}
+
+  '@noble/hashes@1.8.0': {}
 
   '@nodable/entities@2.1.0': {}
 

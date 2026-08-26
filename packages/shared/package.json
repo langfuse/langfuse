@@ -161,6 +161,7 @@
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "1.23.1",
     "@google-cloud/storage": "^7.19.0",
+    "@hypequery/clickhouse": "2.5.4",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@opentelemetry/otlp-transformer": "^0.220.0",
     "@opentelemetry/resources": "^2.9.0",

@@ -1,5 +1,9 @@
-import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { env } from "../../env";
+import { compile } from "../query-ast/compile";
+import {
+  buildScoreEnvironmentsPlan,
+  buildTracingEnvironmentsPlan,
+} from "../query-ast/environmentsQuery";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -11,6 +15,15 @@ export const getEnvironmentsForProject = async (
   props: EnvironmentFilterProps,
 ): Promise<{ environment: string }[]> => {
   const { projectId, fromTimestamp } = props;
+  const ctx = { projectId };
+
+  const tracing = compile(
+    buildTracingEnvironmentsPlan({
+      writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      fromTimestamp,
+    }),
+    ctx,
+  );
 
   // In dual and events_only write modes all tracing data lands in the events
   // tables: a single events_core scan covers traces and observations and is
@@ -18,47 +31,20 @@ export const getEnvironmentsForProject = async (
   // in every write mode. The events read may be routed to a dedicated
   // ClickHouse service (CLICKHOUSE_EVENTS_READ_ONLY_URL), so it cannot share
   // a query with the scores read.
-  const tracingEnvironmentsPromise =
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-      ? queryClickhouse<{ environment: string }>({
-          query: `
-            (
-              SELECT distinct environment
-              FROM traces
-              WHERE project_id = {projectId: String}
-              ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
-            ) UNION ALL (
-              SELECT distinct environment
-              FROM observations
-              WHERE project_id = {projectId: String}
-              ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
-            )
-          `,
-          params: { projectId, fromTimestamp },
-          tags: { projectId, route: "environments.getEnvironmentsForProject" },
-          preferredClickhouseService: "ReadOnly",
-        })
-      : queryClickhouse<{ environment: string }>({
-          query: `
-            SELECT distinct environment
-            FROM events_core
-            WHERE project_id = {projectId: String}
-            ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(3)}" : ""}
-          `,
-          params: { projectId, fromTimestamp },
-          tags: { projectId, route: "environments.getEnvironmentsForProject" },
-          preferredClickhouseService: "EventsReadOnly",
-        });
+  const tracingEnvironmentsPromise = queryClickhouse<{ environment: string }>({
+    query: tracing.sql,
+    params: tracing.params,
+    tags: { projectId, route: "environments.getEnvironmentsForProject" },
+    preferredClickhouseService:
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+        ? "ReadOnly"
+        : "EventsReadOnly",
+  });
 
+  const scores = compile(buildScoreEnvironmentsPlan(fromTimestamp), ctx);
   const scoreEnvironmentsPromise = queryClickhouse<{ environment: string }>({
-    query: `
-      SELECT distinct environment
-      FROM scores
-      WHERE project_id = {projectId: String}
-      AND data_type IN ({dataTypes: Array(String)})
-      ${fromTimestamp ? "AND timestamp >= {fromTimestamp: DateTime64(3)}" : ""}
-    `,
-    params: { projectId, fromTimestamp, dataTypes: LISTABLE_SCORE_TYPES },
+    query: scores.sql,
+    params: scores.params,
     tags: { projectId, route: "environments.getEnvironmentsForProject" },
     preferredClickhouseService: "ReadOnly",
   });
