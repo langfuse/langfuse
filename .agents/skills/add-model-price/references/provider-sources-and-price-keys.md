@@ -297,6 +297,14 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   modality-specific endpoints, none were added to the pricing file or `types.ts`. Future
   audits do not need to re-investigate this family unless one of them gains a standard
   text-generation mode with its own per-token text pricing.
+- **`gemini-3-pro-image` confirmed out of scope (found August 26 2026)** — A targeted
+  `ai.google.dev/pricing` fetch surfaced a `gemini-3-pro-image` row alongside the standard
+  text-generation Gemini 3.x rows: $2.00/MTok input (text/image), $12.00/MTok output for
+  text-and-thinking tokens, but a separate **$120.00/MTok** output rate for generated image
+  tokens — this is an image-generation model, not a general-purpose text/chat model. Per the
+  same modality-specific-endpoint skip rule as the specialized-modality wave above, no
+  pricing or `types.ts` entry was added. Future audits do not need to re-investigate unless
+  it gains a standard text-only pricing mode.
 - **gpt-5-chat-latest confirmed again (August 21 2026)** — Re-fetched
   `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` directly (it is absent
   from the aggregate standard-pricing-table dump, consistent with every prior audit).
