@@ -1,7 +1,7 @@
 import { expect, fn, userEvent, within } from "storybook/test";
 import { type ComponentProps } from "react";
 
-import preview from "../../../../.storybook/preview";
+import preview from "../../../../../.storybook/preview";
 import {
   DropdownMenu,
   DropdownMenuContent,
