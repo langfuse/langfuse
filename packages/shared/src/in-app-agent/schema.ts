@@ -7,6 +7,8 @@
 import type { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
+import { PersistedEvalOutputDefinitionSchema } from "../features/evals/outputDefinition";
+
 // @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
 // uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
 // Duplicate the relevant schemas locally until
@@ -42,6 +44,49 @@ export const InAppAgentRedirectActionToolResultSchema = z.object({
   label: z.string().min(1).max(80),
   href: z.string().min(1),
 });
+
+export const InAppAgentEvaluatorDraftVariableMappingSchema = z.object({
+  templateVariable: z.string().min(1),
+  selectedColumnId: z.string().min(1),
+  jsonSelector: z.string().nullish(),
+});
+
+export const InAppAgentLlmEvaluatorDraftSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2_000).nullable(),
+  definition: z.object({
+    type: z.literal("LLM_AS_JUDGE"),
+    prompt: z.string().min(1).max(100_000),
+    provider: z.string().nullable(),
+    model: z.string().nullable(),
+    modelParams: z.record(z.string(), z.unknown()).nullable(),
+    vars: z.array(z.string()),
+    variableMapping: z
+      .array(InAppAgentEvaluatorDraftVariableMappingSchema)
+      .nullable(),
+    outputDefinition: PersistedEvalOutputDefinitionSchema,
+  }),
+});
+
+export type InAppAgentLlmEvaluatorDraft = z.infer<
+  typeof InAppAgentLlmEvaluatorDraftSchema
+>;
+
+export const InAppAgentUiDraftActionToolResultSchema = z.object({
+  type: z.literal("uiDraftAction"),
+  label: z.string().min(1).max(80),
+  href: z.string().min(1),
+  destination: z.literal("newEvaluator"),
+  draft: InAppAgentLlmEvaluatorDraftSchema,
+});
+
+export const InAppAgentUiProposalToolResultSchema = z.discriminatedUnion(
+  "type",
+  [
+    InAppAgentRedirectActionToolResultSchema,
+    InAppAgentUiDraftActionToolResultSchema,
+  ],
+);
 
 export const InAppAgentSandboxToolNameSchema = z.enum([
   "read",

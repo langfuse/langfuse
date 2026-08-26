@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
@@ -1150,6 +1151,9 @@ describe("createAgUiStream", () => {
     expect(
       agentTools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
     ).not.toBe(true);
+    expect(
+      agentTools?.[IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME]?.requireApproval,
+    ).not.toBe(true);
     const docsSearchTool = agentTools?.langfuseDocs_search;
     await expect(docsSearchTool?.execute?.({}, {})).resolves.toMatchObject({
       _meta: expect.objectContaining({
@@ -1185,6 +1189,59 @@ describe("createAgUiStream", () => {
       href: "/project/project-1/widgets/widget-1",
     });
 
+    const evaluatorDraftTool = getAgentTools(
+      vi.mocked(Agent).mock.calls[0]?.[0],
+    )?.[IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME];
+
+    await expect(
+      evaluatorDraftTool?.execute?.({
+        name: "Helpfulness",
+        prompt: "Score the response.\n\nInput: {{input}}\nOutput: {{output}}",
+      }),
+    ).resolves.toMatchObject({
+      type: "uiDraftAction",
+      label: "Review evaluator in UI",
+      href: "/project/project-1/evals/new?agentDraft=1",
+      destination: "newEvaluator",
+      draft: {
+        name: "Helpfulness",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          vars: ["input", "output"],
+        },
+      },
+    });
+
+    await expect(
+      evaluatorDraftTool?.execute?.({
+        name: "Correctness",
+        prompt:
+          "Compare the answer to the expected output.\n\nOutput: {{output}}\nExpected: {{expected_output}}",
+      }),
+    ).resolves.toMatchObject({
+      type: "uiDraftAction",
+      destination: "newEvaluator",
+      draft: {
+        name: "Correctness",
+        definition: {
+          type: "LLM_AS_JUDGE",
+          vars: ["output", "expected_output"],
+          variableMapping: [
+            {
+              templateVariable: "output",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+            {
+              templateVariable: "expected_output",
+              selectedColumnId: "experimentItemExpectedOutput",
+              jsonSelector: null,
+            },
+          ],
+        },
+      },
+    });
+
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
       undefined,
@@ -1194,6 +1251,7 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        evaluatorDraftToolName: IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",
         userContext: expect.stringContaining("<user_context>"),

@@ -14,6 +14,7 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
       managedTemplateKey: "exact-match",
       isCustomTemplate: false,
       isFromScratch: false,
+      isFromAssistant: false,
     });
   });
 
@@ -27,6 +28,7 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
       evaluatorType: "LLM_AS_JUDGE",
       isCustomTemplate: true,
       isFromScratch: false,
+      isFromAssistant: false,
     });
   });
 
@@ -40,6 +42,21 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
       evaluatorType: "LLM_AS_JUDGE",
       isCustomTemplate: false,
       isFromScratch: true,
+      isFromAssistant: false,
+    });
+  });
+
+  it("reports evaluators opened from the in-app assistant", () => {
+    expect(
+      getEvaluatorCreationAnalyticsProperties({
+        evaluatorType: "LLM_AS_JUDGE",
+        creationSource: { type: "assistant" },
+      }),
+    ).toEqual({
+      evaluatorType: "LLM_AS_JUDGE",
+      isCustomTemplate: false,
+      isFromScratch: false,
+      isFromAssistant: true,
     });
   });
 });

@@ -4,7 +4,14 @@ import {
 } from "@mastra/core/schema";
 import { createTool, Tool } from "@mastra/core/tools";
 import type { InAppAgentSandbox } from "./sandbox";
-import { assertUnreachable } from "@langfuse/shared";
+import {
+  assertUnreachable,
+  extractVariables,
+  ObservationLevelDomain,
+  PersistedEvalOutputDefinitionSchema,
+  TABLE_AGGREGATION_OPTIONS,
+  TracingSearchType,
+} from "@langfuse/shared";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import {
   buildDashboardsPath,
@@ -14,6 +21,7 @@ import {
   buildExperimentsPath,
   buildModelsPath,
   buildMonitorsPath,
+  buildNewEvaluatorPath,
   buildPlaygroundPath,
   buildProjectMembersPath,
   buildProjectSettingsPath,
@@ -26,15 +34,13 @@ import {
 } from "@langfuse/shared/src/server";
 import z from "zod";
 import {
-  ObservationLevelDomain,
-  TABLE_AGGREGATION_OPTIONS,
-  TracingSearchType,
-} from "@langfuse/shared";
-import {
+  InAppAgentEvaluatorDraftVariableMappingSchema,
+  InAppAgentLlmEvaluatorDraftSchema,
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
+  IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
@@ -583,4 +589,103 @@ function getRedirectHref(
   }
 
   return assertUnreachable(input);
+}
+
+const DEFAULT_EVALUATOR_DRAFT_OUTPUT_DEFINITION = {
+  version: 2 as const,
+  dataType: "NUMERIC" as const,
+  reasoning: { description: "Explain the score." },
+  score: {
+    description: "Quality of the response.",
+    minValue: 0,
+    maxValue: 1,
+  },
+};
+
+const InAppAgentProposeEvaluatorDraftInputSchema = z.object({
+  label: z.string().min(1).max(80).default("Review evaluator in UI"),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().trim().max(2_000).optional(),
+  prompt: z.string().min(1).max(100_000),
+  variableMapping: z
+    .array(InAppAgentEvaluatorDraftVariableMappingSchema)
+    .optional(),
+  outputDefinition: PersistedEvalOutputDefinitionSchema.optional(),
+});
+
+export function createEvaluatorDraftTool({ projectId }: { projectId: string }) {
+  return createTool({
+    id: IN_APP_AGENT_EVALUATOR_DRAFT_TOOL_NAME,
+    description:
+      "Propose a filled evaluator creation form in the Langfuse UI. Use this instead of createEvaluator when the user should review an LLM-as-a-judge evaluator before saving. This does not create the evaluator.",
+    inputSchema: InAppAgentProposeEvaluatorDraftInputSchema,
+    execute: async (input) => {
+      return getEvaluatorDraftToolResult({ input, projectId });
+    },
+  });
+}
+
+export function getEvaluatorDraftToolResult({
+  input,
+  projectId,
+}: {
+  input: unknown;
+  projectId: string;
+}) {
+  const parsedInput = InAppAgentProposeEvaluatorDraftInputSchema.parse(input);
+  const vars = extractVariables(parsedInput.prompt);
+  const variableMapping =
+    parsedInput.variableMapping ??
+    vars.map((templateVariable) => ({
+      templateVariable,
+      selectedColumnId: inferEvaluatorDraftColumn(templateVariable),
+      jsonSelector: null,
+    }));
+  const draft = InAppAgentLlmEvaluatorDraftSchema.parse({
+    name: parsedInput.name,
+    description: parsedInput.description?.trim()
+      ? parsedInput.description.trim()
+      : null,
+    definition: {
+      type: "LLM_AS_JUDGE",
+      prompt: parsedInput.prompt,
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars,
+      variableMapping,
+      outputDefinition:
+        parsedInput.outputDefinition ??
+        DEFAULT_EVALUATOR_DRAFT_OUTPUT_DEFINITION,
+    },
+  });
+
+  return {
+    type: "uiDraftAction" as const,
+    label: parsedInput.label,
+    href: buildNewEvaluatorPath({ projectId, agentDraft: true }),
+    destination: "newEvaluator" as const,
+    draft,
+  };
+}
+
+function inferEvaluatorDraftColumn(variable: string) {
+  const normalized = variable.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  if (["output", "response", "answer", "completion"].includes(normalized)) {
+    return "output";
+  }
+
+  if (
+    [
+      "expectedoutput",
+      "expected",
+      "groundtruth",
+      "experimentitemexpectedoutput",
+    ].includes(normalized)
+  ) {
+    return "experimentItemExpectedOutput";
+  }
+
+  return "input";
 }

@@ -18,7 +18,7 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  isInAppAgentUiProposalToolName,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
@@ -570,7 +570,7 @@ function InAppAiAgentProviderInner({
             : false) ||
           (message.toolCalls?.some(
             (toolCall) =>
-              toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+              !isInAppAgentUiProposalToolName(toolCall.function.name) &&
               (loadingEventIds.has(toolCall.id) ||
                 unresolvedActiveRunToolCallIds.has(toolCall.id)),
           ) ??

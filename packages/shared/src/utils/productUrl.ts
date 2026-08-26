@@ -158,6 +158,14 @@ export const buildDatasetsPath = (params: {
 export const buildEvalsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/evals`;
 
+export const buildNewEvaluatorPath = (params: {
+  projectId: string;
+  agentDraft?: boolean;
+}) =>
+  appendProductPathQuery(`${buildProjectPath(params)}/evals/new`, {
+    agentDraft: params.agentDraft ? "1" : undefined,
+  });
+
 export const buildExperimentsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/experiments`;
 

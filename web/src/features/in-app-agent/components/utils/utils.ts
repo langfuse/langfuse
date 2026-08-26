@@ -5,11 +5,11 @@ import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
 import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  isInAppAgentUiProposalToolName,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
   AgUiMessageSchema,
   type AgUiMessage,
-  InAppAgentRedirectActionToolResultSchema,
+  InAppAgentUiProposalToolResultSchema,
   InAppAgentRateLimitErrorResponseSchema,
 } from "@langfuse/shared/in-app-agent";
 import {
@@ -71,6 +71,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getPromptUnresolved: "Inspecting prompt",
   listDashboardWidgets: "Browsing widgets",
   proposeRedirect: "Opening page",
+  proposeEvaluatorDraft: "Preparing evaluator",
   queryMetrics: "Checking metrics",
   read: "Reading file",
   submitFeedback: "Submitting user feedback",
@@ -536,7 +537,7 @@ export function getDrawerMessages({
       message.role === "assistant"
         ? (message.toolCalls?.flatMap(
             (toolCall): InAppAgentToolCallContent[] => {
-              if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+              if (isInAppAgentUiProposalToolName(toolCall.function.name)) {
                 return [];
               }
 
@@ -782,9 +783,20 @@ function getRedirectActionFromToolResult(
   message: Extract<AgUiMessage, { role: "tool" }>,
 ): Extract<InAppAgentMessageContent, { type: "redirectAction" }> | null {
   try {
-    return InAppAgentRedirectActionToolResultSchema.parse(
+    const parsed = InAppAgentUiProposalToolResultSchema.parse(
       JSON.parse(message.content),
     );
+
+    if (parsed.type === "redirectAction") {
+      return parsed;
+    }
+
+    return {
+      type: "redirectAction",
+      label: parsed.label,
+      href: parsed.href,
+      evaluatorDraft: parsed.draft,
+    };
   } catch {
     return null;
   }

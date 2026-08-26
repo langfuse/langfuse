@@ -12,7 +12,10 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "../../server";
-import { isSettledInAppAgentRunStatus } from "../constants";
+import {
+  isInAppAgentUiProposalToolName,
+  isSettledInAppAgentRunStatus,
+} from "../constants";
 import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
@@ -27,7 +30,7 @@ import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
 import {
   AgUiMessageSchema,
-  InAppAgentRedirectActionToolResultSchema,
+  InAppAgentUiProposalToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
 } from "../schema";
@@ -36,7 +39,6 @@ import {
   dropUnpairedAssistantToolCalls,
 } from "../messages";
 import { compactPersistedEventDeltas } from "./eventCompaction";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
   type CompletedInAppAgentMcpToolCall,
@@ -665,8 +667,7 @@ export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
     if (
       toolCallId &&
       pendingEvent.type === EventType.TOOL_CALL_START &&
-      getString(pendingEvent, "toolCallName") ===
-        IN_APP_AGENT_REDIRECT_TOOL_NAME
+      isInAppAgentUiProposalToolName(getString(pendingEvent, "toolCallName"))
     ) {
       openRedirectToolCallIds.add(toolCallId);
     }
@@ -1353,7 +1354,7 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   for (const event of events) {
     if (
       event.type === EventType.TOOL_CALL_START &&
-      getString(event, "toolCallName") === IN_APP_AGENT_REDIRECT_TOOL_NAME
+      isInAppAgentUiProposalToolName(getString(event, "toolCallName"))
     ) {
       const toolCallId = getString(event, "toolCallId");
       if (toolCallId) {
@@ -1363,10 +1364,7 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
 
     if (event.type === EventType.TOOL_CALL_RESULT) {
       const toolCallId = getString(event, "toolCallId");
-      if (
-        toolCallId &&
-        isRedirectActionToolResult(getString(event, "content"))
-      ) {
+      if (toolCallId && isUiProposalToolResult(getString(event, "content"))) {
         redirectToolCallIds.add(toolCallId);
       }
     }
@@ -1394,7 +1392,7 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
 
     return (
       event.type === EventType.TOOL_CALL_RESULT &&
-      isRedirectActionToolResult(getString(event, "content"))
+      isUiProposalToolResult(getString(event, "content"))
     );
   });
 }
@@ -1403,7 +1401,7 @@ function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
   let changed = false;
   const sanitizedMessages = messages.filter((message) => {
     const keep =
-      message.role !== "tool" || !isRedirectActionToolResult(message.content);
+      message.role !== "tool" || !isUiProposalToolResult(message.content);
 
     changed = changed || !keep;
     return keep;
@@ -1456,15 +1454,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isRedirectActionToolResult(content: string | undefined) {
+function isUiProposalToolResult(content: string | undefined) {
   if (!content) {
     return false;
   }
 
   try {
-    return InAppAgentRedirectActionToolResultSchema.safeParse(
-      JSON.parse(content),
-    ).success;
+    return InAppAgentUiProposalToolResultSchema.safeParse(JSON.parse(content))
+      .success;
   } catch {
     return false;
   }
