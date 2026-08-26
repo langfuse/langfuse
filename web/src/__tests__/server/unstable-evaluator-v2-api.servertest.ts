@@ -228,11 +228,11 @@ describe("unstable evaluator API on stable evaluator storage", () => {
     await Promise.all([
       prisma.evaluator.update({
         where: { id: older.id },
-        data: { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+        data: { updatedAt: new Date("2026-01-01T00:00:00.000Z") },
       }),
       prisma.evaluator.update({
         where: { id: newer.id },
-        data: { createdAt: new Date("2026-01-02T00:00:00.000Z") },
+        data: { updatedAt: new Date("2026-01-02T00:00:00.000Z") },
       }),
     ]);
 

@@ -50,6 +50,7 @@ import { EvaluatorsStep } from "./steps/EvaluatorsStep";
 import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import { canNavigateToExperimentStep } from "@/src/features/experiments/fns/canNavigateToExperimentStep";
 
 // Import step prop types
 import {
@@ -422,7 +423,16 @@ export const MultiStepExperimentForm = ({
     }
   };
 
+  const canNavigateToStep = (stepId: string) =>
+    canNavigateToExperimentStep({
+      targetStepId: stepId,
+      useV2Evaluators,
+      isLoadingAssignments: v2EvaluatorSelection.isLoadingAssignments,
+    });
+
   const handleStepChange = (stepId: string) => {
+    if (!canNavigateToStep(stepId)) return;
+
     if (stepId === "review") {
       setHasAttemptedReview(true);
     }
@@ -587,6 +597,7 @@ export const MultiStepExperimentForm = ({
         search: v2EvaluatorSelection.search,
         onSearchChange: v2EvaluatorSelection.onSearchChange,
         onSaveAssignments: v2EvaluatorSelection.onSaveAssignments,
+        isLoadingAssignments: v2EvaluatorSelection.isLoadingAssignments,
         isUpdating: v2EvaluatorSelection.isUpdating,
       }
     : {
@@ -645,27 +656,35 @@ export const MultiStepExperimentForm = ({
           <DialogBody>
             <Breadcrumb className="mb-6 w-full">
               <BreadcrumbList className="flex w-full justify-between sm:justify-start">
-                {steps.map((step, index) => (
-                  <React.Fragment key={step.id}>
-                    <BreadcrumbItem>
-                      {step.id === activeStep ? (
-                        <BreadcrumbPage className="flex items-center">
-                          {renderStepStatusIcon(step.id, step.label)}
-                          {step.label}
-                        </BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink
-                          onClick={() => handleStepChange(step.id)}
-                          className="flex cursor-pointer items-center"
-                        >
-                          {renderStepStatusIcon(step.id, step.label)}
-                          {step.label}
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                    {index < steps.length - 1 && <BreadcrumbSeparator />}
-                  </React.Fragment>
-                ))}
+                {steps.map((step, index) => {
+                  const isNavigationDisabled = !canNavigateToStep(step.id);
+                  return (
+                    <React.Fragment key={step.id}>
+                      <BreadcrumbItem>
+                        {step.id === activeStep ? (
+                          <BreadcrumbPage className="flex items-center">
+                            {renderStepStatusIcon(step.id, step.label)}
+                            {step.label}
+                          </BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink
+                            aria-disabled={isNavigationDisabled}
+                            onClick={() => handleStepChange(step.id)}
+                            className={`flex items-center ${
+                              isNavigationDisabled
+                                ? "pointer-events-none opacity-50"
+                                : "cursor-pointer"
+                            }`}
+                          >
+                            {renderStepStatusIcon(step.id, step.label)}
+                            {step.label}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                      {index < steps.length - 1 && <BreadcrumbSeparator />}
+                    </React.Fragment>
+                  );
+                })}
               </BreadcrumbList>
             </Breadcrumb>
 
@@ -750,7 +769,8 @@ export const MultiStepExperimentForm = ({
                     loading={
                       activeStep === "evaluators" &&
                       useV2Evaluators &&
-                      v2EvaluatorSelection.isUpdating
+                      (v2EvaluatorSelection.isLoadingAssignments ||
+                        v2EvaluatorSelection.isUpdating)
                     }
                   >
                     Next

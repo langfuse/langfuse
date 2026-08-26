@@ -11,7 +11,10 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import { parseFlags } from "@/src/features/feature-flags/utils";
+import {
+  parseFlags,
+  parseFlagsWithOrganizationDefaults,
+} from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
@@ -777,7 +780,7 @@ export async function getAuthOptions(signupAttribution?: {
     logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's
@@ -957,6 +960,14 @@ export async function getAuthOptions(signupAttribution?: {
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          featureFlags: parseFlagsWithOrganizationDefaults(
+                            dbUser.featureFlags,
+                            orgMembership.organization.featureFlagOrgDefaults,
+                            {
+                              email: dbUser.email,
+                              v4BetaEnabled,
+                            },
+                          ),
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {

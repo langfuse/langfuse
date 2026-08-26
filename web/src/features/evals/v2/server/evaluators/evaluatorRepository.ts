@@ -82,11 +82,100 @@ function versionData(
       };
 }
 
-function evaluatorWhere(params: {
+type EvaluatorModelFilter = Extract<
+  FilterState[number],
+  { type: "string" | "stringOptions" }
+> & { column: "model" };
+
+function isModelFilter(
+  filter: FilterState[number],
+): filter is EvaluatorModelFilter {
+  return (
+    filter.column === "model" &&
+    (filter.type === "string" || filter.type === "stringOptions")
+  );
+}
+
+async function evaluatorIdsMatchingModelFilters(params: {
+  prisma: PrismaClient | PrismaTransaction;
+  projectId: string;
+  filters: EvaluatorModelFilter[];
+}) {
+  const effectiveModel = Prisma.sql`
+    CASE
+      WHEN evaluator.type = 'LLM_AS_JUDGE'
+      THEN COALESCE(latest_version.model, default_model.model)
+      ELSE NULL
+    END
+  `;
+  const predicates = params.filters.map((filter) => {
+    const normalizedModel = Prisma.sql`LOWER(${effectiveModel})`;
+    if (filter.type === "stringOptions") {
+      if (filter.value.length === 0) {
+        return filter.operator === "any of"
+          ? Prisma.sql`FALSE`
+          : Prisma.sql`TRUE`;
+      }
+      const values = Prisma.join(
+        filter.value.map((value) => value.toLowerCase()),
+      );
+      return filter.operator === "any of"
+        ? Prisma.sql`${normalizedModel} IN (${values})`
+        : Prisma.sql`(${effectiveModel} IS NULL OR ${normalizedModel} NOT IN (${values}))`;
+    }
+
+    const normalizedValue = filter.value.toLowerCase();
+    switch (filter.operator) {
+      case "=":
+        return Prisma.sql`${normalizedModel} = ${normalizedValue}`;
+      case "contains":
+        return Prisma.sql`STRPOS(${normalizedModel}, ${normalizedValue}) > 0`;
+      case "does not contain":
+        return Prisma.sql`STRPOS(${normalizedModel}, ${normalizedValue}) = 0`;
+      case "starts with":
+        return Prisma.sql`LEFT(${normalizedModel}, LENGTH(${normalizedValue})) = ${normalizedValue}`;
+      case "ends with":
+        return Prisma.sql`RIGHT(${normalizedModel}, LENGTH(${normalizedValue})) = ${normalizedValue}`;
+    }
+  });
+  const matches = await params.prisma.$queryRaw<Array<{ id: string }>>(
+    Prisma.sql`
+      SELECT evaluator.id
+      FROM evaluators AS evaluator
+      LEFT JOIN LATERAL (
+        SELECT version.model
+        FROM evaluator_versions AS version
+        WHERE version.evaluator_id = evaluator.id
+        ORDER BY version.version DESC
+        LIMIT 1
+      ) AS latest_version ON TRUE
+      LEFT JOIN default_llm_models AS default_model
+        ON default_model.project_id = evaluator.project_id
+      WHERE evaluator.project_id = ${params.projectId}
+        AND ${Prisma.join(predicates, " AND ")}
+    `,
+  );
+  return matches.map(({ id }) => id);
+}
+
+async function evaluatorWhere(params: {
+  prisma: PrismaClient | PrismaTransaction;
   projectId: string;
   search?: string;
   filter?: FilterState;
-}): Prisma.EvaluatorWhereInput {
+}): Promise<Prisma.EvaluatorWhereInput> {
+  const modelFilters = params.filter?.filter(isModelFilter) ?? [];
+  const otherFilters = params.filter?.filter(
+    (filter) => !isModelFilter(filter),
+  );
+  const modelEvaluatorIds =
+    modelFilters.length > 0
+      ? await evaluatorIdsMatchingModelFilters({
+          prisma: params.prisma,
+          projectId: params.projectId,
+          filters: modelFilters,
+        })
+      : undefined;
   const handlers = {
     name: {
       string: (filter) => ({ name: stringFilterToPrisma(filter) }),
@@ -144,11 +233,12 @@ function evaluatorWhere(params: {
 
   return {
     projectId: params.projectId,
+    ...(modelEvaluatorIds ? { id: { in: modelEvaluatorIds } } : {}),
     ...(params.search
       ? { name: { contains: params.search, mode: "insensitive" as const } }
       : {}),
     AND: compilePrismaFilters<Prisma.EvaluatorWhereInput>(
-      params.filter ?? [],
+      otherFilters ?? [],
       handlers,
     ),
   };
@@ -162,8 +252,8 @@ export async function listEvaluators(params: {
   search?: string;
   filter?: FilterState;
 }) {
-  const where = evaluatorWhere(params);
-  const [evaluators, totalItems] = await Promise.all([
+  const where = await evaluatorWhere(params);
+  const [evaluators, totalItems, defaultModel] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
@@ -186,6 +276,10 @@ export async function listEvaluators(params: {
       },
     }),
     params.prisma.evaluator.count({ where }),
+    params.prisma.defaultLlmModel.findUnique({
+      where: { projectId: params.projectId },
+      select: { model: true },
+    }),
   ]);
   return {
     evaluators: evaluators.map(({ assignments, ...evaluator }) => ({
@@ -196,6 +290,10 @@ export async function listEvaluators(params: {
       hasActiveRules: assignments.some(
         ({ evaluationRule }) => evaluationRule.status === "ACTIVE",
       ),
+      effectiveModel:
+        evaluator.type === EvalTemplateType.LLM_AS_JUDGE
+          ? (evaluator.versions[0]?.model ?? defaultModel?.model ?? null)
+          : null,
     })),
     totalItems,
   };
@@ -205,13 +303,24 @@ export async function listEvaluatorFilterOptions(params: {
   prisma: PrismaClient;
   projectId: string;
 }) {
-  const evaluators = await params.prisma.evaluator.findMany({
-    where: { projectId: params.projectId },
-    select: {
-      name: true,
-      createdByUser: { select: { name: true, email: true } },
-    },
-  });
+  const [evaluators, defaultModel] = await Promise.all([
+    params.prisma.evaluator.findMany({
+      where: { projectId: params.projectId },
+      select: {
+        name: true,
+        type: true,
+        createdByUser: { select: { name: true, email: true } },
+        versions: {
+          ...latestVersion,
+          select: { model: true },
+        },
+      },
+    }),
+    params.prisma.defaultLlmModel.findUnique({
+      where: { projectId: params.projectId },
+      select: { model: true },
+    }),
+  ]);
 
   return {
     name: [...new Set(evaluators.map(({ name }) => name))].sort(),
@@ -223,6 +332,15 @@ export async function listEvaluatorFilterOptions(params: {
         ),
       ),
     ].sort(),
+    model: [
+      ...new Set(
+        evaluators.flatMap(({ type, versions }) => {
+          if (type !== EvalTemplateType.LLM_AS_JUDGE) return [];
+          const model = versions[0]?.model ?? defaultModel?.model;
+          return model ? [model] : [];
+        }),
+      ),
+    ].sort(),
   };
 }
 
@@ -232,8 +350,9 @@ export async function listEvaluatorIds(params: {
   search?: string;
   filter?: FilterState;
 }) {
+  const where = await evaluatorWhere(params);
   const evaluators = await params.prisma.evaluator.findMany({
-    where: evaluatorWhere(params),
+    where,
     select: { id: true },
   });
   return evaluators.map(({ id }) => id);
@@ -470,23 +589,6 @@ export function updateEvaluatorMetadata(params: {
   return params.tx.evaluator.update({
     where: { id: params.evaluatorId, projectId: params.projectId },
     data: { name: params.name, description: params.description },
-  });
-}
-
-export function findRuleMappingOverridesForEvaluator(params: {
-  prisma: PrismaClient | PrismaTransaction;
-  projectId: string;
-  evaluatorId: string;
-}) {
-  return params.prisma.evaluationRuleEvaluatorAssignment.findMany({
-    where: {
-      projectId: params.projectId,
-      evaluatorId: params.evaluatorId,
-      evaluationRule: {
-        targetObject: { in: ["event", "experiment"] },
-      },
-    },
-    select: { variableMapping: true },
   });
 }
 

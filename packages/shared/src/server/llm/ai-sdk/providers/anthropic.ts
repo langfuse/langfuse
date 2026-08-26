@@ -6,8 +6,8 @@ import { ensureBaseURLSuffix, isPlainObject } from "./utils";
 
 /**
  * The stored Anthropic base URL is the API origin, without `/v1/messages`.
- * The AI SDK expects the `/v1` prefix to be part of `baseURL` (default
- * `https://api.anthropic.com/v1`) and appends only `/messages`.
+ * The AI SDK expects the `/v1` prefix to be part of `baseURL` and appends
+ * only `/messages`.
  */
 export function toAnthropicBaseURL(
   baseURL: string | null | undefined,
