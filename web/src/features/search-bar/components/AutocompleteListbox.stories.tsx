@@ -52,6 +52,27 @@ const fieldPlan: CompletionPlan = {
   ],
 };
 
+const presetPlan: CompletionPlan = {
+  stage: "empty",
+  from: 0,
+  to: 0,
+  loading: false,
+  sections: [
+    {
+      title: "Reuse rule filters",
+      options: [
+        {
+          id: "rule-filter:production-generations",
+          kind: "preset",
+          label: "environment:production type:GENERATION",
+          detail: "Used by 8 evaluators",
+          query: "environment:production type:GENERATION",
+        },
+      ],
+    },
+  ],
+};
+
 const valuePlan: CompletionPlan = {
   stage: "value",
   from: 6,
@@ -95,6 +116,10 @@ const valuePlan: CompletionPlan = {
 
 export const Fields = meta.story({
   args: { plan: fieldPlan, highlightedId: "field:level" },
+});
+
+export const Presets = meta.story({
+  args: { plan: presetPlan },
 });
 
 export const ObservedValues = meta.story({

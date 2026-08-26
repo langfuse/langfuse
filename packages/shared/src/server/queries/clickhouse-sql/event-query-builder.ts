@@ -474,6 +474,7 @@ const FIELD_SETS = {
     "toolCalls",
     "toolCallNames",
     "experimentId",
+    "experimentName",
     "experimentItemRootSpanId",
     "experimentItemExpectedOutput",
     "experimentItemMetadata",
@@ -719,6 +720,18 @@ abstract class AbstractQueryBuilder {
   limitBy(...columns: string[]): this {
     if (columns.length > 0) {
       this.limitByClause = `LIMIT 1 BY ${columns.join(", ")}`;
+    }
+
+    return this;
+  }
+
+  /**
+   * Keep up to `limit` rows per unique combination of columns.
+   */
+  limitByCount(limit: number, ...columns: string[]): this {
+    if (columns.length > 0) {
+      this.limitByClause = `LIMIT {limitByCount: Int32} BY ${columns.join(", ")}`;
+      this.params.limitByCount = limit;
     }
 
     return this;

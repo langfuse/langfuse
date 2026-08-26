@@ -26,11 +26,10 @@
 // parse/validate/lower calls below — the generators and assertions do not
 // change.
 
-import type { FieldDef } from "./fields";
-import type { ScoreTypeContext } from "./adapter";
+import type { FieldRegistry } from "./fields";
+import { type ScoreTypeContext, astToFilterState } from "./adapter";
 import type { FilterState } from "@langfuse/shared";
 import { parse, serialize } from "./langQ";
-import { astToFilterState } from "./adapter";
 import { validateQuery } from "./validate";
 import { filterStateToQueryText } from "./filter-state-to-query";
 
@@ -39,7 +38,7 @@ export type RegistryUnderTest = {
   /** Label for failure messages (e.g. "events v4"). */
   name: string;
   /** The field registry the grammar resolves against. */
-  fields: FieldDef[];
+  registry: FieldRegistry;
   /**
    * Grammar-overlay keys that are not plain fields: dot-path examples
    * (`metadata.region`, `scores.accuracy`, `traceScores.nps`) and the `has:`
@@ -95,7 +94,10 @@ function sameFilters(a: FilterState, b: FilterState): boolean {
 
 /** Every query string the matrix generates for a view. */
 export function generateQueryCases(view: RegistryUnderTest): string[] {
-  const keys = [...view.fields.map((f) => f.id), ...view.extraKeys];
+  const keys = [
+    ...view.registry.fields.map((field) => field.id),
+    ...view.extraKeys,
+  ];
   const cases: string[] = [];
   for (const key of keys) {
     // `has:` entries already carry their own value in extraKeys.
@@ -124,9 +126,14 @@ export function generateQueryCases(view: RegistryUnderTest): string[] {
 function checkParity(
   text: string,
   ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx).valid) return null; // gate rejects → no claim
-  const errors = astToFilterState(parse(text).ast, ctx).errors;
+  if (!validateQuery(text, ctx, registry).valid) return null;
+  const errors = astToFilterState(
+    parse(text, registry).ast,
+    ctx,
+    registry,
+  ).errors;
   if (errors.length === 0) return null;
   return {
     invariant: "INV-1 commit-gate parity",
@@ -139,13 +146,18 @@ function checkParity(
 function checkFilterStateRoundTrip(
   text: string,
   ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx).valid) return null;
-  const first = astToFilterState(parse(text).ast, ctx);
+  if (!validateQuery(text, ctx, registry).valid) return null;
+  const first = astToFilterState(parse(text, registry).ast, ctx, registry);
   if (first.errors.length > 0 || first.filters.length === 0) return null;
   const fs1 = first.filters;
-  const forward = filterStateToQueryText(fs1);
-  const fs2 = astToFilterState(parse(forward.text).ast, ctx).filters;
+  const forward = filterStateToQueryText(fs1, {}, registry);
+  const fs2 = astToFilterState(
+    parse(forward.text, registry).ast,
+    ctx,
+    registry,
+  ).filters;
   // Filters with no grammar form are preserved via skippedFilters, not text.
   const expected = fs1.filter(
     (f) => !forward.skippedFilters.some((s) => stable(s) === stable(f)),
@@ -161,9 +173,12 @@ function checkFilterStateRoundTrip(
 }
 
 /** INV-3: a free-text value re-parses to itself and stays valid. */
-function checkSerializeSymmetry(value: string): InvariantFailure | null {
-  const text = serialize({ kind: "text", value });
-  const res = parse(text);
+function checkSerializeSymmetry(
+  value: string,
+  registry: FieldRegistry,
+): InvariantFailure | null {
+  const text = serialize({ kind: "text", value }, registry);
+  const res = parse(text, registry);
   const ast = res.ast;
   const ok = res.valid && ast?.kind === "text" && ast.value === value;
   if (ok) return null;
@@ -189,14 +204,14 @@ export function runSearchBarInvariants(
 
   for (const text of generateQueryCases(view)) {
     for (const ctx of contexts) {
-      const parity = checkParity(text, ctx);
+      const parity = checkParity(text, ctx, view.registry);
       if (parity) failures.push(parity);
-      const roundTrip = checkFilterStateRoundTrip(text, ctx);
+      const roundTrip = checkFilterStateRoundTrip(text, ctx, view.registry);
       if (roundTrip) failures.push(roundTrip);
     }
   }
   for (const value of view.freeTextValues) {
-    const symmetry = checkSerializeSymmetry(value);
+    const symmetry = checkSerializeSymmetry(value, view.registry);
     if (symmetry) failures.push(symmetry);
   }
   return failures;

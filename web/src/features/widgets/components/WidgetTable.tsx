@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
@@ -7,13 +7,13 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import startCase from "lodash/startCase";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Copy, CopyPlus, FileJson, MoreVertical, Trash } from "lucide-react";
-import { useState } from "react";
 import {
   buildWidgetExport,
   downloadWidgetJson,
@@ -289,13 +289,10 @@ export function DashboardWidgetTable() {
         ) : undefined;
       },
     }),
-    columnHelper.accessor("description", {
+    createTextTableColumn<WidgetTableRow>({
+      accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
-      cell: (row) => {
-        return row.getValue();
-      },
     }),
     columnHelper.accessor("view", {
       header: "View Type",
@@ -314,25 +311,17 @@ export function DashboardWidgetTable() {
       cell: (row) =>
         getChartTypeDisplayName(row.getValue() as DashboardWidgetChartType),
     }),
-    columnHelper.accessor("createdAt", {
+    createDateTableColumn<WidgetTableRow>({
+      accessorKey: "createdAt",
       header: "Created At",
-      id: "createdAt",
       enableSorting: true,
       size: 150,
-      cell: (row) => {
-        const createdAt = row.getValue();
-        return <LocalIsoDate date={createdAt} />;
-      },
     }),
-    columnHelper.accessor("updatedAt", {
+    createDateTableColumn<WidgetTableRow>({
+      accessorKey: "updatedAt",
       header: "Updated At",
-      id: "updatedAt",
       enableSorting: true,
       size: 150,
-      cell: (row) => {
-        const updatedAt = row.getValue();
-        return <LocalIsoDate date={updatedAt} />;
-      },
     }),
     columnHelper.display({
       id: "actions",

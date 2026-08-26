@@ -1,7 +1,9 @@
 import type { InAppAgentLangfuseMcpToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { safeJsonParse } from "@langfuse/shared";
-import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@langfuse/shared/in-app-agent";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import type { api } from "@/src/utils/api";
 import { assertUnreachable } from "@/src/utils/types";
@@ -66,13 +68,17 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_getDatasetRun: [],
   langfuse_deleteDatasetRun: ["datasets", "experiments"],
   langfuse_listEvaluators: [],
+  langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
-  langfuse_upsertEvaluator: ["evals", "models"],
+  langfuse_createEvaluator: ["evals", "models"],
+  langfuse_updateEvaluator: ["evals", "models"],
   langfuse_deleteEvaluator: ["evals", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
   langfuse_createEvaluationRule: ["evals"],
   langfuse_updateEvaluationRule: ["evals"],
+  langfuse_attachEvaluatorToEvaluationRule: ["evals"],
+  langfuse_detachEvaluatorFromEvaluationRule: ["evals"],
   langfuse_deleteEvaluationRule: ["evals"],
   langfuse_listExperiments: [],
   langfuse_listExperimentItems: [],

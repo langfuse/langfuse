@@ -119,9 +119,9 @@ export function PopoverFilterBuilder({
   isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const projectId = useProjectIdFromURL();
   const { organization } = useQueryProject();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
   const [wipFilterState, _setWipFilterState] =

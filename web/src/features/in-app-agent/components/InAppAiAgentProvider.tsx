@@ -17,8 +17,8 @@ import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
@@ -51,7 +51,12 @@ import {
   type BackgroundExecutionSession,
   type BackgroundExecutionView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
-import type { InAppAgentError } from "@/src/features/in-app-agent/components/utils/utils";
+import {
+  type InAppAgentError,
+  getInAppAgentError,
+  isInAppAgentRateLimited,
+  type InAppAiAgentMessage,
+} from "@/src/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -62,11 +67,6 @@ import {
 } from "@/src/features/in-app-agent/context";
 import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  getInAppAgentError,
-  isInAppAgentRateLimited,
-  type InAppAiAgentMessage,
-} from "@/src/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
 import {
@@ -94,7 +94,8 @@ export type InAppAgentEntryPoint =
   | "top_nav"
   | "keyboard_shortcut"
   | "dashboard_widget"
-  | "v4_migration";
+  | "v4_migration"
+  | "evaluators_empty_state";
 
 function useBackgroundExecutionView(
   session: BackgroundExecutionSession | null,

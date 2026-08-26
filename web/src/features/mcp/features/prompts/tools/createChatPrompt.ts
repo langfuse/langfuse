@@ -14,18 +14,52 @@ import {
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
 import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
-import { buildPromptUrl } from "@langfuse/shared/src/server";
+import {
+  buildPromptUrl,
+  PromptChatMessageSchema,
+} from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ParamCreatePromptLabels } from "../validation";
 
 /**
- * Schema for a single chat message (role + content)
- * Note: Using simple object schema instead of union to comply with MCP spec
+ * JSON Schema facing shape for a single chat message (used by MCP clients for
+ * display). Kept union-free with all fields optional because MCP tool input
+ * schemas must serialize to a plain object schema (unions are rejected by
+ * defineTool). The runtime input schema below enforces the actual message
+ * shape ({role, content} or {type: 'placeholder', name}).
  */
-const ChatMessageSchema = z.object({
-  role: z.string().describe("The role (e.g., 'system', 'user', 'assistant')"),
-  content: z.string().describe("The message content"),
+export const ChatMessageBaseSchema = z.object({
+  type: z
+    .enum(["message", "placeholder"])
+    .optional()
+    .describe(
+      "Message type. Defaults to 'message'. Use 'placeholder' to reference a runtime variable value (e.g. conversation history) instead of a literal message.",
+    ),
+  role: z
+    .string()
+    .optional()
+    .describe(
+      "The role (e.g., 'system', 'user', 'assistant'). Required for 'message' type.",
+    ),
+  content: z
+    .string()
+    .optional()
+    .describe("The message content. Required for 'message' type."),
+  name: z
+    .string()
+    .optional()
+    .describe(
+      "The variable name for 'placeholder' type messages (e.g. 'history'). Required for 'placeholder' type.",
+    ),
 });
+
+/**
+ * Runtime schema for a single chat message: a literal message ({role, content})
+ * or a placeholder reference ({type: 'placeholder', name}) that is replaced
+ * with a runtime variable value when the prompt is compiled. A strict union is
+ * only used at runtime — the base schema stays union-free for JSON Schema.
+ */
+export const ChatMessageSchema = PromptChatMessageSchema;
 
 /**
  * Base schema for JSON Schema generation (MCP client display)
@@ -38,9 +72,11 @@ const CreateChatPromptBaseSchema = z.object({
     .max(PROMPT_NAME_MAX_LENGTH)
     .describe("The name of the prompt"),
   prompt: z
-    .array(ChatMessageSchema)
+    .array(ChatMessageBaseSchema)
     .min(1)
-    .describe("Array of chat messages with role and content"),
+    .describe(
+      "Array of chat messages. Each message is either {role, content} or a placeholder {type: 'placeholder', name: '<variable>'} that is replaced with a runtime variable value",
+    ),
   labels: z
     .array(z.string())
     .optional()
@@ -95,7 +131,8 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
     "- Labels are unique across versions",
     "",
     "Message roles: system (instructions), user (input, can contain {{variables}}), assistant (examples)",
-    "Accepts: name, prompt (array of {role, content}), optional labels, config, tags, commitMessage",
+    "Placeholder messages: {type: 'placeholder', name: '<variable>'} reference runtime variable values (e.g. conversation history) inserted when the prompt is used",
+    "Accepts: name, prompt (array of {role, content} or {type: 'placeholder', name}), optional labels, config, tags, commitMessage",
   ].join("\n"),
   baseSchema: CreateChatPromptBaseSchema,
   inputSchema: CreateChatPromptInputSchema,

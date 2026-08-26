@@ -23,12 +23,14 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 import { env } from "@/src/env.mjs";
-import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
 import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
+
+export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
 setUpSuperjson();
 
@@ -56,10 +58,6 @@ export const getPathnameWithoutBasePath = () => {
   return pathname;
 };
 
-// global build id used to compare versions to show refresh toast on stale cache hit serving deprecated files
-let buildId: string | null = null;
-
-const CLIENT_STALE_CACHE_CODES = [404, 400];
 const REPORTED_FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;
 
 // Cache to store hashes of recently shown errors (client-side only)
@@ -128,9 +126,12 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * for each suppressed error so its path + code stay in the trail of any real
  * event captured later in the session.
  *
- * Deliberately narrow: only these codes on an actual `TRPCClientError`. A 5xx
- * (`INTERNAL_SERVER_ERROR`), a `BAD_REQUEST`, an unrecognized code, or any
- * non-tRPC error is not expected and keeps flowing to Sentry unchanged.
+ * Deliberately narrow: only these codes on an actual `TRPCClientError`, plus
+ * Zod input validation (`BAD_REQUEST` whose message is a Zod 4 issue list or
+ * whose `data.zodError` is populated). Empty/too-short fields are the product
+ * working as designed — the toast is the UX; Sentry must not log them.
+ * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST`, an unrecognized
+ * code, or any non-tRPC error is not expected and keeps flowing to Sentry.
  */
 export const EXPECTED_TRPC_ERROR_CODES = [
   "NOT_FOUND",
@@ -183,10 +184,13 @@ export const getTrpcErrorFingerprint = (error: unknown): string[] => [
  */
 export const isExpectedTrpcClientError = (error: unknown): boolean => {
   const code = getTrpcErrorCode(error);
-  return (
+  if (
     code !== undefined &&
     (EXPECTED_TRPC_ERROR_CODES as readonly string[]).includes(code)
-  );
+  ) {
+    return true;
+  }
+  return isTrpcZodValidationError(error);
 };
 
 // HTTP statuses returned when a request's URL/headers are too large for the
@@ -331,16 +335,8 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
 
-    if (CLIENT_STALE_CACHE_CODES.includes(httpStatus)) {
-      if (
-        !!buildId &&
-        !!process.env.NEXT_PUBLIC_BUILD_ID &&
-        buildId !== process.env.NEXT_PUBLIC_BUILD_ID
-      ) {
-        showVersionUpdateToast();
-        return;
-      }
-    }
+    // Version mismatch UX is owned by VersionUpdateBanner (fed by
+    // buildIdLink / versionUpdateStore). 400/404 here are real API errors.
 
     if (isExpectedTrpcClientError(error)) {
       // Expected, user-facing states (a missing/forbidden resource, an expired
@@ -437,16 +433,15 @@ export const reportTrpcErrorWithoutToast = (
 };
 
 // Reads the `x-build-id` response header (the build id serving this response)
-// and records it: the module-level `buildId` still drives the legacy
-// stale-cache toast, and the version-update store drives the persistent reload
-// banner (see src/features/version-update). Called on EVERY response — success
+// and feeds the version-update store that drives VersionUpdateBanner
+// (see src/features/version-update). Called on EVERY response — success
 // and error — so a mismatch is detected on the first response after a deploy,
-// not only when a stale chunk 404s.
-const captureBuildId = (response: unknown) => {
+// not only when a stale chunk 404s. Exported so tests can inject an observed
+// build id without going through the tRPC link.
+export const captureBuildId = (response: unknown) => {
   if (!(response instanceof Response)) return;
   const observed = response.headers.get("x-build-id");
   if (!observed) return;
-  buildId = observed;
   versionUpdateStore.reportObservedBuildId(observed);
 };
 

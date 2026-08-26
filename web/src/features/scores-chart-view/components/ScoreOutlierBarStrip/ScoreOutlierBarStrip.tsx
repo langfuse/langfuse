@@ -1,6 +1,4 @@
-/* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/ui/layer";
@@ -63,7 +61,6 @@ export type ScoreOutlierBarStripProps = {
   onSelectionChange?: (range: { fromMs: number; toMs: number } | null) => void;
   /** Why the chart cannot represent the current table state. */
   disabledReason?: string;
-  className?: string;
 };
 
 export function ScoreOutlierBarStrip({
@@ -82,7 +79,6 @@ export function ScoreOutlierBarStrip({
   selection = null,
   onSelectionChange,
   disabledReason,
-  className,
 }: ScoreOutlierBarStripProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [mouse, setMouse] = useState<{ x: number; y: number } | null>(null);
@@ -296,10 +292,7 @@ export function ScoreOutlierBarStrip({
   if (disabledReason) {
     return (
       <div
-        className={cn(
-          "text-muted-foreground bg-muted/30 flex items-center justify-center rounded text-[11px]",
-          className,
-        )}
+        className="text-muted-foreground bg-muted/30 mt-1.5 flex items-center justify-center rounded text-[11px]"
         style={{ width: widthPx, height: heightPx + labelHeight }}
         aria-disabled="true"
       >
@@ -309,7 +302,7 @@ export function ScoreOutlierBarStrip({
   }
 
   return (
-    <div className={cn("relative", className)} style={{ width: widthPx }}>
+    <div className="relative mt-1.5" style={{ width: widthPx }}>
       <svg
         width={widthPx}
         height={heightPx + labelHeight}

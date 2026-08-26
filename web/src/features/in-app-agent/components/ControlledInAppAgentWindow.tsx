@@ -2,10 +2,10 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/router";
-import { InAppAgentWindow } from "./InAppAgentWindow";
-import type {
-  InAppAgentWindowConversation,
-  InAppAgentWindowExecutionUi,
+import {
+  InAppAgentWindow,
+  type InAppAgentWindowConversation,
+  type InAppAgentWindowExecutionUi,
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";

@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { UserCircle2Icon } from "lucide-react";
+import { AlertTriangle, UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
@@ -20,17 +20,22 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
+import {
+  requiresLegacyMigrationAction,
+  isLegacyEvalTarget,
+} from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
+  readOnly,
 }: {
   projectId: string;
+  readOnly: boolean;
 }) => {
   const router = useRouter();
   const peekId = router.query.peek as string | undefined;
@@ -60,64 +65,91 @@ const PeekViewEvaluatorConfigDetail = ({
     status: evalConfig.status,
     timeScope: Array.isArray(evalConfig.timeScope) ? evalConfig.timeScope : [],
   });
+  const legacyEditingDisabled =
+    isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy;
+  const showLegacyReadOnlyNotice =
+    isLegacyEvalTarget(evalConfig.targetObject) &&
+    (readOnly || legacyEditingDisabled);
+  const editModeDisabled = readOnly || !hasAccess || legacyEditingDisabled;
+  const editModeDisabledReason = readOnly
+    ? "This legacy evaluator is inactive and can only be viewed or deleted"
+    : legacyEditingDisabled
+      ? "Deprecated evaluators are only available in read-only mode"
+      : undefined;
 
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
-          <span className="max-h-fit text-lg font-bold">Configuration</span>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-row items-center gap-2">
+            <span className="max-h-fit text-lg font-bold">Configuration</span>
+            <div className="flex items-center gap-2">
+              <StatusBadge type={displayStatus.toLowerCase()} isLive />
+              {!readOnly ? (
+                <DeactivateEvalConfig
+                  projectId={projectId}
+                  evalConfig={evalConfig}
+                  // Status changes remount the form below; drop edit mode so
+                  // in-progress form state cannot fight the new status.
+                  onStatusChange={() => setIsEditMode(false)}
+                />
+              ) : null}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <StatusBadge type={displayStatus.toLowerCase()} isLive />
-            <DeactivateEvalConfig
+            {evaluatorRequiresMigration && (
+              <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+                Deprecated
+              </span>
+            )}
+            <span
+              className={cn(
+                "text-sm",
+                isEditMode ? "" : "text-muted-foreground",
+              )}
+            >
+              Edit Mode
+            </span>
+            <Switch
+              disabled={editModeDisabled}
+              checked={isEditMode}
+              onCheckedChange={setIsEditMode}
+              title={editModeDisabledReason}
+            />
+            <DeleteEvalConfigButton
+              aria-label="delete"
+              itemId={evalConfig.id}
               projectId={projectId}
-              evalConfig={evalConfig}
-              // Status changes remount the form below; drop edit mode so
-              // in-progress form state cannot fight the new status.
-              onStatusChange={() => setIsEditMode(false)}
+              deleteConfirmation={evalConfig.scoreName}
+              // The peek only exists on the evals list page; redirecting there
+              // drops the peek query params and closes it after deletion.
+              redirectUrl={`/project/${projectId}/evals/legacy`}
+              icon
+              variant="ghost"
+              size="icon-xs"
+              title="Delete"
             />
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {evaluatorRequiresMigration && (
-            <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
-              Deprecated
-            </span>
-          )}
-          <span
-            className={cn("text-sm", isEditMode ? "" : "text-muted-foreground")}
-          >
-            Edit Mode
-          </span>
-          <Switch
-            disabled={
-              !hasAccess ||
-              (isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy)
-            }
-            checked={isEditMode}
-            onCheckedChange={setIsEditMode}
-            title={
-              isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy
-                ? "Deprecated evaluators are only available in read-only mode"
-                : undefined
-            }
-          />
-          <DeleteEvalConfigButton
-            aria-label="delete"
-            itemId={evalConfig.id}
-            projectId={projectId}
-            deleteConfirmation={evalConfig.scoreName}
-            // The peek only exists on the evals list page; redirecting there
-            // drops the peek query params and closes it after deletion.
-            redirectUrl={`/project/${projectId}/evals`}
-            icon
-            variant="ghost"
-            size="icon-xs"
-            title="Delete"
-          />
-        </div>
+
+        {showLegacyReadOnlyNotice ? (
+          <Alert className="border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Legacy evaluator is read-only</AlertTitle>
+            <AlertDescription>
+              This evaluator uses a legacy target that the current rule editor
+              cannot represent safely. You can review or delete it here, but it
+              cannot be edited or reactivated.
+            </AlertDescription>
+          </Alert>
+        ) : null}
       </div>
 
-      <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
+      <EvaluatorPausedCallout
+        projectId={projectId}
+        evalConfig={evalConfig}
+        allowReactivation={!readOnly}
+      />
 
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
@@ -144,33 +176,38 @@ const PeekViewEvaluatorConfigDetail = ({
         )}
       </CardDescription>
       <div className="flex max-h-full w-full flex-col items-start justify-between space-y-2 overflow-y-auto pb-4">
-        <EvaluatorForm
-          key={`${evalConfig?.id}-${evalConfig?.updatedAt}-${isEditMode}`}
-          projectId={projectId}
-          evalTemplates={
-            evalConfig?.evalTemplate ? [evalConfig.evalTemplate] : []
-          }
-          existingEvaluator={
-            evalConfig.evalTemplate
-              ? {
-                  ...evalConfig,
-                  evalTemplate: evalConfig.evalTemplate,
-                }
-              : undefined
-          }
-          mode="edit"
-          disabled={!isEditMode}
-          shouldWrapVariables={true}
-          useDialog={false}
-          onFormSuccess={() => {
-            setIsEditMode(false);
-            utils.evals.invalidate();
-            showSuccessToast({
-              title: "Running Evaluator updated",
-              description: "The evaluator configuration has been updated.",
-            });
-          }}
-        />
+        {evalConfig.evalTemplate ? (
+          <EvaluatorForm
+            key={`${evalConfig.id}-${evalConfig.updatedAt}-${isEditMode}`}
+            projectId={projectId}
+            evalTemplates={[evalConfig.evalTemplate]}
+            existingEvaluator={{
+              ...evalConfig,
+              evalTemplate: evalConfig.evalTemplate,
+            }}
+            mode="edit"
+            disabled={!isEditMode}
+            shouldWrapVariables={true}
+            useDialog={false}
+            onFormSuccess={() => {
+              setIsEditMode(false);
+              utils.evals.invalidate();
+              showSuccessToast({
+                title: "Running Evaluator updated",
+                description: "The evaluator configuration has been updated.",
+              });
+            }}
+          />
+        ) : (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Referenced evaluator unavailable</AlertTitle>
+            <AlertDescription>
+              This legacy rule no longer has an evaluator attached, so its
+              evaluator configuration cannot be displayed.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     </div>
   );
@@ -182,13 +219,17 @@ export const TablePeekViewEvaluatorConfigDetail = (
     "children" | "title"
   > & {
     projectId: string;
+    readOnly: boolean;
   },
 ) => {
-  const { projectId } = props;
+  const { projectId, readOnly, ...peekProps } = props;
 
   return (
-    <TablePeekView {...props}>
-      <PeekViewEvaluatorConfigDetail projectId={projectId} />
+    <TablePeekView {...peekProps}>
+      <PeekViewEvaluatorConfigDetail
+        projectId={projectId}
+        readOnly={readOnly}
+      />
     </TablePeekView>
   );
 };
