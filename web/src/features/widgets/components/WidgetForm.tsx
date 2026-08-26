@@ -1280,60 +1280,67 @@ function SingleMetricField({
 
   return (
     <div className="space-y-2">
-      <Select value={measure} onValueChange={(value) => onMeasureChange(value)}>
-        <SelectTrigger
-          id="metrics-select"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "single-metric-error" : undefined}
-        >
-          <SelectValue placeholder="Select metrics" />
-        </SelectTrigger>
-        <SelectContent>
-          {availableMetrics.map((metric) => {
-            const meta =
-              viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
-                metric.value
-              ];
-            return (
-              <WidgetPropertySelectItem
-                key={metric.value}
-                value={metric.value}
-                label={metric.label}
-                description={meta?.description}
-                unit={meta?.unit}
-                type={meta?.type}
-              />
-            );
-          })}
-        </SelectContent>
-      </Select>
-      {measure !== "count" && (
-        <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
           <Select
-            value={aggField.value}
-            disabled={ctx.chartType === "HISTOGRAM"}
-            onValueChange={(value) =>
-              aggField.onChange(value as z.infer<typeof metricAggregations>)
-            }
+            value={measure}
+            onValueChange={(value) => onMeasureChange(value)}
           >
-            <SelectTrigger id="aggregation-select">
-              <SelectValue placeholder="Select Aggregation" />
+            <SelectTrigger
+              id="metrics-select"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "single-metric-error" : undefined}
+            >
+              <SelectValue placeholder="Select metrics" />
             </SelectTrigger>
             <SelectContent>
-              {aggregationOptions.map((aggregation) => (
-                <SelectItem key={aggregation} value={aggregation}>
-                  {startCase(aggregation)}
-                </SelectItem>
-              ))}
+              {availableMetrics.map((metric) => {
+                const meta =
+                  viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[
+                    metric.value
+                  ];
+                return (
+                  <WidgetPropertySelectItem
+                    key={metric.value}
+                    value={metric.value}
+                    label={metric.label}
+                    description={meta?.description}
+                    unit={meta?.unit}
+                    type={meta?.type}
+                  />
+                );
+              })}
             </SelectContent>
           </Select>
-          {ctx.chartType === "HISTOGRAM" && (
-            <p className="text-muted-foreground text-xs">
-              Aggregation is automatically set to &quot;histogram&quot; for
-              histogram charts
-            </p>
-          )}
         </div>
+        {measure !== "count" && (
+          <div className="flex-1">
+            <Select
+              value={aggField.value}
+              disabled={ctx.chartType === "HISTOGRAM"}
+              onValueChange={(value) =>
+                aggField.onChange(value as z.infer<typeof metricAggregations>)
+              }
+            >
+              <SelectTrigger id="aggregation-select">
+                <SelectValue placeholder="Select Aggregation" />
+              </SelectTrigger>
+              <SelectContent>
+                {aggregationOptions.map((aggregation) => (
+                  <SelectItem key={aggregation} value={aggregation}>
+                    {startCase(aggregation)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+      {measure !== "count" && ctx.chartType === "HISTOGRAM" && (
+        <p className="text-muted-foreground text-xs">
+          Aggregation is automatically set to &quot;histogram&quot; for
+          histogram charts
+        </p>
       )}
       {error && (
         <p id="single-metric-error" className="text-destructive text-xs">
