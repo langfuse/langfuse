@@ -5,26 +5,12 @@ import { Button } from "@/src/components/ui/button";
 import { DetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
 import preview from "../../../../.storybook/preview";
 
-const meta = preview.meta({
-  component: DetailHeaderActionsMenuController,
-  parameters: {
-    layout: "centered",
-    nextjs: {
-      router: {
-        asPath: "/project/storybook-project/traces/storybook-trace",
-      },
-    },
-  },
-});
-
-export const Default = meta.story({
-  name: "(Test) Opens the actions menu",
-  args: {
-    idItems: [{ id: "storybook-trace", name: "Trace ID" }],
-    projectId: "storybook-project",
-  },
-  render: (args) => (
-    <DetailHeaderActionsMenuController {...args}>
+function DetailHeaderActionsMenuStory() {
+  return (
+    <DetailHeaderActionsMenuController
+      idItems={[{ id: "storybook-trace", name: "Trace ID" }]}
+      projectId="storybook-project"
+    >
       {({ Trigger }) => (
         <Trigger asChild>
           <Button
@@ -38,7 +24,23 @@ export const Default = meta.story({
         </Trigger>
       )}
     </DetailHeaderActionsMenuController>
-  ),
+  );
+}
+
+const meta = preview.meta({
+  component: DetailHeaderActionsMenuStory,
+  parameters: {
+    layout: "centered",
+    nextjs: {
+      router: {
+        asPath: "/project/storybook-project/traces/storybook-trace",
+      },
+    },
+  },
+});
+
+export const Default = meta.story({
+  name: "(Test) Opens the actions menu",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Options" }));
