@@ -28,7 +28,7 @@ export const VariantMatrix = meta.story({
       <div className="flex items-center gap-2">
         <KeyboardShortcut keys={["K"]} />
         <KeyboardShortcut variant="subtle" keys={["K"]} />
-        <KeyboardShortcut variant="onPrimary" keys={["K"]} />
+        <KeyboardShortcut variant="inverse" keys={["K"]} />
       </div>
       <div className="flex items-center gap-2">
         <KeyboardShortcut size="sm" keys={["K"]} />

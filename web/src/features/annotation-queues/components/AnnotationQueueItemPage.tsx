@@ -525,7 +525,7 @@ export const AnnotationQueueItemPage: React.FC<{
                     {!isSingleItem && (
                       <span className="hidden md:inline-flex">
                         <KeyboardShortcut
-                          variant="onPrimary"
+                          variant="inverse"
                           keys={["Mod", "Enter"]}
                         />
                       </span>
