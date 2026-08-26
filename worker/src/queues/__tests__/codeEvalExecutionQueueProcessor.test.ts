@@ -94,6 +94,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
     overrides: {
       data?: Record<string, unknown>;
       attemptsMade?: number;
+      attemptsStarted?: number;
       opts?: { attempts?: number };
       timestamp?: number;
     } = {},
@@ -113,6 +114,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
       },
       timestamp: overrides.timestamp ?? Date.now(),
       attemptsMade: overrides.attemptsMade ?? 0,
+      attemptsStarted: overrides.attemptsStarted ?? 1,
       opts: overrides.opts ?? { attempts: 10 },
     }) as Job<any>;
 
@@ -159,7 +161,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
 
     vi.mocked(recordDistribution).mockClear();
     await codeEvalExecutionQueueProcessor(
-      createMockJob({ attemptsMade: 1, timestamp: 8_000 }),
+      createMockJob({ attemptsMade: 0, attemptsStarted: 2, timestamp: 8_000 }),
     );
     expect(recordDistribution).not.toHaveBeenCalled();
 

@@ -23,7 +23,7 @@ export const codeEvalExecutionQueueProcessorBuilder = (
   _queueName: string,
 ): Processor => {
   return async (job: Job<TQueueJobTypes[QueueName.CodeEvalExecution]>) => {
-    if (job.attemptsMade === 0) {
+    if (job.attemptsStarted === 1) {
       recordEvalTimeToFirstAttempt(
         EvalTemplateType.CODE,
         Math.max(0, Date.now() - job.timestamp),
