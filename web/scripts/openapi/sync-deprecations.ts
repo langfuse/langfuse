@@ -9,9 +9,10 @@ const definitionDirectory = path.resolve(
   webDirectory,
   "../fern/apis/server/definition",
 );
-const openApiPath = process.argv[2]
-  ? path.resolve(webDirectory, process.argv[2])
-  : path.resolve(webDirectory, "public/generated/api/openapi.yml");
+const openApiPath = path.resolve(
+  webDirectory,
+  "public/generated/api/openapi.yml",
+);
 
 const deprecatedOperations = getFernDeprecatedOperations(definitionDirectory);
 const openApiSource = fs.readFileSync(openApiPath, "utf8");
