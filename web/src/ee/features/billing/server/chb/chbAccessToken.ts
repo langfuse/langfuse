@@ -105,12 +105,15 @@ export class ChbAccessTokenProvider {
       throw new ChbAuthError("CHB token endpoint returned an unusable payload");
     }
 
-    // A token shorter than the margin would be renewed on every single call, so
-    // fall back to using it for its full life rather than hammering Auth0.
-    const lifetimeSeconds = Math.max(
-      parsed.data.expires_in - EXPIRY_MARGIN_SECONDS,
-      Math.min(parsed.data.expires_in, EXPIRY_MARGIN_SECONDS),
+    // Renew a margin ahead of expiry, but never wait longer than half the
+    // token's life: capping the margin at half the lifetime keeps the buffer
+    // proportional for a short-lived token, where subtracting the full margin
+    // would re-grant on nearly every call.
+    const marginSeconds = Math.min(
+      EXPIRY_MARGIN_SECONDS,
+      Math.floor(parsed.data.expires_in / 2),
     );
+    const lifetimeSeconds = parsed.data.expires_in - marginSeconds;
     this.cached = {
       token: parsed.data.access_token,
       expiresAtMs: Date.now() + lifetimeSeconds * 1000,

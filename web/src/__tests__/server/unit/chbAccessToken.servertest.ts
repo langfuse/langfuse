@@ -127,11 +127,29 @@ describe("chbAccessToken", () => {
     const tokens = provider();
 
     await tokens.getToken();
-    vi.advanceTimersByTime(30 * 1000);
+    vi.advanceTimersByTime(25 * 1000);
     await tokens.getToken();
 
     // Otherwise every single call would re-grant.
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a usable buffer for a token barely longer than the margin", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(grant("token-1", 310))
+      .mockResolvedValueOnce(grant("token-2", 310));
+    const tokens = provider();
+
+    await expect(tokens.getToken()).resolves.toBe("token-1");
+
+    // Subtracting the full margin from a 310s token would leave a 10s buffer
+    // before real expiry, so the margin has to be capped at half the lifetime:
+    // this call is past that half and must re-grant rather than hand back a
+    // token that can expire in transit.
+    vi.advanceTimersByTime(160 * 1000);
+    await expect(tokens.getToken()).resolves.toBe("token-2");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("raises ChbAuthError when the grant is rejected", async () => {
