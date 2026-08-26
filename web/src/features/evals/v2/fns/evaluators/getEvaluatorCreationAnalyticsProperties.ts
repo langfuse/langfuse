@@ -39,8 +39,9 @@ export function getEvaluatorCreationAnalyticsProperties({
     : {};
   const variableMappingProperties = variableMapping
     ? {
-        hasNarrowedVariableMapping: variableMapping.some((mapping) =>
-          Boolean(mapping.jsonSelector),
+        hasNarrowedVariableMapping: variableMapping.some(
+          (mapping) =>
+            Boolean(mapping.jsonSelector) && mapping.jsonSelector !== "$",
         ),
         variableMappingSources: [
           ...new Set(

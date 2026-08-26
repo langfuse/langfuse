@@ -22,7 +22,7 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
           {
             templateVariable: "answer",
             selectedColumnId: "output",
-            jsonSelector: "$.answer",
+            jsonSelector: "$",
           },
           {
             templateVariable: "context",
@@ -39,7 +39,7 @@ describe("getEvaluatorCreationAnalyticsProperties", () => {
       usesDefaultModel: false,
       hasCustomModelParams: true,
       scoreType: "CATEGORICAL",
-      hasNarrowedVariableMapping: true,
+      hasNarrowedVariableMapping: false,
       variableMappingSources: ["input", "output"],
     });
 
