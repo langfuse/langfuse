@@ -160,6 +160,10 @@ export function buildWidgetName({
     if (measure.toLowerCase() === "count") {
       // For count measures, ignore aggregation and only show the measure
       base = meas;
+    } else if (measure === "toolCalls" && aggregation.toLowerCase() === "sum") {
+      // Summing the per-observation call count is simply "the number of tool
+      // calls" — surface the meaning, not the aggregation mechanics.
+      base = "Number of Tool Calls";
     } else {
       const agg = startCase(aggregation.toLowerCase());
       base = `${agg} ${meas}`;
@@ -203,6 +207,9 @@ export function buildWidgetDescription({
 
     if (measure.toLowerCase() === "count") {
       sentence = `Shows the count of ${viewLabel}`;
+    } else if (measure === "toolCalls" && aggregation.toLowerCase() === "sum") {
+      // Mirrors buildWidgetName: sum(toolCalls) is the number of tool calls.
+      sentence = `Shows the number of tool calls of ${viewLabel}`;
     } else {
       const aggLabel = startCase(aggregation.toLowerCase());
       sentence = `Shows the ${aggLabel.toLowerCase()} ${measLabel.toLowerCase()} of ${viewLabel}`;

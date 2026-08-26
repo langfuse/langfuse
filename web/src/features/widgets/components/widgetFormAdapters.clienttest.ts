@@ -599,3 +599,38 @@ describe("save seam: editor-space filters map to view space (double-map)", () =>
     );
   });
 });
+
+// --- sum(toolCalls) reads as "number of tool calls" in suggested name/copy ---
+
+describe("buildWidgetName / buildWidgetDescription for sum of tool calls", () => {
+  it("names the widget by meaning, not aggregation mechanics", () => {
+    expect(
+      buildWidgetName({
+        aggregation: "sum",
+        measure: "toolCalls",
+        dimension: "none",
+        view: "observations",
+      }),
+    ).toBe("Number of Tool Calls (Observations)");
+    expect(
+      buildWidgetDescription({
+        aggregation: "sum",
+        measure: "toolCalls",
+        dimension: "none",
+        view: "observations",
+        filters: [],
+      }),
+    ).toBe("Shows the number of tool calls of Observations");
+  });
+
+  it("keeps the generic template for other aggregations of toolCalls", () => {
+    expect(
+      buildWidgetName({
+        aggregation: "avg",
+        measure: "toolCalls",
+        dimension: "none",
+        view: "observations",
+      }),
+    ).toBe("Avg Tool Calls (Observations)");
+  });
+});
