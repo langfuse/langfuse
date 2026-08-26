@@ -4,23 +4,33 @@ import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
 import {
   EXPECTED_TRPC_ERROR_CODES,
+  captureBuildId,
   fetchWithParseErrorStatus,
+  getApproxTrpcGetUrlBytes,
   getTrpcErrorCode,
   getTrpcErrorFingerprint,
   getTrpcErrorPath,
   isExpectedTrpcClientError,
   isNetworkConnectivityError,
   isTrpcResponseParseError,
+  isTrpcZodValidationError,
+  MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  shouldSendQueryAsPost,
 } from "@/src/utils/api";
 
-const { captureExceptionMock, addBreadcrumbMock, trpcErrorToastMock } =
-  vi.hoisted(() => ({
-    captureExceptionMock: vi.fn(),
-    addBreadcrumbMock: vi.fn(),
-    trpcErrorToastMock: vi.fn(),
-  }));
+const {
+  captureExceptionMock,
+  addBreadcrumbMock,
+  trpcErrorToastMock,
+  showVersionUpdateToastMock,
+} = vi.hoisted(() => ({
+  captureExceptionMock: vi.fn(),
+  addBreadcrumbMock: vi.fn(),
+  trpcErrorToastMock: vi.fn(),
+  showVersionUpdateToastMock: vi.fn(),
+}));
 
 vi.mock("@sentry/nextjs", () => ({
   captureException: captureExceptionMock,
@@ -29,6 +39,12 @@ vi.mock("@sentry/nextjs", () => ({
 
 vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: trpcErrorToastMock,
+}));
+
+// Tripwire for the deleted `showVersionUpdateToast` path: 400/404 plus a
+// mismatched `x-build-id` must not be remapped to a refresh toast.
+vi.mock("@/src/features/notifications/showVersionUpdateToast", () => ({
+  showVersionUpdateToast: showVersionUpdateToastMock,
 }));
 
 /** A JSON.parse SyntaxError annotated with the HTTP status it was parsed
@@ -47,6 +63,7 @@ const trpcServerError = (opts: {
   httpStatus: number;
   path?: string;
   message?: string;
+  zodError?: unknown;
 }) =>
   TRPCClientError.from({
     error: {
@@ -56,9 +73,22 @@ const trpcServerError = (opts: {
         code: opts.code,
         httpStatus: opts.httpStatus,
         ...(opts.path !== undefined ? { path: opts.path } : {}),
+        ...(opts.zodError !== undefined ? { zodError: opts.zodError } : {}),
       },
     },
   });
+
+/** Zod 4 stringifies input failures as a JSON issue list — the toast users see today. */
+const ZOD4_TOO_SMALL_MESSAGE = JSON.stringify([
+  {
+    origin: "string",
+    code: "too_small",
+    minimum: 1,
+    inclusive: true,
+    path: ["name"],
+    message: "Too small: expected string to have >=1 characters",
+  },
+]);
 
 describe("isNetworkConnectivityError", () => {
   it("detects the reported failed fetch error without a response", () => {
@@ -206,6 +236,98 @@ describe("isTrpcResponseParseError", () => {
   });
 });
 
+describe("shouldSendQueryAsPost", () => {
+  const queryOp = (
+    input: unknown,
+    context: Record<string, unknown> = {},
+    path = "traces.all",
+  ) => ({
+    type: "query" as const,
+    path,
+    input,
+    context,
+  });
+
+  it("keeps small queries on GET", () => {
+    expect(
+      shouldSendQueryAsPost(
+        queryOp({ projectId: "proj_1", filter: [], page: 0, limit: 50 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("honors the explicit sendAsPost context flag", () => {
+    expect(
+      shouldSendQueryAsPost(
+        queryOp({ projectId: "proj_1" }, { sendAsPost: true }),
+      ),
+    ).toBe(true);
+  });
+
+  it("routes a traces.all query whose filter would blow the GET URL as POST", () => {
+    // Session-storage-only filter states can exceed the page-URL budget
+    // (MAX_URL_FILTER_QUERY_LENGTH) and still be sent as tRPC input. ~200
+    // user IDs is the shape that 431s the GET request line.
+    const input = {
+      projectId: "proj_1",
+      filter: [
+        {
+          column: "userId",
+          type: "stringOptions",
+          operator: "none of",
+          value: Array.from(
+            { length: 200 },
+            (_, i) => `user-${i}-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`,
+          ),
+        },
+      ],
+      page: 0,
+      limit: 50,
+    };
+
+    expect(getApproxTrpcGetUrlBytes("traces.all", input)).toBeGreaterThan(
+      MAX_TRPC_GET_URL_BYTES,
+    );
+    // Auto-routing does not set `sendAsPost` on the op; the 414/431 diagnostic
+    // must use `shouldSendQueryAsPost`, not the explicit flag alone.
+    const op = queryOp(input);
+    expect(op.context.sendAsPost).not.toBe(true);
+    expect(shouldSendQueryAsPost(op)).toBe(true);
+  });
+
+  it("routes a traces.metrics query whose id list would blow the GET URL as POST", () => {
+    const input = {
+      projectId: "proj_1",
+      filter: [],
+      traceIds: Array.from(
+        { length: 100 },
+        (_, i) => `trace-${i.toString().padStart(3, "0")}-${"x".repeat(36)}`,
+      ),
+    };
+
+    expect(getApproxTrpcGetUrlBytes("traces.metrics", input)).toBeGreaterThan(
+      MAX_TRPC_GET_URL_BYTES,
+    );
+    expect(shouldSendQueryAsPost(queryOp(input, {}, "traces.metrics"))).toBe(
+      true,
+    );
+  });
+
+  it("does not force mutations onto the methodOverride POST link", () => {
+    expect(
+      shouldSendQueryAsPost({
+        type: "mutation",
+        path: "traces.deleteMany",
+        input: {
+          projectId: "proj_1",
+          traceIds: Array.from({ length: 200 }, (_, i) => `t-${i}`),
+        },
+        context: {},
+      }),
+    ).toBe(false);
+  });
+});
+
 describe("fetchWithParseErrorStatus", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -327,6 +449,57 @@ describe("isExpectedTrpcClientError", () => {
     expect(
       isExpectedTrpcClientError(
         trpcServerError({ code: "CONFLICT", httpStatus: 409 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("suppresses Zod input validation (empty/too-short fields) as expected user input", () => {
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.create",
+          message: ZOD4_TOO_SMALL_MESSAGE,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "traces.byId",
+          message: `Invalid input, ${ZOD4_TOO_SMALL_MESSAGE}`,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          path: "prompts.create",
+          message: "Invalid input",
+          zodError: {
+            formErrors: [],
+            fieldErrors: {
+              name: ["Too small: expected string to have >=1 characters"],
+            },
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not treat a non-Zod BAD_REQUEST as validation", () => {
+    expect(
+      isTrpcZodValidationError(
+        trpcServerError({
+          code: "BAD_REQUEST",
+          httpStatus: 400,
+          message: "Invalid input, projectId is required",
+        }),
       ),
     ).toBe(false);
   });
@@ -474,6 +647,21 @@ describe("reportTrpcErrorWithoutToast", () => {
     });
   });
 
+  it("does not capture Zod input validation (empty/too-short fields)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: "prompts.create",
+        message: ZOD4_TOO_SMALL_MESSAGE,
+      }),
+      "prompts",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+  });
+
   // Negative fixture: real errors MUST still be captured, with the
   // procedure/code fingerprint and tags.
   it("captures a real (5xx) tRPC error with fingerprint and tags", () => {
@@ -562,5 +750,63 @@ describe("reportNonTrpcError", () => {
     const [, options] = captureExceptionMock.mock.calls[0]!;
     expect(options.tags.area).toBe("organizations");
     expect(options.extra).toEqual({ context: "delete-organization" });
+  });
+});
+
+describe("400/404 tRPC errors must not be remapped to a version-update toast", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    trpcErrorToastMock.mockClear();
+    showVersionUpdateToastMock.mockClear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "running-build");
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("classifies a 400 even when x-build-id differs from the running build", () => {
+    // Evaluators (and any other page) can legitimately 400 while HTML and API
+    // are served by different builds. The version-update banner is the only
+    // mismatch UX; this seam must still classify the error.
+    captureBuildId(
+      new Response("", { headers: { "x-build-id": "other-build" } }),
+    );
+
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "BAD_REQUEST",
+        httpStatus: 400,
+        path: "evals.allConfigs",
+      }),
+      "evals",
+    );
+
+    expect(showVersionUpdateToastMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("classifies a 404 NOT_FOUND as expected even when build ids differ", () => {
+    captureBuildId(
+      new Response("", { headers: { "x-build-id": "other-build" } }),
+    );
+
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "NOT_FOUND",
+        httpStatus: 404,
+        path: "evals.byId",
+      }),
+      "evals",
+    );
+
+    expect(showVersionUpdateToastMock).not.toHaveBeenCalled();
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
   });
 });

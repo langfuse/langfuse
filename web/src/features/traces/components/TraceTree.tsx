@@ -11,8 +11,10 @@
 
 import { memo } from "react";
 import { VirtualizedTree } from "./VirtualizedTree";
-import { VirtualizedTreeNodeWrapper } from "./VirtualizedTreeNodeWrapper";
-import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
+import {
+  VirtualizedTreeNodeWrapper,
+  type TreeNodeMetadata,
+} from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";

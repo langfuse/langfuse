@@ -462,6 +462,27 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     );
   });
 
+  it("treats an empty experiment ID as null", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "experimentId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `(e."experiment_id" = '' OR e."experiment_id" IS NULL)`,
+    );
+  });
+
   it("builds a direct grouped query for one boolean filter option column", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",

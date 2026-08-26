@@ -16,12 +16,12 @@ import {
 import {
   type MigrationActionState,
   type MigrationCountState,
+  V4_MIGRATION_LOOKBACK_DAYS,
 } from "./migrationData";
 import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "./sdkVersionStatus";
-import { V4_MIGRATION_LOOKBACK_DAYS } from "./migrationData";
 import { TABLE_AGGREGATION_OPTIONS } from "@langfuse/shared";
 import { rangeFromString } from "@/src/utils/date-range-utils";
 
@@ -1220,6 +1220,22 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByRole("link", { name: "November 16, 2026" }),
     ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
+  });
+
+  it("drops the dated deadline for self-hosted deployments", () => {
+    // The date is a Cloud commitment: a self-hosted deployment keeps its legacy
+    // surfaces until its own operator moves the write mode off dual.
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    render(<V4MigrationHeaderContent readiness="action-needed" />);
+
+    expect(screen.getByText(/features may stop working/)).toHaveTextContent(
+      "Some features may stop working without an upgrade once your administrator disables the legacy mode.",
+    );
+    expect(screen.queryByText(/November 16, 2026/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "November 16, 2026" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reserves a close-button gutter on the title row when the host asks", () => {

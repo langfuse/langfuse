@@ -242,13 +242,14 @@ export function ResetPasswordPage({
                       {submitLabel}
                     </Button>
                   ) : (
-                    <RequestResetPasswordEmailButton
-                      email={form.watch("email")}
-                      className="w-full"
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
-                    />
+                    <div className="w-full">
+                      <RequestResetPasswordEmailButton
+                        email={form.watch("email")}
+                        callbackUrl={
+                          isSetMode ? "/auth/setup-password" : undefined
+                        }
+                      />
+                    </div>
                   )}
                 </div>
               </form>
@@ -264,11 +265,12 @@ export function ResetPasswordPage({
               </div>
             )}
             {showResetPasswordEmailButton && (
-              <RequestResetPasswordEmailButton
-                email={form.getValues("email")}
-                className="w-full"
-                callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
-              />
+              <div className="w-full">
+                <RequestResetPasswordEmailButton
+                  email={form.getValues("email")}
+                  callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                />
+              </div>
             )}
           </div>
         </div>

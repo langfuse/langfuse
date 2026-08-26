@@ -1,6 +1,7 @@
 import {
   type ObservationForEval,
-  type ObservationEvalConfig,
+  type ObservationEvalAssignment,
+  type ObservationEvalRule,
   type ObservationEvalSchedulerDeps,
 } from "./types";
 import {
@@ -13,11 +14,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import {
-  EvalTargetObject,
   JobExecutionStatus,
   type FilterState,
-  type JobConfigExecutionMode,
-  isJobConfigExecutableForExecutionMode,
+  type EvalExecutionMode,
+  canRunEvalRule,
   mapEventEvalFilterColumnIdToField,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
@@ -25,9 +25,9 @@ import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
 interface ScheduleObservationEvalsParams {
   observation: ObservationForEval;
-  configs: ObservationEvalConfig[];
+  configs: ObservationEvalRule[];
   schedulerDeps: ObservationEvalSchedulerDeps;
-  executionMode?: JobConfigExecutionMode;
+  executionMode?: EvalExecutionMode;
 }
 
 /**
@@ -93,15 +93,24 @@ export async function scheduleObservationEvals(
 
   const samplingValue = getDeterministicSamplingValue(observation.span_id);
 
-  // Filter configs that match this observation (filter + sampling).
-  // This is done before S3 upload to avoid unnecessary uploads.
-  const matchingConfigs = configs.filter((config) => {
-    if (!isJobConfigExecutableForExecutionMode(config, executionMode)) {
+  // Filter configs that match this observation (filter + sampling) and resolve
+  // their executable assignments in one pass. This is done before S3 upload to
+  // avoid unnecessary uploads.
+  const matchingConfigs = configs.flatMap((config) => {
+    if (
+      !canRunEvalRule(
+        {
+          status: config.status,
+          blockedAt: "blockedAt" in config ? config.blockedAt : null,
+        },
+        executionMode,
+      )
+    ) {
       logger.debug("Skipping non-executable observation eval config", {
         configId: config.id,
       });
 
-      return false;
+      return [];
     }
 
     // Check filter
@@ -112,7 +121,7 @@ export async function scheduleObservationEvals(
         observationId: observation.span_id,
       });
 
-      return false;
+      return [];
     }
 
     // Check sampling
@@ -129,10 +138,11 @@ export async function scheduleObservationEvals(
         samplingRate,
       });
 
-      return false;
+      return [];
     }
 
-    return true;
+    const assignments = getExecutableAssignments(config);
+    return assignments.length > 0 ? [{ config, assignments }] : [];
   });
 
   // Early return if no configs match - no S3 upload needed
@@ -146,33 +156,38 @@ export async function scheduleObservationEvals(
     data: observation,
   });
 
-  // Process each matching config
+  // Process each assignment of every matching rule/config.
   await Promise.all(
-    matchingConfigs.map((matchingConfig) =>
-      processMatchingConfig({
-        observation,
-        matchingConfig,
-        observationS3Path,
-        schedulerDeps,
-        executionMode,
-      }).catch((error) => {
-        logger.error("Failed to process observation eval config", {
-          configId: matchingConfig.id,
-          observationId: observation.span_id,
-          projectId: observation.project_id,
-          error,
-        });
-      }),
+    matchingConfigs.flatMap(({ config, assignments }) =>
+      assignments.map((assignment) =>
+        processMatchingConfig({
+          observation,
+          matchingConfig: config,
+          assignment,
+          observationS3Path,
+          schedulerDeps,
+          executionMode,
+        }).catch((error) => {
+          logger.error("Failed to process observation eval assignment", {
+            configId: config.id,
+            assignmentId: assignment.id,
+            observationId: observation.span_id,
+            projectId: observation.project_id,
+            error,
+          });
+        }),
+      ),
     ),
   );
 }
 
 interface ProcessConfigParams {
   observation: ObservationForEval;
-  matchingConfig: ObservationEvalConfig;
+  matchingConfig: ObservationEvalRule;
+  assignment: ScheduledObservationEvalAssignment;
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
-  executionMode?: JobConfigExecutionMode;
+  executionMode?: EvalExecutionMode;
 }
 
 async function processMatchingConfig(
@@ -181,18 +196,29 @@ async function processMatchingConfig(
   const {
     observation,
     matchingConfig,
+    assignment,
     observationS3Path,
     schedulerDeps,
     executionMode,
   } = params;
 
   const jobExecutionId = createW3CTraceId(
-    JSON.stringify([
-      "observation-eval",
-      matchingConfig.id,
-      observation.trace_id,
-      observation.span_id,
-    ]),
+    JSON.stringify(
+      "assignments" in matchingConfig
+        ? [
+            "observation-eval",
+            matchingConfig.id,
+            assignment.id,
+            observation.trace_id,
+            observation.span_id,
+          ]
+        : [
+            "observation-eval",
+            matchingConfig.id,
+            observation.trace_id,
+            observation.span_id,
+          ],
+    ),
   );
 
   // Create job execution
@@ -202,18 +228,30 @@ async function processMatchingConfig(
     jobConfigurationId: matchingConfig.id,
     jobInputTraceId: observation.trace_id,
     jobInputObservationId: observation.span_id,
-    jobTemplateId: matchingConfig.evalTemplateId,
+    // Legacy configs pin their `eval_templates` row here. Evaluator v2 jobs
+    // resolve the definition at pickup, and record the version that actually
+    // ran in the execution metadata instead.
+    jobTemplateId: assignment.evalTemplateId,
     status: JobExecutionStatus.PENDING,
   });
 
-  // Enqueue eval job
+  // Enqueue eval job. The evaluator identity travels with the payload so the
+  // executor never has to re-derive it from ids the legacy backfill reuses.
   await schedulerDeps.enqueueEvalJob({
     jobExecutionId,
     projectId: observation.project_id,
     observationS3Path,
     delay: 0,
-    evalTemplateType: matchingConfig.evalTemplate.type,
+    evalTemplateType: assignment.evaluatorType,
     ...(executionMode ? { executionMode } : {}),
+    ...(assignment.evaluatorId
+      ? {
+          evaluatorId: assignment.evaluatorId,
+          ...(assignment.evaluationRuleId
+            ? { evaluationRuleId: assignment.evaluationRuleId }
+            : {}),
+        }
+      : {}),
   });
 
   logger.debug("Scheduled observation eval job", {
@@ -223,19 +261,67 @@ async function processMatchingConfig(
   });
 }
 
+type ScheduledObservationEvalAssignment = {
+  id: string;
+  /** Set for evaluator v2; null when scheduling a legacy config. */
+  evaluatorId: string | null;
+  evaluationRuleId: string | null;
+  /** Legacy template id, or evaluator id for a ruleless V2 batch run. */
+  evalTemplateId: string | null;
+  evaluatorType: ObservationEvalAssignment["evaluator"]["type"];
+};
+
+function getExecutableAssignments(
+  rule: ObservationEvalRule,
+): ScheduledObservationEvalAssignment[] {
+  if (!("assignments" in rule)) {
+    return rule.evalTemplateId
+      ? [
+          {
+            id: rule.id,
+            evaluatorId: null,
+            evaluationRuleId: null,
+            evalTemplateId: rule.evalTemplateId,
+            evaluatorType: rule.evalTemplate.type,
+          },
+        ]
+      : [];
+  }
+
+  return rule.assignments.flatMap((assignment) => {
+    // Blocked evaluators are already excluded by the query; this guards the
+    // tenant boundary for callers that build assignments by hand.
+    if (assignment.evaluator.projectId !== rule.projectId) {
+      logger.warn("Skipping cross-project observation eval assignment", {
+        ruleId: rule.id,
+        assignmentId: assignment.id,
+        evaluatorId: assignment.evaluatorId,
+      });
+      return [];
+    }
+
+    return [
+      {
+        id: assignment.id,
+        evaluatorId: assignment.evaluator.id,
+        evaluationRuleId: rule.ruleId,
+        // Ruleless batch runs use the evaluator as the legacy template anchor.
+        evalTemplateId: rule.ruleId === null ? assignment.evaluator.id : null,
+        evaluatorType: assignment.evaluator.type,
+      },
+    ];
+  });
+}
+
 /**
  * Evaluate filter conditions against observation.
  * Returns true if observation matches all filter conditions (or filter is empty).
  */
 function evaluateFilter(
   observation: ObservationForEval,
-  config: ObservationEvalConfig,
+  config: ObservationEvalRule,
 ): boolean {
   const filterConditions = config.filter as FilterState;
-  const isExperimentConfig =
-    config.targetObject === EvalTargetObject.EXPERIMENT;
-  const isExperimentRoot =
-    observation.span_id === observation.experiment_item_root_span_id;
 
   // Empty filter matches all (for filter purposes)
   const isEmptyFilter =
@@ -256,6 +342,5 @@ function evaluateFilter(
         fieldMapper,
       );
 
-  // For experiment configs, must also match experiment root span
-  return isExperimentConfig ? isFilterMatch && isExperimentRoot : isFilterMatch;
+  return isFilterMatch;
 }

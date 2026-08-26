@@ -20,14 +20,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   getDatasetItemTabs,
   DATASET_ITEM_TABS,
+  type DatasetItemTab,
 } from "@/src/features/navigation/utils/dataset-item-tabs";
-import { type DatasetItemTab } from "@/src/features/navigation/utils/dataset-item-tabs";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { type ReactNode } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";

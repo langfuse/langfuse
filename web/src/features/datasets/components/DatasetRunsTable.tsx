@@ -10,12 +10,15 @@ import { useEffect, useMemo, useState } from "react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { type Prisma, datasetRunsTableColsWithOptions } from "@langfuse/shared";
+import {
+  type Prisma,
+  datasetRunsTableColsWithOptions,
+  type ScoreAggregate,
+} from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import { type ScoreAggregate } from "@langfuse/shared";
 import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
 import {
   DropdownMenu,
@@ -43,7 +46,7 @@ import {
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import {
   Dialog,
   DialogContent,
@@ -507,17 +510,12 @@ export function DatasetRunsTable(props: {
       },
       columns: scoreColumns,
     },
-    {
+    createDateTableColumn<DatasetRunRowData>({
       accessorKey: "createdAt",
       header: "Created",
-      id: "createdAt",
       size: 150,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: DatasetRunRowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
