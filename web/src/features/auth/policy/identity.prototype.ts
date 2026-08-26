@@ -1,5 +1,5 @@
 /**
- * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/enforcement-seams`,
+ * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/parity-classification`,
  * LFE-15038). The PIP: authenticate resolves the request's credential into an
  * AuthorizationContext. Stubbed on this branch.
  */

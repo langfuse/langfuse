@@ -1,6 +1,6 @@
 /// <reference types="vitest/importMeta" />
 /**
- * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/pip-resolve-context`,
+ * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/parity-classification`,
  * LFE-15458). The PIP: `ContextResolver.resolveContext` turns an authenticated
  * credential into an `AuthorizationContext`. Class shape from the RFC (§PIP):
  * constructor-injected collaborators (prisma for roles, redis for caching) with
