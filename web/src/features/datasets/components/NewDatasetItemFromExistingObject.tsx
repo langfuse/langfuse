@@ -199,10 +199,11 @@ export const NewDatasetItemFromExistingObject = (props: {
           >
             {hasAccess ? (
               <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <LockIcon className="h-3 w-3" aria-hidden="true" />
-            )}
+            ) : null}
             <span className="text-sm">Add to datasets</span>
+            {!hasAccess ? (
+              <LockIcon className="ml-auto h-3 w-3" aria-hidden="true" />
+            ) : null}
           </Button>
         ) : (
           <Button
