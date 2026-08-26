@@ -1,20 +1,13 @@
-import { ChevronDown, CopyIcon, LockIcon, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import Link from "next/link";
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { type ButtonProps } from "@/src/components/ui/button";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
-import { ActionButton } from "@/src/components/ActionButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { NewDatasetItemFromExistingObjectDialogController } from "./NewDatasetItemFromExistingObjectDialogController";
+import { NewDatasetItemFromExistingObjectCopy } from "./NewDatasetItemFromExistingObjectCopy";
+import { NewDatasetItemFromExistingObjectAdd } from "./NewDatasetItemFromExistingObjectAdd";
+import { NewDatasetItemFromExistingObjectInDatasets } from "./NewDatasetItemFromExistingObjectInDatasets";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -102,129 +95,29 @@ export const NewDatasetItemFromExistingObject = (props: {
         const hasAccess = disabled === undefined;
 
         return props.isCopyItem ? (
-          <ActionButton
-            variant="outline"
-            size={buttonSize === "sm" ? "icon-xs" : "icon"}
+          <NewDatasetItemFromExistingObjectCopy
             hasAccess={hasAccess}
-            title="Copy item"
-            aria-label="Copy item"
-            onClick={openDialog}
-          >
-            <CopyIcon className="size-3" />
-          </ActionButton>
+            size={buttonSize}
+            onOpen={openDialog}
+          />
         ) : observationInDatasets.data &&
           observationInDatasets.data.length > 0 ? (
-          isMenu ? (
-            <DropdownMenu open={hasAccess ? undefined : false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!hasAccess}
-                  className="w-full justify-start gap-2 font-normal"
-                >
-                  <PlusIcon className="h-4 w-4" aria-hidden="true" />
-                  <span className="text-sm">
-                    In {observationInDatasets.data.length} dataset(s)
-                  </span>
-                  <ChevronDown className="ml-auto h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {observationInDatasets.data.map(
-                  ({ id: datasetItemId, datasetName, datasetId }) => (
-                    <DropdownMenuItem
-                      key={datasetItemId}
-                      className="capitalize"
-                      asChild
-                    >
-                      <Link
-                        href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
-                      >
-                        {datasetName}
-                      </Link>
-                    </DropdownMenuItem>
-                  ),
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="capitalize" onClick={openDialog}>
-                  <PlusIcon size={16} className="mr-2" aria-hidden="true" />
-                  Add to more datasets
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <DropdownMenu open={hasAccess ? undefined : false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size={buttonSize}
-                  disabled={!hasAccess}
-                >
-                  <span>In {observationInDatasets.data.length} dataset(s)</span>
-                  <ChevronDown className="ml-2 h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {observationInDatasets.data.map(
-                  ({ id: datasetItemId, datasetName, datasetId }) => (
-                    <DropdownMenuItem
-                      key={datasetItemId}
-                      className="capitalize"
-                      asChild
-                    >
-                      <Link
-                        href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
-                      >
-                        {datasetName}
-                      </Link>
-                    </DropdownMenuItem>
-                  ),
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="capitalize" onClick={openDialog}>
-                  <PlusIcon size={16} className="mr-2" aria-hidden="true" />
-                  Add to more datasets
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )
-        ) : isMenu ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={!hasAccess}
-            className="w-full justify-start gap-2 font-normal"
-            onClick={openDialog}
-          >
-            {hasAccess ? (
-              <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            ) : null}
-            <span className="text-sm">Add to datasets</span>
-            {!hasAccess ? (
-              <LockIcon className="ml-auto h-3 w-3" aria-hidden="true" />
-            ) : null}
-          </Button>
+          <NewDatasetItemFromExistingObjectInDatasets
+            projectId={props.projectId}
+            items={observationInDatasets.data}
+            hasAccess={hasAccess}
+            size={buttonSize}
+            layout={isMenu ? "menu" : "toolbar"}
+            onOpen={openDialog}
+          />
         ) : (
-          <Button
-            onClick={openDialog}
+          <NewDatasetItemFromExistingObjectAdd
+            hasAccess={hasAccess}
             variant={buttonVariant}
             size={buttonSize}
-            disabled={!hasAccess}
-          >
-            {hasAccess ? (
-              <PlusIcon
-                className={`mr-1.5 -ml-0.5 ${
-                  buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"
-                }`}
-                aria-hidden="true"
-              />
-            ) : null}
-            Add to datasets
-            {!hasAccess ? (
-              <LockIcon className="ml-1.5 h-3 w-3" aria-hidden="true" />
-            ) : null}
-          </Button>
+            layout={isMenu ? "menu" : "toolbar"}
+            onOpen={openDialog}
+          />
         );
       }}
     </NewDatasetItemFromExistingObjectDialogController>
