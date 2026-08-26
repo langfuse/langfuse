@@ -142,24 +142,20 @@ describe("Ask AI filter generation access", () => {
 
   it("generates Ask AI on self-hosted and keeps Filter with AI Cloud-only", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
-    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
-    const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalBedrockModel = env.LANGFUSE_AI_MODEL;
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
+    const originalSharedBedrockModel = sharedEnv.LANGFUSE_AI_MODEL;
     const originalAiFeaturesProjectId =
       sharedEnv.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
     (
       env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
     ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    (
-      env as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
-    ).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
-    (
-      env as { LANGFUSE_AWS_BEDROCK_SMALL_MODEL?: string }
-    ).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = undefined;
-    (
-      sharedEnv as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
-    ).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as { LANGFUSE_AI_MODEL?: string }).LANGFUSE_AI_MODEL = "test-model";
+    (env as { LANGFUSE_AI_SMALL_MODEL?: string }).LANGFUSE_AI_SMALL_MODEL =
+      undefined;
+    (sharedEnv as { LANGFUSE_AI_MODEL?: string }).LANGFUSE_AI_MODEL =
+      "test-model";
     (
       sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
     ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
@@ -193,15 +189,12 @@ describe("Ask AI filter generation access", () => {
       (
         env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string }
       ).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-      (
-        env as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
-      ).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
-      (
-        env as { LANGFUSE_AWS_BEDROCK_SMALL_MODEL?: string }
-      ).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
-      (
-        sharedEnv as { LANGFUSE_AWS_BEDROCK_MODEL?: string }
-      ).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
+      (env as { LANGFUSE_AI_MODEL?: string }).LANGFUSE_AI_MODEL =
+        originalBedrockModel;
+      (env as { LANGFUSE_AI_SMALL_MODEL?: string }).LANGFUSE_AI_SMALL_MODEL =
+        originalBedrockSmallModel;
+      (sharedEnv as { LANGFUSE_AI_MODEL?: string }).LANGFUSE_AI_MODEL =
+        originalSharedBedrockModel;
       (
         sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;

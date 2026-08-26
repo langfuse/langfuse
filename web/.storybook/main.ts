@@ -17,6 +17,7 @@ const DESIGN_COMPONENT_STORIES = [
   "Dropzone/Dropzone",
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
+  "PasswordInput/PasswordInput",
   "Progress/Progress",
   "SearchInput/SearchInput",
   "Spinner/Spinner",
@@ -137,6 +138,9 @@ const config: StorybookConfig = {
     },
   ],
   experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
+  features: {
+    changeDetection: true,
+  },
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),
