@@ -40,7 +40,7 @@ import {
   type JumpToPlaygroundAction,
 } from "./JumpToPlaygroundMenu";
 
-type JumpToPlaygroundControllerProps = (
+type JumpToPlaygroundDropdownMenuControllerProps = (
   | {
       source: "prompt";
       prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
@@ -69,8 +69,8 @@ type JumpToPlaygroundControllerProps = (
   }) => React.ReactNode;
 };
 
-export const JumpToPlaygroundController = (
-  props: JumpToPlaygroundControllerProps,
+export const JumpToPlaygroundDropdownMenuController = (
+  props: JumpToPlaygroundDropdownMenuControllerProps,
 ) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();

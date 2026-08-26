@@ -25,7 +25,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { JumpToPlaygroundController } from "@/src/features/playground/page/components/JumpToPlaygroundController";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -293,7 +293,7 @@ export const ObservationDetailViewHeader = memo(
                   )}
                   {observationWithIO &&
                     isGenerationLike(observationWithIO.type) && (
-                      <JumpToPlaygroundController
+                      <JumpToPlaygroundDropdownMenuController
                         source="generation"
                         generation={observationWithIO}
                         analyticsEventName="trace_detail:test_in_playground_button_click"
@@ -319,7 +319,7 @@ export const ObservationDetailViewHeader = memo(
                             </Button>
                           </Trigger>
                         )}
-                      </JumpToPlaygroundController>
+                      </JumpToPlaygroundDropdownMenuController>
                     )}
                   <CommentDrawerController
                     projectId={projectId}
@@ -446,7 +446,7 @@ export const ObservationDetailViewHeader = memo(
               )}
               {observationWithIO &&
                 isGenerationLike(observationWithIO.type) && (
-                  <JumpToPlaygroundController
+                  <JumpToPlaygroundDropdownMenuController
                     source="generation"
                     generation={observationWithIO}
                     analyticsEventName="trace_detail:test_in_playground_button_click"
@@ -471,7 +471,7 @@ export const ObservationDetailViewHeader = memo(
                         </Button>
                       </Trigger>
                     )}
-                  </JumpToPlaygroundController>
+                  </JumpToPlaygroundDropdownMenuController>
                 )}
               <CommentDrawerController
                 projectId={projectId}
