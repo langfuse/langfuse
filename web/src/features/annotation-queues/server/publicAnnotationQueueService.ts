@@ -583,7 +583,18 @@ export const createAnnotationQueueAssignmentForApi = async ({
     userId: input.userId,
   };
 
-  // Create the assignment (upsert to handle duplicates gracefully)
+  // Create the assignment (upsert to handle duplicates gracefully). The
+  // pre-check distinguishes a real grant from an idempotent re-assignment so
+  // the audit trail only records actual state changes - this endpoint is
+  // reachable from the public API, where clients may re-sync assignments on
+  // a schedule.
+  const existingAssignment = await prisma.annotationQueueAssignment.findUnique({
+    where: {
+      projectId_queueId_userId: assignmentWhere,
+    },
+    select: { id: true },
+  });
+
   const assignment = await prisma.annotationQueueAssignment.upsert({
     where: {
       projectId_queueId_userId: assignmentWhere,
@@ -592,8 +603,7 @@ export const createAnnotationQueueAssignmentForApi = async ({
     update: {},
   });
 
-  // TODO: only create audit log if upsert actually creates a new record
-  if (auditScope) {
+  if (auditScope && !existingAssignment) {
     await auditLog({
       action: "create",
       resourceType: "annotationQueueAssignment",
