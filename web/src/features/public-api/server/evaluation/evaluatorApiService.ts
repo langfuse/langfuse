@@ -10,7 +10,7 @@ import {
   type CreateEvaluatorBodyType,
   type ResourceCursorType,
   type UpdateEvaluatorBodyType,
-} from "@/src/features/public-api/types/evaluators";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 import {
   toEvaluatorServiceDefinition,
   toPublicEvaluator,

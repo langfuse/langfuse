@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { serializeEvaluatorChatPrompt } from "../../features/evals/evaluatorChatPrompt";
 import { createNumericEvalOutputDefinition } from "../../features/evals/outputDefinition";
 import { executeLlmEvaluator } from "./llmEvaluatorExecution";
 
@@ -43,5 +44,40 @@ describe("executeLlmEvaluator", () => {
         reasoning: "The response is relevant.",
       },
     });
+  });
+
+  it("preserves chat message roles while interpolating variables", async () => {
+    const callLlm = vi.fn().mockResolvedValue({
+      score: 1,
+      reasoning: "Done",
+    });
+
+    await executeLlmEvaluator({
+      templatePrompt: serializeEvaluatorChatPrompt([
+        { role: "system", content: "Judge {{input}}" },
+        { role: "user", content: "Input: {{input}}" },
+        { role: "assistant", content: "I will score it." },
+      ]),
+      variables: [{ var: "input", value: "hello" }],
+      outputDefinition: createNumericEvalOutputDefinition({
+        scoreDescription: "Score",
+        reasoningDescription: "Reasoning",
+      }),
+      callLlm,
+    });
+
+    expect(callLlm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { type: "system", role: "system", content: "Judge hello" },
+          { type: "user", role: "user", content: "Input: hello" },
+          {
+            type: "assistant-text",
+            role: "assistant",
+            content: "I will score it.",
+          },
+        ],
+      }),
+    );
   });
 });

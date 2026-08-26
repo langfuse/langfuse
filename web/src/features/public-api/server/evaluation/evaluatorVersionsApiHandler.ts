@@ -6,7 +6,7 @@ import { listEvaluatorVersionsForPublicApi } from "./evaluatorApiService";
 import {
   ListEvaluatorVersionsQuery,
   ListEvaluatorVersionsResponse,
-} from "@/src/features/public-api/types/evaluators";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 
 export const evaluatorVersionsApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({

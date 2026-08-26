@@ -1,4 +1,5 @@
 import {
+  EvaluatorChatPromptSchema,
   InvalidRequestError,
   ZodModelConfig,
   publicApiPaginationLimitZod,
@@ -13,7 +14,7 @@ import {
   PublicEvaluationRuleResponseMapping,
   PublicEvaluatorOutputDefinition,
   PublicEvaluatorOutputDefinitionRead,
-} from "./public-evals-contract";
+} from "./publicEvalsContract";
 
 export const PublicApiCreator = z
   .object({
@@ -40,7 +41,7 @@ const EvaluatorModelConfig = z
 
 export const LlmAsJudgeEvaluatorVersion = EvaluatorVersionBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
-  prompt: z.string().min(1),
+  prompt: EvaluatorChatPromptSchema,
   variables: z.array(z.string()),
   variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
   modelConfig: EvaluatorModelConfig.nullable(),
@@ -85,7 +86,7 @@ const EvaluatorBase = z.object({
 
 export const LlmAsJudgeEvaluator = EvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
-  prompt: z.string().min(1),
+  prompt: EvaluatorChatPromptSchema,
   variables: z.array(z.string()),
   variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
   modelConfig: EvaluatorModelConfig.nullable(),
@@ -106,7 +107,7 @@ export const Evaluator = z.discriminatedUnion("type", [
 const LlmAsJudgeEvaluatorDefinition = z
   .object({
     type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
-    prompt: z.string().min(1),
+    prompt: EvaluatorChatPromptSchema,
     modelConfig: EvaluatorModelConfig.nullable().optional(),
     variableMapping: z.array(PublicEvaluationRuleMapping).nullable().optional(),
     outputDefinition: PublicEvaluatorOutputDefinition,

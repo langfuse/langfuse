@@ -4,12 +4,12 @@ export {
   ListEvaluatorVersionsResponse,
   ListEvaluatorsResponse,
   LlmAsJudgeEvaluator,
-} from "./types/evaluators";
+} from "./types/evaluation/evaluators";
 export {
   DeleteEvaluationRuleResponse,
   EvaluationRule,
   ListEvaluationRulesResponse,
-} from "./types/evaluation-rules";
+} from "./types/evaluation/evaluationRules";
 export { PublicApiError } from "./types/public-api-errors";
 export {
   createUnstablePublicApiError,

@@ -40,6 +40,7 @@ export * from "./features/evals/types";
 export * from "./features/evals/evalExecutionMetadata";
 export * from "./features/evals/outputDefinition";
 export * from "./features/evals/codeEvalConstants";
+export * from "./features/evals/evaluatorChatPrompt";
 export {
   extractValueFromObject,
   extractValueFromObjectAsString,

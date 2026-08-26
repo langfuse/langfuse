@@ -43,7 +43,11 @@ describe("stable evaluators public API", () => {
       {
         name: "friendly LLM evaluator",
         type: "llm_as_judge",
-        prompt: "Input: {{input}}",
+        prompt: [
+          { role: "system", content: "Judge the input." },
+          { role: "user", content: "Input: {{input}}" },
+          { role: "assistant", content: "I will return a score." },
+        ],
         modelConfig: null,
         variableMapping: null,
         outputDefinition: {
@@ -59,6 +63,11 @@ describe("stable evaluators public API", () => {
     expect(llmEvaluatorBody).toMatchObject({
       type: "llm_as_judge",
       version: 1,
+      prompt: [
+        { role: "system", content: "Judge the input." },
+        { role: "user", content: "Input: {{input}}" },
+        { role: "assistant", content: "I will return a score." },
+      ],
       variables: ["input"],
       variableMapping: null,
       modelConfig: null,
@@ -76,7 +85,7 @@ describe("stable evaluators public API", () => {
       {
         name: "categorical evaluator",
         type: "llm_as_judge",
-        prompt: "Classify: {{input}}",
+        prompt: [{ role: "user", content: "Classify: {{input}}" }],
         outputDefinition: {
           dataType: "CATEGORICAL",
           scoreReasoning: "Why the category was selected",
@@ -96,6 +105,22 @@ describe("stable evaluators public API", () => {
       scoreDescription: "The selected category",
       categories: ["pass", "fail"],
       shouldAllowMultipleMatches: false,
+    });
+
+    const invalidRole = await makeAPICall(
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "invalid role evaluator",
+        type: "llm_as_judge",
+        prompt: [{ role: "developer", content: "Judge {{input}}" }],
+        outputDefinition: { dataType: "BOOLEAN" },
+      },
+      auth,
+    );
+    expect(invalidRole.status).toBe(400);
+    expect(PublicApiError.parse(invalidRole.body)).toMatchObject({
+      code: "invalid_body",
     });
 
     const invalid = await makeAPICall(
@@ -277,6 +302,7 @@ describe("stable evaluators public API", () => {
     );
     expect(legacyResponse.body).toMatchObject({
       version: 1,
+      prompt: [{ role: "user", content: "Judge {{input}}" }],
       outputDefinition: {
         dataType: "NUMERIC",
       },
@@ -467,7 +493,7 @@ describe("stable evaluators public API", () => {
       `/api/public/v2/evaluators/${evaluator.body.id}`,
       {
         type: "llm_as_judge",
-        prompt: "Input: {{input}}",
+        prompt: [{ role: "user", content: "Input: {{input}}" }],
         modelConfig: null,
         variableMapping: null,
         outputDefinition: {

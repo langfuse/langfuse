@@ -3,8 +3,10 @@ import {
   extractVariables,
   InternalServerError,
   observationVariableMappingList,
+  parseEvaluatorChatPrompt,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
+  serializeEvaluatorChatPrompt,
   variableMappingList,
   type FilterState,
   type ObservationVariableMapping,
@@ -19,12 +21,12 @@ import {
 import {
   EvaluationRule,
   type CreateEvaluationRuleBodyType,
-} from "@/src/features/public-api/types/evaluation-rules";
+} from "@/src/features/public-api/types/evaluation/evaluationRules";
 import {
   Evaluator,
   EvaluatorVersion,
   type EvaluatorDefinitionType,
-} from "@/src/features/public-api/types/evaluators";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 import {
   LegacyEvaluationRuleMapping,
   PublicEvaluationRuleReadFilter,
@@ -34,7 +36,7 @@ import {
   type PublicEvaluationRuleMappingType,
   type PublicEvaluationRuleReadMappingType,
   type PublicEvaluatorOutputDefinitionType,
-} from "@/src/features/public-api/types/public-evals-contract";
+} from "@/src/features/public-api/types/evaluation/publicEvalsContract";
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
   PublicEvaluationRuleMappingType["source"],
@@ -237,7 +239,7 @@ export function toEvaluatorServiceDefinition(
         }
       : {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: definition.prompt,
+          prompt: serializeEvaluatorChatPrompt(definition.prompt),
           modelConfig: definition.modelConfig ?? null,
           variableMapping:
             definition.variableMapping == null
@@ -281,12 +283,17 @@ export function toPublicEvaluatorVersion(
   if (!version.prompt) {
     throw new InternalServerError("Evaluator prompt is corrupted");
   }
+  const prompt = parseEvaluatorChatPrompt(version.prompt) ?? [
+    { role: "user" as const, content: version.prompt },
+  ];
   return EvaluatorVersion.parse({
     ...common,
     type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-    prompt: version.prompt,
+    prompt,
     variables:
-      version.vars.length > 0 ? version.vars : extractVariables(version.prompt),
+      version.vars.length > 0
+        ? version.vars
+        : extractVariables(prompt.map(({ content }) => content).join("\n")),
     variableMapping:
       version.variableMapping === null
         ? null

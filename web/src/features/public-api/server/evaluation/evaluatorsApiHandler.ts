@@ -11,7 +11,7 @@ import {
   Evaluator,
   ListEvaluatorsQuery,
   ListEvaluatorsResponse,
-} from "@/src/features/public-api/types/evaluators";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 
 export const evaluatorsApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({

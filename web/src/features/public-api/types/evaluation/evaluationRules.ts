@@ -6,7 +6,7 @@ import {
   PublicEvaluationRuleResponseMapping,
   PublicEvaluatorType,
   StableEvaluationRuleFilter,
-} from "./public-evals-contract";
+} from "./publicEvalsContract";
 import {
   EncodedResourceCursor,
   EncodedResourceCursorString,

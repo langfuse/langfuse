@@ -18129,8 +18129,10 @@ components:
           const: llm_as_judge
           description: Evaluator engine type.
         prompt:
-          type: string
-          description: Prompt template used during evaluation.
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluatorPromptMessage'
+          description: Ordered chat messages used during evaluation.
         modelConfig:
           $ref: '#/components/schemas/EvaluatorModelConfig'
           nullable: true
@@ -19081,6 +19083,26 @@ components:
             - $ref: '#/components/schemas/CodeEvaluatorVersion'
           required:
             - type
+    EvaluatorPromptMessageRole:
+      title: EvaluatorPromptMessageRole
+      type: string
+      enum:
+        - user
+        - assistant
+        - system
+    EvaluatorPromptMessage:
+      title: EvaluatorPromptMessage
+      type: object
+      description: One chat message in an evaluator prompt.
+      properties:
+        role:
+          $ref: '#/components/schemas/EvaluatorPromptMessageRole'
+        content:
+          type: string
+          description: Message content. Evaluator variables use `{{variable}}` syntax.
+      required:
+        - role
+        - content
     EvaluatorVersionBase:
       title: EvaluatorVersionBase
       type: object
@@ -19202,8 +19224,10 @@ components:
           const: llm_as_judge
           description: Evaluator engine type.
         prompt:
-          type: string
-          description: Prompt template used by the latest evaluator version.
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluatorPromptMessage'
+          description: Ordered chat messages used by the latest evaluator version.
         variables:
           type: array
           items:
@@ -19246,8 +19270,10 @@ components:
           const: llm_as_judge
           description: Evaluator engine type.
         prompt:
-          type: string
-          description: Prompt template used during evaluation.
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluatorPromptMessage'
+          description: Ordered chat messages used during evaluation.
         variables:
           type: array
           items:
@@ -19693,8 +19719,10 @@ components:
             Evaluator engine type. The type of an existing evaluator cannot
             change.
         prompt:
-          type: string
-          description: Complete replacement prompt template.
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluatorPromptMessage'
+          description: Complete replacement list of ordered chat messages.
         modelConfig:
           $ref: '#/components/schemas/EvaluatorModelConfig'
           nullable: true

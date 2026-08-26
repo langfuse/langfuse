@@ -190,6 +190,21 @@ types:
           provider: openai
           model: gpt-4.1-mini
 
+  EvaluatorPromptMessageRole:
+    enum:
+      - user
+      - assistant
+      - system
+
+  EvaluatorPromptMessage:
+    docs: One chat message in an evaluator prompt.
+    properties:
+      role:
+        type: EvaluatorPromptMessageRole
+      content:
+        type: string
+        docs: Message content. Evaluator variables use `{{variable}}` syntax.
+
   EvaluatorVersionBase:
     properties:
       id:
@@ -212,8 +227,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type.
       prompt:
-        type: string
-        docs: Prompt template used during evaluation.
+        type: list<EvaluatorPromptMessage>
+        docs: Ordered chat messages used during evaluation.
       variables:
         type: list<string>
         docs: |
@@ -319,8 +334,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type.
       prompt:
-        type: string
-        docs: Prompt template used by the latest evaluator version.
+        type: list<EvaluatorPromptMessage>
+        docs: Ordered chat messages used by the latest evaluator version.
       variables:
         type: list<string>
         docs: Variables extracted from the latest prompt and available for evaluation-rule mappings.
@@ -381,8 +396,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type.
       prompt:
-        type: string
-        docs: Prompt template used during evaluation.
+        type: list<EvaluatorPromptMessage>
+        docs: Ordered chat messages used during evaluation.
       modelConfig:
         type: optional<nullable<EvaluatorModelConfig>>
         docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.
@@ -442,8 +457,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type. The type of an existing evaluator cannot change.
       prompt:
-        type: string
-        docs: Complete replacement prompt template.
+        type: list<EvaluatorPromptMessage>
+        docs: Complete replacement list of ordered chat messages.
       modelConfig:
         type: optional<nullable<EvaluatorModelConfig>>
         docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.

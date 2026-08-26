@@ -12,7 +12,7 @@ import {
   Evaluator,
   EvaluatorIdQuery,
   UpdateEvaluatorBody,
-} from "@/src/features/public-api/types/evaluators";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 
 export const evaluatorApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({

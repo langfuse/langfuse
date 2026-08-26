@@ -9,11 +9,11 @@ import {
 import {
   type CreateEvaluationRuleBodyType,
   type UpdateEvaluationRuleBodyType,
-} from "@/src/features/public-api/types/evaluation-rules";
+} from "@/src/features/public-api/types/evaluation/evaluationRules";
 import {
   encodeResourceCursor,
   type ResourceCursorType,
-} from "@/src/features/public-api/types/evaluators";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 import {
   toInternalAssignments,
   toInternalFilters,

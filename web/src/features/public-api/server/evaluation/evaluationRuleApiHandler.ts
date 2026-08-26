@@ -12,7 +12,7 @@ import {
   EvaluationRule,
   EvaluationRuleIdQuery,
   UpdateEvaluationRuleBody,
-} from "@/src/features/public-api/types/evaluation-rules";
+} from "@/src/features/public-api/types/evaluation/evaluationRules";
 
 export const evaluationRuleApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({
