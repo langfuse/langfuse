@@ -469,16 +469,18 @@ export const PromptDetail = ({
                       {disabled ? (
                         <MessageSquareOff className="text-muted-foreground h-4 w-4" />
                       ) : (
-                        <MessageSquare className="h-4 w-4" />
+                        <>
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Add comment</span>
+                          {getNumberFromMap(commentCounts, prompt.id) ? (
+                            <ActionButtonCountBadge
+                              count={
+                                getNumberFromMap(commentCounts, prompt.id) ?? 0
+                              }
+                            />
+                          ) : null}
+                        </>
                       )}
-                      <span>Add comment</span>
-                      {getNumberFromMap(commentCounts, prompt.id) ? (
-                        <ActionButtonCountBadge
-                          count={
-                            getNumberFromMap(commentCounts, prompt.id) ?? 0
-                          }
-                        />
-                      ) : null}
                     </Button>
                   )}
                 </CommentDrawerController>

@@ -292,7 +292,7 @@ export const ObservationDetailViewHeader = memo(
                           <MessageSquare className="h-4 w-4" />
                         )}
                         <span className="text-sm">Add comment</span>
-                        {!!commentCount ? (
+                        {!disabled && commentCount ? (
                           <ActionButtonCountBadge count={commentCount} />
                         ) : null}
                       </Button>
@@ -404,12 +404,14 @@ export const ObservationDetailViewHeader = memo(
                     {disabled ? (
                       <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
                     ) : (
-                      <MessageSquare className="h-3.5 w-3.5" />
+                      <>
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>Add comment</span>
+                        {!!commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </>
                     )}
-                    <span>Add comment</span>
-                    {!!commentCount ? (
-                      <ActionButtonCountBadge count={commentCount} />
-                    ) : null}
                   </Button>
                 )}
               </CommentDrawerController>

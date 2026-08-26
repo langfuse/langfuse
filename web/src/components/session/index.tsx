@@ -566,19 +566,24 @@ export const SessionPage: React.FC<{
                     {disabled ? (
                       <MessageSquareOff className="text-muted-foreground h-4 w-4" />
                     ) : (
-                      <MessageSquare className="h-4 w-4" />
+                      <>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Add comment</span>
+                        {getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        ) ? (
+                          <ActionButtonCountBadge
+                            count={
+                              getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              ) ?? 0
+                            }
+                          />
+                        ) : null}
+                      </>
                     )}
-                    <span>Add comment</span>
-                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
-                      <ActionButtonCountBadge
-                        count={
-                          getNumberFromMap(
-                            sessionCommentCounts.data,
-                            sessionId,
-                          ) ?? 0
-                        }
-                      />
-                    ) : null}
                   </Button>
                 )}
               </CommentDrawerController>
@@ -650,7 +655,8 @@ export const SessionPage: React.FC<{
                       <MessageSquare className="h-4 w-4" />
                     )}
                     <span className="text-sm">Add comment</span>
-                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                    {!disabled &&
+                    getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
                         count={
                           getNumberFromMap(
@@ -1500,19 +1506,24 @@ const LoadedSessionEventsPage: React.FC<{
                     {disabled ? (
                       <MessageSquareOff className="text-muted-foreground h-4 w-4" />
                     ) : (
-                      <MessageSquare className="h-4 w-4" />
+                      <>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Add comment</span>
+                        {getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        ) ? (
+                          <ActionButtonCountBadge
+                            count={
+                              getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              ) ?? 0
+                            }
+                          />
+                        ) : null}
+                      </>
                     )}
-                    <span>Add comment</span>
-                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
-                      <ActionButtonCountBadge
-                        count={
-                          getNumberFromMap(
-                            sessionCommentCounts.data,
-                            sessionId,
-                          ) ?? 0
-                        }
-                      />
-                    ) : null}
                   </Button>
                 )}
               </CommentDrawerController>
@@ -1607,7 +1618,8 @@ const LoadedSessionEventsPage: React.FC<{
                       <MessageSquare className="h-4 w-4" />
                     )}
                     <span className="text-sm">Add comment</span>
-                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                    {!disabled &&
+                    getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
                         count={
                           getNumberFromMap(

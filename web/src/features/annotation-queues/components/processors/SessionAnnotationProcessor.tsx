@@ -150,19 +150,24 @@ export const SessionAnnotationProcessor: React.FC<
                 {disabled ? (
                   <MessageSquareOff className="text-muted-foreground h-4 w-4" />
                 ) : (
-                  <MessageSquare className="h-4 w-4" />
+                  <>
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Add comment</span>
+                    {getNumberFromMap(
+                      sessionCommentCounts.data,
+                      item.objectId,
+                    ) ? (
+                      <ActionButtonCountBadge
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            item.objectId,
+                          ) ?? 0
+                        }
+                      />
+                    ) : null}
+                  </>
                 )}
-                <span>Add comment</span>
-                {getNumberFromMap(sessionCommentCounts.data, item.objectId) ? (
-                  <ActionButtonCountBadge
-                    count={
-                      getNumberFromMap(
-                        sessionCommentCounts.data,
-                        item.objectId,
-                      ) ?? 0
-                    }
-                  />
-                ) : null}
               </Button>
             )}
           </CommentDrawerController>
