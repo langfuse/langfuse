@@ -180,6 +180,18 @@ export class ChbBillingService {
    * `paymentStatus` is not clobbered by a stale snapshot.
    *
    * Returns the number of rows claimed; 0 means another caller won the race.
+   *
+   * Both `COALESCE`s go through `NULLIF(…, 'null'::jsonb)` because a JSON-null
+   * is not a SQL NULL, and the two clauses disagree about it otherwise: the
+   * WHERE guard reads a stored `{"clickhouse": null}` as unclaimed and lets the
+   * write through, while `||` on a JSON-null scalar yields an *array*
+   * (`[null, {...}]`) rather than merging. That array fails CloudConfigSchema,
+   * so parseDbOrg nulls the *entire* cloudConfig on every later read — which
+   * drops the org's rate-limit and lookback overrides, makes getBillingProvider
+   * stop seeing the CHB state it just wrote (orphaning the bundle on Stripe
+   * routing), and makes hasPaidBillingState report the org as unpaid, which is
+   * the gate that keeps a paying org from being ingestion-blocked at the
+   * free-tier usage threshold.
    */
   private async claimChOrganizationId(
     orgId: string,
@@ -188,9 +200,12 @@ export class ChbBillingService {
     return await this.ctx.prisma.$executeRaw`
       UPDATE organizations
       SET cloud_config = jsonb_set(
-            COALESCE(cloud_config, '{}'::jsonb),
+            COALESCE(NULLIF(cloud_config, 'null'::jsonb), '{}'::jsonb),
             '{clickhouse}',
-            COALESCE(cloud_config -> 'clickhouse', '{}'::jsonb)
+            COALESCE(
+              NULLIF(cloud_config -> 'clickhouse', 'null'::jsonb),
+              '{}'::jsonb
+            )
               || jsonb_build_object('organizationId', ${chOrganizationId}::text),
             true
           )
