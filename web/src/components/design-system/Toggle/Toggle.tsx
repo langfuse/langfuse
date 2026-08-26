@@ -33,14 +33,10 @@ const toggleVariants = cva(
   },
 );
 
-export type ToggleProps = Pick<
-  Omit<
-    React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root>,
-    "className"
-  >,
+type ToggleProps = Pick<
+  React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root>,
   | "aria-label"
   | "children"
-  | "defaultPressed"
   | "disabled"
   | "onClick"
   | "onMouseEnter"
