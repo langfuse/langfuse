@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { expect, fn, screen, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 
@@ -10,10 +10,7 @@ const defaultArgs = {
   onOpenChange: fn(),
   projectName: "Support assistant",
   organizationName: "Acme",
-  organizations: [
-    { id: "organization-1", name: "Acme" },
-    { id: "organization-2", name: "Example" },
-  ],
+  organizations: [{ id: "organization-2", name: "Example" }],
   isPending: false,
   onConfirm: fn(),
 } satisfies ComponentProps<typeof TransferProjectDialog>;
@@ -42,7 +39,7 @@ export const ConfirmsTransfer = meta.story({
     const canvas = within(canvasElement);
 
     await userEvent.click(canvas.getByRole("combobox"));
-    await userEvent.click(await screen.findByText("Example"));
+    await userEvent.keyboard("{ArrowDown}{Enter}");
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Confirm" }),
       "acme/support-assistant",
