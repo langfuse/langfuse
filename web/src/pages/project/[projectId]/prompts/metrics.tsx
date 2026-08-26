@@ -7,7 +7,7 @@ import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -170,22 +170,23 @@ export default function PromptVersionTable({
   });
 
   const columns: LangfuseColumnDef<PromptVersionTableRow>[] = [
-    {
+    createLinkTableColumn<PromptVersionTableRow, number>({
       accessorKey: "version",
-      id: "version",
       header: "Version",
       isPinnedLeft: true,
       size: 80,
-      cell: ({ row }) => {
-        const version = row.getValue("version");
-        return typeof version === "number" ? (
-          <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(promptName)}/?version=${version}`}
-            value={String(version)}
-          />
-        ) : null;
+      getCell: (version) => {
+        if (typeof version !== "number") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/prompts/${encodeURIComponent(promptName)}/?version=${version}`,
+            value: String(version),
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "labels",
       id: "labels",
