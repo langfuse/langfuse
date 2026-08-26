@@ -21,19 +21,19 @@ describe("AUTH_SESSION_MAX_AGE", () => {
     );
   });
 
-  it("accepts a self-host override in minutes", () => {
+  it("accepts an override in minutes", () => {
     expect(authSessionMaxAgeMinutesSchema.parse("43200")).toBe(43200);
     expect(authSessionMaxAgeMinutesSchema.parse(120)).toBe(120);
   });
 
-  it("rejects values at or below the 5-minute session refresh interval", () => {
+  it("rejects values at or below 5", () => {
     expect(() => authSessionMaxAgeMinutesSchema.parse(5)).toThrow(
       /AUTH_SESSION_MAX_AGE must be > 5/,
     );
     expect(() => authSessionMaxAgeMinutesSchema.parse("0")).toThrow();
   });
 
-  it("configures NextAuth JWT sessions with a rolling maxAge in seconds", async () => {
+  it("sets session.maxAge in seconds", async () => {
     const authOptions = await getAuthOptions();
 
     expect(authOptions.session).toEqual({

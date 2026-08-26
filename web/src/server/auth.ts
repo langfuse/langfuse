@@ -780,9 +780,7 @@ export async function getAuthOptions(signupAttribution?: {
     logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      // Minutes from AUTH_SESSION_MAX_AGE, converted to seconds. NextAuth treats
-      // this as a rolling inactivity window, not a hard session cap.
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60,
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's
