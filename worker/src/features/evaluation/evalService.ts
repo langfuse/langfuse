@@ -797,9 +797,8 @@ export const createEvalJobs = async ({
       );
 
       // `createMany` with `skipDuplicates` turns the insert into an
-      // INSERT ... ON CONFLICT DO NOTHING on the primary key. The racing loser
-      // gets `count: 0` and must not enqueue, so one execution stays one
-      // execution (and one score, since score ids derive from this id).
+      // INSERT ... ON CONFLICT DO NOTHING on the primary key, so a racing
+      // producer cannot add a second row for the same dedup key.
       const { count: insertedCount } = await prisma.jobExecution.createMany({
         data: [
           {
@@ -825,11 +824,17 @@ export const createEvalJobs = async ({
         skipDuplicates: true,
       });
 
-      if (insertedCount === 0) {
+      // Losing the insert race is not a reason to stay silent: both producers
+      // enqueue, exactly as the observation-eval scheduler does. A duplicate
+      // run is idempotent (same row, and score ids derive from the job
+      // execution id, so the second run overwrites rather than duplicates),
+      // while skipping the enqueue risks the opposite failure - an execution
+      // nobody picks up.
+      const isInsertOwner = insertedCount === 1;
+      if (!isInsertOwner) {
         logger.debug(
-          `Concurrent producer already created eval job ${jobExecutionId} for config ${config.id} and trace ${event.traceId}`,
+          `Concurrent producer already created eval job ${jobExecutionId} for config ${config.id} and trace ${event.traceId}, enqueueing anyway`,
         );
-        continue;
       }
 
       try {
@@ -865,17 +870,24 @@ export const createEvalJobs = async ({
         // The row exists but nothing will ever pick it up. Without this
         // compensating delete the BullMQ redelivery would hit the dedup check
         // above and skip re-enqueueing, stranding the execution at PENDING.
-        logger.warn(
-          `Failed to enqueue eval execution ${jobExecutionId}, removing the orphaned job execution so the retry can recreate it`,
-          e,
-        );
-        await prisma.jobExecution.deleteMany({
-          where: {
-            id: jobExecutionId,
-            projectId: event.projectId,
-            status: JobExecutionStatus.PENDING,
-          },
-        });
+        //
+        // Only the producer that inserted the row may delete it. A producer
+        // that lost the race would otherwise delete a row the winner has
+        // already queued work for, and that queued job would find nothing to
+        // execute.
+        if (isInsertOwner) {
+          logger.warn(
+            `Failed to enqueue eval execution ${jobExecutionId}, removing the orphaned job execution so the retry can recreate it`,
+            e,
+          );
+          await prisma.jobExecution.deleteMany({
+            where: {
+              id: jobExecutionId,
+              projectId: event.projectId,
+              status: JobExecutionStatus.PENDING,
+            },
+          });
+        }
         throw e;
       }
     } else {
