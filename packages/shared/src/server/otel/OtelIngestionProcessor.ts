@@ -1568,9 +1568,11 @@ export class OtelIngestionProcessor {
       for (let i = 0; i < path.length - 1; i++) {
         const key = path[i];
         if (DANGEROUS_KEYS.has(key)) return;
-        if (!(key in current)) {
+        if (!Object.hasOwn(current, key)) {
           // Check if next key is a number to decide if we need an array or object
-          current[key] = /^\d+$/.test(path[i + 1]) ? [] : {};
+          current[key] = /^\d+$/.test(path[i + 1])
+            ? []
+            : Object.create(null);
         }
         current = current[key];
       }
