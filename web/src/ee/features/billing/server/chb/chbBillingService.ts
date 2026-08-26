@@ -279,7 +279,6 @@ export class ChbBillingService {
       idempotencyKey,
       opId,
       userId: this.ctx.session.user.id,
-      userEmail: email,
     });
 
     const session = await this.client.createCheckoutSession({
@@ -426,7 +425,6 @@ export class ChbBillingService {
       idempotencyKey,
       opId,
       userId: this.ctx.session.user.id,
-      userEmail: this.ctx.session.user.email,
     });
 
     try {
@@ -638,7 +636,6 @@ export class ChbBillingService {
       when,
       opId,
       userId: this.ctx.session.user.id,
-      userEmail: this.ctx.session.user.email,
     });
 
     await this.client.setScheduledChange({
@@ -679,7 +676,6 @@ export class ChbBillingService {
       action,
       opId,
       userId: this.ctx.session.user.id,
-      userEmail: this.ctx.session.user.email,
     });
 
     await this.client.clearScheduledChange({
