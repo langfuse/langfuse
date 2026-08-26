@@ -197,6 +197,31 @@ describe("search bar invariants — evaluation rules registry", () => {
     });
 
     expect(
+      planCommit("model:gpt-4o", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "providedModelName", type: "string" }],
+    });
+    expect(
+      planCommit("prompt:support-agent", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "promptName", type: "string" }],
+    });
+    expect(
+      planCommit("status:rate-limit", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "statusMessage", type: "string" }],
+    });
+    expect(
+      planCommit("experiment:checkout", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "experimentName", type: "string" }],
+    });
+
+    expect(
       planCommit("dataset:dataset-id", undefined, RULE_FIELD_REGISTRY),
     ).toMatchObject({
       status: "committed",

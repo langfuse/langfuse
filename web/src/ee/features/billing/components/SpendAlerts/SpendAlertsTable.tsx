@@ -16,6 +16,7 @@ import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { usdFormatter } from "@/src/utils/numbers";
 
 interface SpendAlertsTableProps {
@@ -71,13 +72,11 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
   }, [isLoading, isError, rows]);
 
   const columns: LangfuseColumnDef<AlertRow>[] = [
-    {
+    createTextTableColumn<AlertRow>({
       accessorKey: "title",
-      id: "title",
       header: "Title",
-      cell: ({ row }) => row.original.title,
       size: 160,
-    },
+    }),
     {
       accessorKey: "Limit",
       id: "limit",
