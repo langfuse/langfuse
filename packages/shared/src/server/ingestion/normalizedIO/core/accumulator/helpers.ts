@@ -1,9 +1,21 @@
+import { normalizeToolDefinitionValue } from "../../normalize/toolDefinitions";
 import {
   NormalizedMessage,
   NormalizedMessagePart,
   ToolDefinition,
 } from "../../types";
 import { NormalizedIOAccumulator } from "./interface";
+import { ToolDefinitionOptions } from "../../conventions/IOConvention";
+
+export function addToolDefinitionValue(
+  accumulator: NormalizedIOAccumulator,
+  value: unknown,
+  options: ToolDefinitionOptions = {},
+): void {
+  for (const definition of normalizeToolDefinitionValue(value, options)) {
+    addToolDefinition(accumulator, definition);
+  }
+}
 
 function getToolCallKey(part: NormalizedMessagePart): string | undefined {
   if (part.type !== "tool-call") return undefined;
@@ -39,7 +51,7 @@ export function addMessage(
   }
 }
 
-export function addToolDefinition(
+function addToolDefinition(
   accumulator: NormalizedIOAccumulator,
   definition: ToolDefinition,
 ): void {

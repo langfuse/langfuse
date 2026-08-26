@@ -1,13 +1,9 @@
 import { registeredProviders } from "../../conventions";
-import type {
-  RootMessageSource,
-  ToolDefinitionOptions,
-} from "../../conventions/IOConvention";
+import type { RootMessageSource } from "../../conventions/IOConvention";
 import { asRecord, parseRecord } from "../../utils/json";
 import type { NormalizedMessagePart } from "../../types";
-import { addMessage, addToolDefinition } from "./helpers";
+import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
-import { normalizeToolDefinitionValue } from "../../normalize/toolDefinitions";
 import {
   normalizePart,
   normalizeMessage,
@@ -24,16 +20,6 @@ export type ParsedIOValue = {
 export type CollectContext =
   | { kind: "io"; source: "input" | "output" }
   | { kind: "metadata" };
-
-function addToolDefinitionValue(
-  accumulator: NormalizedIOAccumulator,
-  value: unknown,
-  options: ToolDefinitionOptions = {},
-): void {
-  for (const definition of normalizeToolDefinitionValue(value, options)) {
-    addToolDefinition(accumulator, definition);
-  }
-}
 
 function collectToolDefinitionsFromRecord(
   record: Record<string, unknown>,
