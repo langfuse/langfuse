@@ -1,32 +1,13 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+import { useState } from "react";
+
 import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import * as z from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"; // Import success toast function
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { env } from "@/src/env.mjs";
+import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
 
 export function DeleteOrganizationButton() {
   const capture = usePostHogClientCapture();
@@ -35,12 +16,6 @@ export function DeleteOrganizationButton() {
   const confirmMessage =
     organization?.name.replaceAll(" ", "-").toLowerCase() ?? "organization";
 
-  const formSchema = z.object({
-    name: z.string().includes(confirmMessage, {
-      message: `Please confirm with "${confirmMessage}"`,
-    }),
-  });
-
   const hasAccess = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organization:delete",
@@ -48,13 +23,7 @@ export function DeleteOrganizationButton() {
 
   const deleteOrganization = api.organizations.delete.useMutation();
   const hasProjects = !!organization && organization.projects.length > 0;
-
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-    },
-  });
+  const [open, setOpen] = useState(false);
 
   const onSubmit = async () => {
     if (!organization || hasProjects) return;
@@ -77,55 +46,22 @@ export function DeleteOrganizationButton() {
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="destructive-secondary" disabled={!hasAccess}>
-          Delete Organization
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold">
-            Delete Organization
-          </DialogTitle>
-          <DialogDescription>
-            {hasProjects
-              ? "You can only delete an organization if it has no projects associated with it. Please delete or transfer all projects first. Deleting projects may take a few minutes."
-              : `To confirm, type "${confirmMessage}" in the input box `}
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            {!hasProjects && (
-              <DialogBody>
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input placeholder={confirmMessage} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </DialogBody>
-            )}
-            <DialogFooter>
-              <Button
-                type="submit"
-                variant="destructive"
-                loading={deleteOrganization.isPending}
-                disabled={hasProjects}
-                className="w-full"
-              >
-                Delete Organization
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Button
+        variant="destructive-secondary"
+        disabled={!hasAccess}
+        onClick={() => setOpen(true)}
+      >
+        Delete Organization
+      </Button>
+      <DeleteOrganizationDialog
+        open={open}
+        onOpenChange={setOpen}
+        confirmMessage={confirmMessage}
+        hasProjects={hasProjects}
+        isPending={deleteOrganization.isPending}
+        onConfirm={onSubmit}
+      />
+    </>
   );
 }
