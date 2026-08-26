@@ -7,6 +7,11 @@
  * to the isolation scope before init.
  */
 
+import {
+  V4_BETA_ENABLED_SENTRY_TAG,
+  V4_BETA_ENABLED_STORAGE_KEY,
+} from "@/src/utils/sentryV4BetaTag";
+
 const { initMock, setTagMock, callOrder } = vi.hoisted(() => {
   const callOrder: string[] = [];
   return {
@@ -63,21 +68,21 @@ afterEach(() => {
 
 describe("instrumentation-client applies cached v4BetaEnabled before Sentry.init", () => {
   it("tags true from localStorage before init so pageload starts labeled", async () => {
-    memory.set("v4BetaEnabled", "true");
+    memory.set(V4_BETA_ENABLED_STORAGE_KEY, "true");
 
     await loadInstrumentationClient();
 
-    expect(setTagMock).toHaveBeenCalledWith("v4BetaEnabled", true);
+    expect(setTagMock).toHaveBeenCalledWith(V4_BETA_ENABLED_SENTRY_TAG, true);
     expect(initMock).toHaveBeenCalledTimes(1);
     expect(callOrder).toEqual(["setTag", "init"]);
   });
 
   it("tags false from localStorage before init", async () => {
-    memory.set("v4BetaEnabled", "false");
+    memory.set(V4_BETA_ENABLED_STORAGE_KEY, "false");
 
     await loadInstrumentationClient();
 
-    expect(setTagMock).toHaveBeenCalledWith("v4BetaEnabled", false);
+    expect(setTagMock).toHaveBeenCalledWith(V4_BETA_ENABLED_SENTRY_TAG, false);
     expect(callOrder).toEqual(["setTag", "init"]);
   });
 
