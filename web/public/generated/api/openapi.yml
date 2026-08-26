@@ -1604,7 +1604,7 @@ paths:
 
 
         An evaluation rule defines **which** incoming observations should be
-        evaluated and how evaluator variables should be populated.
+        evaluated and how prompt variables should be populated.
 
 
         Key behavior:
@@ -8571,6 +8571,12 @@ paths:
   /api/public/unstable/evaluation-rules:
     post:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Create an evaluation rule.
 
 
@@ -8733,8 +8739,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluationRuleRequest'
+      deprecated: true
     get:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         List evaluation rules in the authenticated project.
 
 
@@ -8805,9 +8818,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
   /api/public/unstable/evaluation-rules/{evaluationRuleId}:
     get:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get one evaluation rule by its identifier.
 
 
@@ -8871,8 +8891,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
     patch:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Update an evaluation rule.
 
 
@@ -8989,8 +9016,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableUpdateEvaluationRuleRequest'
+      deprecated: true
     delete:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. See the [Langfuse v3 to
+        v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Delete an evaluation rule.
 
 
@@ -9051,9 +9085,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
   /api/public/unstable/evaluators:
     post:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4
+        upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Create an evaluator in the authenticated project.
 
 
@@ -9194,8 +9235,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluatorRequest'
+      deprecated: true
     get:
       description: |-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
         List the evaluators available to the authenticated project.
 
         Important behavior:
@@ -9264,9 +9308,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
   /api/public/unstable/evaluators/{evaluatorId}:
     get:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4
+        upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get one evaluator by `id`.
 
 
@@ -9329,8 +9380,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
     delete:
       description: >-
+        **Deprecated:** This unstable endpoint is deprecated. Use the stable
+        `/api/public/v2/evaluators` API instead. See the [Langfuse v3 to v4
+        upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Delete an evaluator.
 
 
@@ -9397,6 +9455,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
 components:
   schemas:
     AnnotationQueueStatus:
@@ -12174,7 +12233,7 @@ components:
         - llm_as_judge
         - code
       description: |-
-        The evaluator engine type.
+        The evaluator type.
 
         The public API supports LLM-as-a-judge and code evaluators.
     CodeEvaluatorSourceCodeLanguage:
@@ -12220,8 +12279,8 @@ components:
 
         - `experiment_item_metadata`: the experiment item's metadata when the
         observation belongs to an experiment.
-    EvaluatorOutputDataType:
-      title: EvaluatorOutputDataType
+    EvaluatorOutputScoreType:
+      title: EvaluatorOutputScoreType
       type: string
       enum:
         - NUMERIC
@@ -12250,7 +12309,7 @@ components:
                   type: string
                   enum:
                     - NUMERIC
-            - $ref: '#/components/schemas/PublicNumericEvaluatorOutputDefinition'
+            - $ref: '#/components/schemas/PublicEvaluatorNumericScore'
           required:
             - dataType
         - type: object
@@ -12261,7 +12320,7 @@ components:
                   type: string
                   enum:
                     - BOOLEAN
-            - $ref: '#/components/schemas/PublicBooleanEvaluatorOutputDefinition'
+            - $ref: '#/components/schemas/PublicEvaluatorBooleanScore'
           required:
             - dataType
         - type: object
@@ -12272,7 +12331,7 @@ components:
                   type: string
                   enum:
                     - CATEGORICAL
-            - $ref: '#/components/schemas/PublicCategoricalEvaluatorOutputDefinition'
+            - $ref: '#/components/schemas/PublicEvaluatorCategoricalScore'
           required:
             - dataType
       description: >-
@@ -12303,8 +12362,8 @@ components:
           type: string
           nullable: true
           description: Optional instructions for the score value.
-    PublicNumericEvaluatorOutputDefinition:
-      title: PublicNumericEvaluatorOutputDefinition
+    PublicEvaluatorNumericScore:
+      title: PublicEvaluatorNumericScore
       type: object
       properties:
         dataType:
@@ -12325,8 +12384,8 @@ components:
         - dataType
       allOf:
         - $ref: '#/components/schemas/EvaluatorOutputDefinitionBase'
-    PublicBooleanEvaluatorOutputDefinition:
-      title: PublicBooleanEvaluatorOutputDefinition
+    PublicEvaluatorBooleanScore:
+      title: PublicEvaluatorBooleanScore
       type: object
       properties:
         dataType:
@@ -12337,8 +12396,8 @@ components:
         - dataType
       allOf:
         - $ref: '#/components/schemas/EvaluatorOutputDefinitionBase'
-    PublicCategoricalEvaluatorOutputDefinition:
-      title: PublicCategoricalEvaluatorOutputDefinition
+    PublicEvaluatorCategoricalScore:
+      title: PublicEvaluatorCategoricalScore
       type: object
       properties:
         dataType:
@@ -12370,7 +12429,7 @@ components:
                   type: string
                   enum:
                     - NUMERIC
-            - $ref: '#/components/schemas/PublicNumericEvaluatorOutputDefinition'
+            - $ref: '#/components/schemas/PublicEvaluatorNumericScore'
           required:
             - dataType
         - type: object
@@ -12381,7 +12440,7 @@ components:
                   type: string
                   enum:
                     - BOOLEAN
-            - $ref: '#/components/schemas/PublicBooleanEvaluatorOutputDefinition'
+            - $ref: '#/components/schemas/PublicEvaluatorBooleanScore'
           required:
             - dataType
         - type: object
@@ -12392,7 +12451,7 @@ components:
                   type: string
                   enum:
                     - CATEGORICAL
-            - $ref: '#/components/schemas/PublicCategoricalEvaluatorOutputDefinition'
+            - $ref: '#/components/schemas/PublicEvaluatorCategoricalScore'
           required:
             - dataType
       description: >-
@@ -12627,11 +12686,11 @@ components:
         - column
         - operator
         - value
-    EvaluationRuleMapping:
-      title: EvaluationRuleMapping
+    PromptVariableMappingInput:
+      title: PromptVariableMappingInput
       type: object
       description: >-
-        Maps one evaluator variable to one observation or experiment field.
+        Connects one prompt variable to data from an observation or experiment.
 
 
         Manual mappings are used for `llm_as_judge` evaluators. `code`
@@ -12694,16 +12753,13 @@ components:
       required:
         - variable
         - source
-    EvaluationRuleReadMapping:
-      title: EvaluationRuleReadMapping
+    PromptVariableMappingRead:
+      title: PromptVariableMappingRead
       type: object
-      description: >-
-        Maps one evaluator variable to source data, as returned by read
-        endpoints.
+      description: |-
+        Connects one prompt variable to source data.
 
-
-        Uses the public source names accepted by write requests. `source` is
-        `null` when a mapping was never fully configured.
+        `source` is `null` when the mapping is incomplete.
       properties:
         variable:
           type: string
@@ -12724,14 +12780,15 @@ components:
     PromptVariableMapping:
       title: PromptVariableMapping
       oneOf:
-        - $ref: '#/components/schemas/EvaluationRuleReadMapping'
-        - $ref: '#/components/schemas/LegacyEvaluationRuleMapping'
-      description: Prompt variable mapping returned for an evaluation-rule assignment.
-    LegacyEvaluationRuleMapping:
-      title: LegacyEvaluationRuleMapping
+        - $ref: '#/components/schemas/PromptVariableMappingRead'
+        - $ref: '#/components/schemas/LegacyPromptVariableMapping'
+      description: Connects one prompt variable to source data.
+    LegacyPromptVariableMapping:
+      title: LegacyPromptVariableMapping
       type: object
       description: >-
-        Read-only mapping stored by a legacy trace or dataset evaluation rule.
+        Connects one prompt variable to data from a legacy trace or dataset
+        evaluation rule.
 
 
         `langfuseObject` selects the object kind. `objectName` separately
@@ -13122,7 +13179,7 @@ components:
         variableMapping:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluationRuleMapping'
+            $ref: '#/components/schemas/PromptVariableMappingInput'
           nullable: true
           description: >-
             Rule-specific prompt-variable mapping.
@@ -13161,7 +13218,7 @@ components:
 
         A rule determines which evaluators should be used, which observations
         should trigger scoring, how often scoring should run, and which
-        observation fields should populate evaluator variables.
+        observation fields should populate prompt variables.
       properties:
         id:
           type: string
@@ -13424,7 +13481,7 @@ components:
         type:
           type: string
           const: llm_as_judge
-          description: Evaluator engine type.
+          description: Evaluator type.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPrompt'
           description: The single user chat message used during evaluation.
@@ -13442,7 +13499,7 @@ components:
         variableMapping:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluationRuleReadMapping'
+            $ref: '#/components/schemas/PromptVariableMappingRead'
           nullable: true
           description: >-
             Default variable mapping for this evaluator version, or `null` when
@@ -13477,7 +13534,7 @@ components:
         type:
           type: string
           const: code
-          description: Evaluator engine type.
+          description: Evaluator type.
         sourceCode:
           type: string
           description: Source code executed for each matched observation.
@@ -13630,7 +13687,7 @@ components:
         type:
           type: string
           const: llm_as_judge
-          description: Evaluator engine type.
+          description: Evaluator type.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPrompt'
           description: The single user chat message used by the latest evaluator version.
@@ -13644,7 +13701,7 @@ components:
         variableMapping:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluationRuleReadMapping'
+            $ref: '#/components/schemas/PromptVariableMappingRead'
           nullable: true
           description: >-
             Default variable mapping for the latest version, or `null` when no
@@ -13674,7 +13731,7 @@ components:
         type:
           type: string
           const: code
-          description: Evaluator engine type.
+          description: Evaluator type.
         sourceCode:
           type: string
           description: Source code executed by the latest evaluator version.
@@ -13748,7 +13805,7 @@ components:
         type:
           type: string
           const: llm_as_judge
-          description: Evaluator engine type.
+          description: Evaluator type.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPromptInput'
           description: >-
@@ -13763,7 +13820,7 @@ components:
         variableMapping:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluationRuleMapping'
+            $ref: '#/components/schemas/PromptVariableMappingInput'
           nullable: true
           description: >-
             Default prompt-variable mapping, or `null` when no default is
@@ -13794,7 +13851,7 @@ components:
         type:
           type: string
           const: code
-          description: Evaluator engine type.
+          description: Evaluator type.
         sourceCode:
           type: string
           description: Source code executed for each matched observation.
@@ -13862,9 +13919,7 @@ components:
         type:
           type: string
           const: llm_as_judge
-          description: >-
-            Evaluator engine type. The type of an existing evaluator cannot
-            change.
+          description: Evaluator type. The type of an existing evaluator cannot change.
         prompt:
           $ref: '#/components/schemas/EvaluatorChatPromptInput'
           description: >-
@@ -13879,7 +13934,7 @@ components:
         variableMapping:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluationRuleMapping'
+            $ref: '#/components/schemas/PromptVariableMappingInput'
           nullable: true
           description: >-
             Complete replacement default variable mapping, or `null` when no
@@ -13908,9 +13963,7 @@ components:
         type:
           type: string
           const: code
-          description: >-
-            Evaluator engine type. The type of an existing evaluator cannot
-            change.
+          description: Evaluator type. The type of an existing evaluator cannot change.
         sourceCode:
           type: string
           description: Complete replacement source code.
@@ -17113,7 +17166,7 @@ components:
         - llm_as_judge
         - code
       description: |-
-        The evaluator engine type.
+        The evaluator type.
 
         The unstable public API supports LLM-as-a-judge and code evaluators.
     unstableCodeEvaluatorSourceCodeLanguage:
@@ -17160,8 +17213,8 @@ components:
 
         - `paused`: enabled, but Langfuse has blocked execution until the
         underlying issue is resolved.
-    unstableEvaluationRuleMappingSource:
-      title: unstableEvaluationRuleMappingSource
+    unstablePromptVariableMappingSource:
+      title: unstablePromptVariableMappingSource
       type: string
       enum:
         - input
@@ -17704,11 +17757,11 @@ components:
       required:
         - column
         - operator
-    unstableEvaluationRuleMapping:
-      title: unstableEvaluationRuleMapping
+    unstablePromptVariableMappingInput:
+      title: unstablePromptVariableMappingInput
       type: object
       description: >-
-        Maps one evaluator variable to one source field from the target object.
+        Connects one prompt variable to the available evaluation data.
 
 
         Manual mappings are used for `llm_as_judge` evaluators. `code`
@@ -17739,10 +17792,10 @@ components:
         - `invalid_variable_mapping`: the variable name is unknown for this
         evaluator, or the selected `source` is not valid for the chosen `target`
 
-        - `missing_variable_mapping`: one or more LLM-as-judge evaluator
-        variables are not mapped yet
+        - `missing_variable_mapping`: one or more LLM-as-judge prompt variables
+        are not mapped yet
 
-        - `duplicate_variable_mapping`: the same evaluator variable appears more
+        - `duplicate_variable_mapping`: the same prompt variable appears more
         than once
 
         - `invalid_json_path`: the JSONPath expression is malformed. Remove it
@@ -17757,7 +17810,7 @@ components:
             Example: for the prompt `Judge {{input}} against {{output}}`, use
             `input` and `output`.
         source:
-          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
+          $ref: '#/components/schemas/unstablePromptVariableMappingSource'
           description: >-
             Source field that should populate the prompt variable.
 
@@ -17786,34 +17839,19 @@ components:
       required:
         - variable
         - source
-    unstableEvaluationRuleReadMapping:
-      title: unstableEvaluationRuleReadMapping
+    unstablePromptVariableMappingRead:
+      title: unstablePromptVariableMappingRead
       type: object
-      description: >-
-        Maps an evaluator variable to target data, as returned by read
-        endpoints.
+      description: |-
+        Connects one prompt variable to data from a target.
 
-
-        Reads are more permissive than writes in two ways, so that data
-        configured before a
-
-        migration stays readable and repairable:
-
-        - `source` is `null` when a mapping was never fully configured. Set a
-        concrete `source` to fix it.
-
-        - every `source` value is allowed regardless of the rule `target`,
-        because an evaluator's
-          default mapping is stored independently of the rules that use it.
-
-        Requests always require a concrete `source` that is valid for the
-        selected `target`.
+        `source` is `null` when the mapping is incomplete.
       properties:
         variable:
           type: string
           description: Prompt variable name without braces.
         source:
-          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
+          $ref: '#/components/schemas/unstablePromptVariableMappingSource'
           nullable: true
           description: >-
             Source field populating the variable, or `null` when the mapping is
@@ -18830,7 +18868,7 @@ components:
 
         - how often scoring should run
 
-        - which target fields should populate each evaluator variable
+        - which target fields should populate each prompt variable
 
         - whether the deployment is active, inactive, or paused
 
@@ -18935,7 +18973,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
           description: >-
             Deprecated compatibility alias containing the effective mapping for
             `evaluators[0]`.
@@ -18956,7 +18994,7 @@ components:
 
         This resource is read-only through the unstable public API. Its mapping
         preserves the trace, dataset item, or named observation selected for
-        each evaluator variable.
+        each prompt variable.
       properties:
         evaluators:
           type: array
@@ -18984,7 +19022,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableLegacyEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstableLegacyPromptVariableMapping'
           description: >-
             Stored variable mappings, including the trace, dataset item, or
             named observation selected for each variable.
@@ -19044,7 +19082,7 @@ components:
         `filter[].value`
 
         - for `llm_as_judge`, fetch or inspect the evaluator first and provide a
-        complete variable mapping for every evaluator variable
+        complete mapping for every prompt variable
 
         - for `code`, do not send variables or mappings; Langfuse stores the
         fixed code runtime mapping automatically
@@ -19140,15 +19178,12 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
-          description: >-
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
+          description: |-
             LLM-as-judge variable mappings.
 
-
-            Every evaluator variable must appear exactly once.
-
-            Build this list from the evaluator `variables` array returned by the
-            evaluator endpoints.
+            Every prompt variable must appear exactly once.
+            Build this list from the evaluator's `variables` array.
       required:
         - name
         - evaluator
@@ -19231,7 +19266,7 @@ components:
         assignment.
 
         - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping`
-        unless you are certain the existing mapping still matches the evaluator
+        unless you are certain the existing mapping still matches the prompt
         variables.
 
         - If you change `target` for an LLM-as-judge rule, usually send both
@@ -19303,7 +19338,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
           nullable: true
           description: >-
             Updated LLM-as-judge variable mappings.
@@ -19354,7 +19389,7 @@ components:
         type:
           $ref: '#/components/schemas/unstableLlmAsJudgeEvaluatorType'
           nullable: true
-          description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
+          description: Evaluator type. Defaults to `llm_as_judge` when omitted.
       required:
         - name
     unstableCodeEvaluationRuleEvaluatorReference:
@@ -19395,7 +19430,7 @@ components:
           description: Evaluator family name.
         type:
           $ref: '#/components/schemas/unstableEvaluatorType'
-          description: Evaluator engine type.
+          description: Evaluator type.
       required:
         - id
         - name
@@ -19409,7 +19444,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
           nullable: true
           description: >-
             Rule-specific override, or `null` to inherit the evaluator version's
@@ -19426,7 +19461,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableLegacyEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstableLegacyPromptVariableMapping'
           nullable: true
       required:
         - evaluator
@@ -19443,11 +19478,11 @@ components:
       enum:
         - trace
         - dataset
-    unstableLegacyEvaluationRuleMapping:
-      title: unstableLegacyEvaluationRuleMapping
+    unstableLegacyPromptVariableMapping:
+      title: unstableLegacyPromptVariableMapping
       type: object
       description: >-
-        Maps one evaluator variable to a trace, dataset item, or field on a
+        Connects one prompt variable to data from a trace, dataset item, or
         named observation in a legacy rule.
       properties:
         variable:
@@ -19495,7 +19530,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
           nullable: true
           description: >-
             Optional rule-specific override. Omit to inherit the evaluator
@@ -19609,7 +19644,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
           nullable: true
           description: >-
             Default variable mapping for this evaluator version, or `null` when
@@ -19768,7 +19803,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
           nullable: true
           description: >-
             Optional default variable mapping inherited by rule assignments that

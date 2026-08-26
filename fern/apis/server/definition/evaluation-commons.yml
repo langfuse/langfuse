@@ -2,7 +2,7 @@
 types:
   EvaluatorType:
     docs: |
-      The evaluator engine type.
+      The evaluator type.
 
       The public API supports LLM-as-a-judge and code evaluators.
     enum:
@@ -36,7 +36,7 @@ types:
       - expected_output
       - experiment_item_metadata
 
-  EvaluatorOutputDataType:
+  EvaluatorOutputScoreType:
     docs: |
       Structured score type returned by an evaluator.
 
@@ -61,11 +61,11 @@ types:
     discriminant: dataType
     union:
       NUMERIC:
-        type: PublicNumericEvaluatorOutputDefinition
+        type: PublicEvaluatorNumericScore
       BOOLEAN:
-        type: PublicBooleanEvaluatorOutputDefinition
+        type: PublicEvaluatorBooleanScore
       CATEGORICAL:
-        type: PublicCategoricalEvaluatorOutputDefinition
+        type: PublicEvaluatorCategoricalScore
     examples:
       - name: Numeric
         value:
@@ -96,7 +96,7 @@ types:
         type: optional<string>
         docs: Optional instructions for the score value.
 
-  PublicNumericEvaluatorOutputDefinition:
+  PublicEvaluatorNumericScore:
     extends: EvaluatorOutputDefinitionBase
     properties:
       dataType:
@@ -109,14 +109,14 @@ types:
         type: optional<double>
         docs: Optional inclusive maximum value.
 
-  PublicBooleanEvaluatorOutputDefinition:
+  PublicEvaluatorBooleanScore:
     extends: EvaluatorOutputDefinitionBase
     properties:
       dataType:
         type: literal<"BOOLEAN">
         docs: Boolean score output.
 
-  PublicCategoricalEvaluatorOutputDefinition:
+  PublicEvaluatorCategoricalScore:
     extends: EvaluatorOutputDefinitionBase
     properties:
       dataType:
@@ -138,11 +138,11 @@ types:
     discriminant: dataType
     union:
       NUMERIC:
-        type: PublicNumericEvaluatorOutputDefinition
+        type: PublicEvaluatorNumericScore
       BOOLEAN:
-        type: PublicBooleanEvaluatorOutputDefinition
+        type: PublicEvaluatorBooleanScore
       CATEGORICAL:
-        type: PublicCategoricalEvaluatorOutputDefinition
+        type: PublicEvaluatorCategoricalScore
     examples:
       - name: PublicNumeric
         value:
@@ -330,9 +330,9 @@ types:
         type: literal<"">
         docs: Required empty-string placeholder used by the runtime filter contract.
 
-  EvaluationRuleMapping:
+  PromptVariableMappingInput:
     docs: |
-      Maps one evaluator variable to one observation or experiment field.
+      Connects one prompt variable to data from an observation or experiment.
 
       Manual mappings are used for `llm_as_judge` evaluators. `code` evaluators use a fixed runtime mapping managed by Langfuse.
 
@@ -383,11 +383,11 @@ types:
           variable: expected_output
           source: expected_output
 
-  EvaluationRuleReadMapping:
+  PromptVariableMappingRead:
     docs: |
-      Maps one evaluator variable to source data, as returned by read endpoints.
+      Connects one prompt variable to source data.
 
-      Uses the public source names accepted by write requests. `source` is `null` when a mapping was never fully configured.
+      `source` is `null` when the mapping is incomplete.
     properties:
       variable:
         type: string
@@ -409,15 +409,16 @@ types:
           source: null
 
   PromptVariableMapping:
-    docs: Prompt variable mapping returned for an evaluation-rule assignment.
+    docs: Connects one prompt variable to source data.
     discriminated: false
     union:
-      - EvaluationRuleReadMapping
-      - LegacyEvaluationRuleMapping
+      - PromptVariableMappingRead
+      - LegacyPromptVariableMapping
 
-  LegacyEvaluationRuleMapping:
+  LegacyPromptVariableMapping:
+    availability: deprecated
     docs: |
-      Read-only mapping stored by a legacy trace or dataset evaluation rule.
+      Connects one prompt variable to data from a legacy trace or dataset evaluation rule.
 
       `langfuseObject` selects the object kind. `objectName` separately selects a named observation and is `null` for trace and dataset-item mappings.
     properties:
@@ -457,6 +458,7 @@ types:
           jsonPath: "$.answer"
 
   LegacyEvaluationObject:
+    availability: deprecated
     docs: Legacy Langfuse object kind used by trace and dataset evaluation rules.
     enum:
       - trace

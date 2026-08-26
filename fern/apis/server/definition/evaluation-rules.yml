@@ -12,7 +12,7 @@ service:
       docs: |
         Create an evaluation rule using stable evaluator identifiers.
 
-        An evaluation rule defines **which** incoming observations should be evaluated and how evaluator variables should be populated.
+        An evaluation rule defines **which** incoming observations should be evaluated and how prompt variables should be populated.
 
         Key behavior:
         - rule names are not identifiers and do not need to be unique
@@ -133,7 +133,7 @@ types:
         type: string
         docs: Stable evaluator identifier. The rule automatically uses that evaluator's latest version.
       variableMapping:
-        type: optional<nullable<list<evals.EvaluationRuleMapping>>>
+        type: optional<nullable<list<evals.PromptVariableMappingInput>>>
         docs: |
           Rule-specific prompt-variable mapping.
 
@@ -152,7 +152,7 @@ types:
     docs: |
       Live evaluation rule for incoming observations.
 
-      A rule determines which evaluators should be used, which observations should trigger scoring, how often scoring should run, and which observation fields should populate evaluator variables.
+      A rule determines which evaluators should be used, which observations should trigger scoring, how often scoring should run, and which observation fields should populate prompt variables.
     properties:
       id:
         type: string

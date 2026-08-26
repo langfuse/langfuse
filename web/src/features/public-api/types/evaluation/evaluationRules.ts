@@ -2,7 +2,7 @@ import { publicApiPaginationLimitZod } from "@langfuse/shared";
 import { z } from "zod";
 import {
   PromptVariableMapping,
-  PublicEvaluationRuleMapping,
+  PromptVariableMappingInput,
   PublicEvaluationRuleReadFilter,
   StableEvaluationRuleFilter,
 } from "./publicEvalsContract";
@@ -16,7 +16,7 @@ export const EvaluationRuleEvaluatorAssignmentInput = z
   .object({
     evaluatorId: z.string().min(1),
     variableMapping: z
-      .array(PublicEvaluationRuleMapping)
+      .array(PromptVariableMappingInput)
       .nullable()
       .default(null),
   })

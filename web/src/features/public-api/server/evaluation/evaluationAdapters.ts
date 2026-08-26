@@ -28,18 +28,18 @@ import {
   type EvaluatorDefinitionType,
 } from "@/src/features/public-api/types/evaluation/evaluators";
 import {
-  LegacyEvaluationRuleMapping,
+  LegacyPromptVariableMapping,
   PublicEvaluationRuleReadFilter,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-  type LegacyEvaluationRuleMappingType,
-  type PublicEvaluationRuleMappingType,
-  type PublicEvaluationRuleReadMappingType,
+  type LegacyPromptVariableMappingType,
+  type PromptVariableMappingInputType,
+  type PromptVariableMappingReadType,
   type PublicEvaluatorOutputDefinitionType,
 } from "@/src/features/public-api/types/evaluation/publicEvalsContract";
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
-  PublicEvaluationRuleMappingType["source"],
+  PromptVariableMappingInputType["source"],
   ObservationVariableMapping["selectedColumnId"]
 > = {
   input: "input",
@@ -52,7 +52,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
 
 const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   string,
-  PublicEvaluationRuleMappingType["source"]
+  PromptVariableMappingInputType["source"]
 > = {
   input: "input",
   output: "output",
@@ -73,7 +73,7 @@ export function toPublicEvaluatorType(type: EvalTemplateType) {
 }
 
 export function toStoredMappingList(
-  mappings: PublicEvaluationRuleMappingType[],
+  mappings: PromptVariableMappingInputType[],
 ) {
   return observationVariableMappingList.parse(
     mappings.map((mapping) => ({
@@ -87,7 +87,7 @@ export function toStoredMappingList(
 
 export function toApiReadMappings(
   mappings: unknown,
-): PublicEvaluationRuleReadMappingType[] {
+): PromptVariableMappingReadType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
   if (!parsed.success) {
     logger.error("Failed to parse public evaluation rule mappings", {
@@ -112,7 +112,7 @@ export function toApiReadMappings(
 
 function toApiLegacyMappings(
   mappings: unknown,
-): LegacyEvaluationRuleMappingType[] {
+): LegacyPromptVariableMappingType[] {
   const parsed = variableMappingList.safeParse(mappings);
   if (!parsed.success) {
     logger.error("Failed to parse public legacy evaluation rule mappings", {
@@ -121,7 +121,7 @@ function toApiLegacyMappings(
     throw new InternalServerError("Evaluation rule mapping is corrupted");
   }
 
-  return LegacyEvaluationRuleMapping.array().parse(
+  return LegacyPromptVariableMapping.array().parse(
     parsed.data.map((mapping) => ({
       mappingType: "legacy",
       variable: mapping.templateVariable,

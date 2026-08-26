@@ -227,7 +227,7 @@ types:
     properties:
       type:
         type: literal<"llm_as_judge">
-        docs: Evaluator engine type.
+        docs: Evaluator type.
       prompt:
         type: EvaluatorChatPrompt
         docs: The single user chat message used during evaluation.
@@ -238,7 +238,7 @@ types:
 
           Every variable must be mapped exactly once when a rule provides an explicit mapping.
       variableMapping:
-        type: nullable<list<evals.EvaluationRuleReadMapping>>
+        type: nullable<list<evals.PromptVariableMappingRead>>
         docs: Default variable mapping for this evaluator version, or `null` when no default is configured.
       modelConfig:
         type: nullable<EvaluatorModelConfig>
@@ -255,7 +255,7 @@ types:
     properties:
       type:
         type: literal<"code">
-        docs: Evaluator engine type.
+        docs: Evaluator type.
       sourceCode:
         type: string
         docs: Source code executed for each matched observation.
@@ -334,7 +334,7 @@ types:
     properties:
       type:
         type: literal<"llm_as_judge">
-        docs: Evaluator engine type.
+        docs: Evaluator type.
       prompt:
         type: EvaluatorChatPrompt
         docs: The single user chat message used by the latest evaluator version.
@@ -342,7 +342,7 @@ types:
         type: list<string>
         docs: Variables extracted from the latest prompt and available for evaluation-rule mappings.
       variableMapping:
-        type: nullable<list<evals.EvaluationRuleReadMapping>>
+        type: nullable<list<evals.PromptVariableMappingRead>>
         docs: Default variable mapping for the latest version, or `null` when no default is configured.
       modelConfig:
         type: nullable<EvaluatorModelConfig>
@@ -356,7 +356,7 @@ types:
     properties:
       type:
         type: literal<"code">
-        docs: Evaluator engine type.
+        docs: Evaluator type.
       sourceCode:
         type: string
         docs: Source code executed by the latest evaluator version.
@@ -396,7 +396,7 @@ types:
         docs: Optional human-readable evaluator description.
       type:
         type: literal<"llm_as_judge">
-        docs: Evaluator engine type.
+        docs: Evaluator type.
       prompt:
         type: EvaluatorChatPromptInput
         docs: User prompt string shortcut or a list containing exactly one user chat message.
@@ -404,7 +404,7 @@ types:
         type: optional<nullable<EvaluatorModelConfig>>
         docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.
       variableMapping:
-        type: optional<nullable<list<evals.EvaluationRuleMapping>>>
+        type: optional<nullable<list<evals.PromptVariableMappingInput>>>
         docs: Default prompt-variable mapping, or `null` when no default is configured.
       outputDefinition:
         type: evals.EvaluatorOutputDefinition
@@ -420,7 +420,7 @@ types:
         docs: Optional human-readable evaluator description.
       type:
         type: literal<"code">
-        docs: Evaluator engine type.
+        docs: Evaluator type.
       sourceCode:
         type: string
         docs: Source code executed for each matched observation.
@@ -457,7 +457,7 @@ types:
         docs: New description. Set to `null` to clear it.
       type:
         type: literal<"llm_as_judge">
-        docs: Evaluator engine type. The type of an existing evaluator cannot change.
+        docs: Evaluator type. The type of an existing evaluator cannot change.
       prompt:
         type: EvaluatorChatPromptInput
         docs: Complete replacement user prompt string or a list containing exactly one user chat message.
@@ -465,7 +465,7 @@ types:
         type: optional<nullable<EvaluatorModelConfig>>
         docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.
       variableMapping:
-        type: optional<nullable<list<evals.EvaluationRuleMapping>>>
+        type: optional<nullable<list<evals.PromptVariableMappingInput>>>
         docs: Complete replacement default variable mapping, or `null` when no default is configured.
       outputDefinition:
         type: evals.EvaluatorOutputDefinition
@@ -481,7 +481,7 @@ types:
         docs: New description. Set to `null` to clear it.
       type:
         type: literal<"code">
-        docs: Evaluator engine type. The type of an existing evaluator cannot change.
+        docs: Evaluator type. The type of an existing evaluator cannot change.
       sourceCode:
         type: string
         docs: Complete replacement source code.

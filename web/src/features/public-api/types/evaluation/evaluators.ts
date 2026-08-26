@@ -8,8 +8,8 @@ import {
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   PromptVariableMapping,
   PublicCodeEvaluatorSourceCodeLanguage,
-  PublicEvaluationRuleMapping,
-  PublicEvaluationRuleReadMapping,
+  PromptVariableMappingInput,
+  PromptVariableMappingRead,
   PublicEvaluatorOutputDefinition,
   PublicEvaluatorOutputDefinitionRead,
 } from "./publicEvalsContract";
@@ -55,7 +55,7 @@ export const LlmAsJudgeEvaluatorVersion = EvaluatorVersionBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: EvaluatorChatPrompt,
   variables: z.array(z.string()),
-  variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
+  variableMapping: z.array(PromptVariableMappingRead).nullable(),
   modelConfig: EvaluatorModelConfig.nullable(),
   outputDefinition: PublicEvaluatorOutputDefinitionRead,
 }).strict();
@@ -100,7 +100,7 @@ export const LlmAsJudgeEvaluator = EvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: EvaluatorChatPrompt,
   variables: z.array(z.string()),
-  variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
+  variableMapping: z.array(PromptVariableMappingRead).nullable(),
   modelConfig: EvaluatorModelConfig.nullable(),
   outputDefinition: PublicEvaluatorOutputDefinitionRead,
 }).strict();
@@ -121,7 +121,7 @@ const LlmAsJudgeEvaluatorDefinition = z
     type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
     prompt: EvaluatorChatPromptInput,
     modelConfig: EvaluatorModelConfig.nullable().optional(),
-    variableMapping: z.array(PublicEvaluationRuleMapping).nullable().optional(),
+    variableMapping: z.array(PromptVariableMappingInput).nullable().optional(),
     outputDefinition: PublicEvaluatorOutputDefinition,
   })
   .strict();

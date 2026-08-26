@@ -6,11 +6,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { JSONPath } from "jsonpath-plus";
 import {
   EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS,
-  ExperimentEvaluationRuleMappingSource,
+  ExperimentPromptVariableMappingSource,
   OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS,
-  ObservationEvaluationRuleMappingSource,
+  ObservationPromptVariableMappingSource,
   type PublicEvaluationRuleFilterType,
-  type PublicEvaluationRuleMappingType,
+  type PromptVariableMappingInputType,
   type PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
@@ -66,8 +66,8 @@ const SUPPORTED_FILTER_COLUMNS_BY_TARGET = {
 // also guards paths that parse the target-agnostic mapping union) can never
 // drift from the documented contract.
 const SUPPORTED_MAPPING_SOURCES_BY_TARGET = {
-  observation: new Set<string>(ObservationEvaluationRuleMappingSource.options),
-  experiment: new Set<string>(ExperimentEvaluationRuleMappingSource.options),
+  observation: new Set<string>(ObservationPromptVariableMappingSource.options),
+  experiment: new Set<string>(ExperimentPromptVariableMappingSource.options),
 } as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
 export function validateEvaluationRuleFilters(params: {
@@ -290,7 +290,7 @@ function validateJsonPath(params: {
 }
 
 export function validateEvaluatorVariableMappings(params: {
-  mappings: PublicEvaluationRuleMappingType[];
+  mappings: PromptVariableMappingInputType[];
   variables: string[];
   target: PublicEvaluationRuleTargetType;
 }) {

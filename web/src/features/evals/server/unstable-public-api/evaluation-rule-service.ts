@@ -23,8 +23,8 @@ import type {
   PostUnstableEvaluationRuleBodyType,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
-  type PublicEvaluationRuleMappingType,
-  type PublicEvaluationRuleReadMappingType,
+  type PromptVariableMappingInputType,
+  type PromptVariableMappingReadType,
   type PublicEvaluationRuleTargetType,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
@@ -424,7 +424,7 @@ async function createRuleWithRuleService(params: {
   data: ReturnType<typeof toEvaluationRuleInput>;
   assignments: Array<{
     evaluator: PublicV2Evaluator;
-    assignment: { mapping?: PublicEvaluationRuleMappingType[] };
+    assignment: { mapping?: PromptVariableMappingInputType[] };
     data: ReturnType<typeof toEvaluationRuleInput>;
   }>;
 }) {
@@ -466,9 +466,9 @@ type PreparedAssignment = {
 };
 
 function toWritableMappingsIfComplete(
-  mappings: PublicEvaluationRuleReadMappingType[],
-): PublicEvaluationRuleMappingType[] | undefined {
-  const completeMappings: PublicEvaluationRuleMappingType[] = [];
+  mappings: PromptVariableMappingReadType[],
+): PromptVariableMappingInputType[] | undefined {
+  const completeMappings: PromptVariableMappingInputType[] = [];
   for (const mapping of mappings) {
     if (mapping.source === null) return undefined;
     completeMappings.push({ ...mapping, source: mapping.source });
@@ -484,7 +484,7 @@ async function prepareAssignment(params: {
   projectId: string;
   target: PublicEvaluationRuleTargetType;
   evaluator: EvaluationRuleEvaluatorFamilyReference;
-  mapping?: PublicEvaluationRuleMappingType[];
+  mapping?: PromptVariableMappingInputType[];
   evaluatorId?: string;
 }): Promise<PreparedAssignment> {
   const evaluator = await resolveProjectEvaluator({

@@ -2,16 +2,16 @@ import { JobTimeScopeZod, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 import {
   ExperimentEvaluationRuleFilter,
-  ExperimentEvaluationRuleMapping,
-  LegacyEvaluationRuleMapping,
+  ExperimentPromptVariableMappingInput,
+  LegacyPromptVariableMapping,
   ObservationEvaluationRuleFilter,
-  ObservationEvaluationRuleMapping,
+  ObservationPromptVariableMappingInput,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PublicEvaluationRuleFilter,
   PublicEvaluationRuleEvaluator,
   PublicEvaluationRuleEvaluatorReference,
   PublicEvaluationRuleEvaluatorReferencePatch,
-  PublicEvaluationRuleReadMapping,
+  PromptVariableMappingRead,
   PublicEvaluationRuleLegacyTarget,
   PublicEvaluationRuleStatus,
   PublicEvaluationRuleTarget,
@@ -39,12 +39,12 @@ export const APIEvaluationRule = z
     evaluators: z.array(
       z.object({
         evaluator: PublicEvaluationRuleEvaluator,
-        mapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
+        mapping: z.array(PromptVariableMappingRead).nullable(),
       }),
     ),
     target: PublicEvaluationRuleTarget,
     filter: z.array(PublicEvaluationRuleFilter),
-    mapping: z.array(PublicEvaluationRuleReadMapping),
+    mapping: z.array(PromptVariableMappingRead),
   })
   .strict();
 
@@ -54,14 +54,14 @@ export const APILegacyEvaluationRule = z
     evaluators: z.array(
       z.object({
         evaluator: PublicEvaluationRuleEvaluator,
-        mapping: z.array(LegacyEvaluationRuleMapping).nullable(),
+        mapping: z.array(LegacyPromptVariableMapping).nullable(),
       }),
     ),
     target: PublicEvaluationRuleLegacyTarget,
     delay: z.number().int().nonnegative(),
     timeScope: z.array(JobTimeScopeZod),
     filter: z.array(singleFilter),
-    mapping: z.array(LegacyEvaluationRuleMapping),
+    mapping: z.array(LegacyPromptVariableMapping),
   })
   .strict();
 
@@ -103,25 +103,25 @@ function evaluatorAssignment<T extends z.ZodType>(mapping: T) {
 const PostUnstableObservationEvaluationRuleBody = z.object({
   ...EvaluationRuleCreateBase,
   evaluators: z
-    .array(evaluatorAssignment(ObservationEvaluationRuleMapping))
+    .array(evaluatorAssignment(ObservationPromptVariableMappingInput))
     .min(1)
     .max(100)
     .optional(),
   target: z.literal("observation"),
   filter: z.array(ObservationEvaluationRuleFilter).default([]),
-  mapping: z.array(ObservationEvaluationRuleMapping).optional(),
+  mapping: z.array(ObservationPromptVariableMappingInput).optional(),
 });
 
 const PostUnstableExperimentEvaluationRuleBody = z.object({
   ...EvaluationRuleCreateBase,
   evaluators: z
-    .array(evaluatorAssignment(ExperimentEvaluationRuleMapping))
+    .array(evaluatorAssignment(ExperimentPromptVariableMappingInput))
     .min(1)
     .max(100)
     .optional(),
   target: z.literal("experiment"),
   filter: z.array(ExperimentEvaluationRuleFilter).default([]),
-  mapping: z.array(ExperimentEvaluationRuleMapping).optional(),
+  mapping: z.array(ExperimentPromptVariableMappingInput).optional(),
 });
 
 // `code` evaluators use a fixed runtime mapping managed by Langfuse. LLM
@@ -196,7 +196,7 @@ const EXCLUSIVE_EVALUATOR_FIELDS_MESSAGE =
 
 const UntargetedEvaluationRulePatch = z.object({
   ...EvaluationRulePatchBase,
-  evaluators: patchEvaluators(ObservationEvaluationRuleMapping),
+  evaluators: patchEvaluators(ObservationPromptVariableMappingInput),
   target: z.undefined().optional(),
   filter: z.undefined().optional(),
   mapping: z.undefined().optional(),
@@ -204,18 +204,18 @@ const UntargetedEvaluationRulePatch = z.object({
 
 const ObservationEvaluationRulePatch = z.object({
   ...EvaluationRulePatchBase,
-  evaluators: patchEvaluators(ObservationEvaluationRuleMapping),
+  evaluators: patchEvaluators(ObservationPromptVariableMappingInput),
   target: z.literal("observation"),
   filter: z.array(ObservationEvaluationRuleFilter).optional(),
-  mapping: z.array(ObservationEvaluationRuleMapping).optional(),
+  mapping: z.array(ObservationPromptVariableMappingInput).optional(),
 });
 
 const ExperimentEvaluationRulePatch = z.object({
   ...EvaluationRulePatchBase,
-  evaluators: patchEvaluators(ExperimentEvaluationRuleMapping),
+  evaluators: patchEvaluators(ExperimentPromptVariableMappingInput),
   target: z.literal("experiment"),
   filter: z.array(ExperimentEvaluationRuleFilter).optional(),
-  mapping: z.array(ExperimentEvaluationRuleMapping).optional(),
+  mapping: z.array(ExperimentPromptVariableMappingInput).optional(),
 });
 
 export const PatchUnstableEvaluationRuleBody = z
