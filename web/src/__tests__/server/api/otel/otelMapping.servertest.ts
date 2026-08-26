@@ -9616,7 +9616,7 @@ describe("OTel Resource Span Mapping", () => {
 
     const createResourceSpan = (
       attributes: Array<{ key: string; value: Record<string, unknown> }>,
-    ) => ({
+    ): ResourceSpan => ({
       resource: {
         attributes: [
           {
@@ -9639,19 +9639,17 @@ describe("OTel Resource Span Mapping", () => {
           },
           spans: [
             {
-              traceId: Buffer.from(traceId, "hex").toJSON(),
-              spanId: Buffer.from(spanId, "hex").toJSON(),
+              traceId: Buffer.from(traceId, "hex"),
+              spanId: Buffer.from(spanId, "hex"),
               name: "prototype-protection-test",
               kind: 1,
               startTimeUnixNano: {
                 low: 1000000000,
                 high: 0,
-                unsigned: true,
               },
               endTimeUnixNano: {
                 low: 2000000000,
                 high: 0,
-                unsigned: true,
               },
               attributes,
               status: {},
