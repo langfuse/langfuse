@@ -22,7 +22,7 @@ function isSingleChatMlMessage(
     typeof input === "object" &&
     !Array.isArray(input) &&
     typeof (input as Record<string, unknown>).role === "string" &&
-    "content" in input
+    ("content" in input || "tool_calls" in input)
   );
 }
 
