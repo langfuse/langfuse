@@ -804,8 +804,7 @@ paths:
         - name: objectType
           in: query
           description: >-
-            Filter comments by object type (trace, observation, session,
-            prompt).
+            Filter comments by object type (trace, observation, session, prompt).
           required: false
           schema:
             type: string
@@ -1089,8 +1088,7 @@ paths:
       security: *ref_0
     delete:
       description: >-
-        Delete a dataset item and all its run items. This action is
-        irreversible.
+        Delete a dataset item and all its run items. This action is irreversible.
       operationId: datasetItems_delete
       tags:
         - DatasetItems
@@ -1135,7 +1133,17 @@ paths:
       security: *ref_0
   /api/public/dataset-run-items:
     post:
-      description: Create a dataset run item
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, create
+        experiment data via the SDK experiment runner or the OpenTelemetry
+        endpoint at POST /api/public/otel/v1/traces. Self-hosted deployments are
+        unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Create a dataset run item
       operationId: datasetRunItems_create
       tags:
         - DatasetRunItems
@@ -1179,8 +1187,20 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateDatasetRunItemRequest'
+      deprecated: true
     get:
-      description: List dataset run items
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        run items are replaced by experiment items; use `GET
+        /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>`
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        List dataset run items
       operationId: datasetRunItems_list
       tags:
         - DatasetRunItems
@@ -1242,6 +1262,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1388,7 +1409,17 @@ paths:
       security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
-      description: Get a dataset run and its items
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments; use GET /api/public/experiments
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get a dataset run and its items
       operationId: datasets_getRun
       tags:
         - Datasets
@@ -1436,8 +1467,18 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
     delete:
-      description: Delete a dataset run and all its run items. This action is irreversible.
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments. Self-hosted deployments are unaffected
+        by this date; the endpoint becomes unavailable when they upgrade to
+        Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
       tags:
         - Datasets
@@ -1485,9 +1526,20 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/datasets/{datasetName}/runs:
     get:
-      description: Get dataset runs
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, dataset
+        runs are replaced by experiments; use GET /api/public/experiments
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get dataset runs
       operationId: datasets_getRuns
       tags:
         - Datasets
@@ -1544,6 +1596,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/experiments:
     get:
       description: |-
@@ -1802,6 +1855,9 @@ paths:
         Submit explicit user-approved feedback about Langfuse skills, MCP tools,
         CLI, docs, or public API. Do not include secrets, credentials, customer
         data, trace payloads, or unrelated use-case details.
+
+
+        Not available in the HIPAA cloud region.
       operationId: feedback_submit
       tags:
         - Feedback
@@ -1891,6 +1947,17 @@ paths:
   /api/public/ingestion:
     post:
       description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Send data via the
+        OpenTelemetry endpoint at `POST /api/public/otel/v1/traces` instead, see
+        the [OpenTelemetry integration
+        docs](https://langfuse.com/integrations/native/opentelemetry).
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 
 
@@ -1985,9 +2052,19 @@ paths:
                     debugging.
               required:
                 - batch
+      deprecated: true
   /api/public/metrics:
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v2/metrics?query=<urlencoded json query>` instead.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get metrics from the Langfuse project using a query object.
 
 
@@ -2086,9 +2163,20 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/observations/{observationId}:
     get:
-      description: Get a observation
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get a observation
       operationId: legacy_observationsV1_get
       tags:
         - LegacyObservationsV1
@@ -2134,9 +2222,19 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/observations:
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`
+        instead. Self-hosted deployments are unaffected by this date; the
+        endpoint becomes unavailable when they upgrade to Langfuse v4. See the
+        [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get a list of observations.
 
 
@@ -2422,6 +2520,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/scores/{scoreId}:
     delete:
       description: Delete a score (supports both trace and session scores)
@@ -3190,6 +3289,58 @@ paths:
               schema: {}
       security: *ref_0
   /api/public/models/{id}:
+    put:
+      description: >-
+        Create or replace a project-owned model using its id. Built-in models
+        cannot be modified.
+      operationId: models_upsert
+      tags:
+        - Models
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
     get:
       description: Get a model
       operationId: models_get
@@ -4445,8 +4596,7 @@ paths:
       security: *ref_0
     post:
       description: >-
-        Create a new API key for a project (requires organization-scoped API
-        key)
+        Create a new API key for a project (requires organization-scoped API key)
       operationId: projects_createApiKey
       tags:
         - Projects
@@ -5160,7 +5310,13 @@ paths:
                 password:
                   type: string
                   nullable: true
-                  description: Initial password for the user
+                  description: >-
+                    Ignored. Accepted only for compatibility with identity
+                    providers that always send a password on user creation (Okta
+                    sends a placeholder value even when password sync is
+                    disabled). No credential is created for the user;
+                    provisioned users authenticate via SSO or set a password
+                    themselves through the password reset flow.
               required:
                 - userName
                 - name
@@ -5750,9 +5906,14 @@ paths:
               $ref: '#/components/schemas/CreateScoreRequest'
   /api/public/v2/scores:
     get:
-      description: |-
-        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
-        is no longer available on Langfuse v4 and later.
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v3/scores` instead. Self-hosted deployments are unaffected
+        by this date; the endpoint becomes unavailable when they upgrade to
+        Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
 
         Get a list of scores (supports both trace and session scores)
       operationId: scores_get-many
@@ -5973,11 +6134,18 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/v2/scores/{scoreId}:
     get:
-      description: |-
-        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
-        instead. This endpoint is no longer available on Langfuse v4 and later.
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. Use `GET
+        /api/public/v3/scores` with the `id` filter instead. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
 
         Get a score (supports both trace and session scores)
       operationId: scores_get-by-id
@@ -6023,9 +6191,20 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/sessions:
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read
+        session data via `GET /api/public/v2/observations?filter=<urlencoded
+        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get sessions.
 
 
@@ -6122,9 +6301,20 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/sessions/{sessionId}:
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read
+        session data via `GET /api/public/v2/observations?filter=<urlencoded
+        sessionId filter>&fromStartTime=<from>&toStartTime=<to>`. Self-hosted
+        deployments are unaffected by this date; the endpoint becomes
+        unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4
+        upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get a session.
 
 
@@ -6180,9 +6370,21 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
   /api/public/traces/{traceId}:
     get:
-      description: Get a specific trace
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
+        and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get a specific trace
       operationId: trace_get
       tags:
         - Trace
@@ -6239,6 +6441,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
     delete:
       description: Delete a specific trace
       operationId: trace_delete
@@ -6286,7 +6489,18 @@ paths:
       security: *ref_0
   /api/public/traces:
     get:
-      description: Get list of traces
+      description: >-
+        **Deprecated:** On Langfuse Cloud, Langfuse v3 is deprecated and this
+        endpoint will be removed on November 16, 2026. In Langfuse v4, read span
+        and trace data via `GET
+        /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
+        Self-hosted deployments are unaffected by this date; the endpoint
+        becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse
+        v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
+        Get list of traces
       operationId: trace_list
       tags:
         - Trace
@@ -6611,6 +6825,7 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+      deprecated: true
     delete:
       description: Delete multiple traces
       operationId: trace_deleteMultiple
@@ -7552,8 +7767,11 @@ paths:
 
         - `target` must be `observation` or `experiment`
 
-        - `evaluator.name` + `evaluator.scope` must identify an existing
-        evaluator family returned by the evaluator endpoints
+        - provide either the compatibility `evaluator` field or the new
+        `evaluators` array, never both
+
+        - each evaluator `name` + `type` must identify an existing evaluator
+        family returned by the evaluator endpoints
 
         - Langfuse resolves that family to its latest version before saving the
         evaluation rule
@@ -7561,8 +7779,11 @@ paths:
         - for `target=experiment`, use dataset `id` values from `GET
         /api/public/v2/datasets` when filtering by `datasetId`
 
-        - for `llm_as_judge` evaluators, every evaluator prompt variable must be
-        mapped exactly once
+        - an omitted LLM-as-judge assignment mapping inherits the evaluator
+        version's default mapping
+
+        - the effective mapping must map every evaluator prompt variable exactly
+        once
 
         - for `code` evaluators, Langfuse uses the fixed code runtime mapping;
         omit `mapping` in create and update requests
@@ -7573,8 +7794,9 @@ paths:
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
 
-        - at most 50 evaluation rules can be effectively active in one project
-        at the same time
+        - at most 500 evaluation rules can be effectively active in one project
+        at the same time (enforced identically by the API, the MCP tools, and
+        the app)
 
 
         If an evaluation rule with the same `name` already exists in the
@@ -7585,8 +7807,8 @@ paths:
         creating a second one.
 
 
-        If enabling this resource would exceed the 50-active limit, the API also
-        returns `409`.
+        If enabling this resource would exceed the 500-active limit, the API
+        also returns `409`.
 
         In that case, disable or pause another active evaluation rule before
         enabling a new one.
@@ -7779,8 +8001,7 @@ paths:
         - name: evaluationRuleId
           in: path
           description: >-
-            Evaluation rule identifier returned by the evaluation rule
-            endpoints.
+            Evaluation rule identifier returned by the evaluation rule endpoints.
           required: true
           schema:
             type: string
@@ -7868,7 +8089,7 @@ paths:
         selected evaluator can run
 
         - if the update would move a non-active evaluation rule into the active
-        state and the project already has 50 active evaluation rules, the API
+        state and the project already has 500 active evaluation rules, the API
         returns `409`
 
 
@@ -8031,9 +8252,10 @@ paths:
         - If the name already exists in your project, Langfuse creates the next
         version and returns it.
 
-        - When a new project version is created, existing evaluation rules in
-        that project automatically move to the newest version for that evaluator
-        name.
+        - The evaluator `id` remains stable across versions.
+
+        - Existing evaluation rules automatically use the latest evaluator
+        version; no rule update is required.
 
 
         Recommended workflow:
@@ -8046,7 +8268,7 @@ paths:
         whether future scores will be numeric, boolean, or categorical.
 
         4. Create one or more evaluation rules that reference the returned
-        evaluator family using `name` and `scope`.
+        evaluator family using `name` and `type`.
 
 
         Code evaluator validation:
@@ -8152,19 +8374,12 @@ paths:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluatorRequest'
     get:
-      description: >-
+      description: |-
         List the evaluators available to the authenticated project.
 
-
         Important behavior:
-
         - This endpoint returns the latest version of each available evaluator.
-
-        - Results can include evaluators from your project and Langfuse-managed
-        evaluators.
-
-        - If the same evaluator name exists in both places, both are returned as
-        separate items with different `scope` values.
+        - Every evaluator is owned by the authenticated project.
       operationId: unstable_evaluators_list
       tags:
         - UnstableEvaluators
@@ -8234,9 +8449,10 @@ paths:
         Get one evaluator by `id`.
 
 
-        Use this endpoint when you want the prompt, output definition, model
-        configuration, and derived variables for the evaluator you plan to use
-        in an evaluation rule.
+        This endpoint always returns the evaluator's latest version. Use it when
+        you want the current prompt, output definition, model configuration, and
+        derived variables for the evaluator you plan to use in an evaluation
+        rule.
       operationId: unstable_evaluators_get
       tags:
         - UnstableEvaluators
@@ -8299,14 +8515,10 @@ paths:
 
         Important behavior:
 
-        - This deletes the evaluator including all of its stored versions;
-        `evaluatorId` may reference any version.
+        - This deletes the evaluator including all of its stored versions.
 
-        - The API returns `409` while evaluation rules still reference the
-        evaluator. Delete those evaluation rules first.
-
-        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the
-        API returns `403`.
+        - Evaluation rule assignments referencing the evaluator are also
+        deleted.
 
         - Scores already produced by the evaluator are not deleted.
       operationId: unstable_evaluators_delete
@@ -8351,12 +8563,6 @@ paths:
           content:
             application/json:
               schema: {}
-        '409':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/unstablePublicApiError'
         '429':
           description: ''
           content:
@@ -8618,10 +8824,18 @@ components:
         columns of both portions are controlled by `exportFieldGroups`.
 
 
-        **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
-        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
-        observations table (Langfuse Fast Preview / v4), which is currently
-        available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+        **Note:** which sources a deployment accepts depends on how far it has
+        moved to the v4 data model. `OBSERVATIONS_V2` and the
+        enriched-observations portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` read the enriched observations
+        table, so they require a deployment that already populates it.
+        `LEGACY_TRACES_OBSERVATIONS` and the legacy portion of
+        `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` read the legacy traces and
+        observations tables, so they require a deployment that still populates
+        those. A deployment part-way through the migration populates both and
+        accepts every source. Selecting a source the deployment cannot serve is
+        rejected with `400`, rather than exporting an empty result. See
+        https://langfuse.com/docs/v4.
     BlobStorageExportFieldGroup:
       title: BlobStorageExportFieldGroup
       type: string
@@ -8710,10 +8924,12 @@ components:
           nullable: true
           description: >-
             Data to export. When omitted on update, the existing value is
-            preserved. When omitted on create: integrations on Langfuse Cloud
-            default to `OBSERVATIONS_V2`; self-hosted deployments fall back to
-            `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is
-            provided.
+            preserved. When omitted on create, the default is `OBSERVATIONS_V2`
+            on Langfuse Cloud, and on self-hosted deployments
+            `LEGACY_TRACES_OBSERVATIONS` — or `OBSERVATIONS_V2` where the
+            deployment no longer populates the legacy tables. The default is
+            never a source the deployment cannot serve. Required when
+            `exportFieldGroups` is provided.
 
 
             **Cloud-only project deprecation gate (effective 2026-05-20):** For
@@ -9815,8 +10031,7 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for "True" and 0 for
-            "False"
+            The numeric value of the score. Equals 1 for "True" and 0 for "False"
         stringValue:
           type: string
           description: >-
@@ -10002,8 +10217,7 @@ components:
           type: number
           format: double
           description: >-
-            The numeric value of the score. Equals 1 for "True" and 0 for
-            "False"
+            The numeric value of the score. Equals 1 for "True" and 0 for "False"
         stringValue:
           type: string
           description: >-
@@ -10412,7 +10626,7 @@ components:
         supported)
 
         - Tiered pricing: Multiple pricing tiers with conditional matching based
-        on usage patterns
+        on usage patterns or observation attributes
 
 
         The pricing tiers approach is recommended for models with usage-based
@@ -10500,14 +10714,14 @@ components:
             $ref: '#/components/schemas/PricingTier'
           description: >-
             Array of pricing tiers with conditional pricing based on usage
-            thresholds.
+            thresholds or observation attributes.
 
 
             Pricing tiers enable accurate cost tracking for models that charge
             different rates based on usage patterns
 
-            (e.g., different rates for high-volume usage, large context windows,
-            or cached tokens).
+            or request attributes (e.g., high-volume usage, large context
+            windows, cached tokens, or service tiers).
 
 
             Each model must have exactly one default tier (isDefault=true,
@@ -10544,104 +10758,115 @@ components:
         - price
     PricingTierCondition:
       title: PricingTierCondition
-      type: object
+      oneOf:
+        - $ref: '#/components/schemas/PricingTierUsageCondition'
+        - $ref: '#/components/schemas/PricingTierAttributeCondition'
       description: >-
-        Condition for matching a pricing tier based on usage details. Used to
-        implement tiered pricing models where costs vary based on usage
-        thresholds.
+        Condition for matching a pricing tier against usage details or
+        observation attributes.
 
 
-        How it works:
-
-        1. The regex pattern matches against usage detail keys (e.g.,
-        "input_tokens", "input_cached")
-
-        2. Values of all matching keys are summed together
-
-        3. The sum is compared against the threshold value using the specified
-        operator
-
-        4. All conditions in a tier must be met (AND logic) for the tier to
-        match
-
-
-        Common use cases:
-
-        - Threshold-based pricing: Match when accumulated usage exceeds a
-        certain amount
-
-        - Usage-type-specific pricing: Different rates for cached vs non-cached
-        tokens, or input vs output
-
-        - Volume-based pricing: Different rates based on total request or token
-        count
+        Usage-detail conditions treat usageDetailPattern as a regex, sum all
+        matching usage values, and compare the sum to the numeric value.
+        Model-parameter and metadata conditions match an exact top-level key
+        against one or more string values.
+    PricingTierUsageCondition:
+      title: PricingTierUsageCondition
+      type: object
+      description: Condition that sums usage details whose keys match a regex.
       properties:
         usageDetailPattern:
           type: string
-          description: >-
-            Regex pattern to match against usage detail keys. All matching keys'
-            values are summed for threshold comparison.
-
-
-            Examples:
-
-            - "^input" matches "input", "input_tokens", "input_cached", etc.
-
-            - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
-
-            - "_cache$" matches "input_cache", "output_cache", etc.
-
-
-            The pattern is case-insensitive by default. If no keys match, the
-            sum is treated as zero.
+          description: Regex pattern matched against usage detail keys.
         operator:
           $ref: '#/components/schemas/PricingTierOperator'
-          description: >-
-            Comparison operator to apply between the summed value and the
-            threshold.
-
-
-            - gt: greater than (sum > threshold)
-
-            - gte: greater than or equal (sum >= threshold)
-
-            - lt: less than (sum < threshold)
-
-            - lte: less than or equal (sum <= threshold)
-
-            - eq: equal (sum == threshold)
-
-            - neq: not equal (sum != threshold)
         value:
           type: number
           format: double
-          description: >-
-            Threshold value for comparison. For token-based pricing, this is
-            typically the token count threshold (e.g., 200000 for a 200K token
-            threshold).
+          description: Numeric threshold for the summed matching usage values.
         caseSensitive:
           type: boolean
-          description: >-
-            Whether the regex pattern matching is case-sensitive. Default is
-            false (case-insensitive matching).
+          description: Whether the usage-detail regex is case-sensitive.
       required:
         - usageDetailPattern
         - operator
         - value
         - caseSensitive
+    PricingTierAttributeCondition:
+      title: PricingTierAttributeCondition
+      type: object
+      description: >-
+        Condition that matches any configured value for a top-level observation
+        attribute.
+      properties:
+        source:
+          $ref: '#/components/schemas/PricingTierAttributeSource'
+          description: Observation attribute object evaluated by this condition.
+        key:
+          type: string
+          description: Exact top-level attribute key.
+        operator:
+          type: string
+          const: in
+          description: Membership operator.
+        values:
+          type: array
+          items:
+            type: string
+          description: Accepted string attribute values. At least one value is required.
+      required:
+        - source
+        - key
+        - operator
+        - values
+    PricingTierAttributeSource:
+      title: PricingTierAttributeSource
+      type: string
+      enum:
+        - model_parameters
+        - metadata
+    PricingTierConditionInput:
+      title: PricingTierConditionInput
+      oneOf:
+        - $ref: '#/components/schemas/PricingTierUsageConditionInput'
+        - $ref: '#/components/schemas/PricingTierAttributeCondition'
+      description: Condition input for matching a pricing tier.
+    PricingTierUsageConditionInput:
+      title: PricingTierUsageConditionInput
+      type: object
+      description: Input condition that sums usage details whose keys match a regex.
+      properties:
+        usageDetailPattern:
+          type: string
+          description: Regex pattern matched against usage detail keys.
+        operator:
+          $ref: '#/components/schemas/PricingTierOperator'
+        value:
+          type: number
+          format: double
+          description: Numeric threshold for the summed matching usage values.
+        caseSensitive:
+          type: boolean
+          nullable: true
+          description: Whether the usage-detail regex is case-sensitive. Defaults to false.
+      required:
+        - usageDetailPattern
+        - operator
+        - value
     PricingTier:
       title: PricingTier
       type: object
       description: >-
         Pricing tier definition with conditional pricing based on usage
-        thresholds.
+        thresholds or observation attributes.
 
 
         Pricing tiers enable accurate cost tracking for LLM providers that
-        charge different rates based on usage patterns.
+        charge different rates based on usage patterns or request attributes.
 
         For example, some providers charge higher rates when context size
-        exceeds certain thresholds.
+        exceeds certain thresholds or when an accelerated service tier is
+        selected.
 
 
         How tier matching works:
@@ -10790,6 +11015,7 @@ components:
             Volume Tier", "Extended Context"
         isDefault:
           type: boolean
+          nullable: true
           description: >-
             Whether this is the default tier. Exactly one tier per model must be
             marked as default.
@@ -10805,6 +11031,7 @@ components:
 
 
             The default tier acts as a fallback when no conditional tiers match.
+            Defaults to false when omitted.
         priority:
           type: integer
           description: >-
@@ -10820,7 +11047,7 @@ components:
         conditions:
           type: array
           items:
-            $ref: '#/components/schemas/PricingTierCondition'
+            $ref: '#/components/schemas/PricingTierConditionInput'
           description: >-
             Array of conditions that must ALL be met for this tier to match (AND
             logic).
@@ -10832,8 +11059,9 @@ components:
             when this tier's pricing applies.
 
 
-            Each condition specifies a regex pattern, operator, and threshold
-            value for matching against usage details.
+            Conditions can compare summed matching usage details to a numeric
+            threshold, or exactly match a top-level model parameter or metadata
+            value.
         prices:
           type: object
           additionalProperties:
@@ -10853,7 +11081,6 @@ components:
             million input tokens and $15 per million output tokens.
       required:
         - name
-        - isDefault
         - priority
         - conditions
         - prices
@@ -12436,6 +12663,13 @@ components:
             Histograms will return an array with [lower, upper, height] tuples.
       required:
         - data
+    ModelTokenizerId:
+      title: ModelTokenizerId
+      type: string
+      enum:
+        - openai
+        - claude
+      description: Tokenizer supported by Langfuse for model usage inference.
     PaginatedModels:
       title: PaginatedModels
       type: object
@@ -12473,7 +12707,6 @@ components:
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
-          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -12537,7 +12770,7 @@ components:
             which will automatically create a single default tier named
             "Standard".
         tokenizerId:
-          type: string
+          $ref: '#/components/schemas/ModelTokenizerId'
           nullable: true
           description: >-
             Optional. Tokenizer to be applied to observations which match to
@@ -12550,6 +12783,7 @@ components:
       required:
         - modelName
         - matchPattern
+        - unit
     ObservationsV2Response:
       title: ObservationsV2Response
       type: object
@@ -14257,17 +14491,6 @@ components:
         - PYTHON
         - TYPESCRIPT
       description: Code evaluator runtime language.
-    unstableEvaluatorScope:
-      title: unstableEvaluatorScope
-      type: string
-      enum:
-        - project
-        - managed
-      description: |-
-        Where an evaluator comes from.
-
-        - `project`: created in your project
-        - `managed`: provided by Langfuse
     unstableEvaluationRuleTarget:
       title: unstableEvaluationRuleTarget
       type: string
@@ -14391,8 +14614,7 @@ components:
         model:
           type: string
           description: >-
-            Model identifier exposed by the provider, for example
-            `gpt-4.1-mini`.
+            Model identifier exposed by the provider, for example `gpt-4.1-mini`.
       required:
         - provider
         - model
@@ -14479,8 +14701,30 @@ components:
         - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and
         `score.description`.
 
+        - For `NUMERIC`, `score.minValue` and `score.maxValue` optionally define
+        inclusive bounds. If both are set, `minValue` must not exceed
+        `maxValue`.
+
         - For `CATEGORICAL`, also provide `score.categories` and
         `score.shouldAllowMultipleMatches`.
+    unstablePublicNumericEvaluatorOutputScoreDefinition:
+      title: unstablePublicNumericEvaluatorOutputScoreDefinition
+      type: object
+      properties:
+        description:
+          type: string
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: Inclusive minimum value for numeric evaluator scores.
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: Inclusive maximum value for numeric evaluator scores.
+      required:
+        - description
     unstablePublicNumericEvaluatorOutputDefinition:
       title: unstablePublicNumericEvaluatorOutputDefinition
       type: object
@@ -14491,7 +14735,8 @@ components:
         reasoning:
           $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
         score:
-          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+          $ref: >-
+            #/components/schemas/unstablePublicNumericEvaluatorOutputScoreDefinition
       required:
         - dataType
         - reasoning
@@ -14906,6 +15151,45 @@ components:
             - Must be a syntactically valid JSONPath expression
 
             - Most useful with `source=metadata`
+      required:
+        - variable
+        - source
+    unstableEvaluationRuleReadMapping:
+      title: unstableEvaluationRuleReadMapping
+      type: object
+      description: >-
+        Maps an evaluator variable to target data, as returned by read
+        endpoints.
+
+
+        Reads are more permissive than writes in two ways, so that data
+        configured before a
+
+        migration stays readable and repairable:
+
+        - `source` is `null` when a mapping was never fully configured. Set a
+        concrete `source` to fix it.
+
+        - every `source` value is allowed regardless of the rule `target`,
+        because an evaluator's
+          default mapping is stored independently of the rules that use it.
+
+        Requests always require a concrete `source` that is valid for the
+        selected `target`.
+      properties:
+        variable:
+          type: string
+          description: Prompt variable name without braces.
+        source:
+          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
+          nullable: true
+          description: >-
+            Source field populating the variable, or `null` when the mapping is
+            incomplete.
+        jsonPath:
+          type: string
+          nullable: true
+          description: Optional JSONPath selector applied to the selected source.
       required:
         - variable
         - source
@@ -15939,16 +16223,18 @@ components:
             evaluator name.
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+          nullable: true
           description: >-
-            Evaluator currently used by this rule.
+            Deprecated compatibility alias for `evaluators[0].evaluator`, or
+            `null`
+
+            when the rule currently has no evaluator assignments.
 
 
-            `name` and `scope` identify the evaluator family conceptually.
+            `id` identifies the evaluator family. The rule automatically uses
+            the
 
-            `id` is the currently active evaluator version in that family.
-
-            If you create a newer project version with the same evaluator name
-            later, existing evaluation rules are moved to it automatically.
+            latest available version of that evaluator.
         enabled:
           type: boolean
           description: Desired enabled state configured by the client.
@@ -15997,6 +16283,13 @@ components:
       title: unstableEvaluationRule
       type: object
       properties:
+        evaluators:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorAssignment'
+          description: >-
+            Evaluators attached to this rule in deterministic assignment order.
+            A `null` mapping inherits the evaluator version's default mapping.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           description: Target object type that should trigger scoring.
@@ -16010,11 +16303,12 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
           description: >-
-            Variable mappings used to populate evaluator runtime variables from
-            the live target object.
+            Deprecated compatibility alias containing the effective mapping for
+            `evaluators[0]`.
       required:
+        - evaluators
         - target
         - filter
         - mapping
@@ -16029,11 +16323,15 @@ components:
 
 
         This resource is read-only through the unstable public API. Its mapping
-        preserves the trace, dataset item, or named observation that each
-        evaluator variable previously read from. Its filters use the persisted
-        legacy filter format so migration clients can read the configuration
-        without losing information.
+        preserves the trace, dataset item, or named observation selected for
+        each evaluator variable.
       properties:
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableLegacyEvaluationRuleEvaluatorAssignment
+          description: Evaluators attached to this rule in deterministic assignment order.
         target:
           $ref: '#/components/schemas/unstableLegacyEvaluationRuleTarget'
         delay:
@@ -16059,6 +16357,7 @@ components:
             Stored variable mappings, including the trace, dataset item, or
             named observation selected for each variable.
       required:
+        - evaluators
         - target
         - delay
         - timeScope
@@ -16095,6 +16394,8 @@ components:
       oneOf:
         - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluationRuleRequest'
         - $ref: '#/components/schemas/unstableCreateCodeEvaluationRuleRequest'
+        - $ref: >-
+            #/components/schemas/unstableCreateEvaluationRuleWithEvaluatorsRequest
       description: >-
         Request body for creating an evaluation rule.
 
@@ -16102,7 +16403,7 @@ components:
         Checklist for agents and SDK clients:
 
         - reference an existing evaluator family by `evaluator.name` and
-        `evaluator.scope`
+        `evaluator.type`
 
         - choose `target=observation` or `target=experiment`
 
@@ -16119,6 +16420,43 @@ components:
         - optionally narrow execution with `filter`
 
         - set `enabled=true` only when you want live execution immediately
+    unstableCreateEvaluationRuleWithEvaluatorsRequest:
+      title: unstableCreateEvaluationRuleWithEvaluatorsRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableCreateEvaluationRuleEvaluatorAssignment
+          description: >-
+            One or more evaluator assignments. Providing the deprecated
+            top-level `evaluator` or `mapping` fields alongside this is rejected
+            with `400`.
+
+
+            Multiple assignments are supported on writable targets.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+        enabled:
+          type: boolean
+        sampling:
+          type: number
+          format: double
+          nullable: true
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+      required:
+        - name
+        - evaluators
+        - target
+        - enabled
     unstableCreateLlmAsJudgeEvaluationRuleRequest:
       title: unstableCreateLlmAsJudgeEvaluationRuleRequest
       type: object
@@ -16133,9 +16471,9 @@ components:
             LLM-as-judge evaluator family to use.
 
 
-            Use `name`, `scope`, and `type` from the evaluator endpoints. If
-            `type` is omitted, Langfuse defaults it to `llm_as_judge` for
-            backwards compatibility.
+            Use `name` and `type` from the evaluator endpoints. If `type` is
+            omitted, Langfuse defaults it to `llm_as_judge` for backwards
+            compatibility.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -16198,7 +16536,7 @@ components:
             Code evaluator family to use.
 
 
-            Use `name`, `scope`, and `type` from the evaluator endpoints.
+            Use `name` and `type` from the evaluator endpoints.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -16252,6 +16590,14 @@ components:
         - If you only want to rename the rule or change sampling, send just
         those fields.
 
+        - To add, remove, or remap evaluators, send `evaluators`. It replaces
+        the whole assignment set, so include every evaluator the rule should
+        keep.
+
+        - `evaluators` cannot be combined with the deprecated
+        `evaluator`/`mapping` pair, which only ever addressed the first
+        assignment.
+
         - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping`
         unless you are certain the existing mapping still matches the evaluator
         variables.
@@ -16269,19 +16615,35 @@ components:
           type: string
           nullable: true
           description: Updated deployment name.
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableCreateEvaluationRuleEvaluatorAssignment
+          nullable: true
+          description: >-
+            Full replacement of the rule's evaluator assignments: entries that
+            are
+
+            not listed are detached.
+
+
+            Mutually exclusive with the deprecated `evaluator` and `mapping`
+            fields.
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
           nullable: true
           description: >-
-            Updated evaluator family.
+            Deprecated single-evaluator alias: updates the first assignment
+            only. Prefer `evaluators`.
 
 
             Langfuse resolves the provided evaluator family to its latest
             version before saving the rule.
 
-            A rule's evaluator type cannot be changed: provide `name` and
-            `scope` for an evaluator family of the rule's current type. To use a
-            different evaluator type, create a new rule.
+            A rule's evaluator type cannot be changed: provide `name` for an
+            evaluator family of the rule's current type. To use a different
+            evaluator type, create a new rule.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           nullable: true
@@ -16335,8 +16697,8 @@ components:
         Evaluator family reference used when updating an evaluation rule.
 
 
-        `name` and `scope` identify the evaluator family in the authenticated
-        project context.
+        `name` identifies the evaluator family in the authenticated project
+        context.
 
         A rule's evaluator type cannot be changed, so this reference does not
         accept a `type`; the family must match the rule's current evaluator
@@ -16345,12 +16707,8 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
       required:
         - name
-        - scope
     unstableLlmAsJudgeEvaluationRuleEvaluatorReference:
       title: unstableLlmAsJudgeEvaluationRuleEvaluatorReference
       type: object
@@ -16361,16 +16719,12 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           $ref: '#/components/schemas/unstableLlmAsJudgeEvaluatorType'
           nullable: true
           description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
       required:
         - name
-        - scope
     unstableCodeEvaluationRuleEvaluatorReference:
       title: unstableCodeEvaluationRuleEvaluatorReference
       type: object
@@ -16379,22 +16733,72 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           type: string
           const: code
           description: Must be `code`.
       required:
         - name
-        - scope
         - type
     unstableLlmAsJudgeEvaluatorType:
       title: unstableLlmAsJudgeEvaluatorType
       type: string
       enum:
         - llm_as_judge
+    unstableEvaluationRuleEvaluator:
+      title: unstableEvaluationRuleEvaluator
+      type: object
+      description: |-
+        Resolved evaluator currently used by the evaluation rule.
+
+        `id` identifies the evaluator family. Evaluation runs automatically use
+        the latest available evaluator version.
+      properties:
+        id:
+          type: string
+          description: >-
+            Identifier of the exact evaluator version currently used by the rule.
+        name:
+          type: string
+          description: Evaluator family name.
+        type:
+          $ref: '#/components/schemas/unstableEvaluatorType'
+          description: Evaluator engine type.
+      required:
+        - id
+        - name
+        - type
+    unstableEvaluationRuleEvaluatorAssignment:
+      title: unstableEvaluationRuleEvaluatorAssignment
+      type: object
+      properties:
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
+          nullable: true
+          description: >-
+            Rule-specific override, or `null` to inherit the evaluator version's
+            default mapping.
+      required:
+        - evaluator
+        - mapping
+    unstableLegacyEvaluationRuleEvaluatorAssignment:
+      title: unstableLegacyEvaluationRuleEvaluatorAssignment
+      type: object
+      properties:
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableLegacyEvaluationRuleMapping'
+          nullable: true
+      required:
+        - evaluator
+        - mapping
     unstableEvaluationRuleTimeScope:
       title: unstableEvaluationRuleTimeScope
       type: string
@@ -16416,12 +16820,8 @@ components:
       properties:
         variable:
           type: string
-          description: Evaluator prompt variable populated by this mapping.
         langfuseObject:
           $ref: '#/components/schemas/unstableLegacyEvaluationObject'
-          description: >-
-            Trace, dataset item, or observation type from which the value is
-            read.
         objectName:
           type: string
           nullable: true
@@ -16430,11 +16830,9 @@ components:
             `trace` or `dataset_item`.
         source:
           type: string
-          description: Stored field selected from the trace, dataset item, or observation.
         jsonPath:
           type: string
           nullable: true
-          description: Optional JSONPath selector applied to the selected field.
       required:
         - variable
         - langfuseObject
@@ -16456,34 +16854,34 @@ components:
         - embedding
         - guardrail
         - dataset_item
-    unstableEvaluationRuleEvaluator:
-      title: unstableEvaluationRuleEvaluator
+    unstableCreateEvaluationRuleEvaluatorAssignment:
+      title: unstableCreateEvaluationRuleEvaluatorAssignment
       type: object
-      description: |-
-        Resolved evaluator currently used by the evaluation rule.
-
-        `id` is the exact active evaluator version.
-        `name`, `scope`, and `type` identify the evaluator family conceptually.
       properties:
-        id:
-          type: string
+        evaluator:
+          $ref: '#/components/schemas/unstableCreateEvaluationRuleEvaluatorReference'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
           description: >-
-            Identifier of the exact evaluator version currently used by the
-            rule.
+            Optional rule-specific override. Omit to inherit the evaluator
+            version's default mapping. Omit for code evaluators.
+      required:
+        - evaluator
+    unstableCreateEvaluationRuleEvaluatorReference:
+      title: unstableCreateEvaluationRuleEvaluatorReference
+      type: object
+      properties:
         name:
           type: string
-          description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           $ref: '#/components/schemas/unstableEvaluatorType'
-          description: Evaluator engine type.
+          nullable: true
+          description: Defaults to `llm_as_judge`.
       required:
-        - id
         - name
-        - scope
-        - type
     unstableDeleteEvaluatorResponse:
       title: unstableDeleteEvaluatorResponse
       type: object
@@ -16545,7 +16943,10 @@ components:
         - `GET /evaluators` returns the latest version of each available
         evaluator.
 
-        - `GET /evaluators/{id}` can return an older version.
+        - `GET /evaluators/{id}` returns the latest version.
+
+        - `id` identifies the evaluator family and remains stable when a new
+        version is created.
 
         - Evaluation rules always run against the latest version for the
         selected evaluator name within the same source (`project` or `managed`).
@@ -16555,18 +16956,13 @@ components:
       properties:
         id:
           type: string
-          description: Identifier of this evaluator.
+          description: Stable identifier of this evaluator across all versions.
         name:
           type: string
           description: Evaluator name.
         version:
           type: integer
           description: Version number of this evaluator.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: >-
-            Where this evaluator comes from: your project or Langfuse-managed
-            defaults.
         variables:
           type: array
           items:
@@ -16578,11 +16974,28 @@ components:
             LLM evaluators require every variable to be mapped exactly once.
             Code evaluators always expose the fixed runtime payload fields and
             Langfuse maps them automatically.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleReadMapping'
+          nullable: true
+          description: >-
+            Default variable mapping for this evaluator version, or `null` when
+            no default is configured.
+
+
+            An entry's `source` is `null` when that variable was never fully
+            configured, and sources
+
+            are not restricted by rule `target` here, because the default is
+            stored on the evaluator
+
+            rather than on any one rule.
         evaluationRuleCount:
           type: integer
           description: >-
             Number of evaluation rules in the project that currently use this
-            evaluator version.
+            evaluator.
         createdAt:
           type: string
           format: date-time
@@ -16595,8 +17008,8 @@ components:
         - id
         - name
         - version
-        - scope
         - variables
+        - mapping
         - evaluationRuleCount
         - createdAt
         - updatedAt
@@ -16689,8 +17102,8 @@ components:
         If the same `name` already exists in your project, Langfuse creates the
         next version and returns it.
 
-        Existing evaluation rules in the same project are then moved to that new
-        latest version automatically.
+        Existing evaluation rules automatically use the latest evaluator
+        version.
 
         If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
         backwards compatibility.
@@ -16720,6 +17133,14 @@ components:
           description: >-
             Optional explicit model configuration. Omit or set to `null` to use
             the project default evaluation model.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+          nullable: true
+          description: >-
+            Optional default variable mapping inherited by rule assignments that
+            do not provide an override.
       required:
         - name
         - prompt

@@ -7,8 +7,10 @@ import {
   createMockSchedulerDeps,
 } from "./fixtures";
 import {
+  type FilterState,
   type ObservationForEval,
   EvalTargetObject,
+  normalizeEvaluationRuleTarget,
   observationForEvalSchema,
 } from "@langfuse/shared";
 
@@ -820,11 +822,15 @@ describe("Filter Evaluation for Observation Evals", () => {
       observation: ObservationForEval,
       filter: unknown[] = [],
     ): Promise<boolean> {
+      // Callers hand the scheduler canonical configs, so an experiment target
+      // arrives as `event` plus its root-span filter.
       const config = createTestEvalConfig({
         projectId,
-        filter,
         sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
-        targetObject: EvalTargetObject.EXPERIMENT,
+        ...normalizeEvaluationRuleTarget({
+          targetObject: EvalTargetObject.EXPERIMENT,
+          filter: filter as FilterState,
+        }),
       });
 
       const deps = createMockSchedulerDeps();

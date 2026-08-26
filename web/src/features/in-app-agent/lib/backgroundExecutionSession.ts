@@ -1,12 +1,15 @@
-import type { AbstractAgent, AgentSubscriber } from "@ag-ui/client";
-import { z } from "zod";
+import type { AgentSubscriber } from "@ag-ui/client";
 
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type {
-  AgUiMessage,
-  InAppAgentToolApprovalRequest,
+import {
+  type AgUiContext,
+  type AgUiMessage,
+  type InAppAgentToolApprovalRequest,
+  AgUiMessageSchema,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  parseInAppAgentInterruptEvent,
 } from "@langfuse/shared/in-app-agent";
-import { AgUiMessageSchema } from "@langfuse/shared/in-app-agent";
+import { createInAppAgentMessageId } from "../ids";
 import { BackgroundExecutionConnectionError } from "./backgroundExecutionErrors";
 import {
   createInAppAgentDisplayState,
@@ -15,7 +18,10 @@ import {
   type InAppAgentDisplayState,
 } from "./display";
 
-export type AgentInput = Parameters<AbstractAgent["runAgent"]>[0];
+export type BackgroundExecutionRunCommand = {
+  message: string;
+  context: AgUiContext;
+};
 
 export type ApprovalDecision = {
   runId: string;
@@ -60,8 +66,9 @@ export type BackgroundExecutionView = {
 };
 
 export type BackgroundExecutionSession = {
+  readonly conversationId: string;
   hydrateAndAttach(): Promise<void>;
-  run(input: AgentInput): Promise<void>;
+  run(command: BackgroundExecutionRunCommand): Promise<void> | null;
   cancel(): Promise<void>;
   decide(input: ApprovalDecision): Promise<void>;
   detach(): void;
@@ -71,10 +78,12 @@ export type BackgroundExecutionSession = {
 };
 
 type BackgroundExecutionAgent = {
+  threadId: string;
   messages: readonly unknown[];
+  addMessage(message: AgUiMessage): void;
   setMessages(messages: AgUiMessage[]): void;
   subscribe(subscriber: AgentSubscriber): { unsubscribe(): void };
-  runAgent(input: AgentInput): Promise<unknown>;
+  runAgent(input: { context: AgUiContext }): Promise<unknown>;
   connectAgent(): Promise<unknown>;
   abortRun(): void;
   setCursor(cursor: number): void;
@@ -105,6 +114,7 @@ type BackgroundExecutionAgentSubscriber = Pick<
 >;
 
 export class BackgroundExecutionSessionController implements BackgroundExecutionSession {
+  readonly conversationId: string;
   private readonly agent: BackgroundExecutionAgent;
   private readonly hydrate: () => Promise<BackgroundExecutionHydration>;
   private readonly cancelRun: (runId: string) => Promise<unknown>;
@@ -138,6 +148,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     onError?: (error: unknown) => void;
     initialView?: Partial<BackgroundExecutionView>;
   }) {
+    this.conversationId = config.agent.threadId;
     this.agent = config.agent;
     this.hydrate = config.hydrate;
     this.cancelRun = config.cancelRun;
@@ -244,15 +255,32 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     }
   }
 
-  async run(input: AgentInput): Promise<void> {
+  run(command: BackgroundExecutionRunCommand): Promise<void> | null {
     if (
       this.view.attachment.status === "attaching" ||
-      this.view.attachment.status === "attached"
+      this.view.attachment.status === "attached" ||
+      (this.view.currentRun &&
+        isCancellableBackgroundRun(this.view.currentRun.status))
     ) {
-      return;
+      return null;
     }
 
+    return this.executeRun(command);
+  }
+
+  private async executeRun(
+    command: BackgroundExecutionRunCommand,
+  ): Promise<void> {
     const generation = ++this.attachGeneration;
+    const userMessage = {
+      id: createInAppAgentMessageId(),
+      role: "user",
+      content: command.message,
+    } satisfies AgUiMessage;
+    this.agent.addMessage(userMessage);
+    if (!this.view.messages.some((message) => message.id === userMessage.id)) {
+      this.observeMessages([...this.view.messages, userMessage]);
+    }
     this.setView({
       ...this.view,
       currentRun: null,
@@ -260,7 +288,7 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
     });
 
     try {
-      await this.agent.runAgent(input);
+      await this.agent.runAgent({ context: command.context });
     } catch (error) {
       if (generation !== this.attachGeneration) {
         return;
@@ -527,49 +555,6 @@ export class BackgroundExecutionSessionController implements BackgroundExecution
   }
 }
 
-const MastraSuspendEventSchema = z.object({
-  type: z.literal("mastra_suspend"),
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  args: z.unknown().optional(),
-  runId: z.string().min(1),
-});
-
-export function parseInAppAgentInterruptEvent(
-  event: unknown,
-): InAppAgentToolApprovalRequest | null {
-  if (
-    !event ||
-    typeof event !== "object" ||
-    !("name" in event) ||
-    event.name !== "on_interrupt"
-  ) {
-    return null;
-  }
-
-  const value = "value" in event ? event.value : undefined;
-  const parsedValue = typeof value === "string" ? parseJson(value) : value;
-  const interrupt = MastraSuspendEventSchema.safeParse(parsedValue);
-
-  return interrupt.success
-    ? {
-        type: "tool_approval_request",
-        toolCallId: interrupt.data.toolCallId,
-        toolName: interrupt.data.toolName,
-        args: interrupt.data.args,
-        runId: interrupt.data.runId,
-      }
-    : null;
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
 export function isCancellableBackgroundRun(
   status: InAppAgentRunStatus,
 ): boolean {
@@ -580,6 +565,30 @@ export function isCancellableBackgroundRun(
   );
 }
 
+const ASSISTANT_FAILED_CONTINUE =
+  "The assistant failed. Send another message to continue.";
+const ASSISTANT_FAILED_TRY_AGAIN =
+  "The assistant failed. Send another message to try again.";
+
+const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
+  [InAppAgentRunErrorCode.WORKER_LOST]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.STALE]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.INIT_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
+  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
+  [InAppAgentRunErrorCode.APPROVAL_EXPIRED]:
+    "The approval request expired. The action was not run. Send another message if you still want it.",
+  [InAppAgentRunErrorCode.RUN_TIMEOUT]:
+    "The run hit the time limit. Send another message to continue.",
+  [InAppAgentRunErrorCode.AGENT_ERROR]:
+    "The assistant hit an error before finishing. Send another message to continue.",
+  [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
+  [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
+  [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
+};
+
 export function getBackgroundRunFailureMessage(
   errorCode: string | null,
 ): string {
@@ -589,23 +598,67 @@ export function getBackgroundRunFailureMessage(
   );
 }
 
-const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
-  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: "Couldn't start the run. Try again.",
-  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]:
-    "No worker picked this up. Try again.",
-  [InAppAgentRunErrorCode.WORKER_LOST]: "The run was interrupted. Try again.",
-  [InAppAgentRunErrorCode.STALE]: "The run was interrupted. Try again.",
-  [InAppAgentRunErrorCode.RUN_TIMEOUT]:
-    "The run exceeded the maximum duration.",
-  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]:
-    "The run was interrupted by a deploy. Try again.",
-  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]:
-    "The approved action may have completed. Verify before retrying.",
-  [InAppAgentRunErrorCode.APPROVAL_EXPIRED]: "The approval request expired.",
-  [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
-  [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
-  [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
+export type BackgroundRunNoticeTone = "info" | "warning";
+
+export type BackgroundRunNotice = {
+  text: string;
+  tone: BackgroundRunNoticeTone;
 };
+
+const STEP_LIMIT_NOTICE =
+  "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
+
+export function getBackgroundRunNotice(
+  run: BackgroundExecutionRunView | null,
+): BackgroundRunNotice | null {
+  if (!run) {
+    return null;
+  }
+
+  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
+    return { text: "Stopping the run…", tone: "info" };
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return {
+      text: getBackgroundRunFailureMessage(run.errorCode ?? null),
+      tone: "info",
+    };
+  }
+
+  if (
+    run.status === InAppAgentRunStatus.SUCCEEDED &&
+    run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT
+  ) {
+    return { text: STEP_LIMIT_NOTICE, tone: "warning" };
+  }
+
+  return null;
+}
+
+export type SettledActivityOutcome = "worked" | "stopped" | "failed";
+
+export function getSettledActivityOutcome(
+  run: BackgroundExecutionRunView | null,
+): SettledActivityOutcome {
+  if (!run) {
+    return "worked";
+  }
+
+  if (
+    (run.status === InAppAgentRunStatus.SUCCEEDED &&
+      run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT) ||
+    run.status === InAppAgentRunStatus.CANCELLED
+  ) {
+    return "stopped";
+  }
+
+  if (run.status === InAppAgentRunStatus.FAILED) {
+    return "failed";
+  }
+
+  return "worked";
+}
 
 function isExecutingRun(
   run: BackgroundExecutionRunView | null,

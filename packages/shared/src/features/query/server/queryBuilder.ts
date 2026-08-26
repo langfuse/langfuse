@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
 import {
+  bindUtcDateTimeParam,
   FilterList,
   filtersRequireEventsFull,
   type Filter,
@@ -19,6 +19,7 @@ import type {
 import {
   query as queryModel,
   getValidAggregationsForMeasureType,
+  SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
@@ -178,7 +179,7 @@ export class QueryBuilder {
   }
 
   private getViewDeclaration(
-    viewName: z.infer<typeof views>,
+    viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   ): ViewDeclarationType {
     return getViewDeclaration(viewName, this.version);
   }
@@ -336,6 +337,12 @@ export class QueryBuilder {
       const dimension = this.resolveDimension(filter.column, view);
 
       if (dimension) {
+        if (dimension.pairExpand) {
+          throw new InvalidRequestError(
+            `Field '${filter.column}' cannot be used as a filter.`,
+          );
+        }
+
         const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
           dimension.type,
         );
@@ -1248,14 +1255,18 @@ export class QueryBuilder {
         step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown
     }
 
-    parameters["fillFromDate"] = convertDateToClickhouseDateTime(
+    const fillFromDateParam = bindUtcDateTimeParam(
+      "fillFromDate",
       new Date(fromTimestamp),
     );
-    parameters["fillToDate"] = convertDateToClickhouseDateTime(
+    const fillToDateParam = bindUtcDateTimeParam(
+      "fillToDate",
       new Date(toTimestamp),
     );
+    parameters["fillFromDate"] = fillFromDateParam.value;
+    parameters["fillToDate"] = fillToDateParam.value;
 
-    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", appliedBucketingDimension.granularity)} STEP ${step}`;
+    return ` WITH FILL FROM ${this.getTimeDimensionSql(fillFromDateParam.placeholder, appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql(fillToDateParam.placeholder, appliedBucketingDimension.granularity)} STEP ${step}`;
   }
 
   /**
@@ -1672,17 +1683,22 @@ export class QueryBuilder {
         const baseTable = this.actualTableName(view);
         const tableAlias = this.tableAlias(view);
         const { column, condition } = view.rootEventCondition;
+        const fromParam = bindUtcDateTimeParam(
+          fromP,
+          new Date(query.fromTimestamp),
+        );
+        const toParam = bindUtcDateTimeParam(toP, new Date(query.toTimestamp));
         const subquery =
           `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
           `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
           `AND ${condition} ` +
-          `AND ${tableAlias}.${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-          `AND ${tableAlias}.${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+          `AND ${tableAlias}.${view.timeDimension} >= ${fromParam.placeholder} ` +
+          `AND ${tableAlias}.${view.timeDimension} <= ${toParam.placeholder}`;
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;
-        parameters[fromP] = new Date(query.fromTimestamp).getTime();
-        parameters[toP] = new Date(query.toTimestamp).getTime();
+        parameters[fromP] = fromParam.value;
+        parameters[toP] = toParam.value;
         parameters[projP] = projectId;
       }
     }

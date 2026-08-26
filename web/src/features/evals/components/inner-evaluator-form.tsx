@@ -25,17 +25,18 @@ import {
   JobConfigState,
   validateEvaluatorFiltersForTarget,
   evalTraceTableCols,
-} from "@langfuse/shared";
-import { z } from "zod";
-import { useEffect, useMemo, useState, memo } from "react";
-import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import {
   type EvalTemplate,
   EvalTemplateSourceCodeLanguage,
   variableMapping,
   observationVariableMapping,
+  EvalTargetObject,
+  EvalTargetObjectSchema,
+  getCodeEvalVariableMapping,
 } from "@langfuse/shared";
+import { z } from "zod";
+import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
+import { api } from "@/src/utils/api";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
@@ -48,15 +49,14 @@ import {
   evalConfigFormSchema,
   getActiveJsonPathCompatibilityWarning,
   type EvalFormType,
+  RETIRED_TRACE_FILTER_COLUMNS,
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
 } from "@/src/features/evals/utils/evaluator-form-utils";
 import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { EvalTargetObject, EvalTargetObjectSchema } from "@langfuse/shared";
 import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
-import { Suspense, lazy } from "react";
 import {
   getDateFromOption,
   type TableDateRange,
@@ -109,7 +109,6 @@ import { VariableMappingCard } from "@/src/features/evals/components/variable-ma
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
-  getCodeEvalVariableMapping,
   isCodeEvalTemplate,
   resolveCodeEvalTarget,
 } from "@/src/features/evals/utils/code-eval-template-utils";
@@ -347,6 +346,7 @@ export const InnerEvaluatorForm = (props: {
     isSaveDisabled: boolean;
   }) => React.ReactNode;
   oldConfigId?: string;
+  sourceRuleAction?: "mark-inactive" | "delete";
 }) => {
   const capture = usePostHogClientCapture();
   const router = useRouter();
@@ -712,13 +712,20 @@ export const InnerEvaluatorForm = (props: {
           delay,
           timeScope: isModern ? ["NEW"] : values.timeScope,
           ...(status ? { status } : {}),
+          ...(props.oldConfigId
+            ? {
+                sourceRuleId: props.oldConfigId,
+                sourceRuleAction:
+                  props.sourceRuleAction ?? ("mark-inactive" as const),
+              }
+            : {}),
         })
     )
       .then(() => {
         props.onFormSuccess?.();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
-          router.push(`/project/${props.projectId}/evals`);
+          router.push(`/project/${props.projectId}/evals/legacy`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
           // Only reset form when NOT redirecting
@@ -1230,6 +1237,11 @@ export const InnerEvaluatorForm = (props: {
                                     : isEventTarget(target)
                                       ? ["tags", "name", "calledToolNames"]
                                       : undefined
+                                }
+                                columnsHiddenUnlessSelected={
+                                  isTraceTarget(target)
+                                    ? RETIRED_TRACE_FILTER_COLUMNS
+                                    : undefined
                                 }
                               />
                             )}

@@ -10,7 +10,8 @@ import {
   Info,
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
-import { useCanUseInAppAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -64,7 +65,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import { buildDeprecatedEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -896,7 +897,8 @@ export function V4MigrationApisSection({
         <>
           <p className="text-muted-foreground mb-2 text-sm">
             You&apos;ve called these deprecated endpoints in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working soon; the{" "}
+            {V4_MIGRATION_LOOKBACK_DAYS} days. Counts refresh about every 15
+            minutes and can lag live traffic. They stop working soon; the{" "}
             <ExternalLink
               href={DEPRECATED_API_MIGRATION_URL}
               analytics={{ section: "apis", link: "deprecated_api_docs" }}
@@ -940,7 +942,8 @@ export function V4MigrationApisSection({
       ) : (
         <p className="text-muted-foreground text-sm">
           No deprecated public API usage detected in the last{" "}
-          {V4_MIGRATION_LOOKBACK_DAYS} days.
+          {V4_MIGRATION_LOOKBACK_DAYS} days. This check refreshes about every 15
+          minutes.
         </p>
       )}
     </Section>
@@ -1037,6 +1040,19 @@ export function V4MigrationIntegrationsSection({
   );
 }
 
+/**
+ * Whether this deployment is bound by the dated v3 sunset.
+ *
+ * `V4_MIGRATION_DEADLINE` is a Langfuse Cloud commitment. On a self-hosted
+ * deployment nothing happens on that date — the legacy surfaces keep working
+ * until the operator moves the write mode off `dual`, so quoting a date would
+ * be plainly wrong. The Fern deprecation messages scope the same date to Cloud
+ * for the same reason (see `deprecations.ts`).
+ */
+export function useHasV4MigrationDeadline(): boolean {
+  return useLangfuseCloudRegion().isLangfuseCloud;
+}
+
 // Docs link and deadline note are shared by the panel/modal header and the
 // account-level status page so both surfaces read the same.
 export function V4MigrationDocsLink() {
@@ -1051,6 +1067,17 @@ export function V4MigrationDocsLink() {
 }
 
 export function V4MigrationDeadlineNote() {
+  const hasDeadline = useHasV4MigrationDeadline();
+
+  if (!hasDeadline) {
+    return (
+      <p>
+        Some features may stop working without an upgrade once your
+        administrator disables the legacy mode.
+      </p>
+    );
+  }
+
   return (
     <p>
       After{" "}
@@ -1399,7 +1426,7 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
-  const canUseAssistant = useCanUseInAppAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // Same org source as EvaluatorMigrationDialog's gating, so the button
   // branding and the dialog's preselect can't disagree.
   const { organization: routeOrganization } = useQueryProjectOrOrganization();
@@ -1411,7 +1438,7 @@ export function V4MigrationDetailsContent({
   });
   const evalsUrl =
     typeof projectId === "string"
-      ? buildDeprecatedEvaluatorsUrl(projectId)
+      ? buildDeprecatedRulesUrl(projectId)
       : undefined;
   const handleMigrateEvalsWithAgent = () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
@@ -1437,7 +1464,9 @@ export function V4MigrationDetailsContent({
         </div>
         <p className="text-muted-foreground text-sm">
           SDK, instrumentation, experiment, and API checks cover activity from
-          the last {V4_MIGRATION_LOOKBACK_DAYS} days.
+          the last {V4_MIGRATION_LOOKBACK_DAYS} days. API and experiment usage
+          counts refresh about every 15 minutes, so recent calls may not appear
+          yet.
         </p>
         <div>
           <V4MigrationSdkSection
@@ -1457,7 +1486,7 @@ export function V4MigrationDetailsContent({
             <V4MigrationEvalsSection
               state={migrationData.evals}
               assistant={
-                canUseAssistant
+                isInAppAgentLauncherVisible
                   ? {
                       onMigrate: handleMigrateEvalsWithAgent,
                       aiFeaturesEnabled,

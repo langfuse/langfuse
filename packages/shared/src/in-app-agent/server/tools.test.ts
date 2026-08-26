@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createInAppAgentToolPolicy } from "./tools";
+import {
+  createInAppAgentToolPolicy,
+  getInAppAgentToolApprovalSource,
+} from "./mcpPolicy";
 
 describe("createInAppAgentToolPolicy", () => {
   it("drops a stored grant the user's role no longer covers", () => {
@@ -22,4 +25,51 @@ describe("createInAppAgentToolPolicy", () => {
     expect(asMember.available.has("createModel")).toBe(false);
     expect(asMember.autoApproved.has("createModel")).toBe(false);
   });
+});
+
+describe("getInAppAgentToolApprovalSource", () => {
+  const ownerPolicy = createInAppAgentToolPolicy({
+    userAccess: { projectRole: "OWNER", isAdmin: false },
+    alwaysAllowedTools: ["langfuse_createTextPrompt"],
+  });
+
+  it.each([
+    {
+      name: "human",
+      toolName: "langfuse_createTextPrompt",
+      toolCallId: "call-1",
+      humanApprovedToolCallId: "call-1",
+      source: "human",
+    },
+    {
+      name: "conversation_grant",
+      toolName: "langfuse_createTextPrompt",
+      toolCallId: "call-2",
+      source: "conversation_grant",
+    },
+    {
+      name: "auto for MCP policy",
+      toolName: "langfuse_listAnnotationQueues",
+      toolCallId: "call-3",
+      source: "auto",
+    },
+    {
+      name: "auto for sandbox tools",
+      toolName: "read",
+      toolCallId: "call-4",
+      source: "auto",
+    },
+  ] as const)(
+    "classifies $name",
+    ({ toolName, toolCallId, humanApprovedToolCallId, source }) => {
+      expect(
+        getInAppAgentToolApprovalSource({
+          toolName,
+          policy: ownerPolicy,
+          toolCallId,
+          humanApprovedToolCallId,
+        }),
+      ).toBe(source);
+    },
+  );
 });

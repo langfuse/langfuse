@@ -20,6 +20,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ScoreTypeContext } from "../lib/adapter";
 import { astEquals } from "../lib/ast";
 import { removeToken } from "../lib/edits";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
 import { foldDerivedNegation } from "../lib/filter-state-to-query";
 import { parse, type Diagnostic } from "../lib/langQ";
 import { scoreTypeContextEqual } from "../lib/observed-options";
@@ -40,10 +41,11 @@ export function draftsSemanticallyEqual(
   a: string,
   b: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): boolean {
   return astEquals(
-    foldDerivedNegation(parse(a).ast, scoreTypes),
-    foldDerivedNegation(parse(b).ast, scoreTypes),
+    foldDerivedNegation(parse(a, registry).ast, scoreTypes, registry),
+    foldDerivedNegation(parse(b, registry).ast, scoreTypes, registry),
   );
 }
 
@@ -104,6 +106,7 @@ export type SearchBarStore = StoreApi<SearchBarStoreState>;
  */
 export function createSearchBarStore(
   resolveScoreTypes?: () => ScoreTypeContext | undefined,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): SearchBarStore {
   return createStore<SearchBarStoreState>((set, get) => {
     // The score-type context used by the most recent validation. revalidate()
@@ -117,7 +120,7 @@ export function createSearchBarStore(
       const scoreTypes = resolveScoreTypes?.();
       lastScoreTypes = scoreTypes;
       hasValidated = true;
-      const res = validateQuery(next, scoreTypes);
+      const res = validateQuery(next, scoreTypes, registry);
       set({
         draft: next,
         // A real edit always ends a preview — the overlay must never sit over
@@ -156,11 +159,14 @@ export function createSearchBarStore(
           // Number-normalize numeric (not categorical) score values. It preserves
           // structure/order, so free-text canonicalization is kept.
           const scoreTypes = resolveScoreTypes?.();
-          if (draftsSemanticallyEqual(committedText, draft, scoreTypes)) return;
+          if (
+            draftsSemanticallyEqual(committedText, draft, scoreTypes, registry)
+          )
+            return;
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
-          const next = removeToken(get().draft, { from, to });
+          const next = removeToken(get().draft, { from, to }, registry);
           writeDraft(next);
           return next;
         },
@@ -184,7 +190,7 @@ export function createSearchBarStore(
           lastScoreTypes = scoreTypes;
           hasValidated = true;
           const wasValid = get().draftValid;
-          const res = validateQuery(get().draft, scoreTypes);
+          const res = validateQuery(get().draft, scoreTypes, registry);
           set({
             draftDiagnostics: res.diagnostics,
             draftValid: res.valid,

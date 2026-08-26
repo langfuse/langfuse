@@ -22,6 +22,11 @@ const mocks = vi.hoisted(() => ({
   // Evals are the simplest way to keep the single test project on the table:
   // ready projects are hidden, so most cases need one open action item.
   evalCount: 1,
+  lastTracePending: false,
+  canToggleV4: true,
+  isBetaEnabled: false,
+  // Cloud is bound by the dated v3 sunset; self-hosted is not.
+  hasDeadline: true,
 }));
 
 vi.mock("next/router", () => ({
@@ -73,6 +78,7 @@ vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
   V4_MIGRATION_DEADLINE: "November 16, 2026",
   useCopyMigrationPrompt: () => vi.fn(),
+  useHasV4MigrationDeadline: () => mocks.hasDeadline,
   // Stand-ins for the shared sidebar copy: the real components are covered in
   // V4MigrationContent.clienttest.tsx, here we only assert they are rendered.
   V4MigrationDocsLink: () => (
@@ -94,6 +100,18 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => true,
 }));
 
+vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
+  useV4Beta: () => ({
+    canToggleV4: mocks.canToggleV4,
+    isBetaEnabled: mocks.isBetaEnabled,
+  }),
+}));
+
+// The toggle itself is covered where it lives; here we only assert placement.
+vi.mock("@/src/features/events/components/V4SidebarToggle", () => ({
+  V4PreviewToggleRow: () => <div data-testid="v4-preview-toggle-row" />,
+}));
+
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useAccountV4MigrationData: () =>
     new Map([
@@ -113,10 +131,21 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
 
 vi.mock("@/src/utils/api", () => ({
   api: {
-    organizations: {
-      lastTraceByProject: {
-        useQuery: () => ({ data: [] }),
-      },
+    useQueries: (
+      buildQueries: (router: {
+        organizations: { lastTraceByProject: () => unknown };
+      }) => unknown,
+    ) => {
+      buildQueries({
+        organizations: {
+          lastTraceByProject: vi.fn(),
+        },
+      });
+      return [
+        mocks.lastTracePending
+          ? { data: undefined, isError: false }
+          : { data: [], isError: false },
+      ];
     },
   },
 }));
@@ -133,6 +162,10 @@ describe("V4MigrationStatusPage", () => {
       delayedOtelIngestionCount: 0,
     };
     mocks.evalCount = 1;
+    mocks.lastTracePending = false;
+    mocks.canToggleV4 = true;
+    mocks.hasDeadline = true;
+    mocks.isBetaEnabled = false;
   });
 
   it("keeps the project table readable through horizontal scrolling", () => {
@@ -163,7 +196,7 @@ describe("V4MigrationStatusPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps projects whose checks are still running or failed", () => {
+  it("hides project content until every migration check has finished", () => {
     mocks.evalCount = 0;
     mocks.sdk = {
       status: "checking",
@@ -174,10 +207,26 @@ describe("V4MigrationStatusPage", () => {
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("Test project")).toBeInTheDocument();
+    expect(screen.queryByText("Test project")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("What's new in v4")).not.toBeInTheDocument();
+    expect(screen.getByText(/Checking project status/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("text-base", "leading-6");
+    expect(screen.getByRole("status")).not.toHaveClass("text-2xl", "font-bold");
     expect(
-      screen.queryByText("All projects are up to date. Nothing to do here."),
+      screen.queryByRole("img", { name: "Langfuse Icon" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("hides project content until last-trace data has finished loading", () => {
+    mocks.lastTracePending = true;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.queryByText("Test project")).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText("What's new in v4")).not.toBeInTheDocument();
+    expect(screen.getByText(/Checking project status/)).toBeInTheDocument();
   });
 
   it("opens the summary card with a link to the v4 docs", () => {
@@ -204,12 +253,85 @@ describe("V4MigrationStatusPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers v3 users a switch to the latest UI without a sunset note", () => {
+    mocks.isBetaEnabled = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("Switch back to the latest UI (v4)"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/legacy v3 UI will be sunset/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns v4 users about the v3 sunset when offering the switch back", () => {
+    mocks.isBetaEnabled = true;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("Need to switch back to the legacy UI (v3)?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /The features powering the legacy v3 UI will be sunset on November 16, 2026\./,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("v4-preview-toggle-row")).toBeInTheDocument();
+  });
+
+  it("hides the switch-back section when the session cannot toggle v4", () => {
+    mocks.canToggleV4 = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.queryByText("Switch back to the latest UI (v4)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("v4-preview-toggle-row"),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses the November 16, 2026 deadline throughout the FAQ", () => {
     render(<V4MigrationStatusPage />);
 
     expect(screen.getByText("on November 16, 2026")).toBeInTheDocument();
     expect(screen.getByText("On November 16, 2026")).toBeInTheDocument();
     expect(screen.queryByText(/Oct 9/)).not.toBeInTheDocument();
+  });
+
+  it("replaces the FAQ deadline with the operator cutoff when self-hosted", () => {
+    // Nothing happens to a self-hosted deployment on the Cloud sunset date, so
+    // the FAQ has to point at the operator's own write-mode switch instead.
+    mocks.hasDeadline = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText("once your administrator disables the legacy mode"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Once your administrator disables the legacy mode"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/on November 16, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/On November 16, 2026/)).not.toBeInTheDocument();
+  });
+
+  it("drops the dated sunset from the switch-back warning when self-hosted", () => {
+    mocks.isBetaEnabled = true;
+    mocks.hasDeadline = false;
+
+    render(<V4MigrationStatusPage />);
+
+    expect(
+      screen.getByText(
+        /The features powering the legacy v3 UI will be sunset once your administrator disables the legacy mode\./,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("only shows the status pill when action is required", () => {

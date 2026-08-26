@@ -117,7 +117,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.10.0
+- Pnpm v.11.22.0
 - Docker to run the database locally
 - Clickhouse client
 
@@ -180,10 +180,18 @@ endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
 in Cursor, never in repository files.
 
-After local verification, a Cursor agent should open a same-repo draft PR and
-test its `pr-<N>.preview.langfuse.com` deployment before marking it ready.
-Preview data and any attached artifacts must remain synthetic. Previews normally
-run Mon-Fri 08:00-24:00 Europe/Berlin and are not woken with Cursor credentials.
+After local verification, a Cursor agent should open a same-repo reviewable
+PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
+Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+When handing work to a human, give a one-sentence TL;DR, a preview URL with
+exact test steps (including how to seed or hit the same path on
+`http://localhost:3000`), proof of the fix for user-visible changes
+(screenshot, video, or before/after), and one PR comment on what a reviewer
+should doubt.
+Prefer one or two human actions at a time; if you need more, keep each
+point simple and super readable. Preview data and any attached artifacts
+must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
+Europe/Berlin and are not woken with Cursor credentials.
 
 ### Shared Agent Setup
 
@@ -538,10 +546,10 @@ We maintain the API specifications manually to guarantee a high degree of unders
 To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
-npx fern-api export --api server web/public/generated/api/openapi.yml
-npx fern-api export --api client web/public/generated/api-client/openapi.yml
-npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
+pnpm run openapi:export
 ```
+
+This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 
 To generate the server SDKs, run:
 

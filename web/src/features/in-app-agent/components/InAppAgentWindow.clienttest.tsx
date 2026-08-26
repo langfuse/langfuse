@@ -6,13 +6,14 @@ import {
   within,
 } from "@testing-library/react";
 import { ScanSearch } from "lucide-react";
-import { InAppAgentRunStatus } from "@langfuse/shared";
+import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+import type { InAppAgentError } from "./utils/utils";
 
 const capture = vi.fn();
 const controlledAgent = vi.hoisted(() => ({
@@ -20,7 +21,7 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
-    error: null,
+    error: null as InAppAgentError | null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
     isRunning: true,
@@ -44,7 +45,8 @@ const controlledAgent = vi.hoisted(() => ({
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
     selectedConversationId: undefined,
-    selectedConversationIsWriteLocked: false,
+    selectedConversationTitle: null,
+    selectConversation: vi.fn(),
     submit: vi.fn(),
     submitFeedback: vi.fn(),
   },
@@ -108,6 +110,7 @@ function windowElement(
     quickActionResetKey: "/project/project-1/traces",
     screenContextDescription: { type: "trace-list" },
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     ...overrides,
     showCloseButton: false,
   };
@@ -127,7 +130,7 @@ function selectTab(name: string) {
 }
 
 describe("InAppAgentWindow quick actions", () => {
-  it("switches tabs, resets on route change, and submits the action prompt with attribution", async () => {
+  it("switches tabs, resets on route change, and submits the action prompt with analytics", async () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
     const { rerender } = render(windowElement({ onSubmit }));
 
@@ -169,12 +172,7 @@ describe("InAppAgentWindow quick actions", () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         "Help me create a new prompt in Langfuse prompt management, including choosing between a text and chat prompt, defining its variables, and setting a label.",
-        {
-          quickAction: {
-            key: "create-prompt",
-            category: "prompts",
-          },
-        },
+        undefined,
       );
     });
     expect(capture).toHaveBeenCalledWith("in_app_agent:quick_action_started", {
@@ -250,6 +248,42 @@ describe("InAppAgentWindow conversation history", () => {
   });
 });
 
+describe("InAppAgentWindow header", () => {
+  it("titles the window by the conversation, and falls back to the product name", () => {
+    const { rerender } = render(
+      windowElement({
+        selectedConversationId: "conversation-1",
+        selectedConversationTitle: "  Latency outliers  ",
+      }),
+    );
+
+    expect(screen.getByText("Latency outliers")).toBeInTheDocument();
+
+    // An unnamed conversation falls back to the product name.
+    rerender(
+      windowElement({
+        selectedConversationId: "conversation-1",
+        selectedConversationTitle: null,
+      }),
+    );
+
+    expect(screen.getByText("Assistant")).toBeInTheDocument();
+  });
+
+  it("toggles expanded on a header double-click, but not from its actions", () => {
+    const onExpandedChange = vi.fn();
+    render(windowElement({ onExpandedChange }));
+
+    fireEvent.dblClick(screen.getByText("Assistant"));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+
+    fireEvent.dblClick(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    );
+    expect(onExpandedChange).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("ControlledInAppAgentWindow composer", () => {
   beforeEach(() => {
     controlledAgent.value.error = null;
@@ -257,7 +291,12 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.isSelectedConversationHydrating = false;
     controlledAgent.value.isSubmitting = false;
     controlledAgent.value.pendingToolApprovals = [];
-    controlledAgent.value.selectedConversationIsWriteLocked = false;
+    controlledAgent.value.selectConversation = vi.fn();
+    controlledAgent.value.execution = {
+      run: null,
+      isCancelling: false,
+      cancel: vi.fn(),
+    };
   });
 
   it("keeps a draft editable but prevents submitting it while an assistant turn is active", () => {
@@ -314,32 +353,6 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Start new conversation" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: /^Conversation history/ }),
-    ).toBeEnabled();
-  });
-
-  it("lets you leave a read-only conversation", () => {
-    controlledAgent.value.isRunning = false;
-    controlledAgent.value.selectedConversationIsWriteLocked = true;
-
-    render(
-      <TooltipProvider>
-        <ControlledInAppAgentWindow
-          isExpanded={false}
-          onClose={vi.fn()}
-          onDeleteConversation={vi.fn()}
-          onExpandedChange={vi.fn()}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(
-      screen.getByRole("textbox", { name: "Message the assistant" }),
-    ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Start new conversation" }),
     ).toBeEnabled();

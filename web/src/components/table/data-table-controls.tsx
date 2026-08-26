@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import type React from "react";
 import {
+  type default as React,
   createContext,
   useContext,
   useState,
@@ -50,6 +50,10 @@ import {
   Plus,
   UnfoldVertical,
   X,
+  X as IconX,
+  Search,
+  WandSparkles,
+  InfoIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,7 +82,6 @@ import { Slider } from "@/src/components/ui/slider";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
@@ -96,8 +99,8 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
-import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { type FilterState } from "@langfuse/shared";
 
 interface ControlsContextType {
   open: boolean;
@@ -216,8 +219,8 @@ export function DataTableControls({
   blockedColumnReason,
   layout = "panel",
 }: DataTableControlsProps) {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { setOpen, tableName, isMobile } = useDataTableControls();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
@@ -315,10 +318,13 @@ export function DataTableControls({
   // must never narrow the list behind the user's back.
   const facetSearchQuery = showFacetSearch ? facetSearch.trim() : "";
 
-  // Matching facet columns, or null when not searching. Selected/added facets
-  // stay visible whether or not they match — a query must never hide what is
-  // currently filtering — so the match set is also what tells "nothing matched"
-  // apart from "only the pinned ones are left".
+  // Matching facet columns, or null when not searching. The name search
+  // FILTERS, it does not reorder: the settled promoted block and render order
+  // still own every position. A facet whose name misses the query goes whether
+  // or not it is filtering — what is in force stays on show above the list
+  // (the header's active count, plus the search bar's tokens where there is
+  // one), so the sidebar need not repeat it mid-search. The match set is also
+  // what tells "nothing matched" apart from an unsearched list.
   const facetSearchMatches = facetSearchQuery
     ? new Set(
         displayedFilters
@@ -373,12 +379,13 @@ export function DataTableControls({
   // the folded tail must be findable), otherwise the fold decides what is on
   // screen. Either way rows are HIDDEN, never unmounted: every facet holds
   // uncommitted local state — a typed-but-not-added text filter, a metadata
-  // condition mid-build, a debounced numeric draft — and unmounting throws it
-  // away with nothing said. Neither typing in the search box nor toggling the
-  // fold may do that.
+  // condition mid-build, a "show more" expansion, a debounced numeric draft —
+  // and unmounting throws all of it away with nothing said. Now that an ACTIVE
+  // facet can be hidden too, that matters more, not less: hiding is
+  // presentation only and must never touch the filter state.
   const visibleFilters = facetSearchMatches
-    ? renderOrderedFilters.filter(
-        (filter) => facetSearchMatches.has(filter.column) || isPromoted(filter),
+    ? renderOrderedFilters.filter((filter) =>
+        facetSearchMatches.has(filter.column),
       )
     : foldVisibleFilters;
   const visibleColumns = new Set(visibleFilters.map((filter) => filter.column));
@@ -479,6 +486,8 @@ export function DataTableControls({
 
     const changed = [...became, ...ceased];
     if (changed.length !== 1) return;
+    // A name search may be hiding the target; display:none has no box, so this
+    // simply does nothing rather than scrolling to an invisible row.
     const facetElement = scrollRootRef.current?.querySelector(
       `[data-facet-column="${CSS.escape(changed[0])}"]`,
     );
@@ -605,6 +614,7 @@ export function DataTableControls({
           onChange={filter.onChange}
           onOnlyChange={filter.onOnlyChange}
           renderIcon={filter.renderIcon}
+          renderOptionSuffix={filter.renderOptionSuffix}
           isActive={filter.isActive}
           onReset={filter.onReset}
           operator={filter.operator}
@@ -825,14 +835,11 @@ export function DataTableControls({
         })}
       </Accordion>
 
-      {/* Nothing in the catalog matched. Says "other" when pinned
-          selections are still listed above, so the message never
-          contradicts the facets on screen. */}
-      {facetSearchMatches?.size === 0 && (
+      {/* Nothing matched — including any facet currently filtering, which the
+          query hides like the rest. */}
+      {facetSearchQuery !== "" && visibleFilters.length === 0 && (
         <p className="text-muted-foreground px-3 pt-6 text-center text-xs break-words">
-          {visibleFilters.length > 0
-            ? `No other filters match "${facetSearchQuery}"`
-            : `No filters match "${facetSearchQuery}"`}
+          {`No filters match "${facetSearchQuery}"`}
         </p>
       )}
 
@@ -1370,6 +1377,7 @@ interface CategoricalFacetProps extends BaseFacetProps {
   onChange: (values: string[]) => void;
   onOnlyChange?: (value: string) => void;
   renderIcon?: (value: string) => React.ReactNode;
+  renderOptionSuffix?: (value: string) => React.ReactNode;
   operator?: "any of" | "all of" | "none of";
   onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
@@ -1670,6 +1678,7 @@ export function CategoricalFacet({
   onChange,
   onOnlyChange,
   renderIcon,
+  renderOptionSuffix,
   isActive,
   isDisabled,
   disabledReason,
@@ -1749,6 +1758,7 @@ export function CategoricalFacet({
             onChange={onChange}
             onOnlyChange={onOnlyChange}
             renderIcon={renderIcon}
+            renderOptionSuffix={renderOptionSuffix}
             operator={operator}
             onOperatorChange={onOperatorChange}
           />
@@ -1789,6 +1799,7 @@ function CategoricalSelectContent({
   onChange,
   onOnlyChange,
   renderIcon,
+  renderOptionSuffix,
   operator,
   onOperatorChange,
 }: Pick<
@@ -1802,6 +1813,7 @@ function CategoricalSelectContent({
   | "onChange"
   | "onOnlyChange"
   | "renderIcon"
+  | "renderOptionSuffix"
   | "operator"
   | "onOperatorChange"
 >) {
@@ -1885,6 +1897,7 @@ function CategoricalSelectContent({
         id={`${filterKey}-${option}`}
         label={displayLabel}
         icon={renderIcon?.(option)}
+        suffix={renderOptionSuffix?.(option)}
         count={counts.get(option) || 0}
         checked={value.includes(option)}
         onCheckedChange={(checked) => {
@@ -2705,6 +2718,7 @@ interface FilterValueCheckboxProps {
   id: string;
   label: string;
   icon?: React.ReactNode;
+  suffix?: React.ReactNode;
   count: number;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
@@ -2717,6 +2731,7 @@ export function FilterValueCheckbox({
   id,
   label,
   icon,
+  suffix,
   count,
   checked = false,
   onCheckedChange,
@@ -2762,13 +2777,15 @@ export function FilterValueCheckbox({
         {icon ? <span className="mr-2">{icon}</span> : null}
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-xs",
+            "min-w-0 truncate text-xs",
+            !suffix && "flex-1",
             label === "" && "text-muted-foreground italic",
           )}
           title={displayTitle}
         >
           {displayLabel}
         </span>
+        {suffix ? <span className="shrink-0 pl-1">{suffix}</span> : null}
 
         {/* "Only" or "All" indicator when hovering label. shrink-0 +
             whitespace-nowrap: appearing may only re-truncate the label —

@@ -1,7 +1,12 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -18,13 +23,19 @@ import {
   useInAppAgentWindowShellPanelControl,
 } from "./InAppAgentWindowShell";
 import { getDrawerMessages } from "./utils/utils";
+import {
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
+} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 
 function InAppAgentWindowStoryShell({
   children,
   isExpanded,
+  onExpandedChange,
 }: {
   children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
   isExpanded: boolean;
+  onExpandedChange: (isExpanded: boolean) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl({});
@@ -38,6 +49,7 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       onClose={() => undefined}
+      onExpandedChange={onExpandedChange}
       open
       panelRef={panelRef}
     >
@@ -48,18 +60,22 @@ function InAppAgentWindowStoryShell({
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
 
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
         />
       )}
     </InAppAgentWindowStoryShell>
@@ -530,18 +546,23 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     };
   }, []);
 
+  const handleExpandedChange = (isExpanded: boolean) => {
+    setIsExpanded(isExpanded);
+    args.onExpandedChange(isExpanded);
+  };
+
   return (
-    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+    <InAppAgentWindowStoryShell
+      isExpanded={isExpanded}
+      onExpandedChange={handleExpandedChange}
+    >
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
           messages={messages}
-          onExpandedChange={(isExpanded) => {
-            setIsExpanded(isExpanded);
-            args.onExpandedChange(isExpanded);
-          }}
+          onExpandedChange={handleExpandedChange}
           onSubmit={(input) => {
             setMessages((currentMessages) => [
               ...currentMessages,
@@ -684,6 +705,7 @@ const meta = preview.meta({
     isLoadingMoreConversations: false,
     isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
+    selectedConversationTitle: null,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
     onOpenConversationHistory: fn(),
@@ -705,6 +727,7 @@ const meta = preview.meta({
 });
 
 export const ToolApprovalRequired = meta.story({
+  name: "(Test) Tool approval required",
   args: {
     isAssistantTurnInProgress: true,
     isAwaitingApproval: true,
@@ -1111,6 +1134,7 @@ export const ProgressLogWorking = meta.story({
 });
 
 export const ProgressLogOpened = meta.story({
+  name: "(Test) Progress log opened",
   args: {
     isAssistantTurnInProgress: true,
     isExpanded: true,
@@ -1386,10 +1410,11 @@ export const LoadingAfterToolCall = meta.story({
 });
 
 export const Error = meta.story({
+  name: "(Test) Error",
   args: {
     error: {
       type: "generic",
-      message: "Assistant is not enabled for this user",
+      message: "Internal sandbox bridge timeout",
     },
     messages: [
       {
@@ -1402,6 +1427,386 @@ export const Error = meta.story({
       },
     ],
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+
+    await expect(alert).toHaveTextContent(IN_APP_AGENT_GENERIC_ERROR_MESSAGE);
+    await expect(alert).not.toHaveTextContent(
+      "Internal sandbox bridge timeout",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    await expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+  },
+});
+
+const stepLimitRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.SUCCEEDED,
+  errorCode: InAppAgentRunErrorCode.STEP_LIMIT,
+  cancelRequested: false,
+};
+
+export const StepLimit = meta.story({
+  name: "(Test) Step limit",
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(stepLimitRun),
+      activityOutcome: getSettledActivityOutcome(stepLimitRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate yesterday's errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking yesterday first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-text-1",
+        runId: "run-0",
+        timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday was quiet.",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Keep inspecting traces until you find the spike.",
+        },
+      },
+      {
+        id: "assistant-tool-2",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              status: "succeeded",
+              args: JSON.stringify({ limit: 10 }),
+              result: JSON.stringify({ data: [] }),
+            },
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              status: "succeeded",
+              args: JSON.stringify({ view: "traces" }),
+              result: JSON.stringify({ data: [] }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-text-2",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Latency is up on the last two batches, but I still need to inspect the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Too many steps in one turn",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Stopped after 51s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const failedRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.RUN_TIMEOUT,
+  cancelRequested: false,
+};
+
+export const Failed = meta.story({
+  name: "(Test) Failed",
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedRun),
+      activityOutcome: getSettledActivityOutcome(failedRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency",
+        },
+      },
+      {
+        id: "assistant-reasoning",
+        timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking the slow traces.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Still inspecting the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The run hit the time limit.",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Failed after 51s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const failedBeforeFirstTokenRun = {
+  id: "run-2",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+  cancelRequested: false,
+};
+
+export const FailedBeforeFirstToken = meta.story({
+  name: "(Test) Failed before first token",
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedBeforeFirstTokenRun),
+      activityOutcome: getSettledActivityOutcome(failedBeforeFirstTokenRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate yesterday's errors.",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        timestamp: new Date("2026-08-06T15:20:00.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking yesterday first.",
+          isStreaming: false,
+        },
+      },
+      {
+        id: "assistant-text-1",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:20:12.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Yesterday was quiet.",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Now look at today's traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The assistant failed.",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Worked for 12s" }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /Failed after/ }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+const failedWorkerLostRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.WORKER_LOST,
+  cancelRequested: false,
+};
+
+export const FailedWorkerLost = meta.story({
+  name: "(Test) Assistant failed",
+  args: {
+    selectedConversationId: "conversation-1",
+    executionUi: {
+      notice: getBackgroundRunNotice(failedWorkerLostRun),
+      activityOutcome: getSettledActivityOutcome(failedWorkerLostRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Investigate latency",
+        },
+      },
+      {
+        id: "assistant-answer",
+        runId: "run-1",
+        timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Still inspecting the remaining traces.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The assistant failed.",
+    );
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Send another message",
+    );
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
+});
+
+const expiredApprovalRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.FAILED,
+  errorCode: InAppAgentRunErrorCode.APPROVAL_EXPIRED,
+  cancelRequested: false,
+};
+
+export const ApprovalExpired = meta.story({
+  name: "(Test) Approval expired",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAwaitingApproval: false,
+    isAssistantTurnInProgress: false,
+    executionUi: {
+      notice: getBackgroundRunNotice(expiredApprovalRun),
+      activityOutcome: getSettledActivityOutcome(expiredApprovalRun),
+      stop: null,
+    },
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Create a dataset for regression examples.",
+        },
+      },
+      {
+        id: "assistant-tool-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              status: "running",
+              args: JSON.stringify({
+                name: "regression-examples",
+                description: "Examples used for release regression tests",
+              }),
+            },
+          ],
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "The approval request expired. The action was not run. Send another message if you still want it.",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Decline" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Waiting for your approval…" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+  },
 });
 
 /**
@@ -1412,6 +1817,7 @@ export const Error = meta.story({
  * running conversation has nothing for the user to act on yet.
  */
 export const ConversationActivity = meta.story({
+  name: "(Test) Conversation activity",
   args: {
     conversations: activityConversations,
     activityByConversationId,
@@ -1441,6 +1847,7 @@ const STORY_RUN_MS = 3_000;
  * belongs to the first one only, and wait for the run to settle to see it go.
  */
 export const BackgroundHint = meta.story({
+  name: "(Test) Background hint",
   args: {
     messages: [],
   },
@@ -1529,19 +1936,39 @@ export const BackgroundRun = meta.story({
   },
 });
 
+const cancelledRun = {
+  id: "run-1",
+  status: InAppAgentRunStatus.CANCELLED,
+  errorCode: InAppAgentRunErrorCode.CANCELLED,
+  cancelRequested: false,
+};
+
+const backgroundStopUserMessage = {
+  id: "user-1",
+  role: "user" as const,
+  content: {
+    type: "text" as const,
+    text: "Summarize recent ingestion errors.",
+  },
+};
+
+const backgroundStopReasoning = {
+  id: "assistant-reasoning",
+  timestamp: new Date("2026-08-06T15:26:26.000Z").getTime(),
+  role: "assistant" as const,
+  content: {
+    type: "reasoning" as const,
+    text: "I'll look at recent ingestion errors first.",
+    isStreaming: false,
+  },
+};
+
 export const BackgroundRunStops = meta.story({
+  name: "(Test) Background run stops",
   args: {
     isAssistantTurnInProgress: true,
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Summarize recent ingestion errors.",
-        },
-      },
-    ],
+    selectedConversationId: "conversation-1",
+    messages: [backgroundStopUserMessage, backgroundStopReasoning],
   },
   render: function Render(args) {
     const [phase, setPhase] = useState<"running" | "stopping" | "settled">(
@@ -1570,17 +1997,12 @@ export const BackgroundRunStops = meta.story({
         messages={
           isSettled
             ? [
-                {
-                  id: "user-1",
-                  role: "user",
-                  content: {
-                    type: "text",
-                    text: "Summarize recent ingestion errors.",
-                  },
-                },
+                backgroundStopUserMessage,
+                backgroundStopReasoning,
                 {
                   id: "assistant-1",
                   runId: "run-1",
+                  timestamp: new Date("2026-08-06T15:27:17.000Z").getTime(),
                   role: "assistant",
                   content: {
                     type: "text",
@@ -1592,9 +2014,16 @@ export const BackgroundRunStops = meta.story({
         }
         executionUi={
           isSettled
-            ? { notice: null, stop: null }
+            ? {
+                notice: getBackgroundRunNotice(cancelledRun),
+                activityOutcome: getSettledActivityOutcome(cancelledRun),
+                stop: null,
+              }
             : {
-                notice: phase === "stopping" ? "Stopping the run…" : null,
+                notice:
+                  phase === "stopping"
+                    ? { text: "Stopping the run…", tone: "info" }
+                    : null,
                 stop: {
                   status: phase === "stopping" ? "stopping" : "available",
                   onStop: () => {
@@ -1604,6 +2033,21 @@ export const BackgroundRunStops = meta.story({
               }
         }
       />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Stop run" }));
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Stopping the run…",
+    );
+    await waitFor(
+      () =>
+        expect(
+          canvas.getByRole("button", { name: "Stopped after 51s" }),
+        ).toBeVisible(),
+      { timeout: 3_000 },
     );
   },
 });
@@ -1743,9 +2187,16 @@ export const RefocusAfterSubmit = meta.story({
         },
       },
     ]);
+    const handleExpandedChange = (isExpanded: boolean) => {
+      setIsExpanded(isExpanded);
+      args.onExpandedChange(isExpanded);
+    };
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={isExpanded}
+        onExpandedChange={handleExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}
@@ -1755,10 +2206,7 @@ export const RefocusAfterSubmit = meta.story({
               isConversationInteractionDisabled
             }
             messages={messages}
-            onExpandedChange={(isExpanded) => {
-              setIsExpanded(isExpanded);
-              args.onExpandedChange(isExpanded);
-            }}
+            onExpandedChange={handleExpandedChange}
             onSubmit={(input) => {
               setIsConversationInteractionDisabled(true);
               window.setTimeout(() => {
@@ -2371,7 +2819,10 @@ export const SendingReattachesAutoFollow = meta.story({
     const [messages, setMessages] = useState(args.messages);
 
     return (
-      <InAppAgentWindowStoryShell isExpanded={args.isExpanded}>
+      <InAppAgentWindowStoryShell
+        isExpanded={args.isExpanded}
+        onExpandedChange={args.onExpandedChange}
+      >
         {({ isHeaderDragHandleEnabled }) => (
           <InAppAgentWindow
             {...args}

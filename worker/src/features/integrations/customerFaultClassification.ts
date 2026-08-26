@@ -63,6 +63,7 @@ const INVALID_URL_OUTBOUND_URL_CODES = new Set<string>([
   "invalid-encoding",
   "https-required",
   "protocol-not-allowed",
+  "port-not-allowed",
   "url-credentials-not-allowed",
 ]);
 

@@ -1,11 +1,13 @@
+// @vitest-environment node
+
 import isEqual from "lodash/isEqual";
 import {
   TableViewPresetTableName,
   getSystemTableViewPresets,
   type FilterState,
 } from "@langfuse/shared";
-import { filterStateToQueryText } from "../search-bar/lib/filter-state-to-query";
-import { planCommit } from "../search-bar/lib/commit";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
 
 // Catalog guard for the LFE-14699 demote-on-user-edit no-op check
 // (demoteViewOnUserFilterEdit): a user-origin filter write only demotes the

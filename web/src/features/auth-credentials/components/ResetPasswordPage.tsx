@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
@@ -242,13 +242,14 @@ export function ResetPasswordPage({
                       {submitLabel}
                     </Button>
                   ) : (
-                    <RequestResetPasswordEmailButton
-                      email={form.watch("email")}
-                      className="w-full"
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
-                    />
+                    <div className="w-full">
+                      <RequestResetPasswordEmailButton
+                        email={form.watch("email")}
+                        callbackUrl={
+                          isSetMode ? "/auth/setup-password" : undefined
+                        }
+                      />
+                    </div>
                   )}
                 </div>
               </form>
@@ -264,11 +265,12 @@ export function ResetPasswordPage({
               </div>
             )}
             {showResetPasswordEmailButton && (
-              <RequestResetPasswordEmailButton
-                email={form.getValues("email")}
-                className="w-full"
-                callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
-              />
+              <div className="w-full">
+                <RequestResetPasswordEmailButton
+                  email={form.getValues("email")}
+                  callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                />
+              </div>
             )}
           </div>
         </div>

@@ -12,7 +12,7 @@ import {
   useInAppAgentWindowShellPanelControl,
 } from "@/src/features/in-app-agent/components/InAppAgentWindowShell";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
@@ -64,7 +64,7 @@ function DeleteConversationDialog({
  * window unmounts and its geometry resets on every navigation.
  */
 export function InAppAgentWindowHost() {
-  const canUseAgent = useCanUseInAppAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -98,6 +98,14 @@ export function InAppAgentWindowHost() {
     );
   }, [isExpanded]);
 
+  // Captures the outgoing rect so the layout effect above can animate the
+  // floating <-> expanded swap from where the window actually was.
+  const handleExpandedChange = (nextIsExpanded: boolean) => {
+    previousPanelRectRef.current =
+      panelRef.current?.getBoundingClientRect() ?? null;
+    setIsExpanded(nextIsExpanded);
+  };
+
   // Geometry follows the open state: cleared on close so every open starts
   // from the default placement, initialized on open for the floating panel.
   useLayoutEffect(() => {
@@ -113,9 +121,9 @@ export function InAppAgentWindowHost() {
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open]);
 
-  // Only `canUseAgent` gates the tree: the shell owns the `open` guard so the
-  // handheld drawer stays mounted and can animate itself closed.
-  if (!canUseAgent) {
+  // Only `isInAppAgentLauncherVisible` gates the tree: the shell owns the `open` guard
+  // so the handheld drawer stays mounted and can animate itself closed.
+  if (!isInAppAgentLauncherVisible) {
     return null;
   }
 
@@ -143,6 +151,7 @@ export function InAppAgentWindowHost() {
             onClose={() => {
               setOpen(false);
             }}
+            onExpandedChange={handleExpandedChange}
             open={open}
             panelRef={panelRef}
           >
@@ -153,11 +162,7 @@ export function InAppAgentWindowHost() {
                 onDeleteConversation={(conversation) => {
                   deleteConversationDialog.open(conversation);
                 }}
-                onExpandedChange={(nextIsExpanded) => {
-                  previousPanelRectRef.current =
-                    panelRef.current?.getBoundingClientRect() ?? null;
-                  setIsExpanded(nextIsExpanded);
-                }}
+                onExpandedChange={handleExpandedChange}
                 onClose={() => {
                   setOpen(false);
                 }}

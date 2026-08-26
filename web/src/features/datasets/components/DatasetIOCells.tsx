@@ -1,7 +1,9 @@
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  MemoizedIOTableCell,
+  IOTableCell,
+} from "@/src/components/ui/IOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 

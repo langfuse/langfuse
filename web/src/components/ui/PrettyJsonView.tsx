@@ -48,7 +48,7 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
-import { env } from "@/src/env.mjs";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   convertRowIdToKeyPath,
   getRowChildren,
@@ -180,12 +180,15 @@ function isChatMLFormat(json: unknown): boolean {
   return false;
 }
 
-function isMarkdownContent(json: unknown): {
+function isMarkdownContent(
+  json: unknown,
+  characterLimit: number,
+): {
   isMarkdown: boolean;
   content?: string;
 } {
   const contentSize = JSON.stringify(json || {}).length;
-  if (contentSize > env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT) {
+  if (contentSize > characterLimit) {
     return { isMarkdown: false };
   }
 
@@ -908,14 +911,15 @@ export function PrettyJsonView(props: {
     useState<LangfuseExpandedState>({});
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
+  const characterLimit = useMarkdownRenderCharacterLimit();
   const { isMarkdown, content: markdownContent } = useMemo(
     // Skip the markdown probe for gated large strings: isMarkdownContent runs
     // `JSON.stringify` on the whole value, an O(n) pass over the multi-MB string.
     () =>
       largeStringValue !== null
         ? { isMarkdown: false as const, content: undefined }
-        : isMarkdownContent(parsedJson),
-    [parsedJson, largeStringValue],
+        : isMarkdownContent(parsedJson, characterLimit),
+    [parsedJson, largeStringValue, characterLimit],
   );
 
   const baseTableData = useMemo(() => {
@@ -1274,7 +1278,7 @@ export function PrettyJsonView(props: {
       {largeStringValue !== null ? (
         <LargeStringFallback title={props.title} value={largeStringValue} />
       ) : props.isLoading || props.isParsing ? (
-        <div className="io-message-content">
+        <div className="io-message-content ph-no-capture">
           <div
             className={cn(
               getContainerClasses(
@@ -1297,7 +1301,7 @@ export function PrettyJsonView(props: {
           </div>
         </div>
       ) : emptyValueDisplay && isPrettyView ? (
-        <div className="io-message-content">
+        <div className="io-message-content ph-no-capture">
           <div
             className={cn(
               "flex items-center",
@@ -1314,7 +1318,7 @@ export function PrettyJsonView(props: {
           </div>
         </div>
       ) : isMarkdownMode ? (
-        <div className="io-message-content">
+        <div className="io-message-content ph-no-capture">
           {shouldRenderStandaloneMedia ? (
             standaloneMediaReferenceStrings.map((referenceString, index) => (
               <LangfuseMediaView
@@ -1334,7 +1338,7 @@ export function PrettyJsonView(props: {
         <>
           {/* Always render JsonPrettyTable to preserve internal React Table state */}
           <div
-            className="io-message-content"
+            className="io-message-content ph-no-capture"
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
             <div
@@ -1372,7 +1376,7 @@ export function PrettyJsonView(props: {
 
           {/* Always render JSONView to preserve its state too */}
           <div
-            className="io-message-content"
+            className="io-message-content ph-no-capture"
             style={{ display: shouldUseTableView ? "none" : "block" }}
           >
             <JSONView
@@ -1400,7 +1404,7 @@ export function PrettyJsonView(props: {
           <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 px-2 pt-1 pb-4">
+          <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
             {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
@@ -1419,7 +1423,7 @@ export function PrettyJsonView(props: {
             <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
               Media
             </div>
-            <div className="flex flex-wrap gap-2 px-2 pt-1 pb-4">
+            <div className="ph-no-capture flex flex-wrap gap-2 px-2 pt-1 pb-4">
               {props.media.map((m) => (
                 <LangfuseMediaView
                   mediaAPIReturnValue={m}

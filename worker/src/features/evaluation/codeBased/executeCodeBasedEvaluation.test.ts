@@ -9,7 +9,6 @@ import {
   parseDispatchResult,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../../packages/shared/src/server/evals/codeEvalExecution";
-import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
@@ -67,6 +66,7 @@ describe("executeCodeBasedEvaluation", () => {
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
+      evaluatorId: "evaluator-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -143,7 +143,10 @@ describe("executeCodeBasedEvaluation", () => {
     });
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        scope: expect.objectContaining({ organizationId: "org-1" }),
+        scope: expect.objectContaining({
+          organizationId: "org-1",
+          evaluatorId: "evaluator-1",
+        }),
         payload: expectedPayload,
       }),
     );
@@ -207,6 +210,7 @@ describe("executeCodeBasedEvaluation", () => {
     ]);
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
+        scope: expect.objectContaining({ evaluatorId: "template-1" }),
         payload: {
           observation: {
             input: null,
@@ -485,7 +489,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow("runner exploded");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
@@ -555,7 +563,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow(
       "The evaluator returned an invalid result.",
     );
@@ -664,7 +676,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: "INTERNAL_ERROR",
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow("An internal error occurred");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);

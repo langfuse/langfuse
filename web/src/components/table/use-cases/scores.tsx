@@ -1,3 +1,4 @@
+import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -5,10 +6,9 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -20,6 +20,8 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import {
   getScoreFilterConfig,
   observationScopeFilter,
@@ -40,6 +42,7 @@ import {
 import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
+import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -50,8 +53,6 @@ import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -70,6 +71,12 @@ import {
   scoreLevelFromScore,
   type ScoreLevel,
 } from "@/src/components/score-tag";
+import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+import {
+  ScoresChartView,
+  ScoresOutlierStrip,
+  useScoresChartViewState,
+} from "@/src/features/scores-chart-view";
 
 export type ScoresTableRow = {
   id: string;
@@ -94,6 +101,7 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
+  evaluatorId?: string;
   traceTags?: string[];
   environment?: string;
   executionTraceId?: string;
@@ -120,6 +128,8 @@ export type ScoresTableProps = {
    * of a `Page`.
    */
   showControlsInPageHeader?: boolean;
+  /** Skip the default exclusion of internal environments. */
+  showAllEnvironments?: boolean;
 };
 
 function createFilterState(
@@ -148,6 +158,7 @@ export default function ScoresTable({
   localStorageSuffix = "",
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
+  showAllEnvironments = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -162,6 +173,11 @@ export default function ScoresTable({
   const { isBetaEnabled } = useV4Beta();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
   const useEventsBackedScores = isBetaEnabled;
+  // Same derivation `WidgetForm.tsx`/`ChartScores` use (`activeVersion`/
+  // `metricsVersion`) — the chart/outlier strip must read the same version
+  // as the table's own data, or a non-beta project's trace/observation
+  // breakdown would run against the events-backed view and come back empty.
+  const chartViewVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -205,6 +221,62 @@ export default function ScoresTable({
   // filter-option queries, which are project-wide either way.
   const isTraceScoped = Boolean(traceId);
   const rowDateRangeFilter: FilterState = isTraceScoped ? [] : dateRangeFilter;
+
+  // Open a score's trace/observation in the peek side panel instead of
+  // navigating away, mirroring the traces/observations tables. Not offered
+  // when this table is itself embedded in a trace/observation detail view
+  // (peeking the very trace you're already looking at would be redundant,
+  // and that embed already renders inside a peek panel of its own).
+  const peekEnabled = !traceId && !observationId;
+  const {
+    openPeek: openScorePeek,
+    closePeek: closeScorePeek,
+    expandPeek: expandScorePeek,
+  } = usePeekNavigation({
+    // A stale `traceId` can already be in the URL (e.g. a v4-dialect shared
+    // link); listing it clears it on open/navigate/close so it can't pin
+    // the peek to that trace instead of the one just clicked — matches the
+    // same guard `traces.tsx`/`EventsTable.tsx` already have.
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    extractParamsValuesFromRow: (
+      row: ScoresTableRow,
+    ): Record<string, string> =>
+      row.observationId ? { observation: row.observationId } : {},
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      reader: "trace",
+    },
+  });
+
+  // The chart toggle only makes sense on the project-wide table — a
+  // trace/observation/user-scoped embed (trace detail, observation detail,
+  // user page) has too few scores to chart meaningfully and its filters don't
+  // fully map onto the scores-numeric view. Mirrors the same embed gate the
+  // events table uses for its chart view.
+  const chartEnabled = !traceId && !observationId && !userId;
+  const {
+    viewMode: chartViewMode,
+    setViewMode: setChartViewMode,
+    config: chartConfig,
+    setConfig: setChartConfig,
+  } = useScoresChartViewState();
+  // Charts only render when the table has a time range. Inventing a default
+  // range here would make the chart silently omit table rows.
+  const chartTimeRange = useMemo(
+    () => getScoreChartTimeRange(dateRange, new Date()),
+    [dateRange],
+  );
+  const chartActive =
+    chartEnabled && chartTimeRange !== undefined && chartViewMode === "chart";
+
+  // Drill-in from the outlier strip writes the clicked bucket as an absolute
+  // range. URL-only and deliberately NOT persisted as the project's default
+  // range — a transient zoom must not become tomorrow's baseline. Mirrors the
+  // events table's `setTimeRangeTransient`.
+  const { setTimeRange: setScoresTimeRangeTransient } = useTableDateRange(
+    projectId,
+    { persistAsDefault: false },
+  );
 
   const environmentFilterOptions =
     api.projects.environmentFilterOptions.useQuery(
@@ -358,7 +430,9 @@ export default function ScoresTable({
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isSidebarFilterLoading,
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      implicitDefaultConfig: showAllEnvironments
+        ? undefined
+        : DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     };
 
     if (peekContext) {
@@ -381,7 +455,13 @@ export default function ScoresTable({
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     };
-  }, [disableUrlPersistence, isSidebarFilterLoading, peekContext, projectId]);
+  }, [
+    disableUrlPersistence,
+    isSidebarFilterLoading,
+    peekContext,
+    projectId,
+    showAllEnvironments,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     scoresFilterConfig,
@@ -428,24 +508,40 @@ export default function ScoresTable({
     orderBy: orderByState,
   };
 
+  // In chart mode the table is hidden and the chart runs its own aggregate
+  // query — don't also run the row/count/metrics fetches below, matching
+  // `EventsTable.tsx`'s `rowsEnabled: !chartActive`.
+
   // Base data — v3 (existing, unchanged)
   const scoresV3 = api.scores.all.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      !useEventsBackedScores &&
+      !chartActive,
   });
 
   // Base data — v4 (no traces JOIN)
   const scoresV4 = api.scores.allFromEvents.useQuery(getAllPayload, {
-    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      useEventsBackedScores &&
+      !chartActive,
   });
 
   const scores = useEventsBackedScores ? scoresV4 : scoresV3;
 
   // Count — v3 vs v4
   const countV3 = api.scores.countAll.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading && !useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      !useEventsBackedScores &&
+      !chartActive,
   });
   const countV4 = api.scores.countAllFromEvents.useQuery(getCountPayload, {
-    enabled: !environmentFilterOptions.isLoading && useEventsBackedScores,
+    enabled:
+      !environmentFilterOptions.isLoading &&
+      useEventsBackedScores &&
+      !chartActive,
   });
   const totalScoreCountQuery = useEventsBackedScores ? countV4 : countV3;
 
@@ -464,7 +560,8 @@ export default function ScoresTable({
       ],
     },
     {
-      enabled: scoresV4.data !== undefined && useEventsBackedScores,
+      enabled:
+        scoresV4.data !== undefined && useEventsBackedScores && !chartActive,
     },
   );
 
@@ -493,18 +590,13 @@ export default function ScoresTable({
         ) : undefined;
       },
     },
-    {
+    createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       enableHiding: true,
       enableSorting: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",
@@ -576,27 +668,13 @@ export default function ScoresTable({
         );
       },
     },
-    {
+    createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value = row.getValue("environment") as string | undefined;
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",
@@ -692,6 +770,10 @@ export default function ScoresTable({
             <TableLink
               path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
               value={value}
+              // Opens the trace in the peek side panel instead of navigating
+              // away; a modifier-click (cmd/ctrl, middle-click) still opens
+              // the real page in a new tab via the href above.
+              onClick={peekEnabled ? () => openScorePeek(value) : undefined}
             />
           </>
         ) : undefined;
@@ -712,6 +794,14 @@ export default function ScoresTable({
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
             value={observationId}
+            // extractParamsValuesFromRow reads `row.observationId` (the
+            // original, not the table row wrapper) to add `?observation=`
+            // to the peek URL, focusing this observation within the trace.
+            onClick={
+              peekEnabled
+                ? () => openScorePeek(traceId, row.original)
+                : undefined
+            }
           />
         ) : undefined;
       },
@@ -804,10 +894,12 @@ export default function ScoresTable({
     },
     {
       accessorKey: "jobConfigurationId",
-      header: "Eval Configuration ID",
+      header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
       id: "jobConfigurationId",
       headerTooltip: {
-        description: "The Job Configuration ID associated with the trace.",
+        description: isBetaEnabled
+          ? "The evaluator associated with the score."
+          : "The Job Configuration ID associated with the score.",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
       },
       enableHiding: true,
@@ -815,15 +907,21 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       cell: ({ row }) => {
-        const value = row.getValue("jobConfigurationId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/evals/${value}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+        const value = isBetaEnabled
+          ? row.original.evaluatorId
+          : row.getValue("jobConfigurationId");
+        if (typeof value !== "string") return undefined;
+
+        return (
+          <TableLink
+            path={
+              isBetaEnabled
+                ? `/project/${projectId}/evals/${value}`
+                : `/project/${projectId}/evals/legacy/${value}`
+            }
+            value={value}
+          />
+        );
       },
     },
   ];
@@ -891,6 +989,7 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
+      evaluatorId: undefined,
       traceTags: score.traceTags ?? undefined,
       environment: score.environment ?? undefined,
       executionTraceId: score.executionTraceId ?? undefined,
@@ -938,6 +1037,7 @@ export default function ScoresTable({
         traceName: meta?.traceName ?? undefined,
         userId: meta?.userId ?? undefined,
         jobConfigurationId: score.jobConfigurationId ?? undefined,
+        evaluatorId: score.evaluatorId ?? undefined,
         traceTags: meta?.tags ?? undefined,
         environment: score.environment ?? undefined,
         executionTraceId: score.executionTraceId ?? undefined,
@@ -1032,6 +1132,14 @@ export default function ScoresTable({
           setTimeRange={
             showControlsInPageHeader || isTraceScoped ? undefined : setTimeRange
           }
+          viewModeToggle={
+            chartEnabled && chartTimeRange ? (
+              <ViewModeToggle
+                mode={chartViewMode}
+                onModeChange={setChartViewMode}
+              />
+            ) : undefined
+          }
           multiSelect={{
             selectAll,
             setSelectAll,
@@ -1051,55 +1159,91 @@ export default function ScoresTable({
           />
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              tableName="scores"
-              columns={columns}
-              noResultsMessage={
-                <div className="flex flex-col items-center">
-                  <span>No scores found.</span>
-                  <a
-                    href="https://langfuse.com/faq/all/what-are-scores"
-                    className="text-primary pointer-events-auto italic underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    What are scores?
-                  </a>
-                </div>
-              }
-              data={
-                scores.isPending || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : scores.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: scores.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: enrichedScores ?? [],
-                      }
-              }
-              pagination={{
-                totalCount,
-                onChange: setPaginationState,
-                state: paginationState,
-              }}
-              setOrderBy={setOrderByState}
-              orderBy={orderByState}
-              rowSelection={selectedRows}
-              highlightAllRows={selectAll}
-              setRowSelection={setSelectedRows}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
-              rowHeight={rowHeight}
-            />
+            {/* `effectiveFilterState`, not `explicitFilterState`: the table's
+                own data query (`getAllPayload` above) reads `effectiveFilterState`,
+                which folds in the implicit environment filter (hides internal
+                eval/experiment environments by default). Using the explicit
+                state here would let the chart/strip aggregate scores the table
+                itself doesn't show. */}
+            {chartEnabled && chartTimeRange && !chartActive && (
+              <ScoresOutlierStrip
+                projectId={projectId}
+                filterState={queryFilter.effectiveFilterState}
+                fromTimestamp={chartTimeRange.from}
+                toTimestamp={chartTimeRange.to}
+                onSelectRange={setScoresTimeRangeTransient}
+                viewVersion={chartViewVersion}
+              />
+            )}
+            {chartActive && chartTimeRange ? (
+              <ScoresChartView
+                projectId={projectId}
+                filterState={queryFilter.effectiveFilterState}
+                fromTimestamp={chartTimeRange.from}
+                toTimestamp={chartTimeRange.to}
+                config={chartConfig}
+                viewVersion={chartViewVersion}
+                onConfigChange={setChartConfig}
+              />
+            ) : (
+              <DataTable
+                tableName="scores"
+                columns={columns}
+                noResultsMessage={
+                  <div className="flex flex-col items-center">
+                    <span>No scores found.</span>
+                    <a
+                      href="https://langfuse.com/faq/all/what-are-scores"
+                      className="text-primary pointer-events-auto italic underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      What are scores?
+                    </a>
+                  </div>
+                }
+                data={
+                  scores.isPending || isViewLoading
+                    ? { isLoading: true, isError: false }
+                    : scores.isError
+                      ? {
+                          isLoading: false,
+                          isError: true,
+                          error: scores.error.message,
+                        }
+                      : {
+                          isLoading: false,
+                          isError: false,
+                          data: enrichedScores ?? [],
+                        }
+                }
+                pagination={{
+                  totalCount,
+                  onChange: setPaginationState,
+                  state: paginationState,
+                }}
+                setOrderBy={setOrderByState}
+                orderBy={orderByState}
+                rowSelection={selectedRows}
+                highlightAllRows={selectAll}
+                setRowSelection={setSelectedRows}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibility}
+                columnOrder={columnOrder}
+                onColumnOrderChange={setColumnOrder}
+                rowHeight={rowHeight}
+              />
+            )}
           </div>
         </ResizableFilterLayout>
+        {peekEnabled && (
+          <TablePeekViewTraceDetail
+            closePeek={closeScorePeek}
+            expandPeek={expandScorePeek}
+            itemType="TRACE"
+            projectId={projectId}
+          />
+        )}
       </div>
     </DataTableControlsProvider>
   );

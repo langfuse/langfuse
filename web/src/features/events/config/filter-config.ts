@@ -174,11 +174,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("traceId"),
     },
     {
-      // Display relabel to "Status" (see traces-config); column id stays
-      // `level` until the cross-surface rename lands.
+      // Display name comes from eventsTableCols so the sidebar and table
+      // column stay aligned. Column id stays `level`.
       type: "categorical" as const,
       column: "level",
-      label: "Status",
+      label: getEventsColumnName("level"),
       renderIcon: renderLevelIcon,
     },
     {

@@ -42,6 +42,13 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Trace playhead transport in the navigation header (and the overflow
+    // menu on a narrow panel). Distinguishes play vs pause vs stop; `viewMode`
+    // is tree vs timeline at click time; `observationCount` is the loaded
+    // trace size. Metadata only — never a trace/observation id.
+    "playback_play",
+    "playback_pause",
+    "playback_stop",
     // Download from the large-string IO fallback (LFE-10991): a top-level
     // string over the render limit is shown as a bounded preview + download
     // instead of the full Pretty/JSON viewer. Measures how often users hit it.
@@ -112,6 +119,7 @@ export const events = {
     "create_form_submit",
     "update_form_submit",
     "manage_configs_item_click",
+    "add_category_inline",
     "archive_form_open",
     "archive_form_submit",
   ],
@@ -141,6 +149,7 @@ export const events = {
     "truncated_observation_download_click",
     "inline_tools_toggled",
     "system_prompt_toggled",
+    "metadata_jsonpath_config_changed",
   ],
   eval_config: [
     "new_form_submit",
@@ -159,6 +168,31 @@ export const events = {
     "update_form_submit",
     "delete_form_open",
     "delete_template_button_click",
+  ],
+  evaluators: [
+    "create",
+    "update",
+    "delete",
+    "test",
+    "saved_dialog_submit",
+    "overview_action_click",
+    "variable_mapping_configured",
+    "version_history_interaction",
+    "default_model_update",
+    "reactivate",
+    "gallery_creation_source_select",
+    "empty_state_template_select",
+    "empty_state_browse_library",
+    "empty_state_detect_topics",
+  ],
+  evaluation_rules: [
+    "create",
+    "update",
+    "delete",
+    "status_change",
+    "attach_evaluator",
+    "detach_evaluator",
+    "filter_reused",
   ],
   integrations: [
     "posthog_form_submitted",
@@ -294,6 +328,8 @@ export const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "feature_flag_default_toggled",
+    "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -325,6 +361,11 @@ export const events = {
   v4_migration: [
     "coding_agent_prompt_copied",
     "delay_badge_clicked",
+    // Discoverability pair for the table delay badge: `shown` is the
+    // exposure denominator (badge actually rendered), `hovered` counts
+    // noticed-but-not-clicked (pill expanded long enough to read).
+    "delay_badge_shown",
+    "delay_badge_hovered",
     "project_chip_clicked",
     "contact_book_call_clicked",
     "contact_support_clicked",

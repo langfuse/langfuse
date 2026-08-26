@@ -9,7 +9,7 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   createInAppAgentToolPolicy,
   filterInAppAgentAvailableLangfuseMcpTools,
-} from "@langfuse/shared/in-app-agent/server/tools";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -383,12 +383,12 @@ function createInAppAgentSession(params: {
 
 async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalBedrockModel = env.LANGFUSE_AI_MODEL;
   const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
   const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
 
   (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-  (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+  (env as any).LANGFUSE_AI_MODEL = "test-model";
   (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
   (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
 
@@ -396,7 +396,7 @@ async function withInAppAgentCloudEnv<T>(run: () => Promise<T>): Promise<T> {
     return await run();
   } finally {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (env as any).LANGFUSE_AI_MODEL = originalBedrockModel;
     (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = originalAiFeaturesPublicKey;
     (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = originalAiFeaturesSecretKey;
   }

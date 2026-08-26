@@ -5,10 +5,10 @@
       "version": "v4.6.0",
       "sha": "dbcb813823bdd20940b903addbd779551569679f"
     },
-    "github/gh-aw-actions/setup@v0.84.0": {
+    "github/gh-aw-actions/setup@v0.86.2": {
       "repo": "github/gh-aw-actions/setup",
-      "version": "v0.84.0",
-      "sha": "f3ca20900e2363607992fb61b46fc687d4b56ba3"
+      "version": "v0.86.2",
+      "sha": "6aab9e5b5c91c615506061f09bedd81a23babe3c"
     },
     "pnpm/action-setup@v6.0.9": {
       "repo": "pnpm/action-setup",

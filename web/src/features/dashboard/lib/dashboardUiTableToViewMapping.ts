@@ -117,7 +117,10 @@ const viewFilterDefinitions: Record<
       "providedModelName",
       sourceSpec("Model", { uiTableId: "model" }),
     ),
-    defineField("level", sourceSpec("Level", { uiTableId: "level" })),
+    defineField(
+      "level",
+      sourceSpec("Status", { uiTableId: "level", aliases: ["Level"] }),
+    ),
     defineField(
       "toolNames",
       sourceSpec("Tool Names (Available)", { uiTableId: "toolNames" }),

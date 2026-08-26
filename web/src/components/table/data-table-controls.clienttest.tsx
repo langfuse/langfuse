@@ -34,6 +34,38 @@ beforeAll(() => {
 });
 
 describe("CategoricalFacet", () => {
+  it("renders an option suffix after its label", () => {
+    render(
+      <Accordion type="multiple" value={["model"]}>
+        <CategoricalFacet
+          label="Model"
+          filterKey="model"
+          expanded
+          loading={false}
+          options={["gpt-4.1", "claude-sonnet"]}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          renderOptionSuffix={(value) =>
+            value === "gpt-4.1" ? <span>Project default</span> : null
+          }
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+      { wrapper: TooltipProvider },
+    );
+
+    const label = screen.getByText("gpt-4.1");
+    const suffix = screen.getByText("Project default");
+    expect(
+      label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(label).not.toHaveClass("flex-1");
+    expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
+  });
+
   it("shows selected values even when the backend returns no options", () => {
     render(
       <Accordion type="multiple" value={["type"]}>
@@ -1101,6 +1133,8 @@ describe("DataTableControls facet-name search", () => {
     searchFor("token");
     expect(screen.getByText("Total Tokens")).toBeVisible();
     expect(screen.getByText("Environment")).not.toBeVisible();
+    // The query hides a facet whose name misses it even while it is filtering.
+    expect(screen.getByText("User ID")).not.toBeVisible();
     // The column key matches too: the label's space would defeat "userid".
     searchFor("userid");
     expect(screen.getByText("User ID")).toBeVisible();
@@ -1114,20 +1148,42 @@ describe("DataTableControls facet-name search", () => {
     expect(screen.getByText("x")).toBeInTheDocument();
   });
 
-  it("keeps a selected facet visible when it does not match, and says so", () => {
-    const { rerender } = render(controls(catalog(["userId"])));
+  it("reaches the no-match state with a filter active, without touching it", () => {
+    // A query hides every facet it misses, so the dead end is reachable while a
+    // filter is in force. Hiding is presentation ONLY: nothing here may reset,
+    // clear or re-apply anything, or a keystroke in the search box would change
+    // the rows on screen.
+    const mutations: string[] = [];
+    const filters = catalog(["userId"]).map((filter) => ({
+      ...filter,
+      onChange: () => mutations.push(`change:${filter.column}`),
+      onReset: () => mutations.push(`reset:${filter.column}`),
+    }));
+    const qf: QueryFilter = {
+      ...queryFilter(filters),
+      clearAll: () => mutations.push("clearAll"),
+      setFilterState: () => mutations.push("setFilterState"),
+      onExpandedChange: () => mutations.push("expand"),
+    };
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
 
     searchFor("zzz");
-    // Pinned by its selection, not by the query.
-    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("User ID")).not.toBeVisible();
     expect(screen.getByText("Environment")).not.toBeVisible();
-    expect(
-      screen.getByText('No other filters match "zzz"'),
-    ).toBeInTheDocument();
-
-    // With nothing pinned above it, the same dead end drops the "other".
-    rerender(controls(catalog()));
     expect(screen.getByText('No filters match "zzz"')).toBeInTheDocument();
+    expect(mutations).toEqual([]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear filter search" }),
+    );
+    // Back in full, selection intact — its header summary still reads it.
+    expect(screen.getByText("User ID")).toBeVisible();
+    expect(screen.getByText("x")).toBeInTheDocument();
+    expect(mutations).toEqual([]);
   });
 
   it("hides a non-matching facet rather than unmounting it, so an open draft survives", () => {

@@ -14,6 +14,7 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
@@ -21,7 +22,8 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
@@ -42,7 +44,6 @@ import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { type ScoreDomain } from "@langfuse/shared";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
@@ -50,7 +51,13 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
+import {
+  ChevronDown,
+  ListPlus,
+  LockIcon,
+  MoreHorizontal,
+  SquarePen,
+} from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -243,12 +250,27 @@ export const ObservationDetailViewHeader = memo(
                           layout="menu"
                         />
                       )}
-                      <CreateNewAnnotationQueueItem
+                      <AnnotationQueueItemDropdownMenuController
                         projectId={projectId}
                         objectId={observation.id}
                         objectType={AnnotationQueueObjectType.OBSERVATION}
-                        layout="menu"
-                      />
+                      >
+                        {({ disabled, totalCount }) => (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled !== undefined}
+                            className="w-full justify-start gap-2 font-normal"
+                          >
+                            <ListPlus className="h-4 w-4" />
+                            <span className="text-sm">Add to queue</span>
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="menu"
+                            />
+                          </Button>
+                        )}
+                      </AnnotationQueueItemDropdownMenuController>
                     </>
                   )}
                   {observationWithIO &&
@@ -339,12 +361,28 @@ export const ObservationDetailViewHeader = memo(
                       size="sm"
                     />
                   )}
-                  <CreateNewAnnotationQueueItem
+                  <AnnotationQueueItemDropdownMenuController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
-                    size="sm"
-                  />
+                  >
+                    {({ disabled, totalCount }) => (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={disabled !== undefined}
+                        className="rounded-l-none rounded-r-md border-l-2"
+                      >
+                        <span className="relative mr-1 text-xs">
+                          <ChevronDown className="h-3 w-3" />
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="toolbar"
+                          />
+                        </span>
+                      </Button>
+                    )}
+                  </AnnotationQueueItemDropdownMenuController>
                 </div>
               )}
               {observationWithIO &&
@@ -375,12 +413,8 @@ export const ObservationDetailViewHeader = memo(
 
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-sm"
-            />
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
           </div>
 
           {/* Other badges */}
@@ -409,6 +443,24 @@ export const ObservationDetailViewHeader = memo(
                 }
                 costDetails={
                   subtreeMetrics?.costDetails ?? observation.costDetails
+                }
+                priceSource={
+                  isGenerationLike(observation.type) &&
+                  observation.internalModelId &&
+                  observation.model &&
+                  observation.usagePricingTierId &&
+                  observation.usagePricingTierName &&
+                  Object.keys(observation.providedCostDetails).length === 0 &&
+                  (!subtreeMetrics ||
+                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
+                    ? {
+                        projectId,
+                        modelId: observation.internalModelId,
+                        modelName: observation.model,
+                        pricingTierId: observation.usagePricingTierId,
+                        pricingTierName: observation.usagePricingTierName,
+                      }
+                    : undefined
                 }
               />
               {subtreeMetrics ? (

@@ -33,6 +33,7 @@ import {
   ActionId,
   BatchActionType,
   BatchExportTableName,
+  type BulkDatasetItemValidationError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -95,7 +96,6 @@ import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
@@ -2174,11 +2174,47 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      const existingHeaders = parseStoredRemoteExperimentHeaders(
+        dataset.remoteExperimentRequestHeaders,
+      );
+      const submittedHeadersByLowerKey = input.requestHeaders
+        ? Object.fromEntries(
+            Object.entries(input.requestHeaders).map(([key, value]) => [
+              key.trim().toLowerCase(),
+              value,
+            ]),
+          )
+        : undefined;
+      const reusesSecretHeader = Object.entries(existingHeaders).some(
+        ([key, existingHeader]) => {
+          if (!existingHeader.secret) {
+            return false;
+          }
+
+          // Omitting requestHeaders preserves every existing header.
+          if (input.requestHeaders === undefined) {
+            return true;
+          }
+
+          const normalizedKey = key.trim().toLowerCase();
+          const submittedHeader = submittedHeadersByLowerKey?.[normalizedKey];
+
+          // An empty submitted value preserves the existing secret.
+          return submittedHeader?.value.trim() === "";
+        },
+      );
+
+      if (input.url !== dataset.remoteExperimentUrl && reusesSecretHeader) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Secret headers must be re-entered when changing the remote experiment URL",
+        });
+      }
+
       const { requestHeaders, displayHeaders } = processRemoteExperimentHeaders(
         input.requestHeaders,
-        parseStoredRemoteExperimentHeaders(
-          dataset.remoteExperimentRequestHeaders,
-        ),
+        existingHeaders,
       );
 
       const signingSecret =
