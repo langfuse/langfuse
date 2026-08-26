@@ -374,6 +374,9 @@ importers:
       jsonpath-plus:
         specifier: 10.3.0
         version: 10.3.0
+      kysely:
+        specifier: 0.28.17
+        version: 0.28.17
       langfuse:
         specifier: 3.38.4
         version: 3.38.4
@@ -8640,6 +8643,10 @@ packages:
 
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
+
+  kysely@0.28.17:
+    resolution: {integrity: sha512-nbD8lB9EB3wNdMhOCdx5Li8DxnLbvKByylRLcJ1h+4SkrowVeECAyZlyiKMThF7xFdRz0jSQ2MoJr+wXux2y0Q==}
+    engines: {node: '>=20.0.0'}
 
   langfuse-core@3.38.20:
     resolution: {integrity: sha512-zBKVmQN/1oT5VWZUBYlWzvokIlkC/6mnpgr/2atMyTeAm+jR3ia7w2iJMjlrF5/oG8ukO1s8+LDRCzJpF1QeEA==}
@@ -19559,6 +19566,8 @@ snapshots:
       zod: 4.3.6
 
   kuler@2.0.0: {}
+
+  kysely@0.28.17: {}
 
   langfuse-core@3.38.20:
     dependencies:
