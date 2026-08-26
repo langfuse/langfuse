@@ -474,7 +474,9 @@ export const PromptDetail = ({
                       <span>Add comment</span>
                       {getNumberFromMap(commentCounts, prompt.id) ? (
                         <ActionButtonCountBadge
-                          count={getNumberFromMap(commentCounts, prompt.id)}
+                          count={
+                            getNumberFromMap(commentCounts, prompt.id) ?? 0
+                          }
                         />
                       ) : null}
                     </Button>

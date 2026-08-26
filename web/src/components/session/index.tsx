@@ -571,10 +571,12 @@ export const SessionPage: React.FC<{
                     <span>Add comment</span>
                     {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
-                        count={getNumberFromMap(
-                          sessionCommentCounts.data,
-                          sessionId,
-                        )}
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          ) ?? 0
+                        }
                       />
                     ) : null}
                   </Button>
@@ -650,10 +652,12 @@ export const SessionPage: React.FC<{
                     <span className="text-sm">Add comment</span>
                     {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
-                        count={getNumberFromMap(
-                          sessionCommentCounts.data,
-                          sessionId,
-                        )}
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          ) ?? 0
+                        }
                       />
                     ) : null}
                   </Button>
@@ -1501,10 +1505,12 @@ const LoadedSessionEventsPage: React.FC<{
                     <span>Add comment</span>
                     {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
-                        count={getNumberFromMap(
-                          sessionCommentCounts.data,
-                          sessionId,
-                        )}
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          ) ?? 0
+                        }
                       />
                     ) : null}
                   </Button>
@@ -1603,10 +1609,12 @@ const LoadedSessionEventsPage: React.FC<{
                     <span className="text-sm">Add comment</span>
                     {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                       <ActionButtonCountBadge
-                        count={getNumberFromMap(
-                          sessionCommentCounts.data,
-                          sessionId,
-                        )}
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          ) ?? 0
+                        }
                       />
                     ) : null}
                   </Button>

@@ -155,10 +155,12 @@ export const SessionAnnotationProcessor: React.FC<
                 <span>Add comment</span>
                 {getNumberFromMap(sessionCommentCounts.data, item.objectId) ? (
                   <ActionButtonCountBadge
-                    count={getNumberFromMap(
-                      sessionCommentCounts.data,
-                      item.objectId,
-                    )}
+                    count={
+                      getNumberFromMap(
+                        sessionCommentCounts.data,
+                        item.objectId,
+                      ) ?? 0
+                    }
                   />
                 ) : null}
               </Button>
