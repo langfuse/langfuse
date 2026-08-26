@@ -1,7 +1,7 @@
-import { claimed, dropped, unmatched } from "../conventions";
-import { asRecord, compact } from "../json";
-import { toolCallPart, toolResultPart } from "../core/normalizers";
-import type { FinishReason, NormalizedMessage, ToolResultPart } from "../types";
+import { claimed, dropped, unmatched } from "../../conventions";
+import { asRecord, compact } from "../../json";
+import { toolCallPart, toolResultPart } from "../../core/normalizers";
+import type { FinishReason, NormalizedMessage, ToolResultPart } from "../../types";
 import type {
   ConventionResult,
   IOConvention,
@@ -9,7 +9,7 @@ import type {
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * OTel GenAI event-stream convention (the semconv vocabulary also emitted by

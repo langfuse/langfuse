@@ -4,24 +4,15 @@ import { describe, expect, it } from "vitest";
 
 import { registeredProviders } from "./index";
 
-// Files in conventions/ that are not provider modules.
-const NON_PROVIDER_FILES = new Set([
-  "IOConvention.ts",
-  "index.ts",
-  "providers.ts",
-  "registry.test.ts",
-]);
-
 describe("provider convention registry", () => {
-  it("registers every provider module in conventions/", () => {
+  it("registers every provider directory in conventions/", () => {
     // Registration is one export line in providers.ts — this catches the
-    // forgotten line when a new provider file is added.
-    const providerFiles = readdirSync(__dirname)
-      .filter((file) => file.endsWith(".ts"))
-      .filter((file) => !NON_PROVIDER_FILES.has(file))
-      .filter((file) => !file.endsWith(".fixtures.ts"));
+    // forgotten line when a new provider directory is added.
+    const providerDirectories = readdirSync(__dirname, {
+      withFileTypes: true,
+    }).filter((entry) => entry.isDirectory());
 
-    expect(registeredProviders).toHaveLength(providerFiles.length);
+    expect(registeredProviders).toHaveLength(providerDirectories.length);
   });
 
   it("uses unique provider names", () => {

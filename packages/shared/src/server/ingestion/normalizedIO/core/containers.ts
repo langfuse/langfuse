@@ -236,8 +236,6 @@ export function collectMessages(
       });
     }
 
-    // Monolith parity: a system-only source does not suppress record
-    // normalization, while every other discovered root container does.
     if (sources.some((rootSource) => rootSource.forceRole !== "system")) {
       collectedNestedMessages = true;
     }
@@ -248,8 +246,6 @@ export function collectMessages(
     collectedNestedMessages = true;
   }
 
-  // Unattributed residual: no convention currently owns this carrier
-  // (Google ADK-shaped instrumentation).
   const newMessage = asRecord(record.new_message);
   if (kind === "input" && newMessage) {
     const message = normalizeMessage(newMessage, "user", kind);

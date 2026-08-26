@@ -1,5 +1,5 @@
-import { claimed, unmatched } from "../conventions";
-import type { ConventionResult, IOConvention } from "./IOConvention";
+import { claimed, unmatched } from "../../conventions";
+import type { ConventionResult, IOConvention } from "../IOConvention";
 
 /**
  * Agno logs messages as Python reprs:

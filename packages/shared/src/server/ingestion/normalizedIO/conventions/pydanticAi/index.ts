@@ -1,14 +1,14 @@
-import { claimed, unmatched } from "../conventions";
-import { parseRecord } from "../json";
+import { claimed, unmatched } from "../../conventions";
+import { parseRecord } from "../../json";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-} from "../core/normalizers";
+} from "../../core/normalizers";
 import type {
   IOConvention,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * Pydantic AI convention. Currently tool-definition discovery only: Pydantic

@@ -1,17 +1,17 @@
-import { claimed, unmatched } from "../conventions";
-import { asRecord, compact, optionalString, parseArray } from "../json";
-import { toolCallPart } from "../core/normalizers";
+import { claimed, unmatched } from "../../conventions";
+import { asRecord, compact, optionalString, parseArray } from "../../json";
+import { toolCallPart } from "../../core/normalizers";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
   ToolCallPart,
-} from "../types";
+} from "../../types";
 import type {
   ConventionResult,
   IOConvention,
   MessageEnvelopeContext,
   PartHandlerContext,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * LangChain / LangGraph convention: this module owns the `lc`/`kwargs`

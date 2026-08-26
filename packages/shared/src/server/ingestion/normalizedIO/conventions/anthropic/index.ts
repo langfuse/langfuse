@@ -1,12 +1,12 @@
-import { claimed, dropped, unmatched } from "../conventions";
+import { claimed, dropped, unmatched } from "../../conventions";
 import {
   asRecord,
   compact,
   optionalString,
   toJsonValue,
   toProviderMetadata,
-} from "../json";
-import { filePartFromUrl, type UrlFilePartOptions } from "../core/media";
+} from "../../json";
+import { filePartFromUrl, type UrlFilePartOptions } from "../../core/media";
 import {
   providerExecutedToolCall,
   reasoningPart,
@@ -14,13 +14,13 @@ import {
   toolDefinition,
   toolDefinitionProviderMetadata,
   toolResultPart,
-} from "../core/normalizers";
-import type { FilePart, FinishReason } from "../types";
+} from "../../core/normalizers";
+import type { FilePart, FinishReason } from "../../types";
 import type {
   IOConvention,
   PartHandler,
   RootMessageSource,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * Anthropic Messages API convention: this module owns Anthropic's typed

@@ -1,4 +1,4 @@
-import { claimed, unmatched } from "../conventions";
+import { claimed, unmatched } from "../../conventions";
 import {
   asRecord,
   compact,
@@ -8,12 +8,12 @@ import {
   parseArray,
   toJsonValue,
   toProviderMetadata,
-} from "../json";
+} from "../../json";
 import {
   filePartFromMediaReference,
   filePartFromUrl,
   parseMediaReference,
-} from "../core/media";
+} from "../../core/media";
 import {
   providerExecutedToolCall,
   reasoningPart,
@@ -21,14 +21,14 @@ import {
   toolDefinition,
   toolDefinitionProviderMetadata,
   toolResultPart,
-} from "../core/normalizers";
+} from "../../core/normalizers";
 import type {
   FilePart,
   FinishReason,
   NormalizedMessage,
   NormalizedMessagePart,
   ToolCallPart,
-} from "../types";
+} from "../../types";
 import type {
   ConventionResult,
   IOConvention,
@@ -36,7 +36,7 @@ import type {
   PartHandler,
   RootMessageSource,
   SiblingPartContribution,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * OpenAI convention: Chat Completions and Responses API shapes. This module

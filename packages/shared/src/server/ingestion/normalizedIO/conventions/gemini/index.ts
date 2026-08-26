@@ -1,27 +1,27 @@
-import { claimed, unmatched } from "../conventions";
+import { claimed, unmatched } from "../../conventions";
 import {
   asRecord,
   compact,
   optionalString,
   parseArray,
   toJsonValue,
-} from "../json";
+} from "../../json";
 import {
   filePartFromMediaReference,
   filePartFromUrl,
   parseMediaReference,
-} from "../core/media";
+} from "../../core/media";
 import {
   reasoningPart,
   toolCallPart,
   toolResultPart,
-} from "../core/normalizers";
+} from "../../core/normalizers";
 import type {
   FilePart,
   FinishReason,
   NormalizedMessagePart,
   ToolResultPart,
-} from "../types";
+} from "../../types";
 import type {
   ConventionResult,
   IOConvention,
@@ -29,7 +29,7 @@ import type {
   RootMessageSource,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * Gemini / Vertex convention. Gemini parts are keyed unions without a `type`

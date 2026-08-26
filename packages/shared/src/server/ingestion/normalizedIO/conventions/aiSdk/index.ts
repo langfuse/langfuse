@@ -1,23 +1,23 @@
-import { claimed, unmatched } from "../conventions";
-import { asRecord, compact, optionalString, toJsonValue } from "../json";
+import { claimed, unmatched } from "../../conventions";
+import { asRecord, compact, optionalString, toJsonValue } from "../../json";
 import {
   filePartFromMediaReference,
   mediaTypeFromDataUri,
   parseMediaReference,
-} from "../core/media";
+} from "../../core/media";
 import {
   toolCallPart,
   toolDefinition,
   toolDefinitionProviderMetadata,
   toolResultPart,
-} from "../core/normalizers";
-import type { FilePart, FinishReason } from "../types";
+} from "../../core/normalizers";
+import type { FilePart, FinishReason } from "../../types";
 import type {
   IOConvention,
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "./IOConvention";
+} from "../IOConvention";
 
 /**
  * Vercel AI SDK convention: this module owns AI SDK's typed part vocabulary

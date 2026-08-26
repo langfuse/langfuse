@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "./types";
+import type { NormalizedIOFixture } from "../../fixtureTypes";
 
 export const outputOnlyPlainTextFixture = {
   name: "preserves output-only plain text",
