@@ -43,7 +43,7 @@ export const ConfirmsTransfer = meta.story({
     const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(canvas.getByRole("combobox"));
-    await userEvent.click(await body.findByRole("option", { name: "Example" }));
+    await userEvent.click(await body.findByText("Example"));
     await userEvent.type(
       body.getByRole("textbox", { name: "Confirm" }),
       "acme/support-assistant",
