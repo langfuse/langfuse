@@ -92,8 +92,16 @@ export class ChbBillingService {
     const scheduled = bundle.scheduled;
     if (!scheduled) return { cancellation: null, scheduledChange: null };
 
-    // "immediate" changes never linger as pending state worth rendering;
-    // date resolution: explicit startDate wins, else the period end.
+    // An "immediate" change has already been applied, so there is no pending
+    // state to render. Checked explicitly rather than relying on the date
+    // fallback below: an immediate change echoed back on a bundle that still
+    // carries an active period would otherwise resolve to the period end and
+    // render as "switches at end of cycle".
+    if (scheduled.when === "immediate") {
+      return { cancellation: null, scheduledChange: null };
+    }
+
+    // Date resolution: explicit startDate wins, else the period end.
     const switchAt =
       this.toUnixSeconds(scheduled.startDate) ??
       this.toUnixSeconds(bundle.period?.endDate);

@@ -222,6 +222,25 @@ describe("chbBillingService", () => {
       expect(info.cancellation).toBeNull();
       expect(info.scheduledChange).toBeNull();
     });
+
+    it("renders no pending state for an immediate change on an active period", async () => {
+      withOrg(chbConfig());
+      clientMock.getBundle.mockResolvedValue({
+        id: BUNDLE_ID,
+        // An immediate cancellation echoed back while the period is still
+        // populated: the date fallback would date it at the cycle end and
+        // render a change that has already applied as pending.
+        period: {
+          startDate: "2026-08-01T00:00:00Z",
+          endDate: "2026-09-01T00:00:00Z",
+        },
+        scheduled: { type: "cancel", when: "immediate" },
+      });
+
+      const info = await service().getSubscriptionInfo(ORG_ID);
+      expect(info.cancellation).toBeNull();
+      expect(info.scheduledChange).toBeNull();
+    });
   });
 
   describe("createCheckoutSession", () => {
