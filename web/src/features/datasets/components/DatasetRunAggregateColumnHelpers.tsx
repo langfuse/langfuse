@@ -11,7 +11,6 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreColumn } from "@/src/features/scores/types";
 import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
 import { useRouter } from "next/router";
-import { cn } from "@/src/utils/tailwind";
 
 function DatasetAggregateCellWithBaselineDetection({
   value,
@@ -97,10 +96,9 @@ function BaselineToggle({ runId }: { runId: string }) {
 
   return (
     <Toggle
-      className={cn(
-        "text-muted-foreground/50 hover:bg-background hover:text-primary-accent p-1 data-[state=on]:bg-transparent data-[state=on]:text-current",
-        isBaseline && "text-primary-accent",
-      )}
+      variant="ghost"
+      size="compact"
+      pressed={isBaseline}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
