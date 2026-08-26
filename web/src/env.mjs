@@ -267,6 +267,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
+    AUTH_CUSTOM_FETCH_USERINFO: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -839,6 +843,7 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_CUSTOM_FETCH_USERINFO: process.env.AUTH_CUSTOM_FETCH_USERINFO,
     AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
     AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING:

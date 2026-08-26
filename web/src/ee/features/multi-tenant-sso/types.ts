@@ -225,6 +225,11 @@ export const CustomProviderSchema = base.extend({
       issuer: oidcIssuer,
       scope: z.string().nullish(),
       idToken: z.boolean().optional().default(true),
+      // Read the profile from the userinfo endpoint for IdPs that keep
+      // email/name out of the ID token. Not surfaced in the self-service form,
+      // so left without a default: a default would materialize on every form
+      // save and clobber a value set through the support endpoint.
+      fetchUserInfo: z.boolean().optional(),
       allowDangerousEmailAccountLinking: z.boolean().optional().default(false),
       tokenEndpointAuthMethod: tokenEndpointAuthMethod,
       idTokenSignedResponseAlg: idTokenSignedResponseAlg,

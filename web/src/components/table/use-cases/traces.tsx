@@ -7,6 +7,7 @@ import {
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -1129,54 +1130,36 @@ export default function TracesTable({
         return traceMetrics.isPending ? <TableTextLoadingCell /> : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createNumberTableColumn<TracesTableRow>({
+          accessorFn: (row) => row.cost?.inputCost?.toNumber(),
           id: "inputCost",
           header: "Input Cost",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const cost: TracesTableRow["cost"] = row.getValue("cost");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return (
-              <div>
-                {cost?.inputCost ? (
-                  <span>{usdFormatter(cost.inputCost.toNumber())}</span>
-                ) : (
-                  <span>-</span>
-                )}
-              </div>
-            );
+          emptyValue: "-",
+          formatter: usdFormatter,
+          getValue: (value, { row }) => {
+            if (isMetricPending(row.original.id)) return { type: "loading" };
+            return value ?? undefined;
           },
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<TracesTableRow>({
+          accessorFn: (row) => row.cost?.outputCost?.toNumber(),
           id: "outputCost",
           header: "Output Cost",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const cost: TracesTableRow["cost"] = row.getValue("cost");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return (
-              <div>
-                {cost?.outputCost ? (
-                  <span>{usdFormatter(cost.outputCost.toNumber())}</span>
-                ) : (
-                  <span>-</span>
-                )}
-              </div>
-            );
+          emptyValue: "-",
+          formatter: usdFormatter,
+          getValue: (value, { row }) => {
+            if (isMetricPending(row.original.id)) return { type: "loading" };
+            return value ?? undefined;
           },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<TracesTableRow>[],
     },
     {
