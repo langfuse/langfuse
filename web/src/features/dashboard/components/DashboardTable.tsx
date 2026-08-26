@@ -8,15 +8,15 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import TableLink from "@/src/components/table/table-link";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Copy, Edit } from "lucide-react";
+import { Copy, Edit, MoreVertical, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +26,6 @@ import {
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
-import { User as UserIcon } from "lucide-react";
 import { useRouter } from "next/router";
 
 type DashboardTableRow = {
@@ -227,13 +226,10 @@ export function DashboardTable() {
         ) : undefined;
       },
     }),
-    columnHelper.accessor("description", {
+    createTextTableColumn<DashboardTableRow>({
+      accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
-      cell: (row) => {
-        return row.getValue();
-      },
     }),
     columnHelper.display({
       id: "ownerTag",
@@ -254,25 +250,17 @@ export function DashboardTable() {
         );
       },
     }),
-    columnHelper.accessor("createdAt", {
+    createDateTableColumn<DashboardTableRow>({
+      accessorKey: "createdAt",
       header: "Created At",
-      id: "createdAt",
       enableSorting: true,
       size: 150,
-      cell: (row) => {
-        const createdAt = row.getValue();
-        return <LocalIsoDate date={createdAt} />;
-      },
     }),
-    columnHelper.accessor("updatedAt", {
+    createDateTableColumn<DashboardTableRow>({
+      accessorKey: "updatedAt",
       header: "Updated At",
-      id: "updatedAt",
       enableSorting: true,
       size: 150,
-      cell: (row) => {
-        const updatedAt = row.getValue();
-        return <LocalIsoDate date={updatedAt} />;
-      },
     }),
     columnHelper.display({
       id: "actions",

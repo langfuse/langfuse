@@ -3,6 +3,7 @@ import {
   ChatMessageRole,
   ChatMessageType,
   compileChatMessages,
+  compileTemplateString,
   extractPlaceholderNames,
   extractVariables,
   hasPromptToolStructuredOutputConflict,
@@ -13,7 +14,6 @@ import {
   PromptType,
   stringifyValue,
 } from "@langfuse/shared";
-import { compileTemplateString } from "../utils/utilities";
 import {
   logger,
   parsePromptToolConfig,

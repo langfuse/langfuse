@@ -9,8 +9,8 @@ import {
   type ChatMessage,
   type Prompt,
   PromptType,
+  parsePromptDependencyTags,
 } from "@langfuse/shared";
-import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";

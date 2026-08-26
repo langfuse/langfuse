@@ -29,6 +29,10 @@ import {
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
+import {
+  getInAppAgentModelConfig,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -45,6 +49,8 @@ import {
   recordParseOutcomeScores,
 } from "./parseOutcomeScoring";
 import { getProductBaseUrl } from "@/src/utils/base-url";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -55,6 +61,7 @@ const scoreNameList = z
 const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
+  registryId: z.enum(["events", "evaluationRules"]).default("events"),
   /** Existing bar query text, so the model refines the current filters. */
   currentQuery: z.string().max(4096).optional(),
   /** Project data context (observed values, metadata keys, result count) built
@@ -80,6 +87,10 @@ export const searchBarRouter = createTRPCRouter({
     .input(GenerateFilterInput)
     .mutation(async ({ input, ctx }) => {
       try {
+        const registry =
+          input.registryId === "evaluationRules"
+            ? RULE_FIELD_REGISTRY
+            : EVENTS_FIELD_REGISTRY;
         // Generating a filter reads nothing a project member cannot already
         // read by hand, so membership is the right bar; whether the org uses
         // AI at all is governed by `aiFeaturesEnabled` below.
@@ -112,17 +123,16 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        const model =
-          env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ??
-          env.LANGFUSE_AWS_BEDROCK_MODEL;
+        const modelConfig = getInAppAgentModelConfig();
 
-        if (!model) {
+        if (!modelConfig) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+            message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
           });
         }
+
+        const model = modelConfig.titleModelId;
 
         // Anchor relative time expressions ("today", "last 24h") to now.
         const now = new Date();
@@ -161,6 +171,7 @@ export const searchBarRouter = createTRPCRouter({
             aiFeaturesPublicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
             aiFeaturesSecretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
             aiFeaturesHost: env.LANGFUSE_AI_FEATURES_HOST,
+            registry,
           });
 
         // The current query being refined and the observed project data are
@@ -242,7 +253,7 @@ export const searchBarRouter = createTRPCRouter({
         // dropped and reported) so a misspelled score name can never apply as a
         // dead filter that silently matches nothing.
         const { filters, queryText, droppedCount, unknownScoreNames } =
-          parseGeneratedFilters(llmCompletion, input.scoreNames);
+          parseGeneratedFilters(llmCompletion, input.scoreNames, registry);
 
         if (droppedCount > 0) {
           logger.warn(
