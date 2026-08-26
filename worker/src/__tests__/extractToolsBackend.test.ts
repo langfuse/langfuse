@@ -4,8 +4,6 @@ import {
   normalizeToolsForObservation,
   convertDefinitionsToMap,
   convertCallsToArrays,
-  normalizeIO,
-  toToolColumns,
 } from "@langfuse/shared/src/server";
 
 describe("extractToolsFromObservation", () => {
@@ -946,42 +944,6 @@ describe("extractToolsFromObservation", () => {
   });
 
   describe("real world data tests", () => {
-    // TODO(normalized-io rollout): unskip when the normalized-IO parser
-    // replaces the legacy extraction.
-    it.skip("extracts GenAI parts[] tool_call containers", () => {
-      const output = [
-        {
-          role: "assistant",
-          parts: [
-            { type: "reasoning", content: "Looking into the docs." },
-            {
-              type: "tool_call",
-              id: "call_CQBg5lwXHRCSONvKr6OT9znL",
-              name: "searchLangfuseDocs",
-              arguments: { query: "Langfuse minimal tracing example" },
-            },
-          ],
-          finish_reason: "tool_call",
-        },
-      ];
-
-      // The documented legacy bug: no calls extracted.
-      const legacy = extractToolsFromObservation([], output);
-      expect(legacy.toolArguments).toHaveLength(0);
-
-      // The normalized-IO parser extracts the call.
-      const columns = toToolColumns(
-        normalizeIO({
-          kind: "io",
-          io: { input: [], output, metadata: undefined },
-        }),
-      );
-      expect(columns.tool_call_names).toEqual(["searchLangfuseDocs"]);
-      expect(JSON.parse(columns.tool_calls[0]).id).toBe(
-        "call_CQBg5lwXHRCSONvKr6OT9znL",
-      );
-    });
-
     it("should extract LangGraph tool definitions and tool calls and parse them correctly", () => {
       // Exact format from user's observation that wasn't being extracted
       const input = [
