@@ -1,5 +1,5 @@
 import { claimed, unmatched } from "../..";
-import { parseRecord } from "../../../utils/json";
+import { parseRecord } from "../../../core/utils/json";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,

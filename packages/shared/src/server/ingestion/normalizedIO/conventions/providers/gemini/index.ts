@@ -5,7 +5,7 @@ import {
   optionalString,
   parseArray,
   toJsonValue,
-} from "../../../utils/json";
+} from "../../../core/utils/json";
 import {
   filePartFromMediaReference,
   filePartFromUrl,

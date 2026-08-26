@@ -4,7 +4,7 @@ import {
   compact,
   optionalString,
   toJsonValue,
-} from "../../../utils/json";
+} from "../../../core/utils/json";
 import {
   filePartFromMediaReference,
   mediaTypeFromDataUri,

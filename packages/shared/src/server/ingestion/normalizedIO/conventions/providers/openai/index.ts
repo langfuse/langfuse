@@ -8,7 +8,7 @@ import {
   parseArray,
   toJsonValue,
   toProviderMetadata,
-} from "../../../utils/json";
+} from "../../../core/utils/json";
 import {
   filePartFromMediaReference,
   filePartFromUrl,

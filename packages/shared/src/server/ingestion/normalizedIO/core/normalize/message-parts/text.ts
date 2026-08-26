@@ -1,6 +1,6 @@
 import { registeredProviders } from "../../../conventions";
 import type { JsonValue, NormalizedMessagePart } from "../../../types";
-import { optionalString, parseArray, toJsonValue } from "../../../utils/json";
+import { optionalString, parseArray, toJsonValue } from "../../utils/json";
 import { reasoningPart } from "./reasoning";
 
 /** Citation carriers are provider vocabulary (`citationKeys`); the first

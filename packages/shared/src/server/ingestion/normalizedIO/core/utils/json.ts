@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "../types";
+import type { JsonObject, JsonValue } from "../../types";
 
 /**
  * Generic JSON/string utilities shared by the parser and the convention

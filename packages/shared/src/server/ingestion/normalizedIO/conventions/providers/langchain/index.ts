@@ -4,7 +4,7 @@ import {
   compact,
   optionalString,
   parseArray,
-} from "../../../utils/json";
+} from "../../../core/utils/json";
 import { toolCallPart } from "../../../core/normalize/message-parts/toolCalls";
 import type {
   NormalizedMessage,

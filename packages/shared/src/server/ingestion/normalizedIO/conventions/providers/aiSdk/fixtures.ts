@@ -1,6 +1,6 @@
 import type { SpanIO, ToolDefinition } from "../../../types";
 
-import type { NormalizedIOFixture } from "../../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixtureTypes";
 
 const inputToolCallId = "call_5iGKBMczvh1pevPChrZNGSFB";
 const outputToolCallId = "toolu_01XXtujJ3DBaYEZGzn96xpGt";

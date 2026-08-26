@@ -5,7 +5,7 @@ import {
   toJsonValue,
   nullableString,
   toProviderMetadata,
-} from "../../../utils/json";
+} from "../../utils/json";
 
 /**
  * Canonical tool-part constructors. Callers extract their own dialect's

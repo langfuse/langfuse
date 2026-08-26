@@ -5,7 +5,7 @@ import {
   optionalString,
   toJsonValue,
   toProviderMetadata,
-} from "../../../utils/json";
+} from "../../../core/utils/json";
 import {
   filePartFromUrl,
   type UrlFilePartOptions,

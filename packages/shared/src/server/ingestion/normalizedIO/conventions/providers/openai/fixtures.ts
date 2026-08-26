@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixtureTypes";
 
 const toolCallId = "call_weather_001";
 const customToolCallId = "call_custom_002";

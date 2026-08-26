@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeIO } from "../../parser";
+import { normalizeIO } from "../../../parser";
 import { semanticKernelEventContentFixture } from "./fixtures";
 
 describe("Semantic Kernel normalized I/O", () => {

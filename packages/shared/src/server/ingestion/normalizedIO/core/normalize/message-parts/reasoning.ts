@@ -1,5 +1,5 @@
 import type { NormalizedMessagePart, ReasoningPart } from "../../../types";
-import { compact, toJsonValue } from "../../../utils/json";
+import { compact, toJsonValue } from "../../utils/json";
 
 /** String payloads become visible reasoning text; everything else is data. */
 export function reasoningPart(

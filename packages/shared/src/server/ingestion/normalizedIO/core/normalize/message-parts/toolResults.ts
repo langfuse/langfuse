@@ -6,7 +6,7 @@ import {
   nullableString,
   toJsonValue,
   parseIfString,
-} from "../../../utils/json";
+} from "../../utils/json";
 
 // {type, value} output wrappers originate in the AI SDK but echo through
 // loose conversions of every dialect, so unwrapping them is canonical

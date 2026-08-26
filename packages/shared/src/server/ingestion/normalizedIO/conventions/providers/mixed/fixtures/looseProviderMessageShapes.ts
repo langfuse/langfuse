@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../../fixtureTypes";
+import type { NormalizedIOFixture } from "../../fixtureTypes";
 
 /**
  * Loosely structured shapes surfaced by the ChatML-corpus cross-check:

@@ -1,5 +1,5 @@
 import { claimed, dropped, unmatched } from "../..";
-import { asRecord, compact } from "../../../utils/json";
+import { asRecord, compact } from "../../../core/utils/json";
 import { toolCallPart } from "../../../core/normalize/message-parts/toolCalls";
 import { toolResultPart } from "../../../core/normalize/message-parts/toolResults";
 import type {

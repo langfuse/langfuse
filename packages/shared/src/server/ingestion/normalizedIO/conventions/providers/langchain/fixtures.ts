@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixtureTypes";
 
 /**
  * LangChain serialization envelope: instrumentation that dumps LangChain
