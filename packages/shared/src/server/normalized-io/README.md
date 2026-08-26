@@ -180,9 +180,6 @@ or the fixture documents it.
 
 - LangChain `tool_call_chunks` (streaming deltas, redundant with parsed
   `tool_calls` on final messages).
-- Response-envelope metadata (Gemini `usageMetadata`/`modelVersion`, OpenAI
-  Responses envelope `status`) — usage and model info have their own
-  pipeline columns; the raw envelope survives in `span`.
 - Anthropic text/structured-content documents become
   `custom {kind: "document"}` — semantic content, not resolvable files.
 
