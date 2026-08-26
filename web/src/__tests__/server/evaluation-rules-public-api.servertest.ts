@@ -14,6 +14,7 @@ import { EvaluatorService, RuleService } from "@/src/features/evals/server";
 import {
   DeleteEvaluationRuleResponse,
   EvaluationRule,
+  Evaluator,
   ListEvaluationRulesResponse,
   PublicApiError,
 } from "@/src/features/public-api";
@@ -310,6 +311,44 @@ describe("stable evaluation rules public API", () => {
       auth,
     );
     expect(missing.status).toBe(404);
+  });
+
+  it("rejects an LLM evaluator assignment when no variable mapping is configured", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const evaluator = await makeZodVerifiedAPICall(
+      Evaluator,
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "LLM evaluator without default mapping",
+        type: "llm_as_judge",
+        prompt: [{ role: "user", content: "Judge {{input}}" }],
+        outputDefinition: {
+          dataType: "NUMERIC",
+          minValue: 0,
+          maxValue: 1,
+        },
+      },
+      auth,
+      201,
+    );
+
+    const rule = await makeAPICall(
+      "POST",
+      "/api/public/v2/evaluation-rules",
+      {
+        name: "Rule without variable mapping",
+        enabled: false,
+        evaluatorAssignments: [{ evaluatorId: evaluator.body.id }],
+      },
+      auth,
+    );
+
+    expect(rule.status).toBe(400);
+    expect(PublicApiError.parse(rule.body)).toMatchObject({
+      code: "invalid_request",
+      message: "Missing mappings for evaluator variables: input",
+    });
   });
 
   it("lists evaluation rules", async () => {
