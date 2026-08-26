@@ -1041,12 +1041,6 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(listObservationsTool, { readOnlyHint: true });
     });
 
-    it("should tell clients to filter traces lists to root observations", () => {
-      expect(listObservationsTool.description).toContain(
-        "set isRootObservation to true so results match the Traces page",
-      );
-    });
-
     it("should be available to in-app agent keys", async () => {
       const context = mockServerContext({
         inAppAgent: { permissions: "read" },
@@ -1813,12 +1807,6 @@ describe("MCP Read Tools", () => {
 
     it("should have readOnlyHint annotation", () => {
       verifyToolAnnotations(queryMetricsTool, { readOnlyHint: true });
-    });
-
-    it("should tell clients to count traces as root observations", () => {
-      expect(queryMetricsTool.description).toContain(
-        "observations view with isRootObservation = true",
-      );
     });
 
     it("should expose object-shaped metrics query input in the tool schema", () => {

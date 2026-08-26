@@ -139,7 +139,7 @@ const MetricsQueryObjectV2BaseSchema = z.object({
 export const [queryMetricsTool, handleQueryMetrics] = defineTool({
   name: "queryMetrics",
   description:
-    "Answer analytics questions about the current Langfuse project, such as usage over time, model costs, latency, errors, scores, or grouped breakdowns by environment, trace, observation, model, user, session, tag, or score name. When aggregating what users call traces, use the observations view with isRootObservation = true; unfiltered observation counts include every span.",
+    "Answer analytics questions about the current Langfuse project, such as usage over time, model costs, latency, errors, scores, or grouped breakdowns by environment, trace, observation, model, user, session, tag, or score name.",
   baseSchema: MetricsQueryObjectV2BaseSchema,
   inputSchema: MetricsQueryObjectV2,
   handler: async (input, context) => {

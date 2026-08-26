@@ -1,9 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
-import {
-  formatV4TraceTerminology,
-  IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE,
-} from "@langfuse/shared/in-app-agent/server/systemPrompt";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
 import { Agent } from "@mastra/core/agent";
 import type {
   ProcessInputStepArgs,
@@ -328,9 +325,6 @@ export async function createAgUiStream(params: {
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
         (environment) => `"${environment}"`,
       ).join(", "),
-      v4TraceTerminology: formatV4TraceTerminology(
-        params.options.redirectAction.isV4Enabled,
-      ),
     },
   });
   const instrumentation = createInAppAgentInstrumentation({
@@ -1541,17 +1535,13 @@ async function getSystemPromptInstructions(params: {
     screenContext: string;
     userContext: string;
     sidebarHiddenEnvironments: string;
-    v4TraceTerminology: string;
   };
 }): Promise<{ instructions: string; prompt: InAppAgentPromptMetadata }> {
   if (params.useLocalPrompt) {
     return {
-      instructions: withV4TraceTerminology(
-        compileLocalPrompt(
-          IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE,
-          params.variables,
-        ),
-        params.variables.v4TraceTerminology,
+      instructions: compileLocalPrompt(
+        IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE,
+        params.variables,
       ),
       prompt: {
         name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
@@ -1571,10 +1561,7 @@ async function getSystemPromptInstructions(params: {
   );
 
   return {
-    instructions: withV4TraceTerminology(
-      prompt.compile(params.variables),
-      params.variables.v4TraceTerminology,
-    ),
+    instructions: prompt.compile(params.variables),
     prompt: {
       name: prompt.name,
       version: prompt.version,
@@ -1589,19 +1576,6 @@ function compileLocalPrompt(
   return promptTemplate.replace(/{{\s*(\w+)\s*}}/g, (match, variable) => {
     return variables[variable] ?? match;
   });
-}
-
-// Managed prompts may lag this repo until `sync-prompt.sh` runs. Append the
-// v4 block when compile did not already substitute it.
-function withV4TraceTerminology(
-  instructions: string,
-  v4TraceTerminology: string,
-): string {
-  if (!v4TraceTerminology || instructions.includes("<v4_trace_terminology>")) {
-    return instructions;
-  }
-
-  return `${instructions.trimEnd()}\n\n${v4TraceTerminology}`;
 }
 
 function normalizeAdapterEvent(
