@@ -36,13 +36,13 @@
 
   <g font-family="'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="600" letter-spacing="0.01em" text-anchor="middle">
     <rect x="112" y="69" width="108" height="25" rx="6" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.16" stroke="hsl(243, 75.4%, 58.6%)" stroke-opacity="0.8"/>
-    <text x="166" y="86" fill="hsl(243, 75.4%, 45%)">level<tspan fill-opacity="0.5">:</tspan>ERROR</text>
+    <text x="166" y="86" fill="hsl(243, 75.4%, 45%)">tags<tspan fill-opacity="0.5">:</tspan>urgent</text>
 
     <rect x="230" y="69" width="86" height="25" rx="6" fill="hsl(210, 40%, 96.1%)" stroke="hsl(214.3, 31.8%, 82%)"/>
     <text x="273" y="86" fill="hsl(222.2, 47.4%, 11.2%)">env<tspan fill-opacity="0.5">:</tspan>prod</text>
 
     <rect x="326" y="69" width="100" height="25" rx="6" fill="hsl(210, 40%, 96.1%)" stroke="hsl(214.3, 31.8%, 82%)"/>
-    <text x="376" y="86" fill="hsl(222.2, 47.4%, 11.2%)">latency<tspan fill-opacity="0.5">&gt;</tspan>2s</text>
+    <text x="376" y="86" fill="hsl(222.2, 47.4%, 11.2%)">duration<tspan fill-opacity="0.5">&gt;</tspan>30</text>
 
     <rect x="436" y="69" width="86" height="25" rx="6" fill="hsl(210, 40%, 96.1%)" stroke="hsl(214.3, 31.8%, 82%)"/>
     <text x="479" y="86" fill="hsl(222.2, 47.4%, 11.2%)">score<tspan fill-opacity="0.5">&gt;</tspan>.8</text>
@@ -67,9 +67,9 @@
     <line x1="72" y1="168" x2="194" y2="168" stroke="hsl(214.3, 31.8%, 91.4%)"/>
 
     <circle cx="82" cy="194" r="4" fill="hsl(243, 75.4%, 58.6%)"/>
-    <text x="100" y="198" font-size="12" font-weight="500" fill="hsl(222.2, 47.4%, 11.2%)">level</text>
+    <text x="100" y="198" font-size="12" font-weight="500" fill="hsl(222.2, 47.4%, 11.2%)">tags</text>
     <polygon points="150,184 190,184 198,204 155,204" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.16" stroke="hsl(243, 75.4%, 58.6%)" stroke-opacity="0.68"/>
-    <text x="173" y="198" font-size="10" font-weight="600" letter-spacing="0.04em" text-anchor="middle" fill="hsl(243, 75.4%, 45%)">ERR</text>
+    <text x="173" y="198" font-size="10" font-weight="600" letter-spacing="0.04em" text-anchor="middle" fill="hsl(243, 75.4%, 45%)">VIP</text>
 
     <circle cx="82" cy="228" r="4" fill="hsl(215.4, 16.3%, 55%)"/>
     <text x="100" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">environment</text>
@@ -81,22 +81,22 @@
     <path d="M430 135 L406 250" stroke="hsl(214.3, 31.8%, 88%)" opacity="0.6"/>
     <path d="M550 135 L525 250" stroke="hsl(214.3, 31.8%, 88%)" opacity="0.6"/>
 
-    <text x="266" y="156" font-size="9.5" font-weight="600" letter-spacing="0.16em" fill="hsl(215.4, 16.3%, 46.9%)">MATCHED TRACE</text>
+    <text x="266" y="156" font-size="9.5" font-weight="600" letter-spacing="0.16em" fill="hsl(215.4, 16.3%, 46.9%)">MATCHED SESSION</text>
     <line x1="266" y1="168" x2="574" y2="168" stroke="hsl(214.3, 31.8%, 91.4%)"/>
 
     <path d="M262 180 H574 L566 208 H262 Z" fill="url(#rowGlow)" stroke="hsl(243, 75.4%, 58.6%)" stroke-opacity="0.7"/>
     <rect x="262" y="217" width="304" height="22" rx="5" fill="hsl(0, 0%, 100%)" stroke="hsl(214.3, 31.8%, 91.4%)"/>
 
     <circle cx="282" cy="194" r="4" fill="hsl(243, 75.4%, 58.6%)"/>
-    <text x="302" y="198" font-size="12" font-weight="500" fill="hsl(222.2, 84%, 4.9%)">checkout-flow</text>
-    <text x="434" y="198" font-size="12" font-weight="600" fill="hsl(243, 75.4%, 45%)">ERROR</text>
+    <text x="302" y="198" font-size="12" font-weight="500" fill="hsl(222.2, 84%, 4.9%)">checkout-0012</text>
+    <text x="434" y="198" font-size="12" font-weight="600" fill="hsl(243, 75.4%, 45%)">alice</text>
     <text x="502" y="198" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 35%)">2.4s</text>
     <polygon points="544,187 572,187 568,203 540,203" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.22"/>
     <text x="556" y="198" font-size="10.5" font-weight="600" letter-spacing="0.02em" text-anchor="middle" fill="hsl(243, 75.4%, 45%)">.91</text>
 
     <circle cx="282" cy="228" r="3.5" fill="hsl(215.4, 16.3%, 55%)"/>
-    <text x="302" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">refund-agent</text>
-    <text x="434" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">WARN</text>
+    <text x="302" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">refund-0007</text>
+    <text x="434" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">bob</text>
     <text x="502" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">1.7s</text>
   </g>
 
