@@ -29,7 +29,7 @@ export const TestTogglesVisibility = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvas.getByRole("textbox", { name: "Password" });
+    const input = canvas.getByLabelText("Password");
     const toggle = canvas.getByRole("button", { name: "Show password" });
 
     await expect(input).toHaveAttribute("type", "password");
@@ -51,7 +51,7 @@ export const TestDisablesVisibilityToggle = meta.story({
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvas.getByRole("textbox", { name: "Password" });
+    const input = canvas.getByLabelText("Password");
     const toggle = canvas.getByRole("button", { name: "Show password" });
 
     await userEvent.click(toggle);
