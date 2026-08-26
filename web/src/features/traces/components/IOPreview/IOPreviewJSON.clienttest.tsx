@@ -21,6 +21,7 @@ vi.mock(
       sections: {
         key: string;
         hideData?: boolean;
+        data?: unknown;
         renderFooter?: (ctx: unknown) => React.ReactNode;
       }[];
     }) => (
@@ -30,6 +31,9 @@ vi.mock(
             key={s.key}
             data-testid={`section-${s.key}`}
             data-hide-data={String(!!s.hideData)}
+            data-json={
+              s.data === undefined ? "undefined" : JSON.stringify(s.data)
+            }
           >
             {!s.hideData && <span data-testid={`data-${s.key}`}>data</span>}
             {s.renderFooter ? s.renderFooter({}) : null}
@@ -358,5 +362,53 @@ describe("IOPreviewJSON node-count gating", () => {
 
     expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
     expect(screen.getByTestId("data-input")).toBeInTheDocument();
+  });
+});
+
+describe("IOPreviewJSON empty JSON null vs undefined", () => {
+  it("keeps parsed JSON null instead of falling through to an undefined raw field", () => {
+    render(
+      <IOPreviewJSON
+        input={undefined}
+        output={undefined}
+        parsedInput={null}
+        parsedOutput={null}
+        hideIfNull={false}
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    expect(screen.getByTestId("section-input")).toHaveAttribute(
+      "data-json",
+      "null",
+    );
+    expect(screen.getByTestId("section-output")).toHaveAttribute(
+      "data-json",
+      "null",
+    );
+  });
+
+  it("renders empty input and empty output as the same JSON null", () => {
+    render(
+      <IOPreviewJSON
+        input={undefined}
+        output={undefined}
+        hideIfNull={false}
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    expect(screen.getByTestId("section-input")).toHaveAttribute(
+      "data-json",
+      "null",
+    );
+    expect(screen.getByTestId("section-output")).toHaveAttribute(
+      "data-json",
+      "null",
+    );
   });
 });

@@ -24,7 +24,7 @@ import { CommentableJsonView } from "@/src/features/comments/components/Commenta
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
-import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import { type Prisma, type ScoreDomain } from "@langfuse/shared";
 import {
   decodeUnicodeInJson,
   DECODE_UNICODE_MAX_NODES,
@@ -36,6 +36,7 @@ import {
   JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
+import { resolveParsedJsonField } from "./fns/resolveParsedJsonField";
 
 // A field needing windowing is gated to the lazy byte-engine viewer, so the
 // gate row limit IS the virtualization threshold (single source of truth). The
@@ -152,15 +153,17 @@ function IOPreviewJSONInner({
   // (e.g. session events rows in v4 mode). Parse once here, BEFORE the decode
   // and tree-build, so the node-count gate below can act on the parsed shape.
   const inputParsed = useMemo(
-    () => (isParsing ? undefined : (parsedInput ?? deepParseJson(input))),
+    () => (isParsing ? undefined : resolveParsedJsonField(parsedInput, input)),
     [parsedInput, input, isParsing],
   );
   const outputParsed = useMemo(
-    () => (isParsing ? undefined : (parsedOutput ?? deepParseJson(output))),
+    () =>
+      isParsing ? undefined : resolveParsedJsonField(parsedOutput, output),
     [parsedOutput, output, isParsing],
   );
   const metadataParsed = useMemo(
-    () => (isParsing ? undefined : (parsedMetadata ?? deepParseJson(metadata))),
+    () =>
+      isParsing ? undefined : resolveParsedJsonField(parsedMetadata, metadata),
     [parsedMetadata, metadata, isParsing],
   );
 
@@ -248,13 +251,11 @@ function IOPreviewJSONInner({
   // Treat it as present so hideIfNull callers still show the fallback instead
   // of silently dropping the field.
   const showInput =
-    !hideInput &&
-    (inputTooLarge || !(hideIfNull && effectiveInput === undefined));
+    !hideInput && (inputTooLarge || !(hideIfNull && effectiveInput == null));
   const showOutput =
-    !hideOutput &&
-    (outputTooLarge || !(hideIfNull && effectiveOutput === undefined));
+    !hideOutput && (outputTooLarge || !(hideIfNull && effectiveOutput == null));
   const showMetadata =
-    metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined);
+    metadataTooLarge || !(hideIfNull && effectiveMetadata == null);
 
   const downloadName = observationId ?? traceId;
 

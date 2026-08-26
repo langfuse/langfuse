@@ -118,8 +118,9 @@ function filterTableRows(
 }
 
 function getEmptyValueDisplay(value: unknown): string | null {
-  if (value === null) return "null";
-  if (value === undefined) return "undefined";
+  // JSON has no `undefined` — treat a missing value like JSON null so pretty
+  // and JSON views agree on empty input/output.
+  if (value === null || value === undefined) return "null";
   if (value === "") return "empty string";
   if (
     typeof value === "object" &&
@@ -861,9 +862,17 @@ export function PrettyJsonView(props: {
   // while hidden via display:none). Pass a deep clone so the two views stay
   // independent.
   const jsonViewInput = useMemo(() => {
-    if (parsedJson === null || parsedJson === undefined) return props.json;
-    if (typeof parsedJson !== "object") return parsedJson;
-    return structuredClone(parsedJson);
+    if (parsedJson !== null && typeof parsedJson === "object") {
+      return structuredClone(parsedJson);
+    }
+    // JSON has no `undefined`. Empty I/O (missing field or JS undefined from
+    // `value ?? undefined` call sites) must render as null so JSON view
+    // matches pretty view. Do not fall back to `props.json` when parsedJson is
+    // already JSON null — that raw prop is often `undefined`.
+    if (parsedJson === undefined) {
+      return props.json === undefined ? null : props.json;
+    }
+    return parsedJson;
   }, [parsedJson, props.json]);
 
   const actualCurrentView = props.currentView ?? "pretty";
