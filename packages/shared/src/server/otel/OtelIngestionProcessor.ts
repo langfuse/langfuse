@@ -1561,13 +1561,19 @@ export class OtelIngestionProcessor {
 
     // Blocklist to prevent prototype pollution via crafted OTel attribute keys
     const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+    const isArrayIndex = (key: string): boolean => /^(0|[1-9]\d*)$/.test(key);
 
     // Helper function to set a value at a nested path
     const setNestedValue = (obj: any, path: string[], value: unknown): void => {
       let current = obj;
       for (let i = 0; i < path.length - 1; i++) {
         const key = path[i];
-        if (DANGEROUS_KEYS.has(key)) return;
+        if (
+          DANGEROUS_KEYS.has(key) ||
+          (Array.isArray(current) && !isArrayIndex(key))
+        ) {
+          return;
+        }
         if (!Object.hasOwn(current, key)) {
           // Check if next key is a number to decide if we need an array or object
           current[key] = /^\d+$/.test(path[i + 1]) ? [] : Object.create(null);
@@ -1580,9 +1586,13 @@ export class OtelIngestionProcessor {
         current = next;
       }
       const finalKey = path[path.length - 1];
-      if (!DANGEROUS_KEYS.has(finalKey)) {
-        current[finalKey] = value;
+      if (
+        DANGEROUS_KEYS.has(finalKey) ||
+        (Array.isArray(current) && !isArrayIndex(finalKey))
+      ) {
+        return;
       }
+      current[finalKey] = value;
     };
 
     if (useArray) {

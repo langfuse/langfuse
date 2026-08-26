@@ -9734,10 +9734,10 @@ describe("OTel Resource Span Mapping", () => {
       const input = events.find((event) => event.type === "span-create")?.body
         .input as { a?: unknown[] } | undefined;
       expect(input?.a?.[0]).toBe("seed");
-      expect(Object.hasOwn(input?.a ?? [], "hasOwnProperty")).toBe(true);
-      expect(Reflect.get(input?.a ?? [], "hasOwnProperty")).toMatchObject({
-        call: "pwned",
-      });
+      expect(Object.hasOwn(input?.a ?? [], "hasOwnProperty")).toBe(false);
+      expect(Reflect.get(input?.a ?? [], "hasOwnProperty")).toBe(
+        Object.prototype.hasOwnProperty,
+      );
     });
 
     it("should preserve a scalar leaf and ignore a conflicting nested attribute", () => {
@@ -9761,6 +9761,31 @@ describe("OTel Resource Span Mapping", () => {
       expect(events).toHaveLength(1);
       expect(events[0].input).toMatchObject({
         a: "leaf",
+        safe: "still-here",
+      });
+    });
+
+    it("should preserve an array and ignore a conflicting non-index attribute", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "first" },
+          },
+          {
+            key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.safe",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toMatchObject({
+        a: ["first"],
         safe: "still-here",
       });
     });
