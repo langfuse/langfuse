@@ -1,4 +1,4 @@
-import preview from "../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { KeyboardShortcut } from "./keyboard-shortcut";
 
 const meta = preview.meta({

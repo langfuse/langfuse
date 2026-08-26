@@ -1,7 +1,7 @@
 import { BotMessageSquare, Minus } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 
 /**

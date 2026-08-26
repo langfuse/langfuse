@@ -66,7 +66,7 @@ import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-sel
 import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import {
   hasBlockingOverlay,
   hasModifier,

@@ -11,7 +11,7 @@ import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import {
   Tooltip,
   TooltipContent,

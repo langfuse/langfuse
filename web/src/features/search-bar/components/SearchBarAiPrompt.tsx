@@ -19,7 +19,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";

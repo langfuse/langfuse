@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import { Play } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";

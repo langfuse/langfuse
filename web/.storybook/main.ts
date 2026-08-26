@@ -15,6 +15,7 @@ const DESIGN_COMPONENT_STORIES = [
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
   "Dropzone/Dropzone",
+  "KeyboardShortcut/KeyboardShortcut",
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
   "PasswordInput/PasswordInput",

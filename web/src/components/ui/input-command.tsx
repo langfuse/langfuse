@@ -13,7 +13,7 @@ import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
 import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
-} from "@/src/components/ui/keyboard-shortcut";
+} from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<

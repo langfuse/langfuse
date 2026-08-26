@@ -10,7 +10,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
-} from "@/src/components/ui/keyboard-shortcut";
+} from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import {
   Dialog,
   DialogBody,

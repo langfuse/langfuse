@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/combobox";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
