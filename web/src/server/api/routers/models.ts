@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { evaluateTestModelMatch } from "@/src/features/models/server/evaluateTestModelMatch";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,
@@ -18,8 +19,6 @@ import {
   clearModelCacheForProject,
   queryClickhouse,
   findModel,
-  hasPricingTierUsageDetails,
-  matchPricingTier,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -436,50 +435,19 @@ export const modelRouter = createTRPCRouter({
         model: modelName,
       });
 
-      if (!model) {
-        return { matched: false as const };
-      }
-
-      // Step 2: Mirror ingestion: without usage there is no priced observation
-      // and therefore no pricing tier match, even for attribute-only tiers.
-      if (!hasPricingTierUsageDetails(usageDetails)) {
-        return { matched: false as const };
-      }
-
-      const matchResult = matchPricingTier(pricingTiers, usageDetails ?? {}, {
+      return evaluateTestModelMatch({
+        model: model
+          ? {
+              id: model.id,
+              modelName: model.modelName,
+              matchPattern: model.matchPattern,
+              projectId: model.projectId,
+            }
+          : null,
+        pricingTiers,
+        usageDetails,
         modelParameters,
         metadata,
       });
-
-      if (!matchResult) {
-        return { matched: false as const };
-      }
-
-      // Step 3: Find the full tier details
-      const matchedTier = pricingTiers.find(
-        (t) => t.id === matchResult.pricingTierId,
-      );
-      if (!matchedTier) {
-        return { matched: false as const };
-      }
-
-      return {
-        matched: true as const,
-        model: {
-          id: model.id,
-          modelName: model.modelName,
-          matchPattern: model.matchPattern,
-          projectId: model.projectId,
-        },
-        matchedTier: {
-          id: matchedTier.id,
-          name: matchedTier.name,
-          priority: matchedTier.priority,
-          isDefault: matchedTier.isDefault,
-          prices: Object.fromEntries(
-            matchedTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
-          ),
-        },
-      };
     }),
 });

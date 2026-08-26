@@ -88,8 +88,8 @@ export function TestModelMatchDialog({
           <DialogHeader>
             <DialogTitle>Test Model Match</DialogTitle>
             <DialogDescription className="mt-1">
-              Test which model and pricing tier your ingestion data would match
-              against.
+              Test which model definition your generation model name would
+              match. Add usage details to also see the pricing tier and prices.
             </DialogDescription>
           </DialogHeader>
 
@@ -181,11 +181,19 @@ export function TestModelMatchDialog({
                             <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
                               <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                               <span className="text-sm font-bold text-green-900 dark:text-green-100">
-                                Match Found
+                                Model matched
                               </span>
                             </div>
                             <MatchedModelCard model={data.model} />
-                            <MatchedTierCard tier={data.matchedTier} />
+                            {data.matchedTier ? (
+                              <MatchedTierCard tier={data.matchedTier} />
+                            ) : (
+                              <div className="bg-muted/30 text-muted-foreground rounded-lg border p-4 text-sm">
+                                No pricing tier matched. Add usage details (same
+                                keys as on the generation) to see prices. Cost
+                                is not calculated without usage.
+                              </div>
+                            )}
                           </>
                         ) : (
                           <NoMatchDisplay modelName={modelName} />
@@ -201,7 +209,11 @@ export function TestModelMatchDialog({
                 <div className="border-t pt-4">
                   <Button variant="outline" asChild className="w-full">
                     <Link
-                      href={`/project/${projectId}/settings/models/${data.model.id}?pricingTier=${data.matchedTier.id}`}
+                      href={
+                        data.matchedTier
+                          ? `/project/${projectId}/settings/models/${data.model.id}?pricingTier=${data.matchedTier.id}`
+                          : `/project/${projectId}/settings/models/${data.model.id}`
+                      }
                       target="_blank"
                     >
                       View Model Details
