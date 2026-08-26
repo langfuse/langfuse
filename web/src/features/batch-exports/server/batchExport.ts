@@ -23,6 +23,7 @@ import {
   LangfuseNotFoundError,
   paginationZod,
 } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared/src/db";
 import {
   BatchExportQueue,
   logger,
@@ -40,10 +41,13 @@ const LEGACY_DOWNLOAD_WINDOW_MS = 24 * 60 * 60 * 1000;
 // signature expiry when the request starts, not while the download streams.
 const FRESH_DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
 
-const isAuditLogExport = (query: unknown): boolean =>
+// A persisted export's query is a Json column, so its table name is only
+// known at runtime. On create the query is still the validated input, where
+// `tableName` is typed and compared directly.
+const isAuditLogExport = (query: Prisma.JsonValue): boolean =>
   typeof query === "object" &&
   query !== null &&
-  "tableName" in query &&
+  !Array.isArray(query) &&
   query.tableName === BatchExportTableName.AuditLogs;
 
 const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
@@ -55,12 +59,7 @@ const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
 
 // An audit-log export holds actor identifiers and admin actions, so reading
 // one needs the audit-log gates too, not just the batch-export ones.
-const assertAuditLogExportAccess = (
-  session: AuthedSession,
-  projectId: string,
-  query: unknown,
-) => {
-  if (!isAuditLogExport(query)) return;
+const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
   throwIfNoEntitlement({
     entitlement: "audit-logs",
     sessionUser: session.user,
@@ -103,7 +102,9 @@ export const batchExportRouter = createTRPCRouter({
           useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
         };
 
-        assertAuditLogExportAccess(ctx.session, projectId, query);
+        if (query.tableName === BatchExportTableName.AuditLogs) {
+          assertCanReadAuditLogs(ctx.session, projectId);
+        }
 
         assertLegacyTracingIoSearchCanCreateBatchJob({
           searchQuery: query.searchQuery,
@@ -197,11 +198,9 @@ export const batchExportRouter = createTRPCRouter({
         throw new LangfuseNotFoundError("Batch export not found");
       }
 
-      assertAuditLogExportAccess(
-        ctx.session,
-        input.projectId,
-        batchExport.query,
-      );
+      if (isAuditLogExport(batchExport.query)) {
+        assertCanReadAuditLogs(ctx.session, input.projectId);
+      }
 
       if (
         batchExport.status !== BatchExportStatus.COMPLETED ||
