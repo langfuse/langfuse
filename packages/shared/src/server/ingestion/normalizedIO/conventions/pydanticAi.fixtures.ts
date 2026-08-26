@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "./types";
+import type { NormalizedIOFixture } from "../fixtures/types";
 
 export const pydanticAiProductionShapeFixture = {
   name: "normalizes an anonymized Pydantic AI span",

@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "./types";
+import type { NormalizedIOFixture } from "../fixtures/types";
 
 export const microsoftAgentProductionShapeFixture = {
   name: "normalizes an anonymized Microsoft Agent Framework span",
