@@ -30,7 +30,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -198,17 +198,12 @@ export function DatasetItemsTable({
         return <StatusBadge type={status.toLowerCase()} isLive={false} />;
       },
     },
-    {
+    createDateTableColumn<RowData>({
       accessorKey: "createdAt",
       header: "Created At",
-      id: "createdAt",
       size: 150,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: RowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
