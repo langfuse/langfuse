@@ -9,11 +9,7 @@
 // form (e.g. positionInTrace) are reported in `skipped`, never silently
 // dropped.
 
-import {
-  eventsTableCols,
-  type FilterState,
-  type TracingSearchType,
-} from "@langfuse/shared";
+import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import {
   INVERTED_COMPARISON,
@@ -21,23 +17,14 @@ import {
   type ScoreTypeContext,
 } from "./adapter";
 import type { ASTNode, FilterNode } from "./ast";
-import { resolveField, SCORE_COLUMNS, type FieldRef } from "./fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  SCORE_COLUMNS,
+  type FieldRef,
+  type FieldRegistry,
+} from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
-
-// Legacy filters address columns by id ("userId") or display name ("User ID").
-const COLUMN_ID_BY_KEY = new Map<string, string>();
-for (const col of eventsTableCols) {
-  COLUMN_ID_BY_KEY.set(col.id.toLowerCase(), col.id);
-  COLUMN_ID_BY_KEY.set(col.name.toLowerCase(), col.id);
-  for (const alias of col.aliases ?? []) {
-    COLUMN_ID_BY_KEY.set(alias.toLowerCase(), col.id);
-  }
-}
-
-function columnIdOf(column: string): string | null {
-  return COLUMN_ID_BY_KEY.get(column.toLowerCase()) ?? null;
-}
 
 function filterNode(
   key: string,
@@ -79,11 +66,14 @@ const STRING_OP_SYMBOL: Record<string, FilterNode["op"]> = {
   "ends with": "$",
 };
 
-function lowerSingle(filter: FilterState[number]): ASTNode | null {
+function lowerSingle(
+  filter: FilterState[number],
+  registry: FieldRegistry,
+): ASTNode | null {
   switch (filter.type) {
     case "stringOptions":
     case "arrayOptions": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id === null || filter.value.length === 0) return null;
       // A stringOptions/arrayOptions filter is EXACT-set semantics. On a
       // `textSearch` field (id/name) the bar reads a bare single value as
@@ -91,7 +81,7 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       // exact→substring on the next commit. The single-value forms therefore use
       // the explicit exact operator (`name:=abc` / `-name:=abc`); the grouped
       // multi-value forms already reparse to exact any-of/none-of.
-      const ref = resolveField(id);
+      const ref = registry.resolveField(id);
       const isTextSearch =
         ref?.type === "field" && ref.field.syncMode === "textSearch";
       if (filter.operator === "none of") {
@@ -121,13 +111,13 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       return filterNode(id, "=", filter.value);
     }
     case "string": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id === null) return null;
       if (filter.operator === "does not contain") {
         // Mirror the positive contains carve-out below: a textSearch field emits
         // the bare `-input:refund`, not the `-input:*refund*` glob, so the
         // negated form round-trips stably (no visible rewrite on commit echo).
-        const ref = resolveField(id);
+        const ref = registry.resolveField(id);
         if (ref?.type === "field" && ref.field.syncMode === "textSearch") {
           return negate(filterNode(id, "=", [filter.value]));
         }
@@ -137,7 +127,7 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       if (op === undefined) return null;
       // '=' on option-backed fields reads better as the bare any-of form.
       if (op === "exact") {
-        const ref = resolveField(id);
+        const ref = registry.resolveField(id);
         if (
           ref?.type === "field" &&
           (ref.field.syncMode === "exactOption" ||
@@ -152,7 +142,7 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       // `input:*refund*` (op `=` vs `~` aren't astEqual, so resetTo re-seeds).
       // Symmetric inverse of the metadata-equality carve-out.
       if (op === "~") {
-        const ref = resolveField(id);
+        const ref = registry.resolveField(id);
         if (ref?.type === "field" && ref.field.syncMode === "textSearch") {
           return filterNode(id, "=", [filter.value]);
         }
@@ -160,13 +150,13 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       return filterNode(id, op, [filter.value]);
     }
     case "number": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(id, op, [String(filter.value)]);
     }
     case "datetime": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id === null) return null;
       const value =
         filter.value instanceof Date
@@ -175,13 +165,13 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       return filterNode(id, filter.operator, [value]);
     }
     case "boolean": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id === null) return null;
       const value = filter.operator === "<>" ? !filter.value : filter.value;
       return filterNode(id, "=", [String(value)]);
     }
     case "stringObject": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id !== "metadata") return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
@@ -217,7 +207,7 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       return filter.operator === "none of" ? negate(node) : node;
     }
     case "null": {
-      const id = columnIdOf(filter.column);
+      const id = registry.columnIdOf(filter.column);
       if (id === null) return null;
       const node = filterNode("has", "=", [id]);
       return filter.operator === "is null" ? negate(node) : node;
@@ -285,12 +275,13 @@ function scopedSearchField(
 export function filterStateToQueryText(
   filters: FilterState,
   options: FilterStateToQueryOptions = {},
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): FilterStateToQueryResult {
   const nodes: ASTNode[] = [];
   const skipped: string[] = [];
   const skippedFilters: FilterState = [];
   for (const filter of filters) {
-    const node = lowerSingle(filter);
+    const node = lowerSingle(filter, registry);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
       skippedFilters.push(filter);
@@ -331,7 +322,7 @@ export function filterStateToQueryText(
       : nodes.length === 1
         ? nodes[0]!
         : { kind: "and", children: nodes };
-  return { text: serialize(ast), skipped, skippedFilters };
+  return { text: serialize(ast, registry), skipped, skippedFilters };
 }
 
 // Normalize an editor AST so a typed draft compares equal (via astEquals) to the
@@ -358,13 +349,15 @@ export function filterStateToQueryText(
 export function foldDerivedNegation(
   node: ASTNode | null,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ASTNode | null {
   if (node === null) return null;
   switch (node.kind) {
     case "not": {
-      const child = foldDerivedNegation(node.child, scoreTypes) ?? node.child;
+      const child =
+        foldDerivedNegation(node.child, scoreTypes, registry) ?? node.child;
       if (child.kind === "filter") {
-        const folded = foldNegatedFilter(child);
+        const folded = foldNegatedFilter(child, registry);
         if (folded !== null) return folded;
       }
       return { ...node, child };
@@ -374,11 +367,11 @@ export function foldDerivedNegation(
       return {
         ...node,
         children: node.children.map(
-          (c) => foldDerivedNegation(c, scoreTypes) ?? c,
+          (c) => foldDerivedNegation(c, scoreTypes, registry) ?? c,
         ),
       };
     case "filter":
-      return normalizeFilterValues(node, scoreTypes);
+      return normalizeFilterValues(node, scoreTypes, registry);
     default:
       return node;
   }
@@ -389,8 +382,9 @@ export function foldDerivedNegation(
 function normalizeFilterValues(
   f: FilterNode,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): FilterNode {
-  const ref = resolveField(f.key);
+  const ref = registry.resolveField(f.key);
   if (ref === null) return f;
   // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
   let op: FilterNode["op"] =
@@ -470,7 +464,10 @@ function normalizeIsoString(v: string): string {
 
 // `f` arrives value-normalized (foldDerivedNegation normalizes the NOT's child
 // before this runs), so only the op/boolean is inverted here.
-function foldNegatedFilter(f: FilterNode): FilterNode | null {
+function foldNegatedFilter(
+  f: FilterNode,
+  registry: FieldRegistry,
+): FilterNode | null {
   // Comparison: NOT (key op v) === key INVERT(op) v. Comparisons only validly
   // appear on numeric/datetime fields, so no field-kind check is needed.
   if (f.op in INVERTED_COMPARISON) {
@@ -483,7 +480,7 @@ function foldNegatedFilter(f: FilterNode): FilterNode | null {
   // field. On an option field a "true" value lowers to a none-of, not a flip,
   // so it must keep its NOT (which round-trips with the dash anyway).
   if ((f.op === "=" || f.op === "exact") && f.values.length === 1) {
-    const ref = resolveField(f.key);
+    const ref = registry.resolveField(f.key);
     if (ref?.type === "field" && ref.field.kind === "boolean") {
       const v = f.values[0]!;
       if (v === "true" || v === "false") {

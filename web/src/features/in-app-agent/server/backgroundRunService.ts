@@ -9,7 +9,7 @@ import {
   QueueJobs,
   redis,
 } from "@langfuse/shared/src/server";
-import { deleteApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -35,6 +35,7 @@ import {
   createQueuedRun,
   decideToolApproval,
   reconcileConversationRuns,
+  recordImmediateCancelOutcomes,
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
@@ -64,11 +65,10 @@ export async function getBackgroundConversationSnapshot(params: {
     projectId: params.projectId,
     conversationId: params.conversationId,
     deleteApiKey: async (apiKeyId) => {
-      await deleteApiKeyFromDb({
+      await deleteInAppAgentMcpApiKeyFromDb({
         prisma: params.prisma,
         id: apiKeyId,
-        entityId: params.projectId,
-        scope: "PROJECT",
+        projectId: params.projectId,
         redis,
       });
     },
@@ -291,7 +291,7 @@ export async function deleteBackgroundConversation(params: {
     userId: params.userId,
   });
 
-  const cancelledRunIds = await params.prisma.$transaction(async (tx) => {
+  const cancelledRuns = await params.prisma.$transaction(async (tx) => {
     const cancelledImmediately = await cancelConversationRunsInTransaction({
       tx,
       projectId: params.projectId,
@@ -314,8 +314,12 @@ export async function deleteBackgroundConversation(params: {
     return cancelledImmediately;
   });
 
+  recordImmediateCancelOutcomes(cancelledRuns);
+
   // Avoid spending a worker slot on jobs whose runs are already cancelled.
-  await Promise.all(cancelledRunIds.map(removeInAppAgentRunJob));
+  await Promise.all(
+    cancelledRuns.map((run) => removeInAppAgentRunJob(run.runId)),
+  );
 
   return { success: true };
 }

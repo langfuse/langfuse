@@ -29,7 +29,7 @@ export const OUTPUT_MAPPING = [
   "completion",
 ];
 
-export const INTERNAL_ENVIRONMENTS = [
+const INTERNAL_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.LLMJudge,
   LangfuseInternalTraceEnvironment.CodeEval,
   LangfuseInternalTraceEnvironment.NaturalLanguageFilter,

@@ -1,7 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
-import { Input } from "@/src/components/ui/input";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -23,7 +22,6 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Search, ChevronDown } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
@@ -38,11 +36,8 @@ import {
   type SystemFilterPreset,
 } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuTrigger,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -297,147 +292,118 @@ export function DataTableToolbar<TData, TValue>({
         )}
         {searchConfig && (
           <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
-            <div
-              className={cn(
-                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                showSearchTypeSelector
-                  ? "rounded-l-md rounded-r-none border-r-0"
-                  : "rounded-l-md rounded-r-md",
-              )}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-1"
-                onClick={() => {
-                  capture("table:search_submit");
-                  submitSearch(searchString);
-                }}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-              <Input
-                autoFocus
-                placeholder={
-                  searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
+            <SearchInput
+              autoFocus
+              placeholder={
+                searchConfig.tableAllowsFullTextSearch
+                  ? "Search..."
+                  : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
+              }
+              value={searchString}
+              onChange={(newValue) => {
+                setSearchString(newValue);
+                // If user cleared the search, update URL immediately
+                if (newValue === "") {
+                  submitSearch("");
                 }
-                value={searchString}
-                onChange={(event) => {
-                  const newValue = event.currentTarget.value;
-                  setSearchString(newValue);
-                  // If user cleared the search, update URL immediately
-                  if (newValue === "") {
-                    submitSearch("");
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    capture("table:search_submit");
-                    submitSearch(searchString);
-                  }
-                }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-              />
-            </div>
-            {showSearchTypeSelector && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="default"
-                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
-                  >
-                    <span
-                      className="flex items-center gap-1 truncate"
-                      title={searchButtonLabel}
-                    >
-                      {searchButtonLabel}
-                      <DocPopup
-                        description={getSearchDescription(
-                          searchConfig.searchType,
-                          searchConfig.metadataSearchFields,
-                          searchConfig.hidePerformanceWarning,
-                          searchConfig.tableAllowsFullTextSearch,
-                        )}
-                      />
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuRadioGroup
-                    value={getSearchMode(
-                      searchConfig.searchType,
-                      searchConfig.tableAllowsFullTextSearch,
-                    )}
-                    onValueChange={(value) => {
-                      if (
-                        !searchConfig.tableAllowsFullTextSearch &&
-                        value.startsWith("metadata_fulltext")
-                      )
-                        return;
-                      searchConfig.setSearchType?.(searchModeToType(value));
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="metadata">
-                      {searchConfig.customDropdownLabels?.metadata ??
-                        "IDs / Names"}
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger
-                        disabled={!searchConfig.tableAllowsFullTextSearch}
-                      >
-                        <span className="flex items-center gap-2">
-                          {getSearchMode(
+              }}
+              onSubmit={(value) => {
+                capture("table:search_submit");
+                submitSearch(value);
+              }}
+              dropdown={
+                showSearchTypeSelector
+                  ? {
+                      label: searchButtonLabel,
+                      labelAccessory: (
+                        <DocPopup
+                          description={getSearchDescription(
                             searchConfig.searchType,
+                            searchConfig.metadataSearchFields,
+                            searchConfig.hidePerformanceWarning,
                             searchConfig.tableAllowsFullTextSearch,
-                          ).startsWith("metadata_fulltext") && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
                           )}
-                          {searchConfig.customDropdownLabels?.fullText ??
-                            "Full Text"}
-                        </span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
+                        />
+                      ),
+                      content: (
                         <DropdownMenuRadioGroup
                           value={getSearchMode(
                             searchConfig.searchType,
                             searchConfig.tableAllowsFullTextSearch,
                           )}
                           onValueChange={(value) => {
+                            if (
+                              !searchConfig.tableAllowsFullTextSearch &&
+                              value.startsWith("metadata_fulltext")
+                            )
+                              return;
                             searchConfig.setSearchType?.(
                               searchModeToType(value),
                             );
                           }}
                         >
-                          {/* Only show options that are explicitly available */}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.content) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext">
-                              Input/Output
-                            </DropdownMenuRadioItem>
-                          )}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.input) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext_input">
-                              Input
-                            </DropdownMenuRadioItem>
-                          )}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.output) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext_output">
-                              Output
-                            </DropdownMenuRadioItem>
-                          )}
+                          <DropdownMenuRadioItem value="metadata">
+                            {searchConfig.customDropdownLabels?.metadata ??
+                              "IDs / Names"}
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger
+                              disabled={!searchConfig.tableAllowsFullTextSearch}
+                            >
+                              <span className="flex items-center gap-2">
+                                {getSearchMode(
+                                  searchConfig.searchType,
+                                  searchConfig.tableAllowsFullTextSearch,
+                                ).startsWith("metadata_fulltext") && (
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
+                                )}
+                                {searchConfig.customDropdownLabels?.fullText ??
+                                  "Full Text"}
+                              </span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuRadioGroup
+                                value={getSearchMode(
+                                  searchConfig.searchType,
+                                  searchConfig.tableAllowsFullTextSearch,
+                                )}
+                                onValueChange={(value) => {
+                                  searchConfig.setSearchType?.(
+                                    searchModeToType(value),
+                                  );
+                                }}
+                              >
+                                {(searchConfig.availableSearchTypes ===
+                                  undefined ||
+                                  searchConfig.availableSearchTypes
+                                    .content) && (
+                                  <DropdownMenuRadioItem value="metadata_fulltext">
+                                    Input/Output
+                                  </DropdownMenuRadioItem>
+                                )}
+                                {(searchConfig.availableSearchTypes ===
+                                  undefined ||
+                                  searchConfig.availableSearchTypes.input) && (
+                                  <DropdownMenuRadioItem value="metadata_fulltext_input">
+                                    Input
+                                  </DropdownMenuRadioItem>
+                                )}
+                                {(searchConfig.availableSearchTypes ===
+                                  undefined ||
+                                  searchConfig.availableSearchTypes.output) && (
+                                  <DropdownMenuRadioItem value="metadata_fulltext_output">
+                                    Output
+                                  </DropdownMenuRadioItem>
+                                )}
+                              </DropdownMenuRadioGroup>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
                         </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                      ),
+                    }
+                  : undefined
+              }
+            />
           </div>
         )}
         {viewModeToggle}

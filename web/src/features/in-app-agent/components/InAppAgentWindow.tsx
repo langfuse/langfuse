@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,7 +68,6 @@ import {
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { deduplicateBy } from "@/src/utils/arrays";
-import messageStyles from "./InAppAgentMessage.module.css";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -634,7 +634,7 @@ function AssistantActivityGroup({
           className={cn(
             isInProgress &&
               !isAwaitingApproval &&
-              messageStyles.thinkingShimmer,
+              textShimmerStyles.textShimmer,
           )}
         >
           {label}
@@ -900,7 +900,7 @@ export type InAppAgentWindowProps = {
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
   /** Titles the window. Null until the server has named the conversation,
-   * which is when the product name and its Beta tag show instead. */
+   * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -1169,17 +1169,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <>
-              <p
-                className="shrink-0 truncate text-sm font-bold"
-                title="Assistant"
-              >
-                Assistant
-              </p>
-              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-                Beta
-              </span>
-            </>
+            <p
+              className="shrink-0 truncate text-sm font-bold"
+              title="Assistant"
+            >
+              Assistant
+            </p>
           )}
         </div>
         <div

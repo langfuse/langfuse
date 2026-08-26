@@ -1,5 +1,11 @@
-import type React from "react";
-import { useCallback, useMemo, useEffect, useRef, useState } from "react";
+import {
+  type default as React,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   StringParam,
   useQueryParam,
@@ -176,6 +182,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   onOnlyChange?: (value: string) => void;
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** Optional content rendered after a filter option label */
+  renderOptionSuffix?: (value: string) => React.ReactNode;
   /**
    * Current operator of the facet's checkbox filter (arrayOptions AND
    * stringOptions columns; undefined when no filter is applied):
@@ -1895,6 +1903,8 @@ export function useSidebarFilterPresentation(
           disabledReason: disableState.reason,
           renderIcon:
             facet.type === "categorical" ? facet.renderIcon : undefined,
+          renderOptionSuffix:
+            facet.type === "categorical" ? facet.renderOptionSuffix : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {

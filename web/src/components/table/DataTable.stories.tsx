@@ -1,6 +1,6 @@
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import {
   type OnChangeFn,
   type PaginationState,
@@ -18,6 +18,11 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -43,8 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
+import { usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
   InfoIcon,
@@ -262,27 +266,18 @@ function buildTraceColumns(
         />
       ),
     },
-    {
+    createDateTableColumn<TraceRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value = row.original.timestamp;
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<TraceRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       enableSorting: true,
-      // Returns the raw string — hits DataTable's string-cell branch exactly
-      // like the real Name cell.
-      cell: ({ row }) => row.original.name ?? undefined,
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -427,35 +422,16 @@ function buildTraceColumns(
         ) : null;
       },
     },
-    {
+    createTagsTableColumn<TraceRow>({
       accessorKey: "tags",
-      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      loadingCell: <TableTextLoadingCell />,
-      // Real Traces Tags cell: TagList inside the `flex gap-x-2 gap-y-1`
-      // wrapper, wrapping only on non-"s" row heights.
-      cell: ({ row }) => {
-        const traceTags = row.original.tags;
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
@@ -489,15 +465,13 @@ function buildTraceColumns(
       },
       enableSorting: true,
     },
-    {
+    createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
-      id: "id",
       size: 90,
       defaultHidden: true,
-      cell: ({ row }) => <TableIdOrName value={row.original.id} />,
       enableSorting: true,
-    },
+    }),
     {
       accessorKey: "action",
       header: "Action",
@@ -533,29 +507,19 @@ function buildTraceColumns(
 // pagination, and selection stories where the full Traces column set is noise.
 
 const plainColumns: LangfuseColumnDef<TraceRow>[] = [
-  {
-    accessorKey: "id",
-    id: "id",
-    header: "ID",
-    size: 220,
-    cell: ({ row }) => <TableIdOrName value={row.original.id} />,
-  },
-  {
+  createIdTableColumn<TraceRow>({ accessorKey: "id", header: "ID", size: 220 }),
+  createTextTableColumn<TraceRow>({
     accessorKey: "name",
-    id: "name",
     header: "Name",
     enableSorting: true,
     size: 180,
-    cell: ({ row }) => row.original.name,
-  },
-  {
+  }),
+  createDateTableColumn<TraceRow>({
     accessorKey: "timestamp",
-    id: "timestamp",
     header: "Timestamp",
     enableSorting: true,
     size: 200,
-    cell: ({ row }) => <LocalIsoDate date={row.original.timestamp} />,
-  },
+  }),
   {
     accessorKey: "environment",
     id: "environment",
@@ -876,6 +840,16 @@ export const NoPagination = meta.story({
   render: () => <PaginationStory mode="none" />,
 });
 
+// Split-pane tables (trace/observation Scores) are often ~400px while the
+// viewport is still lg, which used to wrap nav buttons off the page label.
+export const NarrowPane = meta.story({
+  render: () => (
+    <div className="w-[400px] overflow-hidden rounded-md border">
+      <PaginationStory mode="offset" />
+    </div>
+  ),
+});
+
 // -----------------------------------------------------------------------------
 // 5. Density variants (faithful Traces columns)
 // -----------------------------------------------------------------------------
@@ -1075,15 +1049,13 @@ function buildGroupedColumns(
     id: "scoresGroup",
     header: "Scores",
     columns: [
-      {
+      createNumberTableColumn<TraceRow>({
         accessorKey: "observationCount",
-        id: "observationCount",
         header: "Observations",
         size: 110,
-        cell: ({ row }) => (
-          <span>{numberFormatter(row.original.observationCount, 0)}</span>
-        ),
-      },
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
       {
         accessorKey: "latency",
         id: "latencyScore",
@@ -1105,13 +1077,14 @@ function buildGroupedColumns(
         size: 110,
         cell: ({ row }) => usdFormatter(row.original.totalCost.toNumber()),
       },
-      {
-        accessorKey: "usage",
+      createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
+        accessorFn: (row) => row.usage.totalUsage,
         header: "Tokens",
         size: 100,
-        cell: ({ row }) => numberFormatter(row.original.usage.totalUsage, 0),
-      },
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }),
     ] satisfies LangfuseColumnDef<TraceRow>[],
   };
   // place groups just before the action column (last entry)
@@ -1482,13 +1455,11 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       }
     },
   },
-  {
+  createTextTableColumn<IconCellRow>({
     accessorKey: "detail",
-    id: "detail",
     header: "Status",
     size: 120,
-    cell: ({ getValue }) => getValue<string>(),
-  },
+  }),
 ];
 
 function InlineIconCellsStory() {
@@ -1509,4 +1480,36 @@ function InlineIconCellsStory() {
 
 export const WithInlineIconCells = meta.story({
   render: () => <InlineIconCellsStory />,
+});
+
+export const PaginationControlsStayGrouped = meta.story({
+  name: "(Test) Pagination Controls Stay Grouped",
+  render: () => (
+    <div className="w-[400px] overflow-hidden">
+      <PaginationStory mode="offset" />
+    </div>
+  ),
+  play: async ({ canvas }) => {
+    const pageInput = await canvas.findByRole("spinbutton");
+    const next = canvas.getByRole("button", { name: "Go to next page" });
+    const prev = canvas.getByRole("button", { name: "Go to previous page" });
+
+    expect(
+      Math.abs(
+        pageInput.getBoundingClientRect().top -
+          next.getBoundingClientRect().top,
+      ),
+    ).toBeLessThan(8);
+    expect(
+      Math.abs(
+        prev.getBoundingClientRect().top - next.getBoundingClientRect().top,
+      ),
+    ).toBeLessThan(8);
+    expect(
+      canvas.queryByRole("button", { name: "Go to first page" }),
+    ).toBeNull();
+    expect(
+      canvas.queryByRole("button", { name: "Go to last page" }),
+    ).toBeNull();
+  },
 });
