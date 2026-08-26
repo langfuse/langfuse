@@ -1,14 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockRedis, mockSendCommentMentionEmail, mockGetUserProjectRoles } =
-  vi.hoisted(() => ({
-    mockRedis: {
-      exists: vi.fn(),
-      set: vi.fn(),
-    },
+const { mockSendCommentMentionEmail, mockGetUserProjectRoles } = vi.hoisted(
+  () => ({
     mockSendCommentMentionEmail: vi.fn(),
     mockGetUserProjectRoles: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock("../../env", () => ({
   env: {
@@ -30,6 +27,10 @@ vi.mock("@langfuse/shared/src/db", () => ({
     notificationPreference: {
       findUnique: vi.fn(),
     },
+    commentMentionEmail: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -40,18 +41,13 @@ vi.mock("@langfuse/shared/src/server", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
-  redis: mockRedis,
   sendCommentMentionEmail: mockSendCommentMentionEmail,
   getObservationById: vi.fn(),
   getUserProjectRoles: mockGetUserProjectRoles,
 }));
 
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  commentMentionSentRedisKey,
-  COMMENT_MENTION_SENT_TTL_SECONDS,
-  handleCommentMentionNotification,
-} from "./commentMentionHandler";
+import { handleCommentMentionNotification } from "./commentMentionHandler";
 
 const commentId = "comment-1";
 const projectId = "project-1";
@@ -77,8 +73,6 @@ const projectUser = (id: string, email: string) => ({
 describe("handleCommentMentionNotification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRedis.exists.mockResolvedValue(0);
-    mockRedis.set.mockResolvedValue("OK");
     mockSendCommentMentionEmail.mockResolvedValue({ delivered: true });
     (
       prisma.notificationPreference.findUnique as ReturnType<typeof vi.fn>
@@ -86,6 +80,12 @@ describe("handleCommentMentionNotification", () => {
     (prisma.comment.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
       commentRow,
     );
+    (
+      prisma.commentMentionEmail.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(null);
+    (
+      prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ id: "row-1" });
     mockGetUserProjectRoles.mockResolvedValue([
       projectUser(userA, "a@example.com"),
       projectUser(userB, "b@example.com"),
@@ -97,7 +97,7 @@ describe("handleCommentMentionNotification", () => {
     vi.clearAllMocks();
   });
 
-  it("sends to every mentioned user and marks each send in Redis", async () => {
+  it("sends to every mentioned user and records each send in Postgres", async () => {
     await handleCommentMentionNotification({
       commentId,
       projectId,
@@ -105,18 +105,12 @@ describe("handleCommentMentionNotification", () => {
     });
 
     expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(2);
-    expect(mockRedis.set).toHaveBeenCalledWith(
-      commentMentionSentRedisKey(commentId, userA),
-      "1",
-      "EX",
-      COMMENT_MENTION_SENT_TTL_SECONDS,
-    );
-    expect(mockRedis.set).toHaveBeenCalledWith(
-      commentMentionSentRedisKey(commentId, userB),
-      "1",
-      "EX",
-      COMMENT_MENTION_SENT_TTL_SECONDS,
-    );
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledWith({
+      data: { commentId, userId: userA },
+    });
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledWith({
+      data: { commentId, userId: userB },
+    });
   });
 
   it("throws after the loop when one recipient fails so BullMQ can retry", async () => {
@@ -138,18 +132,23 @@ describe("handleCommentMentionNotification", () => {
     ).rejects.toThrow(/user-a/);
 
     expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(2);
-    expect(mockRedis.set).toHaveBeenCalledTimes(1);
-    expect(mockRedis.set).toHaveBeenCalledWith(
-      commentMentionSentRedisKey(commentId, userB),
-      "1",
-      "EX",
-      COMMENT_MENTION_SENT_TTL_SECONDS,
-    );
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledTimes(1);
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledWith({
+      data: { commentId, userId: userB },
+    });
   });
 
-  it("skips recipients that already have a sent marker on redelivery", async () => {
-    mockRedis.exists.mockImplementation(async (key: string) =>
-      key === commentMentionSentRedisKey(commentId, userA) ? 1 : 0,
+  it("skips recipients that already have a unique sent row on redelivery", async () => {
+    (
+      prisma.commentMentionEmail.findUnique as ReturnType<typeof vi.fn>
+    ).mockImplementation(
+      async ({
+        where: {
+          commentId_userId: { userId },
+        },
+      }: {
+        where: { commentId_userId: { commentId: string; userId: string } };
+      }) => (userId === userA ? { id: "existing" } : null),
     );
 
     await handleCommentMentionNotification({
@@ -162,5 +161,35 @@ describe("handleCommentMentionNotification", () => {
     expect(mockSendCommentMentionEmail).toHaveBeenCalledWith(
       expect.objectContaining({ mentionedUserEmail: "b@example.com" }),
     );
+  });
+
+  it("does not fail the job when a concurrent retry already inserted the unique row", async () => {
+    (
+      prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
+    ).mockRejectedValue({ code: "P2002" });
+
+    await expect(
+      handleCommentMentionNotification({
+        commentId,
+        projectId,
+        mentionedUserIds: [userA],
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails the job when recording the sent row fails for a non-unique error", async () => {
+    (
+      prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
+    ).mockRejectedValue(new Error("postgres down"));
+
+    await expect(
+      handleCommentMentionNotification({
+        commentId,
+        projectId,
+        mentionedUserIds: [userA],
+      }),
+    ).rejects.toThrow(/user-a/);
   });
 });

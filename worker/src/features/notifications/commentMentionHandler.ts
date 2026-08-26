@@ -3,7 +3,6 @@ import {
   logger,
   sendCommentMentionEmail,
   getObservationById,
-  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared";
@@ -15,50 +14,40 @@ type CommentMentionPayload = Omit<
   "type"
 >;
 
-export const COMMENT_MENTION_SENT_TTL_SECONDS = 60 * 60 * 24 * 14;
-
-export const commentMentionSentRedisKey = (commentId: string, userId: string) =>
-  `comment-mention-sent:${commentId}:${userId}`;
+const isUniqueConstraintError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  (error as { code: unknown }).code === "P2002";
 
 async function hasCommentMentionEmailBeenSent(
   commentId: string,
   userId: string,
 ): Promise<boolean> {
-  if (!redis) {
-    return false;
-  }
-
-  try {
-    return (
-      (await redis.exists(commentMentionSentRedisKey(commentId, userId))) === 1
-    );
-  } catch (error) {
-    logger.warn(
-      "Failed to read comment mention sent marker; proceeding to send",
-      { commentId, userId, error },
-    );
-    return false;
-  }
+  const existing = await prisma.commentMentionEmail.findUnique({
+    where: {
+      commentId_userId: { commentId, userId },
+    },
+    select: { id: true },
+  });
+  return existing !== null;
 }
 
-async function markCommentMentionEmailSent(commentId: string, userId: string) {
-  if (!redis) {
-    return;
-  }
-
+async function recordCommentMentionEmailSent(
+  commentId: string,
+  userId: string,
+): Promise<void> {
   try {
-    await redis.set(
-      commentMentionSentRedisKey(commentId, userId),
-      "1",
-      "EX",
-      COMMENT_MENTION_SENT_TTL_SECONDS,
-    );
-  } catch (error) {
-    logger.warn("Failed to persist comment mention sent marker", {
-      commentId,
-      userId,
-      error,
+    await prisma.commentMentionEmail.create({
+      data: { commentId, userId },
     });
+  } catch (error) {
+    // Concurrent retry already inserted the row. Treat as recorded so this
+    // attempt does not throw and re-send after SMTP already succeeded.
+    if (isUniqueConstraintError(error)) {
+      return;
+    }
+    throw error;
   }
 }
 
@@ -187,7 +176,7 @@ export async function handleCommentMentionNotification(
 
     // Process each mentioned user. Per-user failures are collected so the rest
     // of the loop can finish; the job then throws so BullMQ retries only the
-    // recipients that were not marked sent.
+    // recipients that do not yet have a unique sent row.
     const failedUserIds: string[] = [];
 
     for (const userId of mentionedUserIds) {
@@ -270,7 +259,7 @@ export async function handleCommentMentionNotification(
         });
 
         if (delivered) {
-          await markCommentMentionEmailSent(commentId, userId);
+          await recordCommentMentionEmailSent(commentId, userId);
           logger.info(
             `Comment mention email sent successfully for comment ${commentId} to user ${userId}`,
           );
