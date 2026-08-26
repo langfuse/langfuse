@@ -22,6 +22,7 @@ const DESIGN_COMPONENT_STORIES = [
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "Toggle/Toggle",
   "Table/columns/createBadgeTableColumn",
   "Table/columns/createDateTableColumn",
   "Table/columns/createDurationTableColumn",
