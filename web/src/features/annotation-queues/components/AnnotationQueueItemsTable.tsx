@@ -36,7 +36,7 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -291,18 +291,13 @@ export function AnnotationQueueItemsTable({
         }
       },
     },
-    {
+    createIdTableColumn<QueueItemRowData>({
       accessorKey: "sourceId",
       header: "Source ID",
-      id: "sourceId",
       size: 50,
-      cell: ({ row }) => {
-        const sourceId: QueueItemRowData["sourceId"] = row.getValue("sourceId");
-        return <TableIdOrName value={sourceId} />;
-      },
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "status",
       header: "Status",
