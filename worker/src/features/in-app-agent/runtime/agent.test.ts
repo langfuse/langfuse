@@ -1200,6 +1200,7 @@ describe("createAgUiStream", () => {
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
         ).join(", "),
+        v4TraceTerminology: "",
       }),
     );
     expect(
@@ -2410,6 +2411,90 @@ describe("createAgUiStream", () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
+  it("compiles v4 trace terminology into the local system prompt", async () => {
+    const { createAgUiStream } = await import("./agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "show me traces from the last hour",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: true },
+        useLocalPrompt: true,
+      },
+    });
+    await readStream(stream);
+
+    const instructions = readAgentInstructions(getLastAgentConfig());
+    expect(instructions).toContain("<v4_trace_terminology>");
+    expect(instructions).toContain("isRootObservation true");
+    expect(instructions).toContain("listObservations");
+    expect(instructions).toContain("queryMetrics");
+  });
+
+  it("omits v4 trace terminology from the local system prompt when v4 is off", async () => {
+    const { createAgUiStream } = await import("./agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "show me traces from the last hour",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        useLocalPrompt: true,
+      },
+    });
+    await readStream(stream);
+
+    const instructions = readAgentInstructions(getLastAgentConfig());
+    expect(instructions).not.toContain("<v4_trace_terminology>");
+    expect(instructions).not.toContain("isRootObservation");
+  });
+
   it("uses V4-compatible filters for traces redirect actions", async () => {
     const { createAgUiStream } = await import("./agent");
     const input = {
@@ -2453,6 +2538,15 @@ describe("createAgUiStream", () => {
       },
     });
     await readStream(stream);
+
+    expect(promptMocks.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        v4TraceTerminology: expect.stringContaining("isRootObservation true"),
+      }),
+    );
+    expect(readAgentInstructions(getLastAgentConfig())).toContain(
+      "isRootObservation true",
+    );
 
     const redirectTool = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0])?.[
       IN_APP_AGENT_REDIRECT_TOOL_NAME

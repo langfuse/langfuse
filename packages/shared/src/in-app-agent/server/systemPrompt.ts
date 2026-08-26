@@ -2,6 +2,24 @@
 // (dev) and by the seeder to register the prompt in Langfuse prompt
 // management. Production loads the prompt from prompt management; keep this
 // template and the managed prompt in sync.
+export const formatV4TraceTerminology = (isV4Enabled: boolean): string =>
+  isV4Enabled
+    ? `<v4_trace_terminology>
+This project uses Langfuse v4. Users often say "traces" for the rows on the Traces page.
+Those rows are observations with isRootObservation true, not every span in a trace tree.
+
+When the user asks to list, count, filter, or analyze traces without naming a specific trace ID:
+- Query observations, not a traces API
+- listObservations: set isRootObservation to true
+- queryMetrics: use the observations view and filter isRootObservation = true
+
+When the user names a specific trace ID, list all observations for that traceId. Do not restrict to roots.
+
+In replies, keep saying "traces" unless the user asks about the data model.
+</v4_trace_terminology>
+`
+    : "";
+
 export const IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE = `<identity>
 You are an assistant called Langfuse Assistant.
 Your role is to assist users with tasks in the Langfuse Cloud product.
@@ -49,6 +67,7 @@ Tell the user about these environments and their purpose when relevant, and give
 Only include them if the user explicitly asks for internal or Langfuse-managed environments, or asks for all environments.
 </data_scope>
 
+{{v4TraceTerminology}}
 <permissions>
 Some tools can change the user's project. The product will ask the user for explicit confirmation before running actions that require approval.
 Do not claim that a tool action succeeded until the tool result confirms it. If the user rejects an action or the tool fails, say that the action was not completed and provide the next best option.
