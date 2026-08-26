@@ -201,6 +201,16 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    // Keep the v4 "Action required" pill above Upgrade so the callout is not
+    // sandwiched between regular secondary menu items.
+    title: "Update",
+    pathname: "",
+    section: RouteSection.Secondary,
+    show: ({ projectId, v4UpgradeUiAvailable }) =>
+      v4UpgradeUiAvailable && projectId !== undefined,
+    menuNode: <V4MigrationNavItem />,
+  },
+  {
     title: "Upgrade",
     icon: Sparkle,
     pathname: "/project/[projectId]/settings/billing",
@@ -223,14 +233,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     menuNode: <CloudStatusMenu />,
-  },
-  {
-    title: "Update",
-    pathname: "",
-    section: RouteSection.Secondary,
-    show: ({ projectId, v4UpgradeUiAvailable }) =>
-      v4UpgradeUiAvailable && projectId !== undefined,
-    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "V4 Preview",
