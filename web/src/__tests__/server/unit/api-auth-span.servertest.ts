@@ -72,6 +72,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     debug: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
   },
   recordIncrement: vi.fn(),
   redis: null,
@@ -179,5 +180,22 @@ describe("ApiAuthService span metadata", () => {
       }),
       fakeAuthSpan,
     );
+  });
+
+  it("rejects Basic auth when the submitted public key does not match the resolved key", async () => {
+    // Basic auth resolves the key via the secret-key hash; a (pk, sk) pair
+    // whose halves belong to different keys must not authenticate.
+    const { apiKey, secretKey } = createProjectApiKey();
+    const prisma = {
+      apiKey: {
+        findUnique: vi.fn().mockResolvedValue(apiKey),
+      },
+    };
+
+    await expect(
+      new ApiAuthService(prisma as any, null).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader("pk-lf-mismatch", secretKey),
+      ),
+    ).rejects.toThrow("Invalid credentials");
   });
 });
