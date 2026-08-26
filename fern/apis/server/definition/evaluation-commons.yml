@@ -15,7 +15,7 @@ types:
       - PYTHON
       - TYPESCRIPT
 
-  EvaluationRuleMappingSource:
+  PromptVariableMappingSource:
     docs: |
       Source field used to populate a prompt variable.
 
@@ -354,7 +354,7 @@ types:
 
           Example: for the prompt `Judge {{input}} against {{output}}`, use `input` and `output`.
       source:
-        type: EvaluationRuleMappingSource
+        type: PromptVariableMappingSource
         docs: |
           Source field that should populate the prompt variable.
 

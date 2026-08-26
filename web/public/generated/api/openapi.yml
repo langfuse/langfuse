@@ -12184,8 +12184,8 @@ components:
         - PYTHON
         - TYPESCRIPT
       description: Code evaluator runtime language.
-    EvaluationRuleMappingSource:
-      title: EvaluationRuleMappingSource
+    PromptVariableMappingSource:
+      title: PromptVariableMappingSource
       type: string
       enum:
         - input
@@ -12669,7 +12669,7 @@ components:
             Example: for the prompt `Judge {{input}} against {{output}}`, use
             `input` and `output`.
         source:
-          $ref: '#/components/schemas/EvaluationRuleMappingSource'
+          $ref: '#/components/schemas/PromptVariableMappingSource'
           description: >-
             Source field that should populate the prompt variable.
 
