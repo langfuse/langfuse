@@ -41,6 +41,7 @@ import {
   planInputCompletions,
   type CompletionOption,
   type CompletionPlan,
+  type QueryPresetSection,
 } from "@/src/features/search-bar/lib/completions";
 import {
   useSearchBarStore,
@@ -304,6 +305,8 @@ export function SearchComposer({
   erroredColumns,
   onActivateAi,
   onRequestColumns,
+  onQueryPresetPick,
+  presetSections,
   fieldReason,
   freeTextReason,
   registry = EVENTS_FIELD_REGISTRY,
@@ -323,6 +326,10 @@ export function SearchComposer({
    * loading is wired by the host table.
    */
   onRequestColumns?: (columns: readonly string[]) => void;
+  /** Complete-query sections supplied by the host view. Presets remain visible
+   * at every blank top-level term and replace the full query when picked. */
+  presetSections?: QueryPresetSection[];
+  onQueryPresetPick?: (presetId: string) => void;
   /** Given a filter token's field, the reason it is not applied on the current
    *  surface (dims the pill + hover), or null. Undefined leaves all active. */
   fieldReason?: (field: string) => string | null;
@@ -392,6 +399,7 @@ export function SearchComposer({
             observed,
             erroredColumns,
             recents,
+            presetSections,
             currentQueryText: draft,
           },
           registry,
@@ -796,21 +804,23 @@ export function SearchComposer({
     (option: CompletionOption) => {
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
-      if (option.kind === "recent") {
-        // Land in the RESTING (trailing-space) form like every other commit
-        // landing, so a later click past the text doesn't have to mutate the
-        // draft (= the caret flicker this PR removed). A recent is stored
-        // canonical/trimmed, so one space never doubles.
+      if (option.kind === "recent" || option.kind === "preset") {
+        // Complete-query picks replace the full draft and land in the RESTING
+        // trailing-space form like every other commit landing.
         const resting =
           option.query.length === 0 ? option.query : `${option.query} `;
         setDraftWithSelection(resting, resting.length);
-        // A recent is a COMPLETE query the user explicitly picked, so it gets
-        // the same Enter/blur reveal semantics: commit if valid, otherwise
-        // reveal the red invalid state instead of silently no-op'ing (e.g. a
-        // recent stored before a grammar tightening, or a since-retyped score).
+        // Explicit complete-query picks commit when valid and otherwise reveal
+        // the invalid state instead of silently no-op'ing.
         const state = storeApi.getState();
-        if (state.draftValid) commitToFilterState("pick");
-        else state.actions.revealInvalid();
+        if (state.draftValid) {
+          const committed = commitToFilterState(
+            "pick",
+            option.kind === "preset" ? { replaceHidden: true } : undefined,
+          );
+          if (option.kind === "preset" && committed !== null)
+            onQueryPresetPick?.(option.id);
+        } else state.actions.revealInvalid();
         setAutocompleteOpen(false);
         return;
       }
@@ -845,6 +855,7 @@ export function SearchComposer({
       setDraftWithSelection,
       commitStructuredEdit,
       commitToFilterState,
+      onQueryPresetPick,
       storeApi,
     ],
   );
