@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -30,18 +29,31 @@ const toggleVariants = cva(
   },
 );
 
-const Toggle = React.forwardRef<
-  React.ComponentRef<typeof TogglePrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root> &
-    VariantProps<typeof toggleVariants>
->(({ className, variant, size, ...props }, ref) => (
-  <TogglePrimitive.Root
-    ref={ref}
-    className={cn(toggleVariants({ variant, size, className }))}
-    {...props}
-  />
-));
+export type ToggleProps = Pick<
+  Omit<
+    React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root>,
+    "className"
+  >,
+  | "aria-label"
+  | "children"
+  | "defaultPressed"
+  | "disabled"
+  | "onClick"
+  | "onMouseEnter"
+  | "onMouseLeave"
+  | "onPressedChange"
+  | "pressed"
+> &
+  VariantProps<typeof toggleVariants> & {
+    ref?: React.Ref<React.ComponentRef<typeof TogglePrimitive.Root>>;
+  };
 
-Toggle.displayName = TogglePrimitive.Root.displayName;
-
-export { Toggle, toggleVariants };
+export function Toggle({ ref, variant, size, ...props }: ToggleProps) {
+  return (
+    <TogglePrimitive.Root
+      ref={ref}
+      className={cn(toggleVariants({ variant, size }))}
+      {...props}
+    />
+  );
+}
