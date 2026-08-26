@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ScoreConfigDataType } from "@langfuse/shared";
+import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useState } from "react";
 import { type UseFormReturn, useFieldArray, useForm } from "react-hook-form";
 
@@ -43,13 +43,21 @@ import {
 import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
 import { Trash } from "lucide-react";
 
-export type UpsertScoreConfigDialogContentProps = {
-  mode: "create" | "edit";
-  defaultValues: CreateConfig | UpdateConfig;
+type SharedUpsertScoreConfigDialogContentProps = {
   onSubmit: (values: CreateConfig | UpdateConfig) => Promise<void>;
   onFormSuccess: () => void;
   isSubmitting: boolean;
 };
+
+export type UpsertScoreConfigDialogContentProps =
+  | (SharedUpsertScoreConfigDialogContentProps & {
+      mode: "create";
+      defaultValues: CreateConfig;
+    })
+  | (SharedUpsertScoreConfigDialogContentProps & {
+      mode: "edit";
+      defaultValues: UpdateConfig;
+    });
 
 export function UpsertScoreConfigDialogContent({
   mode,
@@ -156,11 +164,13 @@ export function UpsertScoreConfigDialogContent({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.values(ScoreConfigDataType).map((value) => (
-                        <SelectItem value={value} key={value}>
-                          {value}
-                        </SelectItem>
-                      ))}
+                      {Object.values(ScoreDataTypeEnum)
+                        .filter((value) => value !== "CORRECTION")
+                        .map((value) => (
+                          <SelectItem value={value} key={value}>
+                            {value}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -283,6 +293,7 @@ export function UpsertScoreConfigDialogContent({
                             />
                             {isCategoricalDataType(dataType) && (
                               <Button
+                                type="button"
                                 onClick={() => remove(index)}
                                 variant="outline"
                                 size="icon"

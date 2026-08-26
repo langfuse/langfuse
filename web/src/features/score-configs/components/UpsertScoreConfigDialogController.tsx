@@ -1,4 +1,4 @@
-import { ScoreConfigDataType } from "@langfuse/shared";
+import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { type ReactNode, useState } from "react";
 
 import {
@@ -25,7 +25,7 @@ type UpsertScoreConfigDialogControllerProps = {
 } & ({ mode: "create" } | { mode: "edit"; defaultValues: UpdateConfig });
 
 const createDefaultValues: CreateConfig = {
-  dataType: ScoreConfigDataType.NUMERIC,
+  dataType: ScoreDataTypeEnum.NUMERIC,
   minValue: undefined,
   maxValue: undefined,
   name: "",
@@ -81,20 +81,31 @@ export function UpsertScoreConfigDialogController(
     });
   }
 
+  const content =
+    mode === "edit" ? (
+      <UpsertScoreConfigDialogContent
+        mode="edit"
+        defaultValues={props.defaultValues}
+        onSubmit={handleSubmit}
+        onFormSuccess={() => setOpen(false)}
+        isSubmitting={isSubmitting}
+      />
+    ) : (
+      <UpsertScoreConfigDialogContent
+        mode="create"
+        defaultValues={createDefaultValues}
+        onSubmit={handleSubmit}
+        onFormSuccess={() => setOpen(false)}
+        isSubmitting={isSubmitting}
+      />
+    );
+
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       {children({ disabled, isSubmitting, Trigger: DialogTrigger })}
       {hasAccess && open ? (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <UpsertScoreConfigDialogContent
-            mode={mode}
-            defaultValues={
-              mode === "edit" ? props.defaultValues : createDefaultValues
-            }
-            onSubmit={handleSubmit}
-            onFormSuccess={() => setOpen(false)}
-            isSubmitting={isSubmitting}
-          />
+          {content}
         </DialogContent>
       ) : null}
     </Dialog>
