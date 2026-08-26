@@ -86,6 +86,34 @@ const SYSTEM_TITLES = ["system", "Input"];
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
+type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
+
+const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
+  PrettyJsonViewTone,
+  { container: string; row: string; cell: string }
+> = {
+  danger: {
+    container: "border-dark-red bg-light-red",
+    row: "hover:bg-light-red",
+    cell: "border-dark-red/30",
+  },
+  warning: {
+    container: "border-dark-yellow/40 bg-light-yellow",
+    row: "hover:bg-light-yellow",
+    cell: "border-dark-yellow/20",
+  },
+  muted: {
+    container: "border-muted-foreground/15 bg-muted/30 text-muted-foreground",
+    row: "hover:bg-muted/30",
+    cell: "border-muted-foreground/15",
+  },
+  neutral: {
+    container: "bg-card",
+    row: "hover:bg-card",
+    cell: "border-border",
+  },
+};
+
 // decodeUnicodeInJson was extracted to a standalone module so that other JSON
 // viewers (e.g. CodeJsonViewer) can reuse it without creating an import cycle.
 // Re-exported here for backward compatibility with existing imports and tests.
@@ -304,6 +332,7 @@ interface JsonTableRowProps {
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey: boolean;
   stickyOffsets: { header: number; row: number };
+  toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
 }
 
 const JsonTableRowComponent = memo(
@@ -316,6 +345,7 @@ const JsonTableRowComponent = memo(
     toggleCellExpansion,
     stickyTopLevelKey,
     stickyOffsets,
+    toneClasses,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
     const isExpandable =
@@ -348,6 +378,7 @@ const JsonTableRowComponent = memo(
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky z-10 shadow-xs"
             : "",
+          toneClasses?.row,
         )}
         style={
           row.original.level === 0 && stickyTopLevelKey
@@ -358,7 +389,10 @@ const JsonTableRowComponent = memo(
         {row.getVisibleCells().map((cell) => (
           <TableCell
             key={cell.id}
-            className="px-2 py-1 align-top whitespace-normal"
+            className={cn(
+              "px-2 py-1 align-top whitespace-normal",
+              toneClasses?.cell,
+            )}
             style={{ width: `${cell.column.columnDef.size}%` }}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -386,6 +420,7 @@ function JsonPrettyTable({
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
   metadataActions,
+  toneClasses,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -403,6 +438,7 @@ function JsonPrettyTable({
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
+  toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -656,7 +692,10 @@ function JsonPrettyTable({
             <TableRow
               key={headerGroup.id}
               ref={index === 0 ? headerRef : undefined}
-              className={stickyTopLevelKey ? "sticky top-0 z-20" : ""}
+              className={cn(
+                stickyTopLevelKey ? "sticky top-0 z-20" : "",
+                toneClasses?.row,
+              )}
             >
               {headerGroup.headers.map((header) => (
                 <TableHead
@@ -664,6 +703,7 @@ function JsonPrettyTable({
                   className={cn(
                     "h-8 px-2 py-1",
                     stickyTopLevelKey ? "bg-background" : "bg-transparent",
+                    toneClasses?.cell,
                   )}
                   style={{ width: `${header.column.columnDef.size}%` }}
                 >
@@ -694,6 +734,7 @@ function JsonPrettyTable({
               toggleCellExpansion={toggleCellExpansion}
               stickyTopLevelKey={stickyTopLevelKey}
               stickyOffsets={stickyOffsets}
+              toneClasses={toneClasses}
             />
           ))}
         </TableBody>
@@ -723,6 +764,8 @@ export function PrettyJsonView(props: {
   showNullValues?: boolean;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  tone?: PrettyJsonViewTone;
+  inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
@@ -732,6 +775,10 @@ export function PrettyJsonView(props: {
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
 }) {
+  const toneClasses = props.tone
+    ? PRETTY_JSON_VIEW_TONE_CLASSES[props.tone]
+    : undefined;
+  const codeClassName = cn(props.codeClassName, toneClasses?.container);
   // Large plain-string gate (LFE-10991): a multi-MB top-level string skips
   // deepParseJson's object-only `maxSize` guard, so without this it would run
   // several full-length main-thread passes (parse, the markdown-probe
@@ -1188,11 +1235,7 @@ export function PrettyJsonView(props: {
         <div className="io-message-content ph-no-capture">
           <div
             className={cn(
-              getContainerClasses(
-                props.title,
-                props.scrollable,
-                props.codeClassName,
-              ),
+              getContainerClasses(props.title, props.scrollable, codeClassName),
             )}
           >
             <div className="space-y-2 p-3">
@@ -1212,11 +1255,7 @@ export function PrettyJsonView(props: {
           <div
             className={cn(
               "flex items-center",
-              getContainerClasses(
-                props.title,
-                props.scrollable,
-                props.codeClassName,
-              ),
+              getContainerClasses(props.title, props.scrollable, codeClassName),
             )}
           >
             <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
@@ -1252,7 +1291,7 @@ export function PrettyJsonView(props: {
               className={getContainerClasses(
                 props.title,
                 props.scrollable,
-                props.codeClassName,
+                codeClassName,
                 "flex text-xs wrap-break-word whitespace-pre-wrap",
               )}
             >
@@ -1276,6 +1315,7 @@ export function PrettyJsonView(props: {
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
+                  toneClasses={toneClasses}
                 />
               )}
             </div>
@@ -1296,7 +1336,7 @@ export function PrettyJsonView(props: {
               hideTitle={true} // But hide the title, we display it
               className=""
               isLoading={props.isLoading}
-              codeClassName={props.codeClassName}
+              codeClassName={codeClassName}
               collapseStringsAfterLength={props.collapseStringsAfterLength}
               media={props.media}
               scrollable={props.scrollable}
@@ -1348,6 +1388,7 @@ export function PrettyJsonView(props: {
     <div
       className={cn(
         "flex max-h-full min-h-0 flex-col",
+        props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
       )}
@@ -1359,6 +1400,7 @@ export function PrettyJsonView(props: {
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
+          inset={props.inset}
           controlButtons={
             <>
               {shouldUseTableView && (
