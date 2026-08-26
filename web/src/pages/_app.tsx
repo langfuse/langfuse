@@ -177,6 +177,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
               <SessionProvider
                 session={session}
                 refetchOnWindowFocus={true}
+                // Must stay below AUTH_SESSION_MAX_AGE (a rolling inactivity window).
                 refetchInterval={5 * 60} // 5 minutes
                 basePath={authBasePath}
               >
