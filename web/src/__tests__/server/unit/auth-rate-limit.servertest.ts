@@ -125,6 +125,25 @@ describe("AuthRateLimitService", () => {
     ]);
   });
 
+  it("rate-limits signup by IP only so a spoofed email cannot lock out a victim", async () => {
+    const client = redis();
+    const hit = await AuthRateLimitService.getInstance(client).consume({
+      resource: "auth-signup",
+      ip: "203.0.113.10",
+      email: "victim@example.com",
+    });
+
+    expect(hit).toBeUndefined();
+    expect(mocks.options).toMatchObject([
+      {
+        keyPrefix: `${AUTH_RATE_LIMIT_REDIS_KEY_PREFIX}:auth-signup:ip`,
+        points: 10,
+        duration: 60 * 60,
+      },
+    ]);
+    expect(mocks.consume.mock.calls).toEqual([["203.0.113.10"]]);
+  });
+
   it("uses tighter signup buckets and fails open when Redis is unavailable", async () => {
     await AuthRateLimitService.getInstance(redis()).consume({
       resource: "auth-signup",

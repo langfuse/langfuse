@@ -21,7 +21,7 @@ const AUTH_RATE_LIMITS: Record<
   AuthRateLimitResource,
   {
     ip: { points: number; durationInSec: number };
-    email: { points: number; durationInSec: number };
+    email?: { points: number; durationInSec: number };
   }
 > = {
   // Login is high-volume in shared NAT offices; keep IP generous and email tighter.
@@ -29,10 +29,10 @@ const AUTH_RATE_LIMITS: Record<
     ip: { points: 30, durationInSec: 15 * 60 },
     email: { points: 10, durationInSec: 15 * 60 },
   },
-  // Signup is rare; tighter to stop dummy-account floods and email enumeration.
+  // Signup is unauthenticated: never key by email. An attacker can put a
+  // victim's address in the body and exhaust that bucket (429 for up to an hour).
   "auth-signup": {
     ip: { points: 10, durationInSec: 60 * 60 },
-    email: { points: 5, durationInSec: 60 * 60 },
   },
 };
 
@@ -170,7 +170,7 @@ export class AuthRateLimitService {
       return ipHit;
     }
 
-    if (!params.email) {
+    if (!params.email || !limits.email) {
       return undefined;
     }
 
