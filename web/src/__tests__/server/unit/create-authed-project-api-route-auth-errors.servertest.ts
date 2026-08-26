@@ -60,12 +60,13 @@ vi.mock("@/src/features/public-api/server/withMiddlewares", () => ({
 }));
 
 vi.mock(
-  "@/src/features/public-api/server/unstable-public-api-error-contract",
+  "@/src/features/public-api/server/structured-public-api-error-contract",
   () => ({
-    unstablePublicEvalsErrorContract: "unstable-public-evals",
+    structuredPublicApiErrorContract: "structured",
     createUnstablePublicApiAuthError: mockCreateUnstablePublicApiAuthError,
     createUnstablePublicApiRequestValidationError: vi.fn(),
-    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
+    sendStructuredPublicApiErrorResponse:
+      mockSendUnstablePublicApiErrorResponse,
   }),
 );
 
@@ -112,7 +113,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   async function callRoute(options?: {
-    useUnstableErrorContract?: boolean;
+    useStructuredErrorContract?: boolean;
     rateLimitUpgradePath?: {
       legacyEndpoint: string;
       replacementEndpoint: string;
@@ -124,8 +125,8 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       name: "Test Route",
       querySchema: z.object({}),
       responseSchema: z.object({ ok: z.literal(true) }),
-      errorContract: options?.useUnstableErrorContract
-        ? "unstable-public-evals"
+      errorContract: options?.useStructuredErrorContract
+        ? "structured"
         : undefined,
       rateLimitUpgradePath: options?.rateLimitUpgradePath,
       fn: async () => ({ ok: true as const }),
@@ -183,12 +184,27 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
   });
 
-  it("returns unstable auth errors and traces prisma auth failures", async () => {
+  it("returns structured authentication errors", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: false,
+      error: "Invalid credentials",
+    });
+
+    await callRoute({ useStructuredErrorContract: true });
+
+    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+      statusCode: 401,
+      message: "Invalid credentials",
+    });
+    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns structured errors and traces prisma auth failures", async () => {
     const prismaLikeError = new Error("Can't reach database server");
     mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
     mockIsPrismaException.mockReturnValue(true);
 
-    await callRoute({ useUnstableErrorContract: true });
+    await callRoute({ useStructuredErrorContract: true });
 
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
     expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({

@@ -66,6 +66,18 @@ export class RuleService {
     return { rules: rules.map(toRuleResponse), totalItems };
   }
 
+  async listCursor(
+    input: Omit<ListRulesInput, "page"> & {
+      cursor?: { createdAt: Date; id: string };
+    },
+  ) {
+    const { rules, nextCursor } = await repository.listRulesCursor({
+      prisma: this.prisma,
+      input,
+    });
+    return { rules: rules.map(toRuleResponse), nextCursor };
+  }
+
   listFilterOptions(projectId: string) {
     return repository.listRuleFilterOptions({
       prisma: this.prisma,
@@ -302,6 +314,13 @@ export class RuleService {
         input.ruleId,
       );
       this.assertLegacyRuleUpdateAllowed(current.targetObject, input);
+      const resultingAssignmentCount =
+        input.evaluatorMappings?.length ?? current.assignments.length;
+      if (input.enabled === true && resultingAssignmentCount === 0) {
+        throw new InvalidRequestError(
+          "An enabled evaluation rule requires at least one evaluator assignment",
+        );
+      }
       const currentTargetObject = current.targetObject as EvalTargetObject;
       const currentFilter = current.filter as FilterState;
       // Whether a rule targets experiments is derived from its filter, so an
@@ -321,10 +340,9 @@ export class RuleService {
         targetObject: input.targetObject ?? inheritedTargetObject,
         filter: effectiveFilter,
       });
-      const filter = this.validateRuleFilters(
-        normalized.targetObject,
-        normalized.filter,
-      );
+      const filter = isLegacyEvalTarget(currentTargetObject)
+        ? currentFilter
+        : this.validateRuleFilters(normalized.targetObject, normalized.filter);
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: input.projectId,
@@ -431,8 +449,10 @@ export class RuleService {
   async deleteMany(input: RuleSelectionInput) {
     const ruleIds = await this.prisma.$transaction(async (prisma) => {
       const ids = await repository.listSelectedRuleIds({ prisma, input });
-      await prisma.evaluationRule.deleteMany({
-        where: { projectId: input.projectId, id: { in: ids } },
+      await repository.deleteRules({
+        prisma,
+        projectId: input.projectId,
+        ruleIds: ids,
       });
       return ids;
     });
@@ -458,6 +478,7 @@ export class RuleService {
               projectId: input.projectId,
               isBatchAction: true,
               search: input.search,
+              filter: input.filter,
             };
       const ids = await repository.listSelectedRuleIds({
         prisma,

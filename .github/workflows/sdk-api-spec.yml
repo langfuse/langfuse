@@ -45,6 +45,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Verify checked-in server OpenAPI
+        run: |
+          npx fern-api export --api server "${RUNNER_TEMP}/server-openapi.yml"
+          pnpm --filter web exec tsx scripts/openapi/sync-deprecations.ts \
+            "${RUNNER_TEMP}/server-openapi.yml"
+          pnpm --filter web exec tsx scripts/openapi/check-generated-openapi.ts \
+            public/generated/api/openapi.yml \
+            "${RUNNER_TEMP}/server-openapi.yml"
+
       - name: Generate SDK specs
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}

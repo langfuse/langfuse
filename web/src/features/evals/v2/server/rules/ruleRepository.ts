@@ -47,7 +47,7 @@ const assignmentInclude = {
 };
 
 const ruleInclude = {
-  createdByUser: { select: { name: true, email: true } },
+  createdByUser: { select: { id: true, name: true, email: true } },
   assignments: assignmentInclude,
 } satisfies Prisma.EvaluationRuleInclude;
 
@@ -144,6 +144,45 @@ export async function listRules(params: {
   return { rules, totalItems };
 }
 
+export async function listRulesCursor(params: {
+  prisma: PrismaClient;
+  input: Omit<ListRulesInput, "page"> & {
+    cursor?: { createdAt: Date; id: string };
+  };
+}) {
+  const baseWhere = ruleWhere(params.input);
+  const where: Prisma.EvaluationRuleWhereInput = params.input.cursor
+    ? {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { createdAt: { lt: params.input.cursor.createdAt } },
+              {
+                createdAt: params.input.cursor.createdAt,
+                id: { lt: params.input.cursor.id },
+              },
+            ],
+          },
+        ],
+      }
+    : baseWhere;
+  const records = await params.prisma.evaluationRule.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: params.input.limit + 1,
+    include: ruleInclude,
+  });
+  const hasMore = records.length > params.input.limit;
+  const rules = records.slice(0, params.input.limit);
+  const last = rules.at(-1);
+  return {
+    rules,
+    nextCursor:
+      hasMore && last ? { createdAt: last.createdAt, id: last.id } : undefined,
+  };
+}
+
 export async function listRuleFilterOptions(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -153,7 +192,7 @@ export async function listRuleFilterOptions(params: {
       where: { projectId: params.projectId },
       select: {
         name: true,
-        createdByUser: { select: { name: true, email: true } },
+        createdByUser: { select: { id: true, name: true, email: true } },
       },
     }),
     params.prisma.evaluationRule.findFirst({
@@ -307,15 +346,34 @@ export async function deleteRule(params: {
   projectId: string;
   ruleId: string;
 }) {
+  const result = await params.prisma.evaluationRule.deleteMany({
+    where: { id: params.ruleId, projectId: params.projectId },
+  });
+  if (result.count === 0) return false;
+
   // Executions carry no foreign key to the rule, so they have to go explicitly
   // or they keep showing up in the eval log of a deleted rule.
   await params.prisma.jobExecution.deleteMany({
     where: { projectId: params.projectId, jobConfigurationId: params.ruleId },
   });
+  return true;
+}
+
+export async function deleteRules(params: {
+  prisma: RulePrisma;
+  projectId: string;
+  ruleIds: string[];
+}) {
   const result = await params.prisma.evaluationRule.deleteMany({
-    where: { id: params.ruleId, projectId: params.projectId },
+    where: { projectId: params.projectId, id: { in: params.ruleIds } },
   });
-  return result.count > 0;
+  await params.prisma.jobExecution.deleteMany({
+    where: {
+      projectId: params.projectId,
+      jobConfigurationId: { in: params.ruleIds },
+    },
+  });
+  return result.count;
 }
 
 export async function listSelectedRuleIds(params: {

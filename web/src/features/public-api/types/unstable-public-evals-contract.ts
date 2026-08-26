@@ -20,11 +20,11 @@ export {
   UnstablePublicApiErrorCode,
   UnstablePublicApiErrorDetails,
   UnstablePublicApiErrorResponse,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+} from "@/src/features/public-api/shared/structured-public-api-error-schema";
 import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+} from "@/src/features/public-api/shared/structured-public-api-error-schema";
 
 export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
 export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =

@@ -14,7 +14,7 @@ import {
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { createUnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
 import {
   PostUnstableDashboardWidgetResponse,
   type DashboardWidgetViewOutputType,

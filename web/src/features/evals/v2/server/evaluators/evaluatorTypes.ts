@@ -1,5 +1,7 @@
 import {
+  EvalOutputDefinitionSchema,
   EvalTemplateType,
+  extractVariables,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
   PersistedEvalOutputDefinitionSchema,
@@ -68,16 +70,50 @@ export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   CodeEvaluatorDefinitionSchema,
 ]);
 
+const EvaluatorModelConfigSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  modelParams: ZodModelConfig.nullable().optional(),
+});
+
+const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
+  type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+  prompt: z.string().min(1),
+  modelConfig: EvaluatorModelConfigSchema.nullable(),
+  outputDefinition: EvalOutputDefinitionSchema,
+});
+
+export const EvaluatorDefinitionInputSchema = z
+  .discriminatedUnion("type", [
+    LlmEvaluatorDefinitionInputSchema,
+    CodeEvaluatorDefinitionSchema,
+  ])
+  .transform(
+    (definition): z.infer<typeof EvaluatorDefinitionSchema> =>
+      definition.type === EvalTemplateType.CODE
+        ? definition
+        : {
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            prompt: definition.prompt,
+            provider: definition.modelConfig?.provider ?? null,
+            model: definition.modelConfig?.model ?? null,
+            modelParams: definition.modelConfig?.modelParams ?? null,
+            vars: extractVariables(definition.prompt),
+            variableMapping: definition.variableMapping,
+            outputDefinition: definition.outputDefinition,
+          },
+  );
+
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.uuid().optional(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const UpdateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.string(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const EvaluatorIdSchema = z.object({
@@ -188,4 +224,9 @@ export type EvaluatorDefinitionForPersistence =
     });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
+export type PatchEvaluatorInput = Pick<
+  UpdateEvaluatorInput,
+  "projectId" | "evaluatorId"
+> &
+  Partial<Pick<UpdateEvaluatorInput, "name" | "description" | "definition">>;
 export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;

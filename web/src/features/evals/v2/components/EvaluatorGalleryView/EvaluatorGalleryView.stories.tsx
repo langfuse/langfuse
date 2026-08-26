@@ -59,7 +59,6 @@ const managedTemplate = {
     prompt: "Rate the relevance of {{generation}} to {{query}}.",
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
-      version: 2,
       dataType: "NUMERIC",
       score: { description: "Relevance." },
       reasoning: { description: "One sentence." },
@@ -104,7 +103,6 @@ const sections: GallerySection[] = [
         evaluator: {
           ...managedTemplate.evaluator,
           outputDefinition: {
-            version: 2,
             dataType: "CATEGORICAL",
             score: {
               description: "Intent.",
@@ -124,7 +122,6 @@ const sections: GallerySection[] = [
         evaluator: {
           ...managedTemplate.evaluator,
           outputDefinition: {
-            version: 2,
             dataType: "BOOLEAN",
             score: { description: "Out of scope." },
             reasoning: { description: "One sentence." },

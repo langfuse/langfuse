@@ -1055,7 +1055,17 @@ describe("RuleService", () => {
         });
         await prisma.evaluationRule.update({
           where: { id: legacyRule.id },
-          data: { status: "ACTIVE" },
+          data: {
+            status: "ACTIVE",
+            filter: [
+              {
+                type: "string",
+                column: "Trace Name",
+                operator: "=",
+                value: "legacy trace",
+              },
+            ],
+          },
         });
         await service.update({
           projectId,
@@ -1223,6 +1233,36 @@ describe("RuleService", () => {
         },
       ]);
     });
+
+    it("rejects enabling a rule whose resulting assignment list is empty", async () => {
+      const service = createService();
+      const evaluator = await createEvaluator();
+      const assigned = await service.create(createInput(evaluator.id), null);
+      const unassigned = await service.create(
+        { ...createInput(), enabled: false },
+        null,
+      );
+
+      await expect(
+        service.update({
+          projectId,
+          ruleId: assigned.id,
+          enabled: true,
+          evaluatorMappings: [],
+        }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
+      await expect(
+        service.update({
+          projectId,
+          ruleId: unassigned.id,
+          enabled: true,
+        }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
+    });
   });
 
   describe("setEnabled", () => {
@@ -1345,13 +1385,24 @@ describe("RuleService", () => {
         projectId,
         isBatchAction: true,
         search: "production",
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: first.name,
+          },
+        ],
         enabled: false,
       });
 
-      expect(new Set(changedIds)).toEqual(new Set([first.id, second.id]));
+      expect(changedIds).toEqual([first.id]);
       await expect(
         service.list({ projectId, page: 1, limit: 50, enabled: false }),
-      ).resolves.toMatchObject({ totalItems: 2 });
+      ).resolves.toMatchObject({ totalItems: 1 });
+      await expect(service.get(projectId, second.id)).resolves.toMatchObject({
+        enabled: true,
+      });
     });
   });
 
@@ -1381,6 +1432,13 @@ describe("RuleService", () => {
         { ...createInput(), name: "Second rule" },
         null,
       );
+      await prisma.jobExecution.createMany({
+        data: [first.id, second.id].map((jobConfigurationId) => ({
+          projectId,
+          jobConfigurationId,
+          status: "PENDING" as const,
+        })),
+      });
 
       await expect(
         service.deleteMany({ projectId, ruleIds: [first.id, second.id] }),
@@ -1388,6 +1446,14 @@ describe("RuleService", () => {
       await expect(
         service.list({ projectId, page: 1, limit: 50 }),
       ).resolves.toEqual({ rules: [], totalItems: 0 });
+      await expect(
+        prisma.jobExecution.count({
+          where: {
+            projectId,
+            jobConfigurationId: { in: [first.id, second.id] },
+          },
+        }),
+      ).resolves.toBe(0);
     });
 
     it("ignores unavailable rules in an explicit selection", async () => {

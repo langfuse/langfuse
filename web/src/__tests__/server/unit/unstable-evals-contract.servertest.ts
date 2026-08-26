@@ -11,7 +11,7 @@ import {
   toApiV2EvaluationRule,
   toEvaluationRuleInput,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
-import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { UnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
 import type {
   StoredPublicEvaluatorTemplate,
   StoredPublicV2EvaluationRule,

@@ -8,7 +8,7 @@ import {
   withMiddlewares,
   type HttpMethod,
 } from "@/src/features/public-api/server/withMiddlewares";
-import { unstablePublicEvalsErrorContract } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { structuredPublicApiErrorContract } from "@/src/features/public-api/server/structured-public-api-error-contract";
 
 type UnstablePublicApiRouteConfig<
   TQuery extends ZodType<any>,
@@ -35,12 +35,12 @@ export const createUnstablePublicApiRoute = <
 ) =>
   createAuthedProjectAPIRoute({
     ...routeConfig,
-    errorContract: unstablePublicEvalsErrorContract,
+    errorContract: structuredPublicApiErrorContract,
   });
 
 export const withUnstablePublicApiMiddlewares = (
   handlers: UnstablePublicApiHandlers,
 ) =>
   withMiddlewares(handlers, {
-    errorContract: unstablePublicEvalsErrorContract,
+    errorContract: structuredPublicApiErrorContract,
   });

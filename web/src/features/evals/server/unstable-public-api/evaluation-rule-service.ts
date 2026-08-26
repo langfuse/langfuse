@@ -58,7 +58,7 @@ import {
   assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { createUnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
 import { assertUnreachable } from "@/src/utils/types";
 
 const ruleService = new RuleService(prisma, async () => undefined);

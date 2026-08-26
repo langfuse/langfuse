@@ -15,14 +15,14 @@ import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+} from "@/src/features/public-api/shared/structured-public-api-error-schema";
 import {
   getRateLimitUpgradeMessage,
   type RateLimitUpgradePath,
 } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
-export const unstablePublicEvalsErrorContract = "unstable-public-evals";
-export type PublicApiErrorContract = typeof unstablePublicEvalsErrorContract;
+export const structuredPublicApiErrorContract = "structured";
+export type PublicApiErrorContract = typeof structuredPublicApiErrorContract;
 
 type UnstablePublicApiErrorBody = {
   message: string;
@@ -64,7 +64,7 @@ function toSerializableIssues(issues: ZodError["issues"]) {
   }));
 }
 
-export function sendUnstablePublicApiErrorResponse(
+export function sendStructuredPublicApiErrorResponse(
   res: NextApiResponse,
   error: UnstablePublicApiError,
 ) {
@@ -157,7 +157,7 @@ export function createUnstablePublicApiRequestValidationError(params: {
   });
 }
 
-export function toUnstablePublicApiError(
+export function toStructuredPublicApiError(
   error: unknown,
 ): UnstablePublicApiError {
   if (error instanceof UnstablePublicApiError) {
@@ -230,7 +230,7 @@ export function toUnstablePublicApiError(
   if (error instanceof ClickHouseResourceError) {
     return createUnstablePublicApiError({
       httpCode: 422,
-      code: "unprocessable_content",
+      code: "invalid_request",
       message: [
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
         "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",

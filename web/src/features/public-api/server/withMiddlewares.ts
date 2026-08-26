@@ -17,11 +17,11 @@ import {
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import {
-  sendUnstablePublicApiErrorResponse,
-  toUnstablePublicApiError,
-  unstablePublicEvalsErrorContract,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
+  toStructuredPublicApiError,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "@/src/features/public-api/server/structured-public-api-error-contract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
@@ -126,10 +126,10 @@ export function withMiddlewares(
             tags: error.tags,
           });
 
-          if (options?.errorContract === unstablePublicEvalsErrorContract) {
-            return sendUnstablePublicApiErrorResponse(
+          if (options?.errorContract === structuredPublicApiErrorContract) {
+            return sendStructuredPublicApiErrorResponse(
               res,
-              toUnstablePublicApiError(error),
+              toStructuredPublicApiError(error),
             );
           }
 
@@ -139,7 +139,7 @@ export function withMiddlewares(
           });
         }
 
-        if (options?.errorContract === unstablePublicEvalsErrorContract) {
+        if (options?.errorContract === structuredPublicApiErrorContract) {
           if (isBaseError(error)) {
             logBaseError(error);
           } else if (isZodError(error)) {
@@ -156,9 +156,9 @@ export function withMiddlewares(
             traceException(error);
           }
 
-          return sendUnstablePublicApiErrorResponse(
+          return sendStructuredPublicApiErrorResponse(
             res,
-            toUnstablePublicApiError(error),
+            toStructuredPublicApiError(error),
           );
         }
 

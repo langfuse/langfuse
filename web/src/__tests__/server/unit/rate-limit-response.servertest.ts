@@ -74,12 +74,13 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 vi.mock(
-  "@/src/features/public-api/server/unstable-public-api-error-contract",
+  "@/src/features/public-api/server/structured-public-api-error-contract",
   () => ({
-    unstablePublicEvalsErrorContract: "unstable-public-evals",
+    structuredPublicApiErrorContract: "structured",
     createUnstablePublicApiRateLimitError:
       mockCreateUnstablePublicApiRateLimitError,
-    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
+    sendStructuredPublicApiErrorResponse:
+      mockSendUnstablePublicApiErrorResponse,
   }),
 );
 
@@ -181,14 +182,14 @@ describe("sendRateLimitResponse", () => {
     const res = createResponse();
 
     sendRateLimitResponse(res, rateLimitResult, {
-      errorContract: "unstable-public-evals",
+      errorContract: "structured",
       upgradePath,
     });
 
     expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
       {
-        errorContract: "unstable-public-evals",
+        errorContract: "structured",
         upgradePath,
       },
     );

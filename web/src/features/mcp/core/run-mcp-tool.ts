@@ -3,7 +3,7 @@ import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { ZodError } from "zod";
 
-import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { UnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
 
 import { isUserInputError } from "./errors";
 import type { ServerContext } from "../types";
