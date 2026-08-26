@@ -1,5 +1,4 @@
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
@@ -36,7 +35,8 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -221,22 +221,25 @@ export function AnnotationQueueItemsTable({
         );
       },
     },
-    {
+    createLinkTableColumn<QueueItemRowData>({
       accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 70,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const id: QueueItemRowData["id"] = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${projectId}/annotation-queues/${queueId}/items/${id}?singleItem=true`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (id) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/annotation-queues/${queueId}/items/${id}?singleItem=true`,
+              value: id,
+            },
+          };
+        }
+
+        return undefined;
       },
-    },
+    }),
     {
       accessorKey: "objectType",
       header: "Type",
@@ -248,61 +251,57 @@ export function AnnotationQueueItemsTable({
         return <span className="capitalize">{objectType.toLowerCase()}</span>;
       },
     },
-    {
+    createLinkTableColumn<QueueItemRowData, QueueItemRowData["source"]>({
       accessorKey: "source",
       header: "Source",
       headerTooltip: {
         description:
           "Link to the source trace, observation or session based on which this item was added",
       },
-      id: "source",
       size: 50,
-      cell: ({ row }) => {
+      getCell: (_, { row }) => {
         const rowData = row.original;
-        if (!rowData.source) return null;
+        if (!rowData.source) return undefined;
 
-        switch (rowData.objectType) {
-          case "OBSERVATION":
-            return (
-              <TableLink
-                path={`/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`}
-                value={`Observation: ${rowData.source.observationId}`}
-                icon={<ListTree className="h-4 w-4" />}
-              />
-            );
-          case "TRACE":
-            return (
-              <TableLink
-                path={`/project/${projectId}/traces/${rowData.source.traceId}`}
-                value={`Trace: ${rowData.source.traceId}`}
-                icon={<ListTree className="h-4 w-4" />}
-              />
-            );
-          case "SESSION":
-            return (
-              <TableLink
-                path={`/project/${projectId}/sessions/${rowData.source.sessionId}`}
-                value={`Session: ${rowData.source.sessionId}`}
-                icon={<ListTree className="h-4 w-4" />}
-              />
-            );
-          default:
-            throw new Error(`Unknown object type`);
+        if (rowData.objectType === "OBSERVATION") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${rowData.source.traceId}?observation=${rowData.source.observationId}`,
+              value: `Observation: ${rowData.source.observationId}`,
+              icon: ListTree,
+            },
+          };
         }
+
+        if (rowData.objectType === "TRACE") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${rowData.source.traceId}`,
+              value: `Trace: ${rowData.source.traceId}`,
+              icon: ListTree,
+            },
+          };
+        }
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/sessions/${rowData.source.sessionId}`,
+            value: `Session: ${rowData.source.sessionId}`,
+            icon: ListTree,
+          },
+        };
       },
-    },
-    {
+    }),
+    createIdTableColumn<QueueItemRowData>({
       accessorKey: "sourceId",
       header: "Source ID",
-      id: "sourceId",
       size: 50,
-      cell: ({ row }) => {
-        const sourceId: QueueItemRowData["sourceId"] = row.getValue("sourceId");
-        return <TableIdOrName value={sourceId} />;
-      },
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "status",
       header: "Status",

@@ -30,6 +30,21 @@ const store = createRuleSetupStore({
     },
   ],
 });
+const codeEvaluatorId = "exact-match";
+const codeEvaluatorStore = createRuleSetupStore({
+  name: "Experiment evaluators",
+  filter: [],
+  sampling: 1,
+  assignments: [
+    {
+      evaluatorId: codeEvaluatorId,
+      evaluatorName: "Exact Match",
+      evaluatorType: "CODE",
+      defaultVariableMapping,
+      variableMapping: null,
+    },
+  ],
+});
 
 const meta = preview.meta({ component: EvaluatorMappingRow });
 
@@ -41,6 +56,21 @@ export const FullyMapped = meta.story({
     defaultVariableMapping,
     store,
     sampleObject: null,
+    costEstimate: null,
+  },
+});
+
+export const CodeEvaluator = meta.story({
+  args: {
+    evaluatorId: codeEvaluatorId,
+    evaluatorName: "Exact Match",
+    evaluatorType: "CODE",
+    defaultVariableMapping,
+    store: codeEvaluatorStore,
+    sampleObject: {
+      input: "What is the capital of Germany?",
+      output: "Berlin",
+    },
     costEstimate: null,
   },
 });

@@ -264,8 +264,6 @@ export const traceRouter = createTRPCRouter({
       const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
-        limit: 1000,
-        offset: 0,
         excludeMetadata: true,
         includeHasMetadata: true,
       });

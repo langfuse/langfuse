@@ -70,6 +70,7 @@ export function useProjectDefaultModel({
             utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId }),
             utils.evalsV2.list.invalidate({ projectId }),
             utils.evalsV2.options.invalidate({ projectId }),
+            utils.evalsV2.filterOptions.invalidate({ projectId }),
           ]);
           capture("evaluators:default_model_update", {
             source,
