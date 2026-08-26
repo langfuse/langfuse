@@ -25,6 +25,7 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
+  ListPlus,
   MoreVertical,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -44,7 +45,7 @@ import {
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -568,12 +569,28 @@ export const SessionPage: React.FC<{
                   }}
                   buttonVariant="outline"
                 />
-                <CreateNewAnnotationQueueItem
+                <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
-                  variant="outline"
-                />
+                >
+                  {({ disabled, totalCount }) => (
+                    <Button
+                      variant="outline"
+                      disabled={disabled !== undefined}
+                      className="rounded-l-none rounded-r-md border-l-2"
+                    >
+                      <span className="relative mr-1 text-xs">
+                        <ChevronDown className="h-3 w-3" />
+                        {totalCount > 0 ? (
+                          <span className="bg-primary text-primary-foreground absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">
+                            {totalCount > 99 ? "99+" : totalCount}
+                          </span>
+                        ) : null}
+                      </span>
+                    </Button>
+                  )}
+                </AnnotationQueueItemDropdownMenuController>
               </div>
               <div className="flex items-center">
                 <div className="mx-1">
@@ -623,13 +640,28 @@ export const SessionPage: React.FC<{
                 buttonVariant="outline"
                 layout="menu"
               />
-              <CreateNewAnnotationQueueItem
+              <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
-                variant="outline"
-                layout="menu"
-              />
+              >
+                {({ disabled, totalCount }) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled !== undefined}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                    <span className="text-sm">Add to queue</span>
+                    {totalCount > 0 ? (
+                      <span className="bg-primary/50 text-primary-foreground ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+                        {totalCount > 99 ? "99+" : totalCount}
+                      </span>
+                    ) : null}
+                  </Button>
+                )}
+              </AnnotationQueueItemDropdownMenuController>
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -1452,12 +1484,28 @@ const LoadedSessionEventsPage: React.FC<{
                   buttonVariant="outline"
                   showAnnotationCount={isModernSessionEnabled}
                 />
-                <CreateNewAnnotationQueueItem
+                <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
-                  variant="outline"
-                />
+                >
+                  {({ disabled, totalCount }) => (
+                    <Button
+                      variant="outline"
+                      disabled={disabled !== undefined}
+                      className="rounded-l-none rounded-r-md border-l-2"
+                    >
+                      <span className="relative mr-1 text-xs">
+                        <ChevronDown className="h-3 w-3" />
+                        {totalCount > 0 ? (
+                          <span className="bg-primary text-primary-foreground absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">
+                            {totalCount > 99 ? "99+" : totalCount}
+                          </span>
+                        ) : null}
+                      </span>
+                    </Button>
+                  )}
+                </AnnotationQueueItemDropdownMenuController>
               </div>
               {!isModernSessionEnabled ? (
                 <label className="flex items-center gap-1.5">
@@ -1530,13 +1578,28 @@ const LoadedSessionEventsPage: React.FC<{
                 layout="menu"
                 showAnnotationCount={isModernSessionEnabled}
               />
-              <CreateNewAnnotationQueueItem
+              <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
-                variant="outline"
-                layout="menu"
-              />
+              >
+                {({ disabled, totalCount }) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled !== undefined}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                    <span className="text-sm">Add to queue</span>
+                    {totalCount > 0 ? (
+                      <span className="bg-primary/50 text-primary-foreground ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+                        {totalCount > 99 ? "99+" : totalCount}
+                      </span>
+                    ) : null}
+                  </Button>
+                )}
+              </AnnotationQueueItemDropdownMenuController>
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}

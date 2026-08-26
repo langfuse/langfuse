@@ -6,9 +6,9 @@ import {
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { type MouseEvent } from "react";
-import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { type MouseEvent } from "react";
 
 export type AnnotationQueueItemMenuQueue = {
   id: string;
@@ -17,7 +17,7 @@ export type AnnotationQueueItemMenuQueue = {
   status?: string;
 };
 
-type AnnotationQueueItemMenuProps = {
+type AnnotationQueueItemMenuContentProps = {
   projectId: string;
   queues: AnnotationQueueItemMenuQueue[];
   onQueueItemToggle: (
@@ -27,11 +27,11 @@ type AnnotationQueueItemMenuProps = {
   ) => void;
 };
 
-export function AnnotationQueueItemMenu({
+export function AnnotationQueueItemMenuContent({
   projectId,
   queues,
   onQueueItemToggle,
-}: AnnotationQueueItemMenuProps) {
+}: AnnotationQueueItemMenuContentProps) {
   const preventMenuItemAction = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();

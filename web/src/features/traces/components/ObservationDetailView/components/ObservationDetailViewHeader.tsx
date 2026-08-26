@@ -22,7 +22,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
@@ -50,7 +50,13 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
+import {
+  ChevronDown,
+  ListPlus,
+  LockIcon,
+  MoreHorizontal,
+  SquarePen,
+} from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -243,12 +249,28 @@ export const ObservationDetailViewHeader = memo(
                           layout="menu"
                         />
                       )}
-                      <CreateNewAnnotationQueueItem
+                      <AnnotationQueueItemDropdownMenuController
                         projectId={projectId}
                         objectId={observation.id}
                         objectType={AnnotationQueueObjectType.OBSERVATION}
-                        layout="menu"
-                      />
+                      >
+                        {({ disabled, totalCount }) => (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled !== undefined}
+                            className="w-full justify-start gap-2 font-normal"
+                          >
+                            <ListPlus className="h-4 w-4" />
+                            <span className="text-sm">Add to queue</span>
+                            {totalCount > 0 ? (
+                              <span className="bg-primary/50 text-primary-foreground ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
+                                {totalCount > 99 ? "99+" : totalCount}
+                              </span>
+                            ) : null}
+                          </Button>
+                        )}
+                      </AnnotationQueueItemDropdownMenuController>
                     </>
                   )}
                   {observationWithIO &&
@@ -339,12 +361,29 @@ export const ObservationDetailViewHeader = memo(
                       size="sm"
                     />
                   )}
-                  <CreateNewAnnotationQueueItem
+                  <AnnotationQueueItemDropdownMenuController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
-                    size="sm"
-                  />
+                  >
+                    {({ disabled, totalCount }) => (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={disabled !== undefined}
+                        className="rounded-l-none rounded-r-md border-l-2"
+                      >
+                        <span className="relative mr-1 text-xs">
+                          <ChevronDown className="h-3 w-3" />
+                          {totalCount > 0 ? (
+                            <span className="bg-primary text-primary-foreground absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">
+                              {totalCount > 99 ? "99+" : totalCount}
+                            </span>
+                          ) : null}
+                        </span>
+                      </Button>
+                    )}
+                  </AnnotationQueueItemDropdownMenuController>
                 </div>
               )}
               {observationWithIO &&

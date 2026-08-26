@@ -6,12 +6,12 @@ import {
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import {
-  AnnotationQueueItemMenu,
+  AnnotationQueueItemMenuContent,
   type AnnotationQueueItemMenuQueue,
-} from "./AnnotationQueueItemMenu";
+} from "./AnnotationQueueItemMenuContent";
 
 const meta = preview.meta({
-  component: AnnotationQueueItemMenu,
+  component: AnnotationQueueItemMenuContent,
 });
 
 const queues: AnnotationQueueItemMenuQueue[] = [
@@ -28,7 +28,7 @@ export const WithQueues = meta.story({
   render: (args) => (
     <DropdownMenu defaultOpen>
       <DropdownMenuTrigger>Open queues</DropdownMenuTrigger>
-      <AnnotationQueueItemMenu {...args} />
+      <AnnotationQueueItemMenuContent {...args} />
     </DropdownMenu>
   ),
   args: {
@@ -42,7 +42,7 @@ export const Empty = meta.story({
   render: (args) => (
     <DropdownMenu defaultOpen>
       <DropdownMenuTrigger>Open queues</DropdownMenuTrigger>
-      <AnnotationQueueItemMenu {...args} />
+      <AnnotationQueueItemMenuContent {...args} />
     </DropdownMenu>
   ),
   args: {
@@ -57,7 +57,7 @@ export const QueueCanBeToggled = meta.story({
   render: (args) => (
     <DropdownMenu defaultOpen>
       <DropdownMenuTrigger>Open queues</DropdownMenuTrigger>
-      <AnnotationQueueItemMenu {...args} />
+      <AnnotationQueueItemMenuContent {...args} />
     </DropdownMenu>
   ),
   args: {
