@@ -92,7 +92,7 @@ const PLAN: DemoObs[] = [
     type: "AGENT",
     name: "support-copilot",
     start: 0,
-    end: 11052,
+    end: 11752,
     input: { message: CUSTOMER_MESSAGE, customer_id: "cus_LqT4v8" },
     output: {
       reply: FINAL_REPLY,
@@ -145,12 +145,71 @@ const PLAN: DemoObs[] = [
     },
   },
   {
+    key: "plan-context",
+    parentKey: "root",
+    type: "GENERATION",
+    name: "plan-context",
+    start: 826,
+    end: 1510,
+    model: "gpt-5.4-mini",
+    usage: [648, 57],
+    ttft: 171,
+    modelParameters: { temperature: 0, max_tokens: 256, tool_choice: "auto" },
+    input: {
+      messages: [
+        {
+          role: "system",
+          content:
+            "Decide which context sources to load for this support request. " +
+            "Call every relevant tool in parallel.",
+        },
+        {
+          role: "user",
+          content:
+            '{"intent":"billing.duplicate_charge","customer_id":"cus_LqT4v8"}',
+        },
+      ],
+    },
+    // Three PARALLEL tool calls in one response — the undercount shape from
+    // the linked report: counting observations sees 1, summing toolCalls sees 3.
+    output: {
+      content: null,
+      tool_calls: [
+        {
+          id: "call_ctx01",
+          type: "function",
+          function: {
+            name: "crm_get_customer",
+            arguments: '{"customer_id":"cus_LqT4v8"}',
+          },
+        },
+        {
+          id: "call_ctx02",
+          type: "function",
+          function: {
+            name: "billing_list_invoices",
+            arguments:
+              '{"customer_id":"cus_LqT4v8","period":"2026-06..2026-07"}',
+          },
+        },
+        {
+          id: "call_ctx03",
+          type: "function",
+          function: {
+            name: "tickets_search",
+            arguments: '{"query":"duplicate charge cus_LqT4v8","limit":5}',
+          },
+        },
+      ],
+    },
+  },
+  {
     key: "load-context",
     parentKey: "root",
     type: "SPAN",
     name: "load-context",
-    start: 858,
-    end: 1512,
+    start: 1558,
+    end: 2212,
     input: { customer_id: "cus_LqT4v8" },
     output: { sources: ["crm", "billing", "tickets"], cache_hit: false },
   },
@@ -159,8 +218,8 @@ const PLAN: DemoObs[] = [
     parentKey: "load-context",
     type: "TOOL",
     name: "crm.get-customer",
-    start: 881,
-    end: 1129,
+    start: 1581,
+    end: 1829,
     input: { customer_id: "cus_LqT4v8" },
     output: {
       name: "Maya Chen",
@@ -178,8 +237,8 @@ const PLAN: DemoObs[] = [
     parentKey: "load-context",
     type: "TOOL",
     name: "billing.list-invoices",
-    start: 886,
-    end: 1494,
+    start: 1586,
+    end: 2194,
     input: { customer_id: "cus_LqT4v8", period: "2026-06..2026-07" },
     output: {
       invoices: [
@@ -204,8 +263,8 @@ const PLAN: DemoObs[] = [
     parentKey: "load-context",
     type: "TOOL",
     name: "tickets.search",
-    start: 893,
-    end: 1263,
+    start: 1593,
+    end: 1963,
     input: { query: "duplicate charge cus_LqT4v8", limit: 5 },
     output: {
       hits: 1,
@@ -226,8 +285,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 1561,
-    end: 3389,
+    start: 2261,
+    end: 4089,
     model: "gpt-5.4",
     usage: [1846, 94],
     ttft: 243,
@@ -269,8 +328,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "stripe.find-charges",
-    start: 3441,
-    end: 4118,
+    start: 4141,
+    end: 4818,
     input: { customer_id: "cus_LqT4v8", period: "2026-07", amount_usd: 49 },
     output: {
       charges: [
@@ -299,8 +358,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 4172,
-    end: 5924,
+    start: 4872,
+    end: 6624,
     model: "gpt-5.4",
     usage: [2413, 72],
     ttft: 212,
@@ -342,8 +401,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "stripe.create-refund",
-    start: 5978,
-    end: 6893,
+    start: 6678,
+    end: 7593,
     input: {
       charge_id: "ch_3PqK9b",
       reason: "duplicate",
@@ -363,8 +422,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 6947,
-    end: 8731,
+    start: 7647,
+    end: 9431,
     model: "gpt-5.4",
     usage: [2987, 141],
     ttft: 264,
@@ -397,8 +456,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "draft-response",
-    start: 8790,
-    end: 10377,
+    start: 9490,
+    end: 11077,
     model: "gpt-5.4",
     usage: [1312, 187],
     ttft: 231,
@@ -428,8 +487,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "GUARDRAIL",
     name: "guardrail.output",
-    start: 10426,
-    end: 10557,
+    start: 11126,
+    end: 11257,
     input: { text: FINAL_REPLY, checks: ["policy", "tone", "pii"] },
     output: { verdict: "pass", tone: "empathetic", policy_violations: [] },
     metadata: { provider: "internal", policy: "support-v2" },
@@ -439,8 +498,8 @@ const PLAN: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "zendesk.send-reply",
-    start: 10609,
-    end: 10881,
+    start: 11309,
+    end: 11581,
     input: { thread_id: "thread_7Hf3kX", body: FINAL_REPLY },
     output: { message_id: "msg_9uTb4w", status: "sent" },
     metadata: { provider: "zendesk" },
@@ -460,8 +519,8 @@ const FAILURE_NODES: DemoObs[] = [
     parentKey: "root",
     type: "TOOL",
     name: "stripe.create-refund",
-    start: 5978,
-    end: 6467,
+    start: 6678,
+    end: 7167,
     level: "ERROR",
     statusMessage: "Stripe error 409: idempotency_key conflict",
     input: {
@@ -485,8 +544,8 @@ const FAILURE_NODES: DemoObs[] = [
     parentKey: "root",
     type: "GENERATION",
     name: "llm.chat",
-    start: 6521,
-    end: 7591,
+    start: 7221,
+    end: 8291,
     model: "gpt-5.4",
     usage: [2653, 68],
     ttft: 219,
@@ -526,9 +585,33 @@ const FAILURE_NODES: DemoObs[] = [
   },
 ];
 
-/** buildPlan returns the happy-path PLAN, or the --fail variant with the failed refund attempt + retry turn spliced in before the successful refund. */
-function buildPlan(fail: boolean): DemoObs[] {
+/**
+ * buildPlan returns the happy-path PLAN, or a --fail variant. Failures
+ * alternate by seed so the tool-error widgets show more than one tool:
+ * - "refund": failed refund attempt + retry turn spliced in (shifts the tail)
+ * - "tickets": tickets.search returns a fast Zendesk 502 (same timings; the
+ *   agent proceeds without prior-ticket context)
+ */
+function buildPlan(fail: boolean, failTarget: "refund" | "tickets"): DemoObs[] {
   if (!fail) return PLAN;
+  if (failTarget === "tickets") {
+    return PLAN.map((p) =>
+      p.key === "tickets"
+        ? {
+            ...p,
+            level: "ERROR" as const,
+            statusMessage: "Zendesk 502: upstream search unavailable",
+            output: {
+              error: {
+                type: "upstream_error",
+                code: 502,
+                message: "Search backend unavailable, request not retried.",
+              },
+            },
+          }
+        : p,
+    );
+  }
   const refundIndex = PLAN.findIndex((p) => p.key === "refund");
   return [
     ...PLAN.slice(0, refundIndex).map((p) =>
@@ -552,7 +635,7 @@ const run = async (
   const fail = params["fail"] as boolean;
   const daysAgo = Number(params["days-ago"] ?? 0);
   const seedNum = Number(params["seed"] ?? 42);
-  const plan = buildPlan(fail);
+  const plan = buildPlan(fail, seedNum % 2 === 0 ? "refund" : "tickets");
 
   // The prefix IS the trace id (no "-trace" suffix): the id shows in the
   // trace header, so a demo seeded with a hex-looking prefix (e.g.
@@ -565,6 +648,11 @@ const run = async (
     ((8 + ((seedNum * 7 + daysAgo * 5) % 10)) * 60 + ((seedNum * 13) % 60)) *
     60_000;
   const traceTimestamp = utcDayStartMs() - daysAgo * 86_400_000 + intradayMs;
+  // Seed-keyed whole-trace duration scale (0.75x-1.35x): uniform scaling keeps
+  // parent/child containment intact while making latency charts vary across
+  // seeded runs instead of drawing flat lines.
+  const latencyScale = 0.75 + ((seedNum * 37) % 61) / 100;
+  const scaleMs = (offsetMs: number) => Math.round(offsetMs * latencyScale);
 
   if (ctx.dryRun) {
     return {
@@ -648,10 +736,12 @@ const run = async (
       parent_observation_id:
         p.parentKey === null ? null : (keyToId.get(p.parentKey) ?? null),
       name: p.name,
-      start_time: traceTimestamp + p.start,
-      end_time: traceTimestamp + p.end,
+      start_time: traceTimestamp + scaleMs(p.start),
+      end_time: traceTimestamp + scaleMs(p.end),
       completion_start_time:
-        p.ttft !== undefined ? traceTimestamp + p.start + p.ttft : null,
+        p.ttft !== undefined
+          ? traceTimestamp + scaleMs(p.start) + scaleMs(p.ttft)
+          : null,
       level: p.level ?? "DEFAULT",
       status_message: p.statusMessage ?? null,
       version: null,
