@@ -25,6 +25,7 @@ import { DetailHeaderActionsMenu } from "@/src/features/traces/components/Detail
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import {
   SessionBadge,
@@ -175,11 +176,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         >
                           <ListPlus className="h-4 w-4" />
                           <span className="text-sm">Add to queue</span>
-                          {totalCount > 0 ? (
-                            <span className="bg-primary/50 text-primary-foreground ml-auto flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
-                              {totalCount > 99 ? "99+" : totalCount}
-                            </span>
-                          ) : null}
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="menu"
+                          />
                         </Button>
                       )}
                     </AnnotationQueueItemDropdownMenuController>
@@ -243,11 +243,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     >
                       <span className="relative mr-1 text-xs">
                         <ChevronDown className="h-3 w-3" />
-                        {totalCount > 0 ? (
-                          <span className="bg-primary text-primary-foreground absolute -top-1 left-2.5 flex h-3 min-w-3 items-center justify-center rounded-sm px-0.5 text-[8px] font-bold shadow-xs">
-                            {totalCount > 99 ? "99+" : totalCount}
-                          </span>
-                        ) : null}
+                        <AnnotationQueueItemCountBadge
+                          totalCount={totalCount}
+                          layout="toolbar"
+                        />
                       </span>
                     </Button>
                   )}
