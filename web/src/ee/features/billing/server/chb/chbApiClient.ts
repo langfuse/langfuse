@@ -318,8 +318,11 @@ export class ChbApiClient {
  * Build a client from env, or null when the CHB REST surface is not fully
  * configured. Callers treat null as "CHB unavailable" and fail closed — a
  * partially configured deployment must not reach CHB unauthenticated.
+ *
+ * Exported for the env-validation tests only; call `getChbApiClient` instead,
+ * which shares one client (and therefore one token cache) process-wide.
  */
-export const createChbApiClientFromEnv = (): ChbApiClient | null => {
+export const buildChbApiClientFromEnv = (): ChbApiClient | null => {
   if (
     !env.CLICKHOUSE_BILLING_BASE_URL ||
     !env.CLICKHOUSE_BILLING_AUTH0_DOMAIN ||
@@ -338,3 +341,48 @@ export const createChbApiClientFromEnv = (): ChbApiClient | null => {
     },
   });
 };
+
+/**
+ * Process-wide CHB client, built on first use.
+ *
+ * The client owns the Auth0 token cache and its single-flight, and both only
+ * do anything if every billing request shares one instance: the dispatch layer
+ * resolves a billing service per tRPC request, so constructing a client there
+ * would mint a fresh access token on every billing call — three per billing
+ * page load — and never reuse one.
+ *
+ * Lazy rather than built at module load, so the env-validation tests can drive
+ * `buildChbApiClientFromEnv` directly, and so importing this module stays free
+ * for deployments that never configure CHB. Mirrors `PrismaClientSingleton`.
+ */
+class ChbApiClientSingleton {
+  private static instance: ChbApiClient | null;
+  private static built = false;
+
+  public static getInstance(): ChbApiClient | null {
+    if (!ChbApiClientSingleton.built) {
+      // Cached even when null: an unconfigured deployment must not re-check
+      // env on every billing request either.
+      ChbApiClientSingleton.instance = buildChbApiClientFromEnv();
+      ChbApiClientSingleton.built = true;
+    }
+    return ChbApiClientSingleton.instance;
+  }
+
+  /** Test-only: drop the cached client so the next call rebuilds from env. */
+  public static reset(): void {
+    ChbApiClientSingleton.built = false;
+    ChbApiClientSingleton.instance = null;
+  }
+}
+
+/**
+ * The CHB client for this process, or null when CHB is not fully configured.
+ * Callers treat null as "CHB unavailable" and fail closed.
+ */
+export const getChbApiClient = (): ChbApiClient | null =>
+  ChbApiClientSingleton.getInstance();
+
+/** Test-only: reset the singleton between cases. */
+export const resetChbApiClientForTests = (): void =>
+  ChbApiClientSingleton.reset();

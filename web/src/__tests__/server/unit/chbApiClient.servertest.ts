@@ -20,10 +20,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import {
+  buildChbApiClientFromEnv,
   ChbApiClient,
   ChbApiError,
   ChbPaymentRequiredError,
-  createChbApiClientFromEnv,
+  getChbApiClient,
+  resetChbApiClientForTests,
 } from "@/src/ee/features/billing/server/chb/chbApiClient";
 
 const CH_ORG_ID = "6dd6ab1d-9e8d-4c1a-8b4f-9a3d1e2c4b5a";
@@ -392,7 +394,7 @@ describe("chbApiClient", () => {
     });
   });
 
-  describe("createChbApiClientFromEnv", () => {
+  describe("buildChbApiClientFromEnv", () => {
     const setAll = () => {
       mocks.env.CLICKHOUSE_BILLING_BASE_URL = "https://chb.example.com";
       mocks.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN = AUTH0_DOMAIN;
@@ -409,12 +411,68 @@ describe("chbApiClient", () => {
       setAll();
       mocks.env[missing] = undefined;
       // Fail closed: a partly configured deployment must not call CHB at all.
-      expect(createChbApiClientFromEnv()).toBeNull();
+      expect(buildChbApiClientFromEnv()).toBeNull();
     });
 
     it("builds a client once every credential is present", () => {
       setAll();
-      expect(createChbApiClientFromEnv()).toBeInstanceOf(ChbApiClient);
+      expect(buildChbApiClientFromEnv()).toBeInstanceOf(ChbApiClient);
+    });
+  });
+
+  describe("getChbApiClient", () => {
+    const setAll = () => {
+      mocks.env.CLICKHOUSE_BILLING_BASE_URL = "https://chb.example.com";
+      mocks.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN = AUTH0_DOMAIN;
+      mocks.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID = "client-id";
+      mocks.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET = "client-secret";
+    };
+
+    beforeEach(() => resetChbApiClientForTests());
+    afterEach(() => resetChbApiClientForTests());
+
+    /**
+     * The dispatch layer resolves a billing service per tRPC request. If that
+     * handed back a fresh client each time, every billing call would mint a new
+     * Auth0 token — the client's token cache and single-flight only do anything
+     * when one instance is shared.
+     */
+    it("hands every caller the same client", () => {
+      setAll();
+      const first = getChbApiClient();
+      expect(first).toBeInstanceOf(ChbApiClient);
+      expect(getChbApiClient()).toBe(first);
+      expect(getChbApiClient()).toBe(first);
+    });
+
+    it("mints one token across calls made through the shared client", async () => {
+      setAll();
+      onChb(jsonResponse(200, { url: "https://chb.example.com/portal" }));
+      onChb(jsonResponse(200, { url: "https://chb.example.com/portal" }));
+
+      // Two separate resolutions, as two billing procedures in one page load.
+      await getChbApiClient()!.createPortalSession({
+        chOrganizationId: CH_ORG_ID,
+        returnUrl: "https://cloud.langfuse.com/return",
+      });
+      await getChbApiClient()!.createPortalSession({
+        chOrganizationId: CH_ORG_ID,
+        returnUrl: "https://cloud.langfuse.com/return",
+      });
+
+      expect(chbCalls()).toHaveLength(2);
+      expect(tokenCalls()).toHaveLength(1);
+    });
+
+    it("caches the unconfigured verdict instead of re-reading env", () => {
+      setAll();
+      mocks.env.CLICKHOUSE_BILLING_BASE_URL = undefined;
+      expect(getChbApiClient()).toBeNull();
+
+      // Env cannot change under a running process; a later call must not
+      // suddenly start talking to CHB.
+      setAll();
+      expect(getChbApiClient()).toBeNull();
     });
   });
 });
