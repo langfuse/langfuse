@@ -6,15 +6,16 @@ import { describe, expect, it } from "vitest";
 import { registeredProviders } from "./index";
 
 describe("provider convention registry", () => {
-  it("registers every provider directory in conventions/", () => {
-    // Registration is one export line in providers.ts — this catches the
-    // forgotten line when a new provider directory is added.
-    const providerDirectories = readdirSync(__dirname, {
+  it("registers every provider directory in conventions/providers/", () => {
+    // Registration is one export line in providers/index.ts — this catches
+    // the forgotten line when a new provider directory is added.
+    const providersDir = join(__dirname, "providers");
+    const providerDirectories = readdirSync(providersDir, {
       withFileTypes: true,
     }).filter(
       (entry) =>
         entry.isDirectory() &&
-        existsSync(join(__dirname, entry.name, "index.ts")),
+        existsSync(join(providersDir, entry.name, "index.ts")),
     );
 
     expect(registeredProviders).toHaveLength(providerDirectories.length);
