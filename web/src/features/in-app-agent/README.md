@@ -154,9 +154,9 @@ separate click event would answer.
 Rollback is a code revert; background execution does not require a schema
 rollback.
 
-`QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED` must be on wherever turns run
-in background, otherwise runs commit as `QUEUED` and die at `queue_timeout`. It
-is already enabled in every Langfuse Cloud region. Check
+Workers with `LANGFUSE_IN_APP_AGENT_ENABLED` set consume the run queue and
+reconcile stale runs; without it, runs commit as `QUEUED` and die at
+`queue_timeout`. Cloud is on unless the flag is `"false"`. Check
 `LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG` against execution capacity too:
 its default of 20 equals full US capacity and exceeds JP and staging.
 
@@ -165,8 +165,9 @@ statuses remain separate project concerns.
 
 Environment ownership:
 
-- Worker: queue enable/concurrency, sandbox provider and Lambda MicroVM values,
-  and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`.
+- Worker: queue concurrency, sandbox provider and Lambda MicroVM values,
+  and development-only `LANGFUSE_IN_APP_AGENT_AWS_PROFILE`. Enablement is
+  `LANGFUSE_IN_APP_AGENT_ENABLED` (shared with web).
 - Fixed lifecycle policy: queue timeout (300000 ms), maximum run duration
   (900000 ms), and approval TTL (86400000 ms). These are shared constants, so
   web and worker cannot diverge.
