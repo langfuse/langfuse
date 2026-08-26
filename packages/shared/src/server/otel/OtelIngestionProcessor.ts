@@ -1570,9 +1570,7 @@ export class OtelIngestionProcessor {
         if (DANGEROUS_KEYS.has(key)) return;
         if (!Object.hasOwn(current, key)) {
           // Check if next key is a number to decide if we need an array or object
-          current[key] = /^\d+$/.test(path[i + 1])
-            ? []
-            : Object.create(null);
+          current[key] = /^\d+$/.test(path[i + 1]) ? [] : Object.create(null);
         }
         current = current[key];
       }

@@ -9696,13 +9696,14 @@ describe("OTel Resource Span Mapping", () => {
       }
 
       expect(observedCall).toBe(originalCall);
-      expect(events.find((event) => event.type === "span-create")?.body.input)
-        .toMatchObject({
-          a: {
-            safe: "still-here",
-            hasOwnProperty: { call: "pwned" },
-          },
-        });
+      expect(
+        events.find((event) => event.type === "span-create")?.body.input,
+      ).toMatchObject({
+        a: {
+          safe: "still-here",
+          hasOwnProperty: { call: "pwned" },
+        },
+      });
     });
 
     it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
