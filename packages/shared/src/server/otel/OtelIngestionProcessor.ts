@@ -1572,7 +1572,12 @@ export class OtelIngestionProcessor {
           // Check if next key is a number to decide if we need an array or object
           current[key] = /^\d+$/.test(path[i + 1]) ? [] : Object.create(null);
         }
-        current = current[key];
+        const next = current[key];
+        if (typeof next !== "object" || next === null) {
+          // Preserve an earlier leaf value when a later attribute conflicts.
+          return;
+        }
+        current = next;
       }
       const finalKey = path[path.length - 1];
       if (!DANGEROUS_KEYS.has(finalKey)) {

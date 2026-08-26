@@ -9611,78 +9611,77 @@ describe("OTel Resource Span Mapping", () => {
 
   describe("Prototype pollution protection", () => {
     const publicKey = "pk-lf-1234567890";
+    const traceId = "abcdef1234567890abcdef1234567890";
+    const spanId = "abcdef1234567890";
 
-    it("should not traverse inherited properties in nested gen_ai.prompt attributes", async () => {
-      const traceId = "abcdef1234567890abcdef1234567890";
-      const spanId = "abcdef1234567890";
+    const createResourceSpan = (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+    ) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: "langfuse-sdk",
+            version: "2.0.0",
+            attributes: [
+              {
+                key: "public_key",
+                value: { stringValue: publicKey },
+              },
+            ],
+          },
+          spans: [
+            {
+              traceId: Buffer.from(traceId, "hex").toJSON(),
+              spanId: Buffer.from(spanId, "hex").toJSON(),
+              name: "prototype-protection-test",
+              kind: 1,
+              startTimeUnixNano: {
+                low: 1000000000,
+                high: 0,
+                unsigned: true,
+              },
+              endTimeUnixNano: {
+                low: 2000000000,
+                high: 0,
+                unsigned: true,
+              },
+              attributes,
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
+
+    const convertAndObserveHasOwnPropertyCall = async (
+      attributes: Array<{ key: string; value: Record<string, unknown> }>,
+    ) => {
       const hasOwnPropertyFunction = Object.prototype.hasOwnProperty;
       const originalCall = hasOwnPropertyFunction.call;
       const originalCallDescriptor = Object.getOwnPropertyDescriptor(
         hasOwnPropertyFunction,
         "call",
       );
-      let observedCall: unknown;
-      let events: TestIngestionEvent[] = [];
 
       try {
-        events = await convertOtelSpanToIngestionEvent(
-          {
-            resource: {
-              attributes: [
-                {
-                  key: "service.name",
-                  value: { stringValue: "test-service" },
-                },
-              ],
-            },
-            scopeSpans: [
-              {
-                scope: {
-                  name: "langfuse-sdk",
-                  version: "2.0.0",
-                  attributes: [
-                    {
-                      key: "public_key",
-                      value: { stringValue: publicKey },
-                    },
-                  ],
-                },
-                spans: [
-                  {
-                    traceId: Buffer.from(traceId, "hex").toJSON(),
-                    spanId: Buffer.from(spanId, "hex").toJSON(),
-                    name: "prototype-chain-clobbering-test",
-                    kind: 1,
-                    startTimeUnixNano: {
-                      low: 1000000000,
-                      high: 0,
-                      unsigned: true,
-                    },
-                    endTimeUnixNano: {
-                      low: 2000000000,
-                      high: 0,
-                      unsigned: true,
-                    },
-                    attributes: [
-                      {
-                        key: "gen_ai.prompt.a.safe",
-                        value: { stringValue: "still-here" },
-                      },
-                      {
-                        key: "gen_ai.prompt.a.hasOwnProperty.call",
-                        value: { stringValue: "pwned" },
-                      },
-                    ],
-                    status: {},
-                  },
-                ],
-              },
-            ],
-          },
+        const events = await convertOtelSpanToIngestionEvent(
+          createResourceSpan(attributes),
           new Set([traceId]),
           publicKey,
         );
-        observedCall = hasOwnPropertyFunction.call;
+        return {
+          events,
+          observedCall: hasOwnPropertyFunction.call,
+          originalCall,
+        };
       } finally {
         if (originalCallDescriptor) {
           Object.defineProperty(
@@ -9694,6 +9693,20 @@ describe("OTel Resource Span Mapping", () => {
           delete (hasOwnPropertyFunction as { call?: unknown }).call;
         }
       }
+    };
+
+    it("should not traverse inherited properties in nested gen_ai.prompt attributes", async () => {
+      const { events, observedCall, originalCall } =
+        await convertAndObserveHasOwnPropertyCall([
+          {
+            key: "gen_ai.prompt.a.safe",
+            value: { stringValue: "still-here" },
+          },
+          {
+            key: "gen_ai.prompt.a.hasOwnProperty.call",
+            value: { stringValue: "pwned" },
+          },
+        ]);
 
       expect(observedCall).toBe(originalCall);
       expect(
@@ -9703,6 +9716,54 @@ describe("OTel Resource Span Mapping", () => {
           safe: "still-here",
           hasOwnProperty: { call: "pwned" },
         },
+      });
+    });
+
+    it("should not traverse inherited properties through an array branch", async () => {
+      const { events, observedCall, originalCall } =
+        await convertAndObserveHasOwnPropertyCall([
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "seed" },
+          },
+          {
+            key: "gen_ai.prompt.a.hasOwnProperty.call",
+            value: { stringValue: "pwned" },
+          },
+        ]);
+
+      expect(observedCall).toBe(originalCall);
+      const input = events.find((event) => event.type === "span-create")?.body
+        .input as { a?: unknown[] } | undefined;
+      expect(input?.a?.[0]).toBe("seed");
+      expect(Object.hasOwn(input?.a ?? [], "hasOwnProperty")).toBe(true);
+      expect(Reflect.get(input?.a ?? [], "hasOwnProperty")).toMatchObject({
+        call: "pwned",
+      });
+    });
+
+    it("should preserve a scalar leaf and ignore a conflicting nested attribute", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.a",
+            value: { stringValue: "leaf" },
+          },
+          {
+            key: "gen_ai.prompt.a.b",
+            value: { stringValue: "nested" },
+          },
+          {
+            key: "gen_ai.prompt.safe",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toMatchObject({
+        a: "leaf",
+        safe: "still-here",
       });
     });
 
