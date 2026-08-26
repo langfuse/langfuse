@@ -6,12 +6,16 @@ import {
 } from "@/src/hooks/useReadyRouteParams";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { HeaderMetaRow } from "@/src/components/layouts/header-meta-row";
+import {
+  HeaderPill,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import SessionsTable from "@/src/components/table/use-cases/sessions";
 import { cn } from "@/src/utils/tailwind";
-import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
@@ -114,35 +118,89 @@ function UserDetailPage({
       }}
     >
       <>
-        {user.data && (
-          <div className="flex flex-wrap gap-2 px-4 py-4">
-            <Badge variant="outline">
-              Observations:{" "}
-              {compactNumberFormatter(user.data.totalObservations)}
-            </Badge>
-            <Badge variant="outline">
-              Traces: {compactNumberFormatter(user.data.totalTraces)}
-            </Badge>
-            <Badge variant="outline">
-              Total Tokens: {compactNumberFormatter(user.data.totalTokens)}
-            </Badge>
-            <Badge variant="outline">
-              <span className="flex items-center gap-1">
-                Total Cost: {usdFormatter(user.data.sumCalculatedTotalCost)}
-              </span>
-            </Badge>
-            <Badge variant="outline">
-              Active:{" "}
-              {user.data.firstTrace
-                ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : isBetaEnabled
-                  ? "No activity yet"
-                  : "No traces yet"}
-            </Badge>
-          </div>
-        )}
-
-        <div className="border-border border-t" />
+        {user.data ? (
+          <HeaderMetaRow
+            noun="user details"
+            items={[
+              {
+                key: "observations",
+                searchText: `observations ${user.data.totalObservations}`,
+                content: (
+                  <HeaderPill variant="display">
+                    observations{" "}
+                    <HeaderPillValue>
+                      {compactNumberFormatter(
+                        user.data.totalObservations,
+                        0,
+                      ).toLowerCase()}
+                    </HeaderPillValue>
+                  </HeaderPill>
+                ),
+              },
+              {
+                key: "traces",
+                searchText: `traces ${user.data.totalTraces}`,
+                content: (
+                  <HeaderPill variant="display">
+                    traces{" "}
+                    <HeaderPillValue>
+                      {compactNumberFormatter(
+                        user.data.totalTraces,
+                        0,
+                      ).toLowerCase()}
+                    </HeaderPillValue>
+                  </HeaderPill>
+                ),
+              },
+              {
+                key: "tokens",
+                searchText: `tokens ${user.data.totalTokens}`,
+                content: (
+                  <HeaderPill variant="display">
+                    tokens{" "}
+                    <HeaderPillValue>
+                      {compactNumberFormatter(
+                        user.data.totalTokens,
+                        0,
+                      ).toLowerCase()}
+                    </HeaderPillValue>
+                  </HeaderPill>
+                ),
+              },
+              {
+                key: "cost",
+                searchText: `cost ${user.data.sumCalculatedTotalCost}`,
+                content: (
+                  <HeaderPill
+                    variant="display"
+                    title={`exact $${user.data.sumCalculatedTotalCost.toFixed(6)}`}
+                  >
+                    cost{" "}
+                    <HeaderPillValue>
+                      {usdFormatter(user.data.sumCalculatedTotalCost, 2, 3)}
+                    </HeaderPillValue>
+                  </HeaderPill>
+                ),
+              },
+              {
+                key: "active",
+                searchText: `active ${user.data.firstTrace?.toISOString() ?? ""} ${user.data.lastTrace?.toISOString() ?? ""}`,
+                content: (
+                  <HeaderPill variant="display">
+                    active{" "}
+                    <HeaderPillValue>
+                      {user.data.firstTrace
+                        ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
+                        : isBetaEnabled
+                          ? "No activity yet"
+                          : "No traces yet"}
+                    </HeaderPillValue>
+                  </HeaderPill>
+                ),
+              },
+            ]}
+          />
+        ) : null}
 
         <div>
           <div className="sm:hidden">

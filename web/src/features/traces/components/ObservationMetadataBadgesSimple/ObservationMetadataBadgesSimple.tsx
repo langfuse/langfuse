@@ -1,9 +1,12 @@
 /**
- * Simple metadata badges for ObservationDetailView
- * Each badge handles its own null checks and returns null when data is unavailable
+ * Simple metadata pills for ObservationDetailView.
+ * Each pill handles its own null checks and returns null when data is unavailable.
  */
 
-import { Badge } from "@/src/components/ui/badge";
+import {
+  HeaderPill,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({
@@ -14,9 +17,10 @@ export function LatencyBadge({
   if (latencySeconds == null) return null;
 
   return (
-    <Badge variant="tertiary">
-      Latency: {formatIntervalSeconds(latencySeconds)}
-    </Badge>
+    <HeaderPill variant="display">
+      latency{" "}
+      <HeaderPillValue>{formatIntervalSeconds(latencySeconds)}</HeaderPillValue>
+    </HeaderPill>
   );
 }
 
@@ -28,9 +32,12 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <Badge variant="tertiary">
-      Time to first token: {formatIntervalSeconds(timeToFirstToken)}
-    </Badge>
+    <HeaderPill variant="display">
+      ttft{" "}
+      <HeaderPillValue>
+        {formatIntervalSeconds(timeToFirstToken)}
+      </HeaderPillValue>
+    </HeaderPill>
   );
 }
 
@@ -41,7 +48,11 @@ export function EnvironmentBadge({
 }) {
   if (!environment) return null;
 
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+  return (
+    <HeaderPill variant="display">
+      env <HeaderPillValue>{environment}</HeaderPillValue>
+    </HeaderPill>
+  );
 }
 
 export function ReleaseBadge({
@@ -51,7 +62,11 @@ export function ReleaseBadge({
 }) {
   if (!release) return null;
 
-  return <Badge variant="tertiary">Release: {release}</Badge>;
+  return (
+    <HeaderPill variant="display">
+      release <HeaderPillValue>{release}</HeaderPillValue>
+    </HeaderPill>
+  );
 }
 
 export function VersionBadge({
@@ -61,24 +76,25 @@ export function VersionBadge({
 }) {
   if (!version) return null;
 
-  return <Badge variant="tertiary">Version: {version}</Badge>;
+  return (
+    <HeaderPill variant="display">
+      version <HeaderPillValue>{version}</HeaderPillValue>
+    </HeaderPill>
+  );
 }
 
 export function LevelBadge({ level }: { level: string | null | undefined }) {
   if (!level || level === "DEFAULT") return null;
 
   return (
-    <Badge
-      variant={
-        level === "ERROR"
-          ? "destructive"
-          : level === "WARNING"
-            ? "warning"
-            : "tertiary"
-      }
-    >
-      {level}
-    </Badge>
+    <HeaderPill variant="display">
+      {level === "ERROR" ? (
+        <span className="bg-destructive h-1.5 w-1.5 shrink-0 rounded-[1px]" />
+      ) : level === "WARNING" ? (
+        <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
+      ) : null}
+      <HeaderPillValue>{level}</HeaderPillValue>
+    </HeaderPill>
   );
 }
 
@@ -89,5 +105,11 @@ export function StatusMessageBadge({
 }) {
   if (!statusMessage) return null;
 
-  return <Badge variant="tertiary">{statusMessage}</Badge>;
+  return (
+    <HeaderPill variant="display" title={statusMessage}>
+      <span className="max-w-56 truncate" title={statusMessage}>
+        <HeaderPillValue>{statusMessage}</HeaderPillValue>
+      </span>
+    </HeaderPill>
+  );
 }

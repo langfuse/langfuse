@@ -1,12 +1,14 @@
 /**
- * Model badge for ObservationDetailView
- * Handles linked models (with external link) and unlinked models (with create form)
+ * Model pill for ObservationDetailView.
+ * Handles linked models (with external link) and unlinked models (with create form).
  */
 
-import { Badge } from "@/src/components/ui/badge";
-import { ExternalLinkIcon, PlusCircle } from "lucide-react";
-import Link from "next/link";
+import { ArrowUpRight, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import {
+  HeaderPill,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
 
 export function ModelBadge({
   model,
@@ -21,25 +23,24 @@ export function ModelBadge({
 }) {
   if (!model) return null;
 
-  // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <Badge>
-        <Link
-          href={`/project/${projectId}/settings/models/${internalModelId}`}
-          className="flex items-center"
-          title="View model details"
+      <HeaderPill
+        variant="link"
+        href={`/project/${projectId}/settings/models/${internalModelId}`}
+      >
+        model{" "}
+        <span
+          className="text-foreground group-hover:text-link truncate"
+          title={model}
         >
-          <span className="truncate" title={model}>
-            {model}
-          </span>
-          <ExternalLinkIcon className="ml-1 h-3 w-3" />
-        </Link>
-      </Badge>
+          {model}
+        </span>
+        <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+      </HeaderPill>
     );
   }
 
-  // Unlinked model - show create form dialog
   return (
     <UpsertModelFormDialog
       action="create"
@@ -61,10 +62,10 @@ export function ModelBadge({
       }}
       className="cursor-pointer"
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{model}</span>
+      <HeaderPill variant="display" title={`Create model ${model}`}>
+        model <HeaderPillValue>{model}</HeaderPillValue>
         <PlusCircle className="h-3 w-3" />
-      </Badge>
+      </HeaderPill>
     </UpsertModelFormDialog>
   );
 }

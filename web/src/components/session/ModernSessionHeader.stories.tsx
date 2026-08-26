@@ -132,7 +132,7 @@ export const TestSearchesHiddenPills = meta.story({
       name: /show \d+ hidden session details/i,
     });
     const visiblePills = canvasElement.querySelectorAll<HTMLElement>(
-      "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
+      "[data-overflow-visible-item='true'] [data-header-pill='true']",
     );
     const lastVisiblePill = visiblePills.item(visiblePills.length - 1);
     await expect(
@@ -318,7 +318,7 @@ export const TestCompactsTokenCounts = meta.story({
   play: async ({ canvasElement }) => {
     const tokenPill = Array.from(
       canvasElement.querySelectorAll<HTMLElement>(
-        "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
+        "[data-overflow-visible-item='true'] [data-header-pill='true']",
       ),
     ).find((pill) => pill.textContent?.trim().startsWith("tokens "));
 

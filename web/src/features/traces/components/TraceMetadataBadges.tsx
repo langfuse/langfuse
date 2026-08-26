@@ -1,13 +1,14 @@
 /**
- * TraceMetadataBadges - Extracted badge components for trace metadata
- *
- * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
- * Each badge handles its own null check and returns null when data is unavailable.
+ * Trace metadata pills for detail headers.
+ * Each pill handles its own null check and returns null when data is unavailable.
  */
 
-import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { ArrowUpRight } from "lucide-react";
+
+import {
+  HeaderPill,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
 
 export function SessionBadge({
   sessionId,
@@ -18,20 +19,20 @@ export function SessionBadge({
 }) {
   if (!sessionId) return null;
 
-  const text = `Session: ${sessionId}`;
-
   return (
-    <Link
+    <HeaderPill
+      variant="link"
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="inline-flex"
     >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      session{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={sessionId}
+      >
+        {sessionId}
+      </span>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </HeaderPill>
   );
 }
 
@@ -44,20 +45,20 @@ export function UserIdBadge({
 }) {
   if (!userId) return null;
 
-  const text = `User ID: ${userId}`;
-
   return (
-    <Link
+    <HeaderPill
+      variant="link"
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="inline-flex"
     >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      user{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={userId}
+      >
+        {userId}
+      </span>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </HeaderPill>
   );
 }
 
@@ -70,20 +71,20 @@ export function TargetTraceBadge({
 }) {
   if (!targetTraceId) return null;
 
-  const text = `Target Trace: ${targetTraceId}`;
-
   return (
-    <Link
+    <HeaderPill
+      variant="link"
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="inline-flex"
     >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      target{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={targetTraceId}
+      >
+        {targetTraceId}
+      </span>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </HeaderPill>
   );
 }
 
@@ -93,15 +94,27 @@ export function EnvironmentBadge({
   environment: string | null;
 }) {
   if (!environment) return null;
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+  return (
+    <HeaderPill variant="display">
+      env <HeaderPillValue>{environment}</HeaderPillValue>
+    </HeaderPill>
+  );
 }
 
 export function ReleaseBadge({ release }: { release: string | null }) {
   if (!release) return null;
-  return <Badge variant="tertiary">Release: {release}</Badge>;
+  return (
+    <HeaderPill variant="display">
+      release <HeaderPillValue>{release}</HeaderPillValue>
+    </HeaderPill>
+  );
 }
 
 export function VersionBadge({ version }: { version: string | null }) {
   if (!version) return null;
-  return <Badge variant="tertiary">Version: {version}</Badge>;
+  return (
+    <HeaderPill variant="display">
+      version <HeaderPillValue>{version}</HeaderPillValue>
+    </HeaderPill>
+  );
 }

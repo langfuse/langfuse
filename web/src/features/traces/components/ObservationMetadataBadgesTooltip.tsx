@@ -1,16 +1,26 @@
 /**
- * Tooltip-based metadata badges for ObservationDetailView
- * These badges use BreakdownTooltip to show detailed cost/usage information
+ * Tooltip-based metadata pills for ObservationDetailView.
+ * These pills use BreakdownTooltip to show detailed cost/usage information.
  */
 
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+
+import {
+  HeaderPill,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
 import {
   BreakdownTooltip,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
+
+const compactTokenFormatter = (tokens: number) =>
+  compactNumberFormatter(tokens, 0).toLowerCase();
 
 export function CostBadge({
   totalCost,
@@ -30,10 +40,9 @@ export function CostBadge({
       isCost={true}
       priceSource={priceSource}
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{usdFormatter(totalCost)}</span>
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      <HeaderPill variant="display" title={`exact $${totalCost.toFixed(6)}`}>
+        cost <HeaderPillValue>{usdFormatter(totalCost, 2, 3)}</HeaderPillValue>
+      </HeaderPill>
     </BreakdownTooltip>
   );
 }
@@ -51,26 +60,22 @@ export function UsageBadge({
   totalUsage: number;
   usageDetails: Record<string, number> | undefined;
 }) {
-  // Only show for generation-like observations
-  if (!isGenerationLike(type) || !usageDetails) return null;
+  if (!isGenerationLike(type) || !usageDetails || totalUsage <= 0) return null;
 
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
-  const hasText = tokenText.length > 0;
+  const exactTokenCounts = `${numberFormatter(inputUsage, 0)} → ${numberFormatter(outputUsage, 0)} (Σ ${numberFormatter(totalUsage, 0)})`;
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge
-        variant="tertiary"
-        className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
-      >
-        {hasText && <span>{tokenText}</span>}
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      <HeaderPill variant="display" title={`tokens ${exactTokenCounts}`}>
+        <span>
+          tokens{" "}
+          <HeaderPillValue>
+            {compactTokenFormatter(inputUsage)} →{" "}
+            {compactTokenFormatter(outputUsage)} (Σ{" "}
+            {compactTokenFormatter(totalUsage)})
+          </HeaderPillValue>
+        </span>
+      </HeaderPill>
     </BreakdownTooltip>
   );
 }

@@ -3,7 +3,11 @@ import { ArrowUpRight, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import {
+  HeaderPill,
+  HeaderPillDot,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
 import {
   getMetadataJsonPathLabel,
   resolveMetadataJsonPath,
@@ -58,12 +62,6 @@ type ModernSessionHeaderProps = {
   >;
 };
 
-const ChipValue = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-foreground">{children}</span>
-);
-
-const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
-
 const compactTokenFormatter = (tokens: number) =>
   compactNumberFormatter(tokens, 0).toLowerCase();
 
@@ -78,7 +76,7 @@ const scoreChipValue = (
 };
 
 const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <ModernSessionHeaderPill
+  <HeaderPill
     variant="link"
     href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
   >
@@ -90,7 +88,7 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
       {user}
     </span>
     <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-  </ModernSessionHeaderPill>
+  </HeaderPill>
 );
 
 const resolveAgainstSource = (
@@ -131,7 +129,7 @@ const MetadataJsonPathPill = ({
   onRemove: (path: string) => void;
 }) => (
   <span className="group flex items-center">
-    <ModernSessionHeaderPill variant="display">
+    <HeaderPill variant="display">
       <span className="max-w-40 truncate" title={display.path}>
         {display.label}
       </span>
@@ -152,7 +150,7 @@ const MetadataJsonPathPill = ({
           <X className="h-3 w-3" />
         </button>
       </span>
-    </ModernSessionHeaderPill>
+    </HeaderPill>
   </span>
 );
 
@@ -317,19 +315,25 @@ export function ModernSessionHeader({
         key: "traces",
         searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
         content: (
-          <ModernSessionHeaderPill variant="display">
+          <HeaderPill variant="display">
             <span>
-              <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+              <HeaderPillValue>
+                {numberFormatter(countTraces, 0)}
+              </HeaderPillValue>{" "}
+              traces
             </span>
             {spanCount !== null ? (
               <>
-                <ChipDot />
+                <HeaderPillDot />
                 <span>
-                  <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
+                  <HeaderPillValue>
+                    {numberFormatter(spanCount, 0)}
+                  </HeaderPillValue>{" "}
+                  spans
                 </span>
               </>
             ) : null}
-          </ModernSessionHeaderPill>
+          </HeaderPill>
         ),
       },
     ];
@@ -339,23 +343,25 @@ export function ModernSessionHeader({
       key: "latency",
       searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <HeaderPill variant="display">
           <span>
             p50{" "}
-            <ChipValue>{formatIntervalSeconds(p50LatencyMs / 1000)}</ChipValue>
+            <HeaderPillValue>
+              {formatIntervalSeconds(p50LatencyMs / 1000)}
+            </HeaderPillValue>
           </span>
           {p95LatencyMs !== null ? (
             <>
-              <ChipDot />
+              <HeaderPillDot />
               <span>
                 p95{" "}
-                <ChipValue>
+                <HeaderPillValue>
                   {formatIntervalSeconds(p95LatencyMs / 1000)}
-                </ChipValue>
+                </HeaderPillValue>
               </span>
             </>
           ) : null}
-        </ModernSessionHeaderPill>
+        </HeaderPill>
       ),
     });
   }
@@ -366,19 +372,16 @@ export function ModernSessionHeader({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
       content: (
-        <ModernSessionHeaderPill
-          variant="display"
-          title={`tokens ${exactTokenCounts}`}
-        >
+        <HeaderPill variant="display" title={`tokens ${exactTokenCounts}`}>
           <span>
             tokens{" "}
-            <ChipValue>
+            <HeaderPillValue>
               {compactTokenFormatter(tokensIn)} →{" "}
               {compactTokenFormatter(tokensOut)} (Σ{" "}
               {compactTokenFormatter(totalTokens)})
-            </ChipValue>
+            </HeaderPillValue>
           </span>
-        </ModernSessionHeaderPill>
+        </HeaderPill>
       ),
     });
   }
@@ -387,14 +390,12 @@ export function ModernSessionHeader({
     key: "cost",
     searchText: `cost ${totalCost}`,
     content: (
-      <ModernSessionHeaderPill
-        variant="display"
-        title={`exact $${totalCost.toFixed(6)}`}
-      >
+      <HeaderPill variant="display" title={`exact $${totalCost.toFixed(6)}`}>
         <span>
-          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
+          cost{" "}
+          <HeaderPillValue>{usdFormatter(totalCost, 2, 3)}</HeaderPillValue>
         </span>
-      </ModernSessionHeaderPill>
+      </HeaderPill>
     ),
   });
 
@@ -410,15 +411,15 @@ export function ModernSessionHeader({
       key: `score-${score.id}`,
       searchText: `score ${score.name} ${value}`,
       content: (
-        <ModernSessionHeaderPill variant="display" title={score.name}>
+        <HeaderPill variant="display" title={score.name}>
           {isFraction ? (
             <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
           ) : null}
           <span className="max-w-40 truncate" title={score.name}>
             {score.name}
           </span>
-          <ChipValue>{value}</ChipValue>
-        </ModernSessionHeaderPill>
+          <HeaderPillValue>{value}</HeaderPillValue>
+        </HeaderPill>
       ),
     });
   });
@@ -428,11 +429,11 @@ export function ModernSessionHeader({
       key: "environment",
       searchText: `environment env ${environment}`,
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <HeaderPill variant="display">
           <span>
-            env <ChipValue>{environment}</ChipValue>
+            env <HeaderPillValue>{environment}</HeaderPillValue>
           </span>
-        </ModernSessionHeaderPill>
+        </HeaderPill>
       ),
     });
   }
@@ -476,12 +477,9 @@ export function ModernSessionHeader({
             onOpenChange={handleMetadataEditorOpenChange}
           >
             <PopoverTrigger asChild>
-              <ModernSessionHeaderPill
-                variant="button"
-                ariaLabel="Add metadata JSONPath"
-              >
+              <HeaderPill variant="button" ariaLabel="Add metadata JSONPath">
                 <Plus className="h-3 w-3" />
-              </ModernSessionHeaderPill>
+              </HeaderPill>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
@@ -517,12 +515,12 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <ModernSessionHeaderPill
+                <HeaderPill
                   variant="button"
                   ariaLabel={`Show ${overflowItemCount} hidden session details`}
                 >
                   +{overflowItemCount}
-                </ModernSessionHeaderPill>
+                </HeaderPill>
               </PopoverTrigger>
               <PopoverContent
                 align="end"

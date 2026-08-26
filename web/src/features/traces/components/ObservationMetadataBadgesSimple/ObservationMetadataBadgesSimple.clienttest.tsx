@@ -6,7 +6,8 @@ describe("ReleaseBadge", () => {
   it("shows an observation release", () => {
     render(<ReleaseBadge release="181" />);
 
-    expect(screen.getByText("Release: 181")).toBeInTheDocument();
+    expect(screen.getByText("release")).toBeInTheDocument();
+    expect(screen.getByText("181")).toBeInTheDocument();
   });
 
   it("hides when no release is available", () => {

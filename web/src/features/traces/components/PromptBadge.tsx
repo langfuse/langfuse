@@ -1,7 +1,6 @@
-import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { ArrowUpRight } from "lucide-react";
 import { api } from "@/src/utils/api";
+import { HeaderPill } from "@/src/components/layouts/header-pill";
 
 export const PromptBadge = (props: { promptId: string; projectId: string }) => {
   const prompt = api.prompts.byId.useQuery({
@@ -11,19 +10,21 @@ export const PromptBadge = (props: { promptId: string; projectId: string }) => {
 
   if (prompt.isLoading || !prompt.data) return null;
 
-  const text = `Prompt: ${prompt.data.name} - v${prompt.data.version}`;
+  const text = `${prompt.data.name} · v${prompt.data.version}`;
 
   return (
-    <Link
+    <HeaderPill
+      variant="link"
       href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
-      className="inline-flex"
     >
-      <Badge variant="tertiary">
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+      prompt{" "}
+      <span
+        className="text-foreground group-hover:text-link truncate"
+        title={text}
+      >
+        {text}
+      </span>
+      <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
+    </HeaderPill>
   );
 };

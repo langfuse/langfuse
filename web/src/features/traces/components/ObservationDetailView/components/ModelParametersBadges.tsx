@@ -1,50 +1,51 @@
 /**
- * Model parameters badges for ObservationDetailView
- * Renders dynamic badges for each model parameter with truncation
+ * Model parameter pills for ObservationDetailView.
+ * Returns one pill per parameter so the header overflow list can hide them independently.
  */
 
 import { type JsonNested } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { type ReactNode } from "react";
 
-export function ModelParametersBadges({
-  modelParameters,
-}: {
-  modelParameters: JsonNested | null | undefined;
-}) {
-  // Only render if modelParameters is an object (not array, primitive, or null)
+import {
+  HeaderPill,
+  HeaderPillValue,
+} from "@/src/components/layouts/header-pill";
+
+export function getModelParameterPills(
+  modelParameters: JsonNested | null | undefined,
+): Array<{ key: string; searchText: string; content: ReactNode }> {
   if (
     !modelParameters ||
     typeof modelParameters !== "object" ||
     Array.isArray(modelParameters)
   ) {
-    return null;
+    return [];
   }
 
-  const entries = Object.entries(modelParameters).filter(
-    ([_, value]) => value !== null,
-  );
+  return Object.entries(modelParameters).flatMap(([key, value]) => {
+    if (value === null) return [];
+    const valueString =
+      Object.prototype.toString.call(value) === "[object Object]"
+        ? JSON.stringify(value)
+        : value?.toString();
 
-  if (entries.length === 0) return null;
-
-  return (
-    <>
-      {entries.map(([key, value]) => {
-        const valueString =
-          Object.prototype.toString.call(value) === "[object Object]"
-            ? JSON.stringify(value)
-            : value?.toString();
-
-        return (
-          <Badge variant="tertiary" key={key} className="max-w-md">
-            <span
-              className="overflow-hidden text-ellipsis whitespace-nowrap"
-              title={valueString}
-            >
-              {key}: {valueString}
+    return [
+      {
+        key: `param-${key}`,
+        searchText: `${key} ${valueString ?? ""}`,
+        content: (
+          <HeaderPill variant="display" title={`${key}: ${valueString}`}>
+            <span className="max-w-40 truncate" title={key}>
+              {key}
             </span>
-          </Badge>
-        );
-      })}
-    </>
-  );
+            <HeaderPillValue>
+              <span className="max-w-40 truncate" title={valueString}>
+                {valueString}
+              </span>
+            </HeaderPillValue>
+          </HeaderPill>
+        ),
+      },
+    ];
+  });
 }
