@@ -252,12 +252,34 @@ const BINARY_SCORE_VALUES: Record<string, boolean> = {
 // have not validated against production. Below the confidence bar for
 // automatic coloring until that data exists (LFE-15467 research).
 
+/**
+ * Standalone words that negate whatever concept the rest of the name carries
+ * ("no_hallucination", "error_free", "without_errors"): the keyword lists
+ * would read the concept and INVERT polarity. Inference bails out to
+ * uncolored instead — the fail-safe. Matched as whole words so stems like
+ * NOTICE or UNANSWERED are unaffected. None of the top production boolean
+ * score names contain these, so the guard costs no validated coverage.
+ */
+const NEGATOR_SCORE_NAME_WORDS = new Set([
+  "NO",
+  "NOT",
+  "NON",
+  "WITHOUT",
+  "FREE",
+  "ZERO",
+]);
+
 const normalize = (value: string): string => value.trim().toUpperCase();
 
 const booleanScorePolarity = (
   scoreName: string,
 ): "good" | "bad" | undefined => {
   const name = normalize(scoreName);
+  if (
+    name.split(/[^A-Z0-9]+/).some((word) => NEGATOR_SCORE_NAME_WORDS.has(word))
+  ) {
+    return undefined;
+  }
   if (NEGATIVE_SCORE_NAME_KEYWORDS.some((k) => name.includes(k))) return "bad";
   // "VALIDATOR" names are violation detectors, not validity checks — strip
   // the word so its VALID stem can't read as positive (their real polarity,

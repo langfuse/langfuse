@@ -99,6 +99,14 @@ describe("matchSeriesStatus", () => {
     expect(matchSeriesStatus("False", ctx("unsuccessful_resolution"))).toBe(
       "ok",
     );
+    // Negator words flip the concept the keywords would read — inference must
+    // bail out to uncolored, never invert ("no_hallucination: True" is GOOD).
+    expect(matchSeriesStatus("True", ctx("no_hallucination"))).toBeUndefined();
+    expect(matchSeriesStatus("True", ctx("error_free"))).toBeUndefined();
+    expect(matchSeriesStatus("True", ctx("without errors"))).toBeUndefined();
+    expect(matchSeriesStatus("False", ctx("zero-toxicity"))).toBeUndefined();
+    // ...while stems containing negator letters stay unaffected.
+    expect(matchSeriesStatus("True", ctx("unanswered_question"))).toBe("error");
     // Violation-detector names: VALIDATOR is stripped before the positive
     // scan; polarity comes from the rest of the name or not at all.
     expect(
