@@ -9,7 +9,7 @@ import {
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
-import { createChbApiClientFromEnv } from "./chb/chbApiClient";
+import { getChbApiClient } from "./chb/chbApiClient";
 import { ChbBillingService } from "./chb/chbBillingService";
 import { createBillingServiceFromContext } from "./stripe/stripeBillingService";
 
@@ -59,7 +59,9 @@ export const resolveBillingService = async (
   const billingProvider = getBillingProvider(parsedOrg, { cutoff });
 
   if (billingProvider === "clickhouse") {
-    const client = createChbApiClientFromEnv();
+    // Shared process-wide, so every billing request reuses one Auth0 token
+    // cache rather than minting a token per request.
+    const client = getChbApiClient();
     if (!client) {
       if (parsedOrg.cloudConfig?.clickhouse?.organizationId) {
         // Sticky CHB org: Stripe cannot serve it, this is a config error

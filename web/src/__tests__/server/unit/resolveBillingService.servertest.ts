@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   env: {
     LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: null as Date | null,
   },
-  createChbApiClientFromEnv: vi.fn(),
+  getChbApiClient: vi.fn(),
   createBillingServiceFromContext: vi.fn(),
   findOrg: vi.fn(),
 }));
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
 vi.mock("@/src/ee/features/billing/server/chb/chbApiClient", () => ({
-  createChbApiClientFromEnv: mocks.createChbApiClientFromEnv,
+  getChbApiClient: mocks.getChbApiClient,
 }));
 
 vi.mock("@/src/ee/features/billing/server/stripe/stripeBillingService", () => ({
@@ -42,7 +42,7 @@ describe("resolveBillingService", () => {
     vi.clearAllMocks();
     mocks.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = null;
     mocks.createBillingServiceFromContext.mockReturnValue(STRIPE_SERVICE);
-    mocks.createChbApiClientFromEnv.mockReturnValue({ client: true });
+    mocks.getChbApiClient.mockReturnValue({ client: true });
     mocks.findOrg.mockResolvedValue({
       id: ORG_ID,
       name: "Org",
@@ -69,7 +69,7 @@ describe("resolveBillingService", () => {
   it("errors instead of falling back for a CHB org when the CHB env is missing", async () => {
     // Sticky CHB org: Stripe cannot serve it, so a half-configured deployment is
     // a config error, not a fallback.
-    mocks.createChbApiClientFromEnv.mockReturnValue(null);
+    mocks.getChbApiClient.mockReturnValue(null);
     mocks.findOrg.mockResolvedValue({
       id: ORG_ID,
       name: "Org",
@@ -102,7 +102,7 @@ describe("resolveBillingService", () => {
     mocks.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = new Date(
       "2020-01-01T00:00:00Z",
     );
-    mocks.createChbApiClientFromEnv.mockReturnValue(null);
+    mocks.getChbApiClient.mockReturnValue(null);
 
     const { billingProvider, service } = await resolveBillingService(
       ctxWithOrg({}),
