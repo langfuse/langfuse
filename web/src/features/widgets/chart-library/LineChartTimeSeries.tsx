@@ -37,7 +37,10 @@ import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTim
 import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
-  seriesColor,
+  matchSeriesStatus,
+  prepareSeriesColors,
+} from "@/src/features/widgets/chart-library/prepareSeriesColors";
+import {
   SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
@@ -206,10 +209,19 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
+  semanticContext,
 }) => {
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
 
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // A status-colored series (ERROR, failed, ...) must survive the series cap
+  // and the top-N legend seeding — it's the series the chart exists for.
+  const isStatusSeries = useMemo(() => {
+    return (dimension: string) => {
+      const status = matchSeriesStatus(dimension, semanticContext);
+      return status !== undefined && status !== "neutral";
+    };
+  }, [semanticContext]);
   // Make every (bucket, series) cell explicit — 0 for additive metrics, null
   // (a real gap) otherwise — so lines never draw across no-data buckets. (LFE-10694)
   const groupedData = useMemo(
@@ -230,10 +242,15 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   // Cap how many series we draw (data -> preparer seam): a high-cardinality
   // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
   const series = useMemo(
-    () => prepareVisibleSeries(data, allDimensions),
-    [data, allDimensions],
+    () => prepareVisibleSeries(data, allDimensions, undefined, isStatusSeries),
+    [data, allDimensions, isStatusSeries],
   );
   const dimensions = series.visible;
+  // Color is identity, resolved once for chart + legend + dots (V6).
+  const seriesColors = useMemo(
+    () => prepareSeriesColors(dimensions, semanticContext),
+    [dimensions, semanticContext],
+  );
   const { ref: containerRef, maxTicks } = useChartTickBudget();
   const chartBoxRef = useRef<HTMLDivElement>(null);
   const timeAxis = useMemo(
@@ -259,6 +276,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
+    colorOf: seriesColors.colorOf,
+    seedAlwaysVisible: isStatusSeries,
   });
 
   const renderedDimensions = dimensions.filter(isRendered);
@@ -343,11 +362,12 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             niceTicks="auto"
             tickFormatter={(value) => tooltipFormatter(Number(value))}
           />
-          {dimensions.map((dimension, index) => {
+          {dimensions.map((dimension) => {
             if (!isRendered(dimension)) return null;
             const nearest = proximityActive && nearestSet.has(dimension);
             const muted = isDimmed(dimension) || (proximityActive && !nearest);
             const isolated = isolatedPoints.get(dimension);
+            const color = seriesColors.colorOf(dimension);
             return (
               <Line
                 key={dimension}
@@ -360,13 +380,13 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                     : // Neighborless points span no line segment; a dot is the
                       // only thing that keeps them visible. (LFE-10694)
                       isolated
-                      ? isolatedPointDot(isolated, seriesColor(index), muted)
+                      ? isolatedPointDot(isolated, color, muted)
                       : false
                 }
                 // The hover marker is independent of the static-dot setting: even
                 // a dotless line reveals the point under the cursor.
                 activeDot={muted ? false : { r: 5, strokeWidth: 0 }}
-                stroke={seriesColor(index)}
+                stroke={color}
                 strokeOpacity={muted ? 0.2 : 1}
                 connectNulls={connectNulls}
                 isAnimationActive={false}

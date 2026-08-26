@@ -143,15 +143,20 @@ different — and sometimes wrong — dates. One source of truth per decision.)
   crosshair, a tooltip that opens only on the hovered chart, and a vertical
   proximity highlight.
 - **Known visual debts** (drawn but not yet matching the direction above):
-  series color is assigned by index and cycles every 8 rather than being a
-  stable identity (V6) — a visualiser default to migrate into the preparer.
-  (V1's smooth-by-default debt is paid: lines and areas draw straight
+  series color moved into a preparer (`prepareSeriesColors`, LFE-15467):
+  status-meaning values (ERROR, pass, healthy, …) wear reserved
+  `--chart-status-*` colors — recognized universally for unambiguous words and
+  per-field (level, categorical score values incl. True/False polarity by
+  score name) via the `semanticContext` hint — while everything else keeps the
+  index-cycled 8-slot rotation. The remaining V6 debt: that non-semantic
+  rotation is still positional, not a stable per-entity identity across
+  charts. (V1's smooth-by-default debt is paid: lines and areas draw straight
   (`type="linear"`) since LFE-10694.)
-- **Next:** move the remaining decisions — series colors (V6), curve/interpolation
-  opt-ins (V1), legend summaries, units, axis type & scale — out of the components and
-  into the preparer, until the visualiser is purely presentational and the
-  preparer is the single, tested place where "what should this look like" is
-  answered.
+- **Next:** move the remaining decisions — stable non-semantic color identity
+  (V6), curve/interpolation opt-ins (V1), legend summaries, units, axis type &
+  scale — out of the components and into the preparer, until the visualiser is
+  purely presentational and the preparer is the single, tested place where
+  "what should this look like" is answered.
 
 The target: adding a new chart should mean teaching the **preparer** a new shape,
 not teaching every component a new special case.

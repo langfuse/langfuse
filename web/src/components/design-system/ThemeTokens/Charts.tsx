@@ -26,6 +26,14 @@ const seriesEntries = rootEntries
       Number(/\d+/.exec(b.name)?.[0] ?? 0),
   );
 const gridEntry = rootEntries.find((entry) => entry.name === "--chart-grid");
+const STATUS_ORDER = ["ok", "neutral", "warning", "error"];
+const statusEntries = rootEntries
+  .filter((entry) => entry.name.startsWith("--chart-status-"))
+  .sort(
+    (a, b) =>
+      STATUS_ORDER.indexOf(a.name.replace("--chart-status-", "")) -
+      STATUS_ORDER.indexOf(b.name.replace("--chart-status-", "")),
+  );
 const scaleEntries = rootEntries
   .filter((entry) => /^--color-\d+$/.test(entry.name))
   .sort(
@@ -51,7 +59,8 @@ function PaletteStrip({
             style={{ background: ctx.color(entry.name) }}
           />
           <code className="text-muted-foreground font-mono text-[9px]">
-            {/\d+/.exec(entry.name)?.[0]}
+            {/\d+/.exec(entry.name)?.[0] ??
+              entry.name.split("-").filter(Boolean).at(-1)}
           </code>
         </div>
       ))}
@@ -146,8 +155,9 @@ export function Charts() {
           }
           meta={
             <>
-              {seriesEntries.length} series colors · {scaleEntries.length} score
-              base colors · 1 grid color
+              {seriesEntries.length} series colors · {statusEntries.length}{" "}
+              status colors · {scaleEntries.length} score base colors · 1 grid
+              color
             </>
           }
         />
@@ -170,6 +180,33 @@ export function Charts() {
               entry={entry}
               {...rowProps}
               sample={<ChartBarSample ctx={ctx} name={entry.name} />}
+            />
+          ))}
+        </TokenSection>
+
+        <TokenSection
+          title="Status series"
+          blurb="Reserved fills for semantically-recognized series (ERROR red, WARNING amber, pass green, n/a gray — prepareSeriesColors, LFE-15467). Full colors consumed as var(--chart-status-*), never wrapped in hsl(); status colors never impersonate a categorical slot and vice versa."
+          count={statusEntries.length}
+          sectionSample={<PaletteStrip ctx={ctx} entries={statusEntries} />}
+        >
+          {statusEntries.map((entry) => (
+            <TokenRow
+              key={entry.name}
+              name={entry.name}
+              entry={entry}
+              {...rowProps}
+              sample={
+                <div
+                  className="rounded-md border px-2.5 py-1.5"
+                  style={{ background: ctx.color("--background") }}
+                >
+                  <span
+                    className="inline-block h-4 w-14 rounded-sm"
+                    style={{ background: ctx.color(entry.name) }}
+                  />
+                </div>
+              }
             />
           ))}
         </TokenSection>

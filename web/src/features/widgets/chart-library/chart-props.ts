@@ -1,4 +1,5 @@
 import { type ChartConfig } from "@/src/components/ui/chart";
+import { type SeriesSemanticContext } from "@/src/features/widgets/chart-library/prepareSeriesColors";
 import type tailwindColors from "tailwindcss/colors";
 
 export interface DataPoint {
@@ -150,4 +151,10 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Which semantic vocabulary the dimension values belong to, when the caller
+   * knows (the widget's group-by field). Unlocks field-gated status coloring
+   * in `prepareSeriesColors`; the universal status words apply regardless.
+   */
+  semanticContext?: SeriesSemanticContext;
 }

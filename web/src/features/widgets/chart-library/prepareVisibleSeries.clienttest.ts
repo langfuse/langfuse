@@ -82,6 +82,29 @@ describe("prepareVisibleSeries", () => {
     expect(result.visible).toEqual(["zero"]);
   });
 
+  it("keeps mustKeep series ahead of magnitude when capping (LFE-15467)", () => {
+    const dimensions = ["big-a", "big-b", "ERROR", "big-c"];
+    const data = [
+      ...series("big-a", [100]),
+      ...series("big-b", [90]),
+      // The one series a production-health chart exists for is tiny by
+      // construction on a healthy system.
+      ...series("ERROR", [1]),
+      ...series("big-c", [80]),
+    ];
+    const withoutMustKeep = prepareVisibleSeries(data, dimensions, 2);
+    expect(withoutMustKeep.visible).toEqual(["big-a", "big-b"]);
+
+    const withMustKeep = prepareVisibleSeries(
+      data,
+      dimensions,
+      2,
+      (dimension) => dimension === "ERROR",
+    );
+    expect(withMustKeep.visible).toEqual(["ERROR", "big-a"]);
+    expect(withMustKeep.hidden).toBe(2);
+  });
+
   it("defaults to the shared render cap", () => {
     const dimensions = Array.from(
       { length: DEFAULT_MAX_RENDERED_SERIES + 30 },

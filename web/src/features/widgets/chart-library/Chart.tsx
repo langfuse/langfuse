@@ -9,6 +9,7 @@ import {
   type LegendInteraction,
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
+import { type SeriesSemanticContext } from "@/src/features/widgets/chart-library/prepareSeriesColors";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -64,6 +65,7 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  semanticContext,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -102,6 +104,12 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Which semantic vocabulary the dimension values belong to, when the caller
+   * knows (see `prepareSeriesColors`). Forwarded to every series-colored
+   * chart; the universal status words apply even without it.
+   */
+  semanticContext?: SeriesSemanticContext;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -172,6 +180,7 @@ const ChartComponent = ({
             thresholds={thresholds}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
+            semanticContext={semanticContext}
           />
         );
       case "AREA_TIME_SERIES":
@@ -188,6 +197,7 @@ const ChartComponent = ({
             subtleFill={chartConfig?.subtle_fill}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
+            semanticContext={semanticContext}
           />
         );
       case "BAR_TIME_SERIES":
@@ -203,6 +213,7 @@ const ChartComponent = ({
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
+            semanticContext={semanticContext}
           />
         );
       case "HORIZONTAL_BAR":
@@ -213,6 +224,7 @@ const ChartComponent = ({
             showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            semanticContext={semanticContext}
           />
         );
       case "VERTICAL_BAR":
@@ -222,6 +234,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            semanticContext={semanticContext}
           />
         );
       case "PIE":
@@ -231,6 +244,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            semanticContext={semanticContext}
           />
         );
       case "HISTOGRAM":

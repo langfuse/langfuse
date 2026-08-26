@@ -1,11 +1,19 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  type BarShapeProps,
+  Rectangle,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { prepareSeriesColors } from "@/src/features/widgets/chart-library/prepareSeriesColors";
 import {
   formatMetric,
   toFullMetricString,
@@ -30,9 +38,16 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  semanticContext,
 }) => {
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
+
+  // All-or-nothing per-category coloring — see HorizontalBarChart. (LFE-15467)
+  const seriesColors = useMemo(() => {
+    const names = data.map((item) => item.dimension || "Unknown");
+    return { names, ...prepareSeriesColors(names, semanticContext) };
+  }, [data, semanticContext]);
 
   return (
     <ChartContainer
@@ -60,9 +75,26 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
         <Bar
           dataKey="metric"
           radius={[4, 4, 0, 0]}
-          className="fill-(--color-metric)"
+          // The class fill would override the per-shape fill attribute (CSS
+          // beats SVG presentation attributes), so it must be absent when the
+          // bars color per category.
+          className={
+            seriesColors.hasStatusColor ? undefined : "fill-(--color-metric)"
+          }
           fillOpacity={subtleFill ? 0.3 : 1}
           isAnimationActive={false}
+          shape={
+            seriesColors.hasStatusColor
+              ? (props: BarShapeProps) => (
+                  <Rectangle
+                    {...props}
+                    fill={seriesColors.colorOf(
+                      String(props.payload?.dimension ?? "Unknown"),
+                    )}
+                  />
+                )
+              : undefined
+          }
         />
         <ChartTooltip
           cursor={false}

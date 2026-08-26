@@ -6,12 +6,9 @@ import {
   type LegendSummaryMode,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
+import { seriesColor } from "@/src/features/widgets/chart-library/prepareSeriesColors";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { cn } from "@/src/utils/tailwind";
-
-/** The 8-slot chart palette, cycled by series index (matches the series fills). */
-export const seriesColor = (index: number): string =>
-  `hsl(var(--chart-${(index % 8) + 1}))`;
 
 export type LegendItem = {
   dimension: string;
@@ -22,8 +19,10 @@ export type LegendItem = {
    * what a series is called. (LFE-10576)
    */
   label: React.ReactNode;
-  /** Position in the dimension list — pins the swatch color to the series fill. */
-  colorIndex: number;
+  /**
+   * The series' resolved color — the same value the chart paints the series
+   * with (`prepareSeriesColors`), so swatch and line can never diverge (V6).
+   */
   color: string;
   /** Per-series summary under the active mode, or `null` when there's nothing to show. */
   summary: number | null;
@@ -48,6 +47,8 @@ export function useSeriesLegend({
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
+  colorOf,
+  seedAlwaysVisible,
 }: {
   data: DataPoint[];
   dimensions: string[];
@@ -56,6 +57,18 @@ export function useSeriesLegend({
   legendSummary?: LegendSummaryMode;
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
+  /**
+   * The series' resolved color (from `prepareSeriesColors`). Falls back to the
+   * index-cycled palette for callers that haven't adopted the preparer yet.
+   */
+  colorOf?: (dimension: string, index: number) => string;
+  /**
+   * Series that must survive the top-N default-visibility seeding regardless
+   * of magnitude — status-colored series like ERROR are usually small by
+   * construction on a healthy system, and hiding them defeats the point of a
+   * production-health chart. (LFE-15467)
+   */
+  seedAlwaysVisible?: (dimension: string) => boolean;
 }): {
   legendItems: LegendItem[];
   onLegendClick: (dimension: string) => void;
@@ -71,6 +84,7 @@ export function useSeriesLegend({
 
   // Seed the top-N visible set by additive magnitude (chart metrics are
   // non-negative, so a plain sum ranks "biggest series" well enough).
+  // `seedAlwaysVisible` series rank ahead of magnitude — see its JSDoc.
   const initialHidden = useMemo(() => {
     if (legendInteraction !== "toggle" || maxVisibleSeries === undefined) {
       return new Set<string>();
@@ -78,14 +92,25 @@ export function useSeriesLegend({
     const magnitude = getDimensionSummaries(data);
     const keep = new Set(
       [...dimensions]
-        .sort(
-          (a, b) =>
-            (magnitude.get(b) ?? -Infinity) - (magnitude.get(a) ?? -Infinity),
-        )
+        .sort((a, b) => {
+          const mustKeepDiff =
+            Number(seedAlwaysVisible?.(b) ?? false) -
+            Number(seedAlwaysVisible?.(a) ?? false);
+          if (mustKeepDiff !== 0) return mustKeepDiff;
+          return (
+            (magnitude.get(b) ?? -Infinity) - (magnitude.get(a) ?? -Infinity)
+          );
+        })
         .slice(0, Math.max(0, maxVisibleSeries)),
     );
     return new Set(dimensions.filter((dimension) => !keep.has(dimension)));
-  }, [data, dimensions, legendInteraction, maxVisibleSeries]);
+  }, [
+    data,
+    dimensions,
+    legendInteraction,
+    maxVisibleSeries,
+    seedAlwaysVisible,
+  ]);
 
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(initialHidden);
@@ -127,8 +152,7 @@ export function useSeriesLegend({
   const legendItems: LegendItem[] = dimensions.map((dimension, index) => ({
     dimension,
     label: config?.[dimension]?.label ?? dimension,
-    colorIndex: index,
-    color: seriesColor(index),
+    color: colorOf ? colorOf(dimension, index) : seriesColor(index),
     summary: summaries?.get(dimension) ?? null,
     dimmed: isDimmed(dimension),
     focused: legendInteraction !== "toggle" && highlighted === dimension,

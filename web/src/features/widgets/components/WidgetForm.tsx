@@ -90,6 +90,7 @@ import {
   formatMetricName,
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
+  deriveWidgetSemanticContext,
 } from "@/src/features/widgets/utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
@@ -1101,6 +1102,13 @@ export function WidgetForm({
                       ? { metric: { label: chartPresentation.label } }
                       : undefined
                   }
+                  // Same semantic-color hint as the saved-widget renderer, so
+                  // the preview colors exactly like the dashboard. (LFE-15467)
+                  semanticContext={deriveWidgetSemanticContext({
+                    view: query.view,
+                    dimensionField: query.dimensions[0]?.field,
+                    filters: query.filters,
+                  })}
                   rowLimit={values.chart.rowLimit}
                   chartConfig={
                     chartType === "PIVOT_TABLE"

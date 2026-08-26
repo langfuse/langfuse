@@ -18,7 +18,10 @@ import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChar
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
-  seriesColor,
+  matchSeriesStatus,
+  prepareSeriesColors,
+} from "@/src/features/widgets/chart-library/prepareSeriesColors";
+import {
   SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
@@ -50,17 +53,31 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   syncId,
   subtleFill = false,
   hideXAxisLabels = false,
+  semanticContext,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // A status-colored series (ERROR, failed, ...) must survive the series cap
+  // and the top-N legend seeding — it's the series the chart exists for.
+  const isStatusSeries = useMemo(() => {
+    return (dimension: string) => {
+      const status = matchSeriesStatus(dimension, semanticContext);
+      return status !== undefined && status !== "neutral";
+    };
+  }, [semanticContext]);
   // Cap how many series we draw (data -> preparer seam): a high-cardinality
   // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
   const series = useMemo(
-    () => prepareVisibleSeries(data, allDimensions),
-    [data, allDimensions],
+    () => prepareVisibleSeries(data, allDimensions, undefined, isStatusSeries),
+    [data, allDimensions, isStatusSeries],
   );
   const dimensions = series.visible;
+  // Color is identity, resolved once for chart + legend (V6).
+  const seriesColors = useMemo(
+    () => prepareSeriesColors(dimensions, semanticContext),
+    [dimensions, semanticContext],
+  );
   const { ref: containerRef, maxTicks } = useChartTickBudget();
   const chartBoxRef = useRef<HTMLDivElement>(null);
   const timeAxis = useMemo(
@@ -80,6 +97,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
+    colorOf: seriesColors.colorOf,
+    seedAlwaysVisible: isStatusSeries,
   });
 
   const formatValue = (value: number) =>
@@ -151,16 +170,17 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             niceTicks="auto"
             tickFormatter={(value) => formatValue(Number(value))}
           />
-          {dimensions.map((dimension, index) => {
+          {dimensions.map((dimension) => {
             if (!isRendered(dimension)) return null;
             const muted = isDimmed(dimension);
+            const color = seriesColors.colorOf(dimension);
             return (
               <Bar
                 key={dimension}
                 dataKey={dimension}
-                stroke={seriesColor(index)}
+                stroke={color}
                 strokeOpacity={muted ? 0.2 : 1}
-                fill={seriesColor(index)}
+                fill={color}
                 fillOpacity={muted ? 0.2 : subtleFill ? 0.3 : 1}
                 stackId={renderedDimensions.length > 1 ? "stack" : undefined}
                 isAnimationActive={false}

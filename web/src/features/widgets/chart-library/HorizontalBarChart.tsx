@@ -7,12 +7,15 @@ import {
 import {
   Bar,
   BarChart,
+  type BarShapeProps,
   LabelList,
+  Rectangle,
   type RenderableText,
   XAxis,
   YAxis,
 } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { prepareSeriesColors } from "@/src/features/widgets/chart-library/prepareSeriesColors";
 import {
   formatAxisLabel,
   formatMetric,
@@ -42,12 +45,22 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   showValueLabels = false,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  semanticContext,
 }) => {
   const formatValue = useCallback(
     (value: number) =>
       toFullMetricString(metricFormatter(value, { style: "compact" })),
     [metricFormatter],
   );
+
+  // All-or-nothing per-category coloring: only when a status-meaning value
+  // (ERROR, pass, ...) is present do the bars color per category — a lone red
+  // bar among uniform bars reads as selection, and uniform-when-nominal is
+  // the correct default for single-series bars. (LFE-15467)
+  const seriesColors = useMemo(() => {
+    const names = data.map((item) => item.dimension || "Unknown");
+    return { names, ...prepareSeriesColors(names, semanticContext) };
+  }, [data, semanticContext]);
 
   const rightMargin = useMemo(() => {
     if (!showValueLabels || !data?.length) return 8;
@@ -125,9 +138,26 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
           dataKey="metric"
           radius={[0, 4, 4, 0]}
           maxBarSize={28}
-          className="fill-(--color-metric)"
+          // The class fill would override the per-shape fill attribute (CSS
+          // beats SVG presentation attributes), so it must be absent when the
+          // bars color per category.
+          className={
+            seriesColors.hasStatusColor ? undefined : "fill-(--color-metric)"
+          }
           fillOpacity={subtleFill ? 0.3 : 1}
           isAnimationActive={false}
+          shape={
+            seriesColors.hasStatusColor
+              ? (props: BarShapeProps) => (
+                  <Rectangle
+                    {...props}
+                    fill={seriesColors.colorOf(
+                      String(props.payload?.dimension ?? "Unknown"),
+                    )}
+                  />
+                )
+              : undefined
+          }
         >
           {showValueLabels ? (
             <LabelList

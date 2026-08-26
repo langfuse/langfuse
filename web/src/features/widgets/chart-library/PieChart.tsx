@@ -12,6 +12,7 @@ import {
   type PieSectorShapeProps,
 } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { prepareSeriesColors } from "@/src/features/widgets/chart-library/prepareSeriesColors";
 import {
   formatMetric,
   toFullMetricString,
@@ -36,6 +37,7 @@ export const PieChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  semanticContext,
 }) => {
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -45,14 +47,18 @@ export const PieChart: React.FC<ChartProps> = ({
     return data.reduce((acc, curr) => acc + (curr.metric as number), 0);
   }, [data]);
 
-  // Transform data for PieChart
+  // Transform data for PieChart. Slice color is identity, resolved by the
+  // preparer: status-meaning slices (ERROR, pass, ...) wear the reserved
+  // status colors, the rest keep the palette rotation (V6, LFE-15467).
   const chartData = useMemo(() => {
+    const names = data.map((item) => item.dimension || "Unknown");
+    const colors = prepareSeriesColors(names, semanticContext);
     return data.map((item, index) => ({
-      name: item.dimension || "Unknown",
+      name: names[index],
       value: item.metric,
-      fill: `hsl(var(--chart-${(index % 8) + 1}))`,
+      fill: colors.colorOf(names[index]),
     }));
-  }, [data]);
+  }, [data, semanticContext]);
 
   const renderSector = (props: PieSectorShapeProps) => {
     const outerRadius =

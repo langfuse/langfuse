@@ -24,7 +24,10 @@ import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTim
 import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
-  seriesColor,
+  matchSeriesStatus,
+  prepareSeriesColors,
+} from "@/src/features/widgets/chart-library/prepareSeriesColors";
+import {
   SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
@@ -51,9 +54,18 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
+  semanticContext,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // A status-colored series (ERROR, failed, ...) must survive the series cap
+  // and the top-N legend seeding — it's the series the chart exists for.
+  const isStatusSeries = useMemo(() => {
+    return (dimension: string) => {
+      const status = matchSeriesStatus(dimension, semanticContext);
+      return status !== undefined && status !== "neutral";
+    };
+  }, [semanticContext]);
   // Make every (bucket, series) cell explicit — 0 for additive metrics, null
   // (a real gap) otherwise — so areas never draw across no-data buckets. (LFE-10694)
   const groupedData = useMemo(
@@ -74,10 +86,15 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   // Cap how many series we draw (data -> preparer seam): a high-cardinality
   // breakdown of hundreds of series is both unreadable and slow to hover. (LFE-10549)
   const series = useMemo(
-    () => prepareVisibleSeries(data, allDimensions),
-    [data, allDimensions],
+    () => prepareVisibleSeries(data, allDimensions, undefined, isStatusSeries),
+    [data, allDimensions, isStatusSeries],
   );
   const dimensions = series.visible;
+  // Color is identity, resolved once for chart + legend + dots (V6).
+  const seriesColors = useMemo(
+    () => prepareSeriesColors(dimensions, semanticContext),
+    [dimensions, semanticContext],
+  );
   const { ref: containerRef, maxTicks } = useChartTickBudget();
   const chartBoxRef = useRef<HTMLDivElement>(null);
   const timeAxis = useMemo(
@@ -97,6 +114,8 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     legendSummary,
     legendInteraction,
     maxVisibleSeries,
+    colorOf: seriesColors.colorOf,
+    seedAlwaysVisible: isStatusSeries,
   });
 
   const tooltipFormatter = (value: number) =>
@@ -166,10 +185,11 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             niceTicks="auto"
             tickFormatter={(value) => tooltipFormatter(Number(value))}
           />
-          {dimensions.map((dimension, index) => {
+          {dimensions.map((dimension) => {
             if (!isRendered(dimension)) return null;
             const muted = isDimmed(dimension);
             const isolated = isolatedPoints.get(dimension);
+            const color = seriesColors.colorOf(dimension);
             return (
               <Area
                 key={dimension}
@@ -178,12 +198,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 // Neighborless points span no area segment; a dot is the only
                 // thing that keeps them visible. (LFE-10694)
                 dot={
-                  isolated
-                    ? isolatedPointDot(isolated, seriesColor(index), muted)
-                    : false
+                  isolated ? isolatedPointDot(isolated, color, muted) : false
                 }
-                stroke={seriesColor(index)}
-                fill={seriesColor(index)}
+                stroke={color}
+                fill={color}
                 fillOpacity={muted ? 0.15 : subtleFill ? 0.3 : 0.75}
                 strokeWidth={2.5}
                 strokeOpacity={muted ? 0.2 : 1}

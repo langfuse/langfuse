@@ -35,6 +35,11 @@ export type PreparedSeries = {
  * top `maxSeries`. Series with no finite value rank last. Ties break by name so
  * the selection is deterministic across reloads.
  *
+ * `mustKeep` series rank ahead of magnitude: a status-colored series like
+ * ERROR is usually small by construction on a healthy system, and a
+ * production-health chart that silently caps out its ERROR series is
+ * worthless. (LFE-15467)
+ *
  * Pure and side-effect free: presentation components consume the result, they
  * don't re-decide it. See ARCHITECTURE.md.
  */
@@ -42,6 +47,7 @@ export function prepareVisibleSeries(
   data: DataPoint[],
   dimensions: string[],
   maxSeries: number = DEFAULT_MAX_RENDERED_SERIES,
+  mustKeep?: (dimension: string) => boolean,
 ): PreparedSeries {
   const total = dimensions.length;
   if (total <= maxSeries) {
@@ -53,6 +59,9 @@ export function prepareVisibleSeries(
     summaries.get(dimension) ?? -Infinity;
 
   const ranked = [...dimensions].sort((a, b) => {
+    const mustKeepDiff =
+      Number(mustKeep?.(b) ?? false) - Number(mustKeep?.(a) ?? false);
+    if (mustKeepDiff !== 0) return mustKeepDiff;
     const diff = magnitude(b) - magnitude(a);
     if (diff !== 0 && !Number.isNaN(diff)) return diff;
     return a < b ? -1 : a > b ? 1 : 0;

@@ -13,6 +13,45 @@ import {
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { type SeriesSemanticContext } from "@/src/features/widgets/chart-library/prepareSeriesColors";
+
+/**
+ * Semantic-color hint for a widget's chart (LFE-15467): which vocabulary the
+ * breakdown values belong to. Only two group-by fields carry status
+ * semantics — observation/event `level`, and categorical/boolean score
+ * values. The score name (present when the widget filters to exactly one
+ * score) unlocks True/False polarity inference in `prepareSeriesColors`.
+ * Shared by the saved-widget renderer and the builder preview so both color
+ * identically.
+ */
+export function deriveWidgetSemanticContext(params: {
+  view: string;
+  dimensionField: string | undefined;
+  filters: FilterState;
+}): SeriesSemanticContext | undefined {
+  if (params.dimensionField === "level") return { field: "level" };
+  if (
+    (params.view === "scores-categorical" &&
+      params.dimensionField === "stringValue") ||
+    (params.view === "scores-boolean" &&
+      params.dimensionField === "booleanValue")
+  ) {
+    const nameFilters = params.filters.filter(
+      (filter) => filter.column === "name",
+    );
+    const nameFilter = nameFilters.length === 1 ? nameFilters[0] : undefined;
+    const scoreName =
+      nameFilter?.type === "string" && nameFilter.operator === "="
+        ? nameFilter.value
+        : nameFilter?.type === "stringOptions" &&
+            nameFilter.operator === "any of" &&
+            nameFilter.value.length === 1
+          ? nameFilter.value[0]
+          : undefined;
+    return { field: "score-categorical", scoreName };
+  }
+  return undefined;
+}
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {

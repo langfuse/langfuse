@@ -58,6 +58,7 @@ import {
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
+  deriveWidgetSemanticContext,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -469,6 +470,19 @@ export function DashboardWidget({
     [chartPresentation],
   );
 
+  // Semantic-color hint (LFE-15467) — see deriveWidgetSemanticContext.
+  const semanticContext = useMemo(
+    () =>
+      widget.data
+        ? deriveWidgetSemanticContext({
+            view: widget.data.view,
+            dimensionField: widget.data.dimensions[0]?.field,
+            filters: widget.data.filters ?? [],
+          })
+        : undefined,
+    [widget.data],
+  );
+
   // "View as table" navigation: the widget's own filters (config + dashboard
   // global) translated to the traces/observations table's applicable filters,
   // plus the widget's time range. Filters the table can't express are dropped
@@ -815,6 +829,7 @@ export function DashboardWidget({
               missingValue={getWidgetMissingBucketValue(
                 widget.data.metrics[0]?.agg ?? "count",
               )}
+              semanticContext={semanticContext}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

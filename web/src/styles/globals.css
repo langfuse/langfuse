@@ -412,6 +412,16 @@
     --chart-7: 84 81% 44%;
     --chart-8: 330 81% 60%;
     --chart-grid: var(--muted-gray);
+    /* Reserved status fills for semantically-recognized chart series
+       (prepareSeriesColors, LFE-15467). Full colors, NOT hsl triplets —
+       consume as var(--chart-status-*), never wrapped in hsl(). Fill-grade
+       (vivid, unlike the --dark-* text tokens); neutral is chroma-free by
+       design (a null bucket is not an identity). CVD-validated per mode
+       against the level-chart adjacency [ok, neutral, warning, error]. */
+    --chart-status-error: #ef4444;
+    --chart-status-warning: #f59e0b;
+    --chart-status-ok: #16a34a;
+    --chart-status-neutral: #a2a2aa;
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
     --color-3: oklch(69.6% 0.165 251);
@@ -585,6 +595,15 @@
     --chart-7: 84 81% 44%;
     --chart-8: 330 81% 60%;
     --chart-grid: var(--muted-gray);
+    /* Dark-mode pair for the reserved status fills (see :root block). Brighter
+       green/amber steps than the categorical lightness band on purpose: on a
+       dark surface the red↔amber CVD separation collapses at darker steps
+       (validated ΔE 4.4 vs 15.4), and separation outranks the band for
+       reserved status colors. */
+    --chart-status-error: #ef4444;
+    --chart-status-warning: #fbbf24;
+    --chart-status-ok: #22c55e;
+    --chart-status-neutral: #7a7a85;
     --color-1: oklch(66.2% 0.225 25.9);
     --color-2: oklch(60.4% 0.26 302);
     --color-3: oklch(69.6% 0.165 251);
