@@ -42,9 +42,17 @@ export function mapToChatMl(
   }
 
   // Single message object, e.g. { role: "user", content: "..." }
-  const singleMessage = ChatMlMessageSchema.safeParse(input);
-  if (singleMessage.success) {
-    return ChatMlArraySchema.safeParse([singleMessage.data]);
+  if (
+    input &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    typeof (input as Record<string, unknown>).role === "string" &&
+    "content" in input
+  ) {
+    const singleMessage = ChatMlMessageSchema.safeParse(input);
+    if (singleMessage.success) {
+      return ChatMlArraySchema.safeParse([singleMessage.data]);
+    }
   }
 
   return result;
