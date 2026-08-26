@@ -109,6 +109,9 @@ Sentry.init({
 
   // Filter out browser extension errors
   // see: https://docs.sentry.io/platforms/javascript/configuration/filtering/#using-allowurls-and-denyurls
+  // Stackless console captures of the same origins (Chrome `import()` of an
+  // extension module) are dropped by isDenylistedNoiseEvent instead — denyUrls
+  // only matches stack-frame filenames.
   denyUrls: [
     // Chrome extensions
     /chrome-extension:\/\//i,

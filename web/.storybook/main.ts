@@ -17,6 +17,7 @@ const DESIGN_COMPONENT_STORIES = [
   "Dropzone/Dropzone",
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
+  "PasswordInput/PasswordInput",
   "Progress/Progress",
   "SearchInput/SearchInput",
   "Spinner/Spinner",
