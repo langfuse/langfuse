@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 
@@ -40,16 +40,15 @@ export const ConfirmsTransfer = meta.story({
   args: defaultArgs,
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(canvas.getByRole("combobox"));
-    await userEvent.click(await body.findByText("Example"));
+    await userEvent.click(await screen.findByText("Example"));
     await userEvent.type(
-      body.getByRole("textbox", { name: "Confirm" }),
+      canvas.getByRole("textbox", { name: "Confirm" }),
       "acme/support-assistant",
     );
     await userEvent.click(
-      body.getByRole("button", { name: "Transfer project" }),
+      canvas.getByRole("button", { name: "Transfer project" }),
     );
 
     await expect(args.onConfirm).toHaveBeenCalledWith("organization-2");
