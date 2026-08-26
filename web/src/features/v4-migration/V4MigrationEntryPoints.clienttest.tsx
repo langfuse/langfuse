@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ROUTES, RouteSection } from "@/src/components/layouts/routes";
 import { V4MigrationNavItem } from "./V4MigrationNavItem";
 import { V4MigrationProjectChip } from "./V4MigrationProjectChip";
 import { type ProjectMigrationStatus } from "./migrationData";
@@ -75,6 +76,17 @@ describe("v4 migration entry points", () => {
   beforeEach(() => {
     mocks.migrationData = migrationStatus();
     mocks.cachedActionNeeded = false;
+  });
+
+  it("places the Action required pill above Upgrade in the secondary nav", () => {
+    const secondaryTitles = ROUTES.filter(
+      (route) => route.section === RouteSection.Secondary,
+    ).map((route) => route.title);
+    const updateIndex = secondaryTitles.indexOf("Update");
+    const upgradeIndex = secondaryTitles.indexOf("Upgrade");
+
+    expect(updateIndex).toBeGreaterThanOrEqual(0);
+    expect(upgradeIndex).toBeGreaterThan(updateIndex);
   });
 
   it("hides the project chip and sidebar item when the project is up to date", () => {
