@@ -19,11 +19,17 @@ export const MENTION_USER_PREFIX = "user:";
  * literal newline matches, matching the pre-PR behavior of the negated
  * class `[^[\]]{1,100}` which also matched line terminators. The hard
  * 1-100 cap on the capture keeps the engine bounded.
+ * A tempered lookahead additionally forbids the capture from spanning
+ * another mention's `](user:` delimiter: without it, a malformed mention
+ * (userId failing the charset check) followed by a valid one within 100
+ * characters makes the lazy capture expand through the later token, and
+ * sanitizeMentions then replaces the whole merged span - silently deleting
+ * the user-authored text between the two mentions.
  * User ID: 1-30 characters (CUID is 25 chars, custom IDs may include
  * hyphens/underscores).
  */
 const MENTION_REGEX = new RegExp(
-  `@\\[([\\s\\S]{1,100}?)\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
+  `@\\[((?:(?!\\]\\(${MENTION_USER_PREFIX})[\\s\\S]){1,100}?)\\]\\(${MENTION_USER_PREFIX}([a-z0-9_-]{1,30})\\)`,
   "gi",
 );
 
