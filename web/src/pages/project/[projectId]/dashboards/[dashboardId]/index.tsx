@@ -7,9 +7,22 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import type { ColumnDefinition, FilterState } from "@langfuse/shared";
+import {
+  type ColumnDefinition,
+  type FilterState,
+  LANGFUSE_HOME_DASHBOARD_ID,
+  type HomeDashboardPresetId,
+} from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon, Copy } from "lucide-react";
+import {
+  PlusIcon,
+  Copy,
+  ClipboardPasteIcon,
+  HomeIcon,
+  Loader2,
+  MoreVertical,
+  PencilIcon,
+} from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import {
   SelectWidgetDialog,
@@ -33,17 +46,6 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
-import {
-  LANGFUSE_HOME_DASHBOARD_ID,
-  type HomeDashboardPresetId,
-} from "@langfuse/shared";
-import {
-  ClipboardPasteIcon,
-  HomeIcon,
-  Loader2,
-  MoreVertical,
-  PencilIcon,
-} from "lucide-react";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -419,7 +421,7 @@ export default function DashboardDetail() {
   const handlePastedPreset = useCallback(
     (
       presetId: HomeDashboardPresetId,
-      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       capture("dashboard:widget_pasted", {
@@ -474,7 +476,7 @@ export default function DashboardDetail() {
   const handleParsedWidgetPaste = useCallback(
     async (
       parsed: Exclude<PastedWidgetParseResult, { status: "not-widget" }>,
-      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       if (parsed.status === "invalid") {
@@ -533,10 +535,7 @@ export default function DashboardDetail() {
   // Menu-driven paste ("Paste widget" / "Paste to the right"): read the
   // clipboard and reject non-widget payloads visibly.
   const pasteWidgetFromClipboard = useCallback(
-    async (
-      source: "dashboard_menu" | "paste_right",
-      anchor?: DashboardPlacement,
-    ) => {
+    async (source: "dashboard_menu", anchor?: DashboardPlacement) => {
       const text = await readTextFromClipboard();
       if (text === null) {
         showErrorToast(
@@ -1396,13 +1395,6 @@ export default function DashboardDetail() {
               }
               onDuplicatePreset={
                 hasCUDAccess ? handleDuplicatePreset : undefined
-              }
-              onPasteWidget={
-                hasCUDAccess
-                  ? (anchor) => {
-                      pasteWidgetFromClipboard("paste_right", anchor);
-                    }
-                  : undefined
               }
             />
           </div>

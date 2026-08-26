@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
@@ -9,12 +8,11 @@ import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  DropdownMenuController,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { cn } from "@/src/utils/tailwind";
 import {
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
@@ -209,7 +207,7 @@ function resolveKeyPath(row: Row<JsonTableRow>): string {
  * only when `metadataActions` is provided, so `useRouter` stays off the hot
  * path for the (far more numerous) input/output JSON cells.
  */
-function ValueCellActionsMenu({
+function ValueCellActionsMenuContent({
   row,
   metadataActions,
 }: {
@@ -275,69 +273,51 @@ function ValueCellActionsMenu({
   const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Value actions"
-          title="Actions"
-          className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100 data-[state=open]:opacity-100"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <EllipsisVertical className="h-3 w-3" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="max-w-[320px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
-          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
-          {hasChildren ? "Copy structure" : "Copy value"}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
-          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
-          Copy path
-        </DropdownMenuItem>
-        {isScalarLeaf && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => navigateWithFilter(includeOperator)}
-            >
-              <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span>Include in filter</span>
-                <span
-                  className="text-muted-foreground truncate font-mono"
-                  title={includeFilterText}
-                >
-                  {includeFilterText}
-                </span>
+    <>
+      <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
+        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        {hasChildren ? "Copy structure" : "Copy value"}
+      </DropdownMenuItem>
+      <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
+        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        Copy path
+      </DropdownMenuItem>
+      {isScalarLeaf && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => navigateWithFilter(includeOperator)}
+          >
+            <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Include in filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={includeFilterText}
+              >
+                {includeFilterText}
               </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => navigateWithFilter(excludeOperator)}
-            >
-              <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span>Exclude from filter</span>
-                <span
-                  className="text-muted-foreground truncate font-mono"
-                  title={excludeFilterText}
-                >
-                  {excludeFilterText}
-                </span>
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => navigateWithFilter(excludeOperator)}
+          >
+            <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Exclude from filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={excludeFilterText}
+              >
+                {excludeFilterText}
               </span>
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            </span>
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
   );
 }
 
@@ -503,7 +483,34 @@ export const ValueCell = memo(
         {/* Hover affordance: a one-click copy by default, or an actions menu
             (copy + filter shortcuts) in metadata views. */}
         {metadataActions ? (
-          <ValueCellActionsMenu row={row} metadataActions={metadataActions} />
+          <DropdownMenuController
+            align="end"
+            maxWidth="320px"
+            renderMenu={() => (
+              <ValueCellActionsMenuContent
+                row={row}
+                metadataActions={metadataActions}
+              />
+            )}
+          >
+            {({ isOpen, Trigger }) => (
+              <Trigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Value actions"
+                  title="Actions"
+                  className={cn(
+                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    isOpen && "opacity-100",
+                  )}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <EllipsisVertical className="h-3 w-3" />
+                </Button>
+              </Trigger>
+            )}
+          </DropdownMenuController>
         ) : (
           <Button
             variant="ghost"

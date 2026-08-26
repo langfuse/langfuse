@@ -2,7 +2,33 @@ import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { applyCommentFilters } from "@langfuse/shared/src/server";
+import {
+  applyCommentFilters,
+  traceException,
+  getTracesTable,
+  getTracesTableCount,
+  getScoresForTraces,
+  getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
+  getTracesGroupedByName,
+  getTracesGroupedByTags,
+  getObservationsForTrace,
+  getTraceById,
+  logger,
+  upsertTrace,
+  convertTraceDomainToClickhouse,
+  hasAnyTracingData,
+  traceDeletionProcessor,
+  getTracesTableMetrics,
+  getCategoricalScoresGroupedByName,
+  convertDateToClickhouseDateTime,
+  getAgentGraphData,
+  tracesTableUiColumnDefinitions,
+  getTracesGroupedByUsers,
+  getTracesGroupedBySessionId,
+  updateEvents,
+  getScoresAndCorrectionsForTraces,
+} from "@langfuse/shared/src/server";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
@@ -29,32 +55,6 @@ import {
   ScoreDataTypeEnum,
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
-import {
-  traceException,
-  getTracesTable,
-  getTracesTableCount,
-  getScoresForTraces,
-  getNumericScoresGroupedByName,
-  getBooleanScoresGroupedByName,
-  getTracesGroupedByName,
-  getTracesGroupedByTags,
-  getObservationsForTrace,
-  getTraceById,
-  logger,
-  upsertTrace,
-  convertTraceDomainToClickhouse,
-  hasAnyTracingData,
-  traceDeletionProcessor,
-  getTracesTableMetrics,
-  getCategoricalScoresGroupedByName,
-  convertDateToClickhouseDateTime,
-  getAgentGraphData,
-  tracesTableUiColumnDefinitions,
-  getTracesGroupedByUsers,
-  getTracesGroupedBySessionId,
-  updateEvents,
-  getScoresAndCorrectionsForTraces,
-} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -264,8 +264,6 @@ export const traceRouter = createTRPCRouter({
       const traceScores = await getScoresForTraces({
         projectId: ctx.session.projectId,
         traceIds: res.map((r) => r.id),
-        limit: 1000,
-        offset: 0,
         excludeMetadata: true,
         includeHasMetadata: true,
       });

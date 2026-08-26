@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import {
@@ -26,7 +26,7 @@ import { TimelineDense } from "./TimelineDense";
 
 export function TraceTimelineCompact() {
   const { roots, nodeMap } = useTraceData();
-  const { selectedNodeId } = useSelection();
+  const { selectedNodeId, collapsedNodes } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const selectNode = useSelectTraceNode("timeline_compact");
 
@@ -81,26 +81,21 @@ export function TraceTimelineCompact() {
     [nodeMap, handleHover],
   );
 
-  // Cost and usage the way the tree row states them, so hovering a hairline row
-  // tells you what reading a tree row would. Same formatters, same order.
+  /**
+   * Cost, and only cost. Tokens used to come too, which put six numbers in a
+   * hover — and only on the spans that HAVE usage, so the tooltip changed shape
+   * from row to row. Cost is the one figure that means the same thing on every
+   * kind of span; the token split is a click away in the detail panel. Same
+   * formatter and the same `∑` for a subtotal as the tree row uses.
+   */
   const factsOf = useCallback(
     (nodeId: string) => {
       const node = nodeMap.get(nodeId);
-      if (!node) return [];
-      const facts: string[] = [];
-      if (node.totalCost) {
-        const aggregated = node.children.length > 0 || node.type === "TRACE";
-        facts.push(
-          `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
-        );
-      }
-      const tokens = formatTokenCounts(
-        node.inputUsage,
-        node.outputUsage,
-        node.totalUsage,
-      );
-      if (tokens) facts.push(tokens);
-      return facts;
+      if (!node?.totalCost) return [];
+      const aggregated = node.children.length > 0 || node.type === "TRACE";
+      return [
+        `${aggregated ? "∑ " : ""}${usdFormatter(node.totalCost.toNumber())}`,
+      ];
     },
     [nodeMap],
   );
@@ -112,6 +107,7 @@ export function TraceTimelineCompact() {
           roots={roots}
           box={box}
           gutter="auto"
+          collapsed={collapsedNodes}
           pointer={pointerModality}
           barColor="type"
           compress={false}

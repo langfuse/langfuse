@@ -6,13 +6,12 @@ import "@/src/polyfills/crypto-random-uuid";
 import { type AppType } from "next/app";
 import Head from "next/head";
 import { type Session } from "next-auth";
-import { SessionProvider } from "next-auth/react";
+import { SessionProvider, useSession } from "next-auth/react";
 import { setUser } from "@sentry/nextjs";
 import {
   clearV4BetaEnabledSentryTag,
   setV4BetaEnabledSentryTag,
 } from "@/src/utils/sentryV4BetaTag";
-import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuProvider";
 
@@ -85,6 +84,7 @@ import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/co
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -183,27 +183,29 @@ const MyApp: AppType<{ session: Session | null }> = ({
                 <ResilientSessionProvider basePath={authBasePath}>
                   <DetailPageListsProvider>
                     <MarkdownContextProvider>
-                      <ThemeProvider
-                        attribute="class"
-                        enableSystem
-                        disableTransitionOnChange
-                      >
-                        <ScoreCacheProvider>
-                          <CorrectionCacheProvider>
-                            <SupportDrawerProvider defaultOpen={false}>
-                              <V4MigrationPanelProvider defaultOpen={false}>
-                                <InAppAiAgentProvider defaultOpen={false}>
-                                  {skipAppLayout ? (
-                                    page
-                                  ) : (
-                                    <AppLayout>{page}</AppLayout>
-                                  )}
-                                </InAppAiAgentProvider>
-                              </V4MigrationPanelProvider>
-                            </SupportDrawerProvider>
-                          </CorrectionCacheProvider>
-                        </ScoreCacheProvider>
-                      </ThemeProvider>
+                      <MarkdownRenderCharacterLimitProvider>
+                        <ThemeProvider
+                          attribute="class"
+                          enableSystem
+                          disableTransitionOnChange
+                        >
+                          <ScoreCacheProvider>
+                            <CorrectionCacheProvider>
+                              <SupportDrawerProvider defaultOpen={false}>
+                                <V4MigrationPanelProvider defaultOpen={false}>
+                                  <InAppAiAgentProvider defaultOpen={false}>
+                                    {skipAppLayout ? (
+                                      page
+                                    ) : (
+                                      <AppLayout>{page}</AppLayout>
+                                    )}
+                                  </InAppAiAgentProvider>
+                                </V4MigrationPanelProvider>
+                              </SupportDrawerProvider>
+                            </CorrectionCacheProvider>
+                          </ScoreCacheProvider>
+                        </ThemeProvider>
+                      </MarkdownRenderCharacterLimitProvider>
                     </MarkdownContextProvider>
                   </DetailPageListsProvider>
                 </ResilientSessionProvider>

@@ -25,6 +25,7 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
+  ListPlus,
   MoreVertical,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -44,7 +45,8 @@ import {
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -86,6 +88,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { SessionMetadataJsonPathControl } from "@/src/components/session/SessionMetadataJsonPathControl";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/components/session/ModernSessionHeaderActionsController";
 import { ModernSessionFilterControls } from "@/src/components/session/ModernSessionFilterControls";
@@ -362,6 +365,7 @@ export const SessionPage: React.FC<{
       projectId: projectId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(sessionId),
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -402,11 +406,14 @@ export const SessionPage: React.FC<{
     [sessionDetailStore, setShowCorrections],
   );
 
-  const sessionComments = api.comments.getByObjectId.useQuery({
-    projectId,
-    objectId: sessionId,
-    objectType: "SESSION",
-  });
+  const sessionComments = api.comments.getByObjectId.useQuery(
+    {
+      projectId,
+      objectId: sessionId,
+      objectType: "SESSION",
+    },
+    { enabled: Boolean(projectId) && Boolean(sessionId) },
+  );
 
   const onDownloadSessionAsJson = useCallback(async () => {
     await downloadSessionAsJson({
@@ -563,12 +570,27 @@ export const SessionPage: React.FC<{
                   }}
                   buttonVariant="outline"
                 />
-                <CreateNewAnnotationQueueItem
+                <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
-                  variant="outline"
-                />
+                >
+                  {({ disabled, totalCount }) => (
+                    <Button
+                      variant="outline"
+                      disabled={disabled !== undefined}
+                      className="rounded-l-none rounded-r-md border-l-2"
+                    >
+                      <span className="relative mr-1 text-xs">
+                        <ChevronDown className="h-3 w-3" />
+                        <AnnotationQueueItemCountBadge
+                          totalCount={totalCount}
+                          layout="toolbar"
+                        />
+                      </span>
+                    </Button>
+                  )}
+                </AnnotationQueueItemDropdownMenuController>
               </div>
               <div className="flex items-center">
                 <div className="mx-1">
@@ -618,13 +640,27 @@ export const SessionPage: React.FC<{
                 buttonVariant="outline"
                 layout="menu"
               />
-              <CreateNewAnnotationQueueItem
+              <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
-                variant="outline"
-                layout="menu"
-              />
+              >
+                {({ disabled, totalCount }) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled !== undefined}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                    <span className="text-sm">Add to queue</span>
+                    <AnnotationQueueItemCountBadge
+                      totalCount={totalCount}
+                      layout="menu"
+                    />
+                  </Button>
+                )}
+              </AnnotationQueueItemDropdownMenuController>
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -832,6 +868,7 @@ const LoadedSessionEventsPage: React.FC<{
   const capture = usePostHogClientCapture();
   const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
+    projectId,
   });
   const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
@@ -893,7 +930,7 @@ const LoadedSessionEventsPage: React.FC<{
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: userSession.status === "authenticated" },
+    { enabled: userSession.status === "authenticated" && Boolean(sessionId) },
   );
 
   const traceCommentCounts =
@@ -902,7 +939,7 @@ const LoadedSessionEventsPage: React.FC<{
         projectId,
         sessionId,
       },
-      { enabled: userSession.status === "authenticated" },
+      { enabled: userSession.status === "authenticated" && Boolean(sessionId) },
     );
 
   const peekNavigationConfig = React.useMemo(
@@ -1238,8 +1275,33 @@ const LoadedSessionEventsPage: React.FC<{
   const hasSessionControls =
     !isModernSessionEnabled ||
     Boolean(session.users?.length || session.scores.length);
-  const excludeObservationsByName = useCallback(
-    (name: string) => {
+  const filterObservationsByName = useCallback(
+    (name: string, operator: "any of" | "none of") => {
+      if (operator === "any of") {
+        const nextFilters = queryFilter.filterState
+          .filter((filter) => filter.column !== "name")
+          .concat({
+            column: "name",
+            type: "stringOptions",
+            operator,
+            value: [name],
+          });
+
+        queryFilter.setFilterState(nextFilters);
+        capture("filters:applied", {
+          surface: "filter_builder",
+          tableName: "session-detail",
+          column: "name",
+          filterType: "stringOptions",
+          operator,
+          valueCount: 1,
+          conditionCount: nextFilters.length,
+          columnConditionCount: 1,
+          isV4: true,
+        });
+        return;
+      }
+
       const existingFilter = queryFilter.filterState.find(
         (
           filter,
@@ -1259,7 +1321,7 @@ const LoadedSessionEventsPage: React.FC<{
         : queryFilter.filterState.concat({
             column: "name",
             type: "stringOptions",
-            operator: "none of",
+            operator,
             value: [name],
           });
 
@@ -1269,7 +1331,7 @@ const LoadedSessionEventsPage: React.FC<{
         tableName: "session-detail",
         column: "name",
         filterType: "stringOptions",
-        operator: "none of",
+        operator,
         valueCount: 1,
         conditionCount: nextFilters.length,
         columnConditionCount: 1,
@@ -1352,6 +1414,9 @@ const LoadedSessionEventsPage: React.FC<{
     getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
+  const modernSessionTraces = isTracesSuccess
+    ? ({ state: "loaded", data: traces ?? [] } as const)
+    : ({ state: "loading" } as const);
 
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
@@ -1418,12 +1483,27 @@ const LoadedSessionEventsPage: React.FC<{
                   buttonVariant="outline"
                   showAnnotationCount={isModernSessionEnabled}
                 />
-                <CreateNewAnnotationQueueItem
+                <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
-                  variant="outline"
-                />
+                >
+                  {({ disabled, totalCount }) => (
+                    <Button
+                      variant="outline"
+                      disabled={disabled !== undefined}
+                      className="rounded-l-none rounded-r-md border-l-2"
+                    >
+                      <span className="relative mr-1 text-xs">
+                        <ChevronDown className="h-3 w-3" />
+                        <AnnotationQueueItemCountBadge
+                          totalCount={totalCount}
+                          layout="toolbar"
+                        />
+                      </span>
+                    </Button>
+                  )}
+                </AnnotationQueueItemDropdownMenuController>
               </div>
               {!isModernSessionEnabled ? (
                 <label className="flex items-center gap-1.5">
@@ -1496,13 +1576,27 @@ const LoadedSessionEventsPage: React.FC<{
                 layout="menu"
                 showAnnotationCount={isModernSessionEnabled}
               />
-              <CreateNewAnnotationQueueItem
+              <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
-                variant="outline"
-                layout="menu"
-              />
+              >
+                {({ disabled, totalCount }) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled !== undefined}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                    <span className="text-sm">Add to queue</span>
+                    <AnnotationQueueItemCountBadge
+                      totalCount={totalCount}
+                      layout="menu"
+                    />
+                  </Button>
+                )}
+              </AnnotationQueueItemDropdownMenuController>
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -1532,22 +1626,29 @@ const LoadedSessionEventsPage: React.FC<{
           }
         >
           {isModernSessionEnabled ? (
-            <ModernSessionHeader
+            <SessionMetadataJsonPathControl
+              key={`${projectId}:${sessionId}`}
               projectId={projectId}
-              countTraces={session.countTraces}
-              traces={
-                isTracesSuccess
-                  ? { state: "loaded", data: traces ?? [] }
-                  : { state: "loading" }
-              }
-              tokensIn={session.inputUsage}
-              tokensOut={session.outputUsage}
-              totalTokens={session.totalTokens}
-              totalCost={session.totalCost ?? 0}
-              environment={session.environment ?? null}
-              users={session.users ?? []}
-              scores={session.scores}
-            />
+              sessionId={sessionId}
+              traces={modernSessionTraces}
+              filterState={visibleFilterState}
+            >
+              {(metadataJsonPaths) => (
+                <ModernSessionHeader
+                  projectId={projectId}
+                  countTraces={session.countTraces}
+                  traces={modernSessionTraces}
+                  tokensIn={session.inputUsage}
+                  tokensOut={session.outputUsage}
+                  totalTokens={session.totalTokens}
+                  totalCost={session.totalCost ?? 0}
+                  environment={session.environment ?? null}
+                  users={session.users ?? []}
+                  metadataJsonPaths={metadataJsonPaths}
+                  scores={session.scores}
+                />
+              )}
+            </SessionMetadataJsonPathControl>
           ) : null}
           {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar
@@ -1707,7 +1808,7 @@ const LoadedSessionEventsPage: React.FC<{
                   showInlineToolCalls={showInlineToolCalls}
                   showSystemPrompt={showSystemPrompt}
                   sidebarFilterControls={sidebarFilterControls}
-                  onExcludeObservation={excludeObservationsByName}
+                  onFilterObservationByName={filterObservationsByName}
                 />
               )}
             </ModernSessionFilterControls>

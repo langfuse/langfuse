@@ -1,11 +1,9 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 
-import type {
-  AgUiContext,
-  AgUiMessage,
-  InAppAgentToolApprovalRequest,
-} from "@langfuse/shared/in-app-agent";
 import {
+  type AgUiContext,
+  type AgUiMessage,
+  type InAppAgentToolApprovalRequest,
   AgUiMessageSchema,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -567,6 +565,30 @@ export function isCancellableBackgroundRun(
   );
 }
 
+const ASSISTANT_FAILED_CONTINUE =
+  "The assistant failed. Send another message to continue.";
+const ASSISTANT_FAILED_TRY_AGAIN =
+  "The assistant failed. Send another message to try again.";
+
+const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
+  [InAppAgentRunErrorCode.WORKER_LOST]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.STALE]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]: ASSISTANT_FAILED_CONTINUE,
+  [InAppAgentRunErrorCode.INIT_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
+  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: ASSISTANT_FAILED_TRY_AGAIN,
+  [InAppAgentRunErrorCode.APPROVAL_EXPIRED]:
+    "The approval request expired. The action was not run. Send another message if you still want it.",
+  [InAppAgentRunErrorCode.RUN_TIMEOUT]:
+    "The run hit the time limit. Send another message to continue.",
+  [InAppAgentRunErrorCode.AGENT_ERROR]:
+    "The assistant hit an error before finishing. Send another message to continue.",
+  [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
+  [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
+  [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
+};
+
 export function getBackgroundRunFailureMessage(
   errorCode: string | null,
 ): string {
@@ -637,24 +659,6 @@ export function getSettledActivityOutcome(
 
   return "worked";
 }
-
-const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
-  [InAppAgentRunErrorCode.ENQUEUE_FAILED]: "Couldn't start the run. Try again.",
-  [InAppAgentRunErrorCode.QUEUE_TIMEOUT]:
-    "No worker picked this up. Try again.",
-  [InAppAgentRunErrorCode.WORKER_LOST]: "The run was interrupted. Try again.",
-  [InAppAgentRunErrorCode.STALE]: "The run was interrupted. Try again.",
-  [InAppAgentRunErrorCode.RUN_TIMEOUT]:
-    "The run exceeded the maximum duration.",
-  [InAppAgentRunErrorCode.WORKER_SHUTDOWN]:
-    "The run was interrupted by a deploy. Try again.",
-  [InAppAgentRunErrorCode.OUTCOME_UNKNOWN]:
-    "The approved action may have completed. Verify before retrying.",
-  [InAppAgentRunErrorCode.APPROVAL_EXPIRED]: "The approval request expired.",
-  [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
-  [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
-  [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
-};
 
 function isExecutingRun(
   run: BackgroundExecutionRunView | null,

@@ -56,6 +56,7 @@ export type Route = {
   organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon; // ignored for nested routes
   pathname: string; // link
+  legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
   newTab?: boolean; // open in new tab
@@ -68,6 +69,7 @@ export type Route = {
     projectId: string | undefined;
     isLangfuseCloud: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
+    v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -171,6 +173,7 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
+    legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
     title: "Human Annotation",
@@ -198,22 +201,14 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
+    // Keep Action required first in the secondary nav so it is not sandwiched
+    // between regular items like Upgrade Plan and Settings.
+    title: "Update",
+    pathname: "",
     section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ projectId, v4UpgradeUiAvailable }) =>
+      v4UpgradeUiAvailable && projectId !== undefined,
+    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "Cloud Status",
@@ -222,19 +217,29 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Update",
-    pathname: "",
-    section: RouteSection.Secondary,
-    featureFlag: "v4UpgradeUi",
-    show: ({ projectId }) => projectId !== undefined,
-    menuNode: <V4MigrationNavItem />,
-  },
-  {
     title: "V4 Preview",
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
     menuNode: <V4SidebarToggle />,
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/project/[projectId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/organization/[organizationId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Settings",

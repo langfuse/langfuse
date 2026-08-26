@@ -1,5 +1,7 @@
-import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
-import { type AnnotateFormSchema } from "@/src/features/scores/schema";
+import {
+  type AnnotationScoreDataSchema,
+  type AnnotateFormSchema,
+} from "@/src/features/scores/schema";
 import { type ButtonProps } from "@/src/components/ui/button";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -70,7 +72,7 @@ export type AnnotationScore = {
   timestamp?: Date | null;
 };
 
-type AnalyticsData = {
+export type AnalyticsData = {
   type: "trace" | "session";
   source:
     | "TraceDetail"
