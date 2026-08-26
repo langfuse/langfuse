@@ -14,6 +14,7 @@ import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export type { ViewMode };
 export type IOPreviewContentMode = "all" | "conversation";
@@ -53,6 +54,7 @@ export interface ExpansionStateProps {
 export interface IOPreviewProps extends ExpansionStateProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -104,6 +106,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
 export function IOPreview({
   input,
   output,
+  status,
   outputCorrection,
   metadata,
   parsedInput,
@@ -178,6 +181,7 @@ export function IOPreview({
   const sharedProps = {
     input,
     output,
+    status,
     outputCorrection,
     metadata,
     parsedInput,
@@ -239,6 +243,7 @@ export function IOPreview({
         <IOPreviewJSON
           input={input}
           output={output}
+          status={status}
           metadata={metadata}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
@@ -265,6 +270,7 @@ export function IOPreview({
         <IOPreviewJSONSimple
           input={input}
           output={output}
+          status={status}
           metadata={metadata}
           outputCorrection={outputCorrection}
           parsedInput={parsedInput}
@@ -286,6 +292,7 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          showCorrections={showCorrections}
         />
       ) : (
         <IOPreviewPretty

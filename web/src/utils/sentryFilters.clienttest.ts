@@ -477,6 +477,74 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("F. drops browser-extension dynamic import() failures (no stack, so denyUrls misses them)", () => {
+    // Real shape (LANGFUSE-5ZS): Chrome TypeError logged via console.error when
+    // an extension's own import() fails. No stack frames, so denyUrls (which
+    // matches frame filenames) never fires. captureConsoleIntegration then
+    // mints a new fingerprint per extension-id + hashed asset.
+    const consoleCapturedExtensionImportFailure = (
+      moduleUrl: string,
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: `Failed to fetch dynamically imported module: ${moduleUrl}`,
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops a Chrome extension module-load TypeError (LANGFUSE-5ZS)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/assets/content-end.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same failure as a message event (TypeError prefix, no exception)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "TypeError: Failed to fetch dynamically imported module: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/assets/content-end.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the Firefox / Safari / Edge extension-protocol siblings", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "moz-extension://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/content.js",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "safari-extension://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/content.js",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          consoleCapturedExtensionImportFailure(
+            "ms-browser-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/content.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -561,6 +629,47 @@ describe("isDenylistedNoiseEvent", () => {
           exceptionEvent(
             "Cannot read properties of undefined (reading 'map')",
             "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party chunk dynamic-import failure (stale deploy / CDN)", () => {
+      // Same Chrome message as LANGFUSE-5ZS, but the URL is ours. This is a
+      // real client failure (stale tab after deploy, truncated download) and
+      // must still reach Sentry.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: http://localhost:3000/_next/static/chunks/app.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a first-party chunk failure even if an extension URL appears later in the text", () => {
+      // The protocol must be on the FAILED module URL, not anywhere in the
+      // event text (query/fragment/trailing console noise).
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js?ref=chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/x.js",
           ),
         ),
       ).toBe(false);
