@@ -1,3 +1,14 @@
+/**
+ * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
+ *
+ * Contains:
+ * - Title row with ItemBadge, observation name, options menu
+ * - Action buttons (Dataset, Annotate, Queue, Playground, Comments)
+ * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
+ *
+ * Memoized to prevent unnecessary re-renders when tab state changes.
+ */
+
 import { memo, useMemo } from "react";
 import {
   type ObservationType,
@@ -5,7 +16,41 @@ import {
   isGenerationLike,
   type ScoreDomain,
 } from "@langfuse/shared";
+import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
+import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { ItemBadge } from "@/src/components/ItemBadge";
+import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
+import {
+  LatencyBadge,
+  TimeToFirstTokenBadge,
+  EnvironmentBadge,
+  ReleaseBadge,
+  VersionBadge,
+  LevelBadge,
+} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
+import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "./ModelBadge";
+import { ModelParametersBadges } from "./ModelParametersBadges";
+import {
+  type WithStringifiedMetadata,
+  type MetadataDomainClient,
+} from "@/src/utils/clientSideDomainTypes";
+import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
+import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   ChevronDown,
   EllipsisVertical,
@@ -16,11 +61,6 @@ import {
   MoreHorizontal,
   SquarePen,
 } from "lucide-react";
-
-import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   Drawer,
   DrawerContent,
@@ -31,41 +71,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
-import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { cn } from "@/src/utils/tailwind";
-import {
-  type MetadataDomainClient,
-  type WithStringifiedMetadata,
-} from "@/src/utils/clientSideDomainTypes";
-import {
-  EnvironmentBadge,
-  LatencyBadge,
-  LevelBadge,
-  ReleaseBadge,
-  TimeToFirstTokenBadge,
-  VersionBadge,
-} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
-import { ModelBadge } from "./ModelBadge";
-import { ModelParametersBadges } from "./ModelParametersBadges";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -82,6 +92,7 @@ export interface ObservationDetailViewHeaderProps {
   latencySeconds: number | null;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
+  // Inline comment props
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
   isCommentDrawerOpen?: boolean;
@@ -110,17 +121,28 @@ export const ObservationDetailViewHeader = memo(
     const isMobile = useIsMobile();
     const { isBetaEnabled: isV4Enabled } = useV4Beta();
     const { trace, serverScores } = useTraceData();
+
+    // Get trace-level scores for V4 dual annotation
     const traceScores = useMemo(
-      () => serverScores.filter((score) => !score.observationId),
+      () => serverScores.filter((s) => !s.observationId),
       [serverScores],
     );
+
+    // Access check for annotation drawer
     const hasAnnotationAccess = useHasProjectAccess({
       projectId,
       scope: "scores:CUD",
     });
 
+    // Format cost and usage values
+    const totalCost = observation.totalCost;
+    const totalUsage = observation.totalUsage;
+    const inputUsage = observation.inputUsage;
+    const outputUsage = observation.outputUsage;
+
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
+        {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
@@ -162,7 +184,7 @@ export const ObservationDetailViewHeader = memo(
             </DetailHeaderActionsMenuController>
             {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
                 full-width labeled rows, next to the `⋮` utility menu. */}
-            {isMobile ? (
+            {isMobile && (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -184,7 +206,7 @@ export const ObservationDetailViewHeader = memo(
                   forceMount
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
-                  {observationWithIO ? (
+                  {observationWithIO && (
                     <NewDatasetItemFromExistingObject
                       traceId={traceId}
                       observationId={observation.id}
@@ -194,12 +216,12 @@ export const ObservationDetailViewHeader = memo(
                       metadata={observationWithIO.metadata}
                       layout="menu"
                     />
-                  ) : null}
-                  {!isAnnotationMode ? (
+                  )}
+                  {!isAnnotationMode && (
                     <>
                       {isV4Enabled ? (
                         <Drawer
-                          key={`annotation-drawer-menu-${observation.id}`}
+                          key={"annotation-drawer-menu-" + observation.id}
                         >
                           <DrawerTrigger asChild>
                             <Button
@@ -230,16 +252,16 @@ export const ObservationDetailViewHeader = memo(
                         </Drawer>
                       ) : (
                         <AnnotateDrawer
-                          key={`annotation-drawer-menu-${observation.id}`}
+                          key={"annotation-drawer-menu-" + observation.id}
                           projectId={projectId}
                           scoreTarget={{
                             type: "trace",
-                            traceId,
+                            traceId: traceId,
                             observationId: observation.id,
                           }}
                           scores={observationScores}
                           scoreMetadata={{
-                            projectId,
+                            projectId: projectId,
                             environment: observation.environment,
                           }}
                           layout="menu"
@@ -267,7 +289,7 @@ export const ObservationDetailViewHeader = memo(
                         )}
                       </AnnotationQueueItemDropdownMenuController>
                     </>
-                  ) : null}
+                  )}
                   {observationWithIO &&
                     isGenerationLike(observationWithIO.type) && (
                       <JumpToPlaygroundButton
@@ -310,27 +332,28 @@ export const ObservationDetailViewHeader = memo(
                   </CommentDrawerController>
                 </PopoverContent>
               </Popover>
-            ) : null}
+            )}
           </div>
-
-          {!isMobile ? (
+          {/* Action buttons (desktop inline cluster) */}
+          {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-              {observationWithIO ? (
+              {observationWithIO && (
                 <NewDatasetItemFromExistingObject
-                  key={observation.id}
                   traceId={traceId}
                   observationId={observation.id}
                   projectId={projectId}
                   input={observationWithIO.input}
                   output={observationWithIO.output}
                   metadata={observationWithIO.metadata}
+                  key={observation.id}
                   size="sm"
                 />
-              ) : null}
-              {!isAnnotationMode ? (
+              )}
+              {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+              {!isAnnotationMode && (
                 <div className="flex items-start">
                   {isV4Enabled ? (
-                    <Drawer key={`annotation-drawer-${observation.id}`}>
+                    <Drawer key={"annotation-drawer-" + observation.id}>
                       <DrawerTrigger asChild>
                         <Button
                           variant="secondary"
@@ -360,16 +383,16 @@ export const ObservationDetailViewHeader = memo(
                     </Drawer>
                   ) : (
                     <AnnotateDrawer
-                      key={`annotation-drawer-${observation.id}`}
+                      key={"annotation-drawer-" + observation.id}
                       projectId={projectId}
                       scoreTarget={{
                         type: "trace",
-                        traceId,
+                        traceId: traceId,
                         observationId: observation.id,
                       }}
                       scores={observationScores}
                       scoreMetadata={{
-                        projectId,
+                        projectId: projectId,
                         environment: observation.environment,
                       }}
                       size="sm"
@@ -398,7 +421,7 @@ export const ObservationDetailViewHeader = memo(
                     )}
                   </AnnotationQueueItemDropdownMenuController>
                 </div>
-              ) : null}
+              )}
               {observationWithIO &&
                 isGenerationLike(observationWithIO.type) && (
                   <JumpToPlaygroundButton
@@ -442,14 +465,19 @@ export const ObservationDetailViewHeader = memo(
                 )}
               </CommentDrawerController>
             </div>
-          ) : null}
+          )}
         </div>
 
+        {/* Metadata badges */}
+
         <div className="flex flex-col gap-2">
+          {/* Timestamp */}
           <div className="flex flex-wrap items-center gap-1 text-sm">
             <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
           </div>
-          {!isAnnotationMode ? (
+
+          {/* Other badges */}
+          {!isAnnotationMode && (
             <CollapsibleBadgeRow>
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
@@ -470,7 +498,7 @@ export const ObservationDetailViewHeader = memo(
                   subtreeMetrics
                     ? (treeNodeTotalCost?.toNumber() ??
                       subtreeMetrics.totalCost)
-                    : observation.totalCost
+                    : totalCost
                 }
                 costDetails={
                   subtreeMetrics?.costDetails ?? observation.costDetails
@@ -483,7 +511,7 @@ export const ObservationDetailViewHeader = memo(
                   observation.usagePricingTierName &&
                   Object.keys(observation.providedCostDetails).length === 0 &&
                   (!subtreeMetrics ||
-                    treeNodeTotalCost?.eq(observation.totalCost ?? 0) === true)
+                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
                     ? {
                         projectId,
                         modelId: observation.internalModelId,
@@ -496,7 +524,7 @@ export const ObservationDetailViewHeader = memo(
               />
               {subtreeMetrics ? (
                 subtreeMetrics.hasGenerationLike &&
-                subtreeMetrics.usageDetails ? (
+                subtreeMetrics.usageDetails && (
                   <UsageBadge
                     type="GENERATION"
                     inputUsage={subtreeMetrics.inputUsage}
@@ -504,13 +532,13 @@ export const ObservationDetailViewHeader = memo(
                     totalUsage={subtreeMetrics.totalUsage}
                     usageDetails={subtreeMetrics.usageDetails}
                   />
-                ) : null
+                )
               ) : (
                 <UsageBadge
                   type={observation.type}
-                  inputUsage={observation.inputUsage}
-                  outputUsage={observation.outputUsage}
-                  totalUsage={observation.totalUsage}
+                  inputUsage={inputUsage}
+                  outputUsage={outputUsage}
+                  totalUsage={totalUsage}
                   usageDetails={observation.usageDetails}
                 />
               )}
@@ -525,14 +553,14 @@ export const ObservationDetailViewHeader = memo(
                 modelParameters={observation.modelParameters}
               />
               <LevelBadge level={observation.level} />
-              {observation.promptId ? (
+              {observation.promptId && (
                 <PromptBadge
                   promptId={observation.promptId}
                   projectId={projectId}
                 />
-              ) : null}
+              )}
             </CollapsibleBadgeRow>
-          ) : null}
+          )}
         </div>
       </div>
     );
