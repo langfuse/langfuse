@@ -133,13 +133,19 @@ export function useCollapsibleSystemPrompt({
       return null;
     }
 
-    const lines = content.split("\n");
+    // Split only a bounded prefix. A full split("\n") over a multi-MB string
+    // is the main-thread cost PrettyJsonView's large-string gate exists to
+    // avoid; the preview never needs more than the first few lines anyway.
+    const scanLimit = Math.max(previewCharLimit, 8_192);
+    const scanText =
+      content.length > scanLimit ? content.slice(0, scanLimit) : content;
+    const lines = scanText.split("\n");
     const previewText = lines.slice(0, previewLines).join("\n");
 
     if (previewText.length > previewCharLimit) {
       return previewText.slice(0, previewCharLimit) + "...";
     }
-    if (lines.length > previewLines) {
+    if (lines.length > previewLines || content.length > scanText.length) {
       return previewText + "\n...";
     }
     return null;

@@ -155,6 +155,11 @@ describe("ChatMessage system prompt collapse", () => {
         name: /expand system prompt/i,
       }).length,
     ).toBeGreaterThan(0);
+    expect(
+      within(systemMessageHeader()).getByRole("button", {
+        name: /system, expand system prompt/i,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("collapses a long system message that carries a name", () => {

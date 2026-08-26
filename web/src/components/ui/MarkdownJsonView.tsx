@@ -43,6 +43,12 @@ export function MarkdownJsonViewHeader({
       ? "Expand system prompt"
       : "Collapse system prompt"
     : undefined;
+  // Keep the visible title in the title-button name (WCAG 2.5.3). A generic
+  // aria-label would hide message `name`s from assistive tech.
+  const titleButtonLabel =
+    typeof title === "string" && collapseLabel
+      ? `${title}, ${collapseLabel}`
+      : collapseLabel;
 
   const titleContent = (
     <>
@@ -70,7 +76,7 @@ export function MarkdownJsonViewHeader({
             type="button"
             onClick={collapseControl.onToggle}
             aria-expanded={!collapseControl.isCollapsed}
-            aria-label={collapseLabel}
+            aria-label={titleButtonLabel}
             className="hover:text-foreground/80 flex items-center gap-1.5"
           >
             {titleContent}

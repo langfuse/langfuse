@@ -925,13 +925,17 @@ export function PrettyJsonView(props: {
 
   // Nested MarkdownView is rendered without a title (this view owns the
   // header), so the header must host the same collapse control that
-  // MarkdownView would show when it has a title.
+  // MarkdownView would show when it has a title. Skip gated large strings:
+  // they render through LargeStringFallback, and splitting them for a
+  // preview would undo the main-thread guard that gate exists for.
   const systemPromptCollapsibleContent =
-    typeof markdownContent === "string"
-      ? markdownContent
-      : typeof parsedJson === "string"
-        ? parsedJson
-        : "";
+    largeStringValue !== null
+      ? ""
+      : typeof markdownContent === "string"
+        ? markdownContent
+        : typeof parsedJson === "string"
+          ? parsedJson
+          : "";
   const {
     shouldBeCollapsible: shouldCollapseSystemPrompt,
     isCollapsed: isSystemPromptCollapsed,
@@ -1472,7 +1476,9 @@ export function PrettyJsonView(props: {
           handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
           collapseControl={
-            shouldCollapseSystemPrompt && isMarkdownMode
+            shouldCollapseSystemPrompt &&
+            isMarkdownMode &&
+            !shouldRenderStandaloneMedia
               ? {
                   isCollapsed: isSystemPromptCollapsed,
                   onToggle: () => toggleSystemPromptCollapsed("header"),
