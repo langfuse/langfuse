@@ -181,17 +181,14 @@ export class ChbBillingService {
    *
    * Returns the number of rows claimed; 0 means another caller won the race.
    *
-   * Both `COALESCE`s go through `NULLIF(…, 'null'::jsonb)` because a JSON-null
-   * is not a SQL NULL, and the two clauses disagree about it otherwise: the
-   * WHERE guard reads a stored `{"clickhouse": null}` as unclaimed and lets the
-   * write through, while `||` on a JSON-null scalar yields an *array*
-   * (`[null, {...}]`) rather than merging. That array fails CloudConfigSchema,
-   * so parseDbOrg nulls the *entire* cloudConfig on every later read — which
-   * drops the org's rate-limit and lookback overrides, makes getBillingProvider
-   * stop seeing the CHB state it just wrote (orphaning the bundle on Stripe
-   * routing), and makes hasPaidBillingState report the org as unpaid, which is
-   * the gate that keeps a paying org from being ingestion-blocked at the
-   * free-tier usage threshold.
+   * Both `COALESCE`s pass through `NULLIF(…, 'null'::jsonb)`: a JSON-null is not
+   * a SQL NULL, so `COALESCE` alone does not catch it. The guard counts a stored
+   * `{"clickhouse": null}` as unclaimed — correctly, it holds no CHB state — so
+   * the merge has to accept that value too, and `||` against a JSON-null scalar
+   * concatenates into `[null, {...}]` instead of merging. Keep the two clauses in
+   * step: a `clickhouse` that is not an object fails CloudConfigSchema, and
+   * parseDbOrg nulls the whole cloudConfig rather than just that field, so the
+   * damage is silent and not local to the CHB state.
    */
   private async claimChOrganizationId(
     orgId: string,
@@ -292,8 +289,10 @@ export class ChbBillingService {
     });
 
     // Validated through the stored schema before it reaches Postgres: a bad id
-    // would make parseDbOrg null the *entire* cloudConfig, discarding the org's
-    // plan override, rate-limit overrides and stripe.customerId.
+    // would make parseDbOrg null the *entire* cloudConfig on every later read,
+    // taking the org's rate-limit and lookback overrides with it. (Not its plan
+    // override or stripe.customerId — both are checkout interlocks above, so an
+    // org carrying either never reaches this line.)
     const validatedChb = CloudConfigSchema.shape.clickhouse.safeParse({
       ...parsedOrg.cloudConfig?.clickhouse,
       organizationId: session.organizationId,

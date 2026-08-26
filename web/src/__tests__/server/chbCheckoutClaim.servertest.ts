@@ -2,13 +2,15 @@
  * Postgres-backed half of the ChbBillingService suite.
  *
  * The unit suite (`unit/chbBillingService.servertest.ts`) mocks `$executeRaw`,
- * so it can prove *that* checkout claims the CH organization id but not that
- * the statement doing it is correct. These cases run the real guarded UPDATE
- * against a real row, because its failure mode is a silent one: a merge that
- * produces the wrong JSON shape makes `parseDbOrg` discard the org's entire
- * cloudConfig — plan override, rate-limit overrides and `stripe.customerId`
- * with it — and an org with no Stripe customer id drops out of the
- * usage-metering job's selection and quietly stops being billed.
+ * so it can prove *that* checkout claims the CH organization id but not that the
+ * statement doing it is correct. These cases run the real guarded UPDATE against
+ * a real row, because its failure mode is a silent one: a merge that writes the
+ * wrong JSON shape makes `parseDbOrg` discard the org's entire cloudConfig on
+ * every later read, not just the field it got wrong. That takes the org's
+ * rate-limit and lookback overrides with it, hides the CHB state this very
+ * checkout just wrote — so `getBillingProvider` routes the org back to Stripe —
+ * and makes `hasPaidBillingState` report a paying org as unpaid, which is the
+ * gate keeping it from being ingestion-blocked at the free-tier threshold.
  */
 
 import { randomUUID } from "crypto";
