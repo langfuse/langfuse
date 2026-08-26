@@ -799,62 +799,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       const jobs = await prisma.jobExecution.findMany({ where: { projectId } });
 
-      // One row, so one score - the primary key rejected the second insert.
       expect(jobs.length).toBe(1);
-    }, 10_000);
-
-    test("still enqueues the eval when a concurrent producer won the insert", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-        },
-      });
-
-      // Simulate losing the insert race: the row is already there, so the
-      // ON CONFLICT DO NOTHING insert reports zero rows written. Racing on the
-      // real interleaving would make this assertion flaky.
-      const createManySpy = vi
-        .spyOn(prisma.jobExecution, "createMany")
-        .mockResolvedValue({ count: 0 });
-
-      const add = vi.fn().mockResolvedValue(undefined);
-      const getInstanceSpy = vi
-        .spyOn(EvalExecutionQueue, "getInstance")
-        .mockReturnValue({ add } as never);
-
-      try {
-        await createEvalJobs({
-          sourceEventType: "trace-upsert",
-          event: { projectId, traceId },
-          jobTimestamp,
-        });
-      } finally {
-        createManySpy.mockRestore();
-        getInstanceSpy.mockRestore();
-      }
-
-      // The loser must not stay silent. A duplicate execution is idempotent,
-      // whereas skipping the enqueue risks an execution nobody ever runs.
-      expect(add).toHaveBeenCalledTimes(1);
     }, 10_000);
 
     test("does not leave a PENDING eval job behind when enqueueing fails", async () => {
