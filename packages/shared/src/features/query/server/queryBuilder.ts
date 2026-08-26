@@ -300,6 +300,21 @@ export class QueryBuilder {
     }>,
     view: ViewDeclarationType,
   ): AppliedMetricType[] {
+    // preAggregated measures auto-include an exploded dimension whose arrayJoin
+    // reshapes the whole inner query: rows without array entries drop out and
+    // rows with N entries repeat N times. Any other metric in the same query
+    // would be silently distorted (e.g. totalCost losing zero-tool observations
+    // and multiplying per repeat), so the combination is rejected outright.
+    if (metrics.length > 1) {
+      const preAggregated = metrics.filter(
+        (m) => view.measures[m.measure]?.preAggregated,
+      );
+      if (preAggregated.length > 0) {
+        throw new InvalidRequestError(
+          `Measure ${preAggregated[0].measure} cannot be combined with other measures in the same query. Query it on its own.`,
+        );
+      }
+    }
     return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
         throw new InvalidRequestError(

@@ -2853,12 +2853,7 @@ describe("queryBuilder", () => {
         const query: QueryType = {
           view: "observations",
           dimensions: [{ field: "calledToolNames" }],
-          metrics: [
-            { measure: "toolCallInvocations", aggregation: "sum" },
-            // Contrast metric: counting rows dedupes same-tool repeats within
-            // one observation, so this yields observations-per-tool.
-            { measure: "count", aggregation: "count" },
-          ],
+          metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
           filters: [],
           timeDimension: null,
           fromTimestamp: new Date(now - 86400000).toISOString(),
@@ -2871,9 +2866,23 @@ describe("queryBuilder", () => {
         const fetchRow = result.find((r) => r.calledToolNames === "fetch");
         const searchRow = result.find((r) => r.calledToolNames === "search");
         expect(Number(fetchRow!.sum_toolCallInvocations)).toBe(4);
-        expect(Number(fetchRow!.count_count)).toBe(2);
         expect(Number(searchRow!.sum_toolCallInvocations)).toBe(1);
-        expect(Number(searchRow!.count_count)).toBe(1);
+
+        // Contrast: counting observation rows dedupes same-tool repeats within
+        // one observation, so the same data yields observations-per-tool.
+        const countResult = await executeQuery(
+          projectId,
+          {
+            ...query,
+            metrics: [{ measure: "count", aggregation: "count" }],
+          },
+          "v1",
+          false,
+        );
+        const fetchCountRow = countResult.find(
+          (r) => r.calledToolNames === "fetch",
+        );
+        expect(Number(fetchCountRow!.count_count)).toBe(2);
 
         // The measure is pre-aggregated in the inner query; single-level
         // optimization must not change the result (it is bypassed).
@@ -2884,6 +2893,39 @@ describe("queryBuilder", () => {
           true,
         );
         expect(resultOptimized).toEqual(result);
+      });
+
+      it("rejects combining toolCallInvocations with other measures", async () => {
+        // The measure's auto-included arrayJoin reshapes the whole inner
+        // query: zero-tool observations drop out and multi-call observations
+        // repeat per call, silently distorting any other metric. Reproduced
+        // before the guard existed: three 100-cost observations (3 fetch
+        // calls / 1 fetch call / no tools) returned sum(totalCost) = 400
+        // instead of 300 when combined with toolCallInvocations. The
+        // combination is therefore rejected outright.
+        const projectId = randomUUID();
+        await expect(
+          executeQuery(
+            projectId,
+            {
+              view: "observations",
+              dimensions: [],
+              metrics: [
+                { measure: "toolCallInvocations", aggregation: "sum" },
+                { measure: "totalCost", aggregation: "sum" },
+              ],
+              filters: [],
+              timeDimension: null,
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            },
+            "v1",
+            false,
+          ),
+        ).rejects.toThrow(
+          "Measure toolCallInvocations cannot be combined with other measures",
+        );
       });
 
       it("auto-includes calledToolNames when toolCallInvocations is queried without dimensions", async () => {

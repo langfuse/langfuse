@@ -435,6 +435,13 @@ export function WidgetForm({
   const getAvailablePivotMetrics = (metricIndex: number) => {
     const viewDeclaration = viewDeclarations[viewVersion][selectedView];
     return Object.entries(viewDeclaration.measures)
+      .filter(([, measureDef]) => {
+        // preAggregated measures cannot be combined with other metrics (the
+        // query builder rejects the combination), so keep them out of the
+        // multi-metric pivot slots entirely. Single-metric widgets can still
+        // select them via the regular metric picker.
+        return !measureDef.preAggregated;
+      })
       .filter(([measureKey]) => {
         if (measureKey === "count") {
           return !values.metrics.some(

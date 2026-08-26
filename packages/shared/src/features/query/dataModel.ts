@@ -636,7 +636,7 @@ export const observationsView: ViewDeclarationType = {
       preAggregated: true,
       requiresDimension: "calledToolNames",
       description:
-        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings.",
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings. Cannot be combined with other metrics in the same query.",
       unit: "calls",
     },
   },
@@ -1540,7 +1540,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       preAggregated: true,
       requiresDimension: "calledToolNames",
       description:
-        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings.",
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings. Cannot be combined with other metrics in the same query.",
       unit: "calls",
     },
     costByType: {
