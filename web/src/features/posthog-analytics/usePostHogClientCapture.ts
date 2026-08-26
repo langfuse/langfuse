@@ -212,6 +212,7 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",

@@ -129,6 +129,16 @@ export default function DashboardDetail() {
   // route through the clone-first flow instead of mutating.
   const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
 
+  // PostHog is the external system: report one view per dashboard once the
+  // owner is known ("do the Langfuse-maintained templates get used?"). Keyed
+  // by id so client-side navigation between dashboards re-reports; `capture`
+  // has a stable identity.
+  const dashboardOwner = dashboard.data?.owner;
+  useEffect(() => {
+    if (!dashboardOwner) return;
+    capture("dashboard:view", { dashboardId, owner: dashboardOwner });
+  }, [capture, dashboardId, dashboardOwner]);
+
   // Access for cloning (independent of dashboard owner)
   const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
 
