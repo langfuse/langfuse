@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, ShieldCheck } from "lucide-react";

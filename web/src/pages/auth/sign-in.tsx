@@ -33,7 +33,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { Code, Key } from "lucide-react";
