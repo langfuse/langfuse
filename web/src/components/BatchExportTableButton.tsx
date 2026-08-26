@@ -22,6 +22,7 @@ import React from "react";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type BatchExportTableButtonProps = {
   projectId: string;
@@ -36,6 +37,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   props,
 ) => {
   const [isExporting, setIsExporting] = React.useState(false);
+  const capture = usePostHogClientCapture();
   const createExport = api.batchExport.create.useMutation({
     onSettled: () => {
       setIsExporting(false);
@@ -58,6 +60,8 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
   });
 
   const handleExport = async (format: BatchExportFileFormat) => {
+    // Which tables get exported, in which format — never the query contents.
+    capture("table:export_clicked", { tableName: props.tableName, format });
     setIsExporting(true);
     await createExport.mutateAsync({
       projectId: props.projectId,

@@ -255,7 +255,7 @@ export function PopoverFilterBuilder({
       <Popover
         onOpenChange={(open) => {
           if (open) {
-            capture("table:filter_builder_open");
+            capture("table:filter_builder_open", { tableName });
           }
           // Create empty filter when opening popover
           if (open && filterState.length === 0) addNewFilter();

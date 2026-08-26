@@ -1,5 +1,8 @@
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
+import { useEffect, useRef } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
@@ -35,6 +38,20 @@ export function TracePage({
   const hasProjectAccess = useIsAuthenticatedAndProjectMember(
     projectIdForAccessCheck,
   );
+
+  // PostHog is the external system: report one view per trace once it loaded
+  // (unauthorized/not-found never count). The id ref dedupes Strict Mode
+  // double-mounts while client-side navigation between traces re-reports —
+  // same pattern as dashboard:view and home_dashboard_viewed.
+  const capture = usePostHogClientCapture();
+  const { isBetaEnabled } = useV4Beta();
+  const traceLoaded = Boolean(trace.data);
+  const viewedTraceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!traceLoaded || viewedTraceRef.current === traceId) return;
+    viewedTraceRef.current = traceId;
+    capture("trace_detail:view", { isV4: isBetaEnabled });
+  }, [capture, traceId, traceLoaded, isBetaEnabled]);
 
   if (trace.isUnauthorized)
     return <ErrorPage message="You do not have access to this trace." />;
