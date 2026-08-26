@@ -4,7 +4,6 @@ import { type Cluster, type Redis } from "ioredis";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import { env } from "@/src/env.mjs";
-import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   createNewRedisInstance,
   logger,
@@ -104,7 +103,7 @@ export class AuthRateLimitService {
         redis !== undefined
           ? redis
           : createNewRedisInstance({
-              keyPrefix: sharedEnv.REDIS_KEY_PREFIX ?? undefined,
+              keyPrefix: process.env.REDIS_KEY_PREFIX ?? undefined,
               enableAutoPipelining: false,
               enableOfflineQueue: false,
               lazyConnect: true,

@@ -3,12 +3,17 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { RateLimiterRes } from "rate-limiter-flexible";
 
-import { env } from "@/src/env.mjs";
-
-const mocks = vi.hoisted(() => ({
-  consume: vi.fn(),
-  options: [] as Array<Record<string, unknown>>,
+const { env, mocks } = vi.hoisted(() => ({
+  env: {
+    LANGFUSE_RATE_LIMITS_ENABLED: "true",
+  },
+  mocks: {
+    consume: vi.fn(),
+    options: [] as Array<Record<string, unknown>>,
+  },
 }));
+
+vi.mock("@/src/env.mjs", () => ({ env }));
 
 vi.mock("rate-limiter-flexible", () => {
   class MockRateLimiterRes {

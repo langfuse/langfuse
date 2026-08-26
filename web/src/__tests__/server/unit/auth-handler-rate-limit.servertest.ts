@@ -67,6 +67,16 @@ vi.mock("@/src/ee/features/multi-tenant-sso/utils", () => ({
   getSsoAuthProviderIdForDomain: vi.fn(async () => null),
 }));
 
+vi.mock("@/src/features/auth/lib/signupSchema", () => ({
+  signupSchema: {
+    safeParse: (body: unknown) => ({ success: true, data: body }),
+  },
+}));
+
+vi.mock("@/src/features/auth/lib/signupAttribution", () => ({
+  getAdClickIdsFromRequest: () => undefined,
+}));
+
 import nextAuthHandler from "@/src/pages/api/auth/[...nextauth]";
 import { signupApiHandler } from "@/src/features/auth-credentials/server/signupApiHandler";
 
