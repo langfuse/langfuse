@@ -16,10 +16,19 @@ import { FlaskConical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
-export default function Experiments() {
+export default function ExperimentsPage() {
+  const route = useReadyRouteParams(["projectId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return <ExperimentsView projectId={route.params.projectId} />;
+}
+
+function ExperimentsView({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const projectId = router.query.projectId as string;
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
   const capture = usePostHogClientCapture();

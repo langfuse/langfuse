@@ -21,10 +21,13 @@ export function useExperimentFilterOptions({
   projectId: string;
   oldFilterState: FilterState;
 }) {
+  const canFetch = Boolean(projectId);
+
   // Fetch datasets to get ID -> name mapping
-  const datasets = api.datasets.allDatasetMeta.useQuery({
-    projectId,
-  });
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId },
+    { enabled: canFetch },
+  );
 
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -36,10 +39,14 @@ export function useExperimentFilterOptions({
   }, [oldFilterState]);
 
   // Fetch experiment-specific filter options (scores scoped to experiment events)
-  const filterOptions = api.experiments.filterOptions.useQuery({
-    projectId,
-    startTimeFilter: startTimeFilters.length > 0 ? startTimeFilters : undefined,
-  });
+  const filterOptions = api.experiments.filterOptions.useQuery(
+    {
+      projectId,
+      startTimeFilter:
+        startTimeFilters.length > 0 ? startTimeFilters : undefined,
+    },
+    { enabled: canFetch },
+  );
 
   const experimentFilterOptions = useMemo(() => {
     const experimentDatasetFilterOptions = datasets.data

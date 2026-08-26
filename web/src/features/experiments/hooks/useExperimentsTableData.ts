@@ -67,8 +67,11 @@ export function useExperimentsTableData({
     ],
   );
 
+  const canFetch = Boolean(projectId);
+
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
+    enabled: canFetch,
     refetchOnWindowFocus: true,
   });
 
@@ -88,13 +91,14 @@ export function useExperimentsTableData({
 
   // Fetch metrics
   const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
-    enabled: experimentsQuery.isSuccess && metricsPayload !== null,
+    enabled: canFetch && experimentsQuery.isSuccess && metricsPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
+    enabled: canFetch,
     refetchOnWindowFocus: true,
   });
 
