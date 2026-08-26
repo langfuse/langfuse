@@ -159,27 +159,16 @@ export type ErrorResult<E extends BaseError> = { success: false; error: E };
 /** Decision is a PDP outcome: a boolean success, or a typed 403; the residual resource filter returns additively in Phase 3–4. */
 export type Decision = Success | ErrorResult<ForbiddenError>;
 
-/** authorize decides whether the context permits action on resource: a boolean success or a typed 403. */
+/** authorize evaluates the policies for action on resource: a matching deny 403s (system rules keep their message), else a matching allow succeeds, else implicit-deny 403. */
 export function authorize(
   ctx: AuthorizationContext,
   action: Action,
   resource: Resource,
 ): Decision {
-  return decide(ctx, action, resource);
-}
-
-/** decide evaluates the policies for action on resource: a matching deny 403s (system rules keep their message), else a matching allow succeeds, else implicit-deny 403. */
-function decide(
-  ctx: AuthorizationContext,
-  action: Action,
-  resource: Resource,
-): Decision {
-  const kind = resourceKind(resource);
-  const id = resourceId(resource);
   const matches = ctx.policies
-    .filter((p) => p.kind === kind)
+    .filter(hasResourceKind(resource))
     .filter(hasAction(action))
-    .filter((p) => p.resources === wildcard || p.resources.includes(id));
+    .filter(hasResourceId(resource));
 
   const denies = matches.filter(hasEffect("deny"));
   if (denies.length > 0) {
@@ -191,13 +180,16 @@ function decide(
   return forbidden();
 }
 
-/** resourceKind is the policy kind that governs a checked resource. */
-const resourceKind = (resource: Resource): Policy["kind"] =>
-  "projectId" in resource ? "project" : "organization";
+/** hasResourceKind matches a policy of the kind that governs the checked resource. */
+const hasResourceKind = (resource: Resource) => (p: Policy) =>
+  p.kind === ("projectId" in resource ? "project" : "organization");
 
-/** resourceId is the id a checked resource matches on within its kind. */
-const resourceId = (resource: Resource): string =>
-  "projectId" in resource ? resource.projectId : resource.orgId;
+/** hasResourceId matches a policy whose resources cover the checked resource's id, by wildcard or listing. */
+const hasResourceId = (resource: Resource) => (p: Policy) =>
+  p.resources === wildcard ||
+  p.resources.includes(
+    "projectId" in resource ? resource.projectId : resource.orgId,
+  );
 
 /** hasAction matches a policy granting the action explicitly; actions are always spelled out, never wildcarded. */
 const hasAction = (action: Action) => (p: Policy) =>

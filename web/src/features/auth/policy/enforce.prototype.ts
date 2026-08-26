@@ -1,6 +1,6 @@
 /**
- * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/enforcement-seams`,
- * LFE-15038). Shared header normalization for the api adapters.
+ * PROTOTYPE — THROWAWAY, does not merge (branch `prototype/parity-classification`,
+ * LFE-15559). Shared header normalization for the api adapters.
  */
 
 /** headerValue normalizes a possibly-repeated header to its first value. */

@@ -33,14 +33,12 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-// PROTOTYPE(LFE-15559): one method does legacy's verify + the new mcp:access
-// check + the connection parity emit
-import { authorizeMcpConnection } from "@/src/features/mcp/core/define-tool.prototype";
+import { addUserToSpan, logger } from "@langfuse/shared/src/server";
+// PROTOTYPE(LFE-15559): the drop-in does legacy's verify + the new mcp:access
+// check + the connection parity emit, then throws on deny or returns the scope
+import { verifyMcpConnection } from "@/src/features/auth/policy/shadow.mcp.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, safeJsonParse } from "@langfuse/shared";
+import { BaseError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
@@ -81,26 +79,10 @@ export default async function handler(
       return;
     }
 
-    // one method reuses the single legacy verify, runs the new mcp:access
-    // check, and emits connection parity in shadow; legacy authCheck still
-    // shapes ServerContext + rate limiting (dies with LFE-15033)
-    const { authCheck, enforced } = await authorizeMcpConnection({
-      headers: req.headers,
-      verify: () =>
-        new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-          req.headers.authorization,
-          { allowInAppAgentKey: true },
-        ),
-    });
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
-    }
-    // 400 without a project target (org keys), 403 from the mcp_disabled
-    // system deny with today's message
-    if (!enforced.success) {
-      throw enforced.error;
-    }
-    const projectId = enforced.projectId;
+    // the drop-in reuses the single legacy verify, runs the new mcp:access
+    // check, and emits connection parity in shadow; legacy still decides and its
+    // scope shapes ServerContext + rate limiting (dies with LFE-15033)
+    const { authCheck, projectId, enforced } = await verifyMcpConnection({ req });
 
     addUserToSpan({
       apiKeyId: authCheck.scope.apiKeyId,
@@ -135,7 +117,9 @@ export default async function handler(
       rateLimitOverrides: authCheck.scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
-      authz: enforced.context,
+      // shadow only observed the new path, so its context may be absent; per-tool
+      // asserts run against it in enforce
+      authz: enforced.success ? enforced.context : undefined,
     };
 
     logger.debug("MCP request authenticated", {

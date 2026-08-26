@@ -5,7 +5,7 @@
  * to enforce in this region?": at every authorization decision, does the NEW
  * verdict match what LEGACY decided? Emitted as one counter, read by the Datadog
  * queries below, and wired into all four seams (see enforcement.*.prototype.ts,
- * define-tool.prototype.ts). Run: `pnpm --filter web run test:in-source parity.prototype`.
+ * define-tool.prototype.ts). Run: `pnpm --filter web run test:in-source shadow.prototype`.
  *
  * ── Datadog · the ship gate ────────────────────────────────────────────────
  * Every disagreement between the two paths, last 7d, grouped so each row is one
@@ -45,18 +45,22 @@ const defaultSink: ParitySink = {
   span: () => getCurrentSpan(),
 };
 
-/** recordParity compares the new verdict against legacy's for one decision and emits `langfuse.authz.parity`; returns the result so callers and tests can assert it. */
-export function recordParity(
-  decision: ParityDecision,
+/** diffResults classifies the new pipeline's decision against the legacy one and emits `langfuse.authz.parity`; returns the result so callers and tests can assert it. */
+export function diffResults(
+  neu: NewResult,
+  legacy: LegacyDecision,
+  meta: { seam: Seam; action: string },
   sink: ParitySink = defaultSink,
 ): ParityResult {
-  const result = classify(decision.legacy, decision.neu);
+  const n = newVerdict(neu);
+  const l = legacyVerdict(legacy);
+  const result = classify(l.verdict, n.verdict);
   const tags = {
-    seam: decision.seam,
-    action: decision.action,
+    seam: meta.seam,
+    action: meta.action,
     result,
-    legacy_code: decision.legacyCode,
-    new_code: decision.newCode,
+    legacy_code: l.code,
+    new_code: n.code,
   } satisfies Record<string, string | number>;
   sink.increment(parityStat, tags);
   sink.span()?.setAttribute(`${parityStat}.result`, result);
@@ -83,6 +87,29 @@ export function verdictFromStatus(status: number): Verdict {
   return status < 400 ? "allow" : "deny";
 }
 
+/** legacyFromStatus lifts a legacy chokepoint's http status into a LegacyDecision for diffResults. */
+export function legacyFromStatus(status: number): LegacyDecision {
+  return status < 400 ? { ok: true } : { ok: false, code: status };
+}
+
+/** legacyFromVerdict lifts a per-decision legacy verdict (a reconstruction, or `absent` where legacy ran no gate) into a LegacyDecision. */
+export function legacyFromVerdict(verdict: Verdict): LegacyDecision {
+  if (verdict === "absent") return { absent: true };
+  return verdict === "allow" ? { ok: true } : { ok: false, code: 403 };
+}
+
+/** newFromVerdict lifts a per-decision new verdict into a NewResult for diffResults. */
+export function newFromVerdict(verdict: Exclude<Verdict, "absent">): NewResult {
+  return verdict === "allow" ? { success: true } : { success: false, error: { httpCode: 403 } };
+}
+
+/** legacyVerdict reads a legacy decision into a verdict + code: `absent` where it ran no gate, else allow/deny by its status. */
+function legacyVerdict(legacy: LegacyDecision): { verdict: Verdict; code: number } {
+  if ("absent" in legacy) return { verdict: "absent", code: 0 };
+  const code = legacy.ok ? 200 : legacy.code;
+  return { verdict: verdictFromStatus(code), code };
+}
+
 /** classify names the disagreement: legacy without a gate is `net_new`, agreement is `match`, else which path is stricter. */
 function classify(legacy: Verdict, neu: Verdict): ParityResult {
   if (legacy === "absent") return "net_new";
@@ -104,15 +131,16 @@ export type Seam =
   | "mcp_access"
   | "mcp_tool";
 
-/** ParityDecision is both paths' verdicts for one decision plus the tags that locate a divergence in Datadog. */
-export type ParityDecision = {
-  seam: Seam;
-  action: string;
-  legacy: Verdict;
-  neu: Verdict;
-  legacyCode: number;
-  newCode: number;
-};
+/** LegacyDecision is the legacy path's outcome as diffResults reads it: it allowed, it denied with an http code, or it ran no gate (`absent`). */
+export type LegacyDecision =
+  | { ok: true }
+  | { ok: false; code: number }
+  | { absent: true };
+
+/** LegacyAuthDecision is a seam's legacy verify captured as a value — the verified auth on success, or the status plus the error to re-throw on failure. `status` rides both branches so diffResults can read it uniformly. */
+export type LegacyAuthDecision<TAuth> =
+  | { ok: true; status: number; auth: TAuth }
+  | { ok: false; status: number; error: unknown };
 
 /** ParitySink is the telemetry surface, injectable so tests capture without a collector. */
 export type ParitySink = {
@@ -145,20 +173,20 @@ if (import.meta.vitest) {
     return { calls, sink };
   };
 
-  describe("recordParity — the ship-gate signal", () => {
+  const deny: NewResult = { success: false, error: { httpCode: 403 } };
+  const allow: NewResult = { success: true };
+
+  describe("diffResults — the ship-gate signal", () => {
     it.each([
-      ["both allow → match", "allow", "allow", "match"],
-      ["both deny → match", "deny", "deny", "match"],
-      ["new denies what legacy allows → new_denies (breakage)", "allow", "deny", "new_denies"],
-      ["new allows what legacy denies → new_allows (security)", "deny", "allow", "new_allows"],
-      ["legacy has no gate → net_new", "absent", "deny", "net_new"],
-    ] as const)("%s", (_name, legacy, neu, result) => {
+      ["both allow → match", allow, { ok: true } as LegacyDecision, "match"],
+      ["both deny → match", deny, { ok: false, code: 403 } as LegacyDecision, "match"],
+      ["new denies what legacy allows → new_denies (breakage)", deny, { ok: true } as LegacyDecision, "new_denies"],
+      ["new allows what legacy denies → new_allows (security)", allow, { ok: false, code: 403 } as LegacyDecision, "new_allows"],
+      ["legacy has no gate → net_new", deny, { absent: true } as LegacyDecision, "net_new"],
+    ] as const)("%s", (_name, neu, legacy, result) => {
       const { calls, sink } = capture();
       expect(
-        recordParity(
-          { seam: "project_route", action: "traces:read", legacy, neu, legacyCode: 0, newCode: 0 },
-          sink,
-        ),
+        diffResults(neu, legacy, { seam: "project_route", action: "traces:read" }, sink),
       ).toBe(result);
       expect(calls[0].tags.result).toBe(result);
     });

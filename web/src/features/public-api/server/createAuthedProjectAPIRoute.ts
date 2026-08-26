@@ -31,6 +31,10 @@ import {
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+// PROTOTYPE(LFE-15559): the auth step runs the new pipeline beside legacy and
+// records parity; `shadowVerifyAuth` is the drop-in, this file's `verifyAuth` the legacy one
+import { verifyAuth as shadowVerifyAuth } from "@/src/features/auth/policy/shadow.projects.prototype";
+import { type ProjectAction } from "@/src/features/auth/policy/policy.prototype";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -88,6 +92,8 @@ export type AuthedProjectAPIRouteConfig<
   rejectInEventsOnlyMode?: boolean;
   /** Stamps a top-level `_deprecation` object onto responses (LFE-10895). */
   deprecation?: ApiDeprecationInfo;
+  /** PROTOTYPE(LFE-15559): the action the shadow parity check asserts; null opts a route out of the authz comparison while still observing authn/resolution. */
+  action?: ProjectAction | null;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -344,14 +350,26 @@ export const createAuthedProjectAPIRoute = <
       scope: { projectId: string; accessLevel: RouteAccessLevel };
     };
 
-    // Verify authentication (API key or admin API key)
+    // Verify authentication (API key or admin API key). PROTOTYPE(LFE-15559):
+    // the drop-in runs the new pipeline beside this verify and records parity.
     try {
-      auth = await verifyAuth(
+      const verified = await shadowVerifyAuth({
         req,
-        routeConfig.isAdminApiKeyAuthAllowed || false,
-        routeConfig.allowedAccessLevels || ["project"],
-        routeConfig.allowInAppAgentKey === true,
-      );
+        action: routeConfig.action ?? null,
+        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+        allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+      });
+      // shadow returns the legacy scope; enforce returns the new pipeline's
+      // context+projectId — synthesizing a legacy-shaped scope for the downstream
+      // is the enforce follow-up (LFE-15033)
+      if (!("scope" in verified)) {
+        throw {
+          status: 501,
+          message: "enforce-mode scope synthesis not yet implemented",
+        };
+      }
+      auth = verified;
     } catch (error: any) {
       if (isPrismaException(error)) {
         traceException(error);

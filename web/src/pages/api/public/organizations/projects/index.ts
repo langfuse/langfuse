@@ -1,15 +1,10 @@
-// PROTOTYPE(LFE-15038): the new org pipeline runs on every request — shadow
-// stamps it on the span while the legacy gate decides, enforce gates alone
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
-import {
-  authorizeOrgRequest,
-  authzMigrationMode,
-} from "@/src/features/auth/policy/enforcement.organizations.prototype";
+// PROTOTYPE(LFE-15559): the drop-in does legacy's verify + the new path + the
+// parity emit, then throws or returns the verified scope like the route's verify
+import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.organizations.prototype";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import {
@@ -32,37 +27,23 @@ export default async function handler(
     });
   }
 
-  // one method does legacy's single verify + the new path + the parity emit;
-  // legacy still decides in shadow, the new decision acts in enforce
-  const { authCheck, authz } = await authorizeOrgRequest({
-    headers: req.headers,
-    action: "projects:read",
-    verify: () =>
-      new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
-        req.headers.authorization,
-      ),
-  });
+  let auth: Awaited<ReturnType<typeof verifyOrgAuth>>;
+  try {
+    auth = await verifyOrgAuth({ req, action: "projects:read" });
+  } catch (error) {
+    const status = (error as { status?: number }).status ?? 401;
+    const message =
+      (error as { message?: string }).message ?? "Authentication failed";
+    return res.status(status).json({ error: message });
+  }
 
+  // shadow returns the legacy scope; enforce returns the new context + orgId.
+  // The `admin-api` entitlement 403 stays outside the parity matrices.
   let orgId: string;
-  if (authzMigrationMode === "shadow") {
-    // legacy gate, restored verbatim (dies with LFE-15033)
-    if (!authCheck.validKey) {
-      return res.status(401).json({
-        error: authCheck.error,
-      });
-    }
-    if (
-      authCheck.scope.accessLevel !== "organization" ||
-      !authCheck.scope.orgId
-    ) {
-      return res.status(403).json({
-        error:
-          "Invalid API key. Organization-scoped API key required for this operation.",
-      });
-    }
+  if ("scope" in auth) {
     if (
       !hasEntitlementBasedOnPlan({
-        plan: authCheck.scope.plan,
+        plan: auth.scope.plan,
         entitlement: "admin-api",
       })
     ) {
@@ -72,26 +53,19 @@ export default async function handler(
     }
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
+        auth.scope,
         "public-api",
       );
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
-    orgId = authCheck.scope.orgId;
+    orgId = auth.scope.orgId;
   } else {
-    // one call: 401 on bad credential, 400 on missing/disagreeing org target,
-    // 403 when no policy covers projects:read on the org
-    if (!authz.success) {
-      return res
-        .status(authz.error.httpCode)
-        .json({ error: authz.error.message });
-    }
     if (
       !hasEntitlement({
         entitlement: "admin-api",
-        context: authz.context,
-        orgId: authz.orgId,
+        context: auth.context,
+        orgId: auth.orgId,
       })
     ) {
       return res.status(403).json({
@@ -101,13 +75,13 @@ export default async function handler(
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest({
         resource: "public-api",
-        context: authz.context,
-        orgId: authz.orgId,
+        context: auth.context,
+        orgId: auth.orgId,
       });
     if (rateLimitCheck?.isRateLimited()) {
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
-    orgId = authz.orgId;
+    orgId = auth.orgId;
   }
 
   try {

@@ -26,10 +26,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 // PROTOTYPE(LFE-15038): auth and authz split here — asserted actions depend on the parsed batch
 import { authzMigrationMode } from "@/src/features/auth/policy/enforcement.organizations.prototype";
-import {
-  authorizeIngestionRequest,
-  type IngestionAuthzRejection,
-} from "@/src/features/auth/policy/enforcement.ingest.prototype";
+import { type IngestionAuthzRejection } from "@/src/features/auth/policy/enforcement.ingest.prototype";
+import { authorizeIngestionRequest } from "@/src/features/auth/policy/shadow.ingest.prototype";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -158,10 +156,10 @@ export default async function handler(
 
         // one method reuses the single verify above, runs the new per-event
         // path, and emits parity in shadow; enforce gates with the result
-        const { authz } = await authorizeIngestionRequest({
+        const authz = await authorizeIngestionRequest({
           headers: req.headers,
           batch: parsedSchema.data.batch,
-          verify: async () => authCheck,
+          authCheck,
         });
         if (authzMigrationMode === "enforce" && !authz.success) {
           throw authz.error;

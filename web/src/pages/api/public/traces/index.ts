@@ -13,8 +13,8 @@ import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
-// PROTOTYPE(LFE-15038): action-aware factory replacing the legacy one
-import { createAuthedProjectAPIRoute } from "@/src/features/auth/policy/enforcement.projects.prototype";
+// PROTOTYPE(LFE-15559): the factory's auth step runs the shadow parity drop-in
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import {
   createIngestionAttribution,
