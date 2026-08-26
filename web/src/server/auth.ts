@@ -780,7 +780,7 @@ export async function getAuthOptions(signupAttribution?: {
     logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's

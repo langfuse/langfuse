@@ -3,6 +3,7 @@
 import {
   isExpectedSignInError,
   isExpectedAuthErrorPageMessage,
+  isNextAuthMissingSignInUrlError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/constants";
 
@@ -69,6 +70,28 @@ describe("expectedAuthErrors", () => {
           `prefix ${MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE}`,
         ),
       ).toBe(false);
+    });
+  });
+
+  describe("isNextAuthMissingSignInUrlError", () => {
+    it.each([
+      "URL constructor: undefined is not a valid URL.", // Firefox
+      "Failed to construct 'URL': Invalid URL", // Chrome
+      "undefined is not a valid URL.", // Safari / WebKit
+    ])("classifies %j as next-auth's missing data.url throw", (message) => {
+      expect(isNextAuthMissingSignInUrlError(new TypeError(message))).toBe(
+        true,
+      );
+    });
+
+    // Negative fixtures: other throws from signIn() must stay captured.
+    it.each([
+      new TypeError("Failed to fetch"),
+      new TypeError("Cannot read properties of undefined (reading 'ok')"),
+      new Error("URL constructor: undefined is not a valid URL."),
+      "URL constructor: undefined is not a valid URL.",
+    ])("keeps %s captured", (error) => {
+      expect(isNextAuthMissingSignInUrlError(error)).toBe(false);
     });
   });
 });

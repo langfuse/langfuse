@@ -10,12 +10,12 @@ function conditionKey(condition: FilterState[number]) {
   return stableJsonStringify({ ...condition, value });
 }
 
-export function filtersMatch(left: FilterState, right: FilterState) {
-  if (left.length !== right.length) return false;
+export function filterStateKey(filter: FilterState) {
+  return stableJsonStringify(filter.map(conditionKey).sort());
+}
 
-  const leftKeys = left.map(conditionKey).sort();
-  const rightKeys = right.map(conditionKey).sort();
-  return leftKeys.every((key, index) => key === rightKeys[index]);
+export function filtersMatch(left: FilterState, right: FilterState) {
+  return filterStateKey(left) === filterStateKey(right);
 }
 
 export function fallbackRuleName(filter: FilterState) {

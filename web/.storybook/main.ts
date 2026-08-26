@@ -11,15 +11,26 @@ import {
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Callout/Callout",
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
   "Dropzone/Dropzone",
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
+  "PasswordInput/PasswordInput",
   "Progress/Progress",
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "Toggle/Toggle",
+  "Table/columns/createBadgeTableColumn",
+  "Table/columns/createDateTableColumn",
+  "Table/columns/createDurationTableColumn",
+  "Table/columns/createIdTableColumn",
+  "Table/columns/createItemBadgeTableColumn",
+  "Table/columns/createNumberTableColumn",
+  "Table/columns/createTagsTableColumn",
+  "Table/columns/createTextTableColumn",
 ] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
@@ -29,6 +40,10 @@ const DESIGN_COMPONENT_STORIES = [
 // Only stories inside a configured directory can appear under its feature;
 // explicit story titles are rejected by the title plugin.
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
+  {
+    directory: "src/components/design-system/Table/columns",
+    titlePrefix: "Design/Components/Table",
+  },
   {
     directory: "src/features/evals/v2/components",
     titlePrefix: "Features/Evaluations",
@@ -124,6 +139,9 @@ const config: StorybookConfig = {
     },
   ],
   experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
+  features: {
+    changeDetection: true,
+  },
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),

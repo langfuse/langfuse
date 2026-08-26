@@ -81,7 +81,7 @@ const fakeFacets = (
       {[
         "Name",
         "Environment",
-        "Level",
+        "Status",
         "Tags",
         "Model",
         "User",
