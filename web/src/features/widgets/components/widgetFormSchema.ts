@@ -127,9 +127,9 @@ export function resolveAggregationAndChartType(params: {
  * aggregation that gets auto-selected (via the default count measure) rather
  * than deliberately chosen — jumps to the new measure's declared natural
  * aggregation: e.g. count → toolCalls lands on "sum" (total tool calls), where
- * keeping "count" would silently count observations with ≥1 tool call instead
- * (LFE-15395). Any other current aggregation is treated as deliberate and
- * kept; validity healing runs in {@link normalizeWidgetFormValues}.
+ * keeping "count" would silently count observations with ≥1 tool call instead.
+ * Any other current aggregation is treated as deliberate and kept; validity
+ * healing runs in {@link normalizeWidgetFormValues}.
  */
 export function resolveMeasureChangeAggregation(params: {
   currentAggregation: z.infer<typeof metricAggregations>;

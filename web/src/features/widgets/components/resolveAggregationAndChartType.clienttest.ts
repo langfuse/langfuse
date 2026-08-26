@@ -183,8 +183,8 @@ describe("resolveAggregationAndChartType", () => {
   );
 });
 
-// --- LFE-15395: measure change jumps a carried-over "count" to the measure's
-// natural aggregation (count of toolCalls counted observations, not calls) ---
+// --- Measure change jumps a carried-over "count" to the measure's natural
+// aggregation (count of toolCalls counted observations, not calls) ---
 
 describe("resolveMeasureChangeAggregation", () => {
   it.each([

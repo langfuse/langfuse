@@ -64,7 +64,7 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
-      // Natural aggregation the widget builder pre-selects when the user
+      // Natural aggregation the widget builder preselects when the user
       // switches to this measure (e.g. `sum` for toolCalls, where a carried-over
       // `count` would count observations instead of tool calls). UI-only
       // default; the query builder never reads it.
