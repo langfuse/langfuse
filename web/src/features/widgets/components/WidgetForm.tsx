@@ -111,6 +111,7 @@ import {
   effectiveWidgetName,
   makeWidgetFormSchema,
   normalizeWidgetFormValues,
+  resolveMeasureChangeAggregation,
   resolveWidgetFormVersion,
   toDefaultValues,
   toSavePayload,
@@ -751,10 +752,23 @@ export function WidgetForm({
   };
 
   // Single (non-pivot) measure change — heals the aggregation + chart type in
-  // the same action (the histogram fix, in the initiating event handler).
+  // the same action (the histogram fix, in the initiating event handler). A
+  // carried-over "count" aggregation jumps to the new measure's natural
+  // default (e.g. sum for toolCalls) instead of counting observations.
   const onMeasureChange = (newMeasure: string) => {
     const nextMetrics = values.metrics.map((m, i) =>
-      i === 0 ? { ...m, measure: newMeasure } : m,
+      i === 0
+        ? {
+            ...m,
+            measure: newMeasure,
+            aggregation: resolveMeasureChangeAggregation({
+              currentAggregation: m.aggregation,
+              newMeasure,
+              view: selectedView,
+              viewVersion,
+            }),
+          }
+        : m,
     );
     const candidate = normalizeWidgetFormValues(
       { ...values, metrics: nextMetrics },
@@ -1365,10 +1379,15 @@ function PivotMetricsField({
         finalAggregation = "count";
       } else {
         const available = getAvailablePivotAggregations(index, measure);
+        const defaultAggregation =
+          viewDeclarations[ctx.viewVersion][ctx.view]?.measures?.[measure]
+            ?.defaultAggregation;
         finalAggregation =
           aggregation && available.includes(aggregation)
             ? aggregation
-            : (available[0] ?? "sum");
+            : defaultAggregation && available.includes(defaultAggregation)
+              ? defaultAggregation
+              : (available[0] ?? "sum");
       }
       next[index] = { measure, aggregation: finalAggregation };
     } else {

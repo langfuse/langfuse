@@ -122,6 +122,30 @@ export function resolveAggregationAndChartType(params: {
 }
 
 /**
+ * resolveMeasureChangeAggregation picks the aggregation applied when the user
+ * switches the single-metric measure. A carried-over "count" — the only
+ * aggregation that gets auto-selected (via the default count measure) rather
+ * than deliberately chosen — jumps to the new measure's declared natural
+ * aggregation: e.g. count → toolCalls lands on "sum" (total tool calls), where
+ * keeping "count" would silently count observations with ≥1 tool call instead
+ * (LFE-15395). Any other current aggregation is treated as deliberate and
+ * kept; validity healing runs in {@link normalizeWidgetFormValues}.
+ */
+export function resolveMeasureChangeAggregation(params: {
+  currentAggregation: z.infer<typeof metricAggregations>;
+  newMeasure: string;
+  view: z.infer<typeof views>;
+  viewVersion: ViewVersion;
+}): z.infer<typeof metricAggregations> {
+  const { currentAggregation, newMeasure, view, viewVersion } = params;
+  if (currentAggregation !== "count") return currentAggregation;
+  return (
+    viewDeclarations[viewVersion][view]?.measures?.[newMeasure]
+      ?.defaultAggregation ?? currentAggregation
+  );
+}
+
+/**
  * A single measure + aggregation pair, matching the save payload's `metrics[]`
  * element (minus the string `agg` alias). `measure` is intentionally NOT
  * `.min(1)`: a pivot table may carry a trailing empty "Add Metric" slot that the
