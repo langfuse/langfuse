@@ -1,34 +1,51 @@
-import { Button } from "@/src/components/ui/button";
+import { type ReactNode, useState } from "react";
+
 import { TransferProjectDialog } from "@/src/features/projects/components/TransferProjectDialog";
-import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useSession } from "next-auth/react";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useState } from "react";
+import { api } from "@/src/utils/api";
+import { useSession } from "next-auth/react";
 
-export function TransferProjectButton() {
+type TransferProjectDialogControllerProps = {
+  project: {
+    id: string;
+    name: string;
+  };
+  organization: {
+    id: string;
+    name: string;
+  };
+  children: (control: {
+    disabled: { reason: string } | undefined;
+    openDialog: () => void;
+  }) => ReactNode;
+};
+
+export function TransferProjectDialogController({
+  project,
+  organization,
+  children,
+}: TransferProjectDialogControllerProps) {
   const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const session = useSession();
-  const { project, organization } = useQueryProject();
   const hasAccess = useHasOrganizationAccess({
-    organizationId: organization?.id,
+    organizationId: organization.id,
     scope: "projects:transfer_org",
   });
-  const allOrgs = session.data?.user?.organizations ?? [];
-  const organizationsToTransferTo =
-    allOrgs.filter((org) =>
+  const organizationsToTransferTo = (session.data?.user?.organizations ?? [])
+    .filter((org) =>
       hasOrganizationAccess({
         session: session.data,
         organizationId: org.id,
         scope: "projects:transfer_org",
       }),
-    ) ?? [];
+    )
+    .filter((org) => org.id !== organization.id);
 
   const transferProject = api.projects.transfer.useMutation({
     onSuccess: async () => {
@@ -45,8 +62,17 @@ export function TransferProjectButton() {
     },
   });
 
+  const disabled = hasAccess
+    ? undefined
+    : { reason: "You don't have permission to transfer this project." };
+
+  const openDialog = () => {
+    if (!hasAccess) return;
+
+    setOpen(true);
+  };
+
   const onConfirm = (organizationId: string) => {
-    if (!project) return;
     capture("project_settings:project_delete");
     transferProject.mutate({
       projectId: project.id,
@@ -56,26 +82,16 @@ export function TransferProjectButton() {
 
   return (
     <>
-      <Button
-        variant="destructive-secondary"
-        disabled={!hasAccess}
-        onClick={() => setOpen(true)}
-      >
-        Transfer Project
-      </Button>
-      {project && organization ? (
-        <TransferProjectDialog
-          open={open}
-          onOpenChange={setOpen}
-          projectName={project.name}
-          organizationName={organization.name}
-          organizations={organizationsToTransferTo.filter(
-            (org) => org.id !== organization.id,
-          )}
-          isPending={transferProject.isPending}
-          onConfirm={onConfirm}
-        />
-      ) : null}
+      {children({ disabled, openDialog })}
+      <TransferProjectDialog
+        open={hasAccess && open}
+        onOpenChange={setOpen}
+        projectName={project.name}
+        organizationName={organization.name}
+        organizations={organizationsToTransferTo}
+        isPending={transferProject.isPending}
+        onConfirm={onConfirm}
+      />
     </>
   );
 }
