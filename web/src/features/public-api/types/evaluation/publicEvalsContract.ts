@@ -207,7 +207,7 @@ export const LegacyEvaluationRuleMapping = z
     },
   );
 
-export const PublicEvaluationRuleResponseMapping = z.union([
+export const PromptVariableMapping = z.union([
   LegacyEvaluationRuleMapping,
   PublicEvaluationRuleReadMapping,
 ]);

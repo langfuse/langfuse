@@ -408,8 +408,8 @@ types:
           variable: input
           source: null
 
-  EvaluationRuleResponseMapping:
-    docs: Variable mapping returned for an evaluation-rule assignment.
+  PromptVariableMapping:
+    docs: Prompt variable mapping returned for an evaluation-rule assignment.
     discriminated: false
     union:
       - EvaluationRuleReadMapping

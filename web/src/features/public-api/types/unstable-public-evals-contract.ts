@@ -17,13 +17,13 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 export {
-  UnstablePublicApiErrorCode,
-  UnstablePublicApiErrorDetails,
-  UnstablePublicApiErrorResponse,
+  StructuredPublicApiErrorCode,
+  StructuredPublicApiErrorDetails,
+  StructuredPublicApiErrorResponse,
 } from "./structuredPublicApiErrorSchema";
 import type {
-  UnstablePublicApiErrorCodeType,
-  UnstablePublicApiErrorDetailsType,
+  StructuredPublicApiErrorCodeType,
+  StructuredPublicApiErrorDetailsType,
 } from "./structuredPublicApiErrorSchema";
 
 export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
@@ -320,8 +320,8 @@ export type PublicEvaluationRuleFilterType = z.infer<
   typeof PublicEvaluationRuleFilter
 >;
 export type {
-  UnstablePublicApiErrorCodeType,
-  UnstablePublicApiErrorDetailsType,
+  StructuredPublicApiErrorCodeType,
+  StructuredPublicApiErrorDetailsType,
 };
 
 export const UnstablePublicApiPaginationQuery = z.object({

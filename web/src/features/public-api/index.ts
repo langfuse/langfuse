@@ -12,6 +12,6 @@ export {
 } from "./types/evaluation/evaluationRules";
 export { PublicApiError } from "./types/public-api-errors";
 export {
-  createUnstablePublicApiError,
-  UnstablePublicApiError,
+  createStructuredPublicApiError,
+  StructuredPublicApiError,
 } from "./types/structuredPublicApiError";

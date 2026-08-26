@@ -18,7 +18,7 @@ import {
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
 import {
-  createUnstablePublicApiRateLimitError,
+  createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
@@ -219,7 +219,7 @@ export const sendRateLimitResponse = (
 
   return sendStructuredPublicApiErrorResponse(
     res,
-    createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
+    createStructuredPublicApiRateLimitError(rateLimitRes, responseOptions),
   );
 };
 

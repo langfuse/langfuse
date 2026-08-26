@@ -1,30 +1,30 @@
 import { BaseError } from "@langfuse/shared";
 import type {
-  UnstablePublicApiErrorCodeType,
-  UnstablePublicApiErrorDetailsType,
+  StructuredPublicApiErrorCodeType,
+  StructuredPublicApiErrorDetailsType,
 } from "./structuredPublicApiErrorSchema";
 
-export class UnstablePublicApiError extends BaseError {
-  public readonly code: UnstablePublicApiErrorCodeType;
-  public readonly details?: UnstablePublicApiErrorDetailsType;
+export class StructuredPublicApiError extends BaseError {
+  public readonly code: StructuredPublicApiErrorCodeType;
+  public readonly details?: StructuredPublicApiErrorDetailsType;
 
   constructor(params: {
     httpCode: number;
-    code: UnstablePublicApiErrorCodeType;
+    code: StructuredPublicApiErrorCodeType;
     message: string;
-    details?: UnstablePublicApiErrorDetailsType;
+    details?: StructuredPublicApiErrorDetailsType;
   }) {
-    super("UnstablePublicApiError", params.httpCode, params.message, true);
+    super("StructuredPublicApiError", params.httpCode, params.message, true);
     this.code = params.code;
     this.details = params.details;
   }
 }
 
-export function createUnstablePublicApiError(params: {
+export function createStructuredPublicApiError(params: {
   httpCode: number;
-  code: UnstablePublicApiErrorCodeType;
+  code: StructuredPublicApiErrorCodeType;
   message: string;
-  details?: UnstablePublicApiErrorDetailsType;
+  details?: StructuredPublicApiErrorDetailsType;
 }) {
-  return new UnstablePublicApiError(params);
+  return new StructuredPublicApiError(params);
 }

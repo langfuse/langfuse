@@ -96,11 +96,7 @@ describe("stable evaluation rules public API", () => {
       sampling: 1,
       evaluatorAssignments: [
         {
-          evaluator: {
-            id: evaluator.body.id,
-            name: "rule evaluator",
-            type: "code",
-          },
+          evaluatorId: evaluator.body.id,
           variableMapping: null,
         },
       ],

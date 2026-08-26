@@ -1,10 +1,9 @@
 import { publicApiPaginationLimitZod } from "@langfuse/shared";
 import { z } from "zod";
 import {
+  PromptVariableMapping,
   PublicEvaluationRuleMapping,
   PublicEvaluationRuleReadFilter,
-  PublicEvaluationRuleResponseMapping,
-  PublicEvaluatorType,
   StableEvaluationRuleFilter,
 } from "./publicEvalsContract";
 import {
@@ -23,16 +22,10 @@ export const EvaluationRuleEvaluatorAssignmentInput = z
   })
   .strict();
 
-export const EvaluationRuleEvaluatorAssignment = z
+export const EvaluatorAssignment = z
   .object({
-    evaluator: z
-      .object({
-        id: z.string(),
-        name: z.string(),
-        type: PublicEvaluatorType,
-      })
-      .strict(),
-    variableMapping: z.array(PublicEvaluationRuleResponseMapping).nullable(),
+    evaluatorId: z.string(),
+    variableMapping: z.array(PromptVariableMapping).nullable(),
   })
   .strict();
 
@@ -44,7 +37,7 @@ export const EvaluationRule = z
     enabled: z.boolean(),
     sampling: z.number().min(0).max(1),
     filter: z.array(PublicEvaluationRuleReadFilter),
-    evaluatorAssignments: z.array(EvaluationRuleEvaluatorAssignment),
+    evaluatorAssignments: z.array(EvaluatorAssignment),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })

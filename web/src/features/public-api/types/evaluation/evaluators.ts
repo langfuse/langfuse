@@ -1,17 +1,15 @@
 import {
-  EvaluatorChatPromptSchema,
   InvalidRequestError,
-  ZodModelConfig,
   publicApiPaginationLimitZod,
 } from "@langfuse/shared";
 import { z } from "zod";
 import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  PromptVariableMapping,
   PublicCodeEvaluatorSourceCodeLanguage,
   PublicEvaluationRuleMapping,
   PublicEvaluationRuleReadMapping,
-  PublicEvaluationRuleResponseMapping,
   PublicEvaluatorOutputDefinition,
   PublicEvaluatorOutputDefinitionRead,
 } from "./publicEvalsContract";
@@ -20,9 +18,24 @@ export const PublicApiCreator = z
   .object({
     id: z.string(),
     name: z.string().nullable(),
-    email: z.string().nullable(),
   })
   .strict();
+
+export const EvaluatorChatMessage = z
+  .object({
+    role: z.literal("user"),
+    content: z.string(),
+  })
+  .strict();
+
+const EvaluatorChatPrompt = z.array(EvaluatorChatMessage).min(1).max(1);
+const EvaluatorChatPromptInput = z.union([
+  z
+    .string()
+    .min(1)
+    .transform((content) => [{ role: "user" as const, content }]),
+  EvaluatorChatPrompt,
+]);
 
 const EvaluatorVersionBase = z.object({
   id: z.string(),
@@ -35,13 +48,12 @@ const EvaluatorModelConfig = z
   .object({
     provider: z.string().min(1),
     model: z.string().min(1),
-    modelParams: ZodModelConfig.nullable().optional(),
   })
   .strict();
 
 export const LlmAsJudgeEvaluatorVersion = EvaluatorVersionBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
-  prompt: EvaluatorChatPromptSchema,
+  prompt: EvaluatorChatPrompt,
   variables: z.array(z.string()),
   variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
   modelConfig: EvaluatorModelConfig.nullable(),
@@ -59,10 +71,10 @@ export const EvaluatorVersion = z.discriminatedUnion("type", [
   CodeEvaluatorVersion,
 ]);
 
-export const EvaluatorEvaluationRuleAssignment = z
+export const EvaluationRuleAssignment = z
   .object({
     evaluationRuleId: z.string(),
-    variableMapping: z.array(PublicEvaluationRuleResponseMapping).nullable(),
+    variableMapping: z.array(PromptVariableMapping).nullable(),
   })
   .strict();
 
@@ -75,7 +87,7 @@ const EvaluatorBase = z.object({
   pausedAt: z.coerce.date().nullable(),
   pausedReason: z.string().nullable(),
   pausedMessage: z.string().nullable(),
-  evaluationRuleAssignments: z.array(EvaluatorEvaluationRuleAssignment),
+  evaluationRuleAssignments: z.array(EvaluationRuleAssignment),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   versionId: z.string(),
@@ -86,7 +98,7 @@ const EvaluatorBase = z.object({
 
 export const LlmAsJudgeEvaluator = EvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
-  prompt: EvaluatorChatPromptSchema,
+  prompt: EvaluatorChatPrompt,
   variables: z.array(z.string()),
   variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
   modelConfig: EvaluatorModelConfig.nullable(),
@@ -107,7 +119,7 @@ export const Evaluator = z.discriminatedUnion("type", [
 const LlmAsJudgeEvaluatorDefinition = z
   .object({
     type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
-    prompt: EvaluatorChatPromptSchema,
+    prompt: EvaluatorChatPromptInput,
     modelConfig: EvaluatorModelConfig.nullable().optional(),
     variableMapping: z.array(PublicEvaluationRuleMapping).nullable().optional(),
     outputDefinition: PublicEvaluatorOutputDefinition,

@@ -35,7 +35,10 @@ import type {
   UpdateRuleInput,
 } from "./ruleTypes";
 import * as evaluatorRepository from "../evaluators/evaluatorRepository";
-import { assertActiveRuleLimitNotExceeded } from "./ruleErrors";
+import {
+  assertActiveRuleLimitNotExceeded,
+  assertEnabledRuleHasAssignments,
+} from "./ruleErrors";
 import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
@@ -203,6 +206,10 @@ export class RuleService {
       normalized.filter,
     );
     this.assertUniqueAssignments(input.evaluatorAssignments);
+    assertEnabledRuleHasAssignments({
+      enabled: input.enabled,
+      assignmentCount: input.evaluatorAssignments.length,
+    });
     const rule = await this.prisma.$transaction(async (prisma) => {
       await assertActiveRuleLimitNotExceeded({
         prisma,
@@ -316,11 +323,14 @@ export class RuleService {
       this.assertLegacyRuleUpdateAllowed(current.targetObject, input);
       const resultingAssignmentCount =
         input.evaluatorMappings?.length ?? current.assignments.length;
-      if (input.enabled === true && resultingAssignmentCount === 0) {
-        throw new InvalidRequestError(
-          "An enabled evaluation rule requires at least one evaluator assignment",
-        );
-      }
+      assertEnabledRuleHasAssignments({
+        enabled:
+          input.enabled ??
+          (input.evaluatorMappings?.length === 0
+            ? false
+            : current.status === JobConfigState.ACTIVE),
+        assignmentCount: resultingAssignmentCount,
+      });
       const currentTargetObject = current.targetObject as EvalTargetObject;
       const currentFilter = current.filter as FilterState;
       // Whether a rule targets experiments is derived from its filter, so an
@@ -405,6 +415,10 @@ export class RuleService {
         params.ruleId,
       );
       this.assertLegacyRuleCanBeEnabled(current.targetObject, params.enabled);
+      assertEnabledRuleHasAssignments({
+        enabled: params.enabled,
+        assignmentCount: current.assignments.length,
+      });
       await assertActiveRuleLimitNotExceeded({
         prisma,
         projectId: params.projectId,
@@ -497,6 +511,18 @@ export class RuleService {
         this.assertLegacyRuleCanBeEnabled("trace", input.enabled);
       }
       if (input.enabled) {
+        const unassignedRule = await prisma.evaluationRule.findFirst({
+          where: {
+            projectId: input.projectId,
+            id: { in: ids },
+            assignments: { none: {} },
+          },
+          select: { id: true },
+        });
+        assertEnabledRuleHasAssignments({
+          enabled: true,
+          assignmentCount: unassignedRule ? 0 : 1,
+        });
         // Only rules that are not already active consume a new slot.
         const newlyActivated = await prisma.evaluationRule.count({
           where: {

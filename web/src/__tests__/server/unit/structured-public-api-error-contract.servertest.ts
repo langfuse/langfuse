@@ -2,7 +2,7 @@ import type { RateLimitResult } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
 import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import {
-  createUnstablePublicApiRateLimitError,
+  createStructuredPublicApiRateLimitError,
   structuredPublicApiErrorContract,
   toStructuredPublicApiError,
 } from "@/src/features/public-api/server";
@@ -17,6 +17,7 @@ describe("structured public api error contract", () => {
       new EvaluatorVersionConflictError(),
     );
 
+    expect(error.name).toBe("StructuredPublicApiError");
     expect(error.httpCode).toBe(409);
     expect(error.code).toBe("conflict");
   });
@@ -60,7 +61,7 @@ describe("structured public api error contract", () => {
       isFirstInDuration: false,
     } satisfies RateLimitResult;
 
-    const error = createUnstablePublicApiRateLimitError(rateLimitResult, {
+    const error = createStructuredPublicApiRateLimitError(rateLimitResult, {
       upgradePath,
     });
 

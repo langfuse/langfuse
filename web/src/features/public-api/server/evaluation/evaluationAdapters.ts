@@ -179,12 +179,9 @@ function toCreator(
   creator: {
     id: string;
     name: string | null;
-    email: string | null;
   } | null,
 ) {
-  return creator
-    ? { id: creator.id, name: creator.name, email: creator.email }
-    : null;
+  return creator ? { id: creator.id, name: creator.name } : null;
 }
 
 function toInternalOutputDefinition(
@@ -303,7 +300,6 @@ export function toPublicEvaluatorVersion(
         ? {
             provider: version.provider,
             model: version.model,
-            modelParams: version.modelParams,
           }
         : null,
     outputDefinition: toPublicOutputDefinition(version.outputDefinition),
@@ -396,11 +392,7 @@ export function toPublicRule(rule: ServiceRule) {
     sampling: rule.sampling,
     filter: toPublicFilters(rule.filter),
     evaluatorAssignments: rule.assignments.map((assignment) => ({
-      evaluator: {
-        id: assignment.evaluator.id,
-        name: assignment.evaluator.name,
-        type: toPublicEvaluatorType(assignment.evaluator.type),
-      },
+      evaluatorId: assignment.evaluator.id,
       variableMapping:
         assignment.variableMapping === null
           ? null

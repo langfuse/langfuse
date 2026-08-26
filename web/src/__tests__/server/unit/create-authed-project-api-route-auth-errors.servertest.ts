@@ -8,16 +8,16 @@ const {
   mockRateLimitRequest,
   mockTraceException,
   mockLoggerDebug,
-  mockCreateUnstablePublicApiAuthError,
-  mockSendUnstablePublicApiErrorResponse,
+  mockCreateStructuredPublicApiAuthError,
+  mockSendStructuredPublicApiErrorResponse,
 } = vi.hoisted(() => ({
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
   mockTraceException: vi.fn(),
   mockLoggerDebug: vi.fn(),
-  mockCreateUnstablePublicApiAuthError: vi.fn((value) => value),
-  mockSendUnstablePublicApiErrorResponse: vi.fn(),
+  mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
+  mockSendStructuredPublicApiErrorResponse: vi.fn(),
 }));
 
 vi.mock("@/src/features/public-api/server/apiAuth", () => ({
@@ -63,10 +63,10 @@ vi.mock(
   "@/src/features/public-api/server/structuredPublicApiErrorContract",
   () => ({
     structuredPublicApiErrorContract: "structured",
-    createUnstablePublicApiAuthError: mockCreateUnstablePublicApiAuthError,
-    createUnstablePublicApiRequestValidationError: vi.fn(),
+    createStructuredPublicApiAuthError: mockCreateStructuredPublicApiAuthError,
+    createStructuredPublicApiRequestValidationError: vi.fn(),
     sendStructuredPublicApiErrorResponse:
-      mockSendUnstablePublicApiErrorResponse,
+      mockSendStructuredPublicApiErrorResponse,
   }),
 );
 
@@ -192,11 +192,11 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     await callRoute({ useStructuredErrorContract: true });
 
-    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+    expect(mockCreateStructuredPublicApiAuthError).toHaveBeenCalledWith({
       statusCode: 401,
       message: "Invalid credentials",
     });
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("returns structured errors and traces prisma auth failures", async () => {
@@ -207,11 +207,11 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     await callRoute({ useStructuredErrorContract: true });
 
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
-    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+    expect(mockCreateStructuredPublicApiAuthError).toHaveBeenCalledWith({
       statusCode: 503,
       message: "Service Unavailable",
     });
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the shared rate limit response for routes without upgrade guidance", async () => {

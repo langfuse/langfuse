@@ -139,25 +139,13 @@ types:
 
           Set to `null` or omit to inherit the evaluator's latest default mapping. Code evaluators use the fixed runtime mapping and should use `null`.
 
-  EvaluationRuleEvaluator:
+  EvaluatorAssignment:
     properties:
-      id:
+      evaluatorId:
         type: string
-        docs: Stable identifier of the associated evaluator across all versions.
-      name:
-        type: string
-        docs: Human-readable evaluator name.
-      type:
-        type: evals.EvaluatorType
-        docs: Evaluator engine type.
-
-  EvaluationRuleEvaluatorAssignment:
-    properties:
-      evaluator:
-        type: EvaluationRuleEvaluator
-        docs: Evaluator associated with this rule.
+        docs: Stable identifier of the evaluator associated with this rule.
       variableMapping:
-        type: nullable<list<evals.EvaluationRuleResponseMapping>>
+        type: nullable<list<evals.PromptVariableMapping>>
         docs: Stored rule-specific override, or `null` when the evaluator's latest default mapping is inherited. Legacy mappings are returned as an explicit `legacy` variant.
 
   EvaluationRule:
@@ -190,7 +178,7 @@ types:
         type: list<evals.EvaluationRuleReadFilter>
         docs: List of stored filter conditions returned verbatim. Filters with a `key` use the keyed response shape; all others use the base shape. These response shapes are not broken down by internal filter type. An empty list matches every incoming object.
       evaluatorAssignments:
-        type: list<EvaluationRuleEvaluatorAssignment>
+        type: list<EvaluatorAssignment>
         docs: Evaluators attached to this rule in deterministic assignment order.
       createdAt:
         type: datetime

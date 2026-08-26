@@ -162,9 +162,6 @@ types:
       name:
         type: nullable<string>
         docs: User name, or `null` when unavailable.
-      email:
-        type: nullable<string>
-        docs: User email address, or `null` when unavailable.
 
   EvaluatorModelConfig:
     docs: |
@@ -182,28 +179,33 @@ types:
       model:
         type: string
         docs: Model identifier exposed by the provider, for example `gpt-4.1-mini`.
-      modelParams:
-        type: optional<nullable<unknown>>
-        docs: Optional model parameters such as temperature or maximum tokens.
     examples:
       - value:
           provider: openai
           model: gpt-4.1-mini
 
-  EvaluatorPromptMessageRole:
-    enum:
-      - user
-      - assistant
-      - system
-
-  EvaluatorPromptMessage:
-    docs: One chat message in an evaluator prompt.
+  EvaluatorChatMessage:
+    docs: One user chat message in an evaluator prompt.
     properties:
       role:
-        type: EvaluatorPromptMessageRole
+        type: literal<"user">
       content:
         type: string
         docs: Message content. Evaluator variables use `{{variable}}` syntax.
+
+  EvaluatorChatPrompt:
+    docs: A list containing exactly one user chat message.
+    type: list<EvaluatorChatMessage>
+    validation:
+      minItems: 1
+      maxItems: 1
+
+  EvaluatorChatPromptInput:
+    docs: A user prompt string, or a list containing exactly one user chat message.
+    discriminated: false
+    union:
+      - string
+      - EvaluatorChatPrompt
 
   EvaluatorVersionBase:
     properties:
@@ -227,8 +229,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type.
       prompt:
-        type: list<EvaluatorPromptMessage>
-        docs: Ordered chat messages used during evaluation.
+        type: EvaluatorChatPrompt
+        docs: The single user chat message used during evaluation.
       variables:
         type: list<string>
         docs: |
@@ -269,14 +271,14 @@ types:
       code:
         type: CodeEvaluatorVersion
 
-  EvaluatorEvaluationRuleAssignment:
+  EvaluationRuleAssignment:
     docs: Evaluation-rule assignment associated with this evaluator.
     properties:
       evaluationRuleId:
         type: string
         docs: Stable identifier of the assigned evaluation rule.
       variableMapping:
-        type: nullable<list<evals.EvaluationRuleResponseMapping>>
+        type: nullable<list<evals.PromptVariableMapping>>
         docs: Stored rule-specific mapping, or `null` when the evaluator's latest default mapping is inherited. Legacy mappings use the explicit `legacy` variant.
 
   EvaluatorBase:
@@ -306,7 +308,7 @@ types:
         type: nullable<string>
         docs: Human-readable explanation when `status=paused`, otherwise `null`.
       evaluationRuleAssignments:
-        type: list<EvaluatorEvaluationRuleAssignment>
+        type: list<EvaluationRuleAssignment>
         docs: All modern and legacy evaluation-rule assignments in newest-assignment-first order, including each assigned rule ID and its stored mapping.
       createdAt:
         type: datetime
@@ -334,8 +336,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type.
       prompt:
-        type: list<EvaluatorPromptMessage>
-        docs: Ordered chat messages used by the latest evaluator version.
+        type: EvaluatorChatPrompt
+        docs: The single user chat message used by the latest evaluator version.
       variables:
         type: list<string>
         docs: Variables extracted from the latest prompt and available for evaluation-rule mappings.
@@ -396,8 +398,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type.
       prompt:
-        type: list<EvaluatorPromptMessage>
-        docs: Ordered chat messages used during evaluation.
+        type: EvaluatorChatPromptInput
+        docs: User prompt string shortcut or a list containing exactly one user chat message.
       modelConfig:
         type: optional<nullable<EvaluatorModelConfig>>
         docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.
@@ -457,8 +459,8 @@ types:
         type: literal<"llm_as_judge">
         docs: Evaluator engine type. The type of an existing evaluator cannot change.
       prompt:
-        type: list<EvaluatorPromptMessage>
-        docs: Complete replacement list of ordered chat messages.
+        type: EvaluatorChatPromptInput
+        docs: Complete replacement user prompt string or a list containing exactly one user chat message.
       modelConfig:
         type: optional<nullable<EvaluatorModelConfig>>
         docs: Explicit model configuration. Set to `null` or omit to use the project's default evaluation model.

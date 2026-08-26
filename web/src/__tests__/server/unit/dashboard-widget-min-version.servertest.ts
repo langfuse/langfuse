@@ -2,7 +2,7 @@ import {
   normalizePublicDashboardWidgetInput,
   validatePublicDashboardWidgetInput,
 } from "@/src/features/widgets/server/public-dashboard-widget-service";
-import { UnstablePublicApiError } from "@/src/features/public-api";
+import { StructuredPublicApiError } from "@/src/features/public-api";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 const baseInput = {
@@ -82,8 +82,8 @@ describe("public dashboard widget version validation", () => {
       validationError = error;
     }
 
-    expect(validationError).toBeInstanceOf(UnstablePublicApiError);
-    const allowedValues = (validationError as UnstablePublicApiError).details
+    expect(validationError).toBeInstanceOf(StructuredPublicApiError);
+    const allowedValues = (validationError as StructuredPublicApiError).details
       ?.allowedValues;
     expect(allowedValues?.length).toBeGreaterThan(0);
 

@@ -21,7 +21,7 @@ import {
   EvaluatorVersionConflictError,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { createUnstablePublicApiError } from "@/src/features/public-api";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 import type { PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
 import { PUBLIC_EVALUATOR_TYPE_CODE } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {
@@ -74,7 +74,7 @@ function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   >,
 ) {
   if (!isCodeEvalEnabled()) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 403,
       code: "access_denied",
       message: "Code evals are not enabled",
@@ -82,7 +82,7 @@ function assertCodeEvaluatorDefinitionCanRunForPublicApi(
   }
 
   if (!isCodeEvalSourceCodeLanguageSupported(input.sourceCodeLanguage)) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_request",
       message:
@@ -134,7 +134,7 @@ function toLatestTemplate(
 ): StoredPublicEvaluatorTemplate {
   const version = evaluator.versions[0];
   if (!version) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 500,
       code: "internal_error",
       message: "Evaluator version is missing",
@@ -242,7 +242,7 @@ export async function createPublicEvaluator(params: {
     return toPublicEvaluator(evaluator, ruleCounts[evaluator.id] ?? 0);
   } catch (error) {
     if (error instanceof EvaluatorConfigurationError) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 422,
         code: "evaluator_preflight_failed",
         message: error.message,
@@ -260,14 +260,14 @@ export async function createPublicEvaluator(params: {
       });
     }
     if (error instanceof EvaluatorVersionConflictError) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 409,
         code: "conflict",
         message: error.message,
       });
     }
     if (error instanceof LangfuseConflictError) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 409,
         code: "name_conflict",
         message: error.message,

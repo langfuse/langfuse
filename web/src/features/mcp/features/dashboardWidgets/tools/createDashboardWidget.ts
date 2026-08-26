@@ -12,7 +12,7 @@ import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { UnstablePublicApiError } from "@/src/features/public-api";
+import { StructuredPublicApiError } from "@/src/features/public-api";
 import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
 export const DashboardWidgetFilterBaseSchema = z
@@ -76,7 +76,7 @@ const throwActionableDashboardWidgetError = (
   error: unknown,
   input: z.infer<typeof PostUnstableDashboardWidgetBody>,
 ): never => {
-  if (!(error instanceof UnstablePublicApiError)) throw error;
+  if (!(error instanceof StructuredPublicApiError)) throw error;
 
   const field = error.details?.field;
   const allowedValues =

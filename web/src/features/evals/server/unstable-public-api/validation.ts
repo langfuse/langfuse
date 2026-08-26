@@ -14,7 +14,7 @@ import {
   type PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { createUnstablePublicApiError } from "@/src/features/public-api";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 
 // Derived from the same column lists as the request schemas, so this runtime
 // check cannot drift from the documented contract.
@@ -79,7 +79,7 @@ export function validateEvaluationRuleFilters(params: {
 
   for (const [filterIndex, filter] of params.filters.entries()) {
     if (!supportedColumns.has(filter.column)) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_filter_value",
         message: `Filter column "${filter.column}" is not supported for target "${params.target}"`,
@@ -106,7 +106,7 @@ export function validateEvaluationRuleFilters(params: {
     );
 
     if (invalidValues.length > 0) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_filter_value",
         message: `Filter column "${filter.column}" contains unsupported value(s): ${invalidValues.join(", ")}`,
@@ -170,7 +170,7 @@ export async function assertEvaluationRuleFilterValuesExistForProject(params: {
     );
 
     if (invalidValues.length > 0) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_filter_value",
         message: `Filter column "datasetId" contains dataset id(s) that do not exist in this project: ${invalidValues.join(", ")}`,
@@ -192,7 +192,7 @@ function validateJsonPath(params: {
   const { jsonPath, variable, mappingIndex } = params;
 
   if (!jsonPath.startsWith("$")) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_json_path",
       message: `Mapping for variable "${variable}" has an invalid jsonPath "${jsonPath}". JSONPath expressions must start with "$".`,
@@ -241,7 +241,7 @@ function validateJsonPath(params: {
       const expectedDelimiter = character === "]" ? "[" : "(";
 
       if (delimiterStack.pop() !== expectedDelimiter) {
-        throw createUnstablePublicApiError({
+        throw createStructuredPublicApiError({
           httpCode: 400,
           code: "invalid_json_path",
           message: `Mapping for variable "${variable}" has an invalid jsonPath "${jsonPath}". JSONPath expressions must use balanced brackets and parentheses.`,
@@ -256,7 +256,7 @@ function validateJsonPath(params: {
   }
 
   if (openQuote || delimiterStack.length > 0) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_json_path",
       message: `Mapping for variable "${variable}" has an invalid jsonPath "${jsonPath}". JSONPath expressions must use balanced quotes, brackets, and parentheses.`,
@@ -276,7 +276,7 @@ function validateJsonPath(params: {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_json_path",
       message: `Mapping for variable "${variable}" has an invalid jsonPath "${jsonPath}". ${message}`,
@@ -300,7 +300,7 @@ export function validateEvaluatorVariableMappings(params: {
 
   for (const [mappingIndex, mapping] of params.mappings.entries()) {
     if (!allowedSources.has(mapping.source)) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_variable_mapping",
         message: `Mapping source "${mapping.source}" is not supported for target "${params.target}"`,
@@ -313,7 +313,7 @@ export function validateEvaluatorVariableMappings(params: {
     }
 
     if (!variableSet.has(mapping.variable)) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_variable_mapping",
         message: `Mapping variable "${mapping.variable}" is not present in the evaluator prompt`,
@@ -325,7 +325,7 @@ export function validateEvaluatorVariableMappings(params: {
     }
 
     if (mappedVariables.has(mapping.variable)) {
-      throw createUnstablePublicApiError({
+      throw createStructuredPublicApiError({
         httpCode: 400,
         code: "duplicate_variable_mapping",
         message: `Mapping variable "${mapping.variable}" can only be mapped once`,
@@ -344,7 +344,7 @@ export function validateEvaluatorVariableMappings(params: {
   );
 
   if (missingVariables.length > 0) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "missing_variable_mapping",
       message: `Missing mappings for evaluator variables: ${missingVariables.join(", ")}`,
@@ -379,7 +379,7 @@ export async function assertEvaluatorDefinitionCanRunForPublicApi(params: {
   const error = await getEvaluatorDefinitionPreflightError(params);
 
   if (error) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 422,
       code: "evaluator_preflight_failed",
       message: error,

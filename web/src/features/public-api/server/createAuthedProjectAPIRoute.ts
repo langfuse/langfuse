@@ -23,8 +23,8 @@ import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
-  createUnstablePublicApiAuthError,
-  createUnstablePublicApiRequestValidationError,
+  createStructuredPublicApiAuthError,
+  createStructuredPublicApiRequestValidationError,
   sendStructuredPublicApiErrorResponse,
   structuredPublicApiErrorContract,
   type PublicApiErrorContract,
@@ -356,7 +356,7 @@ export const createAuthedProjectAPIRoute = <
         if (routeConfig.errorContract === structuredPublicApiErrorContract) {
           return sendStructuredPublicApiErrorResponse(
             res,
-            createUnstablePublicApiAuthError({
+            createStructuredPublicApiAuthError({
               statusCode: 503,
               message: "Service Unavailable",
             }),
@@ -373,7 +373,7 @@ export const createAuthedProjectAPIRoute = <
       if (routeConfig.errorContract === structuredPublicApiErrorContract) {
         return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiAuthError({ statusCode, message }),
+          createStructuredPublicApiAuthError({ statusCode, message }),
         );
       }
 
@@ -411,7 +411,7 @@ export const createAuthedProjectAPIRoute = <
       ) {
         return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiRequestValidationError({
+          createStructuredPublicApiRequestValidationError({
             error,
             requestPart: "query",
           }),
@@ -433,7 +433,7 @@ export const createAuthedProjectAPIRoute = <
       ) {
         return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiRequestValidationError({
+          createStructuredPublicApiRequestValidationError({
             error,
             requestPart: "body",
           }),

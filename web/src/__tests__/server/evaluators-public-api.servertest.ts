@@ -43,11 +43,7 @@ describe("stable evaluators public API", () => {
       {
         name: "friendly LLM evaluator",
         type: "llm_as_judge",
-        prompt: [
-          { role: "system", content: "Judge the input." },
-          { role: "user", content: "Input: {{input}}" },
-          { role: "assistant", content: "I will return a score." },
-        ],
+        prompt: "Input: {{input}}",
         modelConfig: null,
         variableMapping: null,
         outputDefinition: {
@@ -63,11 +59,7 @@ describe("stable evaluators public API", () => {
     expect(llmEvaluatorBody).toMatchObject({
       type: "llm_as_judge",
       version: 1,
-      prompt: [
-        { role: "system", content: "Judge the input." },
-        { role: "user", content: "Input: {{input}}" },
-        { role: "assistant", content: "I will return a score." },
-      ],
+      prompt: [{ role: "user", content: "Input: {{input}}" }],
       variables: ["input"],
       variableMapping: null,
       modelConfig: null,
@@ -107,21 +99,74 @@ describe("stable evaluators public API", () => {
       shouldAllowMultipleMatches: false,
     });
 
-    const invalidRole = await makeAPICall(
+    const patchedEvaluator = await makeZodVerifiedAPICall(
+      Evaluator,
+      "PATCH",
+      `/api/public/v2/evaluators/${categoricalEvaluator.body.id}`,
+      {
+        type: "llm_as_judge",
+        prompt: "Classify updated: {{input}}",
+        outputDefinition: {
+          dataType: "BOOLEAN",
+        },
+      },
+      auth,
+    );
+    expect(LlmAsJudgeEvaluator.parse(patchedEvaluator.body).prompt).toEqual([
+      { role: "user", content: "Classify updated: {{input}}" },
+    ]);
+
+    const tooManyMessages = await makeAPICall(
       "POST",
       "/api/public/v2/evaluators",
       {
-        name: "invalid role evaluator",
+        name: "too many messages",
         type: "llm_as_judge",
-        prompt: [{ role: "developer", content: "Judge {{input}}" }],
+        prompt: [
+          { role: "user", content: "First" },
+          { role: "user", content: "Second" },
+        ],
         outputDefinition: { dataType: "BOOLEAN" },
       },
       auth,
     );
-    expect(invalidRole.status).toBe(400);
-    expect(PublicApiError.parse(invalidRole.body)).toMatchObject({
-      code: "invalid_body",
-    });
+    expect(tooManyMessages.status).toBe(400);
+
+    for (const role of ["assistant", "system", "developer"]) {
+      const invalidRole = await makeAPICall(
+        "POST",
+        "/api/public/v2/evaluators",
+        {
+          name: "invalid role evaluator",
+          type: "llm_as_judge",
+          prompt: [{ role, content: "Judge {{input}}" }],
+          outputDefinition: { dataType: "BOOLEAN" },
+        },
+        auth,
+      );
+      expect(invalidRole.status).toBe(400);
+      expect(PublicApiError.parse(invalidRole.body)).toMatchObject({
+        code: "invalid_body",
+      });
+    }
+
+    const invalidModelParams = await makeAPICall(
+      "POST",
+      "/api/public/v2/evaluators",
+      {
+        name: "invalid model params",
+        type: "llm_as_judge",
+        prompt: "Judge {{input}}",
+        modelConfig: {
+          provider: "openai",
+          model: "gpt-4.1-mini",
+          modelParams: { temperature: 0 },
+        },
+        outputDefinition: { dataType: "BOOLEAN" },
+      },
+      auth,
+    );
+    expect(invalidModelParams.status).toBe(400);
 
     const invalid = await makeAPICall(
       "POST",
@@ -240,7 +285,6 @@ describe("stable evaluators public API", () => {
     expect(response.body.createdBy).toEqual({
       id: user.id,
       name: user.name,
-      email: user.email,
     });
     expect(response.body.versionCreatedBy).toEqual(response.body.createdBy);
     const expectedAssignments = expect.arrayContaining([
@@ -493,7 +537,7 @@ describe("stable evaluators public API", () => {
       `/api/public/v2/evaluators/${evaluator.body.id}`,
       {
         type: "llm_as_judge",
-        prompt: [{ role: "user", content: "Input: {{input}}" }],
+        prompt: "Input: {{input}}",
         modelConfig: null,
         variableMapping: null,
         outputDefinition: {

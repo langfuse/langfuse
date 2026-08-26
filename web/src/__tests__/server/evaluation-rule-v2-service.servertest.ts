@@ -30,6 +30,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 const orgIds: string[] = [];
 let projectId = "";
 let otherProjectId = "";
+let defaultEvaluatorId = "";
 
 beforeAll(async () => {
   const [first, second] = await Promise.all([
@@ -41,9 +42,10 @@ beforeAll(async () => {
   orgIds.push(first.org.id, second.org.id);
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   telemetryMocks.getRecentRuleExecutionTraces.mockReset();
   telemetryMocks.getTotalCostByRule.mockReset();
+  defaultEvaluatorId = (await createEvaluator()).id;
 });
 
 afterEach(async () => {
@@ -115,7 +117,7 @@ function createLegacyRule(
   });
 }
 
-function createInput(evaluatorId?: string) {
+function createInput(evaluatorId: string | null = defaultEvaluatorId) {
   return {
     projectId,
     name: "Production generations",
@@ -416,17 +418,12 @@ describe("RuleService", () => {
   });
 
   describe("create", () => {
-    it("creates an active observation rule without evaluator assignments", async () => {
+    it("rejects an active observation rule without evaluator assignments", async () => {
       await expect(
-        createService().create(createInput(), null),
-      ).resolves.toMatchObject({
-        enabled: true,
-        targetObject: "event",
-        timeScope: ["NEW"],
-        delay: 0,
-        sampling: 0.25,
-        assignments: [],
-      });
+        createService().create(createInput(null), null),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
     });
 
     it("returns evaluator mapping fallback data", async () => {
@@ -721,7 +718,7 @@ describe("RuleService", () => {
       const evaluator = await createEvaluator();
       const service = createService();
       const rule = await service.create(
-        { ...createInput(), enabled: false },
+        { ...createInput(null), enabled: false },
         null,
       );
       const attachment = {
@@ -1197,7 +1194,10 @@ describe("RuleService", () => {
         undefined,
         legacyMapping,
       );
-      const rule = await createService().create(createInput(), null);
+      const rule = await createService().create(
+        { ...createInput(null), enabled: false },
+        null,
+      );
 
       const updated = await createService().attach({
         projectId,
@@ -1239,7 +1239,7 @@ describe("RuleService", () => {
       const evaluator = await createEvaluator();
       const assigned = await service.create(createInput(evaluator.id), null);
       const unassigned = await service.create(
-        { ...createInput(), enabled: false },
+        { ...createInput(null), enabled: false },
         null,
       );
 
@@ -1267,12 +1267,27 @@ describe("RuleService", () => {
 
   describe("setEnabled", () => {
     it("updates the rule status", async () => {
+      const evaluator = await createEvaluator();
       const service = createService();
-      const rule = await service.create(createInput(), null);
+      const rule = await service.create(createInput(evaluator.id), null);
 
       await expect(
         service.setEnabled({ projectId, ruleId: rule.id, enabled: false }),
       ).resolves.toMatchObject({ id: rule.id, enabled: false });
+    });
+
+    it("rejects enabling a rule without evaluator assignments", async () => {
+      const service = createService();
+      const rule = await service.create(
+        { ...createInput(null), enabled: false },
+        null,
+      );
+
+      await expect(
+        service.setEnabled({ projectId, ruleId: rule.id, enabled: true }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
     });
 
     it("rejects an unavailable rule", async () => {
@@ -1365,6 +1380,31 @@ describe("RuleService", () => {
   });
 
   describe("setManyEnabled", () => {
+    it("rejects enabling any selected rule without evaluator assignments", async () => {
+      const service = createService();
+      const [first, second] = await Promise.all([
+        service.create({ ...createInput(null), enabled: false }, null),
+        service.create(
+          {
+            ...createInput(null),
+            name: "Second unassigned rule",
+            enabled: false,
+          },
+          null,
+        ),
+      ]);
+
+      await expect(
+        service.setManyEnabled({
+          projectId,
+          ruleIds: [first.id, second.id],
+          enabled: true,
+        }),
+      ).rejects.toThrow(
+        "An enabled evaluation rule requires at least one evaluator assignment",
+      );
+    });
+
     it("updates filtered matches without crossing project boundaries", async () => {
       const service = createService();
       const first = await service.create(createInput(), null);
@@ -1372,9 +1412,10 @@ describe("RuleService", () => {
         { ...createInput(), name: "Other production rule" },
         null,
       );
+      const foreignEvaluator = await createEvaluator(otherProjectId);
       await createService().create(
         {
-          ...createInput(),
+          ...createInput(foreignEvaluator.id),
           projectId: otherProjectId,
           name: "Foreign production rule",
         },
@@ -1459,9 +1500,10 @@ describe("RuleService", () => {
     it("ignores unavailable rules in an explicit selection", async () => {
       const service = createService();
       const local = await service.create(createInput(), null);
+      const foreignEvaluator = await createEvaluator(otherProjectId);
       const foreign = await createService().create(
         {
-          ...createInput(),
+          ...createInput(foreignEvaluator.id),
           projectId: otherProjectId,
           name: "Foreign rule",
         },
@@ -1522,10 +1564,13 @@ describe("RuleService", () => {
         },
       ],
     });
-    await service.detach({
+    await service.attach({
       projectId,
       ruleId: rule.id,
-      evaluatorId: secondEvaluator.id,
+      assignment: {
+        evaluatorId: firstEvaluator.id,
+        variableMapping: null,
+      },
     });
     await service.setManyEnabled({
       projectId,

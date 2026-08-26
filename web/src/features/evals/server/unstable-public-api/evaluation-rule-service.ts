@@ -58,7 +58,7 @@ import {
   assertEvaluationRuleFilterValuesExistForProject,
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
-import { createUnstablePublicApiError } from "@/src/features/public-api";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 import { assertUnreachable } from "@/src/utils/types";
 
 const ruleService = new RuleService(prisma, async () => undefined);
@@ -79,7 +79,7 @@ function toEvaluatorDefinition(
 ): StoredPublicEvaluatorTemplate {
   const version = evaluator.versions[0];
   if (!version) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 500,
       code: "internal_error",
       message: "Evaluator version is missing",
@@ -147,7 +147,7 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
   }
 
   if (!isCodeEvalEnabled()) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 403,
       code: "access_denied",
       message: "Code evals are not enabled",
@@ -157,7 +157,7 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
   if (
     !isCodeEvalSourceCodeLanguageSupported(params.template.sourceCodeLanguage)
   ) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_request",
       message:
@@ -183,21 +183,21 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
     switch (error.code) {
       case "invalid_target":
       case "invalid_request":
-        throw createUnstablePublicApiError({
+        throw createStructuredPublicApiError({
           httpCode: 400,
           code: "invalid_request",
           message: error.message,
           details,
         });
       case "resource_not_found":
-        throw createUnstablePublicApiError({
+        throw createStructuredPublicApiError({
           httpCode: 404,
           code: "resource_not_found",
           message: error.message,
           details,
         });
       case "preflight_failed":
-        throw createUnstablePublicApiError({
+        throw createStructuredPublicApiError({
           httpCode: 422,
           code: "evaluator_preflight_failed",
           message: error.message,
@@ -227,7 +227,7 @@ async function assertActivePublicApiEvaluationRuleLimitNotExceeded(
 
 function throwPublicRuleServiceError(error: unknown): never {
   if (error instanceof ActiveEvaluationRuleLimitError) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 409,
       code: "conflict",
       message: error.message,
@@ -321,7 +321,7 @@ export async function createPublicEvaluationRule(params: {
     select: { id: true },
   });
   if (existing) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 409,
       code: "name_conflict",
       message: `An evaluation rule named "${params.input.name}" already exists in this project. Use PATCH /api/public/unstable/evaluation-rules/${existing.id} to update it instead of creating a duplicate.`,
@@ -351,7 +351,7 @@ export async function createPublicEvaluationRule(params: {
     ),
   );
   if (new Set(evaluators.map(({ id }) => id)).size !== evaluators.length) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 409,
       code: "conflict",
       message: "An evaluator can only be attached once to an evaluation rule.",
@@ -523,7 +523,7 @@ async function prepareAssignment(params: {
 function assertUniqueEvaluators(assignments: Array<{ evaluatorId: string }>) {
   const ids = assignments.map(({ evaluatorId }) => evaluatorId);
   if (new Set(ids).size !== ids.length) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 409,
       code: "conflict",
       message: "An evaluator can only be attached once to an evaluation rule.",
@@ -604,7 +604,7 @@ export async function updatePublicEvaluationRule(params: {
     params.input.mapping !== undefined &&
     firstAssignment?.evaluator.type === EvalTemplateType.CODE
   ) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_body",
       message:
@@ -613,7 +613,7 @@ export async function updatePublicEvaluationRule(params: {
     });
   }
   if (patchesFirstAssignment && !firstAssignment && !params.input.evaluator) {
-    throw createUnstablePublicApiError({
+    throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_body",
       message:

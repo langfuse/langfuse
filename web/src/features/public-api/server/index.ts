@@ -4,9 +4,9 @@ export { evaluatorsApiHandler } from "./evaluation/evaluatorsApiHandler";
 export { evaluatorApiHandler } from "./evaluation/evaluatorApiHandler";
 export { evaluatorVersionsApiHandler } from "./evaluation/evaluatorVersionsApiHandler";
 export {
-  createUnstablePublicApiAuthError,
-  createUnstablePublicApiRateLimitError,
-  createUnstablePublicApiRequestValidationError,
+  createStructuredPublicApiAuthError,
+  createStructuredPublicApiRateLimitError,
+  createStructuredPublicApiRequestValidationError,
   sendStructuredPublicApiErrorResponse,
   structuredPublicApiErrorContract,
   toStructuredPublicApiError,
