@@ -260,7 +260,7 @@ describe("extractToolsFromObservation", () => {
       expect(result.toolDefinitions).toEqual({});
     });
 
-    it("preserves unnamed provider tools in normalized input while extracting only named definitions", () => {
+    it("preserves and projects unnamed provider tools using their type", () => {
       const input = [{ role: "user", content: "Need current weather" }];
       const functionTool = {
         type: "function",
@@ -294,7 +294,10 @@ describe("extractToolsFromObservation", () => {
           "custom.attribute": "keep-me",
         },
       });
-      expect(Object.keys(result.toolDefinitions)).toEqual(["get_weather"]);
+      expect(Object.keys(result.toolDefinitions)).toEqual([
+        "get_weather",
+        "web_search_preview",
+      ]);
     });
   });
 
@@ -1175,24 +1178,25 @@ describe("extractToolsFromObservation", () => {
         },
       };
 
-      const normalized = normalizeToolsForObservation(input, null, metadata);
-      const result = extractToolsFromObservation(normalized.input, output);
+      const result = normalizeToolsForObservation(input, output, metadata);
 
-      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+      expect(Object.keys(result.toolDefinitions)).toEqual([
         "get_weather",
         "web_search",
       ]);
-      expect(result.toolDefinitions[0].parameters).toBe(
-        JSON.stringify(tools[0].inputSchema),
-      );
-      expect(result.toolArguments).toHaveLength(1);
-      expect(result.toolArguments[0]).toMatchObject({
+      expect(JSON.parse(result.toolDefinitions.get_weather)).toEqual({
+        description: "Get current weather for a location.",
+        parameters: JSON.stringify(tools[0].inputSchema),
+      });
+      expect(result.toolCalls).toHaveLength(1);
+      expect(result.toolCallNames).toEqual(["web_search"]);
+      expect(JSON.parse(result.toolCalls[0])).toEqual({
         id: "call_provider_search_1",
-        name: "web_search",
         arguments: JSON.stringify({
           query: "weather forecast in Berlin",
         }),
-        type: "tool-call",
+        type: "",
+        index: 0,
       });
     });
 
@@ -1266,20 +1270,18 @@ describe("extractToolsFromObservation", () => {
         ],
       };
 
-      const normalized = normalizeToolsForObservation(input, null, metadata);
-      const result = extractToolsFromObservation(normalized.input, output);
+      const result = normalizeToolsForObservation(input, output, metadata);
 
       // Should extract 3 available tools
-      expect(result.toolDefinitions).toHaveLength(3);
-      expect(result.toolDefinitions.map((t) => t.name)).toEqual([
+      expect(Object.keys(result.toolDefinitions)).toEqual([
         "get_pun_suggestion",
         "get_dad_joke_suggestion",
         "get_one_liner_suggestion",
       ]);
 
       // Should extract 2 called tools
-      expect(result.toolArguments).toHaveLength(2);
-      expect(result.toolArguments.map((t) => t.name)).toEqual([
+      expect(result.toolCalls).toHaveLength(2);
+      expect(result.toolCallNames).toEqual([
         "get_pun_suggestion",
         "get_dad_joke_suggestion",
       ]);

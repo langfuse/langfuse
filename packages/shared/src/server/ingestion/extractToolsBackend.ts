@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { normalizeIO, toToolColumns } from "../normalized-io";
+
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
 
 /**
@@ -809,19 +811,23 @@ export function normalizeToolsForObservation(
   );
 
   try {
-    const { toolDefinitions, toolArguments } =
-      extractToolsFromParsedObservation(
-        normalizedToolInput.inputForExtraction ??
-          parseIfString(normalizedToolInput.input),
-        parseIfString(output),
-      );
-    const { tool_calls, tool_call_names } = convertCallsToArrays(toolArguments);
+    const { tool_definitions, tool_calls, tool_call_names } = toToolColumns(
+      normalizeIO({
+        kind: "io",
+        io: {
+          input:
+            normalizedToolInput.inputForExtraction ?? normalizedToolInput.input,
+          output,
+          metadata: normalizedToolInput.metadata,
+        },
+      }),
+    );
 
     return {
       input: normalizedToolInput.input,
       output: toIngestionJsonValue(output),
       metadata: normalizedToolInput.metadata,
-      toolDefinitions: convertDefinitionsToMap(toolDefinitions),
+      toolDefinitions: tool_definitions,
       toolCalls: tool_calls,
       toolCallNames: tool_call_names,
     };
