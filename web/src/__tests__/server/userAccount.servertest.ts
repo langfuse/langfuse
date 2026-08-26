@@ -6,10 +6,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import {
-  getFeaturePreviewOptOutFlag,
-  parseFlags,
-} from "@/src/features/feature-flags/utils";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -22,7 +19,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the Modern Session preview, leaving other flags intact", async () => {
+  it("enables a preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
@@ -45,30 +42,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
-  it("enables the V4 migration UI preview, leaving other flags intact", async () => {
-    const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag"],
-    });
-
-    const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "v4UpgradeUi",
-      enabled: true,
-    });
-
-    expect(result).toEqual({
-      success: true,
-      flag: "v4UpgradeUi",
-      enabled: true,
-    });
-
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { featureFlags: true },
-    });
-    expect(user.featureFlags).toEqual(["templateFlag", "v4UpgradeUi"]);
-  });
-
-  it("disables a preview flag without touching the others", async () => {
+  it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
     });
@@ -88,38 +62,11 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag"]);
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      getFeaturePreviewOptOutFlag("modernSession"),
+    ]);
   });
-
-  it.each(["team.member@langfuse.com", "team.member@clickhouse.com"])(
-    "persists an opt-out when %s disables a preview",
-    async (email) => {
-      const { caller, userId } = await createCaller({
-        email,
-        featureFlags: ["templateFlag"],
-      });
-
-      await caller.userAccount.setFeaturePreviewEnabled({
-        flag: "modernSession",
-        enabled: false,
-      });
-
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { featureFlags: true, email: true },
-      });
-      expect(user.featureFlags).toEqual([
-        "templateFlag",
-        getFeaturePreviewOptOutFlag("modernSession"),
-      ]);
-      expect(
-        parseFlags(user.featureFlags, {
-          email: user.email,
-          v4BetaEnabled: true,
-        }).modernSession,
-      ).toBe(false);
-    },
-  );
 
   it("rejects enabling in self-hosted deployments", async () => {
     const { caller } = await createCaller();
@@ -139,13 +86,15 @@ async function createCaller({
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
-  email,
+  emailDomain = "example.com",
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
   includeProjectInSession?: boolean;
-  email?: string;
+  // Domain only — the local part is always unique so reruns against the same
+  // database do not trip the users.email unique constraint.
+  emailDomain?: string;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -169,7 +118,7 @@ async function createCaller({
   const user = await prisma.user.create({
     data: {
       id: userId,
-      email: email ?? `${userId}@example.com`,
+      email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
     },
@@ -212,7 +161,6 @@ async function createCaller({
         modernSession: featureFlags.includes("modernSession"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
-        v4UpgradeUi: featureFlags.includes("v4UpgradeUi"),
         excludeClickhouseRead: false,
         observationEvals: false,
         v4BetaToggleVisible: false,

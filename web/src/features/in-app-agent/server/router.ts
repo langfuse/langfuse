@@ -18,7 +18,10 @@ import {
   getInAppAgentInstrumentationTraceId,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
-import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
+import {
+  assertInAppAgentAvailable,
+  assertInAppAgentModelConfigured,
+} from "@/src/features/in-app-agent/server/availability";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -209,6 +212,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -230,7 +234,7 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });
     }),
@@ -268,6 +272,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -295,7 +300,7 @@ export const inAppAgentRouter = createTRPCRouter({
         approved: input.approved,
         approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
       });
     }),
 

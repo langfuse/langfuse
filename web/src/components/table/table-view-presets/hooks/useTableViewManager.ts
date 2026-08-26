@@ -9,9 +9,12 @@ import {
 import { type NextRouter, useRouter } from "next/router";
 import { useEffect, useCallback, useState, useRef } from "react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { StringParam, type UrlUpdateType } from "use-query-params";
+import {
+  StringParam,
+  type UrlUpdateType,
+  useQueryParam,
+} from "use-query-params";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useQueryParam } from "use-query-params";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";

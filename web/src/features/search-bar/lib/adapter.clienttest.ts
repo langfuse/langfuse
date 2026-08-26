@@ -666,6 +666,33 @@ describe("validateQuery / adapter parity", () => {
 });
 
 describe("filterStateToQueryText", () => {
+  it("renders the experiment and evaluation exclusions as explicit filters", () => {
+    expect(
+      filterStateToQueryText([
+        {
+          column: "environment",
+          type: "string",
+          operator: "does not contain",
+          value: "langfuse-",
+        },
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["sdk-experiment"],
+        },
+        {
+          column: "experimentId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ]).text,
+    ).toBe(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
+  });
+
   it("round-trips legacy filter state through the grammar", () => {
     const filters: FilterState = [
       {

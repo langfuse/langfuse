@@ -2,10 +2,10 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/router";
-import { InAppAgentWindow } from "./InAppAgentWindow";
-import type {
-  InAppAgentWindowConversation,
-  InAppAgentWindowExecutionUi,
+import {
+  InAppAgentWindow,
+  type InAppAgentWindowConversation,
+  type InAppAgentWindowExecutionUi,
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
@@ -16,32 +16,14 @@ import {
   getInAppAgentQuickActionContext,
 } from "@/src/features/in-app-agent/quickActions";
 import {
-  getBackgroundRunFailureMessage,
+  getBackgroundRunNotice,
+  getSettledActivityOutcome,
   isCancellableBackgroundRun,
-  type BackgroundExecutionRunView,
 } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,
 } from "@langfuse/shared/in-app-agent";
-
-function getBackgroundRunNotice(
-  run: BackgroundExecutionRunView | null,
-): string | null {
-  if (!run) {
-    return null;
-  }
-
-  if (isCancellableBackgroundRun(run.status) && run.cancelRequested) {
-    return "Stopping the run…";
-  }
-
-  if (run.status === InAppAgentRunStatus.FAILED) {
-    return getBackgroundRunFailureMessage(run.errorCode ?? null);
-  }
-
-  return null;
-}
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -109,6 +91,7 @@ export function ControlledInAppAgentWindow(
   });
   const windowExecutionUi: InAppAgentWindowExecutionUi = {
     notice: getBackgroundRunNotice(execution.run),
+    activityOutcome: getSettledActivityOutcome(execution.run),
     stop:
       execution.run && isCancellableBackgroundRun(execution.run.status)
         ? {

@@ -2,8 +2,6 @@ import { z } from "zod";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";

@@ -173,9 +173,32 @@ Always fetch pricing from the provider's official docs before editing.
   Pricing: $1.75/MTok input, $0.175/MTok cached input, $14.00/MTok output. Context window:
   400k tokens; max output 128k tokens. No large-context tier. No date-stamped snapshot at
   launch. Standard OpenAI matchPattern: `(?i)^(openai\/)?(gpt-5.3-codex)$`. Added to pricing
-  file and `openAIModels` in July 27 2026 audit. Official sources:
-  `https://developers.openai.com/api/docs/pricing` and
+file and `openAIModels`in July 27 2026 audit. Official sources:`https://developers.openai.com/api/docs/pricing` and
   `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
+- **GPT-5.6 Sol price cut (found August 24 2026)** — OpenAI cut pricing for
+  `gpt-5.6-sol` only; `gpt-5.6-terra` and `gpt-5.6-luna` are unchanged (re-confirmed
+  identical to their July 31 2026 values below). Confirmed via 3 independent WebFetch
+  calls: the aggregate standard-pricing-table dump, a targeted verbatim quote of the
+  Standard-table row, and a dedicated fetch of
+  `https://developers.openai.com/api/docs/models/gpt-5.6-sol` (which states the change is
+  "a 20% reduction in input pricing and a 33% reduction in output pricing" with
+  "promotional pricing available at least through November 21, 2026" — re-check after that
+  date). New standard (≤272K) price: $4.00/MTok input, $0.40/MTok cached input, $5.00/MTok
+  cache write, $20.00/MTok output (previously $5.00/$0.50/$6.25/$30.00). New Large Context
+  (>272K) price: $8.00/$0.80/$10.00/$30.00 (previously $10.00/$1.00/$12.50/$45.00). The
+  2x-input/1.5x-output large-context multiplier and the 1.25x-of-input cache-write
+  multiplier both still hold exactly on the new base price. The Fast mode and Flex tiers
+  (added August 20 2026) were independently re-fetched and also scale off the new base at
+  their existing multipliers: Fast mode 2x base ($8.00/$0.80/$10.00/$40.00 standard,
+  $16.00/$1.60/$20.00/$60.00 large-context), Flex 0.5x base ($2.00/$0.20/$2.50/$10.00
+  standard, $4.00/$0.40/$5.00/$15.00 large-context). All six pricing-file tiers for
+  `gpt-5.6-sol` were updated to match. Lesson: an aggregate WebFetch table dump can look
+  identical in shape to a real price change vs. a hallucinated/garbled one (the first dump
+  this run showed self-inconsistent numbers that didn't match any documented multiplier) —
+  always cross-check a suspicious price-table result with a second, targeted verbatim-quote
+  fetch and the model's own dedicated page before trusting it, and verify the documented
+  formulas (large-context multiplier, cache-write multiplier) still reconcile with the new
+  numbers before applying them.
 - **GPT-5.6 Terra / Luna price cut (found July 31 2026)** — OpenAI lowered pricing for
   `gpt-5.6-terra` and `gpt-5.6-luna` sometime between the July 27 and July 31 2026 audits;
   `gpt-5.6-sol` was unchanged. Confirmed via 4 independent WebFetch calls (the overview
@@ -237,7 +260,7 @@ Always fetch pricing from the provider's official docs before editing.
   condition can never legitimately fire for this model. The tier was removed; the model now
   has only the Standard tier, matching the precedent set by `claude-haiku-4-5-20251001`
   (also a 200k-context model with no Large Context tier). If a future model is documented
-  with a *soft* extended-context cap that bills at a premium rate past a threshold below its
+  with a _soft_ extended-context cap that bills at a premium rate past a threshold below its
   hard context-window limit, that would justify a real tier — verify the hard context-window
   size first before trusting an existing Large Context tier on a non-1M-context Claude model.
 - **AWS Bedrock "Claude 3.5 Sonnet (Public Extended Access)" pricing confirmed real but not
@@ -258,6 +281,28 @@ Always fetch pricing from the provider's official docs before editing.
   alone. Do not add a second pricing entry for this SKU; it would create an unresolvable
   matchPattern collision with the existing entry. Leave as a documented, confirmed
   limitation rather than an open question in future audits.
+- **Gemini specialized-modality model wave (found August 21 2026, out of scope)** — The
+  official Gemini models page (`ai.google.dev/gemini-api/docs/models`) now lists several
+  new model IDs beyond `gemini-3.7-flash`: `gemini-omni-flash` ("Fast, conversational video
+  generation and editing... turn text and images into video"), `gemini-3.1-flash-live-preview`
+  ("Live API model for real-time dialogue and voice-first AI applications"),
+  `gemini-3.1-flash-tts-preview` ("Powerful, low-latency speech generation"),
+  `gemini-3.5-live-translate-preview` ("real-time speech to speech translation"), plus
+  `veo-3.1-generate-preview`/`veo-3.1-lite-generate-preview` (video), `lyria-3-pro-preview`/
+  `lyria-3-clip-preview`/`lyria-realtime-exp` (music), and `gemini-robotics-er-2-preview`
+  (robotics). A targeted fetch of each model's description confirmed none is a
+  general-purpose text/chat model with standard per-token text pricing — they are video
+  generation, live/voice-only, text-to-speech, speech-to-speech translation, music
+  generation, and robotics endpoints. Per the automated-audit skip rule for
+  modality-specific endpoints, none were added to the pricing file or `types.ts`. Future
+  audits do not need to re-investigate this family unless one of them gains a standard
+  text-generation mode with its own per-token text pricing.
+- **gpt-5-chat-latest confirmed again (August 21 2026)** — Re-fetched
+  `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` directly (it is absent
+  from the aggregate standard-pricing-table dump, consistent with every prior audit).
+  Confirmed unchanged: $1.25/MTok input, $0.125/MTok cached input, $10/MTok output, 128,000
+  token context window, no large-context tier. Matches the file exactly
+  (id `8ba72ee3-ebe8-4110-a614-bf81094447e5`).
 - **OpenAI base-model vs. fine-tuning-legacy price mixups (fixed August 7 2026)** — The
   OpenAI pricing page lists some base model names in two different tables: the "Standard"
   table (bare inference pricing, what a `matchPattern` with no `ft:` prefix should use) and
@@ -276,6 +321,47 @@ Always fetch pricing from the provider's official docs before editing.
   `o4-mini-2025-04-16`), explicitly confirm which table a fetched price came from before
   applying it to the bare (non-`ft:`) entry — a summarizer can silently pick either table
   when both rows share the same model name.
+
+- **Premium speed-tier pricing (`service_tier`/`speed`) is documented for far more
+  models than the initial rollout covered (implemented 2026-08-20)** — The
+  `model_parameters` tier-condition mechanism landed in PR #16204 (2026-08-18) and was
+  used to add a "Fast mode" tier (`service_tier` in `["fast","priority"]`) to exactly
+  four OpenAI entries: `gpt-5.5-2026-04-23`, `gpt-5.6-sol`, `gpt-5.6-terra`, and
+  `gpt-5.6-luna`. Two independent `developers.openai.com/api/docs/pricing` fetches this
+  run (one broad, one asking to quote the "Fast mode" table verbatim, plus a request to
+  quote the separate "Flex" table verbatim) confirm OpenAI documents official Fast mode
+  and Flex processing prices for many more models:
+  - **Fast mode** (`service_tier: "fast"` or `"priority"`; "Priority processing" was
+    renamed "Fast mode" on 2026-07-30, both values still accepted) — confirmed
+    per-MTok short-context prices (input / cached input / output; cache writes only
+    where shown): `gpt-5.4` $5.00/$0.50/$30.00, `gpt-5.4-mini` $1.50/$0.15/$9.00,
+    `gpt-5.2` $3.50/$0.35/$28.00, `gpt-5.1` $2.50/$0.25/$20.00, `gpt-5` $2.50/$0.25/$20.00,
+    `gpt-5-mini` $0.45/$0.045/$3.60, `gpt-4.1` $3.50/$0.875/$14.00, `gpt-4.1-mini`
+    $0.70/$0.175/$2.80, `gpt-4.1-nano` $0.20/$0.05/$0.80, `gpt-4o` $4.25/$2.125/$17.00,
+    `gpt-4o-2024-05-13` $8.75/—/$26.25, `gpt-4o-mini` $0.25/$0.125/$1.00, `o3`
+    $3.50/$0.875/$14.00, `o4-mini` $2.00/$0.50/$8.00. (`gpt-5.5` Fast mode price was
+    already re-confirmed as unchanged at $12.50/$1.25/$75.00 in the pricing file.)
+  - **Flex** (`service_tier: "flex"`, a discount tier, roughly half of standard) —
+    confirmed for `gpt-5.6-sol` $2.50/$0.25/$15.00, `gpt-5.6-terra` $1.00/$0.10/$6.00,
+    `gpt-5.6-luna` $0.10/$0.01/$0.60, `gpt-5.5` $2.50/$0.25/$15.00, `gpt-5.4`
+    $1.25/$0.13/$7.50, plus `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.4-pro`, `gpt-5.2`,
+    `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `o3`, and `o4-mini` (prices seen but
+    not individually re-quoted during the audit; all were re-read from the live table
+    before implementation). The pricing file now represents these with
+    `modelParameters.service_tier in ["flex"]`.
+  - **Anthropic has the same class of gap**: the pricing page's "Fast mode pricing"
+    section documents Claude Opus 5 / Claude Opus 4.8 Fast mode at $10/$50 per MTok
+    input/output (`speed: "fast"` request parameter), but neither `claude-opus-5` nor
+    `claude-opus-4-8` has a Fast-mode tier in the pricing file (both are single-tier
+    `Standard`-only entries before the follow-up). The generated Anthropic Python SDK's
+    beta `MessageCreateParamsBase` confirms the request field is `speed`, with values
+    `"standard" | "fast"`; Anthropic's separate `service_tier` field controls capacity
+    and is not the Fast-mode discriminator. The pricing file therefore matches
+    `modelParameters.speed in ["fast"]`.
+  - The 2026-08-20 follow-up added every Fast and Flex tier listed above to alias and
+    dated-snapshot entries, plus combined Flex/large-context tiers where the documented
+    > 272K multiplier applies. It also added the two Anthropic Fast-mode tiers, including
+    > the documented prompt-cache multipliers.
 
 Capture:
 

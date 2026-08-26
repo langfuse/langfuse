@@ -127,6 +127,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
+    .enum(["auto", "no_throw", "sanitize"])
+    .optional(),
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
@@ -519,9 +522,16 @@ const EnvSchema = z.object({
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
-  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+  // apply to both providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL are
+  // Anthropic-only.
+  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+  LANGFUSE_AI_MODEL: z.string().optional(),
+  LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+  LANGFUSE_AI_API_KEY: z.string().optional(),
+  LANGFUSE_AI_BASE_URL: z.string().optional(),
+  LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.

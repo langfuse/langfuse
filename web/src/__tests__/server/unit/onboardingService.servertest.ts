@@ -75,6 +75,9 @@ const makeCompletionPrisma = ({
     organizationMembership: {
       findMany: vi.fn().mockResolvedValue(memberships),
     },
+    organization: {
+      update: vi.fn().mockResolvedValue({ id: "org-1" }),
+    },
   };
 
   return {
@@ -140,6 +143,7 @@ describe("getCloudSignupOnboardingStatus", () => {
       getStatus(incomplete.tx as unknown as StatusPrisma),
     ).resolves.toEqual({
       completed: false,
+      canConfigureAiFeatures: false,
     });
 
     const completed = makeCompletionPrisma({
@@ -157,6 +161,29 @@ describe("getCloudSignupOnboardingStatus", () => {
     ).resolves.toEqual({
       completed: true,
       redirectTo: "/project/project-1",
+    });
+  });
+
+  it("allows owners to configure AI features for a starter organization", async () => {
+    const incomplete = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          orgMetadata: {
+            langfuseOnboarding: {
+              starterOrganization: true,
+            },
+          },
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await expect(
+      getStatus(incomplete.tx as unknown as StatusPrisma),
+    ).resolves.toEqual({
+      completed: false,
+      canConfigureAiFeatures: true,
     });
   });
 });
@@ -184,6 +211,7 @@ describe("completeCloudSignupOnboarding", () => {
         userEmail: "user@example.com",
         canCreateOrganizations: true,
         referralSource: "  Reddit  ",
+        aiFeaturesEnabled: true,
       }),
     ).resolves.toEqual({
       redirectTo: "/project/project-1/traces",
@@ -213,6 +241,10 @@ describe("completeCloudSignupOnboarding", () => {
         orgId: "org-1",
       },
     });
+    expect(tx.organization.update).toHaveBeenCalledWith({
+      where: { id: "org-1" },
+      data: { aiFeaturesEnabled: true },
+    });
 
     tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
 
@@ -222,9 +254,32 @@ describe("completeCloudSignupOnboarding", () => {
       userEmail: "user@example.com",
       canCreateOrganizations: true,
       referralSource: "Hacker News",
+      aiFeaturesEnabled: false,
     });
 
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
+    expect(tx.organization.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not update AI features for an existing organization", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      aiFeaturesEnabled: true,
+    });
+
+    expect(tx.organization.update).not.toHaveBeenCalled();
   });
 });
 

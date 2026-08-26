@@ -7,9 +7,11 @@ import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
 import {
   createInAppAgentSandbox,
@@ -24,6 +26,21 @@ import type { Langfuse } from "langfuse";
 import type { InAppAgentTracingConfig } from "./instrumentation";
 
 const EXPECTED_MCP_USER_AGENT = "langfuse-in-app-agent";
+
+const testBedrockModel = (modelId: string) => ({
+  provider: "bedrock" as const,
+  modelId,
+  titleModelId: modelId,
+  region: "eu-central-1",
+});
+
+const testAnthropicModel = (modelId: string) => ({
+  provider: "anthropic" as const,
+  modelId,
+  titleModelId: modelId,
+  apiKey: "sk-ant-test",
+  baseURL: "https://api.anthropic.com/v1",
+});
 
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
@@ -43,6 +60,46 @@ const getAgentTools = (
   agentConfig: { tools?: unknown } | undefined,
 ): MockedAgentTools | undefined =>
   agentConfig?.tools as MockedAgentTools | undefined;
+
+type MockedAgentConfig = {
+  instructions?: (() => string) | string;
+  model?: {
+    provider?: string;
+    supportedUrls?: unknown;
+    doStream: (options: unknown) => Promise<{
+      stream: ReadableStream<unknown>;
+    }>;
+  };
+  inputProcessors?: Array<{
+    id: string;
+    processInputStep?: (args: {
+      stepNumber: number;
+      sendSignal?: (signal: unknown) => Promise<unknown>;
+    }) => Promise<unknown>;
+    processLLMRequest?: (args: {
+      prompt: unknown;
+      stepNumber?: number;
+    }) => { prompt?: unknown } | undefined;
+  }>;
+  defaultOptions?: {
+    onIterationComplete?: (context: {
+      iteration: number;
+      maxIterations?: number;
+      isFinal: boolean;
+      finishReason: string;
+    }) => unknown;
+  };
+};
+
+const getLastAgentConfig = () =>
+  vi.mocked(Agent).mock.calls.at(-1)?.[0] as MockedAgentConfig | undefined;
+
+const readAgentInstructions = (agentConfig: MockedAgentConfig | undefined) => {
+  const instructions = agentConfig?.instructions;
+  return typeof instructions === "function"
+    ? instructions()
+    : (instructions ?? "");
+};
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -224,6 +281,41 @@ vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
     doStream: bedrockMocks.doStream,
   })),
 }));
+
+// Match @ai-sdk/anthropic: provider/supportedUrls are prototype getters,
+// not own enumerable properties. A plain object spread drops them.
+vi.mock("ai-sdk-anthropic-v4", () => {
+  class AnthropicMessagesLanguageModel {
+    specificationVersion = "v3";
+    modelId: string;
+
+    constructor(modelId: string) {
+      this.modelId = modelId;
+    }
+
+    get provider() {
+      return "anthropic.messages";
+    }
+
+    get supportedUrls() {
+      return {};
+    }
+
+    doGenerate(options: unknown) {
+      return bedrockMocks.doGenerate(options);
+    }
+
+    doStream(options: unknown) {
+      return bedrockMocks.doStream(options);
+    }
+  }
+
+  return {
+    createAnthropic: vi.fn(
+      () => (modelId: string) => new AnthropicMessagesLanguageModel(modelId),
+    ),
+  };
+});
 
 vi.mock("@aws-sdk/credential-providers", () => ({
   fromNodeProviderChain: vi.fn(() => vi.fn()),
@@ -472,7 +564,10 @@ describe("createAgUiStream", () => {
     });
   });
 
-  const initializeBasicTracedAgent = async (runId: string) => {
+  const initializeBasicTracedAgent = async (
+    runId: string,
+    model = testBedrockModel("test-model"),
+  ) => {
     const { createAgUiStream } = await import("./agent");
     const input = {
       threadId: "conversation-1",
@@ -506,7 +601,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model,
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -523,6 +618,73 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
   };
+
+  it("uses the shared Bedrock default-credential auth", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+
+    await initializeBasicTracedAgent("run-default-bedrock-auth");
+
+    expect(createAmazonBedrock).toHaveBeenCalledWith({
+      region: "eu-central-1",
+      apiKey: "",
+      credentialProvider: expect.any(Function),
+    });
+  });
+
+  it("omits Bedrock region when the model config has none", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+
+    await initializeBasicTracedAgent("run-default-bedrock-region", {
+      provider: "bedrock",
+      modelId: "test-model",
+      titleModelId: "test-model",
+    });
+
+    expect(createAmazonBedrock).toHaveBeenCalledWith({
+      apiKey: "",
+      credentialProvider: expect.any(Function),
+    });
+  });
+
+  it("uses Anthropic Messages with the namespaced API key and thinking options", async () => {
+    const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
+    const { createAnthropic } = await import("ai-sdk-anthropic-v4");
+
+    await initializeBasicTracedAgent(
+      "run-anthropic-messages",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    expect(createAmazonBedrock).not.toHaveBeenCalled();
+    expect(createAnthropic).toHaveBeenCalledWith({
+      apiKey: "sk-ant-test",
+      baseURL: "https://api.anthropic.com/v1",
+    });
+
+    const { Agent } = await import("@mastra/core/agent");
+    const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0] as
+      | MockedAgentConfig
+      | undefined;
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      providerOptions: {
+        anthropic: {
+          thinking: { type: "adaptive", display: "summarized" },
+        },
+      },
+    });
+  });
+
+  it("keeps Anthropic provider getters on the traced model wrapper", async () => {
+    await initializeBasicTracedAgent(
+      "run-anthropic-provider-getters",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    const model = getLastAgentConfig()?.model;
+    expect(model?.provider).toBe("anthropic.messages");
+    expect(model?.supportedUrls).toEqual({});
+    expect(model?.provider?.includes("anthropic")).toBe(true);
+  });
 
   it("forwards model stream parts when finish tracing throws", async () => {
     instrumentationMocks.instrumentation.recordModelStreamPart
@@ -565,6 +727,204 @@ describe("createAgUiStream", () => {
     expect(
       instrumentationMocks.instrumentation.recordModelStreamPart,
     ).toHaveBeenNthCalledWith(2, finishPart);
+  });
+
+  it("adds Bedrock cache points to Claude model prompts so later steps can reuse prior turns", async () => {
+    await initializeBasicTracedAgent(
+      "run-bedrock-prompt-cache",
+      testBedrockModel("eu.anthropic.claude-opus-4-8"),
+    );
+
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const options = {
+      prompt: [
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+      ],
+    };
+    await model.doStream(options);
+
+    const cachedPrompt = [
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: { bedrock: { cachePoint: { type: "default" } } },
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: { bedrock: { cachePoint: { type: "default" } } },
+      },
+    ];
+    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
+      prompt: cachedPrompt,
+    });
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
+  it("adds Anthropic cacheControl to Claude Messages prompts so later steps can reuse prior turns", async () => {
+    await initializeBasicTracedAgent(
+      "run-anthropic-prompt-cache",
+      testAnthropicModel("claude-opus-4-8"),
+    );
+
+    const model = vi.mocked(Agent).mock.calls.at(-1)?.[0]?.model as unknown as {
+      doStream: (options: unknown) => Promise<{
+        stream: ReadableStream<unknown>;
+      }>;
+    };
+
+    const options = {
+      prompt: [
+        { role: "system", content: "You are the Langfuse assistant." },
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        {
+          role: "assistant",
+          content: [{ type: "tool-call", toolCallId: "call-1" }],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call-1" }],
+        },
+      ],
+    };
+    await model.doStream(options);
+
+    const cachedPrompt = [
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral" } },
+        },
+      },
+    ];
+    expect(bedrockMocks.doStream).toHaveBeenCalledWith({
+      prompt: cachedPrompt,
+    });
+    expect(
+      instrumentationMocks.instrumentation.recordModelCallStart,
+    ).toHaveBeenCalledWith({ prompt: cachedPrompt });
+  });
+
+  it("appends a trailing current-time message on each model request", async () => {
+    await initializeBasicTracedAgent("run-current-time");
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+
+    const result = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+    });
+
+    const lastText = (
+      result?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+    expect(lastText).toContain("<current_time");
+  });
+
+  it("sends wrap-up as a last-step signal instead of assistant feedback", async () => {
+    await initializeBasicTracedAgent("run-step-limit-wrap-up");
+    const agentConfig = getLastAgentConfig();
+    const processor = agentConfig?.inputProcessors?.find(
+      (item) => item.id === "ensure-final-response",
+    );
+    expect(processor?.processInputStep).toEqual(expect.any(Function));
+    expect(readAgentInstructions(agentConfig)).not.toContain(
+      "Do not call any more tools",
+    );
+    expect(readAgentInstructions(agentConfig)).not.toContain("system-reminder");
+
+    const sendSignal = vi.fn();
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 2,
+      sendSignal,
+    });
+    expect(sendSignal).not.toHaveBeenCalled();
+
+    await processor?.processInputStep?.({
+      stepNumber: IN_APP_AGENT_MAX_STEPS - 1,
+      sendSignal,
+    });
+    expect(sendSignal).toHaveBeenCalledWith({
+      type: "reactive",
+      tagName: "step_limit_wrap_up",
+      contents: expect.stringContaining("Do not call any more tools"),
+      attributes: {
+        reason: "max-steps-reached",
+        step: IN_APP_AGENT_MAX_STEPS,
+      },
+    });
+
+    const wrapUp = await agentConfig?.defaultOptions?.onIterationComplete?.({
+      iteration: IN_APP_AGENT_MAX_STEPS - 1,
+      maxIterations: IN_APP_AGENT_MAX_STEPS,
+      isFinal: false,
+      finishReason: "tool-calls",
+    });
+    expect(wrapUp).toBeUndefined();
+    expect(readAgentInstructions(agentConfig)).not.toContain(
+      "Do not call any more tools",
+    );
+  });
+
+  it("does not treat provider stream finishes as Mastra steps", async () => {
+    await initializeBasicTracedAgent("run-step-limit-retry");
+    const agentConfig = getLastAgentConfig();
+    const model = agentConfig?.model;
+    expect(model).toBeDefined();
+
+    bedrockMocks.streamParts = [
+      {
+        type: "finish",
+        finishReason: { unified: "tool-calls", raw: "tool_use" },
+      },
+    ];
+
+    for (let i = 0; i < IN_APP_AGENT_MAX_STEPS - 1; i++) {
+      const result = await model!.doStream({});
+      for await (const _part of result.stream) {
+        // Drain provider finishes that used to be counted as steps.
+      }
+    }
+
+    expect(readAgentInstructions(agentConfig)).not.toContain(
+      "Do not call any more tools",
+    );
   });
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
@@ -685,9 +1045,7 @@ describe("createAgUiStream", () => {
           eventOrder.push(`persist:${event.type}`);
           await Promise.resolve();
         },
-        awsBedrock: {
-          modelId: "eu.anthropic.claude-opus-4-8",
-        },
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -764,11 +1122,12 @@ describe("createAgUiStream", () => {
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: expect.any(Number),
+      maxSteps: IN_APP_AGENT_MAX_STEPS,
       providerOptions: {
         bedrock: {
           additionalModelRequestFields: {
             thinking: { type: "adaptive", display: "summarized" },
+            output_config: { effort: "medium" },
           },
         },
       },
@@ -833,27 +1192,46 @@ describe("createAgUiStream", () => {
     );
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        currentDate: expect.any(String),
+        currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
-        screenContext: expect.stringContaining("<screen_context>"),
+        screenContext: "",
         userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
         ).join(", "),
       }),
     );
+    expect(
+      promptMocks.compile.mock.calls[0]?.[0].sandboxFilesystem,
+    ).not.toContain("tool_calls");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        screenContext: expect.stringContaining(
-          '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
-        ),
         userContext: expect.stringContaining('"user_name": "Ada Lovelace"'),
       }),
     );
-    expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).not.toContain(
-      '"user_name"',
+    expect(promptMocks.compile.mock.calls[0]?.[0].userContext).not.toContain(
+      '"current_url"',
     );
+
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const laterStep = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 1,
+    });
+    const laterStepText = (
+      laterStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
+
+    expect(laterStepText).toContain("<screen_context>");
+    expect(laterStepText).toContain(
+      '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
+    );
+    expect(laterStepText).not.toContain('"user_name"');
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));
     expect((baseInstructions as () => string)()).toBe(
@@ -973,9 +1351,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: {
-          modelId: "meta.llama3-70b-instruct-v1:0",
-        },
+        model: testBedrockModel("meta.llama3-70b-instruct-v1:0"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -997,7 +1373,7 @@ describe("createAgUiStream", () => {
     const { Agent } = await import("@mastra/core/agent");
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     expect(agentConfig?.defaultOptions).toMatchObject({
-      maxSteps: expect.any(Number),
+      maxSteps: IN_APP_AGENT_MAX_STEPS,
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
   });
@@ -1046,7 +1422,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1068,8 +1444,11 @@ describe("createAgUiStream", () => {
     const agentConfig = vi.mocked(Agent).mock.calls.at(-1)?.[0];
     const runInstruction = (agentConfig?.defaultOptions as { system?: string })
       ?.system;
-    expect(runInstruction).toContain("has been replaced with an empty one");
-    expect(runInstruction).toContain("restored in full");
+    expect(runInstruction).toContain("has expired and been replaced");
+    expect(runInstruction).toContain(
+      "Persisted tool-output files explicitly named in tool results remain available",
+    );
+    expect(runInstruction).not.toContain("/workspace/tool_calls");
     expect(
       promptMocks.compile.mock.calls.at(-1)?.[0]?.sandboxFilesystem,
     ).not.toContain("has been replaced with an empty one");
@@ -1143,7 +1522,7 @@ describe("createAgUiStream", () => {
         onEvent: (event) => {
           persistedEvents.push(event);
         },
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1215,7 +1594,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "eu.anthropic.claude-opus-4-8" },
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1263,7 +1642,7 @@ describe("createAgUiStream", () => {
         onEvent: (event) => {
           persistedEvents.push(event);
         },
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1521,6 +1900,8 @@ describe("createAgUiStream", () => {
     const input = createToolApprovalResumeInput(true, { silent: true });
     adapterEvents.createScoreConfigExecute.mockResolvedValueOnce({
       type: "silent-mcp-output",
+      toolCallId: "tool-call-1",
+      toolName: "langfuse_createScoreConfig",
       output: {
         id: "score-config-1",
         name: "readiness",
@@ -1528,7 +1909,8 @@ describe("createAgUiStream", () => {
       },
     });
     adapterEvents.createScoreConfigToModelOutput.mockImplementationOnce(
-      async () => "Output saved to /workspace/tool_calls",
+      async () =>
+        "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
     );
     adapterEvents.inputs = [];
     adapterEvents.items = [
@@ -1550,7 +1932,7 @@ describe("createAgUiStream", () => {
         onEvent: (event) => {
           persistedEvents.push(event);
         },
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1578,15 +1960,20 @@ describe("createAgUiStream", () => {
 
     expect(resumedToolMessage).toMatchObject({
       role: "tool",
-      content: "Output saved to /workspace/tool_calls",
+      content:
+        "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
     });
-    expect(streamedText).toContain("Output saved to /workspace/tool_calls");
+    expect(streamedText).toContain(
+      "Output saved to /workspace/tool_calls/langfuse_createScoreConfig_tool-call-1.json",
+    );
     expect(streamedText).not.toContain("full-tool-output");
     expect(persistedEvents).toContainEqual(
       expect.objectContaining({
         type: EventType.TOOL_CALL_RESULT,
         content: JSON.stringify({
           type: "silent-mcp-output",
+          toolCallId: "tool-call-1",
+          toolName: "langfuse_createScoreConfig",
           output: {
             id: "score-config-1",
             name: "readiness",
@@ -1627,7 +2014,7 @@ describe("createAgUiStream", () => {
           persistedEvents.push(event);
         },
         onError,
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1791,7 +2178,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1809,8 +2196,20 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
 
-    const screenContext = promptMocks.compile.mock.calls[0]?.[0]
-      .screenContext as string;
+    expect(promptMocks.compile.mock.calls[0]?.[0].screenContext).toBe("");
+
+    const processor = getLastAgentConfig()?.inputProcessors?.find(
+      (item) => item.id === "current-time",
+    );
+    const firstStep = processor?.processLLMRequest?.({
+      prompt: [{ role: "user", content: "hello" }],
+      stepNumber: 0,
+    });
+    const screenContext = (
+      firstStep?.prompt as Array<{ content: Array<{ text: string }> }>
+    )
+      .at(-1)
+      ?.content.find((part) => part.text)?.text;
 
     expect(screenContext).toContain("<screen_context>");
     expect(screenContext).toContain("</screen_context>");
@@ -1872,7 +2271,7 @@ describe("createAgUiStream", () => {
           persistedEvents.push(event);
         },
         onComplete,
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -1992,6 +2391,22 @@ describe("createAgUiStream", () => {
       toolCallId: "tool-call-1",
       status: "rejected",
     });
+    expect(
+      instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
+        ([events]) => events,
+      ),
+    ).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: EventType.CUSTOM,
+          name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+          value: expect.objectContaining({
+            toolCallId: "tool-call-1",
+            source: "human",
+          }),
+        }),
+      ]),
+    );
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
@@ -2021,7 +2436,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -2109,7 +2524,7 @@ describe("createAgUiStream", () => {
       input,
       signal: new AbortController().signal,
       options: {
-        awsBedrock: { modelId: "test-model" },
+        model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",

@@ -8,11 +8,6 @@ import {
   STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
 
-const isEuOrUsRegionNonHipaa =
-  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
-    ? ["EU", "US"].includes(process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    : false;
-
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT,
@@ -71,8 +66,9 @@ Sentry.init({
   // Replay may only be enabled for the client-side
   integrations: [
     Sentry.replayIntegration({
-      maskAllText: !isEuOrUsRegionNonHipaa,
-      blockAllMedia: !isEuOrUsRegionNonHipaa,
+      maskAllText: true,
+      maskAllInputs: true,
+      blockAllMedia: true,
     }),
     Sentry.browserTracingIntegration(),
     Sentry.httpClientIntegration(),
@@ -107,6 +103,9 @@ Sentry.init({
 
   // Filter out browser extension errors
   // see: https://docs.sentry.io/platforms/javascript/configuration/filtering/#using-allowurls-and-denyurls
+  // Stackless console captures of the same origins (Chrome `import()` of an
+  // extension module) are dropped by isDenylistedNoiseEvent instead — denyUrls
+  // only matches stack-frame filenames.
   denyUrls: [
     // Chrome extensions
     /chrome-extension:\/\//i,
