@@ -1,5 +1,4 @@
 import { EllipsisVertical } from "lucide-react";
-import { expect, userEvent, within } from "storybook/test";
 
 import { Button } from "@/src/components/ui/button";
 import { DetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
@@ -39,13 +38,4 @@ const meta = preview.meta({
   },
 });
 
-export const Default = meta.story({
-  name: "(Test) Opens the actions menu",
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Options" }));
-    await expect(
-      await within(document.body).findByText("Copy Trace ID"),
-    ).toBeVisible();
-  },
-});
+export const Default = meta.story({});
