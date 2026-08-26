@@ -22,9 +22,9 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundController } from "@/src/features/playground/page/components/JumpToPlaygroundController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
@@ -34,7 +34,6 @@ import {
   ReleaseBadge,
   VersionBadge,
   LevelBadge,
-  StatusMessageBadge,
 } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
@@ -51,11 +50,14 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   ChevronDown,
   EllipsisVertical,
   ListPlus,
   LockIcon,
+  MessageSquare,
+  MessageSquareOff,
   MoreHorizontal,
   SquarePen,
   Terminal,
@@ -197,7 +199,7 @@ export const ObservationDetailViewHeader = memo(
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  // forceMount + hide-when-closed: CommentDrawerButton lives in
+                  // forceMount + hide-when-closed: CommentDrawerController lives in
                   // here, and its deep-link auto-open effect (?comments=open) and
                   // controlled inline-selection flow only work while mounted. A
                   // default Popover unmounts its content when closed (the default
@@ -319,17 +321,37 @@ export const ObservationDetailViewHeader = memo(
                         )}
                       </JumpToPlaygroundController>
                     )}
-                  <CommentDrawerButton
+                  <CommentDrawerController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType="OBSERVATION"
                     count={commentCount}
-                    layout="menu"
                     pendingSelection={pendingSelection}
                     onSelectionUsed={onSelectionUsed}
                     isOpen={isCommentDrawerOpen}
                     onOpenChange={onCommentDrawerOpenChange}
-                  />
+                  >
+                    {({ disabled, openDrawer }) => (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={openDrawer}
+                        className="w-full justify-start gap-2 font-normal"
+                      >
+                        {disabled ? (
+                          <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4" />
+                        )}
+                        <span className="text-sm">Add comment</span>
+                        {!disabled && commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </Button>
+                    )}
+                  </CommentDrawerController>
                 </PopoverContent>
               </Popover>
             )}
@@ -451,17 +473,39 @@ export const ObservationDetailViewHeader = memo(
                     )}
                   </JumpToPlaygroundController>
                 )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={observation.id}
                 objectType="OBSERVATION"
                 count={commentCount}
-                size="sm"
                 pendingSelection={pendingSelection}
                 onSelectionUsed={onSelectionUsed}
                 isOpen={isCommentDrawerOpen}
                 onOpenChange={onCommentDrawerOpenChange}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="gap-1"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>Add comment</span>
+                        {!!commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CommentDrawerController>
             </div>
           )}
         </div>
@@ -551,7 +595,6 @@ export const ObservationDetailViewHeader = memo(
                 modelParameters={observation.modelParameters}
               />
               <LevelBadge level={observation.level} />
-              <StatusMessageBadge statusMessage={observation.statusMessage} />
               {observation.promptId && (
                 <PromptBadge
                   promptId={observation.promptId}
