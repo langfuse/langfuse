@@ -1,7 +1,9 @@
 import {
   arrayFitsInSingleRowPreview,
   getSmartExpansionState,
+  objectFitsInSingleRowPreview,
   SMALL_ARRAY_THRESHOLD,
+  SMALL_OBJECT_THRESHOLD,
   transformJsonToTableData,
 } from "@/src/components/table/utils/jsonExpansionUtils";
 
@@ -49,11 +51,46 @@ describe("arrayFitsInSingleRowPreview", () => {
   });
 });
 
+describe("objectFitsInSingleRowPreview", () => {
+  it("is true for a short object of primitives", () => {
+    expect(objectFitsInSingleRowPreview({ name: "Ada" })).toBe(true);
+    expect(objectFitsInSingleRowPreview({ ok: true, n: 1 })).toBe(true);
+  });
+
+  it("is true at the preview size limit", () => {
+    const value = Object.fromEntries(
+      Array.from({ length: SMALL_OBJECT_THRESHOLD }, (_, i) => [`k${i}`, i]),
+    );
+    expect(objectFitsInSingleRowPreview(value)).toBe(true);
+  });
+
+  it("is false when the preview would omit fields or nest further", () => {
+    expect(objectFitsInSingleRowPreview({ a: 1, b: 2, c: 3 })).toBe(false);
+    expect(objectFitsInSingleRowPreview({ name: { first: "Ada" } })).toBe(
+      false,
+    );
+  });
+
+  it("is false for empty objects, arrays, and primitives", () => {
+    expect(objectFitsInSingleRowPreview({})).toBe(false);
+    expect(objectFitsInSingleRowPreview(["Ada"])).toBe(false);
+    expect(objectFitsInSingleRowPreview("Ada")).toBe(false);
+  });
+});
+
 describe("getSmartExpansionState", () => {
   it("does not expand a short primitive list whose preview already shows every item", () => {
     const rows = tableRows({
       brand: "Acme",
       channels: ["email", "paid_social"],
+    });
+
+    expect(getSmartExpansionState(rows, DEFAULT_MAX_ROWS)).toEqual({});
+  });
+
+  it("does not expand a short object whose preview already shows every field", () => {
+    const rows = tableRows({
+      user: { name: "Ada" },
     });
 
     expect(getSmartExpansionState(rows, DEFAULT_MAX_ROWS)).toEqual({});

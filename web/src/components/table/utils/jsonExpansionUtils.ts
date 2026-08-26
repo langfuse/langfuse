@@ -5,6 +5,9 @@
 /** Arrays at or below this size show every item in the parent-row preview. */
 export const SMALL_ARRAY_THRESHOLD = 5;
 
+/** Objects at or below this many primitive fields show those fields inline. */
+export const SMALL_OBJECT_THRESHOLD = 2;
+
 const DEEPEST_DEFAULT_EXPANSION_LEVEL = 10;
 
 // Convert row ID (e.g., "metadata-settings-theme") to key path (e.g., "metadata.settings.theme")
@@ -85,6 +88,28 @@ export function arrayFitsInSingleRowPreview(value: unknown): boolean {
   return value.every(isPrimitiveJsonValue);
 }
 
+/**
+ * True when the table's single-row object preview already shows every field
+ * completely (a short object of primitives). Those objects should stay
+ * collapsed by default so the preview is not duplicated as child rows.
+ */
+export function objectFitsInSingleRowPreview(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0 || entries.length > SMALL_OBJECT_THRESHOLD) {
+    return false;
+  }
+  return entries.every(([, field]) => isPrimitiveJsonValue(field));
+}
+
+function valueFitsInSingleRowPreview(value: unknown): boolean {
+  return (
+    arrayFitsInSingleRowPreview(value) || objectFitsInSingleRowPreview(value)
+  );
+}
+
 function findOptimalExpansionLevel(
   data: JsonTableRow[],
   maxRows: number,
@@ -115,7 +140,7 @@ function findOptimalExpansionLevel(
     for (const row of rows) {
       // Short primitive lists stay collapsed; don't spend the row budget on
       // children the user will not see by default.
-      if (arrayFitsInSingleRowPreview(row.value)) continue;
+      if (valueFitsInSingleRowPreview(row.value)) continue;
 
       if (row.hasChildren && row.rawChildData) {
         if (typeof row.rawChildData !== "object" || row.rawChildData === null) {
@@ -151,8 +176,8 @@ function findOptimalExpansionLevel(
 
 /**
  * Default expand/collapse map for the pretty JSON table.
- * Short primitive lists stay collapsed because their parent-row preview
- * already shows the full contents.
+ * Short primitive lists and short primitive objects stay collapsed because
+ * their parent-row preview already shows the full contents.
  */
 export function getSmartExpansionState(
   data: JsonTableRow[],
@@ -168,7 +193,7 @@ export function getSmartExpansionState(
       if (
         !row.hasChildren ||
         currentLevel >= optimalLevel ||
-        arrayFitsInSingleRowPreview(row.value)
+        valueFitsInSingleRowPreview(row.value)
       ) {
         continue;
       }

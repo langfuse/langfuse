@@ -107,7 +107,7 @@ describe("PrettyJsonView short-list expansion", () => {
     expect(within(prettyTable()).getByText('["a\\"b"]')).toBeInTheDocument();
   });
 
-  it("still expands a short list of objects whose preview is incomplete", () => {
+  it("still expands a short list of objects and previews the collapsed object fields", () => {
     renderPrettyJson(
       <PrettyJsonView
         json={{
@@ -119,9 +119,36 @@ describe("PrettyJsonView short-list expansion", () => {
 
     const table = prettyTable();
     // The list itself expands so each object is a child row. Nested object
-    // keys stay collapsed (one-level smart expansion) and show "N items".
+    // keys stay collapsed; the object preview shows the short fields.
     expect(within(table).getByText("0")).toBeInTheDocument();
-    expect(within(table).getByText("1 items")).toBeInTheDocument();
+    expect(within(table).getByText('{"name": "Ada"}')).toBeInTheDocument();
+    expect(within(table).queryByText("1 items")).not.toBeInTheDocument();
     expect(within(table).queryByText("name")).not.toBeInTheDocument();
+  });
+
+  it("hides a short object preview after the user expands it", () => {
+    renderPrettyJson(
+      <PrettyJsonView
+        json={{
+          users: [{ name: "Ada" }],
+        }}
+        title="Input"
+      />,
+    );
+
+    const table = prettyTable();
+    const objectRow = within(table).getByText("0").closest("tr");
+    expect(objectRow).not.toBeNull();
+    const expandButton = within(objectRow as HTMLElement).getAllByRole(
+      "button",
+    )[0];
+    fireEvent.click(expandButton!);
+
+    const expandedTable = prettyTable();
+    expect(
+      within(expandedTable).queryByText('{"name": "Ada"}'),
+    ).not.toBeInTheDocument();
+    expect(within(expandedTable).getByText("name")).toBeInTheDocument();
+    expect(within(expandedTable).getByText('"Ada"')).toBeInTheDocument();
   });
 });
