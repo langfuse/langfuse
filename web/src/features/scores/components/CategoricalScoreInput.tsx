@@ -47,7 +47,7 @@ export function CategoricalScoreInput({
   disabled: boolean;
   name: string;
   source: AnalyticsData["source"] | undefined;
-  onValueChange: (value: string) => void;
+  onValueChange: (value: string, numericValue?: number) => void;
 }) {
   const hasConfigCudAccess = useHasProjectAccess({
     projectId,

@@ -62,6 +62,19 @@ export const enrichCategoryOptionsWithStaleScoreValue = (
   ];
 };
 
+export const resolveCategoricalNumericValue = ({
+  categories,
+  stringValue,
+  numericValue,
+}: {
+  categories?: Pick<ScoreConfigCategoryDomain, "label" | "value">[];
+  stringValue: string;
+  numericValue?: number;
+}): number | undefined => {
+  if (isPresent(numericValue)) return numericValue;
+  return categories?.find(({ label }) => label === stringValue)?.value;
+};
+
 export const nextCategoryValue = (
   categories: Pick<ScoreConfigCategoryDomain, "value">[],
 ): number => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { type ScoreConfigDomain } from "@langfuse/shared";
+import { isPresent, type ScoreConfigDomain } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -31,7 +31,7 @@ export function AddScoreCategoryDialog({
   initialLabel: string;
   source: AnalyticsData["source"] | undefined;
   onClose: () => void;
-  onCategoryAdded: (label: string) => void;
+  onCategoryAdded: (label: string, numericValue: number) => void;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -40,7 +40,7 @@ export function AddScoreCategoryDialog({
   const validationError = validateNewCategoryLabel(label, existingCategories);
 
   const appendCategory = api.scoreConfigs.appendCategory.useMutation({
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (data, variables) => {
       capture(
         "score_configs:add_category_inline",
         source ? { source } : undefined,
@@ -49,7 +49,12 @@ export function AddScoreCategoryDialog({
         utils.scoreConfigs.invalidate(),
         utils.annotationQueues.invalidate(),
       ]);
-      onCategoryAdded(variables.label);
+      const added = data.categories?.find(
+        (category) => category.label === variables.label,
+      );
+      if (isPresent(added?.value)) {
+        onCategoryAdded(variables.label, added.value);
+      }
       onClose();
     },
     onError: (error) => {

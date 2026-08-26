@@ -4,6 +4,7 @@ import {
   appendCategoryToExisting,
   getAddCategoryActionLabel,
   nextCategoryValue,
+  resolveCategoricalNumericValue,
   validateNewCategoryLabel,
 } from "@/src/features/scores/lib/annotationFormHelpers";
 
@@ -53,6 +54,38 @@ describe("getAddCategoryActionLabel", () => {
     expect(getAddCategoryActionLabel("internal_user", ["internal_user"])).toBe(
       "Add new category",
     );
+  });
+});
+
+describe("resolveCategoricalNumericValue", () => {
+  const staleCategories = [{ label: "internal_user", value: 0 }];
+
+  it("cannot resolve a label that is missing from a stale category list", () => {
+    expect(
+      resolveCategoricalNumericValue({
+        categories: staleCategories,
+        stringValue: "pen_testing",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("uses the server-returned value when the stale list does not include the new label", () => {
+    expect(
+      resolveCategoricalNumericValue({
+        categories: staleCategories,
+        stringValue: "pen_testing",
+        numericValue: 1,
+      }),
+    ).toBe(1);
+  });
+
+  it("looks up an existing category when no numeric value is provided", () => {
+    expect(
+      resolveCategoricalNumericValue({
+        categories: staleCategories,
+        stringValue: "internal_user",
+      }),
+    ).toBe(0);
   });
 });
 

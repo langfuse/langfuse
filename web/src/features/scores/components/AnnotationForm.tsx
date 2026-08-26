@@ -54,6 +54,7 @@ import { AnnotateFormSchema } from "@/src/features/scores/schema";
 import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
 import {
   enrichCategoryOptionsWithStaleScoreValue,
+  resolveCategoricalNumericValue,
   resolveConfigValue,
   validateNumericScore,
 } from "@/src/features/scores/lib/annotationFormHelpers";
@@ -537,15 +538,21 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     handleUpsert(index, field.value as number, null);
   };
 
-  const handleCategoricalUpsert = (index: number, stringValue: string) => {
+  const handleCategoricalUpsert = (
+    index: number,
+    stringValue: string,
+    numericValue?: number,
+  ) => {
     const field = controlledFields[index];
     const config = configs.find((c) => c.id === field.configId);
 
     if (!config || !field) return;
 
-    const numericCategoryValue = config.categories?.find(
-      ({ label }) => label === stringValue,
-    )?.value;
+    const numericCategoryValue = resolveCategoricalNumericValue({
+      categories: config.categories,
+      stringValue,
+      numericValue,
+    });
 
     if (!isPresent(numericCategoryValue)) return;
 
@@ -1061,9 +1068,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                         value={field.value ?? ""}
                                         disabled={isInputDisabled(config)}
                                         source={analyticsData?.source}
-                                        onValueChange={(value) => {
+                                        onValueChange={(
+                                          value,
+                                          numericValue,
+                                        ) => {
                                           field.onChange(value);
-                                          handleCategoricalUpsert(index, value);
+                                          handleCategoricalUpsert(
+                                            index,
+                                            value,
+                                            numericValue,
+                                          );
                                         }}
                                       />
                                     </FormControl>
