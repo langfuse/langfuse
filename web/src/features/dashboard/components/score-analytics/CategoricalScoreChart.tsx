@@ -115,12 +115,10 @@ export function CategoricalScoreChart(props: {
           row_limit: 100,
           subtle_fill: true,
         }}
-        // This chart shows exactly one score's categorical values — unlock
-        // verdict coloring and True/False polarity by name. (LFE-15467)
-        semanticContext={{
-          field: "score-categorical",
-          scoreName: props.scoreData.name,
-        }}
+        // No semanticContext: scoreChartDataToDataPoints emits bin labels
+        // ("Aggregation" / timestamps) as `dimension`, not category values, so
+        // verdict coloring (LFE-15467) can't apply until this chart's adapter
+        // carries categories as series.
       />
     </div>
   );

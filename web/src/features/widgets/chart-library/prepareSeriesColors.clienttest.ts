@@ -87,6 +87,18 @@ describe("matchSeriesStatus", () => {
     // "unsafe" must not match its "safe" root.
     expect(matchSeriesStatus("True", ctx("unsafe_content"))).toBe("error");
     expect(matchSeriesStatus("True", ctx("schema_valid"))).toBe("ok");
+    // Noun-form negations must not fall through to their positive root
+    // ("irrelevance" contains RELEVAN — polarity would invert).
+    expect(matchSeriesStatus("True", ctx("answer_irrelevance"))).toBe("error");
+    expect(matchSeriesStatus("True", ctx("response_incoherence"))).toBe(
+      "error",
+    );
+    expect(matchSeriesStatus("True", ctx("factual_inaccuracy"))).toBe("error");
+    expect(matchSeriesStatus("True", ctx("noncompliance"))).toBe("error");
+    expect(matchSeriesStatus("True", ctx("ungrounded_claims"))).toBe("error");
+    expect(matchSeriesStatus("False", ctx("unsuccessful_resolution"))).toBe(
+      "ok",
+    );
     // Violation-detector names: VALIDATOR is stripped before the positive
     // scan; polarity comes from the rest of the name or not at all.
     expect(

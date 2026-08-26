@@ -175,8 +175,18 @@ const NEGATIVE_SCORE_NAME_KEYWORDS = [
   "INVALID",
   "INCORRECT",
   "UNHELPFUL",
-  "IRRELEVANT",
+  // Negated stems must cover every word-form variant, or a noun form falls
+  // through to its positive root and INVERTS polarity ("irrelevance" contains
+  // RELEVAN): stem the negation at least as short as the positive stem.
+  "IRRELEVAN",
   "UNFAITHFUL",
+  "INACCURA",
+  "INCOHEREN",
+  "NONCOMPLIAN",
+  "NON-COMPLIAN",
+  "NON_COMPLIAN",
+  "UNSUCCESS",
+  "UNGROUNDED",
   "INJECTION",
   "JAILBREAK",
   "PROFANIT",
