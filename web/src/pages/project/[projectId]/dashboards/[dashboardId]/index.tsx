@@ -84,6 +84,10 @@ import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/ui/layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
 // immediately to the right when that fits the 12-column grid, otherwise
@@ -98,7 +102,13 @@ function placementNextTo(anchor: DashboardPlacement) {
   };
 }
 
-export default function DashboardDetail() {
+export default function DashboardDetailPage() {
+  const route = useReadyRouteParams(["projectId", "dashboardId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return <DashboardDetail />;
+}
+
+function DashboardDetail() {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
