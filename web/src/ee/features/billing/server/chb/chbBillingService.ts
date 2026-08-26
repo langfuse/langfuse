@@ -306,9 +306,12 @@ export class ChbBillingService {
       organizationId: session.organizationId,
     });
     if (!validatedChb.success || !validatedChb.data) {
-      // safeParse, not parse: a raw ZodError escaping the service surfaces as
-      // an opaque 500, and the CHB response schemas are deliberately loose, so
-      // a malformed organization id is a wire-format problem worth naming.
+      // The client's own ChbCheckoutSessionSchema already rejects a non-uuid
+      // id, so this guards the stored schema drifting from the wire schema
+      // rather than a malformed CHB response: whatever is about to be written
+      // has to satisfy the schema every later read parses it back through.
+      // safeParse, not parse, because a raw ZodError escaping the service would
+      // surface as an opaque 500 instead of this named one.
       logger.error("chbBillingService.checkout.session.create:invalidChOrgId", {
         orgId,
         returnedChOrganizationId: session.organizationId,

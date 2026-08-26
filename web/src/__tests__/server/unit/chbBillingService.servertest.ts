@@ -344,15 +344,16 @@ describe("chbBillingService", () => {
       expect(executeRaw).not.toHaveBeenCalled();
     });
 
-    it("refuses an unusable organization id rather than leaking a ZodError", async () => {
+    it("refuses to persist an id the stored schema rejects", async () => {
       withOrg(null);
       clientMock.createCheckoutSession.mockResolvedValue({
         url: session.url,
         organizationId: "not-a-uuid",
       });
 
-      // A ZodError escaping here would surface as an opaque 500, and a bad id
-      // reaching Postgres would make parseDbOrg null the whole cloudConfig.
+      // Mocking the client bypasses ChbCheckoutSessionSchema, so this covers
+      // the service's own write-side gate: a bad id reaching Postgres would
+      // make parseDbOrg null the whole cloudConfig on every later read.
       expect(
         await trpcCode(
           service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
