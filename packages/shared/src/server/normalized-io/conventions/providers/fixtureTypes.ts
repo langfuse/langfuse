@@ -1,4 +1,4 @@
-import type { ResourceSpan } from "../../../../otel/OtelIngestionProcessor";
+import type { ResourceSpan } from "../../../../server/otel/OtelIngestionProcessor";
 import type { NormalizedIO, SpanIO } from "../../types";
 
 type OtelScopeSpan = NonNullable<ResourceSpan["scopeSpans"]>[number];

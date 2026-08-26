@@ -1,7 +1,7 @@
 import {
   MEDIA_REFERENCE_PATTERN,
   MediaReferenceStringSchema,
-} from "../../../../../../utils/IORepresentation/chatML/types";
+} from "../../../../../utils/IORepresentation/chatML/types";
 import { compact, toProviderMetadata } from "../../utils/json";
 import type { FilePart, NormalizedMessagePart } from "../../../types";
 

@@ -1,7 +1,7 @@
 import type {
   ObservationForEval,
   ToolCallForEval,
-} from "../../../../features/evals/observationForEval";
+} from "../../evals/observationForEval";
 import type { NormalizedIO, NormalizedMessage, ToolDefinition } from "../types";
 
 /**
