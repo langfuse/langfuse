@@ -46,13 +46,14 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import {
   ChevronDown,
+  EllipsisVertical,
   ListPlus,
   LockIcon,
   MoreHorizontal,
@@ -151,7 +152,7 @@ export const ObservationDetailViewHeader = memo(
             >
               {observation.name || observation.id}
             </span>
-            <DetailHeaderActionsMenu
+            <DetailHeaderActionsMenuController
               idItems={[
                 { id: traceId, name: "Trace ID" },
                 { id: observation.id, name: "Observation ID" },
@@ -164,7 +165,21 @@ export const ObservationDetailViewHeader = memo(
                 observationId: observation.id,
                 sessionId: observation.sessionId ?? null,
               }}
-            />
+            >
+              {({ Trigger }) => (
+                <Trigger asChild>
+                  <Button
+                    aria-label="Options"
+                    className="mt-0.5 shrink-0"
+                    size="icon-xs"
+                    title="Options"
+                    variant="ghost"
+                  >
+                    <EllipsisVertical className="h-4 w-4" />
+                  </Button>
+                </Trigger>
+              )}
+            </DetailHeaderActionsMenuController>
             {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
                 full-width labeled rows, next to the `⋮` utility menu. */}
             {isMobile && (
