@@ -5,6 +5,10 @@ import {
   getInAppAgentModelConfig,
   type InAppAgentModelConfig,
 } from "../../in-app-agent/server/modelProvider";
+import {
+  parseLangfuseAIUseResponsesApi,
+  resolveLangfuseAIOpenAICall,
+} from "../../in-app-agent/server/openaiCompatibility";
 import { type ChatMessage, LLMAdapter, type TraceSinkParams } from "./types";
 import { generateLLMText, mapLegacyLLMCompletionParams } from "./llmText";
 import { randomBytes } from "crypto";
@@ -97,7 +101,14 @@ function toLangfuseAICompletionParams(params: {
         },
         credentialSource: "langfuse" as const,
       };
-    case "openai":
+    case "openai": {
+      const { apiMode } = resolveLangfuseAIOpenAICall({
+        baseURL: modelConfig.baseURL,
+        useResponsesApi: parseLangfuseAIUseResponsesApi(
+          env.LANGFUSE_AI_USE_RESPONSES_API,
+        ),
+      });
+
       return {
         messages,
         modelParams: {
@@ -109,10 +120,12 @@ function toLangfuseAICompletionParams(params: {
         connection: {
           secretKey: encrypt(modelConfig.apiKey),
           baseURL: modelConfig.baseURL,
+          config: { useResponsesApi: apiMode === "responses" },
           ...encryptedExtraHeaders(modelConfig.extraHeaders),
         },
         credentialSource: "langfuse" as const,
       };
+    }
     case "bedrock":
       return {
         messages,

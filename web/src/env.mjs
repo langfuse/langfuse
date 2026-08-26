@@ -463,11 +463,13 @@ export const env = createEnv({
     // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+    // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
     LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
     LANGFUSE_AI_MODEL: z.string().optional(),
     LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
     LANGFUSE_AI_API_KEY: z.string().optional(),
     LANGFUSE_AI_BASE_URL: z.string().optional(),
+    LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
     LANGFUSE_AI_EXTRA_HEADERS: z
       .string()
       .optional()
@@ -1022,6 +1024,7 @@ export const env = createEnv({
     LANGFUSE_AI_SMALL_MODEL: process.env.LANGFUSE_AI_SMALL_MODEL,
     LANGFUSE_AI_API_KEY: process.env.LANGFUSE_AI_API_KEY,
     LANGFUSE_AI_BASE_URL: process.env.LANGFUSE_AI_BASE_URL,
+    LANGFUSE_AI_USE_RESPONSES_API: process.env.LANGFUSE_AI_USE_RESPONSES_API,
     LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,

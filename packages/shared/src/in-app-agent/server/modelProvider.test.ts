@@ -10,6 +10,7 @@ const original = {
   LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
   LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
   LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
+  LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
   LANGFUSE_AI_EXTRA_HEADERS: env.LANGFUSE_AI_EXTRA_HEADERS,
   LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
@@ -165,7 +166,7 @@ describe("getInAppAgentModelConfig", () => {
     });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toEqual(
-      "Ignoring LANGFUSE_AI_API_KEY and LANGFUSE_AI_BASE_URL and LANGFUSE_AI_EXTRA_HEADERS because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an API key, base URL, or extra headers.",
+      "Ignoring LANGFUSE_AI_API_KEY and LANGFUSE_AI_BASE_URL and LANGFUSE_AI_EXTRA_HEADERS because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.",
     );
 
     warn.mockRestore();

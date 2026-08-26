@@ -1,10 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { env } from "@langfuse/shared/src/env";
 import {
   createInAppAgentLanguageModel,
   getBedrockReasoningProviderOptions,
   getInAppAgentReasoningProviderOptions,
 } from "./model";
+import { applyPromptCacheToCall } from "./promptCache";
+
+const originalUseResponsesApi = env.LANGFUSE_AI_USE_RESPONSES_API;
+
+beforeEach(() => {
+  Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: undefined });
+});
+
+afterEach(() => {
+  Object.assign(env, {
+    LANGFUSE_AI_USE_RESPONSES_API: originalUseResponsesApi,
+  });
+});
 
 describe("getBedrockReasoningProviderOptions", () => {
   it("sends adaptive thinking with medium effort and summarized display to Claude models", () => {
@@ -55,7 +69,9 @@ describe("getInAppAgentReasoningProviderOptions", () => {
     });
   });
 
-  it("sends no thinking config for OpenAI", () => {
+  it("requests OpenAI reasoning summaries for first-party Responses", () => {
+    // Without reasoning.summary the Responses API emits empty reasoning
+    // items; the UI drops completed blocks that have no content.
     expect(
       getInAppAgentReasoningProviderOptions({
         provider: "openai",
@@ -63,7 +79,23 @@ describe("getInAppAgentReasoningProviderOptions", () => {
         titleModelId: "gpt-5.6-luna",
         apiKey: "sk-test",
       }),
-    ).toBeUndefined();
+    ).toEqual({
+      openai: { reasoningSummary: "auto" },
+    });
+  });
+
+  it("requests Chat Completions reasoning tokens on compatible proxies", () => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "openai",
+        modelId: "anthropic/claude-opus-4.6",
+        titleModelId: "anthropic/claude-haiku-4.5",
+        apiKey: "sk-test",
+        baseURL: "https://llm-exec.internal/v1",
+      }),
+    ).toEqual({
+      openai: { reasoningEffort: "medium" },
+    });
   });
 });
 
@@ -111,6 +143,213 @@ describe("OpenAI Chat Completions request shape", () => {
     expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
     expect(calls[0]?.headers.get("x-llm-exec-token")).toBe("proxy-token");
     expect(calls[0]?.body).not.toHaveProperty("thinking");
+    expect(calls[0]?.body.reasoning_effort).toBe("medium");
+    expect(calls[0]?.body).not.toHaveProperty("reasoning");
+  });
+
+  it("posts function tools to Chat Completions with reasoning_effort", async () => {
+    const config = {
+      provider: "openai" as const,
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-exec.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "chatcmpl-1",
+      object: "chat.completion",
+      choices: [
+        {
+          index: 0,
+          message: { role: "assistant", content: "ok" },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      tools: [lookupTraceTool],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls[0]?.url).toBe("https://llm-exec.internal/v1/chat/completions");
+    expect(calls[0]?.body.reasoning_effort).toBe("medium");
+    expect(calls[0]?.body).not.toHaveProperty("reasoning");
+    expect(calls[0]?.body.tools).toEqual([
+      {
+        type: "function",
+        function: {
+          name: "lookup_trace",
+          description: "Look up a trace",
+          parameters: {
+            type: "object",
+            properties: { id: { type: "string" } },
+            additionalProperties: false,
+          },
+        },
+      },
+    ]);
+  });
+
+  it("posts Anthropic cache_control on Chat Completions for anthropic model slugs", async () => {
+    const config = {
+      provider: "openai" as const,
+      modelId: "anthropic/claude-opus-4.6",
+      titleModelId: "anthropic/claude-haiku-4.5",
+      apiKey: "sk-or-test",
+      baseURL: "https://openrouter.ai/api/v1",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "chatcmpl-1",
+      object: "chat.completion",
+      choices: [
+        {
+          index: 0,
+          message: { role: "assistant", content: "ok" },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    const prompt = [
+      { role: "system" as const, content: "You are the Langfuse assistant." },
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "hello" }],
+      },
+    ];
+    await model.doGenerate(
+      applyPromptCacheToCall({
+        provider: String(model.provider),
+        modelId: model.modelId,
+        options: { prompt },
+      }),
+    );
+
+    expect(calls[0]?.url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(calls[0]?.body.messages).toEqual([
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        cache_control: { type: "ephemeral" },
+      },
+      {
+        role: "user",
+        content: "hello",
+        cache_control: { type: "ephemeral" },
+      },
+    ]);
+  });
+});
+
+describe("OpenAI Responses request shape", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts first-party OpenAI function tools to the Responses API", async () => {
+    const config = {
+      provider: "openai" as const,
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "resp_1",
+      object: "response",
+      created_at: 1,
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      model: config.modelId,
+      output: [
+        {
+          type: "message",
+          id: "msg_1",
+          status: "completed",
+          role: "assistant",
+          content: [{ type: "output_text", text: "ok", annotations: [] }],
+        },
+      ],
+      usage: {
+        input_tokens: 1,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens: 1,
+        output_tokens_details: { reasoning_tokens: 0 },
+        total_tokens: 2,
+      },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      tools: [lookupTraceTool],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://api.openai.com/v1/responses");
+    expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
+    expect(calls[0]?.body.reasoning).toEqual({ summary: "auto" });
+    expect(calls[0]?.body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("posts function tools to /v1/responses when a custom URL opts into Responses", async () => {
+    Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-exec.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "resp_1",
+      object: "response",
+      created_at: 1,
+      status: "completed",
+      error: null,
+      incomplete_details: null,
+      model: config.modelId,
+      output: [
+        {
+          type: "message",
+          id: "msg_1",
+          status: "completed",
+          role: "assistant",
+          content: [{ type: "output_text", text: "ok", annotations: [] }],
+        },
+      ],
+      usage: {
+        input_tokens: 1,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens: 1,
+        output_tokens_details: { reasoning_tokens: 0 },
+        total_tokens: 2,
+      },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      tools: [lookupTraceTool],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://llm-exec.internal/v1/responses");
+    expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
+    expect(calls[0]?.body.reasoning).toEqual({ summary: "auto" });
   });
 });
 
@@ -162,6 +401,26 @@ describe("Anthropic Messages request shape", () => {
     });
   });
 });
+
+const lookupTraceTool = {
+  type: "function" as const,
+  name: "lookup_trace",
+  description: "Look up a trace",
+  inputSchema: {
+    type: "object" as const,
+    properties: { id: { type: "string" } },
+    additionalProperties: false,
+  },
+};
+
+function userPrompt() {
+  return [
+    {
+      role: "user" as const,
+      content: [{ type: "text" as const, text: "hi" }],
+    },
+  ];
+}
 
 function createCaptureFetch(response: unknown) {
   const calls: Array<{

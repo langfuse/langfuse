@@ -9,7 +9,12 @@ const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
 const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
 
 /**
- * Prompt cache for Claude on Bedrock Converse and native Anthropic Messages.
+ * Prompt cache for Claude on Bedrock Converse, native Anthropic Messages,
+ * and Anthropic slugs behind an OpenAI-compatible gateway (OpenRouter,
+ * LiteLLM). Those gateways accept Anthropic `cache_control` on Chat
+ * Completions; `@ai-sdk/openai-compatible` only forwards
+ * `providerOptions.openaiCompatible`, so Anthropic checkpoints also stamp
+ * that namespace.
  *
  * A checkpoint writes the prefix `tools → that message`. The next call
  * cache-reads only if that prefix is byte-identical. Hits last 5 minutes
@@ -109,6 +114,11 @@ function resolvePromptCacheProvider(
     provider.includes("anthropic") &&
     modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
   ) {
+    return "anthropic";
+  }
+  // OpenRouter / LiteLLM Chat Completions: provider is `openai.chat` but
+  // the upstream model id is still `anthropic/claude-…`.
+  if (modelId.includes("anthropic")) {
     return "anthropic";
   }
   return undefined;
@@ -226,7 +236,11 @@ function withAnthropicCacheControl(message: unknown) {
     return message;
   }
 
-  return {
+  const openaiCompatible = isRecord(providerOptions.openaiCompatible)
+    ? providerOptions.openaiCompatible
+    : {};
+
+  return withOpenAICompatibleCacheControlOnLastPart({
     ...message,
     providerOptions: {
       ...providerOptions,
@@ -234,6 +248,52 @@ function withAnthropicCacheControl(message: unknown) {
         ...anthropic,
         cacheControl: ANTHROPIC_CACHE_CONTROL,
       },
+      openaiCompatible: {
+        ...openaiCompatible,
+        cache_control: ANTHROPIC_CACHE_CONTROL,
+      },
     },
+  });
+}
+
+function withOpenAICompatibleCacheControlOnLastPart(
+  message: Record<string, unknown>,
+) {
+  if (!Array.isArray(message.content) || message.content.length === 0) {
+    return message;
+  }
+
+  const lastIndex = message.content.length - 1;
+  const lastPart = message.content[lastIndex];
+  if (!isRecord(lastPart)) {
+    return message;
+  }
+
+  const partOptions = isRecord(lastPart.providerOptions)
+    ? lastPart.providerOptions
+    : {};
+  const openaiCompatible = isRecord(partOptions.openaiCompatible)
+    ? partOptions.openaiCompatible
+    : {};
+
+  if (isRecord(openaiCompatible.cache_control)) {
+    return message;
+  }
+
+  const nextContent = message.content.slice();
+  nextContent[lastIndex] = {
+    ...lastPart,
+    providerOptions: {
+      ...partOptions,
+      openaiCompatible: {
+        ...openaiCompatible,
+        cache_control: ANTHROPIC_CACHE_CONTROL,
+      },
+    },
+  };
+
+  return {
+    ...message,
+    content: nextContent,
   };
 }

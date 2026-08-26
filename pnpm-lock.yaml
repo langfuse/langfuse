@@ -1090,6 +1090,9 @@ importers:
       ai-sdk-anthropic-v4:
         specifier: npm:@ai-sdk/anthropic@3.0.111
         version: '@ai-sdk/anthropic@3.0.111(zod@4.3.6)'
+      ai-sdk-openai-compatible-v4:
+        specifier: npm:@ai-sdk/openai-compatible@3.0.3
+        version: '@ai-sdk/openai-compatible@3.0.3(zod@4.3.6)'
       ai-sdk-openai-v4:
         specifier: npm:@ai-sdk/openai@3.0.99
         version: '@ai-sdk/openai@3.0.99(zod@4.3.6)'

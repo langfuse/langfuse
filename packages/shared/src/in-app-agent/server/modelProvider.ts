@@ -53,6 +53,7 @@ const extraHeadersRecordSchema = z.record(z.string(), z.string());
  * LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
  * apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
  * LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+ * LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
  */
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
@@ -150,12 +151,15 @@ function warnIfBedrockIgnoresNonBedrockEnv() {
   if (env.LANGFUSE_AI_EXTRA_HEADERS) {
     ignored.push("LANGFUSE_AI_EXTRA_HEADERS");
   }
+  if (env.LANGFUSE_AI_USE_RESPONSES_API) {
+    ignored.push("LANGFUSE_AI_USE_RESPONSES_API");
+  }
   if (ignored.length === 0) {
     return;
   }
 
   logger.warn(
-    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an API key, base URL, or extra headers.`,
+    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.`,
   );
 }
 

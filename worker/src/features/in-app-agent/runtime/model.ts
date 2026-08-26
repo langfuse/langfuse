@@ -1,8 +1,15 @@
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { createAnthropic } from "ai-sdk-anthropic-v4";
+import { createOpenAICompatible } from "ai-sdk-openai-compatible-v4";
 import { createOpenAI } from "ai-sdk-openai-v4";
 
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import {
+  isOpenAICompatibleEndpoint,
+  parseLangfuseAIUseResponsesApi,
+  resolveLangfuseAIOpenAICall,
+} from "@langfuse/shared/in-app-agent/server/openaiCompatibility";
+import { env } from "@langfuse/shared/src/env";
 import { createDefaultBedrockProviderAuth } from "@langfuse/shared/src/server";
 
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
@@ -31,17 +38,9 @@ export function createInAppAgentLanguageModel(params: {
       ) as InAppAgentLanguageModel;
     }
     case "openai": {
-      const openai = createOpenAI({
-        apiKey: params.config.apiKey,
-        ...(params.config.baseURL ? { baseURL: params.config.baseURL } : {}),
-        ...(params.config.extraHeaders
-          ? { headers: params.config.extraHeaders }
-          : {}),
-      });
-
-      // Chat Completions so OpenAI-compatible proxies work; the Responses API
-      // is out of scope for instance-wide Langfuse AI.
-      return openai.chat(params.config.modelId) as InAppAgentLanguageModel;
+      return createOpenAIInAppAgentLanguageModel(
+        params.config,
+      ) as InAppAgentLanguageModel;
     }
     case "bedrock": {
       const bedrock = createAmazonBedrock({
@@ -60,6 +59,45 @@ export function createInAppAgentLanguageModel(params: {
       );
     }
   }
+}
+
+function createOpenAIInAppAgentLanguageModel(config: {
+  modelId: string;
+  apiKey: string;
+  baseURL?: string;
+  extraHeaders?: Record<string, string>;
+}) {
+  const { apiMode } = resolveLangfuseAIOpenAICallFromEnv(config.baseURL);
+  const extraHeaders = config.extraHeaders
+    ? { headers: config.extraHeaders }
+    : {};
+
+  // Match Ask AI / playground: custom OpenAI-compatible URLs use the
+  // compatible Chat Completions client so OpenAI chat heuristics do not
+  // run on a Claude (or other) model id behind a gateway.
+  if (
+    apiMode === "chat-completions" &&
+    isOpenAICompatibleEndpoint(config.baseURL)
+  ) {
+    const openaiCompatible = createOpenAICompatible({
+      name: "openai",
+      apiKey: config.apiKey,
+      baseURL: config.baseURL,
+      ...extraHeaders,
+    });
+
+    return openaiCompatible.languageModel(config.modelId);
+  }
+
+  const openai = createOpenAI({
+    apiKey: config.apiKey,
+    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+    ...extraHeaders,
+  });
+
+  return apiMode === "responses"
+    ? openai.responses(config.modelId)
+    : openai.chat(config.modelId);
 }
 
 // Adaptive thinking is the default for every Claude model so new generations
@@ -105,7 +143,7 @@ export function getInAppAgentReasoningProviderOptions(
       };
     }
     case "openai":
-      return undefined;
+      return resolveLangfuseAIOpenAICallFromEnv(config.baseURL).providerOptions;
     case "bedrock":
       return getBedrockReasoningProviderOptions(config.modelId);
     default: {
@@ -113,4 +151,13 @@ export function getInAppAgentReasoningProviderOptions(
       return undefined;
     }
   }
+}
+
+function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
+  return resolveLangfuseAIOpenAICall({
+    baseURL,
+    useResponsesApi: parseLangfuseAIUseResponsesApi(
+      env.LANGFUSE_AI_USE_RESPONSES_API,
+    ),
+  });
 }
