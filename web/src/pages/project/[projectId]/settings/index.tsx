@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
+import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { Button } from "@/src/components/ui/button";
@@ -126,7 +126,20 @@ export const getProjectSettingsPages = ({
               title: "Delete this project",
               description:
                 "Once you delete a project, there is no going back. Please be certain.",
-              button: <DeleteProjectButton />,
+              button: (
+                <DeleteProjectDialogController>
+                  {({ hasAccess, Trigger }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="destructive-secondary"
+                        disabled={!hasAccess}
+                      >
+                        Delete Project
+                      </Button>
+                    </Trigger>
+                  )}
+                </DeleteProjectDialogController>
+              ),
             },
           ]}
         />
