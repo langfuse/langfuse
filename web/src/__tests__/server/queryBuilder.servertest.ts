@@ -2807,6 +2807,187 @@ describe("queryBuilder", () => {
     });
 
     describe("observations view", () => {
+      it("counts per-tool invocations including same-tool repeats (toolCallInvocations)", async () => {
+        const projectId = randomUUID();
+        const trace = createTrace({
+          project_id: projectId,
+          name: "tool-invocations-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        const now = new Date().getTime();
+        const base = {
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          environment: "default",
+          start_time: now,
+          end_time: now + 100,
+        };
+        // One observation with three PARALLEL calls to the same tool, one
+        // with a single call, one calling a different tool: ground truth is
+        // fetch = 4 invocations across 2 observations, search = 1.
+        await createObservationsCh([
+          createObservation({
+            ...base,
+            name: "obs-parallel-fetch",
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-single-fetch",
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-search",
+            tool_calls: ['{"id":"c5"}'],
+            tool_call_names: ["search"],
+          }),
+        ]);
+
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [{ field: "calledToolNames" }],
+          metrics: [
+            { measure: "toolCallInvocations", aggregation: "sum" },
+            // Contrast metric: counting rows dedupes same-tool repeats within
+            // one observation, so this yields observations-per-tool.
+            { measure: "count", aggregation: "count" },
+          ],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(now - 86400000).toISOString(),
+          toTimestamp: new Date(now + 86400000).toISOString(),
+          orderBy: [{ field: "calledToolNames", direction: "asc" }],
+        };
+
+        const result = await executeQuery(projectId, query, "v1", false);
+        expect(result).toHaveLength(2);
+        const fetchRow = result.find((r) => r.calledToolNames === "fetch");
+        const searchRow = result.find((r) => r.calledToolNames === "search");
+        expect(Number(fetchRow!.sum_toolCallInvocations)).toBe(4);
+        expect(Number(fetchRow!.count_count)).toBe(2);
+        expect(Number(searchRow!.sum_toolCallInvocations)).toBe(1);
+        expect(Number(searchRow!.count_count)).toBe(1);
+
+        // The measure is pre-aggregated in the inner query; single-level
+        // optimization must not change the result (it is bypassed).
+        const resultOptimized = await executeQuery(
+          projectId,
+          query,
+          "v1",
+          true,
+        );
+        expect(resultOptimized).toEqual(result);
+      });
+
+      it("auto-includes calledToolNames when toolCallInvocations is queried without dimensions", async () => {
+        const projectId = randomUUID();
+        const trace = createTrace({
+          project_id: projectId,
+          name: "tool-invocations-no-dim-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        const now = new Date().getTime();
+        await createObservationsCh([
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            type: "generation",
+            environment: "default",
+            start_time: now,
+            end_time: now + 100,
+            name: "obs-parallel-fetch",
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}'],
+            tool_call_names: ["fetch", "fetch"],
+          }),
+          createObservation({
+            project_id: projectId,
+            trace_id: trace.id,
+            type: "generation",
+            environment: "default",
+            start_time: now,
+            end_time: now + 100,
+            name: "obs-search",
+            tool_calls: ['{"id":"c3"}'],
+            tool_call_names: ["search"],
+          }),
+        ]);
+
+        // Like costByType/usageByType, the required dimension is auto-included
+        // (the arrayJoin must be emitted), so results come back per tool.
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(now - 86400000).toISOString(),
+            toTimestamp: new Date(now + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v1",
+          false,
+        );
+        const byTool = Object.fromEntries(
+          result.map((r) => [
+            r.calledToolNames,
+            Number(r.sum_toolCallInvocations),
+          ]),
+        );
+        expect(byTool).toEqual({ fetch: 2, search: 1 });
+      });
+
+      it("counts per-tool invocations on the v2 events view (toolCallInvocations)", async () => {
+        const projectId = randomUUID();
+        const now = Date.now() * 1000;
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            start_time: now,
+            end_time: now + 100_000,
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createEvent({
+            project_id: projectId,
+            start_time: now,
+            end_time: now + 100_000,
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "calledToolNames" }],
+            metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          false,
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0].calledToolNames).toBe("fetch");
+        expect(Number(result[0].sum_toolCallInvocations)).toBe(4);
+      });
+
       it("should calculate p95 timeToFirstToken for each trace name using observations view", async () => {
         // Setup
         const projectId = randomUUID();

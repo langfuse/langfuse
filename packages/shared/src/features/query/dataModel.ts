@@ -626,6 +626,19 @@ export const observationsView: ViewDeclarationType = {
       description: "Number of tool calls per observation.",
       unit: "calls",
     },
+    toolCallInvocations: {
+      // count(*) over the inner (observation, exploded tool name) group counts
+      // the arrayJoin repeats, so parallel calls to the SAME tool within one
+      // observation each count — unlike row counts, which dedupe them.
+      sql: "count(*)",
+      alias: "toolCallInvocations",
+      type: "integer",
+      preAggregated: true,
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings.",
+      unit: "calls",
+    },
   },
   tableRelations: {
     traces: {
@@ -1516,6 +1529,18 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "toolCalls",
       type: "integer",
       description: "Number of tool calls per observation.",
+      unit: "calls",
+    },
+    toolCallInvocations: {
+      // See observationsView.toolCallInvocations: inner count(*) counts the
+      // arrayJoin repeats per (observation, tool name) group.
+      sql: "count(*)",
+      alias: "toolCallInvocations",
+      type: "integer",
+      preAggregated: true,
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
     costByType: {

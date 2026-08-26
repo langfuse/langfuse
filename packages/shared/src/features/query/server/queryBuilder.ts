@@ -51,6 +51,7 @@ type AppliedMetricType = {
   aggs?: Record<string, string>;
   measureName: string; // Original measure name for lookups
   requiresDimension?: string;
+  preAggregated?: boolean;
 };
 
 type RawSqlPart = { query: string; params: Record<string, unknown> };
@@ -758,15 +759,20 @@ export class QueryBuilder {
     // 1. All metrics are single-level compatible, which means either:
     //    a. They have aggs configuration (@@AGGN@@ templates that resolve to function
     //       calls), OR
-    //    b. They are pairExpand value-alias measures (requiresDimension is set). These
-    //       reference a plain column brought into scope by the ARRAY JOIN clause and
-    //       work correctly with a direct sum()/avg() in a single SELECT.
+    //    b. They are pairExpand value-alias measures (requiresDimension is set,
+    //       preAggregated is not). These reference a plain column brought into scope
+    //       by the ARRAY JOIN clause and work correctly with a direct sum()/avg()
+    //       in a single SELECT.
     // 2. No custom aggregation functions on dimensions
-    // Measures without either (like uniq(scores.id)) must use the two-level approach.
+    // Measures without either (like uniq(scores.id)) must use the two-level approach,
+    // as must preAggregated measures (their sql is an inner-level aggregate like
+    // count(*), which the single-level shape would nest inside the user aggregation).
     const allMetricsHaveAggs =
       appliedMetrics.length === 0 ||
       appliedMetrics.every(
-        (m) => m.aggs !== undefined || m.requiresDimension !== undefined,
+        (m) =>
+          !m.preAggregated &&
+          (m.aggs !== undefined || m.requiresDimension !== undefined),
       );
 
     // Check if any dimension has custom aggregation
@@ -1091,8 +1097,13 @@ export class QueryBuilder {
         // inner GROUP BY, so wrap it in any() to satisfy ClickHouse. The outer query then
         // applies the real aggregation. We scope this to requiresDimension metrics only —
         // other measures use @@AGGN@@ templates that resolve to function calls, so they
-        // never need this treatment.
-        if (metric.requiresDimension && !sql.includes("(")) {
+        // never need this treatment. preAggregated measures are already inner
+        // aggregates (e.g. count(*) counting arrayJoin repeats) and go through as-is.
+        if (
+          metric.requiresDimension &&
+          !metric.preAggregated &&
+          !sql.includes("(")
+        ) {
           sql = `any(${sql})`;
         }
 
