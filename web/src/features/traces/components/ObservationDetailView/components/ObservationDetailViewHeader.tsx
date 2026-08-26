@@ -25,7 +25,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
-import { JumpToPlaygroundController } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundController } from "@/src/features/playground/page/components/JumpToPlaygroundController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,

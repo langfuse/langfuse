@@ -32,7 +32,7 @@ import {
   PROMPT_TABS,
 } from "@/src/features/navigation/utils/prompt-tabs";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundController } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundController } from "@/src/features/playground/page/components/JumpToPlaygroundController";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import LegacyGenerations from "@/src/components/table/use-cases/observations";
 import EventsTable from "@/src/features/events/components/EventsTable";
