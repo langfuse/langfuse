@@ -5,10 +5,7 @@ import {
   getInAppAgentModelConfig,
   type InAppAgentModelConfig,
 } from "../../in-app-agent/server/modelProvider";
-import {
-  parseLangfuseAIUseResponsesApi,
-  resolveLangfuseAIOpenAICall,
-} from "../../in-app-agent/server/openaiCompatibility";
+import { resolveLangfuseAIOpenAICall } from "../../in-app-agent/server/openaiCompatibility";
 import { type ChatMessage, LLMAdapter, type TraceSinkParams } from "./types";
 import { generateLLMText, mapLegacyLLMCompletionParams } from "./llmText";
 import { randomBytes } from "crypto";
@@ -104,9 +101,7 @@ function toLangfuseAICompletionParams(params: {
     case "openai": {
       const { apiMode } = resolveLangfuseAIOpenAICall({
         baseURL: modelConfig.baseURL,
-        useResponsesApi: parseLangfuseAIUseResponsesApi(
-          env.LANGFUSE_AI_USE_RESPONSES_API,
-        ),
+        useResponsesApi: env.LANGFUSE_AI_USE_RESPONSES_API,
       });
 
       return {

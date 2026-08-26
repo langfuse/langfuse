@@ -132,6 +132,7 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: "claude-haiku-4-5",
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
 

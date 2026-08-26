@@ -8,11 +8,6 @@ const bedrockCachePoint = {
 
 const anthropicCacheControl = {
   anthropic: { cacheControl: { type: "ephemeral" } },
-  openaiCompatible: { cache_control: { type: "ephemeral" } },
-};
-
-const openaiCompatiblePartCache = {
-  openaiCompatible: { cache_control: { type: "ephemeral" } },
 };
 
 const twoMessagePrompt = [
@@ -264,7 +259,6 @@ describe("applyPromptCachePoints", () => {
             somethingElse: true,
             cacheControl: { type: "ephemeral" },
           },
-          openaiCompatible: { cache_control: { type: "ephemeral" } },
         },
       },
       {
@@ -301,48 +295,7 @@ describe("applyPromptCacheToCall", () => {
         },
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: "hello",
-              providerOptions: openaiCompatiblePartCache,
-            },
-          ],
-          providerOptions: anthropicCacheControl,
-        },
-      ],
-    });
-  });
-
-  it("stamps Anthropic cacheControl for OpenAI-compatible Anthropic slugs", () => {
-    const options = {
-      prompt: twoMessagePrompt,
-      maxOutputTokens: 1024,
-    };
-
-    expect(
-      applyPromptCacheToCall({
-        provider: "openai.chat",
-        modelId: "anthropic/claude-opus-4.6",
-        options,
-      }),
-    ).toEqual({
-      maxOutputTokens: 1024,
-      prompt: [
-        {
-          role: "system",
-          content: "You are the Langfuse assistant.",
-          providerOptions: anthropicCacheControl,
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "hello",
-              providerOptions: openaiCompatiblePartCache,
-            },
-          ],
+          content: [{ type: "text", text: "hello" }],
           providerOptions: anthropicCacheControl,
         },
       ],

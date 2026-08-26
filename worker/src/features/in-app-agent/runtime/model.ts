@@ -6,7 +6,6 @@ import { createOpenAI } from "ai-sdk-openai-v4";
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   isOpenAICompatibleEndpoint,
-  parseLangfuseAIUseResponsesApi,
   resolveLangfuseAIOpenAICall,
 } from "@langfuse/shared/in-app-agent/server/openaiCompatibility";
 import { env } from "@langfuse/shared/src/env";
@@ -156,8 +155,6 @@ export function getInAppAgentReasoningProviderOptions(
 function resolveLangfuseAIOpenAICallFromEnv(baseURL: string | undefined) {
   return resolveLangfuseAIOpenAICall({
     baseURL,
-    useResponsesApi: parseLangfuseAIUseResponsesApi(
-      env.LANGFUSE_AI_USE_RESPONSES_API,
-    ),
+    useResponsesApi: env.LANGFUSE_AI_USE_RESPONSES_API,
   });
 }

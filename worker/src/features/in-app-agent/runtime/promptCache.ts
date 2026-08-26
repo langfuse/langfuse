@@ -1,6 +1,6 @@
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
-export type PromptCacheProvider = "bedrock" | "anthropic";
+type PromptCacheProvider = "bedrock" | "anthropic" | "openai-compatible";
 
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const ANTHROPIC_CLAUDE_MODEL_ID_PART = "claude";
@@ -11,10 +11,9 @@ const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
 /**
  * Prompt cache for Claude on Bedrock Converse, native Anthropic Messages,
  * and Anthropic slugs behind an OpenAI-compatible gateway (OpenRouter,
- * LiteLLM). Those gateways accept Anthropic `cache_control` on Chat
- * Completions; `@ai-sdk/openai-compatible` only forwards
- * `providerOptions.openaiCompatible`, so Anthropic checkpoints also stamp
- * that namespace.
+ * LiteLLM). Native Messages get `anthropic.cacheControl`. Compatible
+ * Chat Completions get `openaiCompatible.cache_control` because that SDK
+ * only forwards the `openaiCompatible` namespace.
  *
  * A checkpoint writes the prefix `tools → that message`. The next call
  * cache-reads only if that prefix is byte-identical. Hits last 5 minutes
@@ -119,7 +118,7 @@ function resolvePromptCacheProvider(
   // OpenRouter / LiteLLM Chat Completions: provider is `openai.chat` but
   // the upstream model id is still `anthropic/claude-…`.
   if (modelId.includes("anthropic")) {
-    return "anthropic";
+    return "openai-compatible";
   }
   return undefined;
 }
@@ -187,9 +186,13 @@ function getMessageRole(message: unknown) {
 }
 
 function withPromptCache(message: unknown, cacheProvider: PromptCacheProvider) {
-  return cacheProvider === "bedrock"
-    ? withBedrockCachePoint(message)
-    : withAnthropicCacheControl(message);
+  if (cacheProvider === "bedrock") {
+    return withBedrockCachePoint(message);
+  }
+  if (cacheProvider === "openai-compatible") {
+    return withOpenAICompatibleCacheControl(message);
+  }
+  return withAnthropicCacheControl(message);
 }
 
 function withBedrockCachePoint(message: unknown) {
@@ -236,11 +239,7 @@ function withAnthropicCacheControl(message: unknown) {
     return message;
   }
 
-  const openaiCompatible = isRecord(providerOptions.openaiCompatible)
-    ? providerOptions.openaiCompatible
-    : {};
-
-  return withOpenAICompatibleCacheControlOnLastPart({
+  return {
     ...message,
     providerOptions: {
       ...providerOptions,
@@ -248,6 +247,30 @@ function withAnthropicCacheControl(message: unknown) {
         ...anthropic,
         cacheControl: ANTHROPIC_CACHE_CONTROL,
       },
+    },
+  };
+}
+
+function withOpenAICompatibleCacheControl(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  const providerOptions = isRecord(message.providerOptions)
+    ? message.providerOptions
+    : {};
+  const openaiCompatible = isRecord(providerOptions.openaiCompatible)
+    ? providerOptions.openaiCompatible
+    : {};
+
+  if (isRecord(openaiCompatible.cache_control)) {
+    return message;
+  }
+
+  return withOpenAICompatibleCacheControlOnLastPart({
+    ...message,
+    providerOptions: {
+      ...providerOptions,
       openaiCompatible: {
         ...openaiCompatible,
         cache_control: ANTHROPIC_CACHE_CONTROL,

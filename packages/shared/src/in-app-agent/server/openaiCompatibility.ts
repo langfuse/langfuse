@@ -2,30 +2,18 @@ import { isOpenAICompatibleEndpoint } from "../../server/llm/ai-sdk/providers/op
 
 export { isOpenAICompatibleEndpoint };
 
-export type LangfuseAIOpenAIApiMode = "responses" | "chat-completions";
-
-export type LangfuseAIOpenAICall = {
-  apiMode: LangfuseAIOpenAIApiMode;
-  providerOptions?: {
-    openai: {
-      reasoningSummary?: "auto";
-      reasoningEffort?: "medium";
-    };
-  };
+const RESPONSES_CALL = {
+  apiMode: "responses" as const,
+  providerOptions: { openai: { reasoningSummary: "auto" as const } },
 };
 
-const RESPONSES_CALL: LangfuseAIOpenAICall = {
-  apiMode: "responses",
-  providerOptions: { openai: { reasoningSummary: "auto" } },
-};
-
-const CHAT_COMPLETIONS_CALL: LangfuseAIOpenAICall = {
-  apiMode: "chat-completions",
+const CHAT_COMPLETIONS_CALL = {
+  apiMode: "chat-completions" as const,
   // LiteLLM / OpenAI-compatible Chat Completions knob. Gateways such as
   // LiteLLM and OpenRouter translate `reasoning_effort` into the upstream
   // model's thinking config. The compatible SDK maps response
   // `reasoning_content` to thinking deltas.
-  providerOptions: { openai: { reasoningEffort: "medium" } },
+  providerOptions: { openai: { reasoningEffort: "medium" as const } },
 };
 
 /**
@@ -35,22 +23,16 @@ const CHAT_COMPLETIONS_CALL: LangfuseAIOpenAICall = {
  */
 export function resolveLangfuseAIOpenAICall(params: {
   baseURL?: string | null;
-  useResponsesApi?: boolean;
-}): LangfuseAIOpenAICall {
-  const useResponsesApi =
-    params.useResponsesApi ?? !isOpenAICompatibleEndpoint(params.baseURL);
-
-  return useResponsesApi ? RESPONSES_CALL : CHAT_COMPLETIONS_CALL;
-}
-
-export function parseLangfuseAIUseResponsesApi(
-  value: "true" | "false" | undefined,
-): boolean | undefined {
-  if (value === "true") {
-    return true;
+  useResponsesApi?: boolean | "true" | "false";
+}) {
+  if (params.useResponsesApi === true || params.useResponsesApi === "true") {
+    return RESPONSES_CALL;
   }
-  if (value === "false") {
-    return false;
+  if (params.useResponsesApi === false || params.useResponsesApi === "false") {
+    return CHAT_COMPLETIONS_CALL;
   }
-  return undefined;
+
+  return isOpenAICompatibleEndpoint(params.baseURL)
+    ? CHAT_COMPLETIONS_CALL
+    : RESPONSES_CALL;
 }

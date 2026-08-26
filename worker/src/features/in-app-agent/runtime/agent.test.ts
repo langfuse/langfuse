@@ -816,7 +816,6 @@ describe("createAgUiStream", () => {
         content: "You are the Langfuse assistant.",
         providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral" } },
-          openaiCompatible: { cache_control: { type: "ephemeral" } },
         },
       },
       { role: "user", content: [{ type: "text", text: "hello" }] },
@@ -826,18 +825,9 @@ describe("createAgUiStream", () => {
       },
       {
         role: "tool",
-        content: [
-          {
-            type: "tool-result",
-            toolCallId: "call-1",
-            providerOptions: {
-              openaiCompatible: { cache_control: { type: "ephemeral" } },
-            },
-          },
-        ],
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
         providerOptions: {
           anthropic: { cacheControl: { type: "ephemeral" } },
-          openaiCompatible: { cache_control: { type: "ephemeral" } },
         },
       },
     ];
