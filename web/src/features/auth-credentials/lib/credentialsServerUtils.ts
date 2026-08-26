@@ -24,11 +24,15 @@ export async function createUserEmailPassword(
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
 
+  // Trim before lookup and storage: sign-in looks the email up with
+  // .trim().toLowerCase(), so storing an untrimmed variant would make the
+  // account unreachable through the normal sign-in path.
+  const normalizedEmail = email.trim().toLowerCase();
   const hashedPassword = await hashPassword(password);
   // check that no user exists with this email
   const user = await prisma.user.findUnique({
     where: {
-      email: email.toLowerCase(),
+      email: normalizedEmail,
     },
   });
   if (user !== null) {
@@ -41,7 +45,7 @@ export async function createUserEmailPassword(
 
   const newUser = await prisma.user.create({
     data: {
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password: hashedPassword,
       name,
     },

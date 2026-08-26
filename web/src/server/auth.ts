@@ -99,7 +99,11 @@ const staticProviders: Provider[] = [
         );
 
       const blockedDomains = getSSOBlockedDomains();
-      const domain = credentials.email.split("@")[1]?.toLowerCase();
+      // Trim before any use: iOS/Android keyboards and autofill providers
+      // routinely append a trailing space, and Postgres email lookups are
+      // exact-match, so " a@b.com " would fail against the stored a@b.com.
+      const email = credentials.email.trim().toLowerCase();
+      const domain = email.split("@")[1];
       if (domain && blockedDomains.includes(domain)) {
         throw new Error(
           "Sign in with email and password is disabled for this domain. Please use SSO.",
@@ -115,7 +119,7 @@ const staticProviders: Provider[] = [
 
       const dbUser = await prisma.user.findUnique({
         where: {
-          email: credentials.email.toLowerCase(),
+          email,
         },
       });
 

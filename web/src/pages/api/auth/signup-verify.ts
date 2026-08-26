@@ -44,7 +44,7 @@ export default async function handler(
   }
 
   const { email, name } = parsed.data;
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
 
   // Run eligibility checks (signup disabled, SSO enforcement, etc.)
   const eligibilityError = await validateSignupEligibility({
