@@ -96,8 +96,6 @@ function BaselineToggle({ runId }: { runId: string }) {
 
   return (
     <Toggle
-      variant="ghost"
-      size="compact"
       pressed={isBaseline}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
