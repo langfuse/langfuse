@@ -1,6 +1,6 @@
 import { registeredProviders } from "../conventions";
-import { optionalString } from "../json";
-import type { FinishReason } from "../types";
+import { FinishReason } from "../types";
+import { optionalString } from "../utils/json";
 
 /**
  * Read the finish/stop carrier off a record (message, choice/candidate, or

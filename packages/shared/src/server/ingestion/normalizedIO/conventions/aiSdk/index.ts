@@ -1,16 +1,21 @@
 import { claimed, unmatched } from "../../conventions";
-import { asRecord, compact, optionalString, toJsonValue } from "../../json";
+import {
+  asRecord,
+  compact,
+  optionalString,
+  toJsonValue,
+} from "../../utils/json";
 import {
   filePartFromMediaReference,
   mediaTypeFromDataUri,
   parseMediaReference,
-} from "../../core/media";
+} from "../../normalize/message-parts/media";
+import { toolCallPart } from "../../normalize/message-parts/toolCalls";
+import { toolResultPart } from "../../normalize/message-parts/toolResults";
 import {
-  toolCallPart,
   toolDefinition,
   toolDefinitionProviderMetadata,
-  toolResultPart,
-} from "../../core/normalizers";
+} from "../../normalize/toolDefinitions";
 import type { FilePart, FinishReason } from "../../types";
 import type {
   IOConvention,
@@ -22,8 +27,8 @@ import type {
 /**
  * Vercel AI SDK convention: this module owns AI SDK's typed part vocabulary
  * and the `ai.prompt.tools` OTel attribute. `aiSdkFilePart` lives in
- * `core/media.ts` rather than here because `core/parts.ts`'s `image`/`file`
- * join handlers call it directly.
+ * the canonical media builders because the `image`/`file` handlers use the
+ * same media-reference mechanics.
  */
 
 // The canonical FinishReason vocabulary is adopted from the AI SDK, so this

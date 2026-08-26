@@ -5,16 +5,21 @@ import {
   optionalString,
   toJsonValue,
   toProviderMetadata,
-} from "../../json";
-import { filePartFromUrl, type UrlFilePartOptions } from "../../core/media";
+} from "../../utils/json";
+import {
+  filePartFromUrl,
+  type UrlFilePartOptions,
+} from "../../normalize/message-parts/media";
+import { reasoningPart } from "../../normalize/message-parts/reasoning";
 import {
   providerExecutedToolCall,
-  reasoningPart,
   toolCallPart,
+} from "../../normalize/message-parts/toolCalls";
+import { toolResultPart } from "../../normalize/message-parts/toolResults";
+import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-  toolResultPart,
-} from "../../core/normalizers";
+} from "../../normalize/toolDefinitions";
 import type { FilePart, FinishReason } from "../../types";
 import type {
   IOConvention,
@@ -203,10 +208,12 @@ function anthropicRootMessageSources(
   if (kind !== "input" || !("system" in root)) return [];
   return [
     {
+      kind: "single",
       sourceKey: "system",
       value: { content: root.system },
       fallbackRole: "user",
-      forceRole: "system",
+      roleOverride: "system",
+      claimsConversation: false,
     },
   ];
 }
@@ -237,7 +244,7 @@ export const anthropicProvider = {
     _baseParts,
     context,
   ) => {
-    const parts = context.normalizeParts(
+    const parts = context.normalizePartList(
       Array.isArray(value.thinking) ? value.thinking : [],
     );
     return parts.length > 0

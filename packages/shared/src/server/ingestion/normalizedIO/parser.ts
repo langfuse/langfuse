@@ -1,14 +1,13 @@
 import type { EventRecordBaseType } from "../../repositories/definitions";
 import { metadataArraysToRecord } from "../../utils/metadata_conversion";
 import type { ResourceSpan } from "../../otel/OtelIngestionProcessor";
-import {
-  collectMessages,
-  collectMetadataToolDefinitions,
-  collectToolDefinitionsFromIO,
-  createAccumulator,
-} from "./core/containers";
-import { asRecord, parseArray, parseIfString } from "./json";
+import { asRecord, parseArray, parseIfString } from "./utils/json";
 import type { NormalizedIO, SpanIO } from "./types";
+import {
+  collect,
+  createAccumulator,
+  type ParsedIOValue,
+} from "./core/accumulator";
 
 /**
  * Orchestration only: adapts a source into `SpanIO`, decodes exactly one
@@ -39,16 +38,10 @@ export type NormalizeIOSource =
   | { kind: "io"; io: SpanIO }
   | { kind: "otel"; span: OtelSpan; context: OtelSpanContext };
 
-type ParsedIOValue = {
-  value: unknown;
-  record?: Record<string, unknown>;
-  messages?: unknown[];
-};
-
 type ParsedSpanIO = {
   input: ParsedIOValue;
   output: ParsedIOValue;
-  metadata: unknown;
+  metadata: ParsedIOValue;
 };
 
 function parseIOValue(value: unknown): ParsedIOValue {
@@ -70,7 +63,7 @@ function parseSpanIO(span: SpanIO): ParsedSpanIO {
   return {
     input: parseIOValue(span.input),
     output: parseIOValue(span.output),
-    metadata: parseIfString(span.metadata),
+    metadata: parseIOValue(span.metadata),
   };
 }
 
@@ -113,12 +106,9 @@ export function normalizeIO(source: NormalizeIOSource): NormalizedIO {
   const { input, output, metadata } = parseSpanIO(span);
   const accumulator = createAccumulator();
 
-  collectMessages(input, "input", accumulator);
-  collectMessages(output, "output", accumulator);
-
-  collectToolDefinitionsFromIO(input, accumulator);
-  collectToolDefinitionsFromIO(output, accumulator);
-  collectMetadataToolDefinitions(metadata, accumulator);
+  collect(input, { kind: "io", source: "input" }, accumulator);
+  collect(output, { kind: "io", source: "output" }, accumulator);
+  collect(metadata, { kind: "metadata" }, accumulator);
 
   return {
     messages: accumulator.messages,

@@ -1,4 +1,5 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +11,11 @@ describe("provider convention registry", () => {
     // forgotten line when a new provider directory is added.
     const providerDirectories = readdirSync(__dirname, {
       withFileTypes: true,
-    }).filter((entry) => entry.isDirectory());
+    }).filter(
+      (entry) =>
+        entry.isDirectory() &&
+        existsSync(join(__dirname, entry.name, "index.ts")),
+    );
 
     expect(registeredProviders).toHaveLength(providerDirectories.length);
   });
@@ -20,16 +25,19 @@ describe("provider convention registry", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("keeps typed part vocabularies disjoint", () => {
+  it("keeps typed part vocabularies disjoint except for guarded media types", () => {
     const owners = new Map<string, string>();
+    const guardedTypes = new Set(["file", "image"]);
 
     for (const provider of registeredProviders) {
       for (const type of Object.keys(provider.typedParts ?? {})) {
         const previousOwner = owners.get(type);
-        expect(
-          previousOwner,
-          `typed part "${type}" is declared by both ${previousOwner} and ${provider.name}`,
-        ).toBeUndefined();
+        if (!guardedTypes.has(type)) {
+          expect(
+            previousOwner,
+            `typed part "${type}" is declared by both ${previousOwner} and ${provider.name}`,
+          ).toBeUndefined();
+        }
         owners.set(type, provider.name);
       }
     }

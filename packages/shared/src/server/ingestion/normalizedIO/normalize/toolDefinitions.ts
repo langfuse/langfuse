@@ -1,14 +1,58 @@
 import { registeredProviders } from "../conventions";
 import type { ToolDefinitionSource } from "../conventions/IOConvention";
-import { isRecord, parseIfString, parseRecord } from "../json";
-import type { ToolDefinition } from "../types";
-import { toolDefinition, toolDefinitionProviderMetadata } from "./normalizers";
+import {
+  asRecord,
+  compact,
+  isRecord,
+  parseIfString,
+  parseRecord,
+  toJsonValue,
+} from "../utils/json";
+import type { JsonObject, ToolDefinition } from "../types";
+
+// Keys consumed as definition fields by SOME dialect's extraction; everything
+// else on a definition record is provider trivia lifted verbatim into
+// providerMetadata. A union by necessity: metadata inference must know every
+// dialect's consumed keys regardless of which extractor claimed the item.
+const CONSUMED_DEFINITION_KEYS = new Set([
+  "name",
+  "description",
+  "desc", // loose/traceloop
+  "parameters", // openai, gemini
+  "parameters_json_schema", // pydantic ai
+  "input_schema", // anthropic
+  "inputSchema", // ai sdk / mcp
+  "format", // openai custom tools
+  "function", // openai function-tool wrapper
+  "custom", // openai custom-tool wrapper
+  "type",
+  "providerMetadata",
+]);
+
+/** Provider trivia beside the consumed definition fields, wrapper and inner
+ * definition merged, explicit `providerMetadata` winning on collisions. */
+export function toolDefinitionProviderMetadata(
+  wrapper: Record<string, unknown>,
+  definition: Record<string, unknown>,
+): JsonObject | undefined {
+  const inferred = Object.fromEntries(
+    [...Object.entries(wrapper), ...Object.entries(definition)].filter(
+      ([key]) => !CONSUMED_DEFINITION_KEYS.has(key),
+    ),
+  );
+  const explicit = asRecord(wrapper.providerMetadata);
+  const providerMetadata = toJsonValue({ ...inferred, ...explicit });
+
+  return isRecord(providerMetadata) && Object.keys(providerMetadata).length > 0
+    ? providerMetadata
+    : undefined;
+}
 
 /**
  * Tool-definition normalization. Carrier mechanics (array / single record /
  * name-keyed map, JSON-string boundaries) live here; per-item recognition
  * folds the registry's `tryNormalizeToolDefinition`, with a loose fallback
- * for bare items no dialect claims. Pure: callers (core/containers.ts) own
+ * for bare items no dialect claims. Pure: the accumulator collector owns
  * accumulation/merge.
  */
 
@@ -99,4 +143,36 @@ export function normalizeToolDefinitionSources(
   return sources.flatMap((source) =>
     normalizeToolDefinitionValue(source.value, source.options),
   );
+}
+
+export type ToolDefinitionFields = {
+  /** Must be a non-empty string, otherwise no definition is constructed. */
+  name: unknown;
+  /** Kept only when a string. */
+  description?: unknown;
+  /** Raw schema payload; one JSON-string boundary is parsed. */
+  inputSchema?: unknown;
+  /** Kept only when a string. */
+  type?: unknown;
+  providerMetadata?: JsonObject;
+};
+
+/** Canonical tool-definition constructor — same contract as the tool-part
+ * builders: callers extract their own dialect's fields. */
+export function toolDefinition(
+  fields: ToolDefinitionFields,
+): ToolDefinition | null {
+  if (typeof fields.name !== "string" || fields.name.length === 0) return null;
+
+  return compact<ToolDefinition>({
+    name: fields.name,
+    description:
+      typeof fields.description === "string" ? fields.description : undefined,
+    inputSchema:
+      fields.inputSchema === undefined
+        ? undefined
+        : toJsonValue(parseIfString(fields.inputSchema)),
+    type: typeof fields.type === "string" ? fields.type : undefined,
+    providerMetadata: fields.providerMetadata,
+  });
 }

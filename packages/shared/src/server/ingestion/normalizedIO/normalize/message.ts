@@ -4,6 +4,13 @@ import type {
   PartHandlerContext,
   SiblingPartSlot,
 } from "../conventions/IOConvention";
+import { isMessageLike, isToolDefinitionMessage } from "../core/format-utils";
+import type {
+  NormalizedMessage,
+  NormalizedMessagePart,
+  NormalizedMessageRole,
+  ToolResultPart,
+} from "../types";
 import {
   asRecord,
   compact,
@@ -14,95 +21,23 @@ import {
   parseIfString,
   toJsonValue,
   toProviderMetadata,
-} from "../json";
-import type {
-  NormalizedMessage,
-  NormalizedMessagePart,
-  NormalizedMessageRole,
-  ToolResultPart,
-} from "../types";
-import { normalizeFinishReason } from "./finishReason";
-import { normalizePartsFromString } from "./media";
-import {
-  extractCitations,
-  isToolPartValue,
-  normalizeMessagePart,
-  normalizeParts,
-} from "./parts";
+} from "../utils/json";
+import { normalizeFinishReason } from "./finish-reason";
+import { normalizeMediaPartsFromString } from "./message-parts/media";
+import { extractCitations } from "./message-parts/text";
+import { normalizePart, normalizePartList } from "./part";
+import { coerceRole, normalizeRole } from "./role";
 
-/**
- * Message skeleton: envelope unwrap -> role resolution -> content collection
- * -> sibling-field folds -> role coercion -> finish reason -> assembly.
- * Provider-owned pieces are folds over `registeredProviders`; everything
- * else here is generic mechanics or a named, owner-commented residual.
- */
-
-/** `role`/`content` are the universal message keys; every other container
- * key is provider vocabulary contributed via `messageLikeKeys`. */
-export function isMessageLike(value: Record<string, unknown>): boolean {
-  if ("role" in value || "content" in value) return true;
-  return registeredProviders.some((provider) => {
-    for (const key of provider.messageLikeKeys ?? []) {
-      if (key in value) return true;
-    }
-    return false;
-  });
-}
-
-const CANONICAL_ROLES = new Set([
-  "system",
-  "developer", // openai
-  "user",
-  "assistant",
-  "tool",
-]);
-
-function normalizeRole(
-  message: Record<string, unknown>,
-): NormalizedMessageRole | undefined {
-  const rawRole = message.role ?? message.author; // author: gemini/PaLM-era
-  if (typeof rawRole === "string") {
-    const lowered = rawRole.toLowerCase();
-    for (const provider of registeredProviders) {
-      const role = provider.roleByRawRole?.[lowered];
-      if (role) return role;
-    }
-    if (CANONICAL_ROLES.has(lowered)) return lowered as NormalizedMessageRole;
-    return "unknown";
-  }
-
-  if (typeof message.type !== "string") return undefined;
-  for (const provider of registeredProviders) {
-    const role = provider.roleByMessageType?.[message.type];
-    if (role) return role;
-  }
-  return undefined;
-}
-
-/** Tool-definition messages fold: shapes only a convention can recognize. */
-export function isToolDefinitionMessage(
-  message: Record<string, unknown>,
-): boolean {
-  return registeredProviders.some(
-    (provider) => provider.isToolDefinitionMessage?.(message) ?? false,
-  );
-}
-
-function appendParts(target: NormalizedMessagePart[], values: unknown[]): void {
-  target.push(...normalizeParts(values));
-}
-
-/** Parts from the message's own content (parts/content array, string, record). */
-function collectContentParts(
+/** Normalize the content owned by one already-selected message. */
+function normalizeMessageContent(
   value: Record<string, unknown>,
   nestedContent: Record<string, unknown> | undefined,
   role: NormalizedMessageRole,
-  parts: NormalizedMessagePart[],
-): void {
+): NormalizedMessagePart[] {
   if (role === "tool" && value.tool_call_id) {
     // OpenAI Chat Completions tool message + LangChain ToolMessage (status
     // marks failed executions; artifact is side-band data).
-    parts.push(
+    return [
       compact<ToolResultPart>({
         type: "tool-result",
         toolCallId: nullableString(value.tool_call_id),
@@ -113,36 +48,42 @@ function collectContentParts(
             ? toProviderMetadata({ artifact: value.artifact })
             : undefined,
       }),
-    );
-    return;
+    ];
   }
 
-  const rawParts = Array.isArray(value.parts) // gemini, ai sdk
+  const rawParts = Array.isArray(value.parts)
     ? value.parts
-    : Array.isArray(value.content) // openai, anthropic
+    : Array.isArray(value.content)
       ? value.content
-      : Array.isArray(nestedContent?.parts) // gemini candidates
+      : Array.isArray(nestedContent?.parts)
         ? nestedContent.parts
         : undefined;
-  if (rawParts) {
-    appendParts(parts, rawParts);
-  } else if (typeof value.content === "string" && value.content.length > 0) {
-    // Content that is a JSON-string array of tool parts (e.g. koog logs an
-    // assistant call batch as a stringified array under role "tool").
+  if (rawParts) return normalizePartList(rawParts);
+
+  if (typeof value.content === "string" && value.content.length > 0) {
+    // Koog can serialize an assistant tool-call batch into a string under a
+    // tool-role message. Only treat it as parts when every item is a tool.
     const parsedContent = parseArray(value.content);
-    const isToolPartArray =
-      parsedContent !== undefined &&
-      parsedContent.length > 0 &&
-      parsedContent.every((item) => isRecord(item) && isToolPartValue(item));
-    if (isToolPartArray) {
-      appendParts(parts, parsedContent);
-    } else {
-      parts.push(...normalizePartsFromString(value.content));
+    if (parsedContent?.length) {
+      const parsedParts = parsedContent.map(normalizePart);
+      if (
+        parsedParts.every(
+          (part) => part?.type === "tool-call" || part?.type === "tool-result",
+        )
+      ) {
+        return parsedParts.filter((part) => part !== null);
+      }
     }
-  } else if (isRecord(value.content)) {
-    const part = normalizeMessagePart(value.content);
-    if (part) parts.push(part);
+
+    return normalizeMediaPartsFromString(value.content);
   }
+
+  if (isRecord(value.content)) {
+    const part = normalizePart(value.content);
+    return part ? [part] : [];
+  }
+
+  return [];
 }
 
 /**
@@ -151,15 +92,15 @@ function collectContentParts(
  * AI-SDK-flavored logging); everything else folds through
  * `collectSiblingParts`, then message-level citations attach (Chat
  * Completions carries them on the message; Anthropic/Responses carry them
- * per part, handled in `core/parts.ts`).
+ * per part, handled in `normalize/part.ts`).
  */
 function applySiblingFields(
   value: Record<string, unknown>,
   parts: NormalizedMessagePart[],
 ): void {
   const partContext: PartHandlerContext = {
-    normalizePart: normalizeMessagePart,
-    normalizeParts,
+    normalizePart: normalizePart,
+    normalizePartList,
   };
   const contributions = [] as Array<{
     slot: SiblingPartSlot;
@@ -181,9 +122,10 @@ function applySiblingFields(
 
   parts.unshift(...bySlot("before-content"));
   parts.push(...bySlot("after-content"));
-  appendParts(
-    parts,
-    parseArray(value.tool_calls) ?? parseArray(value.toolCalls) ?? [],
+  parts.push(
+    ...normalizePartList(
+      parseArray(value.tool_calls) ?? parseArray(value.toolCalls) ?? [],
+    ),
   );
   parts.push(...bySlot("after-tool-calls"));
 
@@ -194,46 +136,6 @@ function applySiblingFields(
       textPart.providerMetadata = { ...textPart.providerMetadata, citations };
     }
   }
-}
-
-/**
- * Role corrections that depend on the collected parts: user turns holding
- * only tool results are tool turns; tool-labeled turns without a
- * tool_call_id (koog/Traceloop-style conversions) are either mislabeled
- * assistant call batches or tool responses (the content IS the result).
- */
-function coerceRole(
-  role: NormalizedMessageRole,
-  value: Record<string, unknown>,
-  parts: NormalizedMessagePart[],
-): NormalizedMessageRole {
-  if (
-    role === "user" &&
-    parts.length > 0 &&
-    parts.every((part) => part.type === "tool-result")
-  ) {
-    return "tool";
-  }
-
-  if (role === "tool" && !value.tool_call_id && parts.length > 0) {
-    // Explicit boolean return type: TS would otherwise infer a type
-    // predicate and narrow `parts` to TextPart[], rejecting the splice.
-    if (parts.every((part): boolean => part.type === "tool-call")) {
-      return "assistant";
-    }
-    if (parts.every((part): boolean => part.type === "text")) {
-      const output = parts
-        .map((part) => (part.type === "text" ? part.text : ""))
-        .join("\n");
-      parts.splice(0, parts.length, {
-        type: "tool-result",
-        toolCallId: null,
-        output,
-      });
-    }
-  }
-
-  return role;
 }
 
 export function normalizeMessage(
@@ -251,7 +153,7 @@ export function normalizeMessage(
           : normalizeMessage(preProcessed.value, fallbackRole, source);
       }
     }
-    const parts = normalizePartsFromString(value);
+    const parts = normalizeMediaPartsFromString(value);
     return parts.length > 0 ? { role: fallbackRole, parts, source } : null;
   }
   if (!isRecord(value) || isToolDefinitionMessage(value)) return null;
@@ -274,7 +176,7 @@ export function normalizeMessage(
 
   // Standalone tool-call/result values (no message keys): normalize once,
   // inspect the result, rather than shape-probing before normalizing.
-  const directPart = !isMessageLike(value) ? normalizeMessagePart(value) : null;
+  const directPart = !isMessageLike(value) ? normalizePart(value) : null;
   if (
     directPart &&
     (directPart.type === "tool-call" || directPart.type === "tool-result")
@@ -292,8 +194,7 @@ export function normalizeMessage(
     (nestedContent ? normalizeRole(nestedContent) : undefined) ??
     fallbackRole;
 
-  const parts: NormalizedMessagePart[] = [];
-  collectContentParts(value, nestedContent, role, parts);
+  const parts = normalizeMessageContent(value, nestedContent, role);
   applySiblingFields(value, parts);
   role = coerceRole(role, value, parts);
 
@@ -301,11 +202,11 @@ export function normalizeMessage(
   // records, {text} items): represent them instead of dropping — the trace
   // view renders these as JSON too.
   if (parts.length === 0 && !isMessageLike(value)) {
-    const part = normalizeMessagePart(value);
+    const part = normalizePart(value);
     if (part) parts.push(part);
   }
 
-  // Choice/candidate-level values are wired in by core/containers.ts.
+  // Choice/candidate-level values are wired in by the accumulator collector.
   const finishReason = normalizeFinishReason(
     value,
     asRecord(value.response_metadata), // langchain

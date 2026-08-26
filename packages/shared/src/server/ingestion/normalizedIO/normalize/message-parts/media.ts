@@ -1,9 +1,9 @@
 import {
   MEDIA_REFERENCE_PATTERN,
   MediaReferenceStringSchema,
-} from "../../../../utils/IORepresentation/chatML/types";
-import { compact, toProviderMetadata } from "../json";
-import type { FilePart, NormalizedMessagePart } from "../types";
+} from "../../../../../utils/IORepresentation/chatML/types";
+import { compact, toProviderMetadata } from "../../utils/json";
+import type { FilePart, NormalizedMessagePart } from "../../types";
 
 /**
  * Generic media and file builders: Langfuse media-token parsing, data-URI
@@ -55,7 +55,7 @@ export function filePartFromMediaReference(
  * Split a string into interleaved text and file parts, one file part per
  * embedded media reference token — strings frequently carry several.
  */
-export function normalizePartsFromString(
+export function normalizeMediaPartsFromString(
   value: string,
 ): NormalizedMessagePart[] {
   if (!value.includes(MEDIA_TOKEN_HINT)) return [{ type: "text", text: value }];

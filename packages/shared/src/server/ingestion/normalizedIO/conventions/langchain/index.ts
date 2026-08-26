@@ -1,6 +1,11 @@
 import { claimed, unmatched } from "../../conventions";
-import { asRecord, compact, optionalString, parseArray } from "../../json";
-import { toolCallPart } from "../../core/normalizers";
+import {
+  asRecord,
+  compact,
+  optionalString,
+  parseArray,
+} from "../../utils/json";
+import { toolCallPart } from "../../normalize/message-parts/toolCalls";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
@@ -18,7 +23,7 @@ import type {
  * serialization envelope and the `tool_calls`/`invalid_tool_calls`/
  * `additional_kwargs` sibling fields. LangChain has no finish-reason
  * vocabulary of its own — it surfaces the underlying provider's value under
- * `response_metadata` (picked up generically in `core/message.ts`).
+ * `response_metadata` (picked up generically in `normalize/message.ts`).
  */
 
 // FunctionMessage maps to the deprecated "function" role so the legacy
@@ -73,7 +78,7 @@ function langchainCollectSiblingParts(
   const parts: NormalizedMessagePart[] = [];
 
   const additionalKwargs = asRecord(value.additional_kwargs);
-  const additionalToolCalls = context.normalizeParts(
+  const additionalToolCalls = context.normalizePartList(
     parseArray(additionalKwargs?.tool_calls) ?? [],
   );
   parts.push(...additionalToolCalls);

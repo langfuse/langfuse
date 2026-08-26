@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../testing/fixtureTypes";
+import type { NormalizedIOFixture } from "../fixtureTypes";
 
 /** Synthetic Gemini case adapted from the playground suite. */
 export const geminiEmbeddedToolDefinitionFixture = {

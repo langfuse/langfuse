@@ -1,5 +1,5 @@
 import { claimed, unmatched } from "../../conventions";
-import { asRecord, parseRecord } from "../../json";
+import { asRecord, parseRecord } from "../../utils/json";
 import type { NormalizedMessage } from "../../types";
 import type {
   ConventionResult,

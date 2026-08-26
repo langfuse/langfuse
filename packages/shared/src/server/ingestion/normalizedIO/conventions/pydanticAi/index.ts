@@ -1,9 +1,9 @@
 import { claimed, unmatched } from "../../conventions";
-import { parseRecord } from "../../json";
+import { parseRecord } from "../../utils/json";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-} from "../../core/normalizers";
+} from "../../normalize/toolDefinitions";
 import type {
   IOConvention,
   ToolDefinitionCarrier,

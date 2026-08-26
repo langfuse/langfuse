@@ -9,9 +9,3 @@ export const mixedNormalizedIOFixtures = [
   outputOnlyPlainTextFixture,
   rawPassthroughToolCallsFixture,
 ];
-
-export * from "./looseProviderMessageShapes";
-export * from "./outputOnlyPlainText";
-export * from "./outputOnlyStructuredMessage";
-export * from "./rawPassthroughToolCalls";
-export type { NormalizedIOFixture } from "../fixtureTypes";

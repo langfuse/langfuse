@@ -8,20 +8,22 @@ import {
   parseArray,
   toJsonValue,
   toProviderMetadata,
-} from "../../json";
+} from "../../utils/json";
 import {
   filePartFromMediaReference,
   filePartFromUrl,
   parseMediaReference,
-} from "../../core/media";
+} from "../../normalize/message-parts/media";
+import { reasoningPart } from "../../normalize/message-parts/reasoning";
 import {
   providerExecutedToolCall,
-  reasoningPart,
   toolCallPart,
+} from "../../normalize/message-parts/toolCalls";
+import { toolResultPart } from "../../normalize/message-parts/toolResults";
+import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-  toolResultPart,
-} from "../../core/normalizers";
+} from "../../normalize/toolDefinitions";
 import type {
   FilePart,
   FinishReason,
@@ -342,7 +344,7 @@ function normalizeAudioOutput(
 function openAiCollectSiblingParts(
   value: Record<string, unknown>,
   baseParts: readonly NormalizedMessagePart[],
-  context: { normalizeParts(values: unknown[]): NormalizedMessagePart[] },
+  context: { normalizePartList(values: unknown[]): NormalizedMessagePart[] },
 ): SiblingPartContribution[] {
   const parts: NormalizedMessagePart[] = [];
 
@@ -358,7 +360,7 @@ function openAiCollectSiblingParts(
     )
       .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
       .filter((entry) => entry !== undefined && entry !== null);
-    parts.push(...context.normalizeParts(reasoningValues));
+    parts.push(...context.normalizePartList(reasoningValues));
 
     const encryptedContent = optionalString(value.encrypted_content);
     if (encryptedContent) {
@@ -391,9 +393,11 @@ function openAiRootMessageSources(
     for (const choice of choices) {
       const choiceRecord = asRecord(choice);
       sources.push({
+        kind: "single",
         sourceKey: "choices",
         value: choiceRecord?.message,
         fallbackRole: "assistant",
+        claimsConversation: true,
         // Chat Completions reports the finish reason on the choice, not the
         // message.
         finishReasonCarrier: choiceRecord,
@@ -404,9 +408,11 @@ function openAiRootMessageSources(
   const responseOutput = parseArray(root.output);
   if (responseOutput) {
     sources.push({
+      kind: "sequence",
       sourceKey: "output",
-      value: responseOutput,
+      values: responseOutput,
       fallbackRole: "assistant",
+      claimsConversation: true,
     });
   }
 

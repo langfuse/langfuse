@@ -22,7 +22,7 @@ export const dropped = { matched: true, value: null } as const;
 
 export type PartHandlerContext = {
   normalizePart(value: unknown): NormalizedMessagePart | null;
-  normalizeParts(values: unknown[]): NormalizedMessagePart[];
+  normalizePartList(values: unknown[]): NormalizedMessagePart[];
 };
 
 export type MessageEnvelopeContext = {
@@ -52,16 +52,27 @@ export type SiblingPartContribution = {
   parts: NormalizedMessagePart[];
 };
 
-export type RootMessageSource = {
+type RootMessageSourceBase = {
   sourceKey: string;
-  /** One message, or an array of messages (Array.isArray decides). */
-  value: unknown;
   fallbackRole: "user" | "assistant";
-  forceRole?: "system";
-  /** The record carrying a choice/candidate-level finish reason (the core
-   * reads it via `normalizeFinishReason`'s key chain). */
-  finishReasonCarrier?: Record<string, unknown>;
+  /** Whether this source represents the record's conversation. Sidecars such
+   * as system prompts do not suppress the record fallback on their own. */
+  claimsConversation: boolean;
 };
+
+export type RootMessageSource =
+  | (RootMessageSourceBase & {
+      kind: "single";
+      value: unknown;
+      roleOverride?: "system";
+      /** The record carrying a choice/candidate-level finish reason (the core
+       * reads it via `normalizeFinishReason`'s key chain). */
+      finishReasonCarrier?: Record<string, unknown>;
+    })
+  | (RootMessageSourceBase & {
+      kind: "sequence";
+      values: unknown[];
+    });
 
 export type ToolDefinitionOptions = {
   allowProviderToolWithoutName?: boolean;
@@ -117,7 +128,7 @@ export interface IOConvention {
   isToolDefinitionMessage?(value: Record<string, unknown>): boolean;
 
   /** Provider-specific raw `type` values ONLY. Shared/contested names
-   * (text, image, file, reasoning group) live in core/parts.ts's
+   * (text, image, file, reasoning group) live in normalize/part.ts's
    * SHARED_TYPED_PART_HANDLERS, never here. */
   readonly typedParts?: Readonly<Record<string, PartHandler>>;
 

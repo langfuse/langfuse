@@ -5,17 +5,15 @@ import {
   optionalString,
   parseArray,
   toJsonValue,
-} from "../../json";
+} from "../../utils/json";
 import {
   filePartFromMediaReference,
   filePartFromUrl,
   parseMediaReference,
-} from "../../core/media";
-import {
-  reasoningPart,
-  toolCallPart,
-  toolResultPart,
-} from "../../core/normalizers";
+} from "../../normalize/message-parts/media";
+import { reasoningPart } from "../../normalize/message-parts/reasoning";
+import { toolCallPart } from "../../normalize/message-parts/toolCalls";
+import { toolResultPart } from "../../normalize/message-parts/toolResults";
 import type {
   FilePart,
   FinishReason,
@@ -220,10 +218,12 @@ function geminiRootMessageSources(
       config?.system_instruction ?? config?.systemInstruction;
     if (systemInstruction) {
       sources.push({
+        kind: "single",
         sourceKey: "system_instruction",
         value: systemInstruction,
         fallbackRole: "user",
-        forceRole: "system",
+        roleOverride: "system",
+        claimsConversation: false,
       });
     }
 
@@ -231,9 +231,11 @@ function geminiRootMessageSources(
       ? root.contents
       : [root.contents];
     sources.push({
+      kind: "sequence",
       sourceKey: "contents",
-      value: contents,
+      values: contents,
       fallbackRole: "user",
+      claimsConversation: true,
     });
   }
 
@@ -243,9 +245,11 @@ function geminiRootMessageSources(
       for (const candidate of candidates) {
         const candidateRecord = asRecord(candidate);
         sources.push({
+          kind: "single",
           sourceKey: "candidates",
           value: candidateRecord?.content,
           fallbackRole: "assistant",
+          claimsConversation: true,
           // Gemini reports the finish reason on the candidate, not the content.
           finishReasonCarrier: candidateRecord,
         });

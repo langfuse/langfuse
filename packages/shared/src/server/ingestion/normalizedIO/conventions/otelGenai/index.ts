@@ -1,7 +1,12 @@
 import { claimed, dropped, unmatched } from "../../conventions";
-import { asRecord, compact } from "../../json";
-import { toolCallPart, toolResultPart } from "../../core/normalizers";
-import type { FinishReason, NormalizedMessage, ToolResultPart } from "../../types";
+import { asRecord, compact } from "../../utils/json";
+import { toolCallPart } from "../../normalize/message-parts/toolCalls";
+import { toolResultPart } from "../../normalize/message-parts/toolResults";
+import type {
+  FinishReason,
+  NormalizedMessage,
+  ToolResultPart,
+} from "../../types";
 import type {
   ConventionResult,
   IOConvention,

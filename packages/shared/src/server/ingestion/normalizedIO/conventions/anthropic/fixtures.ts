@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../testing/fixtureTypes";
+import type { NormalizedIOFixture } from "../fixtureTypes";
 
 const searchSchema = {
   type: "object",

@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../testing/fixtureTypes";
+import type { NormalizedIOFixture } from "../fixtureTypes";
 
 export const agnoPythonReprFixture = {
   name: "normalizes an Agno Python-repr message",
