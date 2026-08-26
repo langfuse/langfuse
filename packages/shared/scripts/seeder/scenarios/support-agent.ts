@@ -60,6 +60,8 @@ type DemoObs = {
   /** time-to-first-token in ms — generations only */
   ttft?: number;
   modelParameters?: Record<string, unknown>;
+  level?: "DEFAULT" | "WARNING" | "ERROR";
+  statusMessage?: string;
 };
 
 const CUSTOMER_MESSAGE =
@@ -445,19 +447,124 @@ const PLAN: DemoObs[] = [
   },
 ];
 
+/**
+ * --fail variant: the first refund attempt hits a Stripe idempotency
+ * conflict (ERROR-level TOOL) and the agent retries with a fresh key —
+ * one extra ReAct turn, one extra tool call. Feeds the tool-error and
+ * retry shapes on the agent dashboard.
+ */
+const FAILURE_SHIFT_MS = 1666;
+const FAILURE_NODES: DemoObs[] = [
+  {
+    key: "refund-fail",
+    parentKey: "root",
+    type: "TOOL",
+    name: "stripe.create-refund",
+    start: 5978,
+    end: 6467,
+    level: "ERROR",
+    statusMessage: "Stripe error 409: idempotency_key conflict",
+    input: {
+      charge_id: "ch_3PqK9b",
+      reason: "duplicate",
+      idempotency_key: "refund-cus_LqT4v8-20260709",
+    },
+    output: {
+      error: {
+        type: "idempotency_error",
+        code: 409,
+        message:
+          "Keys for idempotent requests can only be used with the same " +
+          "parameters they were first used with.",
+      },
+    },
+    metadata: { provider: "stripe", api_version: "2026-06-01" },
+  },
+  {
+    key: "llm-retry",
+    parentKey: "root",
+    type: "GENERATION",
+    name: "llm.chat",
+    start: 6521,
+    end: 7591,
+    model: "gpt-5.4",
+    usage: [2653, 68],
+    ttft: 219,
+    modelParameters: {
+      temperature: 0.3,
+      max_tokens: 1024,
+      tool_choice: "auto",
+    },
+    input: {
+      messages: [
+        { role: "system", content: AGENT_SYSTEM_PROMPT },
+        {
+          role: "tool",
+          tool_call_id: "call_xT19vB",
+          content:
+            '{"error":{"type":"idempotency_error","code":409,' +
+            '"message":"Keys for idempotent requests can only be used with ' +
+            'the same parameters they were first used with."}}',
+        },
+      ],
+    },
+    output: {
+      content: null,
+      tool_calls: [
+        {
+          id: "call_rT44xC",
+          type: "function",
+          function: {
+            name: "stripe_create_refund",
+            arguments:
+              '{"charge_id":"ch_3PqK9b","reason":"duplicate",' +
+              '"idempotency_key":"refund-cus_LqT4v8-20260709-r2"}',
+          },
+        },
+      ],
+    },
+  },
+];
+
+/** buildPlan returns the happy-path PLAN, or the --fail variant with the failed refund attempt + retry turn spliced in before the successful refund. */
+function buildPlan(fail: boolean): DemoObs[] {
+  if (!fail) return PLAN;
+  const refundIndex = PLAN.findIndex((p) => p.key === "refund");
+  return [
+    ...PLAN.slice(0, refundIndex).map((p) =>
+      p.key === "root" ? { ...p, end: p.end + FAILURE_SHIFT_MS } : p,
+    ),
+    ...FAILURE_NODES,
+    ...PLAN.slice(refundIndex).map((p) => ({
+      ...p,
+      start: p.start + FAILURE_SHIFT_MS,
+      end: p.end + FAILURE_SHIFT_MS,
+    })),
+  ];
+}
+
 const run = async (
   ctx: ScenarioContext,
   params: Record<string, string | number | boolean>,
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const withV4 = params["v4"] as boolean;
+  const fail = params["fail"] as boolean;
+  const daysAgo = Number(params["days-ago"] ?? 0);
+  const seedNum = Number(params["seed"] ?? 42);
+  const plan = buildPlan(fail);
 
   // The prefix IS the trace id (no "-trace" suffix): the id shows in the
   // trace header, so a demo seeded with a hex-looking prefix (e.g.
   // --id-prefix 0198f2ab41c7e93d) reads like a production trace on camera.
   const traceId = ctx.idPrefix;
   const sessionId = `${ctx.idPrefix}-thread`;
-  const traceTimestamp = utcDayStartMs();
+  // Deterministic business-hours offset so multi-day seeds don't stack every
+  // trace at midnight UTC (varies by seed and day, 08:xx-17:xx).
+  const intradayMs =
+    ((8 + ((seedNum * 7 + daysAgo * 5) % 10)) * 60 + ((seedNum * 13) % 60)) *
+    60_000;
+  const traceTimestamp = utcDayStartMs() - daysAgo * 86_400_000 + intradayMs;
 
   if (ctx.dryRun) {
     return {
@@ -470,8 +577,8 @@ const run = async (
       sessionIds: [sessionId],
       counts: {
         traces: 1,
-        observations: PLAN.length,
-        events: withV4 ? PLAN.length + 1 : 0,
+        observations: plan.length,
+        events: withV4 ? plan.length + 1 : 0,
       },
       verified: {},
       links: [
@@ -483,7 +590,7 @@ const run = async (
     };
   }
 
-  const root = PLAN[0];
+  const root = plan[0];
   const trace = createTrace({
     id: traceId,
     project_id: ctx.projectId,
@@ -510,10 +617,10 @@ const run = async (
   });
 
   const keyToId = new Map<string, string>(
-    PLAN.map((p, i) => [p.key, `${ctx.idPrefix}-obs-${i}`]),
+    plan.map((p, i) => [p.key, `${ctx.idPrefix}-obs-${i}`]),
   );
 
-  const observations: ObservationRecordInsertType[] = PLAN.map((p) => {
+  const observations: ObservationRecordInsertType[] = plan.map((p) => {
     const prices = p.model ? MODEL_PRICES[p.model] : null;
     const [usageInput, usageOutput] = p.usage ?? [0, 0];
     const inputCost = prices ? usageInput * prices.input : 0;
@@ -545,8 +652,8 @@ const run = async (
       end_time: traceTimestamp + p.end,
       completion_start_time:
         p.ttft !== undefined ? traceTimestamp + p.start + p.ttft : null,
-      level: "DEFAULT",
-      status_message: null,
+      level: p.level ?? "DEFAULT",
+      status_message: p.statusMessage ?? null,
       version: null,
       input: p.input !== undefined ? JSON.stringify(p.input) : null,
       output: p.output !== undefined ? JSON.stringify(p.output) : null,
@@ -687,6 +794,20 @@ export const supportAgentScenario: ScenarioDefinition = {
       type: "boolean",
       default: false,
       description: "also mirror into v4 events_full/events_core",
+    },
+    {
+      flag: "days-ago",
+      type: "number",
+      default: 0,
+      description:
+        "anchor the trace N days in the past (deterministic business-hours time-of-day) — run once per day to spread demo data over a date range",
+    },
+    {
+      flag: "fail",
+      type: "boolean",
+      default: false,
+      description:
+        "failing-tool variant: the first refund attempt errors (ERROR-level TOOL, Stripe 409) and the agent retries — one extra ReAct turn and tool call",
     },
   ],
   run,
