@@ -198,7 +198,6 @@ describe("stable evaluation rules public API", () => {
     expect(response.body.createdBy).toEqual({
       id: user.id,
       name: user.name,
-      email: user.email,
     });
 
     const legacy = await createLegacyRule(projectId, "legacy get rule");

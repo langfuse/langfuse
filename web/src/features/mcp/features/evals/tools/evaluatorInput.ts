@@ -1,4 +1,4 @@
-import { EvalTemplateType, extractVariables } from "@langfuse/shared";
+import { EvalTemplateType } from "@langfuse/shared";
 import { z } from "zod";
 import {
   CodeEvaluatorDefinitionSchema,
@@ -41,10 +41,16 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
       definition: {
         type: input.type,
         prompt: input.prompt!,
-        provider: input.provider ?? null,
-        model: input.model ?? null,
-        modelParams: input.modelParams ?? null,
-        vars: extractVariables(input.prompt!),
+        modelConfig:
+          input.provider !== undefined ||
+          input.model !== undefined ||
+          input.modelParams !== undefined
+            ? {
+                provider: input.provider,
+                model: input.model,
+                modelParams: input.modelParams ?? null,
+              }
+            : null,
         variableMapping: input.variableMapping ?? null,
         outputDefinition: input.outputDefinition,
       },
