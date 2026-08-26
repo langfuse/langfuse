@@ -26,7 +26,7 @@ import {
   useHuggingFaceRedirect,
   type PageProps,
 } from "@/src/pages/auth/sign-in";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";

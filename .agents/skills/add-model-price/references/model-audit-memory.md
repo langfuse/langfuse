@@ -12,17 +12,19 @@ audit date.
 
 ## Latest useful snapshot
 
-**Audit date:** 2026-08-21
+**Audit date:** 2026-08-24
 
 All prices listed as `$X / MTok` (per million tokens). Per-token JSON values: divide by 1,000,000.
 
-The 2026-08-21 run re-fetched the full Anthropic pricing table, the full OpenAI
-standard-pricing-table dump, and the Gemini AI Studio pricing pages
-(`ai.google.dev/pricing` and `ai.google.dev/gemini-api/docs/pricing`, with an explicit
-Free/Paid column split) and confirmed every price below unchanged from the 2026-08-14
-snapshot. Rows below still read "Re-confirmed ... [date of last dedicated verification]"
-where that earlier wording remains accurate; treat any row without an explicit
-2026-08-21 note as re-confirmed today via one of these three full-table fetches.
+The 2026-08-24 run re-fetched the full Anthropic pricing table, the full OpenAI
+standard-pricing-table dump (plus a targeted verbatim re-fetch of the gpt-5.6 family and
+its dedicated model/Fast-mode/Flex rows), and a targeted subset of the Gemini AI Studio
+pricing pages and models page. Anthropic and Gemini rows checked this run were confirmed
+unchanged; the only price change found was **gpt-5.6-sol** (see its row and
+`provider-sources-and-price-keys.md` for detail). Rows below still read "Re-confirmed ...
+[date of last dedicated verification]" where that earlier wording remains accurate; treat
+any row without an explicit 2026-08-24 or 2026-08-21 note as last confirmed on one of
+those two dates via a full-table fetch, not independently re-checked today.
 
 | Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |
 | -------- | --------------------- | --------------- | --------------- | --------------- | --------------- | ------ | ------------------ | -------- |
@@ -48,9 +50,9 @@ where that earlier wording remains accurate; treat any row without an explicit
 | Anthropic | claude-3-sonnet-20240229 | Input $3/MTok, Output $15/MTok | No | Not on current page | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Not re-verified this run. Legacy. |
 | Anthropic | claude-3-haiku-20240307 | Input $0.25/MTok, Output $1.25/MTok | No | Not on current page | Not applicable | None | https://platform.claude.com/docs/en/about-claude/pricing | Not re-verified this run. Legacy. |
 | AWS Bedrock | claude-3-5-sonnet-20240620 / claude-3.5-sonnet-20241022 (Public Extended Access SKU) | $6.00/MTok input, $30.00/MTok output, $7.50/MTok cache write, $0.60/MTok cache read | Yes (SKU confirmed real, Aug 4 2026) | Distinct dated SKU, not a context-length tier | Not applicable | Unresolved | https://aws.amazon.com/bedrock/pricing/ | Not re-verified this run; permanent documented limitation (model-ID string match cannot distinguish billing SKU) — see provider-sources-and-price-keys.md. |
-| OpenAI | gpt-5.6-sol | Input $5/MTok, Cached $0.50/MTok, Cache write $6.25/MTok, Output $30/MTok | Yes | Large Context (>272K): $10/$1.00/$12.50/$45 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed via full standard-pricing-table dump this run. |
-| OpenAI | gpt-5.6-terra | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $12/MTok | Yes | Large Context (>272K): $4/$0.40/$5.00/$18 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed stable. |
-| OpenAI | gpt-5.6-luna | Input $0.20/MTok, Cached $0.02/MTok, Cache write $0.25/MTok, Output $1.20/MTok | Yes | Large Context (>272K): $0.40/$0.04/$0.50/$1.80 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed stable. |
+| OpenAI | gpt-5.6-sol | Input $4/MTok, Cached $0.40/MTok, Cache write $5.00/MTok, Output $20/MTok | Yes | Large Context (>272K): $8/$0.80/$10.00/$30; Fast mode 2x base ($8/$0.80/$10/$40, LC $16/$1.60/$20/$60); Flex 0.5x base ($2/$0.20/$2.50/$10, LC $4/$0.40/$5/$15) | Yes | Updated | https://developers.openai.com/api/docs/pricing https://developers.openai.com/api/docs/models/gpt-5.6-sol | **Price cut found 2026-08-24.** Previously $5/$0.50/$6.25/$30 standard, $10/$1.00/$12.50/$45 large-context. Confirmed via 3 independent fetches (aggregate table, targeted verbatim row quote, dedicated model page). Model page states "a 20% reduction in input pricing and a 33% reduction in output pricing", "promotional pricing available at least through November 21, 2026" — re-verify after that date. All 6 pricing-file tiers (Standard, Fast mode, Flex, Large Context, Fast+LC, Flex+LC) updated; multipliers (2x/1.5x large-context, 2x Fast mode, 0.5x Flex, 1.25x cache-write) all still reconcile with the new base price. |
+| OpenAI | gpt-5.6-terra | Input $2/MTok, Cached $0.20/MTok, Cache write $2.50/MTok, Output $12/MTok | Yes | Large Context (>272K): $4/$0.40/$5.00/$18 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged 2026-08-24 (unlike sibling gpt-5.6-sol). |
+| OpenAI | gpt-5.6-luna | Input $0.20/MTok, Cached $0.02/MTok, Cache write $0.25/MTok, Output $1.20/MTok | Yes | Large Context (>272K): $0.40/$0.04/$0.50/$1.80 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged 2026-08-24 (unlike sibling gpt-5.6-sol). |
 | OpenAI | gpt-5.5-2026-04-23 (alias gpt-5.5) | Input $5/MTok, Cached $0.50/MTok, Output $30/MTok | Yes | Large Context (>272K): $10/$1.00/$45 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. No cache-write pricing for this model. |
 | OpenAI | gpt-5.5-pro-2026-04-23 (alias gpt-5.5-pro) | Input $30/MTok, Output $180/MTok; no cache | Yes | Large Context (>272K): $60/$270 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. |
 | OpenAI | gpt-5.4 | Input $2.50/MTok, Cached $0.25/MTok, Output $15/MTok | Yes | Large Context (>272K): $5.00/$0.50/$22.50 | Yes | None | https://developers.openai.com/api/docs/pricing | Re-confirmed unchanged. |
@@ -185,3 +187,17 @@ where that earlier wording remains accurate; treat any row without an explicit
     `ai.google.dev/gemini-api/docs/pricing`, and `gemini-3-pro-preview` also does not appear
     on `ai.google.dev/gemini-api/docs/models`. Same status as finding #4; existing file
     prices retained without fresh confirmation for a second consecutive run.
+
+11. **Selectable models with no matching pricing regex — confirmed still a known,
+    intentional gap (re-checked 2026-08-24)** — Cross-checked every selectable model in
+    `anthropicModels`, `openAIModels`, `vertexAIModels`, and `googleAIStudioModels` against
+    every `matchPattern` in the pricing file. All `openAIModels` and `anthropicModels`
+    entries match. The following `vertexAIModels`/`googleAIStudioModels` entries have no
+    matching pricing entry: `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-1.5-flash-8b`,
+    `gemini-2.0-pro-exp-02-05`, `gemini-2.0-flash-exp`, `gemini-2.0-flash-thinking-exp-01-21`,
+    `gemini-2.5-flash-preview-09-2025`, `gemini-2.5-flash-lite-preview-09-2025`. This matches
+    the already-documented limitations in `provider-sources-and-price-keys.md` ("Gemini 1.5
+    models" and "Gemini experimental / preview model IDs" sections) — these are
+    retired/experimental IDs with no official pricing page entry, not a new finding. No file
+    change made. Future audits do not need to re-run this full cross-check unless a new
+    selectable model is added to `types.ts`.

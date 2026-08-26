@@ -471,6 +471,8 @@ export const reduceUsageOrCostDetails = (
         (acc, [, value]) => (acc ?? 0) + Number(value),
         null as number | null, // default to null if no output usage is found
       ),
-    total: Number(details?.total ?? 0),
+    // Keep an explicit 0 (deliberate zero cost/usage). A missing `total` key
+    // is null so callers can distinguish "no value" from zero.
+    total: details?.total != null ? Number(details.total) : null,
   };
 };

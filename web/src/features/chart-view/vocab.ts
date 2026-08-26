@@ -77,7 +77,7 @@ export const DIMENSIONS: DimensionDef[] = [
   { key: "none", label: "Total (no breakdown)", field: null },
   { key: "model", label: "Model", field: "providedModelName" },
   { key: "name", label: "Name", field: "name" },
-  { key: "level", label: "Level", field: "level" },
+  { key: "level", label: "Status", field: "level" },
   { key: "type", label: "Type", field: "type" },
   { key: "environment", label: "Environment", field: "environment" },
 ];

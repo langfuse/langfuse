@@ -83,6 +83,36 @@ describe("zipObservationToolCalls", () => {
 });
 
 describe("mapEventEvalFilterColumnIdToField", () => {
+  it("maps filters backed directly by the evaluation payload", () => {
+    const observation = {
+      provided_model_name: "gpt-4o",
+      prompt_name: "support-agent",
+      prompt_version: 2,
+      release: "2026-08",
+      status_message: "rate limit exceeded",
+      experiment_name: "checkout-eval",
+    } as ObservationForEval;
+
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "providedModelName"),
+    ).toBe("gpt-4o");
+    expect(mapEventEvalFilterColumnIdToField(observation, "promptName")).toBe(
+      "support-agent",
+    );
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "promptVersion"),
+    ).toBe(2);
+    expect(mapEventEvalFilterColumnIdToField(observation, "release")).toBe(
+      "2026-08",
+    );
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "statusMessage"),
+    ).toBe("rate limit exceeded");
+    expect(
+      mapEventEvalFilterColumnIdToField(observation, "experimentName"),
+    ).toBe("checkout-eval");
+  });
+
   it("maps the experiment root filter to a boolean", () => {
     expect(
       mapEventEvalFilterColumnIdToField(

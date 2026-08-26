@@ -71,9 +71,14 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
  * 4. Executes the evaluator-specific implementation
  * 5. Completes the eval execution with shared score persistence
  */
-type ObservationEvalExecutionType =
+export type ObservationEvalExecutionType =
   | typeof EvalTemplateType.LLM_AS_JUDGE
   | typeof EvalTemplateType.CODE;
+
+export type ObservationEvalProcessorOutcome =
+  | "completed"
+  | "cancelled"
+  | "skipped";
 
 type ProcessObservationEvalParams = {
   event: z.infer<typeof ObservationEvalExecutionEventSchema>;
@@ -83,7 +88,7 @@ type ProcessObservationEvalParams = {
 
 export async function processObservationEval(
   params: ProcessObservationEvalParams,
-): Promise<void> {
+): Promise<ObservationEvalProcessorOutcome> {
   const { event, deps = createObservationEvalProcessorDeps() } = params;
   logger.debug(
     `Processing observation eval job ${event.jobExecutionId} for project ${event.projectId}`,
@@ -102,18 +107,19 @@ export async function processObservationEval(
       `Job execution ${event.jobExecutionId} not found. It may have been deleted.`,
     );
 
-    return;
+    return "skipped";
   }
 
-  // Observation eval executions may already be CANCELLED if the evaluator was
-  // blocked after scheduling, or ERROR if a previous attempt already failed and
-  // the processor retried the same queue job.
-  if (job.status === "CANCELLED" || job.status === "ERROR") {
-    logger.debug(
-      `Job execution ${event.jobExecutionId} was cancelled or has an error.`,
-    );
+  // Observation eval executions may already be terminal if the evaluator was
+  // blocked after scheduling or the queue job was redelivered after processing.
+  if (
+    job.status === "CANCELLED" ||
+    job.status === "ERROR" ||
+    job.status === "COMPLETED"
+  ) {
+    logger.debug(`Job execution ${event.jobExecutionId} is already terminal.`);
 
-    return;
+    return "skipped";
   }
 
   const resolved = await resolveObservationEvalExecution({
@@ -123,7 +129,7 @@ export async function processObservationEval(
   });
   if (resolved.type === "cancelled") {
     await cancelJobExecution(job, event.projectId, resolved.reason);
-    return;
+    return "cancelled";
   }
   const { config: evalJobConfig, template } = resolved;
 
@@ -143,7 +149,7 @@ export async function processObservationEval(
       },
     });
 
-    return;
+    return "cancelled";
   }
 
   // Download observation data from S3
@@ -201,7 +207,7 @@ export async function processObservationEval(
       data: { status: JobExecutionStatus.CANCELLED, endTime: new Date() },
     });
 
-    return;
+    return "cancelled";
   }
 
   // Extract variables from observation
@@ -279,6 +285,8 @@ export async function processObservationEval(
     deps: executionParams.deps,
     result: executionResult,
   });
+
+  return "completed";
 }
 
 async function cancelJobExecution(

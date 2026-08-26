@@ -1,6 +1,7 @@
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
 import { encrypt } from "../../encryption";
 import { env } from "../../env";
+import { getInAppAgentModelConfig } from "../../in-app-agent/server/modelProvider";
 import { type ChatMessage, LLMAdapter, type TraceSinkParams } from "./types";
 import { generateLLMText, mapLegacyLLMCompletionParams } from "./llmText";
 import { randomBytes } from "crypto";
@@ -45,30 +46,48 @@ export async function generateLangfuseAIText(params: {
   traceSinkParams?: TraceSinkParams;
   timeout?: number;
 }): Promise<string> {
-  const model = params.model ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const modelConfig = getInAppAgentModelConfig({ modelId: params.model });
 
-  if (!model) {
+  if (!modelConfig) {
     throw new Error("Langfuse AI completion model is not configured.");
   }
 
+  const maxTokens =
+    params.maxTokens !== undefined ? { max_tokens: params.maxTokens } : {};
+
   const result = await generateLLMText({
-    ...mapLegacyLLMCompletionParams({
-      messages: params.messages,
-      modelParams: {
-        provider: "bedrock",
-        adapter: LLMAdapter.Bedrock,
-        model,
-        // Intentionally omit temperature/top_p: newer Bedrock models reject these
-        // inference params, while AI-feature generation works at model defaults.
-        ...(params.maxTokens !== undefined
-          ? { max_tokens: params.maxTokens }
-          : {}),
-      },
-      connection: {
-        secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-      },
-      credentialSource: "langfuse",
-    }),
+    ...mapLegacyLLMCompletionParams(
+      modelConfig.provider === "anthropic"
+        ? {
+            messages: params.messages,
+            modelParams: {
+              provider: "anthropic",
+              adapter: LLMAdapter.Anthropic,
+              model: modelConfig.modelId,
+              ...maxTokens,
+            },
+            connection: {
+              secretKey: encrypt(modelConfig.apiKey),
+              baseURL: modelConfig.baseURL,
+            },
+            credentialSource: "langfuse",
+          }
+        : {
+            messages: params.messages,
+            modelParams: {
+              provider: "bedrock",
+              adapter: LLMAdapter.Bedrock,
+              model: modelConfig.modelId,
+              // Intentionally omit temperature/top_p: newer Bedrock models reject these
+              // inference params, while AI-feature generation works at model defaults.
+              ...maxTokens,
+            },
+            connection: {
+              secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+            },
+            credentialSource: "langfuse",
+          },
+    ),
     trace: params.traceSinkParams,
     timeout: params.timeout,
   });

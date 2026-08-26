@@ -24,11 +24,10 @@ import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
-  ExperimentEvaluationRuleFilter,
   LegacyEvaluationRuleMapping,
-  ObservationEvaluationRuleFilter,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  PublicEvaluationRuleFilter,
   type PublicEvaluationRuleFilterType,
   type PublicEvaluationRuleMappingType,
   type PublicEvaluationRuleReadMappingType,
@@ -112,14 +111,6 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experimentItemMetadata: "experiment_item_metadata",
   experiment_item_metadata: "experiment_item_metadata",
 };
-
-function getPublicFilterArraySchema(target: PublicEvaluationRuleTargetType) {
-  return z.array(
-    target === "observation"
-      ? ObservationEvaluationRuleFilter
-      : ExperimentEvaluationRuleFilter,
-  );
-}
 
 export function deriveEvaluatorVariables(
   template: Pick<StoredPublicEvaluatorTemplate, "vars" | "prompt">,
@@ -293,18 +284,15 @@ function toStoredFilter(
   return filter;
 }
 
-function toApiFilter(
-  filter: z.infer<typeof singleFilter>,
-  target: PublicEvaluationRuleTargetType,
-): PublicEvaluationRuleFilterType {
-  if (target === "experiment" && filter.column === "experimentDatasetId") {
+function toApiFilter(filter: z.infer<typeof singleFilter>) {
+  if (filter.column === "experimentDatasetId") {
     return {
       ...filter,
       column: "datasetId",
-    } as PublicEvaluationRuleFilterType;
+    };
   }
 
-  return filter as PublicEvaluationRuleFilterType;
+  return filter;
 }
 
 export function toApiReadMappings(
@@ -404,7 +392,7 @@ function getLegacyCodeEvalVariableMapping(target: "trace" | "dataset") {
 function toApiFilters(
   filters: unknown,
   target: PublicEvaluationRuleTargetType,
-): PublicEvaluationRuleFilterType[] {
+) {
   const storedFilters = z.array(singleFilter).safeParse(filters);
 
   if (!storedFilters.success) {
@@ -418,11 +406,10 @@ function toApiFilters(
     target === "experiment"
       ? stripExperimentRootFilter(storedFilters.data)
       : storedFilters.data;
-  const publicFilters = effectiveFilters.map((filter) =>
-    toApiFilter(filter, target),
-  );
-  const parsedPublicFilters =
-    getPublicFilterArraySchema(target).safeParse(publicFilters);
+  const publicFilters = effectiveFilters.map(toApiFilter);
+  const parsedPublicFilters = z
+    .array(PublicEvaluationRuleFilter)
+    .safeParse(publicFilters);
 
   if (!parsedPublicFilters.success) {
     logger.error("Failed to parse unstable public evaluation rule filters", {

@@ -21,8 +21,8 @@ export function CostBadge({
   costDetails: Record<string, number> | undefined;
   priceSource?: PriceSource;
 }) {
-  // Don't show if no cost data or cost is 0
-  if (totalCost == null || totalCost === 0 || !costDetails) return null;
+  // Don't show if no cost data. Explicit 0 is a real value and should render.
+  if (totalCost == null || !costDetails) return null;
 
   return (
     <BreakdownTooltip

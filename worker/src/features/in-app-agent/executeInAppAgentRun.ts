@@ -33,6 +33,7 @@ import {
 import {
   getInAppAgentModelConfig,
   isInAppAgentInstanceEnabled,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
 } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   claimQueuedRun,
@@ -44,6 +45,7 @@ import {
   reconcileConversationRuns,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import {
+  buildInAppAgentToolApprovalSidecar,
   createInAppAgentMcpRunOverride,
   createInAppAgentToolPolicy,
   getInAppAgentMcpAllowedToolNames,
@@ -203,9 +205,7 @@ export async function executeInAppAgentRun(params: {
     const modelConfig = getInAppAgentModelConfig({ modelId: run.model });
 
     if (!modelConfig) {
-      throw new InAppAgentRunInitError(
-        "In-app agent Bedrock model is not configured",
-      );
+      throw new InAppAgentRunInitError(LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE);
     }
 
     const useBundledPrompt =
@@ -475,6 +475,33 @@ export async function executeInAppAgentRun(params: {
           }
 
           pendingPersistedEvents.push(persistedEvent);
+
+          if (persistedEvent.type === "TOOL_CALL_START") {
+            const toolCallId =
+              typeof persistedEvent.toolCallId === "string"
+                ? persistedEvent.toolCallId
+                : undefined;
+            const toolName =
+              typeof persistedEvent.toolCallName === "string"
+                ? persistedEvent.toolCallName
+                : undefined;
+            const sidecar =
+              toolCallId && toolName
+                ? buildInAppAgentToolApprovalSidecar({
+                    toolCallId,
+                    toolName,
+                    policy: toolPolicy,
+                    humanApprovedToolCallId: isApprovedContinuation
+                      ? approvalRequest?.toolCallId
+                      : undefined,
+                  })
+                : undefined;
+
+            if (sidecar) {
+              pendingPersistedEvents.push(sidecar);
+            }
+          }
+
           sandboxToolCallFiles.processEvent({
             event: persistedEvent,
             runId,

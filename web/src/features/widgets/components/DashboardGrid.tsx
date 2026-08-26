@@ -78,7 +78,6 @@ export function DashboardGrid({
   getWidgetSchedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicateWidget,
   onDuplicatePreset,
 }: {
@@ -101,9 +100,7 @@ export function DashboardGrid({
   onLockedEditAttempt?: () => void;
   /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
   readOnly?: boolean;
-  /** Paste the clipboard widget/card next to a tile (editable dashboards only). */
-  onPasteWidget?: (anchor: DashboardPlacement) => void;
-  /** Duplicate a tile's widget next to it (editable dashboards only). */
+  /** Clone a tile's widget next to it (editable dashboards only). */
   onDuplicateWidget?: (
     anchor: WidgetPlacement,
     widget: WidgetExportSource,
@@ -179,7 +176,6 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
-        onPasteWidget={onPasteWidget}
         onDuplicatePreset={onDuplicatePreset}
       />
     ) : (
@@ -194,7 +190,6 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
-        onPasteWidget={onPasteWidget}
         onDuplicateWidget={onDuplicateWidget}
       />
     );

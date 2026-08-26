@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { InvalidRequestError } from "../../../errors";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -129,6 +130,24 @@ describe("queryBuilder filter type validation", () => {
       ).rejects.toThrow(expectedMessage);
     },
   );
+
+  it("rejects filters on pair-expanded dimensions", async () => {
+    const result = buildQueryWithFilter(
+      {
+        column: "usageType",
+        operator: "contains",
+        value: "cache",
+        type: "string",
+      },
+      undefined,
+      "v2",
+    );
+
+    await expect(result).rejects.toThrow(InvalidRequestError);
+    await expect(result).rejects.toThrow(
+      "Field 'usageType' cannot be used as a filter.",
+    );
+  });
 
   it.each([
     {

@@ -29,6 +29,10 @@ import {
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
+import {
+  getInAppAgentModelConfig,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -119,17 +123,16 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        const model =
-          env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ??
-          env.LANGFUSE_AWS_BEDROCK_MODEL;
+        const modelConfig = getInAppAgentModelConfig();
 
-        if (!model) {
+        if (!modelConfig) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+            message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
           });
         }
+
+        const model = modelConfig.titleModelId;
 
         // Anchor relative time expressions ("today", "last 24h") to now.
         const now = new Date();

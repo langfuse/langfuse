@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   BaseError,
   LangfuseConflictError,
+  LangfuseNotFoundError,
   ServiceUnavailableError,
 } from "@langfuse/shared";
 import {
@@ -101,6 +102,14 @@ const appendPlainTextSection = (
 const getDataRegion = (): string =>
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "self-hosted";
 
+export const isHipaaCloudRegion = (): boolean =>
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA";
+
+// Product feedback is intentionally unavailable in HIPAA: Slack delivery is
+// not allowed, so the MCP tool and public endpoint should stay hidden rather
+// than fail as a misconfigured sink.
+export const isProductFeedbackAvailable = (): boolean => !isHipaaCloudRegion();
+
 const feedbackSourceLabel: Record<FeedbackSource, string> = {
   "langfuse-mcp": "Langfuse MCP",
   "public-api": "Public API",
@@ -171,9 +180,7 @@ const buildFeedbackSlackMessage = ({
 // The HIPAA region must never deliver feedback to Slack, even if a webhook
 // were configured there by mistake.
 const getConfiguredFeedbackWebhookUrl = (): string | undefined =>
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA"
-    ? undefined
-    : env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK;
+  isHipaaCloudRegion() ? undefined : env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK;
 
 const validateFeedbackWebhookUrl = (webhookUrl: string): string => {
   let parsed: URL;
@@ -203,6 +210,10 @@ export const submitFeedback = async ({
   source: FeedbackSource;
   scope: ApiAccessScope;
 }): Promise<PostFeedbackResponseType> => {
+  if (!isProductFeedbackAvailable()) {
+    throw new LangfuseNotFoundError();
+  }
+
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     scope,
     "feedback",

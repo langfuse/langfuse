@@ -12,7 +12,7 @@ import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-que
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
@@ -55,23 +55,26 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   });
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData, RowData["key"]>({
       accessorKey: "key",
       header: "Name",
-      id: "key",
       size: 150,
       isPinnedLeft: true,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
-        return key && "id" in key && typeof key.id === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/annotation-queues/${key.id}`}
-            value={key.name}
-          />
-        ) : undefined;
+      getCell: (key) => {
+        if (key && "id" in key && typeof key.id === "string") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/annotation-queues/${key.id}`,
+              value: key.name,
+            },
+          };
+        }
+
+        return undefined;
       },
-    },
+    }),
     {
       accessorKey: "description",
       header: "Description",

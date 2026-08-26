@@ -9,6 +9,8 @@ import type { AgUiEvent } from "../schema";
 export type SilentInAppAgentMcpToolOutput = {
   type: typeof IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE;
   output: unknown;
+  toolCallId?: string;
+  toolName?: string;
 };
 
 export type CompletedInAppAgentMcpToolCall = {
@@ -20,11 +22,32 @@ export type CompletedInAppAgentMcpToolCall = {
   createdAt: Date;
 };
 
+export const getInAppAgentSilentMcpOutputFilePath = (
+  toolName: string,
+  toolCallId: string,
+) => `tool_calls/${toolName}_${toolCallId}.json`;
+
+export const getInAppAgentSilentMcpOutputMessage = (
+  toolName: string,
+  toolCallId: string,
+) =>
+  `Output saved to /workspace/${getInAppAgentSilentMcpOutputFilePath(toolName, toolCallId)}`;
+
 export function getPublicInAppAgentMcpToolResultContent(content: string) {
   try {
-    return isSilentInAppAgentMcpToolOutput(JSON.parse(content) as unknown)
-      ? IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE
-      : content;
+    const output = JSON.parse(content) as unknown;
+    if (!isSilentInAppAgentMcpToolOutput(output)) {
+      return content;
+    }
+
+    if (!output.toolCallId || !output.toolName) {
+      return IN_APP_AGENT_SILENT_MCP_OUTPUT_MESSAGE;
+    }
+
+    return getInAppAgentSilentMcpOutputMessage(
+      output.toolName,
+      output.toolCallId,
+    );
   } catch {
     return content;
   }

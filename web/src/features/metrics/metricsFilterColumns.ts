@@ -274,11 +274,12 @@ const getMetricsFilterColumnSpecs = ({
       },
       {
         column: {
-          name: "Level",
+          name: "Status",
           id: "level",
           type: "stringOptions",
           options: observationLevelOptions,
           internal: "internalValue",
+          aliases: ["Level"],
         },
       },
       {

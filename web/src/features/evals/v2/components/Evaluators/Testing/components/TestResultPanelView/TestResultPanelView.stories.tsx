@@ -86,6 +86,40 @@ export const CodeSuccess = meta.story({
   },
 });
 
+export const BooleanCodeSuccess = meta.story({
+  name: "Boolean Code Success",
+  args: {
+    title: "Code Output",
+    result: {
+      status: "code-success",
+      scores: [
+        {
+          name: "Factuality",
+          value: "true",
+          comment: "The response is factually correct.",
+        },
+        {
+          name: "Contains PII",
+          value: "false",
+          comment: null,
+        },
+      ],
+    },
+    durationMs: 280,
+    estimatedCostUsd: null,
+    rawOutput: {
+      scores: [
+        { name: "Factuality", value: 1, dataType: "BOOLEAN" },
+        { name: "Contains PII", value: 0, dataType: "BOOLEAN" },
+      ],
+    },
+    rawOpen: false,
+    traceActions: traceActions("trace-execution"),
+    rerunAction: rerunAction(false, null),
+    onRawOpenChange: actions.onRawOpenChange,
+  },
+});
+
 export const Error = meta.story({
   args: {
     title: "LLM Output",

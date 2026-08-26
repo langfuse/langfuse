@@ -47,6 +47,9 @@ vi.mock("@sentry/nextjs", () => ({
   captureConsoleIntegration: vi.fn(() => ({ name: "CaptureConsole" })),
   browserProfilingIntegration: vi.fn(() => ({ name: "BrowserProfiling" })),
   captureRouterTransitionStart: vi.fn(),
+  setTag: vi.fn(),
+  getActiveSpan: vi.fn(),
+  getRootSpan: vi.fn(),
 }));
 
 /**

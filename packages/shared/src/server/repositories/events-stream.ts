@@ -73,6 +73,7 @@ export const getEventsStreamForEval = async (props: {
     output: unknown;
     metadata: Record<string, unknown> | null;
     experiment_id: string | null;
+    experiment_name: string | null;
     experiment_item_root_span_id: string | null;
     experiment_item_expected_output: string | null;
     experiment_item_metadata: Record<string, unknown> | null;

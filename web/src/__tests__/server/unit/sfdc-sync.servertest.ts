@@ -860,7 +860,10 @@ describe("call site: tRPC organizations.create", () => {
       .mockResolvedValueOnce(emptyOkResponse())
       .mockResolvedValueOnce(emptyOkResponse());
 
-    await createOwnerCaller("org-1").organizations.create({ name: "New Org" });
+    await createOwnerCaller("org-1").organizations.create({
+      name: "New Org",
+      aiFeaturesEnabled: true,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
 

@@ -10,6 +10,7 @@ const envMock = vi.hoisted(() => ({
 vi.mock("../../env", () => envMock);
 
 import {
+  resolveClickHouseJsonBadUnicodeEscapeMode,
   isClickHouseVersionInBand,
   parseClickHouseVersion,
   resolveClickHouseCompatibility,
@@ -108,4 +109,26 @@ describe("resolveClickHouseCompatibility", () => {
       }).settings,
     ).toEqual(disableLazyMaterialization);
   });
+});
+
+describe("resolveClickHouseJsonBadUnicodeEscapeMode", () => {
+  it.each([
+    ["24.3.0.0", undefined, "v3.225.4", "sanitize"],
+    ["24.4.0.0", "auto", "v3.225.4", "no_throw"],
+    [null, "auto", "v3.225.4", "sanitize"],
+    ["24.3.0.0", "no_throw", "v3.225.4", "no_throw"],
+    ["25.12.0.0", "sanitize", "v4.17.0", "sanitize"],
+    ["24.3.0.0", undefined, "v4.17.0", "no_throw"],
+  ] as const)(
+    "resolves %s / %s / %s to %s",
+    (version, configuredMode, applicationVersion, expected) => {
+      expect(
+        resolveClickHouseJsonBadUnicodeEscapeMode({
+          version,
+          configuredMode,
+          applicationVersion,
+        }),
+      ).toBe(expected);
+    },
+  );
 });

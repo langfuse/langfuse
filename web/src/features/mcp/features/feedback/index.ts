@@ -1,3 +1,4 @@
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import type { McpFeatureModule } from "../../server/registry";
 import {
   handleSubmitFeedback,
@@ -14,4 +15,5 @@ export const feedbackFeature = {
       handler: handleSubmitFeedback,
     },
   ],
+  isEnabled: async () => isProductFeedbackAvailable(),
 } as const satisfies McpFeatureModule;

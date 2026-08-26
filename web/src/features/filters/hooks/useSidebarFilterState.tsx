@@ -182,6 +182,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   onOnlyChange?: (value: string) => void;
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** Optional content rendered after a filter option label */
+  renderOptionSuffix?: (value: string) => React.ReactNode;
   /**
    * Current operator of the facet's checkbox filter (arrayOptions AND
    * stringOptions columns; undefined when no filter is applied):
@@ -1901,6 +1903,8 @@ export function useSidebarFilterPresentation(
           disabledReason: disableState.reason,
           renderIcon:
             facet.type === "categorical" ? facet.renderIcon : undefined,
+          renderOptionSuffix:
+            facet.type === "categorical" ? facet.renderOptionSuffix : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {
@@ -1987,6 +1991,9 @@ export function useSidebarFilterPresentation(
     // Exposed so view-layer captures (DataTableControls) carry the same
     // v3-vs-v4 dimension as the hook's own events.
     isV4: isV4Surface,
+    // The curated default-visible facet set; DataTableControls folds the
+    // rest behind "Show N more".
+    commonFacets: config.commonFacets,
   };
 }
 

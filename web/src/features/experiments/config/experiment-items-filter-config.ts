@@ -37,7 +37,7 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     internal: "start_time",
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "level",
@@ -47,6 +47,7 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
       { value: "WARNING" },
       { value: "ERROR" },
     ] as { value: ObservationLevelType }[],
+    aliases: ["Level"],
   },
   {
     name: "Cost ($)",

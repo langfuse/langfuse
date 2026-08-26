@@ -3,9 +3,11 @@
 import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
 import {
+  EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
   captureBuildId,
   fetchWithParseErrorStatus,
+  getApproxTrpcGetUrlBytes,
   getTrpcErrorCode,
   getTrpcErrorFingerprint,
   getTrpcErrorPath,
@@ -13,8 +15,10 @@ import {
   isNetworkConnectivityError,
   isTrpcResponseParseError,
   isTrpcZodValidationError,
+  MAX_TRPC_GET_URL_BYTES,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  shouldSendQueryAsPost,
 } from "@/src/utils/api";
 
 const {
@@ -233,6 +237,98 @@ describe("isTrpcResponseParseError", () => {
   });
 });
 
+describe("shouldSendQueryAsPost", () => {
+  const queryOp = (
+    input: unknown,
+    context: Record<string, unknown> = {},
+    path = "traces.all",
+  ) => ({
+    type: "query" as const,
+    path,
+    input,
+    context,
+  });
+
+  it("keeps small queries on GET", () => {
+    expect(
+      shouldSendQueryAsPost(
+        queryOp({ projectId: "proj_1", filter: [], page: 0, limit: 50 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("honors the explicit sendAsPost context flag", () => {
+    expect(
+      shouldSendQueryAsPost(
+        queryOp({ projectId: "proj_1" }, { sendAsPost: true }),
+      ),
+    ).toBe(true);
+  });
+
+  it("routes a traces.all query whose filter would blow the GET URL as POST", () => {
+    // Session-storage-only filter states can exceed the page-URL budget
+    // (MAX_URL_FILTER_QUERY_LENGTH) and still be sent as tRPC input. ~200
+    // user IDs is the shape that 431s the GET request line.
+    const input = {
+      projectId: "proj_1",
+      filter: [
+        {
+          column: "userId",
+          type: "stringOptions",
+          operator: "none of",
+          value: Array.from(
+            { length: 200 },
+            (_, i) => `user-${i}-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`,
+          ),
+        },
+      ],
+      page: 0,
+      limit: 50,
+    };
+
+    expect(getApproxTrpcGetUrlBytes("traces.all", input)).toBeGreaterThan(
+      MAX_TRPC_GET_URL_BYTES,
+    );
+    // Auto-routing does not set `sendAsPost` on the op; the 414/431 diagnostic
+    // must use `shouldSendQueryAsPost`, not the explicit flag alone.
+    const op = queryOp(input);
+    expect(op.context.sendAsPost).not.toBe(true);
+    expect(shouldSendQueryAsPost(op)).toBe(true);
+  });
+
+  it("routes a traces.metrics query whose id list would blow the GET URL as POST", () => {
+    const input = {
+      projectId: "proj_1",
+      filter: [],
+      traceIds: Array.from(
+        { length: 100 },
+        (_, i) => `trace-${i.toString().padStart(3, "0")}-${"x".repeat(36)}`,
+      ),
+    };
+
+    expect(getApproxTrpcGetUrlBytes("traces.metrics", input)).toBeGreaterThan(
+      MAX_TRPC_GET_URL_BYTES,
+    );
+    expect(shouldSendQueryAsPost(queryOp(input, {}, "traces.metrics"))).toBe(
+      true,
+    );
+  });
+
+  it("does not force mutations onto the methodOverride POST link", () => {
+    expect(
+      shouldSendQueryAsPost({
+        type: "mutation",
+        path: "traces.deleteMany",
+        input: {
+          projectId: "proj_1",
+          traceIds: Array.from({ length: 200 }, (_, i) => `t-${i}`),
+        },
+        context: {},
+      }),
+    ).toBe(false);
+  });
+});
+
 describe("fetchWithParseErrorStatus", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -354,6 +450,43 @@ describe("isExpectedTrpcClientError", () => {
     expect(
       isExpectedTrpcClientError(
         trpcServerError({ code: "CONFLICT", httpStatus: 409 }),
+      ),
+    ).toBe(false);
+  });
+
+  it("treats a stale in-app-agent tool approval as expected", () => {
+    // decideToolApproval throws CONFLICT only when the parent run is no
+    // longer AWAITING_APPROVAL (already decided, expired, or cancelled).
+    // The UI toasts "Reload the conversation." — product working as designed.
+    const error = trpcServerError({
+      code: "CONFLICT",
+      httpStatus: 409,
+      path: "inAppAgent.decideToolApproval",
+      message: "This approval is no longer pending. Reload the conversation.",
+    });
+
+    expect(isExpectedTrpcClientError(error)).toBe(true);
+  });
+
+  it("does not treat CONFLICT on other procedures as expected", () => {
+    // Negative fixture: duplicate-name / unique-constraint CONFLICTs must
+    // still reach Sentry. Widening the allowlist would hide those.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path: "prompts.create",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path: "inAppAgent.startRun",
+        }),
       ),
     ).toBe(false);
   });
@@ -531,6 +664,25 @@ describe("reportTrpcErrorWithoutToast", () => {
     warnSpy.mockRestore();
   });
 
+  it("suppresses a stale in-app-agent tool approval (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "CONFLICT",
+        httpStatus: 409,
+        path: EXPECTED_TRPC_CONFLICT_PATHS[0],
+        message: "This approval is no longer pending. Reload the conversation.",
+      }),
+      "in-app-agent",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "CONFLICT",
+      path: "inAppAgent.decideToolApproval",
+    });
+  });
+
   it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
     // The organizations.delete FORBIDDEN advice: previously console.error'd by
     // the component (one Sentry event per retry), now classified as expected.
@@ -569,6 +721,25 @@ describe("reportTrpcErrorWithoutToast", () => {
 
   // Negative fixture: real errors MUST still be captured, with the
   // procedure/code fingerprint and tags.
+  it("captures CONFLICT on procedures outside the allowlist", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "CONFLICT",
+        httpStatus: 409,
+        path: "prompts.create",
+      }),
+      "prompts",
+    );
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "trpc.code": "CONFLICT",
+      "trpc.path": "prompts.create",
+    });
+  });
+
   it("captures a real (5xx) tRPC error with fingerprint and tags", () => {
     const error = trpcServerError({
       code: "INTERNAL_SERVER_ERROR",

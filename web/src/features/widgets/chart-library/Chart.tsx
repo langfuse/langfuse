@@ -16,7 +16,7 @@ import { CardContent } from "@/src/components/ui/card";
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
+import { TopListChart } from "@/src/features/widgets/chart-library/TopListChart";
 import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
 import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
@@ -207,10 +207,9 @@ const ChartComponent = ({
         );
       case "HORIZONTAL_BAR":
         return (
-          <HorizontalBarChart
+          <TopListChart
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
-            showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />
@@ -272,9 +271,8 @@ const ChartComponent = ({
       }
       default:
         return (
-          <HorizontalBarChart
+          <TopListChart
             data={renderedData.slice(0, rowLimit)}
-            showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
           />
         );

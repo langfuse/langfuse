@@ -56,6 +56,7 @@ export interface ComboboxProps<
   disabled?: boolean;
   className?: string;
   name?: string;
+  footer?: (args: { search: string; close: () => void }) => React.ReactNode;
 }
 
 function isGroupedOptions<T extends string | number | boolean | { id: string }>(
@@ -96,8 +97,15 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
   disabled = false,
   className,
   name,
+  footer,
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const close = () => {
+    setOpen(false);
+    setSearch("");
+  };
+  const footerContent = footer?.({ search, close });
 
   const selectedOption = React.useMemo(() => {
     if (isGroupedOptions(options)) {
@@ -115,7 +123,13 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     : placeholder;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -147,7 +161,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} className="text-xs" />
+          <CommandInput
+            placeholder={searchPlaceholder}
+            className="text-xs"
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {isGroupedOptions(options) ? (
@@ -171,7 +190,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                       onSelect={() => {
                         if (!option.disabled && onValueChange) {
                           onValueChange(option.value as T);
-                          setOpen(false);
+                          close();
                         }
                       }}
                       className={cn(
@@ -222,7 +241,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                     onSelect={() => {
                       if (!option.disabled && onValueChange) {
                         onValueChange(option.value as T);
-                        setOpen(false);
+                        close();
                       }
                     }}
                     className={cn(
@@ -255,6 +274,9 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
             )}
           </CommandList>
         </Command>
+        {footerContent ? (
+          <div className="border-border border-t p-1">{footerContent}</div>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

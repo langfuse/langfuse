@@ -346,6 +346,7 @@ export function WidgetForm({
   const chartTypeError: string | undefined = formErrors.chart?.type?.message;
   const metricsError: string | undefined =
     formErrors.metrics?.message ??
+    formErrors.metrics?.root?.message ??
     formErrors.metrics?.[0]?.measure?.message ??
     formErrors.metrics?.[0]?.aggregation?.message;
   const dimensionsError: string | undefined = formErrors.dimensions?.message;

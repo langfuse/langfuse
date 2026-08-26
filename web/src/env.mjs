@@ -267,6 +267,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
+    AUTH_CUSTOM_FETCH_USERINFO: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -293,7 +297,7 @@ export const env = createEnv({
         "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes",
       )
       .optional()
-      .default(30 * 24 * 60), // default to 30 days
+      .default(14 * 24 * 60), // default to 14 days
     AUTH_HTTP_PROXY: z.url().optional(),
     AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
@@ -460,9 +464,15 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+    // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+    // apply to both providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL are
+    // Anthropic-only.
+    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+    LANGFUSE_AI_MODEL: z.string().optional(),
+    LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+    LANGFUSE_AI_API_KEY: z.string().optional(),
+    LANGFUSE_AI_BASE_URL: z.string().optional(),
+    LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 
     // Tracing for Langfuse AI Features
@@ -479,6 +489,12 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
+    // Maximum encoded and decompressed OTLP request body size in bytes.
+    LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES: z.coerce
+      .number()
+      .positive()
+      .int()
+      .default(512 * 1024 * 1024),
     // API Traces endpoint controls (may induce breaking changes on API when changed!)
     LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
       .number()
@@ -562,7 +578,6 @@ export const env = createEnv({
       }),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
       .number()
       .int()
@@ -653,7 +668,6 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
       process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER,
     LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:
@@ -829,6 +843,7 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_CUSTOM_FETCH_USERINFO: process.env.AUTH_CUSTOM_FETCH_USERINFO,
     AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
     AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING:
@@ -986,10 +1001,12 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
-      process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
+    LANGFUSE_AI_PROVIDER: process.env.LANGFUSE_AI_PROVIDER,
+    LANGFUSE_AI_MODEL: process.env.LANGFUSE_AI_MODEL,
+    LANGFUSE_AI_SMALL_MODEL: process.env.LANGFUSE_AI_SMALL_MODEL,
+    LANGFUSE_AI_API_KEY: process.env.LANGFUSE_AI_API_KEY,
+    LANGFUSE_AI_BASE_URL: process.env.LANGFUSE_AI_BASE_URL,
+    LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
 
     // Langfuse Tracing AI Features
@@ -998,6 +1015,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
+    LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
+      process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
 
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:

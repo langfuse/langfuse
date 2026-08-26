@@ -50,18 +50,32 @@ describe("facet order", () => {
     expect(shown(order)).toEqual(["alpha", "gamma", "beta"]);
   });
 
-  it("never holds a stale block: an outstanding interaction cannot survive an empty set or a boundary", () => {
-    // beta settled on top, then three in-list edits that changed values but not
-    // promotion: none of them consumed its token, so one is still outstanding.
+  it("holds the block when the user clears the sole remaining facet in-list", () => {
+    // beta is the only promoted facet; the user clears it inside the list.
     const order = settleFacetOrder(["beta"]);
-    const token = 3;
 
-    // Clearing everything settles regardless — no block to hold, no separator.
-    expect(shown(advanceFacetOrder(order, [], token))).toEqual([
+    // Attributed to an in-list interaction: beta keeps its place until the
+    // next settle instead of vanishing behind the fold mid-gesture.
+    expect(shown(advanceFacetOrder(order, [], 1))).toEqual([
+      "beta",
+      "alpha",
+      "gamma",
+    ]);
+
+    // An external empty (cleared search bar) carries no new interaction and
+    // falls back to plain config order.
+    expect(shown(advanceFacetOrder(order, [], 0))).toEqual([
       "alpha",
       "beta",
       "gamma",
     ]);
+  });
+
+  it("a boundary the sidebar owns drops outstanding attribution before the next change", () => {
+    // beta settled on top, then in-list edits that changed values but not
+    // promotion: none of them consumed the token, so one is still outstanding.
+    const order = settleFacetOrder(["beta"]);
+    const token = 3;
 
     // Left outstanding, the attribution would hold the old block…
     expect(shown(advanceFacetOrder(order, ["gamma"], token))).toEqual([

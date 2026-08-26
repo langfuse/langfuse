@@ -19,7 +19,7 @@ import {
 } from "@/src/components/ui/tabs-bar";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 interface AutomationDetailsProps {
@@ -125,12 +125,23 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                <DeleteAutomationButton
+                <DeleteAutomationDialogController
                   projectId={projectId}
                   automationId={automationId}
-                  variant="button"
                   onSuccess={onDelete}
-                />
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-light-red flex items-center"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      <span className="text-dark-red">Delete</span>
+                    </Button>
+                  )}
+                </DeleteAutomationDialogController>
               </div>
             }
           />

@@ -169,4 +169,15 @@ export default [
       "react/no-unused-prop-types": "warn",
     },
   },
+  {
+    name: "langfuse/next/tests-and-stories",
+    files: [
+      "**/*.test.{ts,tsx}",
+      "**/*.story.{ts,tsx}",
+      "**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": "off",
+    },
+  },
 ];

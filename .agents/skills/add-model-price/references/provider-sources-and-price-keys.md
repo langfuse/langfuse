@@ -175,6 +175,30 @@ Always fetch pricing from the provider's official docs before editing.
   launch. Standard OpenAI matchPattern: `(?i)^(openai\/)?(gpt-5.3-codex)$`. Added to pricing
 file and `openAIModels`in July 27 2026 audit. Official sources:`https://developers.openai.com/api/docs/pricing` and
   `https://developers.openai.com/api/docs/models/gpt-5.3-codex`.
+- **GPT-5.6 Sol price cut (found August 24 2026)** — OpenAI cut pricing for
+  `gpt-5.6-sol` only; `gpt-5.6-terra` and `gpt-5.6-luna` are unchanged (re-confirmed
+  identical to their July 31 2026 values below). Confirmed via 3 independent WebFetch
+  calls: the aggregate standard-pricing-table dump, a targeted verbatim quote of the
+  Standard-table row, and a dedicated fetch of
+  `https://developers.openai.com/api/docs/models/gpt-5.6-sol` (which states the change is
+  "a 20% reduction in input pricing and a 33% reduction in output pricing" with
+  "promotional pricing available at least through November 21, 2026" — re-check after that
+  date). New standard (≤272K) price: $4.00/MTok input, $0.40/MTok cached input, $5.00/MTok
+  cache write, $20.00/MTok output (previously $5.00/$0.50/$6.25/$30.00). New Large Context
+  (>272K) price: $8.00/$0.80/$10.00/$30.00 (previously $10.00/$1.00/$12.50/$45.00). The
+  2x-input/1.5x-output large-context multiplier and the 1.25x-of-input cache-write
+  multiplier both still hold exactly on the new base price. The Fast mode and Flex tiers
+  (added August 20 2026) were independently re-fetched and also scale off the new base at
+  their existing multipliers: Fast mode 2x base ($8.00/$0.80/$10.00/$40.00 standard,
+  $16.00/$1.60/$20.00/$60.00 large-context), Flex 0.5x base ($2.00/$0.20/$2.50/$10.00
+  standard, $4.00/$0.40/$5.00/$15.00 large-context). All six pricing-file tiers for
+  `gpt-5.6-sol` were updated to match. Lesson: an aggregate WebFetch table dump can look
+  identical in shape to a real price change vs. a hallucinated/garbled one (the first dump
+  this run showed self-inconsistent numbers that didn't match any documented multiplier) —
+  always cross-check a suspicious price-table result with a second, targeted verbatim-quote
+  fetch and the model's own dedicated page before trusting it, and verify the documented
+  formulas (large-context multiplier, cache-write multiplier) still reconcile with the new
+  numbers before applying them.
 - **GPT-5.6 Terra / Luna price cut (found July 31 2026)** — OpenAI lowered pricing for
   `gpt-5.6-terra` and `gpt-5.6-luna` sometime between the July 27 and July 31 2026 audits;
   `gpt-5.6-sol` was unchanged. Confirmed via 4 independent WebFetch calls (the overview

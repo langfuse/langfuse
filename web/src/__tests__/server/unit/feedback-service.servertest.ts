@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   LangfuseConflictError,
+  LangfuseNotFoundError,
   ServiceUnavailableError,
 } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
@@ -35,7 +36,12 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
+import {
+  isProductFeedbackAvailable,
+  submitFeedback,
+} from "@/src/features/feedback/server/FeedbackService";
+import { feedbackFeature } from "@/src/features/mcp/features/feedback";
+import { getMcpServerInstructions } from "@/src/features/mcp/server/mcpServer";
 import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
 
 const scope = {
@@ -254,7 +260,7 @@ describe("FeedbackService", () => {
     );
   });
 
-  it("never delivers to Slack in the HIPAA region even with a configured sink", async () => {
+  it("hides product feedback in HIPAA without treating it as a missing sink", async () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -269,13 +275,20 @@ describe("FeedbackService", () => {
         },
         source: "public-api",
       }),
-    ).rejects.toBeInstanceOf(LangfuseConflictError);
+    ).rejects.toBeInstanceOf(LangfuseNotFoundError);
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mockRecordIncrement).toHaveBeenCalledWith(
-      "langfuse.feedback.submission",
-      1,
-      { source: "public-api", outcome: "sink_unconfigured" },
-    );
+    expect(mockRateLimitRequest).not.toHaveBeenCalled();
+    expect(mockRecordIncrement).not.toHaveBeenCalled();
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+    expect(isProductFeedbackAvailable()).toBe(false);
+    expect(await feedbackFeature.isEnabled?.()).toBe(false);
+    expect(getMcpServerInstructions()).not.toContain("submitFeedback");
+  });
+
+  it("keeps the MCP feedback tool and instructions outside HIPAA", async () => {
+    expect(isProductFeedbackAvailable()).toBe(true);
+    expect(await feedbackFeature.isEnabled?.()).toBe(true);
+    expect(getMcpServerInstructions()).toContain("submitFeedback");
   });
 });

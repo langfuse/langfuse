@@ -32,7 +32,8 @@ import { ComposerWithPreview } from "@/src/features/search-bar/components/Compos
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
-import type { SearchCommitTrigger } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
 
 export function EventsSearchBarRow({
   projectId,
@@ -45,6 +46,8 @@ export function EventsSearchBarRow({
   freeTextReason,
   onApplyFilters,
   onRequestColumns,
+  presetSections,
+  onQueryPresetPick,
   aiDataContext,
   aiScoreNames,
   className,
@@ -54,7 +57,7 @@ export function EventsSearchBarRow({
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
   tableName: string;
   store: SearchBarStore;
-  commit: (trigger?: SearchCommitTrigger) => string | null;
+  commit: SearchCommit;
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — value-stage loading settles to
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
@@ -78,6 +81,9 @@ export function EventsSearchBarRow({
    * (request the observed-options keys so the prompt sees real values).
    */
   onRequestColumns?: (columns: readonly string[]) => void;
+  /** Complete queries supplied by the host view. */
+  presetSections?: QueryPresetSection[];
+  onQueryPresetPick?: (presetId: string) => void;
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
@@ -127,6 +133,8 @@ export function EventsSearchBarRow({
             freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            presetSections={presetSections}
+            onQueryPresetPick={onQueryPresetPick}
             registry={registry}
           />
         </SearchBarStoreProvider>

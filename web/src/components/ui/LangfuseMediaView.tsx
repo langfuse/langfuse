@@ -3,14 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 
-import {
-  ImageOff,
-  ExternalLink,
-  File,
-  Image as ImageIcon,
-  Video,
-  Volume2,
-} from "lucide-react";
+import { ImageOff, ExternalLink } from "lucide-react";
 import {
   MediaReferenceStringSchema,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
@@ -26,6 +19,7 @@ import {
   type MediaReturnType,
 } from "@/src/features/media/validation";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -183,8 +177,6 @@ function FileViewer({
   if (!src) return null;
 
   const fileName = src.split("/").pop()?.split("?")[0] || "";
-  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
-
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
   };
@@ -208,27 +200,6 @@ function FileViewer({
     image.onerror = () => setIsExpanded(true);
     image.src = src;
   };
-
-  const iconTile = (
-    <div className="flex flex-col items-center gap-2">
-      {isImage ? (
-        <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : isAudio ? (
-        <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : isVideo ? (
-        <Video className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : (
-        <File className="h-5 w-5 transition-transform group-hover:scale-110" />
-      )}
-
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-sm font-bold">{fileExtension}</span>
-        <span className="text-muted-foreground text-xs">
-          {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
-        </span>
-      </div>
-    </div>
-  );
 
   const previewContent = isImage ? (
     <ResizableImage
@@ -274,20 +245,11 @@ function FileViewer({
           </Button>
         </div>
       ) : (
-        <button
-          type="button"
+        <MediaFileCard
+          contentType={contentType}
+          fileName={fileName}
           onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
-          aria-label={
-            isPreviewable
-              ? `Show ${fileName} inline`
-              : `Open ${fileName} in new tab`
-          }
-          aria-expanded={isPreviewable ? isExpanded : undefined}
-          title={fileName}
-          className="from-accent-light-green/30 to-muted hover:from-accent-light-green/40 hover:to-muted/90 dark:from-accent-dark-green/20 dark:to-muted dark:hover:from-accent-dark-green/30 group relative flex h-24 w-24 flex-col items-center justify-center gap-2 rounded-md border bg-linear-to-br px-2 transition-colors"
-        >
-          {iconTile}
-        </button>
+        />
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Zap } from "lucide-react";
-import { Callout } from "@/src/components/ui/callout";
+import { Callout } from "@/src/components/design-system/Callout/Callout";
+import { DismissController } from "@/src/components/DismissController";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
@@ -48,52 +49,60 @@ export function V4MigrationBanner() {
   }
 
   return (
-    <Callout
-      className="mb-4"
+    <DismissController
       id="v4-migration-banner:v1"
+      family="callouts"
       ttlMs={DISMISS_TTL_MS}
-      variant="info"
-      align="middle"
-      actions={() => (
-        <>
-          <Button asChild size="sm" variant="secondary">
-            <Link
-              href="/v4-migration"
-              onClick={() =>
-                capture("v4_migration:overview_banner_status_clicked")
-              }
-            >
-              Check status
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="secondary">
-            <a
-              href={V4_DOCS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() =>
-                capture("v4_migration:overview_banner_docs_clicked")
-              }
-            >
-              Docs
-            </a>
-          </Button>
-        </>
-      )}
     >
-      <div className="flex items-start gap-2 sm:items-center">
-        <Zap className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
-        <span>
-          <span className="font-bold">
-            Langfuse v4 is here: real-time and up to 165× faster.
-          </span>{" "}
-          {projectsNeedingMigration === statuses.length
-            ? projectsNeedingMigration === 1
-              ? "Your project needs an upgrade."
-              : "All projects need an upgrade."
-            : `${projectsNeedingMigration} of your ${statuses.length} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
-        </span>
-      </div>
-    </Callout>
+      {({ onDismiss }) => (
+        <div className="mb-4">
+          <Callout
+            variant="info"
+            align="middle"
+            actions={
+              <>
+                <Button asChild size="sm" variant="secondary">
+                  <Link
+                    href="/v4-migration"
+                    onClick={() =>
+                      capture("v4_migration:overview_banner_status_clicked")
+                    }
+                  >
+                    Check status
+                  </Link>
+                </Button>
+                <Button asChild size="sm" variant="secondary">
+                  <a
+                    href={V4_DOCS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() =>
+                      capture("v4_migration:overview_banner_docs_clicked")
+                    }
+                  >
+                    Docs
+                  </a>
+                </Button>
+              </>
+            }
+            onDismiss={onDismiss}
+          >
+            <div className="flex items-start gap-2 sm:items-center">
+              <Zap className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+              <span>
+                <span className="font-bold">
+                  Langfuse v4 is here: real-time and up to 165× faster.
+                </span>{" "}
+                {projectsNeedingMigration === statuses.length
+                  ? projectsNeedingMigration === 1
+                    ? "Your project needs an upgrade."
+                    : "All projects need an upgrade."
+                  : `${projectsNeedingMigration} of your ${statuses.length} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
+              </span>
+            </div>
+          </Callout>
+        </div>
+      )}
+    </DismissController>
   );
 }

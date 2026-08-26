@@ -15,6 +15,7 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_EXPORT_PROJECT_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
+  type Plan,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
@@ -49,7 +50,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 const __orgIds: string[] = [];
 
-const prepare = async () => {
+const prepare = async ({
+  admin = true,
+  plan = "cloud:hobby",
+}: {
+  admin?: boolean;
+  plan?: Plan;
+} = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -63,7 +70,7 @@ const prepare = async () => {
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan,
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
@@ -90,11 +97,11 @@ const prepare = async () => {
         observationEvals: false,
         experimentsV4Enabled: false,
       },
-      admin: true,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: plan,
     },
   };
 
@@ -189,6 +196,60 @@ describe("Blob Storage Integration tRPC Router", () => {
       where: {
         id: { in: __orgIds },
       },
+    });
+  });
+
+  describe("scheduled-blob-exports entitlement", () => {
+    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:hobby",
+      });
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.get({ projectId: project.id }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("scheduled-blob-exports"),
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.runNow({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.validate({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.delete({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      const stillThere = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stillThere).not.toBeNull();
+    });
+
+    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:team",
+      });
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.projectId).toBe(project.id);
     });
   });
 

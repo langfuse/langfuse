@@ -192,6 +192,7 @@ export function AnnotationQueueFormDialogContent({
                         <DropdownMenuItemWithSecondaryAction
                           onBeforeAction={onManageScoreConfigsClick}
                           href={`/project/${projectId}/settings/scores`}
+                          target="_blank"
                           title="Manage score configs"
                         />
                       }

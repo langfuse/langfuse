@@ -6,6 +6,7 @@ import { Card } from "@/src/components/ui/card";
 import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
@@ -40,10 +41,12 @@ export default function BlobStorageIntegrationSettings() {
     projectId,
     scope: "integrations:CRUD",
   });
+  const hasEntitlement = useHasEntitlement("scheduled-blob-exports");
+  const canLoadConfig = hasAccess && hasEntitlement;
   const state = api.blobStorageIntegration.get.useQuery(
     { projectId },
     {
-      enabled: hasAccess,
+      enabled: canLoadConfig,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
@@ -58,7 +61,7 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isLoading || !hasAccess || !state.data?.config
+    state.isLoading || !canLoadConfig || !state.data?.config
       ? undefined
       : syncStatusFromConfig(state.data.config);
 
@@ -94,17 +97,20 @@ export default function BlobStorageIntegrationSettings() {
         small test file, and the &quot;Run Now&quot; button to trigger an
         immediate export.
       </p>
-      {!hasAccess && (
+      {!hasEntitlement ? (
+        <p className="text-sm">
+          This feature is not available in your current plan.
+        </p>
+      ) : !hasAccess ? (
         <p className="text-sm">
           Your current role does not grant you access to these settings, please
           reach out to your project admin or owner.
         </p>
-      )}
-      {state.data?.config && (
-        <BlobStorageStatusSection config={state.data.config} />
-      )}
-      {hasAccess && (
+      ) : (
         <>
+          {state.data?.config && (
+            <BlobStorageStatusSection config={state.data.config} />
+          )}
           <Header title="Configuration" className="mt-8" />
           <Card className="p-3">
             {!state.data ? (

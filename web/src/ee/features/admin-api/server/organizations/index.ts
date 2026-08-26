@@ -42,8 +42,9 @@ export async function handleCreateOrganization(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // Validate the request body using the organizationNameSchema
-  const validationResult = organizationNameSchema.safeParse(req.body);
+  const validationResult = z
+    .object({ name: organizationNameSchema })
+    .safeParse(req.body);
 
   if (!validationResult.success) {
     res.status(400).json({

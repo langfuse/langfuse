@@ -351,6 +351,12 @@ export async function decideToolApproval(params: {
         toolCallId: params.toolCallId,
         approved: params.approved,
         decidedByUserId: params.decidedByUserId,
+        ...(params.alwaysAllowToolName
+          ? {
+              alwaysAllow: true as const,
+              toolName: params.alwaysAllowToolName,
+            }
+          : {}),
       }),
     });
 

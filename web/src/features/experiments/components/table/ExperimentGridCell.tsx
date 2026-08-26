@@ -549,7 +549,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "level",
             cell: ({ data }) => (
-              <MetadataItem label="Level">
+              <MetadataItem label="Status">
                 <span className="text-xs">{data.level}</span>
               </MetadataItem>
             ),

@@ -10,11 +10,8 @@ import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import {
-  getFeaturePreviewOptOutFlag,
-  receivesFeaturePreviewsByDefault,
-} from "@/src/features/feature-flags/utils";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -124,38 +121,14 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      // Serializable transaction: the read-modify-write of the featureFlags
-      // array is not atomic on its own, so two parallel toggles of DIFFERENT
-      // flags from one tab (the modal only disables the in-flight row) would
-      // last-write-wins and silently drop one. Mirrors the `delete` mutation.
-      await ctx.prisma.$transaction(
-        async (tx) => {
-          const currentUser = await tx.user.findUnique({
-            where: { id: userId },
-            select: { featureFlags: true, email: true },
-          });
-          if (!currentUser) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "User not found",
-            });
-          }
-          const optOutFlag = getFeaturePreviewOptOutFlag(input.flag);
-          const featureFlagsWithoutOverride = currentUser.featureFlags.filter(
-            (flag) => flag !== input.flag && flag !== optOutFlag,
-          );
-          const nextFeatureFlags = input.enabled
-            ? [...featureFlagsWithoutOverride, input.flag]
-            : receivesFeaturePreviewsByDefault(currentUser.email)
-              ? [...featureFlagsWithoutOverride, optOutFlag]
-              : featureFlagsWithoutOverride;
-          await tx.user.update({
-            where: { id: userId },
-            data: { featureFlags: { set: nextFeatureFlags } },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+      // The helper serializes and retries the read-modify-write so parallel
+      // toggles of different flags cannot silently drop one another.
+      await setUserFeaturePreview({
+        prisma: ctx.prisma,
+        userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
 
       return {
         success: true,

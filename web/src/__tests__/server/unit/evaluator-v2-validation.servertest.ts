@@ -19,7 +19,10 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
 }));
 
 import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
-import { CreateEvaluatorSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  CreateEvaluatorSchema,
+  ListEvaluatorsSchema,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("evaluator configuration validation", () => {
   beforeEach(() => {
@@ -50,6 +53,22 @@ describe("evaluator configuration validation", () => {
             reasoning: { description: "Reasoning" },
           },
         },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts text filters for evaluator models", () => {
+    expect(
+      ListEvaluatorsSchema.safeParse({
+        projectId: "project-id",
+        filter: [
+          {
+            column: "model",
+            type: "string",
+            operator: "contains",
+            value: "gpt",
+          },
+        ],
       }).success,
     ).toBe(true);
   });
@@ -150,6 +169,38 @@ describe("evaluator configuration validation", () => {
         },
       }),
     ).rejects.toThrow("Evaluator variables must match the prompt variables");
+  });
+
+  it("rejects mappings that reference variables not in the prompt", async () => {
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{output}}",
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: [
+            { templateVariable: "output", selectedColumnId: "output" },
+            {
+              templateVariable: "item_metadata",
+              selectedColumnId: "experimentItemMetadata",
+            },
+          ],
+          outputDefinition: {
+            version: 2,
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Mappings reference unknown evaluator variables: item_metadata",
+    );
   });
 
   it("rejects incomplete evaluator default mappings", async () => {

@@ -41,6 +41,7 @@ import {
   FormField,
   FormItem,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
@@ -109,6 +110,9 @@ export const VariableMappingCard = ({
     control: form.control,
     name: "mapping",
   });
+  const hasMappingArrayError = hasArrayLevelFieldError(
+    form.formState.errors.mapping,
+  );
 
   const syncStatus = useVariableMappingSync({
     templateVars: evalTemplate?.vars,
@@ -727,7 +731,7 @@ export const VariableMappingCard = ({
                       ))}
                 </div>
               </div>
-              <FormMessage />
+              {hasMappingArrayError ? <FormMessage /> : null}
             </>
           )}
         />

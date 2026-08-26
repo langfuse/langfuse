@@ -21,7 +21,6 @@ import {
   GripVerticalIcon,
   MoreVerticalIcon,
   CopyIcon,
-  ClipboardPasteIcon,
   CopyPlusIcon,
   FileJsonIcon,
   DownloadIcon,
@@ -34,6 +33,7 @@ import {
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -41,9 +41,7 @@ import {
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
-import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,7 +89,6 @@ export function DashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicateWidget,
 }: {
   projectId: string;
@@ -111,12 +108,7 @@ export function DashboardWidget({
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
   /**
-   * Pastes the clipboard widget next to this tile. Passed only on editable
-   * (non-locked) dashboards; absent → no "Paste to the right" menu item.
-   */
-  onPasteWidget?: (anchor: WidgetPlacement) => void;
-  /**
-   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * Clones this widget (new widget row seeded from `widget`) next to this
    * tile. Passed only on editable (non-locked) dashboards.
    */
   onDuplicateWidget?: (
@@ -175,17 +167,6 @@ export function DashboardWidget({
   });
   const [retryCount, setRetryCount] = useState(0);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a pasteable
-  // payload, where the browser lets us check silently.
-  const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
-  );
-  const clipboardProbe = useClipboardWidgetProbe(
-    isActionsMenuOpen && Boolean(onPasteWidget),
-    isPasteablePayload,
-  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -606,6 +587,10 @@ export function DashboardWidget({
         widget_id: placement.widgetId,
         dashboard_id: dashboardId,
       });
+      showSuccessToast({
+        title: "Widget copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
     } catch {
       showErrorToast("Copy failed", "Could not write to the clipboard.");
     }
@@ -687,16 +672,9 @@ export function DashboardWidget({
                   <PencilIcon size={16} />
                 </button>
               ) : null}
-              <button
-                onClick={handleDelete}
-                className="text-muted-foreground hover:text-destructive hidden group-hover:block"
-                aria-label="Delete widget"
-              >
-                <TrashIcon size={16} />
-              </button>
             </>
           )}
-          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
@@ -729,17 +707,8 @@ export function DashboardWidget({
               )}
               <DropdownMenuItem onClick={handleCopyToClipboard}>
                 <CopyIcon className="mr-2 h-4 w-4" />
-                Copy to clipboard
+                Copy widget
               </DropdownMenuItem>
-              {onPasteWidget && (
-                <DropdownMenuItem
-                  disabled={clipboardProbe === "no-widget"}
-                  onClick={() => onPasteWidget(placement)}
-                >
-                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                  Paste to the right
-                </DropdownMenuItem>
-              )}
               {onDuplicateWidget && (
                 <DropdownMenuItem
                   onClick={() =>
@@ -747,7 +716,7 @@ export function DashboardWidget({
                   }
                 >
                   <CopyPlusIcon className="mr-2 h-4 w-4" />
-                  Duplicate
+                  Clone
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -765,6 +734,18 @@ export function DashboardWidget({
                 <DownloadIcon className="mr-2 h-4 w-4" />
                 Download data as CSV
               </DropdownMenuItem>
+              {!readOnly && (hasCUDAccess || isLockedEditable) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <TrashIcon className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

@@ -60,6 +60,17 @@ export const ruleRouter = createTRPCRouter({
       return serviceForContext(ctx).listFilterOptions(ctx.session.projectId);
     }),
 
+  reusableFilters: protectedProjectProcedure
+    .input(ListRulesSchema.pick({ projectId: true }))
+    .query(({ ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evalJob:read",
+      });
+      return serviceForContext(ctx).listReusableFilters(ctx.session.projectId);
+    }),
+
   get: protectedProjectProcedure.input(RuleIdSchema).query(({ input, ctx }) => {
     throwIfNoProjectAccess({
       session: ctx.session,
@@ -238,6 +249,7 @@ export const ruleRouter = createTRPCRouter({
           evaluatorId: input.evaluatorId,
           variableMapping: input.variableMapping,
         },
+        enableRule: input.enableRule,
       });
     }),
 

@@ -108,6 +108,7 @@ type V2EvaluatorState = {
   search: string;
   onSearchChange: (value: string) => void;
   onSaveAssignments: (assignments: RuleDraft["assignments"]) => Promise<void>;
+  isLoadingAssignments: boolean;
   isUpdating: boolean;
 };
 

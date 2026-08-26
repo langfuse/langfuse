@@ -47,3 +47,29 @@ export const EXPECTED_AUTH_ERROR_PAGE_MESSAGES: readonly string[] = [
 
 export const isExpectedAuthErrorPageMessage = (message: string): boolean =>
   EXPECTED_AUTH_ERROR_PAGE_MESSAGES.includes(message);
+
+/**
+ * next-auth v4 `signIn(..., { redirect: false })` always does
+ * `new URL(data.url).searchParams.get("error")` with no null check
+ * (`next-auth/react/index.js`). A JSON body without `url` — our 400
+ * `{ message: "Invalid callback URL" }`, next-auth's 500
+ * `{ message: "There is a problem with the server configuration." }`
+ * after assertConfig, or any other non-`{ url }` JSON — throws TypeError
+ * instead of returning `{ ok: false }`. Same user-facing outcome as
+ * `signIn()` returning undefined (already expected).
+ *
+ * TypeError is required so a non-Error with the same text still captures.
+ * Message signatures are engine-specific for `new URL(undefined)`:
+ * Firefox `URL constructor: …`, Chrome `Failed to construct 'URL'`,
+ * Safari `undefined is not a valid URL`. `Failed to fetch` and other
+ * TypeErrors from the same `signIn()` catch stay captured.
+ */
+export const isNextAuthMissingSignInUrlError = (error: unknown): boolean => {
+  if (!(error instanceof TypeError)) return false;
+  const { message } = error;
+  return (
+    message.includes("Failed to construct 'URL'") ||
+    message.includes("URL constructor:") ||
+    message.includes("undefined is not a valid URL")
+  );
+};

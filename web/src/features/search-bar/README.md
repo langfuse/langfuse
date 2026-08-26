@@ -20,16 +20,8 @@ tables (no opt-in). Based on the `langfuse-search-bar` prototype.
   The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
   Observations/Traces tables, so call sites still read as
   `isBetaEnabled && useSearchBarEnabled()`.
-- **Rollout/rollback (temporary).** GA was shipped by force-on shim, not by
-  deleting the opt-in: `useSearchBarEnabled` hard-returns `true` and the
-  "Filter Search Bar" tile was removed from the Feature Preview modal, but the
-  `searchBar` flag plumbing is intentionally **left as dead code** for a day or
-  two so a rollback is a one-line revert. The pieces still present and marked
-  `TODO(remove ~2026-06-19)`: the `searchBar` entry in
-  `features/feature-flags/available-flags.ts`, the
-  `userAccount.setFeaturePreviewEnabled` allowlist, and the modal's
-  `PreviewFlag`/registry entry (`features/feature-previews/`). Once the rollout
-  is confirmed stable, delete those and inline `true` at the call site.
+- The search bar is not a Feature Preview and has no user or organization
+  toggle.
 
 ## Query language
 
@@ -265,6 +257,21 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
+
+## Host-provided query presets
+
+Views can inject complete-query sections through `EventsSearchBarRow`'s
+`presetSections` prop. These are data, not grammar: the shared planner renders
+them at every blank top-level term, including after existing filters, and a pick
+replaces and commits the complete draft. The host owns fetching, ranking,
+registry compatibility, labels, and optional pick analytics.
+
+Evaluation setup uses this seam for **Reuse rule filters**. It groups equivalent
+modern event/experiment rule filters, ranks them only by distinct attached
+evaluator count (latest rule update breaks ties), and excludes legacy
+trace/dataset rules. Rule `FilterState` is serialized with the rule registry and
+validated against the receiving registry before it is offered, so aliases such
+as rule `tags` can safely lower to the events table's `traceTags` column.
 
 ## AI filter mode (the "Ask AI" button)
 

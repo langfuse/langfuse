@@ -39,10 +39,7 @@ import {
   EvaluatorModelConfigurationError,
   EvaluatorVersionConflictError,
 } from "./evaluatorErrors";
-import {
-  assertCompleteEvaluatorVariableMapping,
-  assertEvaluatorConfigurationValid,
-} from "./evaluatorValidation";
+import { assertEvaluatorConfigurationValid } from "./evaluatorValidation";
 
 type SuggestEvaluatorTextParams = {
   projectId: string;
@@ -586,24 +583,6 @@ async function updateEvaluator(params: {
     toEvaluatorDefinition(current.type, latest),
     input.definition,
   );
-
-  if (
-    input.definition.type === EvalTemplateType.LLM_AS_JUDGE &&
-    (definitionChanged || params.forceNewVersion)
-  ) {
-    const assignments = await repository.findRuleMappingOverridesForEvaluator({
-      prisma: tx,
-      projectId: input.projectId,
-      evaluatorId: input.evaluatorId,
-    });
-    for (const assignment of assignments) {
-      assertCompleteEvaluatorVariableMapping({
-        prompt: input.definition.prompt,
-        variableMapping:
-          assignment.variableMapping ?? input.definition.variableMapping ?? [],
-      });
-    }
-  }
 
   await repository.updateEvaluatorMetadata({
     tx,

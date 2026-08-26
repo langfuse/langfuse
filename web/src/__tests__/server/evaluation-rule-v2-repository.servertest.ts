@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { EvalTargetObject } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTargetObject, type FilterState } from "@langfuse/shared";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as ruleRepository from "@/src/features/evals/v2/server/rules/ruleRepository";
+import { filtersMatch } from "@/src/features/evals/v2/server/rules/ruleFilterMatching";
+import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 
 const orgIds: string[] = [];
 let projectId = "";
@@ -65,13 +67,19 @@ async function createRule({
   targetProjectId = projectId,
   name = `rule-${randomUUID()}`,
   evaluatorId,
+  evaluatorIds,
+  filter = [],
   createdByUserId = null,
 }: {
   targetProjectId?: string;
   name?: string;
   evaluatorId?: string;
+  evaluatorIds?: string[];
+  filter?: Parameters<typeof ruleRepository.createRule>[0]["input"]["filter"];
   createdByUserId?: string | null;
 } = {}) {
+  const assignedEvaluatorIds =
+    evaluatorIds ?? (evaluatorId ? [evaluatorId] : []);
   return ruleRepository.createRule({
     prisma,
     input: {
@@ -79,11 +87,12 @@ async function createRule({
       name,
       targetObject: EvalTargetObject.EVENT,
       enabled: true,
-      filter: [],
+      filter,
       sampling: 1,
-      evaluatorAssignments: evaluatorId
-        ? [{ evaluatorId, variableMapping: null }]
-        : [],
+      evaluatorAssignments: assignedEvaluatorIds.map((assignedEvaluatorId) => ({
+        evaluatorId: assignedEvaluatorId,
+        variableMapping: null,
+      })),
     },
     createdByUserId,
   });
@@ -527,6 +536,189 @@ describe("evaluation rule v2 repository", () => {
           evaluatorId: evaluator.id,
         }),
       ).resolves.toBe(false);
+    });
+  });
+
+  describe("listReusableFilterCandidates", () => {
+    it("returns at most the 20 newest candidate rules", async () => {
+      const oldestRuleId = randomUUID();
+      await prisma.evaluationRule.createMany({
+        data: Array.from({ length: 21 }, (_, index) => ({
+          id: index === 0 ? oldestRuleId : randomUUID(),
+          projectId,
+          name: `candidate-${index}`,
+          status: "ACTIVE" as const,
+          targetObject: EvalTargetObject.EVENT,
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          timeScope: ["NEW"],
+          updatedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, 0, index)),
+        })),
+      });
+
+      const candidates = await ruleRepository.listReusableFilterCandidates({
+        prisma,
+        projectId,
+      });
+
+      expect(candidates).toHaveLength(20);
+      expect(candidates.map(({ id }) => id)).not.toContain(oldestRuleId);
+    });
+  });
+
+  describe("RuleService.listReusableFilters", () => {
+    it("groups equivalent modern rule filters and ranks only by distinct evaluator count, then updated time", async () => {
+      const [
+        firstEvaluator,
+        secondEvaluator,
+        thirdEvaluator,
+        legacyEvaluator,
+        foreignEvaluator,
+      ] = await Promise.all([
+        createEvaluator(),
+        createEvaluator(),
+        createEvaluator(),
+        createEvaluator(),
+        createEvaluator(otherProjectId),
+      ]);
+      const popularFilter = [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production", "staging"],
+        },
+      ] satisfies FilterState;
+      const newerFilter = [
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+      ] satisfies FilterState;
+      const olderFilter = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ] satisfies FilterState;
+
+      const [popularFirst, popularSecond, newer, older] = await Promise.all([
+        createRule({
+          evaluatorIds: [firstEvaluator.id, secondEvaluator.id],
+          filter: [...popularFilter],
+        }),
+        // Same conditions and values in a different order. The repeated
+        // evaluator counts once across the grouped filter preset.
+        createRule({
+          evaluatorIds: [
+            secondEvaluator.id,
+            thirdEvaluator.id,
+            legacyEvaluator.id,
+          ],
+          filter: [
+            {
+              ...popularFilter[0],
+              value: ["staging", "production"],
+            },
+          ],
+        }),
+        createRule({
+          evaluatorId: firstEvaluator.id,
+          filter: [...newerFilter],
+        }),
+        createRule({
+          evaluatorId: secondEvaluator.id,
+          filter: [...olderFilter],
+        }),
+      ]);
+      const oldDate = new Date("2026-01-01T00:00:00.000Z");
+      const newDate = new Date("2026-02-01T00:00:00.000Z");
+      await Promise.all([
+        prisma.evaluationRule.updateMany({
+          where: { id: { in: [popularFirst.id, popularSecond.id, older.id] } },
+          data: { updatedAt: oldDate },
+        }),
+        prisma.evaluationRule.update({
+          where: { id: newer.id },
+          data: { updatedAt: newDate },
+        }),
+        // Denormalized assignment ids are scoped explicitly: a foreign-project
+        // evaluator attached to a current-project rule does not affect usage.
+        prisma.evaluationRuleEvaluatorAssignment.create({
+          data: {
+            projectId,
+            evaluationRuleId: popularFirst.id,
+            evaluatorId: foreignEvaluator.id,
+            variableMapping: Prisma.DbNull,
+          },
+        }),
+        // An evaluator with a legacy trace/dataset assignment is excluded from
+        // usage counts, and the legacy rule never becomes a reusable preset.
+        prisma.evaluationRule.create({
+          data: {
+            projectId,
+            name: "Legacy trace rule",
+            status: "ACTIVE",
+            targetObject: EvalTargetObject.TRACE,
+            filter: olderFilter,
+            sampling: 1,
+            delay: 0,
+            timeScope: ["NEW"],
+            assignments: {
+              create: {
+                projectId,
+                evaluatorId: legacyEvaluator.id,
+                variableMapping: Prisma.DbNull,
+              },
+            },
+          },
+        }),
+        createRule({
+          targetProjectId: otherProjectId,
+          evaluatorId: foreignEvaluator.id,
+          filter: [...newerFilter],
+        }),
+      ]);
+      await Promise.all(
+        Array.from({ length: 8 }, (_, index) =>
+          createRule({
+            filter: [
+              {
+                column: "environment",
+                type: "stringOptions",
+                operator: "any of",
+                value: [`extra-${index}`],
+              },
+            ],
+          }),
+        ),
+      );
+
+      const result = await new RuleService(
+        prisma,
+        async () => undefined,
+      ).listReusableFilters(projectId);
+
+      expect(result).toHaveLength(10);
+      expect(
+        result.slice(0, 3).map(({ evaluatorCount }) => evaluatorCount),
+      ).toEqual([3, 1, 1]);
+      expect(filtersMatch(result[0]?.filter ?? [], [...popularFilter])).toBe(
+        true,
+      );
+      expect(result[1]).toMatchObject({
+        filter: [...newerFilter],
+        updatedAt: newDate,
+      });
+      expect(result[2]).toMatchObject({
+        filter: [...olderFilter],
+        updatedAt: oldDate,
+      });
     });
   });
 

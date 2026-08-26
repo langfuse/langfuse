@@ -2,12 +2,15 @@ import {
   InvalidRequestError,
   OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS,
   booleanFilter,
+  eventsTableSingleFilter,
+  eventsTableStringFilter,
+  eventsTableStringObjectFilter,
   eventsTableCols,
   filterOperators,
+  FTS_MATCH_OPERATOR,
   numberFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
-  singleFilter,
   stringFilter,
   stringObjectFilter,
   stringOptionsFilter,
@@ -35,6 +38,10 @@ import {
   ObservationLimitSchema,
   projectObservation,
 } from "../schema";
+import {
+  OBSERVATION_MCP_FTS_COLUMNS,
+  OBSERVATION_MCP_INDEXED_IO_COLUMNS,
+} from "./getObservationFilterSchema";
 
 const ObservationCursorSchema =
   EncodedObservationsCursorV2String.optional().describe(
@@ -85,11 +92,18 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
         : z.literal("datetime").optional(),
       column: z.literal(column),
     }),
-  string: (column: string, requireType = false) =>
-    stringFilter.omit({ type: true, column: true }).extend({
+  string: (column: string, requireType = false) => {
+    const filterSchema = OBSERVATION_MCP_INDEXED_IO_COLUMNS.has(column)
+      ? eventsTableStringFilter.extend({
+          operator: z.enum(["=", FTS_MATCH_OPERATOR]),
+        })
+      : stringFilter;
+
+    return filterSchema.omit({ type: true, column: true }).extend({
       type: requireType ? z.literal("string") : z.literal("string").optional(),
       column: z.literal(column),
-    }),
+    });
+  },
   stringOptions: (column: string, requireType = false) =>
     stringOptionsFilter.omit({ type: true, column: true }).extend({
       type: requireType
@@ -111,13 +125,18 @@ const OBSERVATION_MCP_FILTER_SCHEMA_BY_TYPE = {
       type: requireType ? z.literal("number") : z.literal("number").optional(),
       column: z.literal(column),
     }),
-  stringObject: (column: string, requireType = false) =>
-    stringObjectFilter.omit({ type: true, column: true }).extend({
+  stringObject: (column: string, requireType = false) => {
+    const filterSchema = OBSERVATION_MCP_FTS_COLUMNS.has(column)
+      ? eventsTableStringObjectFilter
+      : stringObjectFilter;
+
+    return filterSchema.omit({ type: true, column: true }).extend({
       type: requireType
         ? z.literal("stringObject")
         : z.literal("stringObject").optional(),
       column: z.literal(column),
-    }),
+    });
+  },
   boolean: (column: string, requireType = false) =>
     booleanFilter.omit({ type: true, column: true }).extend({
       type: requireType
@@ -225,7 +244,7 @@ const ObservationMcpFilterSchema = z.preprocess(
       const type =
         filter.type ?? OBSERVATION_MCP_FILTER_COLUMN_TYPES.get(filter.column);
 
-      return singleFilter.parse(
+      return eventsTableSingleFilter.parse(
         filter.column === "tags"
           ? { ...filter, type, column: "traceTags" }
           : { ...filter, type },
@@ -369,36 +388,31 @@ export const [listObservationsTool, handleListObservations] = defineTool({
           "mcp.field_groups": fieldGroups.join(","),
         });
 
-        const items = await getObservationsV2FromEventsTableForPublicApi(
-          {
-            projectId: context.projectId,
-            page: 0,
-            limit: input.limit,
-            traceId: input.traceId,
-            userId: input.userId,
-            level: input.level,
-            name: input.name,
-            type: input.type,
-            environment: input.environment,
-            parentObservationId: input.parentObservationId,
-            isRootObservation: input.isRootObservation,
-            fromStartTime: input.fromStartTime,
-            toStartTime: input.toStartTime,
-            version: input.version,
-            advancedFilters: input.filter,
-            cursor: input.cursor
-              ? EncodedObservationsCursorV2.parse(input.cursor)
-              : undefined,
-            fields: fieldGroups,
-            expandMetadataKeys: getMetadataExpansionForProjection(
-              projectionFields,
-              input.expandMetadataKeys,
-            ),
-          },
-          // MCP keeps the legacy observation filter contract. Its separate
-          // selective-scope guard above limits expensive input/output filters.
-          { allowUnindexedIoFilters: true },
-        );
+        const items = await getObservationsV2FromEventsTableForPublicApi({
+          projectId: context.projectId,
+          page: 0,
+          limit: input.limit,
+          traceId: input.traceId,
+          userId: input.userId,
+          level: input.level,
+          name: input.name,
+          type: input.type,
+          environment: input.environment,
+          parentObservationId: input.parentObservationId,
+          isRootObservation: input.isRootObservation,
+          fromStartTime: input.fromStartTime,
+          toStartTime: input.toStartTime,
+          version: input.version,
+          advancedFilters: input.filter,
+          cursor: input.cursor
+            ? EncodedObservationsCursorV2.parse(input.cursor)
+            : undefined,
+          fields: fieldGroups,
+          expandMetadataKeys: getMetadataExpansionForProjection(
+            projectionFields,
+            input.expandMetadataKeys,
+          ),
+        });
 
         const hasMore = items.length > input.limit;
         const dataToReturn = hasMore ? items.slice(0, input.limit) : items;

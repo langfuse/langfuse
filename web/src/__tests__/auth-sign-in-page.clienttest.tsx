@@ -150,10 +150,7 @@ describe("sign-in page NextAuth error classification", () => {
     },
   );
 
-  it("treats an undefined signIn() result as an expected transport blip", async () => {
-    signInMock.mockResolvedValue(undefined);
-    renderSignIn();
-
+  const submitCredentials = () => {
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "jane@example.com" },
     });
@@ -161,6 +158,12 @@ describe("sign-in page NextAuth error classification", () => {
       target: { value: "password123" },
     });
     fireEvent.click(screen.getByTestId("submit-email-password-sign-in-form"));
+  };
+
+  it("treats an undefined signIn() result as an expected transport blip", async () => {
+    signInMock.mockResolvedValue(undefined);
+    renderSignIn();
+    submitCredentials();
 
     await waitFor(() => {
       expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
@@ -172,6 +175,41 @@ describe("sign-in page NextAuth error classification", () => {
     expect(
       screen.getByText(/An unexpected error occurred/),
     ).toBeInTheDocument();
+  });
+
+  it("treats next-auth's missing data.url TypeError as expected", async () => {
+    signInMock.mockRejectedValue(
+      new TypeError("URL constructor: undefined is not a valid URL."),
+    );
+    renderSignIn();
+    submitCredentials();
+
+    await waitFor(() => {
+      expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    });
+    expect(addBreadcrumbMock.mock.calls[0]![0].category).toBe(
+      "auth.signIn.credentials",
+    );
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/An unexpected error occurred/),
+    ).toBeInTheDocument();
+  });
+
+  it("still captures an unknown TypeError from signIn()", async () => {
+    signInMock.mockRejectedValue(
+      new TypeError("Cannot read properties of undefined (reading 'ok')"),
+    );
+    renderSignIn();
+    submitCredentials();
+
+    await waitFor(() => {
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(captureExceptionMock.mock.calls[0]![1].tags.area).toBe(
+      "auth.signIn.credentials",
+    );
+    expect(addBreadcrumbMock).not.toHaveBeenCalled();
   });
 
   it("renders without crashing when props are missing (fallback providers)", () => {

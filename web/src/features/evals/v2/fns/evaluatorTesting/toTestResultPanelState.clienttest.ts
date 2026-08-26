@@ -33,6 +33,28 @@ describe("toTestResultPanelState", () => {
     });
   });
 
+  it("renders numeric boolean code scores as true and false", () => {
+    expect(
+      toTestResultPanelState({
+        type: "CODE",
+        isPending: false,
+        result: {
+          success: true,
+          scores: [
+            { name: "Passed", value: 1, dataType: "BOOLEAN" },
+            { name: "Failed", value: 0, dataType: "BOOLEAN" },
+          ],
+        },
+      }),
+    ).toEqual({
+      status: "code-success",
+      scores: [
+        { name: "Passed", value: "true", comment: null },
+        { name: "Failed", value: "false", comment: null },
+      ],
+    });
+  });
+
   it.each([
     { matches: ["very funny"], expectedScore: "very funny" },
     {

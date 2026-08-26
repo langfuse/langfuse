@@ -1,5 +1,6 @@
 import {
   FilterCondition,
+  matchesUiColumnMapping,
   type ScoreDataTypeType,
   TracingSearchType,
   tracesTableCols,
@@ -58,8 +59,8 @@ export const getTraceStream = async (props: {
   // Filter out observation-level filters since we don't join the observations table
   // This prevents batch export failures when observation-level filters are present
   const traceOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = tracesTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    const columnDef = tracesTableUiColumnDefinitions.find((col) =>
+      matchesUiColumnMapping(col, f.column),
     );
     // Keep the filter if it's not an observation-level filter
     return columnDef?.clickhouseTableName !== "observations";

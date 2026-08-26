@@ -40,6 +40,11 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
 export type SearchCommitTrigger = "enter" | "blur" | "pick";
+export type SearchCommitOptions = { replaceHidden?: boolean };
+export type SearchCommit = (
+  trigger?: SearchCommitTrigger,
+  options?: SearchCommitOptions,
+) => string | null;
 
 /** Order-independent scope-set equality (scopes are unique). */
 function sameScopes(a: TracingSearchType[], b: TracingSearchType[]): boolean {
@@ -97,7 +102,7 @@ export function useEventsSearchBar({
   registry?: FieldRegistry;
 }): {
   store: SearchBarStore;
-  commit: (trigger?: SearchCommitTrigger) => string | null;
+  commit: SearchCommit;
   applyFilters: (filters: FilterState) => void;
 } {
   const capture = usePostHogClientCapture();
@@ -204,7 +209,10 @@ export function useEventsSearchBar({
   const lastErrorTextRef = useRef<string | null>(null);
 
   const commit = useCallback(
-    (trigger: SearchCommitTrigger = "enter"): string | null => {
+    (
+      trigger: SearchCommitTrigger = "enter",
+      options: SearchCommitOptions = {},
+    ): string | null => {
       const draftText = store.getState().draft;
       const result = planCommit(
         draftText,
@@ -245,9 +253,12 @@ export function useEventsSearchBar({
       lastErrorTextRef.current = null;
       const { setFilterState, setSearchQuery, setSearchType } =
         applyRef.current;
-      // Re-attach the filters the grammar can't represent so the commit never
-      // drops them (no-silent-drop contract; shared with the AI apply path).
-      const committedFilters = mergeWithSkipped(result.filters);
+      // Ordinary grammar edits preserve filters the grammar cannot represent.
+      // Complete-query replacements can explicitly clear those hidden filters
+      // instead of silently carrying old scope.
+      const committedFilters = options.replaceHidden
+        ? result.filters
+        : mergeWithSkipped(result.filters);
       setFilterState(committedFilters);
       setSearchQuery(result.searchQuery);
       // Only write searchType when it actually changed. planCommit coerces a

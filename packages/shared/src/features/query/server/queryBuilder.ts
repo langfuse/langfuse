@@ -337,6 +337,12 @@ export class QueryBuilder {
       const dimension = this.resolveDimension(filter.column, view);
 
       if (dimension) {
+        if (dimension.pairExpand) {
+          throw new InvalidRequestError(
+            `Field '${filter.column}' cannot be used as a filter.`,
+          );
+        }
+
         const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
           dimension.type,
         );

@@ -11,6 +11,10 @@ type AddTracesToAnnotationQueueDialogControllerProps = {
   projectId: string;
   onSuccess: () => void;
   description: string;
+  actionId?: ActionId;
+  tableName?: BatchExportTableName;
+  alternateTableName?: BatchExportTableName;
+  objectLabel?: string;
   onAddToQueue: (params: {
     projectId: string;
     targetId: string;
@@ -25,6 +29,10 @@ export function AddTracesToAnnotationQueueDialogController({
   projectId,
   onSuccess,
   description,
+  actionId = ActionId.TraceAddToAnnotationQueue,
+  tableName = BatchExportTableName.Traces,
+  alternateTableName,
+  objectLabel = "traces",
   onAddToQueue,
   children,
 }: AddTracesToAnnotationQueueDialogControllerProps) {
@@ -39,7 +47,7 @@ export function AddTracesToAnnotationQueueDialogController({
   const disabled = hasQueueAccess
     ? undefined
     : {
-        reason: "You don't have permission to add traces to annotation queues.",
+        reason: `You don't have permission to add ${objectLabel} to annotation queues.`,
       };
   const openDialog = () => {
     if (!hasQueueAccess) return;
@@ -60,11 +68,22 @@ export function AddTracesToAnnotationQueueDialogController({
   const isInProgress = api.table.getIsBatchActionInProgress.useQuery(
     {
       projectId,
-      tableName: BatchExportTableName.Traces,
-      actionId: ActionId.TraceAddToAnnotationQueue,
+      tableName,
+      actionId,
     },
     {
       enabled: open,
+      refetchInterval: 2 * 60 * 1000,
+    },
+  );
+  const isAlternateInProgress = api.table.getIsBatchActionInProgress.useQuery(
+    {
+      projectId,
+      tableName: alternateTableName ?? tableName,
+      actionId,
+    },
+    {
+      enabled: open && alternateTableName !== undefined,
       refetchInterval: 2 * 60 * 1000,
     },
   );
@@ -128,9 +147,9 @@ export function AddTracesToAnnotationQueueDialogController({
                 createQueueState={createQueueState}
                 hasAccess={hasQueueAccess}
                 batchActionState={
-                  isInProgress.isLoading
+                  isInProgress.isLoading || isAlternateInProgress.isLoading
                     ? { status: "checking" }
-                    : isInProgress.data
+                    : isInProgress.data || isAlternateInProgress.data
                       ? { status: "inProgress" }
                       : { status: "ready" }
                 }

@@ -35,6 +35,52 @@ describe("classifySampleFiltersForRule", () => {
     expect(result.unsupportedReasons.get(2)).toMatch(/scores/i);
   });
 
+  it("supports filters backed directly by the evaluation payload", () => {
+    const filters = [
+      {
+        column: "providedModelName",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "gpt-4o",
+      },
+      {
+        column: "promptName",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "support-agent",
+      },
+      {
+        column: "promptVersion",
+        type: "number" as const,
+        operator: ">=" as const,
+        value: 2,
+      },
+      {
+        column: "release",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "2026-08",
+      },
+      {
+        column: "statusMessage",
+        type: "string" as const,
+        operator: "contains" as const,
+        value: "rate limit",
+      },
+      {
+        column: "experimentName",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "checkout-eval",
+      },
+    ] satisfies FilterState;
+
+    const result = classifySampleFiltersForRule(filters);
+
+    expect(result.supportedFilters).toEqual(filters);
+    expect(result.unsupportedReasons.size).toBe(0);
+  });
+
   it("allows every filter to be excluded from the rule", () => {
     const filters = [
       {

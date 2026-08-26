@@ -39,6 +39,25 @@ describe("organization AI feature settings", () => {
     ).resolves.toEqual({ aiFeaturesEnabled: true });
   });
 
+  it.each([true, false])(
+    "persists aiFeaturesEnabled=%s when creating an organization",
+    async (aiFeaturesEnabled) => {
+      const { caller } = await createCaller();
+
+      const organization = await caller.organizations.create({
+        name: `Created Organization ${randomUUID()}`,
+        aiFeaturesEnabled,
+      });
+
+      await expect(
+        prisma.organization.findUniqueOrThrow({
+          where: { id: organization.id },
+          select: { aiFeaturesEnabled: true },
+        }),
+      ).resolves.toEqual({ aiFeaturesEnabled });
+    },
+  );
+
   it("allows a self-hosted organization administrator to opt in to AI features when in-app agent is instance-disabled", async () => {
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = "false";
     const { caller, orgId } = await createCaller();
