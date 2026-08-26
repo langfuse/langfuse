@@ -3,6 +3,7 @@ import {
   logger,
   sendCommentMentionEmail,
   getObservationById,
+  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@langfuse/shared";
@@ -13,6 +14,53 @@ type CommentMentionPayload = Omit<
   Extract<NotificationEventType, { type: "COMMENT_MENTION" }>,
   "type"
 >;
+
+export const COMMENT_MENTION_SENT_TTL_SECONDS = 60 * 60 * 24 * 14;
+
+export const commentMentionSentRedisKey = (commentId: string, userId: string) =>
+  `comment-mention-sent:${commentId}:${userId}`;
+
+async function hasCommentMentionEmailBeenSent(
+  commentId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!redis) {
+    return false;
+  }
+
+  try {
+    return (
+      (await redis.exists(commentMentionSentRedisKey(commentId, userId))) === 1
+    );
+  } catch (error) {
+    logger.warn(
+      "Failed to read comment mention sent marker; proceeding to send",
+      { commentId, userId, error },
+    );
+    return false;
+  }
+}
+
+async function markCommentMentionEmailSent(commentId: string, userId: string) {
+  if (!redis) {
+    return;
+  }
+
+  try {
+    await redis.set(
+      commentMentionSentRedisKey(commentId, userId),
+      "1",
+      "EX",
+      COMMENT_MENTION_SENT_TTL_SECONDS,
+    );
+  } catch (error) {
+    logger.warn("Failed to persist comment mention sent marker", {
+      commentId,
+      userId,
+      error,
+    });
+  }
+}
 
 async function buildCommentLink(opts: {
   baseUrl: string;
@@ -137,7 +185,11 @@ export async function handleCommentMentionNotification(
       return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
     })();
 
-    // Process each mentioned user
+    // Process each mentioned user. Per-user failures are collected so the rest
+    // of the loop can finish; the job then throws so BullMQ retries only the
+    // recipients that were not marked sent.
+    const failedUserIds: string[] = [];
+
     for (const userId of mentionedUserIds) {
       try {
         // Verify user has access to the project (from our single query above)
@@ -176,6 +228,13 @@ export async function handleCommentMentionNotification(
           continue;
         }
 
+        if (await hasCommentMentionEmailBeenSent(commentId, userId)) {
+          logger.info(
+            `Comment mention email already sent for comment ${commentId} to user ${userId}. Skipping.`,
+          );
+          continue;
+        }
+
         // Construct comment link using NEXTAUTH_URL (which includes basePath if configured)
         const baseUrl = env.NEXTAUTH_URL || "http://localhost:3000";
 
@@ -196,8 +255,7 @@ export async function handleCommentMentionNotification(
 
         const settingsLink = `${baseUrl}/project/${encodeURIComponent(projectId)}/settings/notifications`;
 
-        // Send email
-        await sendCommentMentionEmail({
+        const { delivered } = await sendCommentMentionEmail({
           env: {
             EMAIL_FROM_ADDRESS: env.EMAIL_FROM_ADDRESS,
             SMTP_CONNECTION_URL: env.SMTP_CONNECTION_URL,
@@ -211,16 +269,25 @@ export async function handleCommentMentionNotification(
           settingsLink,
         });
 
-        logger.info(
-          `Comment mention email sent successfully for comment ${commentId} to user ${userId}`,
-        );
+        if (delivered) {
+          await markCommentMentionEmailSent(commentId, userId);
+          logger.info(
+            `Comment mention email sent successfully for comment ${commentId} to user ${userId}`,
+          );
+        }
       } catch (error) {
         logger.error(
           `Failed to send comment mention notification to user ${userId}`,
           error,
         );
-        // Continue processing other users even if one fails
+        failedUserIds.push(userId);
       }
+    }
+
+    if (failedUserIds.length > 0) {
+      throw new Error(
+        `Failed to send comment mention emails for comment ${commentId} to ${failedUserIds.length} user(s): ${failedUserIds.join(", ")}`,
+      );
     }
 
     logger.info(
