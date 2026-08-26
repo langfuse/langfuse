@@ -25,7 +25,8 @@ import { DetailHeaderActionsMenu } from "@/src/features/traces/components/Detail
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
   SessionBadge,
   UserIdBadge,
@@ -42,7 +43,7 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
+import { MessageSquare, MessageSquareOff, MoreHorizontal } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -130,7 +131,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                // forceMount + hide-when-closed: CommentDrawerButton lives in
+                // forceMount + hide-when-closed: CommentDrawerController lives in
                 // here, and its deep-link auto-open effect (?comments=open) and
                 // controlled inline-selection flow only work while mounted. A
                 // default Popover unmounts its content when closed (the default
@@ -169,17 +170,37 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     />
                   </>
                 )}
-                <CommentDrawerButton
+                <CommentDrawerController
                   projectId={projectId}
                   objectId={trace.id}
                   objectType="TRACE"
                   count={commentCount}
-                  layout="menu"
                   pendingSelection={pendingSelection}
                   onSelectionUsed={onSelectionUsed}
                   isOpen={isCommentDrawerOpen}
                   onOpenChange={onCommentDrawerOpenChange}
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                      className="w-full justify-start gap-2 font-normal"
+                    >
+                      {disabled ? (
+                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                      <span className="text-sm">Add comment</span>
+                      {!!commentCount ? (
+                        <ActionButtonCountBadge count={commentCount} />
+                      ) : null}
+                    </Button>
+                  )}
+                </CommentDrawerController>
               </PopoverContent>
             </Popover>
           )}
@@ -221,17 +242,36 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 />
               </div>
             )}
-            <CommentDrawerButton
+            <CommentDrawerController
               projectId={projectId}
               objectId={trace.id}
               objectType="TRACE"
               count={commentCount}
-              size="sm"
               pendingSelection={pendingSelection}
               onSelectionUsed={onSelectionUsed}
               isOpen={isCommentDrawerOpen}
               onOpenChange={onCommentDrawerOpenChange}
-            />
+            >
+              {({ disabled, openDrawer }) => (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={openDrawer}
+                >
+                  {disabled ? (
+                    <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                  ) : (
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  )}
+                  <span>Add comment</span>
+                  {!!commentCount ? (
+                    <ActionButtonCountBadge count={commentCount} />
+                  ) : null}
+                </Button>
+              )}
+            </CommentDrawerController>
           </div>
         )}
       </div>

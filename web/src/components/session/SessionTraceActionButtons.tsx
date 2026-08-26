@@ -1,11 +1,14 @@
 /* eslint-disable @repo/no-style-props */
 import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { Button } from "@/src/components/ui/button";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { cn } from "@/src/utils/tailwind";
+import { MessageSquare, MessageSquareOff } from "lucide-react";
 
 type TraceScores =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number]["scores"];
@@ -30,6 +33,7 @@ export function SessionTraceActionButtons({
   className?: string;
 }) {
   const size = density === "compact" ? "xs" : "default";
+  const commentCount = getNumberFromMap(traceCommentCounts, traceId);
 
   return (
     <div className={cn("flex flex-wrap items-start gap-2", className)}>
@@ -68,14 +72,32 @@ export function SessionTraceActionButtons({
           size={size}
         />
       </div>
-      <CommentDrawerButton
+      <CommentDrawerController
         projectId={projectId}
-        variant="outline"
         objectId={traceId}
         objectType="TRACE"
-        count={getNumberFromMap(traceCommentCounts, traceId)}
-        size={size}
-      />
+        count={commentCount}
+      >
+        {({ disabled, openDrawer }) => (
+          <Button
+            type="button"
+            variant="outline"
+            size={size}
+            disabled={disabled}
+            onClick={openDrawer}
+          >
+            {disabled ? (
+              <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+            ) : (
+              <MessageSquare className="h-4 w-4" />
+            )}
+            <span>Add comment</span>
+            {!!commentCount ? (
+              <ActionButtonCountBadge count={commentCount} />
+            ) : null}
+          </Button>
+        )}
+      </CommentDrawerController>
     </div>
   );
 }

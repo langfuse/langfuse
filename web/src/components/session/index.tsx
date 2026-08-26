@@ -15,8 +15,9 @@ import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { useSession } from "next-auth/react";
 import {
   CheckIcon,
@@ -25,6 +26,8 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
+  MessageSquare,
+  MessageSquareOff,
   MoreVertical,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -546,14 +549,37 @@ export const SessionPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 key="comment"
-                variant="outline"
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
+                    )}
+                    <span>Add comment</span>
+                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                      <ActionButtonCountBadge
+                        count={getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        )}
+                      />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <div className="flex items-start">
                 <AnnotateDrawer
                   projectId={projectId}
@@ -601,14 +627,38 @@ export const SessionPage: React.FC<{
                 label="Share"
               />
               <CopySessionIdButton sessionId={sessionId} layout="menu" />
-              <CommentDrawerButton
-                variant="outline"
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                layout="menu"
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
+                    )}
+                    <span className="text-sm">Add comment</span>
+                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                      <ActionButtonCountBadge
+                        count={getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        )}
+                      />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <AnnotateDrawer
                 projectId={projectId}
                 scoreTarget={{
@@ -1429,14 +1479,37 @@ const LoadedSessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 key="comment"
-                variant="outline"
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
+                    )}
+                    <span>Add comment</span>
+                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                      <ActionButtonCountBadge
+                        count={getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        )}
+                      />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <div className="flex items-start">
                 <AnnotateDrawer
                   projectId={projectId}
@@ -1507,14 +1580,38 @@ const LoadedSessionEventsPage: React.FC<{
                 label="Share"
               />
               <CopySessionIdButton sessionId={sessionId} layout="menu" />
-              <CommentDrawerButton
-                variant="outline"
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                layout="menu"
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
+                    )}
+                    <span className="text-sm">Add comment</span>
+                    {getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                      <ActionButtonCountBadge
+                        count={getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        )}
+                      />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <AnnotateDrawer
                 projectId={projectId}
                 scoreTarget={{

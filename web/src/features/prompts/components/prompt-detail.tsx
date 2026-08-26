@@ -36,9 +36,16 @@ import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import LegacyGenerations from "@/src/components/table/use-cases/observations";
 import EventsTable from "@/src/features/events/components/EventsTable";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { FlaskConical, MoreVertical, Plus } from "lucide-react";
+import {
+  FlaskConical,
+  MessageSquare,
+  MessageSquareOff,
+  MoreVertical,
+  Plus,
+} from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
@@ -59,7 +66,7 @@ import {
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
@@ -443,16 +450,36 @@ export const PromptDetail = ({
                     </DialogContent>
                   </Dialog>
                 )}
-                <CommentDrawerButton
+                <CommentDrawerController
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
                   count={getNumberFromMap(commentCounts, prompt.id)}
-                  variant="outline"
                   onCommentChange={() =>
                     utils.prompts.allVersions.invalidate(promptHistoryInput)
                   }
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                    >
+                      {disabled ? (
+                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                      <span>Add comment</span>
+                      {getNumberFromMap(commentCounts, prompt.id) ? (
+                        <ActionButtonCountBadge
+                          count={getNumberFromMap(commentCounts, prompt.id)}
+                        />
+                      ) : null}
+                    </Button>
+                  )}
+                </CommentDrawerController>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">

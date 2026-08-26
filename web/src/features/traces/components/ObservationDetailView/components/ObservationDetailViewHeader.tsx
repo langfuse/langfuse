@@ -23,7 +23,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
@@ -50,7 +50,14 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import {
+  LockIcon,
+  MessageSquare,
+  MessageSquareOff,
+  MoreHorizontal,
+  SquarePen,
+} from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -174,7 +181,7 @@ export const ObservationDetailViewHeader = memo(
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  // forceMount + hide-when-closed: CommentDrawerButton lives in
+                  // forceMount + hide-when-closed: CommentDrawerController lives in
                   // here, and its deep-link auto-open effect (?comments=open) and
                   // controlled inline-selection flow only work while mounted. A
                   // default Popover unmounts its content when closed (the default
@@ -260,17 +267,37 @@ export const ObservationDetailViewHeader = memo(
                         layout="menu"
                       />
                     )}
-                  <CommentDrawerButton
+                  <CommentDrawerController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType="OBSERVATION"
                     count={commentCount}
-                    layout="menu"
                     pendingSelection={pendingSelection}
                     onSelectionUsed={onSelectionUsed}
                     isOpen={isCommentDrawerOpen}
                     onOpenChange={onCommentDrawerOpenChange}
-                  />
+                  >
+                    {({ disabled, openDrawer }) => (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={openDrawer}
+                        className="w-full justify-start gap-2 font-normal"
+                      >
+                        {disabled ? (
+                          <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4" />
+                        )}
+                        <span className="text-sm">Add comment</span>
+                        {!!commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </Button>
+                    )}
+                  </CommentDrawerController>
                 </PopoverContent>
               </Popover>
             )}
@@ -356,17 +383,36 @@ export const ObservationDetailViewHeader = memo(
                     size="sm"
                   />
                 )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={observation.id}
                 objectType="OBSERVATION"
                 count={commentCount}
-                size="sm"
                 pendingSelection={pendingSelection}
                 onSelectionUsed={onSelectionUsed}
                 isOpen={isCommentDrawerOpen}
                 onOpenChange={onCommentDrawerOpenChange}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                    ) : (
+                      <MessageSquare className="h-3.5 w-3.5" />
+                    )}
+                    <span>Add comment</span>
+                    {!!commentCount ? (
+                      <ActionButtonCountBadge count={commentCount} />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
             </div>
           )}
         </div>

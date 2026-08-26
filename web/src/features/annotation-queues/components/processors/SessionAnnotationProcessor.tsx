@@ -9,6 +9,7 @@ import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
 import { Badge } from "@/src/components/ui/badge";
@@ -18,8 +19,9 @@ import { Card } from "@/src/components/ui/card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
+import { MessageSquare, MessageSquareOff } from "lucide-react";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -132,13 +134,36 @@ export const SessionAnnotationProcessor: React.FC<
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
-          <CommentDrawerButton
+          <CommentDrawerController
             projectId={projectId}
-            variant="outline"
             objectId={item.objectId}
             objectType="SESSION"
             count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
-          />
+          >
+            {({ disabled, openDrawer }) => (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={openDrawer}
+              >
+                {disabled ? (
+                  <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                ) : (
+                  <MessageSquare className="h-4 w-4" />
+                )}
+                <span>Add comment</span>
+                {getNumberFromMap(sessionCommentCounts.data, item.objectId) ? (
+                  <ActionButtonCountBadge
+                    count={getNumberFromMap(
+                      sessionCommentCounts.data,
+                      item.objectId,
+                    )}
+                  />
+                ) : null}
+              </Button>
+            )}
+          </CommentDrawerController>
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">
