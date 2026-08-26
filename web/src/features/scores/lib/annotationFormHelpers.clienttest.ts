@@ -87,6 +87,16 @@ describe("resolveCategoricalNumericValue", () => {
       }),
     ).toBe(0);
   });
+
+  it("accepts a null category list when a numeric value is provided", () => {
+    expect(
+      resolveCategoricalNumericValue({
+        categories: null,
+        stringValue: "pen_testing",
+        numericValue: 1,
+      }),
+    ).toBe(1);
+  });
 });
 
 describe("appendCategoryToExisting", () => {

@@ -67,7 +67,7 @@ export const resolveCategoricalNumericValue = ({
   stringValue,
   numericValue,
 }: {
-  categories?: Pick<ScoreConfigCategoryDomain, "label" | "value">[];
+  categories?: Pick<ScoreConfigCategoryDomain, "label" | "value">[] | null;
   stringValue: string;
   numericValue?: number;
 }): number | undefined => {
