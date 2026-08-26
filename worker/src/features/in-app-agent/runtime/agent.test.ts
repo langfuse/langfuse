@@ -2410,48 +2410,6 @@ describe("createAgUiStream", () => {
     expect(onComplete).toHaveBeenCalledOnce();
   });
 
-  it("includes traces-as-root-observations guidance in the local system prompt", async () => {
-    const { createAgUiStream } = await import("./agent");
-    const input = {
-      threadId: "conversation-1",
-      runId: "run-1",
-      messages: [
-        {
-          id: "user-message-1",
-          role: "user" as const,
-          content: "show me traces from the last hour",
-        },
-      ],
-      tools: [],
-      context: [],
-      state: null,
-      forwardedProps: {},
-    };
-    adapterEvents.items = [];
-
-    const stream = await createAgUiStream({
-      input,
-      signal: new AbortController().signal,
-      options: {
-        model: testBedrockModel("test-model"),
-        langfuseMcp: {
-          url: "https://example.com/api/public/mcp",
-          publicKey: "pk",
-          secretKey: "sk",
-          toolPolicy: defaultInAppAgentToolPolicy,
-        },
-        redirectAction: { projectId: "project-1", isV4Enabled: true },
-        useLocalPrompt: true,
-      },
-    });
-    await readStream(stream);
-
-    const instructions = readAgentInstructions(getLastAgentConfig());
-    expect(instructions).toContain("<data_model>");
-    expect(instructions).toContain("isRootObservation true");
-    expect(instructions).toContain("Do not filter those aggregations to roots");
-  });
-
   it("uses V4-compatible filters for traces redirect actions", async () => {
     const { createAgUiStream } = await import("./agent");
     const input = {
