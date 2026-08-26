@@ -25,20 +25,30 @@ import { type SeriesSemanticContext } from "@/src/features/widgets/chart-library
  * identically.
  */
 export function deriveWidgetSemanticContext(params: {
+  /** Accepts any query view (incl. ones outside the `views` enum, e.g.
+   * scores-listable-count) — only the two score views below ever gate. */
   view: string;
   dimensionField: string | undefined;
   filters: FilterState;
 }): SeriesSemanticContext | undefined {
   if (params.dimensionField === "level") return { field: "level" };
+  const scoreView =
+    params.view === "scores-categorical" || params.view === "scores-boolean"
+      ? params.view
+      : undefined;
   if (
-    (params.view === "scores-categorical" &&
+    (scoreView === "scores-categorical" &&
       params.dimensionField === "stringValue") ||
-    (params.view === "scores-boolean" &&
-      params.dimensionField === "booleanValue")
+    (scoreView === "scores-boolean" && params.dimensionField === "booleanValue")
   ) {
-    const nameFilters = params.filters.filter(
-      (filter) => filter.column === "name",
-    );
+    // Saved widgets can carry legacy UI-table filter columns ("Score Name")
+    // rather than the view-space "name". Normalize exactly like the query
+    // layer does (idempotent for already-canonical columns), so a legacy
+    // widget keeps its score-name polarity colors.
+    const nameFilters = mapLegacyUiTableFilterToView(
+      scoreView,
+      params.filters,
+    ).filter((filter) => filter.column === "name");
     const nameFilter = nameFilters.length === 1 ? nameFilters[0] : undefined;
     const scoreName =
       nameFilter?.type === "string" && nameFilter.operator === "="

@@ -1,6 +1,9 @@
 import { type FilterState } from "@langfuse/shared";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { mergeWidgetAndDashboardFilters } from "./utils";
+import {
+  deriveWidgetSemanticContext,
+  mergeWidgetAndDashboardFilters,
+} from "./utils";
 
 /**
  * LFE-14333: on a dashboard, each widget's query is built from the widget's own
@@ -252,5 +255,78 @@ describe("mergeWidgetAndDashboardFilters", () => {
     expect(remapped.find((f) => f.column === "environment")).toMatchObject({
       value: ["langfuse-eval"],
     });
+  });
+});
+
+describe("deriveWidgetSemanticContext", () => {
+  it("extracts the score name from a canonical view-space name filter", () => {
+    const context = deriveWidgetSemanticContext({
+      view: "scores-categorical",
+      dimensionField: "stringValue",
+      filters: [
+        { column: "name", type: "string", operator: "=", value: "verdict" },
+      ],
+    });
+    expect(context).toEqual({
+      field: "score-categorical",
+      scoreName: "verdict",
+    });
+  });
+
+  it("extracts the score name from a LEGACY UI-table filter column", () => {
+    // Saved widgets can carry the legacy "Score Name" column; the saved chart
+    // must keep its True/False polarity colors, same as the builder preview.
+    const context = deriveWidgetSemanticContext({
+      view: "scores-boolean",
+      dimensionField: "booleanValue",
+      filters: [
+        {
+          column: "Score Name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["hallucination"],
+        },
+      ],
+    });
+    expect(context).toEqual({
+      field: "score-categorical",
+      scoreName: "hallucination",
+    });
+  });
+
+  it("omits the score name when the widget shows more than one score", () => {
+    const context = deriveWidgetSemanticContext({
+      view: "scores-categorical",
+      dimensionField: "stringValue",
+      filters: [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["a", "b"],
+        },
+      ],
+    });
+    expect(context).toEqual({
+      field: "score-categorical",
+      scoreName: undefined,
+    });
+  });
+
+  it("returns the level gate for level breakdowns and nothing otherwise", () => {
+    expect(
+      deriveWidgetSemanticContext({
+        view: "observations",
+        dimensionField: "level",
+        filters: [],
+      }),
+    ).toEqual({ field: "level" });
+    expect(
+      deriveWidgetSemanticContext({
+        view: "traces",
+        dimensionField: "environment",
+        filters: [],
+      }),
+    ).toBeUndefined();
   });
 });
