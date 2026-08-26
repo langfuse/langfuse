@@ -285,9 +285,7 @@ function CommandMenuTrigger() {
       <Search className="h-4 w-4" />
       Go to...
       <span className="ml-auto">
-        <KeyboardShortcut
-          keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "K"]}
-        />
+        <KeyboardShortcut keys={["Mod", "K"]} />
       </span>
     </SidebarMenuButton>
   );

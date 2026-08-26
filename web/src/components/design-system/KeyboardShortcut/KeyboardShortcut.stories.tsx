@@ -19,12 +19,12 @@ export const Default = meta.story({
   },
 });
 
-// Multiple glyphs (e.g. a modifier + a letter) render as separate chips
-// inside the same kbd, joined by a small gap — the "⌘K" / "⌘ Enter" shape
+// Multiple keys (e.g. a modifier + a letter) render as separate labels
+// inside the same kbd, joined by a small gap — the "⌘K" / "Ctrl Enter" shape
 // used for command-menu and submit hints.
 export const MultipleKeys = meta.story({
   args: {
-    keys: ["⌘", "Enter"],
+    keys: ["Mod", "Enter"],
   },
 });
 
@@ -48,14 +48,15 @@ export const VariantMatrix = meta.story({
 export const TestRendersMultipleKeys = meta.story({
   name: "(Test) Renders Multiple Keys",
   args: {
-    keys: ["⌘", "Enter"],
+    keys: ["Mod", "Enter"],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const shortcut = canvas.getByText("⌘").closest("kbd");
+    const modLabel = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl";
+    const shortcut = canvas.getByText(modLabel).closest("kbd");
 
     await expect(shortcut).toBeInTheDocument();
-    await expect(shortcut).toHaveTextContent("⌘Enter");
+    await expect(shortcut).toHaveTextContent(`${modLabel}↵`);
     await expect(shortcut?.querySelectorAll("span")).toHaveLength(2);
   },
 });

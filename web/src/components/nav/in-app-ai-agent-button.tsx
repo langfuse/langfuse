@@ -123,16 +123,7 @@ export const InAppAiAgentButton = ({
       {!prominent && (
         <>
           <span className="hidden sm:inline">Assistant</span>
-          <KeyboardShortcut
-            variant="subtle"
-            keys={[
-              typeof navigator !== "undefined" &&
-              navigator.userAgent.includes("Mac")
-                ? "⌘"
-                : "Ctrl",
-              "I",
-            ]}
-          />
+          <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
         </>
       )}
     </Button>

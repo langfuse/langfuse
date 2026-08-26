@@ -398,15 +398,7 @@ export function CodeEvalTemplateFormBody({
       {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
       Format
       <span className="ml-2">
-        <KeyboardShortcut
-          size="sm"
-          keys={
-            typeof navigator !== "undefined" &&
-            navigator.userAgent.includes("Macintosh")
-              ? ["⇧", "⌥", "F"]
-              : ["Shift", "Alt", "F"]
-          }
-        />
+        <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
       </span>
     </Button>
   );

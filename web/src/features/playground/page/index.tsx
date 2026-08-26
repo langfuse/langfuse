@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Play } from "lucide-react";
@@ -39,12 +39,6 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    setIsMac(window.navigator.userAgent.includes("Mac"));
-  }, []);
-
   const projectId = useProjectIdFromURL();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
@@ -191,7 +185,7 @@ export default function PlaygroundPage() {
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>
-                  <KeyboardShortcut keys={[isMac ? "⌘" : "Ctrl", "Enter"]} />
+                  <KeyboardShortcut keys={["Mod", "Enter"]} />
                 </span>
               </Button>
 

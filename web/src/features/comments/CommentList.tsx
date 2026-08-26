@@ -539,14 +539,7 @@ export function CommentList({
                 )}
                 {!searchQuery && (
                   <span className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50">
-                    <KeyboardShortcut
-                      keys={
-                        typeof navigator !== "undefined" &&
-                        navigator.userAgent.includes("Macintosh")
-                          ? ["⌘", "F"]
-                          : ["Ctrl", "F"]
-                      }
-                    />
+                    <KeyboardShortcut keys={["Mod", "F"]} />
                   </span>
                 )}
               </div>
@@ -805,7 +798,7 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <KeyboardShortcut keys={["⌘", "Enter"]} />
+                          <KeyboardShortcut keys={["Mod", "Enter"]} />
                         </div>
                       </HoverCardContent>
                     </HoverCard>

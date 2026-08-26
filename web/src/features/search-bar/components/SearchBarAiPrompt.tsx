@@ -289,10 +289,10 @@ export function SearchBarAiPrompt({
               {value.trim().length > 0 && (
                 <KeyboardShortcut
                   title="Press Enter to generate"
-                  keys={["↵"]}
+                  keys={["Enter"]}
                 />
               )}
-              <KeyboardShortcut keys={["esc"]} />
+              <KeyboardShortcut keys={["Escape"]} />
               <button
                 type="button"
                 aria-label="Generate filters"

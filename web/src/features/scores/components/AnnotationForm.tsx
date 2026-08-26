@@ -1155,8 +1155,8 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
             <div className="text-muted-foreground hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
               {rowCount > 1 && (
                 <span className="flex items-center gap-1">
-                  <KeyboardShortcut size="sm" keys={["↑"]} />
-                  <KeyboardShortcut size="sm" keys={["↓"]} />
+                  <KeyboardShortcut size="sm" keys={["ArrowUp"]} />
+                  <KeyboardShortcut size="sm" keys={["ArrowDown"]} />
                   move between fields
                 </span>
               )}
@@ -1170,7 +1170,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               )}
               {hasEditableRow && (
                 <span className="flex items-center gap-1">
-                  <KeyboardShortcut size="sm" keys={["↵"]} />
+                  <KeyboardShortcut size="sm" keys={["Enter"]} />
                   edit field
                 </span>
               )}

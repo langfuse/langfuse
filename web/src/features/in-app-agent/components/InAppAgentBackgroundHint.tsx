@@ -31,16 +31,7 @@ export function InAppAgentBackgroundHint({
           onClick={onMinimize}
         >
           <Minus className="size-3" />
-          <KeyboardShortcut
-            variant="subtle"
-            keys={[
-              typeof navigator !== "undefined" &&
-              navigator.userAgent.includes("Mac")
-                ? "⌘"
-                : "Ctrl",
-              "I",
-            ]}
-          />
+          <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
         </Button>
       }
     >

@@ -15,6 +15,7 @@ import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScor
 import { type AnalyticsData } from "@/src/features/scores/types";
 
 const CHAR_CUTOFF = 6;
+const DIGIT_SHORTCUTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 function shouldUseCombobox(
   categories: Pick<ScoreConfigCategoryDomain, "label">[],
@@ -136,16 +137,17 @@ export function CategoricalScoreInput({
                     {category.label}
                   </span>
                   {(() => {
-                    const digit =
-                      (config.categories?.findIndex(
+                    const categoryIndex =
+                      config.categories?.findIndex(
                         (c) => c.label === category.label,
-                      ) ?? -1) + 1;
-                    return digit >= 1 && digit <= 9 ? (
+                      ) ?? -1;
+                    const digitShortcut = DIGIT_SHORTCUTS[categoryIndex];
+                    return digitShortcut ? (
                       <span className="ml-0.5">
                         <KeyboardShortcut
                           size="xs"
                           display="groupFocus"
-                          keys={[String(digit)]}
+                          keys={[digitShortcut]}
                         />
                       </span>
                     ) : null;
