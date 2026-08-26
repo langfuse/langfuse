@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
 
+import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { TransferProjectDialog } from "@/src/features/projects/components/TransferProjectDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -83,15 +84,17 @@ export function TransferProjectDialogController({
   return (
     <>
       {children({ disabled, openDialog })}
-      <TransferProjectDialog
-        open={hasAccess && open}
-        onOpenChange={setOpen}
-        projectName={project.name}
-        organizationName={organization.name}
-        organizations={organizationsToTransferTo}
-        isPending={transferProject.isPending}
-        onConfirm={onConfirm}
-      />
+      <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <TransferProjectDialog
+            projectName={project.name}
+            organizationName={organization.name}
+            organizations={organizationsToTransferTo}
+            isPending={transferProject.isPending}
+            onConfirm={onConfirm}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

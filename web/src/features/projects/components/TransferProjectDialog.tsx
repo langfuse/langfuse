@@ -2,9 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
-  Dialog,
   DialogBody,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -36,8 +34,6 @@ export type TransferProjectDialogOrganization = {
 };
 
 export interface TransferProjectDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   projectName: string;
   organizationName: string;
   organizations: TransferProjectDialogOrganization[];
@@ -46,8 +42,6 @@ export interface TransferProjectDialogProps {
 }
 
 export function TransferProjectDialog({
-  open,
-  onOpenChange,
   projectName,
   organizationName,
   organizations,
@@ -72,102 +66,100 @@ export function TransferProjectDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Transfer Project</DialogTitle>
-          <Alert className="mt-2">
-            <TriangleAlert className="h-4 w-4" />
-            <AlertTitle>Warning</AlertTitle>
-            <AlertDescription>
-              Transferring the project will move it to a different organization:
-              <ul className="list-disc pl-4">
-                <li>
-                  Members who are not part of the new organization will lose
-                  access.
-                </li>
-                <li>
-                  The project remains fully operational as API keys, settings,
-                  and data will remain unchanged. All features (e.g. tracing,
-                  prompt management) will continue to work without interruption.
-                </li>
-              </ul>
-            </AlertDescription>
-          </Alert>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(({ organizationId }) =>
-              onConfirm(organizationId),
-            )}
-            className="flex flex-col gap-8"
-          >
-            <DialogBody>
-              <FormField
-                control={form.control}
-                name="organizationId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Select New Organization</FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={isPending}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select organization" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {organizations.map((organization) => (
-                            <SelectItem
-                              key={organization.id}
-                              value={organization.id}
-                            >
-                              {organization.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormDescription>
-                      Transfer this project to another organization where you
-                      have the ability to create projects.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm</FormLabel>
-                    <FormControl>
-                      <Input placeholder={confirmMessage} {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {`To confirm, type "${confirmMessage}" in the input box `}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </DialogBody>
-            <DialogFooter>
-              <Button
-                type="submit"
-                variant="destructive"
-                loading={isPending}
-                className="w-full"
-              >
-                Transfer project
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+    <>
+      <DialogHeader>
+        <DialogTitle>Transfer Project</DialogTitle>
+        <Alert className="mt-2">
+          <TriangleAlert className="h-4 w-4" />
+          <AlertTitle>Warning</AlertTitle>
+          <AlertDescription>
+            Transferring the project will move it to a different organization:
+            <ul className="list-disc pl-4">
+              <li>
+                Members who are not part of the new organization will lose
+                access.
+              </li>
+              <li>
+                The project remains fully operational as API keys, settings, and
+                data will remain unchanged. All features (e.g. tracing, prompt
+                management) will continue to work without interruption.
+              </li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+      </DialogHeader>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(({ organizationId }) =>
+            onConfirm(organizationId),
+          )}
+          className="flex flex-col gap-8"
+        >
+          <DialogBody>
+            <FormField
+              control={form.control}
+              name="organizationId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Select New Organization</FormLabel>
+                  <FormControl>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isPending}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select organization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {organizations.map((organization) => (
+                          <SelectItem
+                            key={organization.id}
+                            value={organization.id}
+                          >
+                            {organization.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormDescription>
+                    Transfer this project to another organization where you have
+                    the ability to create projects.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm</FormLabel>
+                  <FormControl>
+                    <Input placeholder={confirmMessage} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {`To confirm, type "${confirmMessage}" in the input box `}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="submit"
+              variant="destructive"
+              loading={isPending}
+              className="w-full"
+            >
+              Transfer project
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+    </>
   );
 }

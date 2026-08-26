@@ -2,12 +2,11 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
+import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 
 import { TransferProjectDialog } from "./TransferProjectDialog";
 
 const defaultArgs = {
-  open: true,
-  onOpenChange: fn(),
   projectName: "Support assistant",
   organizationName: "Acme",
   organizations: [{ id: "organization-2", name: "Example" }],
@@ -17,6 +16,18 @@ const defaultArgs = {
 
 const meta = preview.meta({
   component: TransferProjectDialog,
+  parameters: {
+    layout: "fullscreen",
+  },
+  decorators: [
+    (Story) => (
+      <Dialog open onOpenChange={fn()}>
+        <DialogContent className="sm:max-w-[425px]">
+          <Story />
+        </DialogContent>
+      </Dialog>
+    ),
+  ],
 });
 
 export default meta;
@@ -36,16 +47,16 @@ export const ConfirmsTransfer = meta.story({
   name: "(Test) Confirms transfer",
   args: defaultArgs,
   play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(canvas.getByRole("combobox"));
+    await userEvent.click(body.getByRole("combobox"));
     await userEvent.keyboard("{ArrowDown}{Enter}");
     await userEvent.type(
-      canvas.getByRole("textbox", { name: "Confirm" }),
+      body.getByRole("textbox", { name: "Confirm" }),
       "acme/support-assistant",
     );
     await userEvent.click(
-      canvas.getByRole("button", { name: "Transfer project" }),
+      body.getByRole("button", { name: "Transfer project" }),
     );
 
     await expect(args.onConfirm).toHaveBeenCalledWith("organization-2");
