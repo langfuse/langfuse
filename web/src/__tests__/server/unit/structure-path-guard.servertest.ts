@@ -238,6 +238,39 @@ describe("structure path check", () => {
     }
   });
 
+  it("normalizes every spelling of a path it is handed directly", () => {
+    // The hook resolves before it calls checkPath, so this covers the other
+    // documented entry point: `structure:check-path` by hand. An unnormalized
+    // ".." used to fail the web/src scope test and report "no findings", which
+    // reads as approval.
+    const denied = "web/src/features/traces/utils/formatCost.ts";
+    const spellings = [
+      denied,
+      `${repoRoot}/${denied}`,
+      `${repoRoot}/worker/../${denied}`,
+      `worker/../${denied}`,
+    ];
+    // ...while a traversal that genuinely leaves web/src stays out of scope.
+    const outOfScope = [
+      `${repoRoot}/worker/src/queues/whatever.ts`,
+      `${repoRoot}/web/src/../../worker/src/queues/whatever.ts`,
+    ];
+
+    const result = spawnSync(
+      "node",
+      [CHECK, "--json", ...spellings, ...outOfScope],
+      { encoding: "utf8", cwd: repoRoot },
+    );
+    const parsed: { path: string; findings: { rule: number }[] }[] = JSON.parse(
+      result.stdout,
+    );
+
+    expect(parsed.map((r) => r.findings.map((f) => f.rule))).toEqual([
+      ...spellings.map(() => [5]),
+      ...outOfScope.map(() => []),
+    ]);
+  });
+
   it("fails open, and never fires on anything but a new file in scope", () => {
     const silent = [
       // an edit to an existing badly-named, frozen file

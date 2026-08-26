@@ -113,7 +113,10 @@ const toCamel = (s) => {
  */
 export function toWebPath(input) {
   const absolute = input.startsWith("/")
-    ? input
+    ? // resolve() collapses ".." here too: an already-absolute path still has
+      // to be normalized, or a traversal segment fails the scope test below
+      // and the caller reads "no findings" as "this placement is fine".
+      resolve(input)
     : existsSync(resolve(repoRoot, input))
       ? resolve(repoRoot, input)
       : resolve(repoRoot, input).startsWith(`${webRoot}/`)
