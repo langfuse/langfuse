@@ -28,8 +28,8 @@ vi.mock("@langfuse/shared/src/db", () => ({
       findUnique: vi.fn(),
     },
     commentMentionEmail: {
-      findUnique: vi.fn(),
       create: vi.fn(),
+      deleteMany: vi.fn(),
     },
   },
 }));
@@ -81,11 +81,11 @@ describe("handleCommentMentionNotification", () => {
       commentRow,
     );
     (
-      prisma.commentMentionEmail.findUnique as ReturnType<typeof vi.fn>
-    ).mockResolvedValue(null);
-    (
       prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
     ).mockResolvedValue({ id: "row-1" });
+    (
+      prisma.commentMentionEmail.deleteMany as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({ count: 1 });
     mockGetUserProjectRoles.mockResolvedValue([
       projectUser(userA, "a@example.com"),
       projectUser(userB, "b@example.com"),
@@ -97,20 +97,28 @@ describe("handleCommentMentionNotification", () => {
     vi.clearAllMocks();
   });
 
-  it("sends to every mentioned user and records each send in Postgres", async () => {
+  it("claims the unique row before sending so concurrent jobs cannot both deliver", async () => {
     await handleCommentMentionNotification({
       commentId,
       projectId,
       mentionedUserIds: [userA, userB],
     });
 
-    expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(2);
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledTimes(2);
     expect(prisma.commentMentionEmail.create).toHaveBeenCalledWith({
       data: { commentId, userId: userA },
     });
     expect(prisma.commentMentionEmail.create).toHaveBeenCalledWith({
       data: { commentId, userId: userB },
     });
+    expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(2);
+    expect(prisma.commentMentionEmail.deleteMany).not.toHaveBeenCalled();
+
+    const createOrder = (
+      prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
+    ).mock.invocationCallOrder[0];
+    const sendOrder = mockSendCommentMentionEmail.mock.invocationCallOrder[0];
+    expect(createOrder).toBeLessThan(sendOrder);
   });
 
   it("throws after the loop when one recipient fails so BullMQ can retry", async () => {
@@ -132,23 +140,23 @@ describe("handleCommentMentionNotification", () => {
     ).rejects.toThrow(/user-a/);
 
     expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(2);
-    expect(prisma.commentMentionEmail.create).toHaveBeenCalledTimes(1);
-    expect(prisma.commentMentionEmail.create).toHaveBeenCalledWith({
-      data: { commentId, userId: userB },
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledTimes(2);
+    expect(prisma.commentMentionEmail.deleteMany).toHaveBeenCalledTimes(1);
+    expect(prisma.commentMentionEmail.deleteMany).toHaveBeenCalledWith({
+      where: { commentId, userId: userA },
     });
   });
 
-  it("skips recipients that already have a unique sent row on redelivery", async () => {
+  it("skips recipients that already have a unique row on redelivery", async () => {
     (
-      prisma.commentMentionEmail.findUnique as ReturnType<typeof vi.fn>
+      prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
     ).mockImplementation(
-      async ({
-        where: {
-          commentId_userId: { userId },
-        },
-      }: {
-        where: { commentId_userId: { commentId: string; userId: string } };
-      }) => (userId === userA ? { id: "existing" } : null),
+      async ({ data: { userId } }: { data: { userId: string } }) => {
+        if (userId === userA) {
+          throw { code: "P2002" };
+        }
+        return { id: "row-1" };
+      },
     );
 
     await handleCommentMentionNotification({
@@ -161,9 +169,10 @@ describe("handleCommentMentionNotification", () => {
     expect(mockSendCommentMentionEmail).toHaveBeenCalledWith(
       expect.objectContaining({ mentionedUserEmail: "b@example.com" }),
     );
+    expect(prisma.commentMentionEmail.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("does not fail the job when a concurrent retry already inserted the unique row", async () => {
+  it("does not send when a concurrent job already inserted the unique row", async () => {
     (
       prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
     ).mockRejectedValue({ code: "P2002" });
@@ -176,10 +185,10 @@ describe("handleCommentMentionNotification", () => {
       }),
     ).resolves.toBeUndefined();
 
-    expect(mockSendCommentMentionEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendCommentMentionEmail).not.toHaveBeenCalled();
   });
 
-  it("fails the job when recording the sent row fails for a non-unique error", async () => {
+  it("fails the job without sending when claiming the unique row fails", async () => {
     (
       prisma.commentMentionEmail.create as ReturnType<typeof vi.fn>
     ).mockRejectedValue(new Error("postgres down"));
@@ -191,5 +200,22 @@ describe("handleCommentMentionNotification", () => {
         mentionedUserIds: [userA],
       }),
     ).rejects.toThrow(/user-a/);
+
+    expect(mockSendCommentMentionEmail).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim when SMTP reports the email was not delivered", async () => {
+    mockSendCommentMentionEmail.mockResolvedValue({ delivered: false });
+
+    await handleCommentMentionNotification({
+      commentId,
+      projectId,
+      mentionedUserIds: [userA],
+    });
+
+    expect(prisma.commentMentionEmail.create).toHaveBeenCalledTimes(1);
+    expect(prisma.commentMentionEmail.deleteMany).toHaveBeenCalledWith({
+      where: { commentId, userId: userA },
+    });
   });
 });
