@@ -127,7 +127,7 @@ function resolveHttpProviderConfig(params: {
 
 function parseLangfuseAIExtraHeaders(): Record<string, string> | undefined {
   const raw = env.LANGFUSE_AI_EXTRA_HEADERS;
-  if (!raw) {
+  if (!raw || raw.trim() === "") {
     return undefined;
   }
 
