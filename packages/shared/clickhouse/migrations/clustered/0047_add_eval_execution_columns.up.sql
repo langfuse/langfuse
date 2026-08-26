@@ -1,4 +1,4 @@
--- Existing parts resolve these columns through DEFAULT expressions, while only the skip indexes are materialized to avoid a full column rewrite.
+-- Existing parts resolve these columns through DEFAULT expressions. Skip indexes are added without materializing historical parts to keep this migration metadata-only.
 ALTER TABLE events_full ON CLUSTER default
   ADD COLUMN IF NOT EXISTS evaluator_id String DEFAULT arrayElement(metadata_values, indexOf(metadata_names, 'evaluator_id')) AFTER metadata_values
   SETTINGS enable_full_text_index = 1, alter_sync = 2;
@@ -23,9 +23,6 @@ ALTER TABLE events_core ON CLUSTER default
 ALTER TABLE events_core ON CLUSTER default
   ADD INDEX IF NOT EXISTS idx_evaluation_rule_id evaluation_rule_id TYPE bloom_filter(0.01) GRANULARITY 1
   SETTINGS enable_full_text_index = 1, alter_sync = 2;
-ALTER TABLE events_core ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_evaluator_id SETTINGS enable_full_text_index = 1, mutations_sync = 2;
-ALTER TABLE events_core ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_evaluation_rule_id SETTINGS enable_full_text_index = 1, mutations_sync = 2;
-
 ALTER TABLE scores ON CLUSTER default
   ADD COLUMN IF NOT EXISTS evaluator_id String DEFAULT metadata['evaluator_id'] AFTER metadata
   SETTINGS alter_sync = 2;
@@ -38,9 +35,6 @@ ALTER TABLE scores ON CLUSTER default
 ALTER TABLE scores ON CLUSTER default
   ADD INDEX IF NOT EXISTS idx_evaluation_rule_id evaluation_rule_id TYPE bloom_filter(0.001) GRANULARITY 1
   SETTINGS alter_sync = 2;
-ALTER TABLE scores ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_evaluator_id SETTINGS mutations_sync = 2;
-ALTER TABLE scores ON CLUSTER default MATERIALIZE INDEX IF EXISTS idx_evaluation_rule_id SETTINGS mutations_sync = 2;
-
 ALTER TABLE events_core_mv ON CLUSTER default MODIFY QUERY
 SELECT
     project_id,

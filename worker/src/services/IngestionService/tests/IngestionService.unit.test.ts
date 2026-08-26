@@ -157,7 +157,7 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.cost_details).toEqual({ total: 0.03 });
   });
 
-  it("persists evaluator and legacy rule identifiers on direct events", async () => {
+  it("keeps legacy evaluator metadata for ClickHouse defaults", async () => {
     const ingestionService = new IngestionService(
       {} as any,
       {} as any,
@@ -176,9 +176,63 @@ describe("IngestionService unit tests", () => {
         startTimeISO: "2026-08-03T00:00:00.000Z",
         endTimeISO: "2026-08-03T00:00:01.000Z",
         metadata: {
+          dispatcher_name: "test-dispatcher",
           evaluator_id: "evaluator-1",
-          evaluator_test: "true",
+          evaluation_rule_id: "rule-1",
           job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+        source: "otel",
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.evaluator_id).toBeUndefined();
+    expect(eventRecord.evaluation_rule_id).toBeUndefined();
+    expect(eventRecord.evaluator_execution_is_test).toBeUndefined();
+    expect(eventRecord.metadata_names).toEqual([
+      "dispatcher_name",
+      "evaluator_id",
+      "evaluation_rule_id",
+      "job_configuration_id",
+      "evaluator_test",
+    ]);
+    expect(eventRecord.metadata_values).toEqual([
+      "test-dispatcher",
+      "evaluator-1",
+      "rule-1",
+      "legacy-rule-1",
+      "true",
+    ]);
+  });
+
+  it("prefers evaluation context while stripping compatibility metadata from events", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        name: "evaluator",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-08-03T00:00:00.000Z",
+        endTimeISO: "2026-08-03T00:00:01.000Z",
+        metadata: {
+          evaluator_id: "legacy-evaluator-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+        evaluationContext: {
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "rule-1",
+          evaluatorExecutionIsTest: false,
         },
         source: "otel",
       },
@@ -186,8 +240,10 @@ describe("IngestionService unit tests", () => {
     );
 
     expect(eventRecord.evaluator_id).toBe("evaluator-1");
-    expect(eventRecord.evaluation_rule_id).toBe("legacy-rule-1");
-    expect(eventRecord.evaluator_execution_is_test).toBe(true);
+    expect(eventRecord.evaluation_rule_id).toBe("rule-1");
+    expect(eventRecord.evaluator_execution_is_test).toBe(false);
+    expect(eventRecord.metadata_names).toEqual([]);
+    expect(eventRecord.metadata_values).toEqual([]);
   });
 
   it("preserves non-JSON model parameter strings on direct events", async () => {
@@ -528,7 +584,70 @@ describe("IngestionService unit tests", () => {
     expect(addToQueue).not.toHaveBeenCalled();
   });
 
-  it("persists evaluator and preferred rule identifiers on scores", async () => {
+  it("persists evaluator identifiers after the score JSON round-trip", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    const scoreEvent = JSON.parse(
+      JSON.stringify({
+        id: "event-id",
+        timestamp,
+        type: "score-create",
+        body: {
+          id: "score-id",
+          dataType: "NUMERIC",
+          name: "quality",
+          value: 1,
+          source: "EVAL",
+          traceId: "trace-id",
+          environment: "default",
+          metadata: {
+            job_execution_id: "job-1",
+            evaluator_id: "legacy-evaluator-1",
+            evaluation_rule_id: "legacy-rule-1",
+            job_configuration_id: "legacy-job-configuration-1",
+            evaluator_test: "true",
+          },
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "rule-1",
+        },
+      }),
+    ) as ScoreEventType;
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [scoreEvent],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).toHaveBeenCalledWith(
+      TableName.Scores,
+      expect.objectContaining({
+        evaluator_id: "evaluator-1",
+        evaluation_rule_id: "rule-1",
+        metadata: {
+          job_execution_id: "job-1",
+        },
+      }),
+    );
+  });
+
+  it("keeps legacy score metadata for ClickHouse defaults", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -560,13 +679,72 @@ describe("IngestionService unit tests", () => {
             traceId: "trace-id",
             environment: "default",
             metadata: {
+              job_execution_id: "job-1",
               evaluator_id: "evaluator-1",
-              evaluation_rule_id: "rule-1",
               job_configuration_id: "legacy-rule-1",
+              evaluator_test: "true",
             },
           },
         },
       ] satisfies ScoreEventType[],
+      attribution: {
+        ingestionApiKey: "pk-lf-unit-test",
+        ingestionSdkName: "langfuse-test",
+        ingestionSdkVersion: "0.0.0",
+      },
+    });
+
+    expect(addToQueue).toHaveBeenCalledWith(
+      TableName.Scores,
+      expect.objectContaining({
+        evaluator_id: undefined,
+        evaluation_rule_id: undefined,
+        metadata: {
+          job_execution_id: "job-1",
+          evaluator_id: "evaluator-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+      }),
+    );
+  });
+
+  it("preserves evaluator identifiers when a later score update omits them", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const timestamp = "2024-10-12T12:13:14.123Z";
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue({
+      ...createTraceScore({
+        id: "score-id",
+        project_id: "project-id",
+        trace_id: "trace-id",
+        timestamp: new Date(timestamp).getTime(),
+      }),
+      evaluator_id: "evaluator-1",
+      evaluation_rule_id: "rule-1",
+    });
+
+    await (ingestionService as any).processScoreEventList({
+      projectId: "project-id",
+      entityId: "score-id",
+      createdAtTimestamp: new Date(timestamp),
+      scoreEventList: [
+        {
+          id: "event-id",
+          timestamp,
+          type: "score-update",
+          body: {
+            id: "score-id",
+            comment: "updated",
+          },
+        } as ScoreEventType,
+      ],
       attribution: {
         ingestionApiKey: "pk-lf-unit-test",
         ingestionSdkName: "langfuse-test",

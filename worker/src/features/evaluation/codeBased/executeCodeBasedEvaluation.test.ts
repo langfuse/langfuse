@@ -45,6 +45,23 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 
+const evaluationContext = {
+  evaluatorId: "evaluator-1",
+  evaluationRuleId: "config-1",
+  evaluatorExecutionIsTest: false,
+};
+
+const executeCodeBasedEvaluationWithContext = (
+  params: Omit<
+    Parameters<typeof executeCodeBasedEvaluation>[0],
+    "evaluationContext"
+  >,
+) =>
+  executeCodeBasedEvaluation({
+    ...params,
+    evaluationContext,
+  });
+
 describe("executeCodeBasedEvaluation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,7 +81,7 @@ describe("executeCodeBasedEvaluation", () => {
       ],
     });
 
-    const result = await executeCodeBasedEvaluation({
+    const result = await executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       evaluatorId: "evaluator-1",
@@ -178,7 +195,7 @@ describe("executeCodeBasedEvaluation", () => {
       ],
     });
 
-    const result = await executeCodeBasedEvaluation({
+    const result = await executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -229,7 +246,7 @@ describe("executeCodeBasedEvaluation", () => {
       scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
-    await executeCodeBasedEvaluation({
+    await executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -277,7 +294,7 @@ describe("executeCodeBasedEvaluation", () => {
       scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
-    await executeCodeBasedEvaluation({
+    await executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -321,7 +338,7 @@ describe("executeCodeBasedEvaluation", () => {
       scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
-    await executeCodeBasedEvaluation({
+    await executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -373,7 +390,7 @@ describe("executeCodeBasedEvaluation", () => {
       scores: [{ name: "score", value: 1, dataType: "BOOLEAN" }],
     });
 
-    await executeCodeBasedEvaluation({
+    await executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -428,7 +445,7 @@ describe("executeCodeBasedEvaluation", () => {
     mocks.writeInternalTrace.mockRejectedValue(new Error("trace write failed"));
 
     await expect(
-      executeCodeBasedEvaluation({
+      executeCodeBasedEvaluationWithContext({
         projectId: "project-1",
         organizationId: "org-1",
         job: {
@@ -465,7 +482,7 @@ describe("executeCodeBasedEvaluation", () => {
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
-    const promise = executeCodeBasedEvaluation({
+    const promise = executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -535,7 +552,7 @@ describe("executeCodeBasedEvaluation", () => {
       parseDispatchResult({ score: 1 }),
     );
 
-    const promise = executeCodeBasedEvaluation({
+    const promise = executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -593,7 +610,7 @@ describe("executeCodeBasedEvaluation", () => {
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
-    const promise = executeCodeBasedEvaluation({
+    const promise = executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {
@@ -644,7 +661,7 @@ describe("executeCodeBasedEvaluation", () => {
     );
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
-    const promise = executeCodeBasedEvaluation({
+    const promise = executeCodeBasedEvaluationWithContext({
       projectId: "project-1",
       organizationId: "org-1",
       job: {

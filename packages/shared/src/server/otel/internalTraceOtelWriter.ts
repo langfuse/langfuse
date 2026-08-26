@@ -17,7 +17,10 @@ import {
 
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { logger } from "../logger";
-import { LangfuseOtelSpanAttributes } from "./attributes";
+import {
+  buildEvaluationAttributes,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import { OtelIngestionProcessor } from "./OtelIngestionProcessor";
 
 const INTERNAL_TRACE_WRITER_SDK_NAME = "langfuse-internal-otel-writer";
@@ -88,6 +91,7 @@ export type InternalOtelSpanInput = Pick<
   | "input"
   | "output"
   | "metadata"
+  | "evaluationContext"
 >;
 
 /**
@@ -154,6 +158,9 @@ export async function writeInternalTraceViaOtelIngestion(trace: {
       currentTraceId = eventInput.traceId.toLowerCase();
       const isRoot = !eventInput.parentSpanId;
       const metadataJson = JSON.stringify(eventInput.metadata);
+      const evaluationAttributes = eventInput.evaluationContext
+        ? buildEvaluationAttributes(eventInput.evaluationContext)
+        : undefined;
 
       const attributes: Attributes = {
         ...(eventInput.environment !== undefined
@@ -177,6 +184,7 @@ export async function writeInternalTraceViaOtelIngestion(trace: {
                 eventInput.output,
             }
           : {}),
+        ...(evaluationAttributes ?? {}),
         [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: metadataJson,
         ...(isRoot && eventInput.traceName !== undefined
           ? { [LangfuseOtelSpanAttributes.TRACE_NAME]: eventInput.traceName }

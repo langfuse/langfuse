@@ -6,7 +6,6 @@ import type {
   ObservationType,
 } from "../../domain";
 import { env } from "../../env";
-import { EvalExecutionMetadataKey } from "../../features/evals/evalExecutionMetadata";
 import {
   InternalServerError,
   InvalidRequestError,
@@ -374,6 +373,13 @@ const PUBLIC_API_TRACES_COLUMN_MAPPING = createPublicApiTracesColumnMapping(
 // not joined from a separate observations table (with 'o' prefix). We need to remap these.
 const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS =
   tracesTableUiColumnDefinitions.map((col) => {
+    if (col.uiTableId === "evaluatorId") {
+      return { ...col, clickhouseSelect: "t.evaluator_id" };
+    }
+    if (col.uiTableId === "ruleId") {
+      return { ...col, clickhouseSelect: "t.evaluation_rule_id" };
+    }
+
     // If this column references the observations table with 'o' prefix,
     // remap it to use 't' prefix since observations are aggregated into traces CTE
     if (col.clickhouseTableName === "observations") {
@@ -3549,7 +3555,8 @@ export const getTotalCostByEvaluatorIds = async (
   }));
 };
 
-// Temporary compatibility path: remove in a few weeks in favor of evaluator_id.
+// Prompt-experiment executions still use the trace-name fallback until every
+// execution is linked to an evaluator id.
 export const getTotalCostByEvaluatorTraceNames = async (
   projectId: string,
   traceNames: string[],
@@ -3610,7 +3617,7 @@ export const getLatestEvaluatorRunCost = async (
     identifiers: [
       {
         identifier: "evaluator",
-        alias: EvalExecutionMetadataKey.EVALUATOR_ID,
+        alias: "evaluator_id",
       },
     ],
     additionalSelect: [
@@ -3618,10 +3625,7 @@ export const getLatestEvaluatorRunCost = async (
       "countIf(e.type = 'GENERATION') as generation_count",
     ],
   })
-    .havingRaw(
-      `${EvalExecutionMetadataKey.EVALUATOR_ID} = {evaluatorId: String}`,
-      { evaluatorId },
-    )
+    .havingRaw("evaluator_id = {evaluatorId: String}", { evaluatorId })
     .havingRaw("generation_count > 0")
     .orderBy("ORDER BY timestamp DESC, trace_id DESC")
     .limit(1);
@@ -3693,7 +3697,7 @@ export const getRecentRuleExecutionTraces = async (
     groupByColumn: "e.trace_id, e.evaluation_rule_id",
     selectExpression: [
       "e.trace_id as id",
-      `e.evaluation_rule_id as ${EvalExecutionMetadataKey.EVALUATION_RULE_ID}`,
+      "e.evaluation_rule_id as evaluation_rule_id",
       "multiIf(countIf(e.level = 'ERROR') > 0, 'ERROR', countIf(e.level = 'WARNING') > 0, 'WARNING', 'DEFAULT') as level",
       "min(e.start_time) as timestamp",
     ].join(", "),
@@ -3701,7 +3705,7 @@ export const getRecentRuleExecutionTraces = async (
     .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
     .whereRaw("e.evaluation_rule_id IN ({ruleIds: Array(String)})", { ruleIds })
     .orderBy("ORDER BY timestamp DESC, id DESC")
-    .limitByCount(5, EvalExecutionMetadataKey.EVALUATION_RULE_ID);
+    .limitByCount(5, "evaluation_rule_id");
 
   const { query, params } = builder.buildWithParams();
   const rows = await queryClickhouse<
@@ -3709,7 +3713,7 @@ export const getRecentRuleExecutionTraces = async (
       id: string;
       level: string;
       timestamp: string;
-    } & Record<typeof EvalExecutionMetadataKey.EVALUATION_RULE_ID, string>
+    } & { evaluation_rule_id: string }
   >({
     query,
     params,
@@ -3719,7 +3723,7 @@ export const getRecentRuleExecutionTraces = async (
 
   return rows.map((row) => ({
     id: row.id,
-    ruleId: row[EvalExecutionMetadataKey.EVALUATION_RULE_ID],
+    ruleId: row.evaluation_rule_id,
     level: row.level,
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
   }));

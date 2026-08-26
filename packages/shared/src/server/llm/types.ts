@@ -10,6 +10,7 @@ import type {
   InternalTraceEventInput,
   InternalTraceExperimentContext,
 } from "./internalTraceEvents";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 
 // disable lint as this is exported and used in web/worker
 
@@ -542,6 +543,7 @@ export type TraceSinkParams = {
   environment: string;
   userId?: string;
   metadata?: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
   prompt?: {
     name: string;
     version: number;

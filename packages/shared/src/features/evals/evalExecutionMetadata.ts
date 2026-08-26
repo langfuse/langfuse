@@ -14,22 +14,8 @@ export const EvalExecutionMetadataKey = {
 export type EvalExecutionMetadataKey =
   (typeof EvalExecutionMetadataKey)[keyof typeof EvalExecutionMetadataKey];
 
-export function getEvalExecutionMetadata(metadata: Record<string, unknown>) {
-  const evaluatorId = metadata[EvalExecutionMetadataKey.EVALUATOR_ID];
-  const evaluationRuleId =
-    metadata[EvalExecutionMetadataKey.EVALUATION_RULE_ID];
-  const legacyRuleId = metadata[EvalExecutionMetadataKey.JOB_CONFIGURATION_ID];
-  const evaluatorTest = metadata[EvalExecutionMetadataKey.EVALUATOR_TEST];
-
-  return {
-    evaluatorId: typeof evaluatorId === "string" ? evaluatorId : "",
-    ruleId:
-      typeof evaluationRuleId === "string" && evaluationRuleId.length > 0
-        ? evaluationRuleId
-        : typeof legacyRuleId === "string"
-          ? legacyRuleId
-          : "",
-    evaluatorExecutionIsTest:
-      evaluatorTest === true || evaluatorTest === "true",
-  };
-}
+export type EvalExecutionContext = {
+  evaluatorId?: string;
+  evaluationRuleId?: string;
+  evaluatorExecutionIsTest: boolean;
+};

@@ -3,7 +3,7 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
-  buildEvalExecutionMetadata,
+  buildEvalExecutionData,
   createW3CTraceId,
   DefaultEvalModelService,
   createLLMOutput,
@@ -47,7 +47,7 @@ export async function testEvaluator(params: {
     observation,
     variableMapping,
   });
-  const metadata = buildEvalExecutionMetadata({
+  const executionData = buildEvalExecutionData({
     type: "TEST",
     evaluatorId: params.evaluatorId,
     targetTraceId: params.traceId,
@@ -62,14 +62,14 @@ export async function testEvaluator(params: {
           evaluatorId: params.evaluatorId,
           definition: params.definition,
           variables,
-          metadata,
+          ...executionData,
         })
       : await testLlmEvaluator({
           projectId: params.projectId,
           evaluatorId: params.evaluatorId,
           definition: params.definition,
           variables,
-          metadata,
+          ...executionData,
         });
 
   return { ...result, durationMs: Date.now() - startedAt };
@@ -80,7 +80,10 @@ async function testLlmEvaluator(params: {
   evaluatorId: string;
   definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
   variables: ExtractedVariable[];
-  metadata: ReturnType<typeof buildEvalExecutionMetadata>;
+  executionMetadata: Record<string, string>;
+  evaluationContext: ReturnType<
+    typeof buildEvalExecutionData
+  >["evaluationContext"];
 }) {
   const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
     params.projectId,
@@ -123,7 +126,8 @@ async function testLlmEvaluator(params: {
             traceId: executionTraceId,
             traceName: "Test evaluator",
             environment: LangfuseInternalTraceEnvironment.LLMJudge,
-            metadata: params.metadata,
+            metadata: params.executionMetadata,
+            evaluationContext: params.evaluationContext,
           },
         });
         estimatedCostUsd = await calculateTestRunCost({
@@ -199,7 +203,10 @@ async function testCodeEvaluator(params: {
   evaluatorId: string;
   definition: Extract<EvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
-  metadata: ReturnType<typeof buildEvalExecutionMetadata>;
+  executionMetadata: Record<string, string>;
+  evaluationContext: ReturnType<
+    typeof buildEvalExecutionData
+  >["evaluationContext"];
 }) {
   const dispatcher = resolveConfiguredCodeEvalDispatcher();
   if (!dispatcher) {
@@ -210,7 +217,6 @@ async function testCodeEvaluator(params: {
   }
 
   const executionTraceId = createW3CTraceId();
-
   return runCodeBasedEvaluationDispatch({
     dispatcher,
     organizationId: params.orgId,
@@ -221,6 +227,7 @@ async function testCodeEvaluator(params: {
     version: params.definition,
     extractedVariables: params.variables,
     traceName: "Test evaluator",
-    metadata: params.metadata,
+    metadata: params.executionMetadata,
+    evaluationContext: params.evaluationContext,
   });
 }

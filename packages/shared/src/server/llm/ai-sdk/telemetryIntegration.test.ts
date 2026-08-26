@@ -49,7 +49,18 @@ const traceSinkParams: TraceSinkParams = {
   traceId: VALID_TRACE_ID,
   traceName: "Execute evaluator: helpfulness",
   environment: "langfuse-llm-judge",
-  metadata: { job_configuration_id: "evaluator-1" },
+  metadata: {
+    job_execution_id: "job-1",
+    evaluator_id: "evaluator-1",
+    evaluation_rule_id: "legacy-rule-1",
+    job_configuration_id: "legacy-rule-1",
+    evaluator_test: "true",
+  },
+  evaluationContext: {
+    evaluatorId: "evaluator-1",
+    evaluationRuleId: "legacy-rule-1",
+    evaluatorExecutionIsTest: true,
+  },
 };
 
 const modelParams: ModelParams = {
@@ -225,8 +236,47 @@ describe("AI SDK telemetry integration", () => {
       model: "gpt-4o",
       usageDetails: { input: 3, output: 5 },
       environment: "langfuse-llm-judge",
-      metadata: { job_configuration_id: "evaluator-1" },
+      metadata: {
+        job_execution_id: "job-1",
+        evaluator_id: "evaluator-1",
+        evaluation_rule_id: "legacy-rule-1",
+        job_configuration_id: "legacy-rule-1",
+        evaluator_test: "true",
+      },
     });
+    const generationMetadata = (
+      generation.body as {
+        metadata: { attributes?: Record<string, unknown> };
+      }
+    ).metadata;
+    expect(generationMetadata.attributes).not.toHaveProperty(
+      "langfuse.evaluator.id",
+    );
+    expect(generationMetadata.attributes).not.toHaveProperty(
+      "langfuse.evaluation.rule.id",
+    );
+    expect(generationMetadata.attributes).not.toHaveProperty(
+      "langfuse.evaluator.execution.is_test",
+    );
+
+    const eventInputs = processor.processToEvent(resourceSpans);
+    expect(eventInputs).toHaveLength(2);
+    for (const eventInput of eventInputs) {
+      expect(eventInput).toMatchObject({
+        evaluationContext: {
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "legacy-rule-1",
+          evaluatorExecutionIsTest: true,
+        },
+        metadata: {
+          job_execution_id: "job-1",
+          evaluator_id: "evaluator-1",
+          evaluation_rule_id: "legacy-rule-1",
+          job_configuration_id: "legacy-rule-1",
+          evaluator_test: "true",
+        },
+      });
+    }
   });
 
   it("tags experiment run items so the ingestion pipeline can schedule experiment evals", async () => {

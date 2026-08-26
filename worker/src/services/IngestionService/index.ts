@@ -9,8 +9,8 @@ import {
   PrismaClient,
   Prompt,
   safeJsonParse,
+  EvalExecutionMetadataKey,
   type JsonNested,
-  getEvalExecutionMetadata,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -103,6 +103,15 @@ function toPricingAttributeRecord(value: unknown): Record<string, string> {
         : [],
     ),
   );
+}
+
+function removePromotedEvalMetadata(metadata: Record<string, unknown>) {
+  const remainingMetadata = { ...metadata };
+  delete remainingMetadata[EvalExecutionMetadataKey.EVALUATOR_ID];
+  delete remainingMetadata[EvalExecutionMetadataKey.EVALUATION_RULE_ID];
+  delete remainingMetadata[EvalExecutionMetadataKey.JOB_CONFIGURATION_ID];
+  delete remainingMetadata[EvalExecutionMetadataKey.EVALUATOR_TEST];
+  return remainingMetadata;
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -357,15 +366,16 @@ export class IngestionService {
 
     const now = this.getMicrosecondTimestamp();
 
+    const metadataToPersist = eventData.evaluationContext
+      ? removePromotedEvalMetadata(metadata)
+      : metadata;
+
     // Flatten raw metadata first (before stringification destroys nested structure)
-    const flattened = flattenJsonToPathArrays(metadata);
+    const flattened = flattenJsonToPathArrays(metadataToPersist);
     const metadataNames = flattened.names;
     // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
     // Should not be required as convertValueToPlainJavascript() never returns null.
     const metadataValues = flattened.values.map((v) => v ?? "");
-    const { evaluatorId, ruleId, evaluatorExecutionIsTest } =
-      getEvalExecutionMetadata(metadata);
-
     const eventRecord: EventRecordInsertType = {
       // Required identifiers
       id: eventData.spanId,
@@ -441,9 +451,10 @@ export class IngestionService {
       // Metadata
       metadata_names: metadataNames,
       metadata_values: metadataValues,
-      evaluator_id: evaluatorId,
-      evaluation_rule_id: ruleId,
-      evaluator_execution_is_test: evaluatorExecutionIsTest,
+      evaluator_id: eventData.evaluationContext?.evaluatorId,
+      evaluation_rule_id: eventData.evaluationContext?.evaluationRuleId,
+      evaluator_execution_is_test:
+        eventData.evaluationContext?.evaluatorExecutionIsTest,
 
       // Source/instrumentation metadata
       source: eventData.source,
@@ -656,9 +667,19 @@ export class IngestionService {
               scoreId: entityId,
               projectId,
             });
-            const metadata = scoreEvent.body.metadata
+            const rawMetadata = scoreEvent.body.metadata
               ? convertJsonSchemaToRecord(scoreEvent.body.metadata)
               : {};
+            const evaluationFields =
+              scoreEvent.body as ScoreEventType["body"] & {
+                evaluatorId?: string;
+                evaluationRuleId?: string;
+              };
+            const metadata =
+              evaluationFields.evaluatorId !== undefined ||
+              evaluationFields.evaluationRuleId !== undefined
+                ? removePromotedEvalMetadata(rawMetadata)
+                : rawMetadata;
             return {
               id: entityId,
               project_id: projectId,
@@ -674,7 +695,9 @@ export class IngestionService {
               observation_id: validatedScore.observationId,
               config_id: validatedScore.configId,
               comment: validatedScore.comment,
-              metadata,
+              metadata: convertRecordValuesToString(metadata),
+              evaluator_id: evaluationFields.evaluatorId,
+              evaluation_rule_id: evaluationFields.evaluationRuleId,
               string_value: validatedScore.stringValue,
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
@@ -1126,13 +1149,9 @@ export class IngestionService {
     );
 
     // If metadata exists, it is an object due to previous parsing
-    const metadata = convertRecordValuesToString(
+    mergedRecord.metadata = convertRecordValuesToString(
       (mergedRecord.metadata as Record<string, unknown>) ?? {},
     );
-    mergedRecord.metadata = metadata;
-    const { evaluatorId, ruleId } = getEvalExecutionMetadata(metadata);
-    mergedRecord.evaluator_id = evaluatorId;
-    mergedRecord.evaluation_rule_id = ruleId;
 
     return scoreRecordInsertSchema.parse(mergedRecord);
   }

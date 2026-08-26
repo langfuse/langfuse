@@ -23,7 +23,10 @@ import type { TelemetryOptions } from "ai";
 import { stringifyValue } from "../../../utils/stringChecks";
 import { traceException } from "../../instrumentation";
 import { logger } from "../../logger";
-import { LangfuseOtelSpanAttributes } from "../../otel/attributes";
+import {
+  buildEvaluationAttributes,
+  LangfuseOtelSpanAttributes,
+} from "../../otel/attributes";
 import { publishInternalOtelSpans } from "../../otel/internalTraceOtelWriter";
 import type { InternalTraceExperimentContext } from "../internalTraceEvents";
 import type { TraceSinkParams } from "../types";
@@ -132,6 +135,9 @@ export function createAiSdkTelemetryCapture(params: {
 
   const serializedInput =
     rootInput !== undefined ? stringifyValue(rootInput) : undefined;
+  const evaluationAttributes = traceSinkParams.evaluationContext
+    ? buildEvaluationAttributes(traceSinkParams.evaluationContext)
+    : undefined;
 
   const rootSpan: Span = tracer.startSpan(
     traceSinkParams.traceName,
@@ -145,6 +151,7 @@ export function createAiSdkTelemetryCapture(params: {
                 traceSinkParams.userId,
             }
           : {}),
+        ...(evaluationAttributes ?? {}),
         ...(traceSinkParams.metadata
           ? {
               [LangfuseOtelSpanAttributes.TRACE_METADATA]: JSON.stringify(
@@ -199,6 +206,7 @@ export function createAiSdkTelemetryCapture(params: {
       // Experiment linkage goes on every span so every materialized event
       // remains associated with the run item root.
       ...(experimentAttributes ?? {}),
+      ...(evaluationAttributes ?? {}),
       ...(promptAttributes ?? {}),
       [LangfuseOtelSpanAttributes.TRACE_NAME]: traceSinkParams.traceName,
       [LangfuseOtelSpanAttributes.ENVIRONMENT]: traceSinkParams.environment,
