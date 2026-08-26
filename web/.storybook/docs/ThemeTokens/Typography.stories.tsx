@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../preview";
 import { Typography as TypographyPage } from "./Typography";
 
 const meta = preview.meta({

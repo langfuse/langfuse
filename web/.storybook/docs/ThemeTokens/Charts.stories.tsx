@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../preview";
 import { Charts as ChartsPage } from "./Charts";
 
 const meta = preview.meta({
