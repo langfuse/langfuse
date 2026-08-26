@@ -10,6 +10,7 @@ const original = {
   LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
   LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
   LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
+  LANGFUSE_AI_EXTRA_HEADERS: env.LANGFUSE_AI_EXTRA_HEADERS,
   LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
 };
@@ -26,6 +27,7 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
       LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     });
@@ -45,6 +47,7 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: "claude-haiku-4-5",
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
+      LANGFUSE_AI_EXTRA_HEADERS: '{"X-LLM-Exec-Token":"proxy-token"}',
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     });
 
@@ -54,7 +57,40 @@ describe("getInAppAgentModelConfig", () => {
       titleModelId: "claude-haiku-4-5",
       apiKey: "sk-ant-test",
       baseURL: "https://api.anthropic.com/v1",
+      extraHeaders: { "X-LLM-Exec-Token": "proxy-token" },
     });
+  });
+
+  it("resolves OpenAI-compatible Chat Completions from LANGFUSE_AI_PROVIDER", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "openai",
+      LANGFUSE_AI_MODEL: "gpt-4.1",
+      LANGFUSE_AI_SMALL_MODEL: "gpt-4.1-mini",
+      LANGFUSE_AI_API_KEY: "sk-test",
+      LANGFUSE_AI_BASE_URL: "https://llm-exec.internal/v1",
+      LANGFUSE_AI_EXTRA_HEADERS: '{"X-LLM-Exec-Token":"proxy-token"}',
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toEqual({
+      provider: "openai",
+      modelId: "gpt-4.1",
+      titleModelId: "gpt-4.1-mini",
+      apiKey: "sk-test",
+      baseURL: "https://llm-exec.internal/v1",
+      extraHeaders: { "X-LLM-Exec-Token": "proxy-token" },
+    });
+  });
+
+  it("treats incomplete OpenAI env as unconfigured", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "openai",
+      LANGFUSE_AI_MODEL: "gpt-4.1",
+      LANGFUSE_AI_API_KEY: undefined,
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toBeUndefined();
   });
 
   it("treats incomplete Anthropic env as unconfigured", () => {
@@ -87,7 +123,7 @@ describe("getInAppAgentModelConfig", () => {
     });
   });
 
-  it("warns that Anthropic key and base URL are ignored on Bedrock", () => {
+  it("warns that API key, base URL, and extra headers are ignored on Bedrock", () => {
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => logger);
 
     Object.assign(env, {
@@ -96,6 +132,7 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: "sk-ant-test",
       LANGFUSE_AI_BASE_URL: "https://api.anthropic.com",
+      LANGFUSE_AI_EXTRA_HEADERS: '{"X-LLM-Exec-Token":"proxy-token"}',
       LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
@@ -108,7 +145,7 @@ describe("getInAppAgentModelConfig", () => {
     });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toEqual(
-      "Ignoring LANGFUSE_AI_API_KEY and LANGFUSE_AI_BASE_URL because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an Anthropic API key or base URL.",
+      "Ignoring LANGFUSE_AI_API_KEY and LANGFUSE_AI_BASE_URL and LANGFUSE_AI_EXTRA_HEADERS because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an API key, base URL, or extra headers.",
     );
 
     warn.mockRestore();
@@ -121,6 +158,7 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
       LANGFUSE_AI_AWS_BEDROCK_REGION: "us-east-1.attacker.test",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
@@ -135,6 +173,7 @@ describe("getInAppAgentModelConfig", () => {
       LANGFUSE_AI_SMALL_MODEL: undefined,
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
       LANGFUSE_AI_AWS_BEDROCK_REGION: undefined,
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });

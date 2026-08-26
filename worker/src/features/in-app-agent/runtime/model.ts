@@ -1,5 +1,6 @@
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { createAnthropic } from "ai-sdk-anthropic-v4";
+import { createOpenAI } from "ai-sdk-openai-v4";
 
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { createDefaultBedrockProviderAuth } from "@langfuse/shared/src/server";
@@ -15,25 +16,50 @@ export function createInAppAgentLanguageModel(params: {
   config: InAppAgentModelConfig;
   awsProfile?: string;
 }): InAppAgentLanguageModel {
-  if (params.config.provider === "anthropic") {
-    const anthropic = createAnthropic({
-      apiKey: params.config.apiKey,
-      baseURL: params.config.baseURL,
-    });
+  switch (params.config.provider) {
+    case "anthropic": {
+      const anthropic = createAnthropic({
+        apiKey: params.config.apiKey,
+        baseURL: params.config.baseURL,
+        ...(params.config.extraHeaders
+          ? { headers: params.config.extraHeaders }
+          : {}),
+      });
 
-    return anthropic(
-      params.config.modelId as Parameters<typeof anthropic>[0],
-    ) as InAppAgentLanguageModel;
+      return anthropic(
+        params.config.modelId as Parameters<typeof anthropic>[0],
+      ) as InAppAgentLanguageModel;
+    }
+    case "openai": {
+      const openai = createOpenAI({
+        apiKey: params.config.apiKey,
+        ...(params.config.baseURL ? { baseURL: params.config.baseURL } : {}),
+        ...(params.config.extraHeaders
+          ? { headers: params.config.extraHeaders }
+          : {}),
+      });
+
+      // Chat Completions so OpenAI-compatible proxies work; the Responses API
+      // is out of scope for instance-wide Langfuse AI.
+      return openai.chat(params.config.modelId) as InAppAgentLanguageModel;
+    }
+    case "bedrock": {
+      const bedrock = createAmazonBedrock({
+        ...(params.config.region ? { region: params.config.region } : {}),
+        ...createDefaultBedrockProviderAuth(
+          params.awsProfile ? { profile: params.awsProfile } : undefined,
+        ),
+      });
+
+      return bedrock(params.config.modelId as Parameters<typeof bedrock>[0]);
+    }
+    default: {
+      const _exhaustive: never = params.config;
+      throw new Error(
+        `Unsupported Langfuse AI provider: ${(_exhaustive as InAppAgentModelConfig).provider}`,
+      );
+    }
   }
-
-  const bedrock = createAmazonBedrock({
-    ...(params.config.region ? { region: params.config.region } : {}),
-    ...createDefaultBedrockProviderAuth(
-      params.awsProfile ? { profile: params.awsProfile } : undefined,
-    ),
-  });
-
-  return bedrock(params.config.modelId as Parameters<typeof bedrock>[0]);
 }
 
 // Adaptive thinking is the default for every Claude model so new generations
@@ -63,20 +89,28 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
 export function getInAppAgentReasoningProviderOptions(
   config: InAppAgentModelConfig,
 ) {
-  if (config.provider === "anthropic") {
-    if (!config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)) {
+  switch (config.provider) {
+    case "anthropic": {
+      if (!config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)) {
+        return undefined;
+      }
+
+      return {
+        anthropic: {
+          thinking: {
+            type: "adaptive" as const,
+            display: "summarized" as const,
+          },
+        },
+      };
+    }
+    case "openai":
+      return undefined;
+    case "bedrock":
+      return getBedrockReasoningProviderOptions(config.modelId);
+    default: {
+      const _exhaustive: never = config;
       return undefined;
     }
-
-    return {
-      anthropic: {
-        thinking: {
-          type: "adaptive" as const,
-          display: "summarized" as const,
-        },
-      },
-    };
   }
-
-  return getBedrockReasoningProviderOptions(config.modelId);
 }

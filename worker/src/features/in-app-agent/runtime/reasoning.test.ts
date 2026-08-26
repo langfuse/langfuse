@@ -55,15 +55,62 @@ describe("getInAppAgentReasoningProviderOptions", () => {
     });
   });
 
-  it("sends no thinking config for non-Claude Anthropic model ids", () => {
+  it("sends no thinking config for OpenAI", () => {
     expect(
       getInAppAgentReasoningProviderOptions({
-        provider: "anthropic",
-        modelId: "some-other-model",
-        titleModelId: "some-other-model",
-        apiKey: "sk-ant-test",
+        provider: "openai",
+        modelId: "gpt-4.1",
+        titleModelId: "gpt-4.1-mini",
+        apiKey: "sk-test",
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("OpenAI Chat Completions request shape", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends Bearer plus additive extra headers to Chat Completions", async () => {
+    const config = {
+      provider: "openai" as const,
+      modelId: "gpt-4.1",
+      titleModelId: "gpt-4.1-mini",
+      apiKey: "sk-test",
+      baseURL: "https://llm-exec.internal/v1",
+      extraHeaders: { "X-LLM-Exec-Token": "proxy-token" },
+    };
+    const { calls, fetch } = createCaptureFetch({
+      id: "chatcmpl-1",
+      object: "chat.completion",
+      choices: [
+        {
+          index: 0,
+          message: { role: "assistant", content: "ok" },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "hi" }],
+        },
+      ],
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe("https://llm-exec.internal/v1/chat/completions");
+    expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
+    expect(calls[0]?.headers.get("x-llm-exec-token")).toBe("proxy-token");
+    expect(calls[0]?.body).not.toHaveProperty("thinking");
   });
 });
 
@@ -117,12 +164,17 @@ describe("Anthropic Messages request shape", () => {
 });
 
 function createCaptureFetch(response: unknown) {
-  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+  const calls: Array<{
+    url: string;
+    body: Record<string, unknown>;
+    headers: Headers;
+  }> = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
     calls.push({
       url: request.url,
       body: JSON.parse(await request.text()) as Record<string, unknown>,
+      headers: request.headers,
     });
     return new Response(JSON.stringify(response), {
       status: 200,
