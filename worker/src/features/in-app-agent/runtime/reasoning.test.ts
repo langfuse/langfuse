@@ -59,8 +59,8 @@ describe("getInAppAgentReasoningProviderOptions", () => {
     expect(
       getInAppAgentReasoningProviderOptions({
         provider: "openai",
-        modelId: "gpt-4.1",
-        titleModelId: "gpt-4.1-mini",
+        modelId: "gpt-5.6-sol",
+        titleModelId: "gpt-5.6-luna",
         apiKey: "sk-test",
       }),
     ).toBeUndefined();
@@ -75,8 +75,8 @@ describe("OpenAI Chat Completions request shape", () => {
   it("sends Bearer plus additive extra headers to Chat Completions", async () => {
     const config = {
       provider: "openai" as const,
-      modelId: "gpt-4.1",
-      titleModelId: "gpt-4.1-mini",
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
       apiKey: "sk-test",
       baseURL: "https://llm-exec.internal/v1",
       extraHeaders: { "X-LLM-Exec-Token": "proxy-token" },

@@ -64,8 +64,8 @@ describe("getInAppAgentModelConfig", () => {
   it("resolves OpenAI-compatible Chat Completions from LANGFUSE_AI_PROVIDER", () => {
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: "openai",
-      LANGFUSE_AI_MODEL: "gpt-4.1",
-      LANGFUSE_AI_SMALL_MODEL: "gpt-4.1-mini",
+      LANGFUSE_AI_MODEL: "gpt-5.6-sol",
+      LANGFUSE_AI_SMALL_MODEL: "gpt-5.6-luna",
       LANGFUSE_AI_API_KEY: "sk-test",
       LANGFUSE_AI_BASE_URL: "https://llm-exec.internal/v1",
       LANGFUSE_AI_EXTRA_HEADERS: '{"X-LLM-Exec-Token":"proxy-token"}',
@@ -74,8 +74,8 @@ describe("getInAppAgentModelConfig", () => {
 
     expect(getInAppAgentModelConfig()).toEqual({
       provider: "openai",
-      modelId: "gpt-4.1",
-      titleModelId: "gpt-4.1-mini",
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
       apiKey: "sk-test",
       baseURL: "https://llm-exec.internal/v1",
       extraHeaders: { "X-LLM-Exec-Token": "proxy-token" },
@@ -85,7 +85,7 @@ describe("getInAppAgentModelConfig", () => {
   it("treats incomplete OpenAI env as unconfigured", () => {
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: "openai",
-      LANGFUSE_AI_MODEL: "gpt-4.1",
+      LANGFUSE_AI_MODEL: "gpt-5.6-sol",
       LANGFUSE_AI_API_KEY: undefined,
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     });
