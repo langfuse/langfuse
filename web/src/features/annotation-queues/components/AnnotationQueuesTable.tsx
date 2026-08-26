@@ -13,6 +13,7 @@ import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
@@ -82,20 +83,20 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       size: 200,
     },
-    {
+    createNumberTableColumn<RowData>({
       accessorKey: "countCompletedItems",
       header: "Completed Items",
-      id: "countCompletedItems",
       enableHiding: true,
       size: 90,
-    },
-    {
+      formatter: String,
+    }),
+    createNumberTableColumn<RowData>({
       accessorKey: "countPendingItems",
       header: "Pending Items",
-      id: "countPendingItems",
       enableHiding: true,
       size: 90,
-    },
+      formatter: String,
+    }),
     {
       accessorKey: "scoreConfigs",
       header: "Score Configs",
