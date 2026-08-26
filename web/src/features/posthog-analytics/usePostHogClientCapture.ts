@@ -191,6 +191,7 @@ export const events = {
     "status_change",
     "attach_evaluator",
     "detach_evaluator",
+    "filter_reused",
   ],
   integrations: [
     "posthog_form_submitted",
@@ -326,6 +327,8 @@ export const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "feature_flag_default_toggled",
+    "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
