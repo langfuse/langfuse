@@ -114,6 +114,20 @@ describe("getInAppAgentModelConfig", () => {
     warn.mockRestore();
   });
 
+  it("treats an invalid LANGFUSE_AI_AWS_BEDROCK_REGION as unconfigured", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "us-east-1.attacker.test",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
+    });
+
+    expect(getInAppAgentModelConfig()).toBeUndefined();
+  });
+
   it("leaves the Bedrock region undefined when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", () => {
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: undefined,

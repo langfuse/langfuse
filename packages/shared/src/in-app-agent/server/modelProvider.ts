@@ -24,7 +24,7 @@ export type InAppAgentModelConfig =
     };
 
 export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
-  "Langfuse AI model is not configured. Set LANGFUSE_AI_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER=anthropic.";
+  "Langfuse AI model is not configured. Set LANGFUSE_AI_MODEL and LANGFUSE_AI_SMALL_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER=anthropic.";
 
 /**
  * Resolves the instance-wide Langfuse-operated AI model (Assistant + Ask AI).
@@ -67,8 +67,13 @@ export function getInAppAgentModelConfig(params?: {
     return undefined;
   }
 
+  try {
+    assertValidBedrockRegion(region);
+  } catch {
+    return undefined;
+  }
+
   warnIfBedrockIgnoresAnthropicEnv();
-  assertValidBedrockRegion(region);
 
   return {
     provider: "bedrock",
