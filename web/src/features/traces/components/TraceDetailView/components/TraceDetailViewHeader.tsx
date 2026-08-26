@@ -21,10 +21,11 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import {
   SessionBadge,
@@ -42,7 +43,12 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  EllipsisVertical,
+  ListPlus,
+  MoreHorizontal,
+} from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -106,14 +112,28 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           >
             {trace.name || trace.id}
           </span>
-          <DetailHeaderActionsMenu
+          <DetailHeaderActionsMenuController
             idItems={[{ id: trace.id, name: "Trace ID" }]}
             projectId={projectId}
             webCallout={{
               traceId: trace.id,
               sessionId: trace.sessionId ?? null,
             }}
-          />
+          >
+            {({ Trigger }) => (
+              <Trigger asChild>
+                <Button
+                  aria-label="Options"
+                  className="mt-0.5 shrink-0"
+                  size="icon-xs"
+                  title="Options"
+                  variant="ghost"
+                >
+                  <EllipsisVertical className="h-4 w-4" />
+                </Button>
+              </Trigger>
+            )}
+          </DetailHeaderActionsMenuController>
           {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
               full-width labeled rows, next to the `⋮` utility menu. */}
           {isMobile && (
@@ -161,12 +181,27 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       }}
                       layout="menu"
                     />
-                    <CreateNewAnnotationQueueItem
+                    <AnnotationQueueItemDropdownMenuController
                       projectId={projectId}
                       objectId={trace.id}
                       objectType={AnnotationQueueObjectType.TRACE}
-                      layout="menu"
-                    />
+                    >
+                      {({ disabled, totalCount }) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={disabled !== undefined}
+                          className="w-full justify-start gap-2 font-normal"
+                        >
+                          <ListPlus className="h-4 w-4" />
+                          <span className="text-sm">Add to queue</span>
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="menu"
+                          />
+                        </Button>
+                      )}
+                    </AnnotationQueueItemDropdownMenuController>
                   </>
                 )}
                 <CommentDrawerButton
@@ -213,12 +248,28 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   }}
                   size="sm"
                 />
-                <CreateNewAnnotationQueueItem
+                <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={trace.id}
                   objectType={AnnotationQueueObjectType.TRACE}
-                  size="sm"
-                />
+                >
+                  {({ disabled, totalCount }) => (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={disabled !== undefined}
+                      className="rounded-l-none rounded-r-md border-l-2"
+                    >
+                      <span className="relative mr-1 text-xs">
+                        <ChevronDown className="h-3 w-3" />
+                        <AnnotationQueueItemCountBadge
+                          totalCount={totalCount}
+                          layout="toolbar"
+                        />
+                      </span>
+                    </Button>
+                  )}
+                </AnnotationQueueItemDropdownMenuController>
               </div>
             )}
             <CommentDrawerButton

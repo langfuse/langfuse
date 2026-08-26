@@ -1,7 +1,5 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState } from "@langfuse/shared";
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
-import { useState } from "react";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
@@ -11,15 +9,11 @@ import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
 import { cn } from "@/src/utils/tailwind";
 
-// Target height of one bar row (bar + spacing) and the x-axis strip below the
-// bars. Used both to decide how many bars fit and to size the expanded chart.
-const BAR_ROW_HEIGHT = 40;
-const CHART_AXIS_PADDING = 30;
-// Cap on bars shown when expanded ("Show all"); the rest stay hidden.
-const MAX_EXPANDED_BARS = 20;
+// Cap on bars fetched and rendered; the top list scrolls within the tile when
+// they don't all fit.
+const MAX_BARS = 20;
 
 export const TracesBarListChart = ({
   className,
@@ -40,8 +34,6 @@ export const TracesBarListChart = ({
   metricsVersion?: ViewVersion;
   schedulerId?: string;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
   const isV2 = metricsVersion === "v2";
   const traceNameField = isV2 ? "traceName" : "name";
   const countField = isV2 ? "uniq_traceId" : "count_count";
@@ -85,7 +77,7 @@ export const TracesBarListChart = ({
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: [{ field: countField, direction: "desc" }],
-    chartConfig: { type: "table", row_limit: 20 },
+    chartConfig: { type: "table", row_limit: MAX_BARS },
   };
 
   const traces = useScheduledDashboardExecuteQuery(
@@ -116,31 +108,12 @@ export const TracesBarListChart = ({
       };
     }) ?? [];
 
-  // Fit the number of bars to the tile height instead of a fixed count: the
-  // collapsed view renders exactly as many bars as fill the measured chart area
-  // (no scrollbar, no dead gap), and "Show all" reveals the rest. The hook
-  // measures a layout-guaranteed box and hands `height` down to a pure chart
-  // (BarListChartArea) — one-way, no measure/resize feedback. (LFE-11035, LFE-11060)
-  const { containerRef, rowCount, height } = useFitRowCount({
-    rowHeightPx: BAR_ROW_HEIGHT,
-    reservedPx: CHART_AXIS_PADDING,
-    min: 1,
-    fallback: 5,
-  });
-
-  const expandedCount = Math.min(MAX_EXPANDED_BARS, transformedTraces.length);
-  const collapsedCount = Math.min(rowCount, transformedTraces.length);
-  const adjustedData = transformedTraces.slice(
-    0,
-    isExpanded ? expandedCount : collapsedCount,
-  );
-
   return (
     <DashboardCard
-      // h-full (not just min-h-full) pins the card to the tile so the chart
-      // area measures the AVAILABLE height, not its own content; min-h-0 on the
-      // content lets the flex column shrink so the chart viewport does too and
-      // scrolls internally instead of overflowing the tile. (LFE-11035)
+      // h-full pins the card to the tile so the chart area gets the AVAILABLE
+      // height, not its own content; min-h-0 on the content lets the flex
+      // column shrink so the top list scrolls internally instead of
+      // overflowing the tile.
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
       title="Traces"
@@ -158,13 +131,8 @@ export const TracesBarListChart = ({
         />
         {transformedTraces.length > 0 ? (
           <BarListChartArea
-            containerRef={containerRef}
-            measuredHeightPx={height}
-            isExpanded={isExpanded}
-            data={adjustedData}
-            barRowHeightPx={BAR_ROW_HEIGHT}
-            axisPaddingPx={CHART_AXIS_PADDING}
-            maxExpandedBars={MAX_EXPANDED_BARS}
+            data={transformedTraces}
+            maxBars={MAX_BARS}
             metricLabel="Traces"
             unit="traces"
             metricFormatter={(value) => formatMetric(value, { style: "full" })}
@@ -177,17 +145,6 @@ export const TracesBarListChart = ({
             className="h-auto grow"
           />
         )}
-        <ExpandListButton
-          isExpanded={isExpanded}
-          setExpanded={setIsExpanded}
-          totalLength={transformedTraces.length}
-          maxLength={collapsedCount}
-          expandText={
-            transformedTraces.length > MAX_EXPANDED_BARS
-              ? `Show top ${MAX_EXPANDED_BARS}`
-              : "Show all"
-          }
-        />
       </>
     </DashboardCard>
   );
