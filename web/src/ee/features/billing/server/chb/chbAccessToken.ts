@@ -5,15 +5,6 @@ import { logger } from "@langfuse/shared/src/server";
 /**
  * Auth0 client-credentials (M2M) token source for the ClickHouse Billing (CHB)
  * REST API.
- *
- * CHB's billing-api verifies every non-health request's bearer token against
- * Auth0 — issuer, audience and RS256 signature via the tenant's JWKS — so a
- * static shared secret is rejected outright. We hold a non-interactive Auth0
- * client granted the `billing-api` audience and exchange its credentials for a
- * short-lived access token here.
- *
- * Kept out of `chbApiClient` on purpose: swapping the wire client for the typed
- * one CHB intends to publish must not take the token handling with it.
  */
 
 export class ChbAuthError extends Error {
@@ -28,8 +19,7 @@ export class ChbAuthError extends Error {
 
 const TokenResponseSchema = z.object({
   access_token: z.string().min(1),
-  // Seconds. CHB's resource server issues 24h tokens today; we do not rely on
-  // that, only on the value being present.
+  // Seconds.
   expires_in: z.number().positive(),
 });
 

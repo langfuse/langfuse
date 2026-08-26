@@ -34,7 +34,7 @@ import {
  * `cloudBillingRouter` procedures dispatch to either provider without any
  * tRPC contract change.
  *
- * One transitional wart, contained here: the two plan-selection mutations take
+ * The two plan-selection mutations take
  * `stripeProductId`, so this service maps stripeProductId → Plan → PlanCode
  * through chbCatalogue. Plan-code-first inputs retire the bridge post-GA.
  */

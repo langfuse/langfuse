@@ -10,16 +10,6 @@ import {
 
 /**
  * Thin fetch wrapper for the ClickHouse Billing (CHB) REST API.
- *
- * This module is the only place that knows the CHB wire format, so swapping in
- * the generated typed client CHB intends to publish stays a one-file change.
- *
- * Inbound auth is CHB's Auth0 M2M scheme; `chbAccessToken` owns the grant and
- * the token cache.
- *
- * The response schemas below still need reconciling against the final CHB API
- * definitions before rollout, so they are deliberately loose — unknown fields
- * ignored, most fields nullish — and additive CHB changes cannot break us.
  */
 
 export class ChbApiError extends Error {
@@ -342,19 +332,6 @@ export const buildChbApiClientFromEnv = (): ChbApiClient | null => {
   });
 };
 
-/**
- * Process-wide CHB client, built on first use.
- *
- * The client owns the Auth0 token cache and its single-flight, and both only
- * do anything if every billing request shares one instance: the dispatch layer
- * resolves a billing service per tRPC request, so constructing a client there
- * would mint a fresh access token on every billing call — three per billing
- * page load — and never reuse one.
- *
- * Lazy rather than built at module load, so the env-validation tests can drive
- * `buildChbApiClientFromEnv` directly, and so importing this module stays free
- * for deployments that never configure CHB. Mirrors `PrismaClientSingleton`.
- */
 class ChbApiClientSingleton {
   private static instance: ChbApiClient | null;
   private static built = false;
