@@ -213,6 +213,7 @@ export const events = {
   ],
   dashboard: [
     "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
