@@ -5,9 +5,9 @@
     "catalog": "off",
   },
   "ignoreIssues": {
-    "web/**": ["exports", "types"],
-    "packages/shared/**": ["exports", "types"],
-    "worker/**": ["exports", "types"],
+    "web/**": ["types"],
+    "packages/shared/**": ["types"],
+    "worker/**": ["types"],
   },
   "workspaces": {
     "packages/shared": {
@@ -17,11 +17,9 @@
       ],
     },
     "worker": {
+      // Migration implementations are loaded dynamically from script names persisted in the database.
+      "entry": ["src/backgroundMigrations/*.ts"],
       "ignoreFiles": [
-        // Migration implementations are loaded dynamically from script names persisted in the database.
-        "src/backgroundMigrations/!(backgroundMigrationManager|IBackgroundMigration).ts",
-        // Shared only by background migration modules that Knip cannot discover through dynamic loading.
-        "src/backgroundMigrations/utils/backfillBase.ts",
         // Standalone fixture downloader invoked manually as documented in the adjacent README.
         "src/__tests__/chatml/framework-traces/download_traces.js",
         // Updated by release-it even though worker runtime code does not import it.
@@ -33,8 +31,6 @@
         // Operational and maintenance scripts are invoked directly or through package scripts, not imported.
         "src/scripts/**/*.{ts,js}",
       ],
-      // Tests intentionally load these from @langfuse/shared's dependency tree.
-      "ignoreDependencies": ["@aws-sdk/client-bedrock-runtime"],
     },
     "web": {
       "ignoreFiles": [
