@@ -67,8 +67,14 @@ export function useExperimentsTableData({
     ],
   );
 
+  // Pages cast `router.query.projectId as string` before the pages router
+  // hydrates dynamic params, so skip until we have a real id. Firing here
+  // 400s as "Invalid input, projectId is required".
+  const hasProjectId = Boolean(projectId);
+
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
+    enabled: hasProjectId,
     refetchOnWindowFocus: true,
   });
 
@@ -95,6 +101,7 @@ export function useExperimentsTableData({
 
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
+    enabled: hasProjectId,
     refetchOnWindowFocus: true,
   });
 
@@ -103,7 +110,7 @@ export function useExperimentsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (experimentsQuery.isLoading) {
+    if (!hasProjectId || experimentsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -117,6 +124,7 @@ export function useExperimentsTableData({
       metricsQuery.data,
     );
   }, [
+    hasProjectId,
     experimentsQuery.isLoading,
     experimentsQuery.isError,
     experimentsQuery.data?.data,

@@ -46,7 +46,7 @@ export default function Experiments() {
     router.replace(`/project/${projectId}/datasets`);
   }, [canAccessExperiments, isInitializing, projectId, router]);
 
-  if (!canAccessExperiments) {
+  if (!canAccessExperiments || !projectId) {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="flex h-full items-center justify-center">
