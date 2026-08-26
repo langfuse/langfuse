@@ -21,7 +21,7 @@ import {
   createUnstablePublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/structured-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";

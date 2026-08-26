@@ -2,7 +2,7 @@ import {
   normalizePublicDashboardWidgetInput,
   validatePublicDashboardWidgetInput,
 } from "@/src/features/widgets/server/public-dashboard-widget-service";
-import { UnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
+import { UnstablePublicApiError } from "@/src/features/public-api";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 const baseInput = {

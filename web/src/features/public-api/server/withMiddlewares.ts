@@ -21,7 +21,7 @@ import {
   structuredPublicApiErrorContract,
   toStructuredPublicApiError,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/structured-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning

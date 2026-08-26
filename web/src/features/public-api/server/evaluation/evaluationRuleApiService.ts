@@ -1,9 +1,11 @@
 import { EvalTargetObject } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
-import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+  RuleService,
+} from "@/src/features/evals/server";
 import {
   type CreateEvaluationRuleBodyType,
   type UpdateEvaluationRuleBodyType,
@@ -16,7 +18,7 @@ import {
   toInternalAssignments,
   toInternalFilters,
   toPublicRule,
-} from "./adapters";
+} from "./evaluationAdapters";
 
 function ruleService(auditScope: ApiAccessScope) {
   return new RuleService(prisma, ({ action, ruleId, projectId }) =>

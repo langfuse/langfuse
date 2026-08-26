@@ -8,7 +8,7 @@ import {
   withMiddlewares,
   type HttpMethod,
 } from "@/src/features/public-api/server/withMiddlewares";
-import { structuredPublicApiErrorContract } from "@/src/features/public-api/server/structured-public-api-error-contract";
+import { structuredPublicApiErrorContract } from "./structuredPublicApiErrorContract";
 
 type StablePublicApiRouteConfig<
   TQuery extends ZodType<any>,

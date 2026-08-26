@@ -12,10 +12,14 @@ import {
   type RateLimitResult,
 } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import {
+  createUnstablePublicApiError,
+  UnstablePublicApiError,
+} from "@/src/features/public-api/types/structuredPublicApiError";
 import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
-} from "@/src/features/public-api/shared/structured-public-api-error-schema";
+} from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
 import {
   getRateLimitUpgradeMessage,
   type RateLimitUpgradePath,
@@ -30,21 +34,7 @@ type UnstablePublicApiErrorBody = {
   details?: UnstablePublicApiErrorDetailsType;
 };
 
-export class UnstablePublicApiError extends BaseError {
-  public readonly code: UnstablePublicApiErrorCodeType;
-  public readonly details?: UnstablePublicApiErrorDetailsType;
-
-  constructor(params: {
-    httpCode: number;
-    code: UnstablePublicApiErrorCodeType;
-    message: string;
-    details?: UnstablePublicApiErrorDetailsType;
-  }) {
-    super("UnstablePublicApiError", params.httpCode, params.message, true);
-    this.code = params.code;
-    this.details = params.details;
-  }
-}
+export { createUnstablePublicApiError, UnstablePublicApiError };
 
 function toBody(error: UnstablePublicApiError): UnstablePublicApiErrorBody {
   return {
@@ -69,15 +59,6 @@ export function sendStructuredPublicApiErrorResponse(
   error: UnstablePublicApiError,
 ) {
   return res.status(error.httpCode).json(toBody(error));
-}
-
-export function createUnstablePublicApiError(params: {
-  httpCode: number;
-  code: UnstablePublicApiErrorCodeType;
-  message: string;
-  details?: UnstablePublicApiErrorDetailsType;
-}) {
-  return new UnstablePublicApiError(params);
 }
 
 export function createUnstablePublicApiAuthError(params: {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UnstablePublicApiErrorDetails } from "@/src/features/public-api/shared/structured-public-api-error-schema";
+import { UnstablePublicApiErrorDetails } from "./structuredPublicApiErrorSchema";
 
 export const publicApiErrorCodes = [
   "authentication_failed",

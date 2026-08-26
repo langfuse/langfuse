@@ -74,7 +74,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 vi.mock(
-  "@/src/features/public-api/server/structured-public-api-error-contract",
+  "@/src/features/public-api/server/structuredPublicApiErrorContract",
   () => ({
     structuredPublicApiErrorContract: "structured",
     createUnstablePublicApiRateLimitError:

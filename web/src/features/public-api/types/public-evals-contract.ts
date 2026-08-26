@@ -12,10 +12,10 @@ import {
   timeFilter,
   booleanFilter,
   booleanObjectFilter,
+  CODE_EVAL_SOURCE_MAX_BYTES,
   positionInTraceFilter,
   langfuseObjects,
 } from "@langfuse/shared";
-import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
 
 export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;

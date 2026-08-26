@@ -10,14 +10,13 @@ import {
   createCodeEvaluator,
   createEvaluationRule,
 } from "@/src/__tests__/server/stable-evaluation-public-api-test-utils";
-import { EvaluatorService } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
-import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import { EvaluatorService, RuleService } from "@/src/features/evals/server";
 import {
   DeleteEvaluationRuleResponse,
   EvaluationRule,
   ListEvaluationRulesResponse,
-} from "@/src/features/public-api/types/evaluation-rules";
-import { PublicApiError } from "@/src/features/public-api/types/public-api-errors";
+  PublicApiError,
+} from "@/src/features/public-api";
 
 const createLegacyRule = (projectId: string, name: string) =>
   prisma.evaluationRule.create({

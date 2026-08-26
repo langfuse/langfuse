@@ -21,7 +21,7 @@ import {
   EvaluatorVersionConflictError,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
+import { createUnstablePublicApiError } from "@/src/features/public-api";
 import type { PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
 import { PUBLIC_EVALUATOR_TYPE_CODE } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {

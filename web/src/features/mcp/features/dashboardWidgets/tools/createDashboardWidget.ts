@@ -12,7 +12,7 @@ import {
   PostUnstableDashboardWidgetBody,
   PostUnstableDashboardWidgetView,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { UnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
+import { UnstablePublicApiError } from "@/src/features/public-api";
 import { buildDashboardWidgetUrl } from "@langfuse/shared/src/server";
 
 export const DashboardWidgetFilterBaseSchema = z

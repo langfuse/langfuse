@@ -12,19 +12,19 @@ import {
   timeFilter,
   experimentEvalFilterColumns,
   booleanFilter,
+  CODE_EVAL_SOURCE_MAX_BYTES,
   langfuseObjects,
 } from "@langfuse/shared";
-import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
 export {
   UnstablePublicApiErrorCode,
   UnstablePublicApiErrorDetails,
   UnstablePublicApiErrorResponse,
-} from "@/src/features/public-api/shared/structured-public-api-error-schema";
+} from "./structuredPublicApiErrorSchema";
 import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
-} from "@/src/features/public-api/shared/structured-public-api-error-schema";
+} from "./structuredPublicApiErrorSchema";
 
 export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
 export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =

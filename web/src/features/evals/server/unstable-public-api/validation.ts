@@ -14,7 +14,7 @@ import {
   type PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/structured-public-api-error-contract";
+import { createUnstablePublicApiError } from "@/src/features/public-api";
 
 // Derived from the same column lists as the request schemas, so this runtime
 // check cannot drift from the documented contract.
