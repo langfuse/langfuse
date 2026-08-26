@@ -15,6 +15,8 @@ const meta = preview.meta({
 
 export default meta;
 
+const onIncludeOutputChange = fn();
+
 const renderMenu = (args: ComponentProps<typeof JumpToPlaygroundMenu>) => (
   <DropdownMenu defaultOpen>
     <DropdownMenuTrigger>Open playground menu</DropdownMenuTrigger>
@@ -82,13 +84,13 @@ export const TestIncludeOutput = meta.story({
   args: {
     source: "generation",
     includeOutput: false,
-    onIncludeOutputChange: fn(),
+    onIncludeOutputChange,
     onPlaygroundAction: fn(),
   },
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     await userEvent.click(
       within(canvasElement.ownerDocument.body).getByRole("switch"),
     );
-    await expect(args.onIncludeOutputChange).toHaveBeenCalledWith(true);
+    await expect(onIncludeOutputChange).toHaveBeenCalledWith(true);
   },
 });
