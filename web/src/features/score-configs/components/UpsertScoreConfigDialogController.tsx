@@ -53,7 +53,7 @@ export function UpsertScoreConfigDialogController(
     createScoreConfig.isPending || updateScoreConfig.isPending;
   const disabled = hasAccess
     ? undefined
-    : { reason: "You don't have permission to edit score configs." };
+    : { reason: `You don't have permission to ${mode} score configs.` };
 
   async function handleSubmit(values: CreateConfig | UpdateConfig) {
     if (mode === "edit") {
@@ -103,11 +103,9 @@ export function UpsertScoreConfigDialogController(
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
       {children({ disabled, isSubmitting, Trigger: DialogTrigger })}
-      {hasAccess && open ? (
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          {content}
-        </DialogContent>
-      ) : null}
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        {hasAccess && open ? content : null}
+      </DialogContent>
     </Dialog>
   );
 }
