@@ -312,6 +312,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   size="sm"
                   disabled={disabled}
                   onClick={openDrawer}
+                  className="gap-1"
                 >
                   {disabled ? (
                     <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />

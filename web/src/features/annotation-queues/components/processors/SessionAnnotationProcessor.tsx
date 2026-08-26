@@ -146,6 +146,7 @@ export const SessionAnnotationProcessor: React.FC<
                 variant="outline"
                 disabled={disabled}
                 onClick={openDrawer}
+                className="gap-1"
               >
                 {disabled ? (
                   <MessageSquareOff className="text-muted-foreground h-4 w-4" />
