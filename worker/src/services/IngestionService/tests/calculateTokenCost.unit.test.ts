@@ -190,6 +190,37 @@ describe("Token Cost Calculation", () => {
     expect(costs.total_cost).toBe(9.0);
   });
 
+  it("should fall back to output price for output_reasoning_tokens when explicit reasoning price is not defined", async () => {
+    const prices = [
+      { usageType: "input", price: new Decimal(0.01) },
+      { usageType: "output", price: new Decimal(0.02) },
+    ];
+
+    const usageUnits = {
+      input: 100,
+      output: 100,
+      output_reasoning_tokens: 500,
+      total: 700,
+    };
+
+    const userProvidedCosts = {
+      input: null,
+      output: null,
+      total: null,
+    };
+
+    const costs = (IngestionService as any).calculateUsageCosts(
+      prices as any,
+      userProvidedCosts,
+      usageUnits,
+    );
+
+    expect(costs.cost_details.input).toBe(1.0); // 100 * 0.01
+    expect(costs.cost_details.output).toBe(2.0); // 100 * 0.02
+    expect(costs.cost_details.output_reasoning_tokens).toBe(10.0); // 500 * 0.02 (output price fallback)
+    expect(costs.total_cost).toBe(13.0);
+  });
+
   it("should correctly calculate token costs with user provided costs", async () => {
     const prices = await prisma.price.findMany({
       where: {

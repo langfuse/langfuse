@@ -2924,7 +2924,20 @@ export class OtelIngestionProcessor {
     // and are therefore subtracted from output below to avoid double counting.
     const outputReasoningTokens =
       rawUsageDetails["reasoning.output_tokens"] ??
-      rawUsageDetails["completion_details.reasoning"];
+      rawUsageDetails["reasoning_tokens"] ??
+      rawUsageDetails["reasoning_token_count"] ??
+      rawUsageDetails["thoughts_tokens"] ??
+      rawUsageDetails["thought_tokens"] ??
+      rawUsageDetails["output_reasoning_tokens"] ??
+      rawUsageDetails["output_reasoning"] ??
+      rawUsageDetails["reasoning"] ??
+      rawUsageDetails["details.reasoning_tokens"] ??
+      rawUsageDetails["details.reasoning"] ??
+      rawUsageDetails["details.reasoning.output_tokens"] ??
+      rawUsageDetails["details.thoughts_tokens"] ??
+      rawUsageDetails["details.thought_tokens"] ??
+      rawUsageDetails["completion_details.reasoning"] ??
+      rawUsageDetails["completion_details.reasoning_tokens"];
     const outputAudioTokens = rawUsageDetails["completion_details.audio"];
 
     const normalizedUsageDetails = Object.entries(rawUsageDetails).reduce(
@@ -2954,7 +2967,20 @@ export class OtelIngestionProcessor {
             "prompt_details.cache_write",
             "input_cache_creation",
             "reasoning.output_tokens",
+            "reasoning_tokens",
+            "reasoning_token_count",
+            "thoughts_tokens",
+            "thought_tokens",
+            "output_reasoning_tokens",
+            "output_reasoning",
+            "reasoning",
+            "details.reasoning_tokens",
+            "details.reasoning",
+            "details.reasoning.output_tokens",
+            "details.thoughts_tokens",
+            "details.thought_tokens",
             "completion_details.reasoning",
+            "completion_details.reasoning_tokens",
             "completion_details.audio",
           ].includes(key)
         ) {

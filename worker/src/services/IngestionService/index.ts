@@ -1658,7 +1658,14 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
-      const price = modelPrices?.find((price) => price.usageType === key);
+      let price = modelPrices?.find((price) => price.usageType === key);
+
+      if (
+        !price &&
+        ["output_reasoning_tokens", "output_reasoning"].includes(key)
+      ) {
+        price = modelPrices?.find((price) => price.usageType === "output");
+      }
 
       if (units != null && price) {
         finalCostEntries.push([key, price.price.mul(units).toNumber()]);
