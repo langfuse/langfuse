@@ -1,8 +1,8 @@
-import type {
+import type { NormalizedIO, NormalizedMessage, ToolDefinition } from "../types";
+import {
   ObservationForEval,
   ToolCallForEval,
-} from "../../evals/observationForEval";
-import type { NormalizedIO, NormalizedMessage, ToolDefinition } from "../types";
+} from "../../../features/evals/observationForEval";
 
 /**
  * The 6 fields on ObservationForEval that the parser actually computes.
