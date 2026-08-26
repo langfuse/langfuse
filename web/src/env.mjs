@@ -292,7 +292,7 @@ export const env = createEnv({
         "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes",
       )
       .optional()
-      .default(30 * 24 * 60), // default to 30 days
+      .default(14 * 24 * 60), // default to 14 days
     AUTH_HTTP_PROXY: z.url().optional(),
     AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
