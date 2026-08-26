@@ -307,6 +307,25 @@ describe("textMeasurer", () => {
     expect(measure("abc")).toBeCloseTo(60, 6);
   });
 
+  it("reads the SIZE out of a weighted font, not the weight", () => {
+    // The bold twin asks for `700 20px …`. Reading the leading number takes 700,
+    // which against a context reporting 10px scales every width by seventy.
+    const stubborn = {
+      measureText: (text: string) =>
+        ({ width: text.length * 10 }) as TextMetrics,
+    };
+    Object.defineProperty(stubborn, "font", {
+      get: () => "10px sans-serif",
+      set: () => undefined,
+    });
+    const measurer = createTextMeasurerFrom(
+      stubborn as unknown as CanvasRenderingContext2D,
+      "20px test",
+    );
+    // Bold asks for the same 20px, so it corrects by two — never by seventy.
+    expect(measurer.measureBold("abc")).toBeCloseTo(60, 6);
+  });
+
   it("measures bold wider than regular, and neither twin sets the other's font", () => {
     // Width follows the FONT this context was last given, so an interleaved call
     // that forgot to set it reads as the other weight — which is the bug: both

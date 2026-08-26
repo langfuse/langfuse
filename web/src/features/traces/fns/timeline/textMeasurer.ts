@@ -70,6 +70,17 @@ export function createTextMeasurerFrom(
   };
 }
 
+/**
+ * The px size out of a CSS font shorthand — the SIZE, not the first number in
+ * the string. A bold twin's font is `700 11px …`, so reading the leading number
+ * takes the weight: paired with a canvas that refused the font and reports
+ * `10px sans-serif`, that scales every width by seventy rather than by one.
+ */
+function pxSizeOf(font: string): number {
+  const match = /(\d*\.?\d+)px/.exec(font);
+  return match ? Number.parseFloat(match[1]!) : NaN;
+}
+
 function measurerFor(
   context: CanvasRenderingContext2D | null,
   font: string,
@@ -87,8 +98,8 @@ function measurerFor(
   const scale = (() => {
     if (!context) return 1;
     context.font = font;
-    const asked = Number.parseFloat(font);
-    const got = Number.parseFloat(context.font);
+    const asked = pxSizeOf(font);
+    const got = pxSizeOf(context.font);
     return Number.isFinite(asked) && Number.isFinite(got) && got > 0
       ? asked / got
       : 1;
