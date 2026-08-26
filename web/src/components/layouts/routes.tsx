@@ -27,7 +27,6 @@ import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
-import { V4MigrationWizardSidebarToggle } from "@/src/features/v4-migration/V4MigrationWizardToggle";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -210,14 +209,6 @@ export const ROUTES: Route[] = [
     show: ({ projectId, v4UpgradeUiAvailable }) =>
       v4UpgradeUiAvailable && projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
-  },
-  {
-    title: "Migration wizard",
-    pathname: "",
-    section: RouteSection.Secondary,
-    show: ({ projectId, v4UpgradeUiAvailable }) =>
-      v4UpgradeUiAvailable && projectId !== undefined,
-    menuNode: <V4MigrationWizardSidebarToggle />,
   },
   {
     title: "Cloud Status",
