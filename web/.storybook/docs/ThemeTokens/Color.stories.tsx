@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../preview";
 import { Color as ColorPage } from "./Color";
 
 const meta = preview.meta({

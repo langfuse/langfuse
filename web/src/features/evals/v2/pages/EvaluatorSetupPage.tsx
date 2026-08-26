@@ -458,6 +458,22 @@ export function EvaluatorSetupPage(
         getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
           creationSource: props.creationSource,
+          sourceCodeLanguage:
+            state.type === "CODE" ? state.sourceCodeLanguage : undefined,
+          variableMapping:
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.variableMapping
+              : undefined,
+          evaluatorConfig:
+            state.type === "LLM_AS_JUDGE"
+              ? {
+                  usesDefaultModel: state.modelMode === "default",
+                  hasCustomModelParams:
+                    state.modelMode === "custom" &&
+                    Object.keys(state.modelParams ?? {}).length > 0,
+                  scoreType: state.scoreOutput.dataType,
+                }
+              : undefined,
         }),
       );
       initialSnapshot.current = getCurrentSnapshot(state);

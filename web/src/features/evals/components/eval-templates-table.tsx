@@ -55,6 +55,7 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -383,24 +384,22 @@ export default function EvalsTemplateTable({
         return row.getValue()?.toLocaleDateString();
       },
     }),
-    columnHelper.accessor("usageCount", {
+    createNumberTableColumn<EvalsTemplateRow>({
+      accessorKey: "usageCount",
       header: "Usage Count",
-      id: "usageCount",
       enableHiding: true,
       size: 80,
-      cell: (row) => {
-        const count = row.getValue();
-        return !!count ? count : null;
+      formatter: String,
+      getValue: (value) => {
+        return value || undefined;
       },
     }),
-    columnHelper.accessor("latestVersion", {
+    createNumberTableColumn<EvalsTemplateRow>({
+      accessorKey: "latestVersion",
       header: "Latest Version",
-      id: "latestVersion",
       enableHiding: true,
       size: 80,
-      cell: (row) => {
-        return row.getValue();
-      },
+      formatter: String,
     }),
     columnHelper.accessor("id", {
       header: "Id",

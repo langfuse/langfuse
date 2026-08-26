@@ -267,6 +267,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
+    AUTH_CUSTOM_FETCH_USERINFO: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -293,7 +297,7 @@ export const env = createEnv({
         "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes",
       )
       .optional()
-      .default(30 * 24 * 60), // default to 30 days
+      .default(14 * 24 * 60), // default to 14 days
     AUTH_HTTP_PROXY: z.url().optional(),
     AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
@@ -426,6 +430,20 @@ export const env = createEnv({
         "must be an EventBridge bus ARN (arn:aws:events:<region>:<account-id>:event-bus/<name>)",
       )
       .optional(),
+    // CHB REST API base url (checkout sessions, bundles, invoices). Unset, or
+    // any missing Auth0 credential below, makes the CHB billing service refuse
+    // to construct, so no half-configured calls go out.
+    CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+    // Auth0 client credentials for CHB's REST API: it verifies the bearer
+    // token's issuer, audience and signature against this tenant's JWKS, so a
+    // static shared secret is rejected. Not used for the event bus, which
+    // authenticates via IAM.
+    CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+    // CHB's resource-server identifier. Defaulted because it is the same value
+    // in every CHB tenant, and overridable in case that stops being true.
+    CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -645,6 +663,17 @@ export const env = createEnv({
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+    // Origin that serves this build's `/_next/static/*` output, when it is
+    // fronted by a CDN on its own hostname. The app origin keeps serving the
+    // same files, so this only changes the URLs the browser is handed.
+    // Restricted to a bare origin: a path component would have to be mirrored
+    // by whatever fronts the hostname, and nothing here checks that it is.
+    NEXT_PUBLIC_ASSET_PREFIX: z
+      .url()
+      .refine((value) => new URL(value).pathname === "/", {
+        message: "NEXT_PUBLIC_ASSET_PREFIX must be an origin with no path",
+      })
+      .optional(),
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT: z
       .enum(["true", "false"])
       .optional()
@@ -862,6 +891,7 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_CUSTOM_FETCH_USERINFO: process.env.AUTH_CUSTOM_FETCH_USERINFO,
     AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
     AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING:
@@ -994,6 +1024,15 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
+    CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
+    CLICKHOUSE_BILLING_AUTH0_DOMAIN:
+      process.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN,
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID:
+      process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID,
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET:
+      process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
+    CLICKHOUSE_BILLING_AUTH0_AUDIENCE:
+      process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -1013,6 +1052,7 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+    NEXT_PUBLIC_ASSET_PREFIX: process.env.NEXT_PUBLIC_ASSET_PREFIX,
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
