@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/combobox";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
@@ -141,9 +141,11 @@ export function CategoricalScoreInput({
                         (c) => c.label === category.label,
                       ) ?? -1) + 1;
                     return digit >= 1 && digit <= 9 ? (
-                      <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:hidden md:group-focus-within:inline-flex">
-                        {digit}
-                      </KeyboardShortcut>
+                      <span className="ml-0.5">
+                        <KeyboardShortcut size="xs" display="groupFocus">
+                          {digit}
+                        </KeyboardShortcut>
+                      </span>
                     ) : null;
                   })()}
                 </ToggleGroupItem>

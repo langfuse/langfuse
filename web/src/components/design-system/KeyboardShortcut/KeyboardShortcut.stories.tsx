@@ -1,5 +1,7 @@
+import { expect, within } from "storybook/test";
+
 import preview from "../../../../.storybook/preview";
-import { KeyboardShortcut } from "./keyboard-shortcut";
+import { KeyboardShortcut } from "./KeyboardShortcut";
 
 const meta = preview.meta({
   component: KeyboardShortcut,
@@ -23,5 +25,37 @@ export const Default = meta.story({
 export const MultipleKeys = meta.story({
   args: {
     keys: ["⌘", "Enter"],
+  },
+});
+
+export const VariantMatrix = meta.story({
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <KeyboardShortcut>K</KeyboardShortcut>
+        <KeyboardShortcut variant="subtle">K</KeyboardShortcut>
+        <KeyboardShortcut variant="onPrimary">K</KeyboardShortcut>
+      </div>
+      <div className="flex items-center gap-2">
+        <KeyboardShortcut size="sm">K</KeyboardShortcut>
+        <KeyboardShortcut size="xs">K</KeyboardShortcut>
+        <KeyboardShortcut display="groupFocus">K</KeyboardShortcut>
+      </div>
+    </div>
+  ),
+});
+
+export const TestRendersMultipleKeys = meta.story({
+  name: "(Test) Renders Multiple Keys",
+  args: {
+    keys: ["⌘", "Enter"],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const shortcut = canvas.getByText("⌘").closest("kbd");
+
+    await expect(shortcut).toBeInTheDocument();
+    await expect(shortcut).toHaveTextContent("⌘Enter");
+    await expect(shortcut?.querySelectorAll("span")).toHaveLength(2);
   },
 });

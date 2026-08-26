@@ -10,7 +10,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
-} from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
+} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Dialog,
   DialogBody,
@@ -171,8 +171,16 @@ const CommandItem = React.forwardRef<
 
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 
-const CommandShortcut = ({ className, ...props }: KeyboardShortcutProps) => {
-  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
+type CommandShortcutProps = KeyboardShortcutProps & {
+  className?: string;
+};
+
+const CommandShortcut = ({ className, ...props }: CommandShortcutProps) => {
+  return (
+    <span className={cn("ml-auto", className)}>
+      <KeyboardShortcut {...props} />
+    </span>
+  );
 };
 CommandShortcut.displayName = "CommandShortcut";
 

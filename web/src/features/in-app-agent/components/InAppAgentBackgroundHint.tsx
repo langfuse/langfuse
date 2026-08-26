@@ -1,7 +1,7 @@
 import { BotMessageSquare, Minus } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 
 /**
@@ -32,7 +32,7 @@ export function InAppAgentBackgroundHint({
         >
           <Minus className="size-3" />
           <KeyboardShortcut
-            className="bg-transparent shadow-none"
+            variant="subtle"
             keys={[
               typeof navigator !== "undefined" &&
               navigator.userAgent.includes("Mac")

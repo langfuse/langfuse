@@ -11,7 +11,7 @@ import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -456,19 +456,15 @@ export const AnnotationQueueItemPage: React.FC<{
               </TooltipTrigger>
               <TooltipContent>
                 <span>Previous item</span>
-                <KeyboardShortcut className="ml-2">←</KeyboardShortcut>
+                <span className="ml-2">
+                  <KeyboardShortcut>←</KeyboardShortcut>
+                </span>
               </TooltipContent>
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
-              <KeyboardShortcut
-                className="h-4 px-1 text-[9px]"
-                keys={[modLabel, "↵"]}
-              />
-              complete + next ·
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                →
-              </KeyboardShortcut>
+              <KeyboardShortcut size="sm" keys={[modLabel, "↵"]} />
+              complete + next ·<KeyboardShortcut size="sm">→</KeyboardShortcut>
               skip
             </span>
             <button
@@ -477,9 +473,7 @@ export const AnnotationQueueItemPage: React.FC<{
               className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
               aria-label="Show keyboard shortcuts"
             >
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                ?
-              </KeyboardShortcut>
+              <KeyboardShortcut size="sm">?</KeyboardShortcut>
               shortcuts
             </button>
           </div>
@@ -507,7 +501,9 @@ export const AnnotationQueueItemPage: React.FC<{
               </TooltipTrigger>
               <TooltipContent>
                 <span>Skip to next item</span>
-                <KeyboardShortcut className="ml-2">→</KeyboardShortcut>
+                <span className="ml-2">
+                  <KeyboardShortcut>→</KeyboardShortcut>
+                </span>
               </TooltipContent>
             </Tooltip>
           )}
@@ -531,7 +527,7 @@ export const AnnotationQueueItemPage: React.FC<{
                     <span>Mark Completed</span>
                     {!isSingleItem && (
                       <KeyboardShortcut
-                        className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
+                        variant="onPrimary"
                         keys={[modLabel, "↵"]}
                       />
                     )}
@@ -544,7 +540,9 @@ export const AnnotationQueueItemPage: React.FC<{
                       : "Mark completed + go to next item"}
                   </span>
                   {!isSingleItem && (
-                    <KeyboardShortcut className="ml-2" keys={[modLabel, "↵"]} />
+                    <span className="ml-2">
+                      <KeyboardShortcut keys={[modLabel, "↵"]} />
+                    </span>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -569,13 +567,13 @@ export const AnnotationQueueItemPage: React.FC<{
                 Navigate
               </p>
               <ShortcutRow label="Complete & go to next item">
-                <KeyboardShortcut keys={[modLabel, "↵"]} />
+                <KeyboardShortcut size="sm" keys={[modLabel, "↵"]} />
               </ShortcutRow>
               <ShortcutRow label="Skip to next item">
-                <KeyboardShortcut>→</KeyboardShortcut>
+                <KeyboardShortcut size="sm">→</KeyboardShortcut>
               </ShortcutRow>
               <ShortcutRow label="Previous item">
-                <KeyboardShortcut>←</KeyboardShortcut>
+                <KeyboardShortcut size="sm">←</KeyboardShortcut>
               </ShortcutRow>
             </div>
             <div>
@@ -583,34 +581,27 @@ export const AnnotationQueueItemPage: React.FC<{
                 Score the item
               </p>
               <ShortcutRow label="Move between score fields">
-                <KeyboardShortcut>↑</KeyboardShortcut>
-                <KeyboardShortcut>↓</KeyboardShortcut>
+                <KeyboardShortcut size="sm">↑</KeyboardShortcut>
+                <KeyboardShortcut size="sm">↓</KeyboardShortcut>
               </ShortcutRow>
               <ShortcutRow label="Select an option on the focused field">
-                <KeyboardShortcut>1</KeyboardShortcut>
+                <KeyboardShortcut size="sm">1</KeyboardShortcut>
                 <span className="text-muted-foreground text-xs">–</span>
-                <KeyboardShortcut>9</KeyboardShortcut>
+                <KeyboardShortcut size="sm">9</KeyboardShortcut>
               </ShortcutRow>
               <ShortcutRow label="Edit a field / open a dropdown">
-                <KeyboardShortcut>↵</KeyboardShortcut>
+                <KeyboardShortcut size="sm">↵</KeyboardShortcut>
               </ShortcutRow>
               <ShortcutRow label="Commit a number / leave a text field">
-                <KeyboardShortcut>Esc</KeyboardShortcut>
+                <KeyboardShortcut size="sm">Esc</KeyboardShortcut>
                 <span className="text-muted-foreground text-xs">/</span>
-                <KeyboardShortcut>Tab</KeyboardShortcut>
+                <KeyboardShortcut size="sm">Tab</KeyboardShortcut>
               </ShortcutRow>
             </div>
             <p className="text-muted-foreground border-t pt-3 text-xs">
-              Bare{" "}
-              <KeyboardShortcut className="h-4 px-1 text-[9px]">
-                ↵
-              </KeyboardShortcut>{" "}
-              inside a text field (e.g. Feedback) inserts a new line — use{" "}
-              <KeyboardShortcut
-                className="h-4 px-1 text-[9px]"
-                keys={[modLabel, "↵"]}
-              />{" "}
-              to complete.
+              Bare <KeyboardShortcut size="sm">↵</KeyboardShortcut> inside a
+              text field (e.g. Feedback) inserts a new line — use{" "}
+              <KeyboardShortcut size="sm" keys={[modLabel, "↵"]} /> to complete.
             </p>
           </DialogBody>
         </DialogContent>

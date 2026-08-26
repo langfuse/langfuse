@@ -5,7 +5,7 @@ import {
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Form,
   FormControl,
@@ -538,15 +538,16 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <KeyboardShortcut
-                    className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50"
-                    keys={
-                      typeof navigator !== "undefined" &&
-                      navigator.userAgent.includes("Macintosh")
-                        ? ["⌘", "F"]
-                        : ["Ctrl", "F"]
-                    }
-                  />
+                  <span className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50">
+                    <KeyboardShortcut
+                      keys={
+                        typeof navigator !== "undefined" &&
+                        navigator.userAgent.includes("Macintosh")
+                          ? ["⌘", "F"]
+                          : ["Ctrl", "F"]
+                      }
+                    />
+                  </span>
                 )}
               </div>
             </div>
