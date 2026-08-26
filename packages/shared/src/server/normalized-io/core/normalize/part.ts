@@ -4,11 +4,7 @@ import type {
   PartHandlerContext,
 } from "../../conventions/IOConvention";
 import type { NormalizedMessagePart } from "../../types";
-import {
-  asRecord,
-  isRecord,
-  remainingProviderMetadata,
-} from "../utils/json";
+import { asRecord, isRecord, remainingProviderMetadata } from "../utils/json";
 import { normalizeFallbackPart } from "./message-parts/fallback";
 import {
   filePartFromMediaReference,

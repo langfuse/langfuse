@@ -7,8 +7,8 @@ import { registeredProviders } from "./index";
 
 describe("provider convention registry", () => {
   it("registers every provider directory in conventions/providers/", () => {
-    // Registration is one export line in providers/index.ts — this catches
-    // the forgotten line when a new provider directory is added.
+    // Registration is one entry in the ordered registry in index.ts — this
+    // catches the forgotten entry when a new provider directory is added.
     const providersDir = join(__dirname, "providers");
     const providerDirectories = readdirSync(providersDir, {
       withFileTypes: true,

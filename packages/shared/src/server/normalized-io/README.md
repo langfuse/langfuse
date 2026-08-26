@@ -65,7 +65,13 @@ with the provider's verbatim value kept in `raw`.
 
 Recognition is **shape-based** — the parser never dispatches on a provider
 label, because real payloads are mixed-dialect (AI-SDK and Anthropic blocks
-in one message, LangChain wrapping OpenAI). The pipeline:
+in one message, LangChain wrapping OpenAI). Provider vocabulary lives in
+per-provider `IOConvention` objects under `conventions/providers/<name>/`
+(typed part handlers, envelope unwraps, root containers, tool-definition
+recognizers, role/finish-reason maps); `core/` holds the generic pipeline
+and folds over the registry in `conventions/index.ts`, ordered common
+providers first. Adding a provider is a directory plus one registry entry —
+core never changes. The pipeline:
 
 1. **Source → raw values.** Event rows zip their metadata name/value column
    arrays; plain IO passes through; OTel extraction is a stub pending the
@@ -100,11 +106,12 @@ in one message, LangChain wrapping OpenAI). The pipeline:
    `thinking` arrays, OpenAI `refusal`/`audio`/`annotations`, Responses
    reasoning `summary`/`encrypted_content`, `finish_reason` (message-level,
    envelope-level, or `response_metadata`). The part parser itself
-   recognizes, in order: provider-executed built-in items, Gemini keyed
-   parts (`functionCall`, `inlineData`, `executableCode`, bare `{text}` with
-   `thought`/`thoughtSignature`), the typed-block switch (OpenAI, Anthropic,
-   AI-SDK block types), shape-sniffed tool calls without a recognized type,
-   and finally the `data`/`custom` fallback. Messages that produce no parts
+   recognizes, in order: shared typed blocks (text, reasoning), the
+   provider-declared typed blocks (OpenAI, Anthropic, AI-SDK block types,
+   including provider-executed built-in items), untyped keyed parts (Gemini
+   `functionCall`, `inlineData`, `executableCode`, bare `{text}` with
+   `thought`/`thoughtSignature`), shape-sniffed tool calls without a
+   recognized type, and finally the `data`/`custom` fallback. Messages that produce no parts
    but have no message keys become single `data`-part messages (JSON
    passthrough) rather than being dropped.
 5. **Accumulation.** Tool-call parts dedup by `toolCallId` (fallback:
@@ -170,11 +177,11 @@ or the fixture documents it.
   payloads verbatim. Anchor-less references (eg AI-SDK `source` parts) stay
   stream-positioned as `custom {kind: "source"}` — one vocabulary, two
   carriers, matching what the source actually provides.
-- **`SpanIO.metadata` may carry an `attributes` record with OTel keys**; the
-  parser mines known tool-definition attribute keys from it
-  (`ai.prompt.tools`, `gen_ai.tool.definitions`, `llm.tools.N.…`,
-  `model_request_parameters.function_tools`). Open tension: these are
-  OTel-format names inside the transport-independent core.
+- **`SpanIO.metadata` may carry an `attributes` record with OTel keys**;
+  known tool-definition attribute keys are mined from it, each by the
+  provider convention that owns it (`ai.prompt.tools` — AI SDK,
+  `gen_ai.tool.definitions` / `llm.tools.N.…` — GenAI,
+  `model_request_parameters.function_tools` — Pydantic AI).
 
 ### Intentional losses
 
