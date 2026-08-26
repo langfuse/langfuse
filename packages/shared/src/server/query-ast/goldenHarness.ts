@@ -1,4 +1,6 @@
 import { spawnSync } from "child_process";
+import { homedir } from "os";
+import { join } from "path";
 import { Readable } from "stream";
 
 import type * as ClickhouseModule from "../repositories/clickhouse";
@@ -134,8 +136,31 @@ export type GoldenQuery = {
 };
 
 // The `clickhouse` multi-binary's `format` subcommand. Not `clickhouse-local`,
-// which forces local mode and won't accept `format` as a subcommand.
-const clickhouseBin = "clickhouse";
+// which forces local mode and won't accept `format` as a subcommand. Prefer
+// CLICKHOUSE_BIN, then PATH, then a user-local install — the PATH binary in
+// some agent VMs is a docker wrapper that cannot run `format`.
+function resolveClickhouseBin(): string {
+  const candidates = [
+    process.env.CLICKHOUSE_BIN,
+    "clickhouse",
+    join(homedir(), ".local/bin/clickhouse"),
+  ].filter((bin): bin is string => Boolean(bin));
+
+  for (const bin of candidates) {
+    try {
+      const res = spawnSync(bin, ["format"], {
+        input: "SELECT 1",
+        encoding: "utf8",
+      });
+      if (res.status === 0) return bin;
+    } catch {
+      // try the next candidate
+    }
+  }
+  return "clickhouse";
+}
+
+const clickhouseBin = resolveClickhouseBin();
 
 let formatAvailability: boolean | undefined;
 
