@@ -313,9 +313,8 @@ describe("in-app agent sandbox", () => {
     // pointed at a tool_calls file that is never written for failures.
     expect(output).toEqual(mcpErrorResult);
     expect(tools.search.toModelOutput?.(output)).toEqual({
-      type: "error-text",
-      value:
-        "Error fetching docs page markdown: Failed to fetch https://langfuse.com/not-a-real-page.md: 404",
+      type: "json",
+      value: mcpErrorResult,
     });
     expect(toolCallFiles.getFiles()).toEqual([]);
   });
