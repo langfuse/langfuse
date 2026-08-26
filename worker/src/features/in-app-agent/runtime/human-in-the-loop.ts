@@ -5,6 +5,7 @@ import {
   type AgUiMessage,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
+import { toAgUiToolResultContent } from "@langfuse/shared/in-app-agent/server/toolResults";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
 
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
@@ -85,7 +86,7 @@ export async function createManualToolApprovalRunInput(params: {
   const toolResultContent = serializeToolResultContent(toolResult);
   const assistantMessage =
     createManualToolCallAssistantMessage(approvalRequest);
-  const modelToolResultContent = serializeToolResultContent(modelToolResult);
+  const modelToolResultContent = toAgUiToolResultContent(modelToolResult);
   // A successful tool call needs no guidance: the assistant tool call plus its
   // tool result already carry the outcome. Only the error path needs to tell
   // the model how to proceed.
