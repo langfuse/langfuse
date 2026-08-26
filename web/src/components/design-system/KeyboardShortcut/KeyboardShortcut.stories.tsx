@@ -15,7 +15,7 @@ const meta = preview.meta({
 // queries, so this is only visible when the canvas renders in a real browser).
 export const Default = meta.story({
   args: {
-    children: "K",
+    keys: ["K"],
   },
 });
 
@@ -32,14 +32,14 @@ export const VariantMatrix = meta.story({
   render: () => (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <KeyboardShortcut>K</KeyboardShortcut>
-        <KeyboardShortcut variant="subtle">K</KeyboardShortcut>
-        <KeyboardShortcut variant="onPrimary">K</KeyboardShortcut>
+        <KeyboardShortcut keys={["K"]} />
+        <KeyboardShortcut variant="subtle" keys={["K"]} />
+        <KeyboardShortcut variant="onPrimary" keys={["K"]} />
       </div>
       <div className="flex items-center gap-2">
-        <KeyboardShortcut size="sm">K</KeyboardShortcut>
-        <KeyboardShortcut size="xs">K</KeyboardShortcut>
-        <KeyboardShortcut display="groupFocus">K</KeyboardShortcut>
+        <KeyboardShortcut size="sm" keys={["K"]} />
+        <KeyboardShortcut size="xs" keys={["K"]} />
+        <KeyboardShortcut display="groupFocus" keys={["K"]} />
       </div>
     </div>
   ),

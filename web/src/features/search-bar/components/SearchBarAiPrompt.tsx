@@ -287,11 +287,12 @@ export function SearchBarAiPrompt({
           ) : (
             <div className="flex shrink-0 items-center gap-1.5">
               {value.trim().length > 0 && (
-                <KeyboardShortcut title="Press Enter to generate">
-                  ↵
-                </KeyboardShortcut>
+                <KeyboardShortcut
+                  title="Press Enter to generate"
+                  keys={["↵"]}
+                />
               )}
-              <KeyboardShortcut>esc</KeyboardShortcut>
+              <KeyboardShortcut keys={["esc"]} />
               <button
                 type="button"
                 aria-label="Generate filters"

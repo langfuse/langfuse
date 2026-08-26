@@ -142,9 +142,11 @@ export function CategoricalScoreInput({
                       ) ?? -1) + 1;
                     return digit >= 1 && digit <= 9 ? (
                       <span className="ml-0.5">
-                        <KeyboardShortcut size="xs" display="groupFocus">
-                          {digit}
-                        </KeyboardShortcut>
+                        <KeyboardShortcut
+                          size="xs"
+                          display="groupFocus"
+                          keys={[String(digit)]}
+                        />
                       </span>
                     ) : null;
                   })()}

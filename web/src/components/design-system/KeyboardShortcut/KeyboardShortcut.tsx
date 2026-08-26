@@ -29,19 +29,14 @@ const keyboardShortcutVariants = cva(
   },
 );
 
-type KeyboardShortcutContent =
-  | { children: React.ReactNode; keys?: never }
-  | { children?: never; keys: React.ReactNode[] };
-
 export type KeyboardShortcutProps = {
   ref?: React.Ref<HTMLElement>;
   title?: string;
-} & VariantProps<typeof keyboardShortcutVariants> &
-  KeyboardShortcutContent;
+  keys: readonly [string, ...string[]];
+} & VariantProps<typeof keyboardShortcutVariants>;
 
 export function KeyboardShortcut({
   ref,
-  children,
   keys,
   title,
   variant,
@@ -54,9 +49,9 @@ export function KeyboardShortcut({
       className={keyboardShortcutVariants({ variant, size, display })}
       title={title}
     >
-      {keys
-        ? keys.map((key, index) => <span key={index}>{key}</span>)
-        : children}
+      {keys.map((key, index) => (
+        <span key={index}>{key}</span>
+      ))}
     </kbd>
   );
 }
