@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import { V4MigrationWizardToggle } from "./V4MigrationWizardToggle";
+import {
+  V4MigrationWizardSidebarToggle,
+  V4MigrationWizardToggle,
+} from "./V4MigrationWizardToggle";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -46,6 +49,26 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
   },
+}));
+
+vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
+  useV4UpgradeUiFlag: () => true,
+}));
+
+vi.mock("@/src/components/ui/sidebar", () => ({
+  SidebarMenuButton: ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
+vi.mock("@/src/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("lucide-react", () => ({
+  SparklesIcon: () => null,
 }));
 
 vi.mock("@/src/components/design-system/Switch/Switch", () => ({
@@ -152,7 +175,7 @@ describe("V4MigrationWizardToggle", () => {
       screen.getByRole("button", { name: "Turn off wizard" }),
     ).toBeDisabled();
     expect(
-      screen.getByText(/Account settings → v4 Migration/),
+      screen.getByText(/sidebar or in Account settings → v4 Migration/),
     ).toBeInTheDocument();
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:wizard_disable_confirmation_opened",
@@ -186,6 +209,19 @@ describe("V4MigrationWizardToggle", () => {
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:wizard_disable_confirmation_cancelled",
       { source: "panel" },
+    );
+  });
+
+  it("tracks sidebar disable confirmation with the sidebar source", () => {
+    render(<V4MigrationWizardSidebarToggle />);
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Show migration wizard" }),
+    );
+
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:wizard_disable_confirmation_opened",
+      { source: "sidebar" },
     );
   });
 
