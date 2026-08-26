@@ -195,6 +195,30 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
   invalid: [
     {
       code: `
+        import {
+          Drawer,
+          DrawerContent,
+          DrawerTrigger,
+        } from "@/src/components/ui/drawer";
+
+        export function AnnotateDrawer() {
+          return (
+            <Drawer>
+              <DrawerTrigger />
+              <DrawerContent />
+            </Drawer>
+          );
+        }
+      `,
+      errors: [
+        {
+          messageId: "abstractedTrigger",
+          data: { overlay: "Drawer" },
+        },
+      ],
+    },
+    {
+      code: `
             import {
               Dialog,
           DialogContent,

@@ -24,10 +24,12 @@
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
+  recording/diff harness that captures the current SQL at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
+  `clickhouse format` for snapshot comparison. Every migrated call site is
+  proven against its baseline here.
 - Postgres schema: `prisma/schema.prisma`
-- For unstable public eval APIs, the public `evaluatorId` is currently the
-  exact `EvalTemplate.id`. Latest-version family grouping is derived from
-  `(projectId, name)` rather than stored on extra evaluator identity fields.
 - Prisma migrations: `prisma/migrations/*`
 - ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`
 - Seeder and support scripts: `scripts/seeder/*`, `clickhouse/scripts/*`
@@ -56,6 +58,8 @@
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/instrumentation/bootstrap` via
+  `src/server/instrumentation/bootstrap/index.ts`: instrumentation initializers loaded before sdk.start(); must not import the server barrel or any instrumented library.
 - `@langfuse/shared/in-app-agent` via `src/in-app-agent/index.ts`:
   client-safe durable in-app-agent contracts: AG-UI messages/events/context,
   run requests/status/errors, approval events, constants, message helpers,

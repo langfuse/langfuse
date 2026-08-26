@@ -181,11 +181,11 @@ export function InAppAgentWindowShell({
           id="in-app-agent-drawer"
           size="full"
           // `h-auto` at every breakpoint so top/bottom anchoring owns the
-          // geometry: the drawer's default height variant is `h-1/3 md:h-full`,
-          // and the `md:` half survives tailwind-merge — a landscape phone is
-          // both handheld and wider than `md`, and `top` + `bottom` + `height`
-          // over-constrains the box, dropping `bottom` and pushing the composer
-          // off-screen by the banner offset.
+          // geometry. Bottom drawers default to content height; a leftover
+          // `md:h-full` used to survive tailwind-merge on a landscape phone
+          // (handheld and wider than `md`), so `top` + `bottom` + `height`
+          // over-constrained the box, dropping `bottom` and pushing the
+          // composer off-screen by the banner offset.
           className="top-banner-offset inset-x-0 bottom-0 h-auto rounded-none border-0 md:h-auto"
           onEscapeKeyDown={(event) => {
             event.preventDefault();

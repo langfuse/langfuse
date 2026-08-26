@@ -12,6 +12,8 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "../../server";
+import { isSettledInAppAgentRunStatus } from "../constants";
+import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
@@ -38,6 +40,7 @@ import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
   type CompletedInAppAgentMcpToolCall,
+  getInAppAgentSilentMcpOutputFilePath,
   getPublicInAppAgentMcpToolResultContent,
   getSandboxInAppAgentMcpToolResultContent,
 } from "./toolResults";
@@ -169,7 +172,7 @@ export async function appendRunEvents(params: {
     errorMessage?: string;
   };
 }): Promise<boolean> {
-  return params.prisma.$transaction(async (tx) => {
+  const appended = await params.prisma.$transaction(async (tx) => {
     await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
@@ -246,6 +249,22 @@ export async function appendRunEvents(params: {
 
     return true;
   });
+
+  // Emitted after the transaction commits so a rolled-back flush cannot inflate
+  // the outcome count. The fenced path returns false and is deliberately silent:
+  // whichever writer won the CAS already recorded that run's outcome.
+  if (
+    appended &&
+    params.finish &&
+    isSettledInAppAgentRunStatus(params.finish.status)
+  ) {
+    recordRunTerminalOutcome({
+      status: params.finish.status,
+      errorCode: params.finish.errorCode ?? null,
+    });
+  }
+
+  return appended;
 }
 
 export async function getConversationEvents(params: {
@@ -307,7 +326,10 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(
+        draft?.toolName ?? toolCall.toolName,
+        toolCall.toolCallId,
+      ),
       content: JSON.stringify(
         {
           request: draft
@@ -382,7 +404,7 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(draft.toolName, toolCallId),
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
@@ -631,7 +653,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
   );
 }
 
-function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   eventsToAppend: AgUiEvent[];
   retainedEvents: AgUiEvent[];
 } {
@@ -1472,10 +1494,6 @@ function parseSandboxToolCallValue(
 
   const parsed = safeJsonParse(value);
   return parsed === undefined ? value : parsed;
-}
-
-function formatSandboxToolCallTimestamp(date: Date) {
-  return date.toISOString().replaceAll(":", "-");
 }
 
 function getDefaultConversationTitle(date: Date) {

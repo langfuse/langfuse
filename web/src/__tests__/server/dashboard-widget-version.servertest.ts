@@ -1,8 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { DashboardService } from "@langfuse/shared/src/server";
-import { DashboardWidgetViews } from "@langfuse/shared/src/db";
-import { prisma } from "@langfuse/shared/src/db";
+import {
+  createOrgProjectAndApiKey,
+  DashboardService,
+} from "@langfuse/shared/src/server";
+import { DashboardWidgetViews, prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,

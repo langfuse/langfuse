@@ -139,7 +139,13 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     }>,
   ) => Promise<unknown>;
 
-  const createMockJob = (overrides: Record<string, unknown> = {}): Job<any> => {
+  const createMockJob = (
+    overrides: {
+      data?: Record<string, unknown>;
+      attemptsMade?: number;
+      opts?: { attempts?: number };
+    } = {},
+  ): Job<any> => {
     return {
       data: {
         id: "queue-job-123",
@@ -151,8 +157,10 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           observationS3Path,
         },
         retryBaggage: { attempt: 0 },
-        ...overrides,
+        ...overrides.data,
       },
+      attemptsMade: overrides.attemptsMade ?? 0,
+      opts: overrides.opts ?? { attempts: 10 },
     } as Job<any>;
   };
 
@@ -399,7 +407,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
-    it("should set ERROR status with generic message for unexpected errors", async () => {
+    it("should rethrow unexpected errors without persisting ERROR while BullMQ retries remain", async () => {
       const unexpectedError = new Error("Database connection failed");
       (processObservationEval as Mock).mockRejectedValue(unexpectedError);
 
@@ -410,17 +418,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Database connection failed",
       );
 
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-        data: expect.objectContaining({
-          status: JobExecutionStatus.ERROR,
-          error: "An internal error occurred",
-          executionTraceId: "test-trace-id",
-        }),
-      });
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
     });
 
     it("should call traceException for unexpected errors", async () => {
@@ -448,6 +446,30 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Network timeout",
       );
     });
+
+    it("should persist ERROR on the final BullMQ attempt", async () => {
+      const unexpectedError = new Error("Database connection failed");
+      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+
+      await expect(
+        llmAsJudgeExecutionQueueProcessor(
+          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+        ),
+      ).rejects.toThrow(unexpectedError);
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.ERROR,
+          endTime: expect.any(Date),
+          error: "An internal error occurred",
+          executionTraceId: "test-trace-id",
+        },
+      });
+    });
   });
 
   describe("execution trace ID", () => {
@@ -473,7 +495,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       (processObservationEval as Mock).mockResolvedValue(undefined);
 
       const job = createMockJob({
-        retryBaggage: { attempt: 3 },
+        data: { retryBaggage: { attempt: 3 } },
       });
       await llmAsJudgeExecutionQueueProcessor(job as Job<any>);
 

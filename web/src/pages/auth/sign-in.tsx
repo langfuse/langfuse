@@ -39,7 +39,10 @@ import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { reportError } from "@/src/utils/reportError";
-import { isExpectedSignInError } from "@/src/features/auth/lib/expectedAuthErrors";
+import {
+  isExpectedSignInError,
+  isNextAuthMissingSignInUrlError,
+} from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -688,7 +691,17 @@ export default function SignIn({
         );
       }
     } catch (error) {
-      captureUnknownError("auth.signIn.credentials", error);
+      if (isNextAuthMissingSignInUrlError(error)) {
+        // next-auth threw on a JSON body with no `url` (see
+        // isNextAuthMissingSignInUrlError). Same class of failure as
+        // signIn() returning undefined — show the form error, don't capture.
+        reportError(error, {
+          area: "auth.signIn.credentials",
+          expected: true,
+        });
+      } else {
+        captureUnknownError("auth.signIn.credentials", error);
+      }
       setCredentialsFormError("An unexpected error occurred.");
     }
   }
@@ -741,7 +754,14 @@ export default function SignIn({
         );
       })
       .catch((error) => {
-        captureUnknownError("auth.signIn.previewAutoSignIn", error);
+        if (isNextAuthMissingSignInUrlError(error)) {
+          reportError(error, {
+            area: "auth.signIn.previewAutoSignIn",
+            expected: true,
+          });
+        } else {
+          captureUnknownError("auth.signIn.previewAutoSignIn", error);
+        }
         setPreviewAutoSignInPending(false);
         setCredentialsFormError("Automatic preview sign-in failed.");
       });

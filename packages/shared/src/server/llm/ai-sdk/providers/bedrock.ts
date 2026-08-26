@@ -29,6 +29,15 @@ export function assertValidBedrockRegion(region: string | undefined): void {
 }
 
 /**
+ * Bedrock region for Langfuse-operated AI (Assistant, Ask AI).
+ * `LANGFUSE_AI_AWS_BEDROCK_REGION` is preferred; `LANGFUSE_AWS_BEDROCK_REGION`
+ * remains the fallback until Cloud infra finishes the cutover.
+ */
+export function getLangfuseAIBedrockRegion(): string | undefined {
+  return env.LANGFUSE_AI_AWS_BEDROCK_REGION ?? env.LANGFUSE_AWS_BEDROCK_REGION;
+}
+
+/**
  * Translation of Langfuse `modelParams.providerOptions` to AI SDK Bedrock
  * provider options.
  *
@@ -166,7 +175,7 @@ export function buildBedrockModel(params: {
   const shouldUseLangfuseAPIKey = credentialSource === "langfuse";
 
   const { region } = shouldUseLangfuseAPIKey
-    ? { region: env.LANGFUSE_AWS_BEDROCK_REGION }
+    ? { region: getLangfuseAIBedrockRegion() }
     : BedrockConfigSchema.parse(config);
   assertValidBedrockRegion(region);
 

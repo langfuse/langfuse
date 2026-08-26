@@ -147,8 +147,11 @@ export class MixpanelClient {
           `Failed to send events to Mixpanel: ${response.status} ${response.statusText}`,
           { body: errorText },
         );
-        throw new Error(
-          `Mixpanel API error: ${response.status} ${response.statusText}`,
+        throw Object.assign(
+          new Error(
+            `Mixpanel API error: ${response.status} ${response.statusText}`,
+          ),
+          { statusCode: response.status },
         );
       }
 
