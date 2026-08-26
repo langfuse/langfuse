@@ -37,18 +37,6 @@ const zIdTokenAlg = z
   ])
   .optional();
 
-export const DEFAULT_AUTH_SESSION_MAX_AGE_MINUTES = 14 * 24 * 60;
-
-export const authSessionMaxAgeMinutesSchema = z.coerce
-  .number()
-  .int()
-  .gt(
-    5,
-    "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes",
-  )
-  .optional()
-  .default(DEFAULT_AUTH_SESSION_MAX_AGE_MINUTES);
-
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -297,7 +285,15 @@ export const env = createEnv({
     AUTH_EMAIL_VERIFICATION_REQUIRED: z
       .enum(["true", "false"])
       .default("false"),
-    AUTH_SESSION_MAX_AGE: authSessionMaxAgeMinutesSchema,
+    AUTH_SESSION_MAX_AGE: z.coerce
+      .number()
+      .int()
+      .gt(
+        5,
+        "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes",
+      )
+      .optional()
+      .default(14 * 24 * 60), // default to 14 days
     AUTH_HTTP_PROXY: z.url().optional(),
     AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
