@@ -1,7 +1,10 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import Link from "next/link";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
 import {
@@ -45,11 +48,25 @@ import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
-export default function Dataset() {
-  const router = useRouter();
+export default function DatasetExperimentsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetExperimentsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
+  );
+}
+
+function DatasetExperimentsView({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
   const capture = usePostHogClientCapture();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
@@ -65,10 +82,13 @@ export default function Dataset() {
     }[]
   >([]);
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -122,13 +142,17 @@ export default function Dataset() {
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
-    { enabled: !isExperimentsBetaActive },
+    { enabled: Boolean(projectId) && !isExperimentsBetaActive },
   );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: !isExperimentsBetaActive && hasEvalReadAccess && !!datasetId,
+      enabled:
+        Boolean(projectId) &&
+        Boolean(datasetId) &&
+        !isExperimentsBetaActive &&
+        hasEvalReadAccess,
     },
   );
 
@@ -191,7 +215,7 @@ export default function Dataset() {
                 <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
                   <CreateExperimentsForm
                     key={`create-experiment-form-${datasetId}`}
-                    projectId={projectId as string}
+                    projectId={projectId}
                     setFormOpen={setIsCreateExperimentDialogOpen}
                     defaultValues={{
                       datasetId,
@@ -255,7 +279,7 @@ export default function Dataset() {
               <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
                 <CreateExperimentsForm
                   key={`create-experiment-form-${datasetId}`}
-                  projectId={projectId as string}
+                  projectId={projectId}
                   setFormOpen={setIsCreateExperimentDialogOpen}
                   defaultValues={{
                     datasetId,

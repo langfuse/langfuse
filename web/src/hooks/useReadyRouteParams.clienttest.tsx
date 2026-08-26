@@ -30,8 +30,9 @@ describe("asSingleQueryParam", () => {
 describe("useReadyRouteParams", () => {
   test("is not ready while the pages router has not hydrated dynamic params", () => {
     // Hard navigation / reload of a statically-optimized dynamic route: first
-    // render has an empty query, so casts like `router.query.traceId as string`
-    // are `undefined` at runtime.
+    // render has an empty query, so casts like `router.query.projectId as string`
+    // are `undefined` at runtime and tRPC `protectedProjectProcedure`s 400
+    // with "Invalid input, projectId is required".
     mockQuery({});
 
     const { result } = renderHook(() =>
@@ -49,6 +50,20 @@ describe("useReadyRouteParams", () => {
     );
 
     expect(result.current).toEqual({ ready: false });
+  });
+
+  test("is not ready for nested dataset/dashboard routes until every segment hydrates", () => {
+    mockQuery({});
+
+    const datasetRoute = renderHook(() =>
+      useReadyRouteParams(["projectId", "datasetId"]),
+    );
+    const dashboardRoute = renderHook(() =>
+      useReadyRouteParams(["projectId", "dashboardId"]),
+    );
+
+    expect(datasetRoute.result.current).toEqual({ ready: false });
+    expect(dashboardRoute.result.current).toEqual({ ready: false });
   });
 
   test("is ready with typed string params once every key is a string", () => {
