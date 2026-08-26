@@ -83,6 +83,27 @@ export const mapEvaluationRuleToCoreDataRow = ({
   sampling: sampling.toNumber(),
 });
 
+type DashboardWidgetCoreDataInput = {
+  filters: unknown;
+} & Record<string, unknown>;
+
+// Widget filters carry customer-entered values (user ids, metadata values,
+// tool names, ...). Analytics only needs which columns/operators are used, so
+// the values (and metadata keys) are stripped before export.
+export const mapDashboardWidgetToCoreDataRow = ({
+  filters,
+  ...widget
+}: DashboardWidgetCoreDataInput) => ({
+  ...widget,
+  filters: Array.isArray(filters)
+    ? filters.map((filter: Record<string, unknown>) => ({
+        column: filter.column ?? null,
+        operator: filter.operator ?? null,
+        type: filter.type ?? null,
+      }))
+    : [],
+});
+
 type TablePageArgs<TCursor> = {
   lastRow: TCursor | null;
   take: number;
@@ -622,6 +643,59 @@ export const coreDataTableExports: Array<
             updatedAt: true,
           },
         }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "dashboards",
+      // Customer-authored name/description are free text and intentionally
+      // excluded; the definition JSON holds only widget placements (ids,
+      // positions, sizes). projectId NULL marks Langfuse-owned templates.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.dashboard.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdBy: true,
+            definition: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+    }),
+  (args) =>
+    uploadTableCoreDataJsonl({
+      ...args,
+      tableName: "dashboardWidgets",
+      // Customer-authored name/description are free text and intentionally
+      // excluded; filter values are stripped in the mapper. The remaining
+      // shape (view, metrics, dimensions, chart type) is what dashboard
+      // product decisions need (e.g. which aggregation users pair with a
+      // measure). projectId NULL marks Langfuse-owned template widgets.
+      fetchPage: ({ lastRow, take }: TablePageArgs<{ id: string }>) =>
+        prisma.dashboardWidget.findMany({
+          take,
+          ...(lastRow ? { cursor: { id: lastRow.id }, skip: 1 } : {}),
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            projectId: true,
+            createdBy: true,
+            view: true,
+            dimensions: true,
+            metrics: true,
+            filters: true,
+            chartType: true,
+            chartConfig: true,
+            minVersion: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      mapRow: mapDashboardWidgetToCoreDataRow,
     }),
 ];
 

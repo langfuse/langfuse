@@ -4,6 +4,7 @@ import { type StorageService } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   coreDataTableExports,
+  mapDashboardWidgetToCoreDataRow,
   mapEvaluationRuleToCoreDataRow,
   mapJobConfigurationToCoreDataRow,
   mapUserToCoreDataRow,
@@ -129,6 +130,8 @@ describe("coreDataTableExports", () => {
       prisma.evaluationRule,
       prisma.evaluationRuleEvaluatorAssignment,
       prisma.jobConfiguration,
+      prisma.dashboard,
+      prisma.dashboardWidget,
     ];
     for (const delegate of delegates) {
       vi.spyOn(delegate, "findMany").mockResolvedValue([]);
@@ -157,8 +160,54 @@ describe("coreDataTableExports", () => {
         "core/evaluatorVersions.jsonl",
         "core/evaluationRules.jsonl",
         "core/evaluationRuleEvaluatorAssignments.jsonl",
+        "core/dashboards.jsonl",
+        "core/dashboardWidgets.jsonl",
       ]),
     );
+  });
+});
+
+describe("mapDashboardWidgetToCoreDataRow", () => {
+  it("keeps filter shape but strips customer-entered values and keys", () => {
+    const row = mapDashboardWidgetToCoreDataRow({
+      id: "widget-1",
+      projectId: "project-1",
+      view: "OBSERVATIONS",
+      metrics: [{ measure: "toolCalls", agg: "sum" }],
+      filters: [
+        {
+          column: "userId",
+          operator: "any of",
+          value: ["customer-user-42"],
+          type: "stringOptions",
+        },
+        {
+          column: "metadata",
+          key: "customer-secret-key",
+          operator: "=",
+          value: "customer-value",
+          type: "stringObject",
+        },
+      ],
+    });
+
+    expect(row.filters).toStrictEqual([
+      { column: "userId", operator: "any of", type: "stringOptions" },
+      { column: "metadata", operator: "=", type: "stringObject" },
+    ]);
+    const serialized = JSON.stringify(row);
+    expect(serialized).not.toContain("customer-user-42");
+    expect(serialized).not.toContain("customer-secret-key");
+    expect(serialized).not.toContain("customer-value");
+  });
+
+  it("normalizes a non-array filters column to an empty list", () => {
+    const row = mapDashboardWidgetToCoreDataRow({
+      id: "widget-2",
+      filters: null,
+    });
+
+    expect(row.filters).toStrictEqual([]);
   });
 });
 
