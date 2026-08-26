@@ -11,7 +11,10 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import { parseFlags } from "@/src/features/feature-flags/utils";
+import {
+  parseFlags,
+  parseFlagsWithOrganizationDefaults,
+} from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
@@ -71,7 +74,10 @@ import {
 } from "@/src/features/entitlements/server/getPlan";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import {
+  canToggleV4,
+  isV4UpgradeUiAvailable,
+} from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 
 const staticProviders: Provider[] = [
@@ -774,7 +780,7 @@ export async function getAuthOptions(signupAttribution?: {
     logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's
@@ -875,6 +881,15 @@ export async function getAuthOptions(signupAttribution?: {
             (v4WriteMode === "dual" &&
               dualPreviewAvailable &&
               dbUser?.v4BetaEnabled === true);
+          // The migration/upgrade UI is a separate question from the preview
+          // read path above: it guides users through work that is still
+          // pending, so it does not require the user to have opted into v4
+          // reads first — the migration panel is where that opt-in is offered.
+          const v4UpgradeUiAvailable = isV4UpgradeUiAvailable({
+            isLangfuseCloud,
+            v4WriteMode,
+            dualPreviewAvailable,
+          });
 
           return {
             ...session,
@@ -900,6 +915,7 @@ export async function getAuthOptions(signupAttribution?: {
                     image: dbUser.image,
                     admin: dbUser.admin,
                     v4BetaEnabled,
+                    v4UpgradeUiAvailable,
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
@@ -944,6 +960,14 @@ export async function getAuthOptions(signupAttribution?: {
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          featureFlags: parseFlagsWithOrganizationDefaults(
+                            dbUser.featureFlags,
+                            orgMembership.organization.featureFlagOrgDefaults,
+                            {
+                              email: dbUser.email,
+                              v4BetaEnabled,
+                            },
+                          ),
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {

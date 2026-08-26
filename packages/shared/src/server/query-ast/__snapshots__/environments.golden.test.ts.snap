@@ -1,0 +1,137 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only fromTimestamp=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 2026-01-01T00:00:00.000Z,
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM events_core
+WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+  },
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+      "param3": 2026-01-01T00:00:00.000Z,
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM scores
+WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)})) AND (timestamp >= {param3:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: environments.getEnvironmentsForProject > writeMode=events_only fromTimestamp=unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM events_core
+WHERE project_id = {param1:String}",
+  },
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM scores
+WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)}))",
+  },
+]
+`;
+
+exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromTimestamp=set 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": 2026-01-01T00:00:00.000Z,
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM traces
+WHERE (project_id = {param1:String}) AND (timestamp >= {param2:DateTime64(3)})
+UNION ALL
+SELECT DISTINCT environment
+FROM observations
+WHERE (project_id = {param1:String}) AND (start_time >= {param2:DateTime64(3)})",
+  },
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+      "param3": 2026-01-01T00:00:00.000Z,
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM scores
+WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)})) AND (timestamp >= {param3:DateTime64(3)})",
+  },
+]
+`;
+
+exports[`golden: environments.getEnvironmentsForProject > writeMode=legacy fromTimestamp=unset 1`] = `
+[
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM traces
+WHERE project_id = {param1:String}
+UNION ALL
+SELECT DISTINCT environment
+FROM observations
+WHERE project_id = {param1:String}",
+  },
+  {
+    "fn": "queryClickhouse",
+    "params": {
+      "param1": "golden-project",
+      "param2": [
+        "NUMERIC",
+        "BOOLEAN",
+        "CATEGORICAL",
+        "TEXT",
+      ],
+    },
+    "route": "environments.getEnvironmentsForProject",
+    "sql": "SELECT DISTINCT environment
+FROM scores
+WHERE (project_id = {param1:String}) AND (data_type IN ({param2:Array(String)}))",
+  },
+]
+`;

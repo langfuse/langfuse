@@ -5,6 +5,7 @@ import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
   getInAppAgentLlmCallObservationId,
+  IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
 } from "@langfuse/shared/in-app-agent";
 import type { AgUiRunAgentInput } from "./types";
 import { InAppAgentInstrumentation } from "./instrumentation";
@@ -268,6 +269,52 @@ describe("InAppAgentInstrumentation", () => {
           toolCallId: "tool-1",
           parentMessageId: "tool-1-approval-tool-call",
           toolCallApproval: "approved",
+        }),
+      }),
+    );
+  });
+
+  it("copies langfuse_tool_approval source onto the TOOL observation", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordEvents([
+      {
+        type: EventType.TOOL_CALL_START,
+        toolCallId: "tool-1",
+        toolCallName: "read",
+        parentMessageId: "assistant-message-1",
+      },
+      {
+        type: EventType.CUSTOM,
+        name: IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
+        value: {
+          toolCallId: "tool-1",
+          toolName: "read",
+          source: "auto",
+        },
+      },
+      {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId: "tool-1",
+        delta: '{"path":"README.md"}',
+      },
+      {
+        type: EventType.TOOL_CALL_END,
+        toolCallId: "tool-1",
+      },
+      {
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: "tool-1",
+        content: "ok",
+      },
+    ]);
+
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "tool-create",
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          toolCallId: "tool-1",
+          toolCallApprovalSource: "auto",
         }),
       }),
     );
@@ -1394,6 +1441,29 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(finalAgentCreate).not.toHaveProperty("usageDetails");
     expect(finalAgentCreate).not.toHaveProperty("model");
+  });
+
+  it("drops circular provider options from model call input", () => {
+    const instrumentation = createInstrumentation();
+    const providerOptions: Record<string, unknown> = {};
+    providerOptions.circular = providerOptions;
+
+    instrumentation.recordModelCallStart({
+      prompt: [{ role: "user", content: "hello" }],
+      providerOptions,
+    });
+    instrumentation.recordModelStreamPart({
+      type: "finish",
+      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+      finishReason: "stop",
+    });
+
+    const generation = mocks.handler.langfuse.enqueue.mock.calls.find(
+      ([type]) => type === "generation-create",
+    )?.[1];
+    expect(generation?.input).toEqual({
+      messages: [{ role: "user", content: "hello" }],
+    });
   });
 
   it("emits tools after the generation using actual execution timing", () => {

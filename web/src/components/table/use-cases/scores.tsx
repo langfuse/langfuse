@@ -6,10 +6,9 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -54,8 +53,6 @@ import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -104,6 +101,7 @@ export type ScoresTableRow = {
   traceName?: string;
   userId?: string;
   jobConfigurationId?: string;
+  evaluatorId?: string;
   traceTags?: string[];
   environment?: string;
   executionTraceId?: string;
@@ -130,6 +128,8 @@ export type ScoresTableProps = {
    * of a `Page`.
    */
   showControlsInPageHeader?: boolean;
+  /** Skip the default exclusion of internal environments. */
+  showAllEnvironments?: boolean;
 };
 
 function createFilterState(
@@ -158,6 +158,7 @@ export default function ScoresTable({
   localStorageSuffix = "",
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
+  showAllEnvironments = false,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
 
@@ -429,7 +430,9 @@ export default function ScoresTable({
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isSidebarFilterLoading,
-      implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      implicitDefaultConfig: showAllEnvironments
+        ? undefined
+        : DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
     };
 
     if (peekContext) {
@@ -452,7 +455,13 @@ export default function ScoresTable({
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     };
-  }, [disableUrlPersistence, isSidebarFilterLoading, peekContext, projectId]);
+  }, [
+    disableUrlPersistence,
+    isSidebarFilterLoading,
+    peekContext,
+    projectId,
+    showAllEnvironments,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     scoresFilterConfig,
@@ -581,18 +590,13 @@ export default function ScoresTable({
         ) : undefined;
       },
     },
-    {
+    createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       enableHiding: true,
       enableSorting: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",
@@ -664,27 +668,13 @@ export default function ScoresTable({
         );
       },
     },
-    {
+    createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value = row.getValue("environment") as string | undefined;
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",
@@ -904,10 +894,12 @@ export default function ScoresTable({
     },
     {
       accessorKey: "jobConfigurationId",
-      header: "Eval Configuration ID",
+      header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
       id: "jobConfigurationId",
       headerTooltip: {
-        description: "The Job Configuration ID associated with the trace.",
+        description: isBetaEnabled
+          ? "The evaluator associated with the score."
+          : "The Job Configuration ID associated with the score.",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
       },
       enableHiding: true,
@@ -915,15 +907,21 @@ export default function ScoresTable({
       defaultHidden: true,
       size: 150,
       cell: ({ row }) => {
-        const value = row.getValue("jobConfigurationId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/evals/${value}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+        const value = isBetaEnabled
+          ? row.original.evaluatorId
+          : row.getValue("jobConfigurationId");
+        if (typeof value !== "string") return undefined;
+
+        return (
+          <TableLink
+            path={
+              isBetaEnabled
+                ? `/project/${projectId}/evals/${value}`
+                : `/project/${projectId}/evals/legacy/${value}`
+            }
+            value={value}
+          />
+        );
       },
     },
   ];
@@ -991,6 +989,7 @@ export default function ScoresTable({
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
       jobConfigurationId: score.jobConfigurationId ?? undefined,
+      evaluatorId: undefined,
       traceTags: score.traceTags ?? undefined,
       environment: score.environment ?? undefined,
       executionTraceId: score.executionTraceId ?? undefined,
@@ -1038,6 +1037,7 @@ export default function ScoresTable({
         traceName: meta?.traceName ?? undefined,
         userId: meta?.userId ?? undefined,
         jobConfigurationId: score.jobConfigurationId ?? undefined,
+        evaluatorId: score.evaluatorId ?? undefined,
         traceTags: meta?.tags ?? undefined,
         environment: score.environment ?? undefined,
         executionTraceId: score.executionTraceId ?? undefined,

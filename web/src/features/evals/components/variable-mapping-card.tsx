@@ -11,6 +11,7 @@ import {
   type EvalTemplate,
   eventTargetEvalVariableColumns,
   experimentTargetEvalVariableColumns,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -21,7 +22,6 @@ import {
   fieldHasJsonSelectorOption,
   getJsonPathCompatibilityWarning,
 } from "@/src/features/evals/utils/evaluator-form-utils";
-import { EvalTargetObject } from "@langfuse/shared";
 import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
 import {
   EvaluationPromptPreview,
@@ -166,7 +166,7 @@ export const VariableMappingCard = ({
   );
   const evalPreviewBasePath = hideAdvancedSettings
     ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
-    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
+    : `/project/${projectId}/evals/legacy/new?evaluator=${evalTemplate.id}`;
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">

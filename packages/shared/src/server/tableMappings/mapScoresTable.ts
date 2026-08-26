@@ -60,6 +60,13 @@ export const scoresTableUiColumnDefinitions: UiColumnMappings = [
     queryPrefix: "s",
   },
   {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "scores",
+    clickhouseSelect:
+      "coalesce(nullIf(s.metadata['evaluator_id'], ''), s.metadata['job_configuration_id'])",
+  },
+  {
     uiTableName: "Value",
     uiTableId: "value",
     clickhouseTableName: "scores",

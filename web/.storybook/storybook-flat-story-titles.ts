@@ -7,6 +7,66 @@ import * as ts from "@typescript/typescript6";
 
 const STORY_FILE_PATTERN = /\.stories\.[cm]?[jt]sx?$/;
 
+/**
+ * A story directory that gets its own sidebar section instead of the flat
+ * default. Declared once in main.ts next to `stories`; it cannot be a `stories`
+ * entry with a `titlePrefix`, because the flat-title plugin below writes an
+ * explicit `title` into every story's meta and an explicit title beats the
+ * specifier's prefix.
+ */
+export type StoryTitleGroup = {
+  directory: string;
+  titlePrefix: string;
+};
+
+// Storybook hands the indexer absolute OS paths while Vite ids are always
+// POSIX, so normalize before matching and both paths agree on the same group.
+function normalizePath(fileName: string) {
+  return fileName.replaceAll("\\", "/");
+}
+
+function groupedStoryTitle(
+  groups: readonly StoryTitleGroup[],
+  fileName: string,
+  componentTitle: string,
+) {
+  const normalizedFileName = `/${normalizePath(fileName).replace(/^\/+/, "")}`;
+
+  for (const group of groups) {
+    const directory = normalizePath(group.directory).replace(/^\/+|\/+$/g, "");
+    const directoryMarker = `/${directory}/`;
+    const directoryIndex = normalizedFileName.indexOf(directoryMarker);
+    if (directoryIndex === -1) continue;
+
+    const relativeFileName = normalizedFileName.slice(
+      directoryIndex + directoryMarker.length,
+    );
+    const componentPath = relativeFileName
+      .split("/")
+      .slice(0, -1)
+      .filter((segment) => segment !== "components");
+
+    if (componentPath.at(-1) !== componentTitle) {
+      componentPath.push(componentTitle);
+    }
+
+    return [group.titlePrefix, ...componentPath].join("/");
+  }
+
+  return undefined;
+}
+
+export function flatStoryTitle(
+  fileName: string,
+  groups: readonly StoryTitleGroup[] = [],
+) {
+  const componentTitle = basename(normalizePath(fileName)).replace(
+    STORY_FILE_PATTERN,
+    "",
+  );
+  return groupedStoryTitle(groups, fileName, componentTitle) ?? componentTitle;
+}
+
 function findMetaObject(code: string, fileName: string) {
   const sourceFile = ts.createSourceFile(
     fileName,
@@ -61,11 +121,15 @@ export function assertNoExplicitStoryTitle(code: string, fileName: string) {
   return metaObject;
 }
 
-function addFlatStoryTitle(code: string, fileName: string) {
+function addFlatStoryTitle(
+  code: string,
+  fileName: string,
+  groups: readonly StoryTitleGroup[],
+) {
   const metaObject = assertNoExplicitStoryTitle(code, fileName);
   if (!metaObject) return null;
 
-  const componentTitle = basename(fileName).replace(STORY_FILE_PATTERN, "");
+  const componentTitle = flatStoryTitle(fileName, groups);
   const insertionPoint = metaObject.getStart() + 1;
 
   return `${code.slice(0, insertionPoint)}\n  title: ${JSON.stringify(componentTitle)},${code.slice(insertionPoint)}`;
@@ -73,45 +137,52 @@ function addFlatStoryTitle(code: string, fileName: string) {
 
 // Storybook computes index and runtime titles separately. Keep both paths in
 // this module so inferred titles and their derived story IDs cannot diverge.
-export const flattenStoryIndexTitles: NonNullable<
-  StorybookConfig["experimental_indexers"]
-> = async (indexers) =>
-  indexers?.map((indexer) => ({
-    ...indexer,
-    createIndex: async (fileName, options) => {
-      if (!STORY_FILE_PATTERN.test(fileName)) {
-        return indexer.createIndex(fileName, options);
-      }
+export function flattenStoryIndexTitles(
+  groups: readonly StoryTitleGroup[] = [],
+): NonNullable<StorybookConfig["experimental_indexers"]> {
+  return async (indexers) =>
+    indexers?.map((indexer) => ({
+      ...indexer,
+      createIndex: async (fileName, options) => {
+        if (!STORY_FILE_PATTERN.test(fileName)) {
+          return indexer.createIndex(fileName, options);
+        }
 
-      assertNoExplicitStoryTitle(await readFile(fileName, "utf8"), fileName);
-      const entries = await indexer.createIndex(fileName, options);
+        assertNoExplicitStoryTitle(await readFile(fileName, "utf8"), fileName);
+        const entries = await indexer.createIndex(fileName, options);
 
-      return entries.map((entry) => {
-        const componentTitle = entry.title?.split("/").at(-1);
-        if (!componentTitle) return entry;
+        return entries.map((entry) => {
+          const componentTitle = entry.title?.split("/").at(-1);
+          if (!componentTitle) return entry;
 
-        const title = options.makeTitle(componentTitle);
-        const storyName = storyNameFromExport(entry.exportName);
-        const derivedId = entry.title
-          ? toId(entry.title, storyName)
-          : undefined;
+          const title =
+            groupedStoryTitle(groups, fileName, componentTitle) ??
+            options.makeTitle(componentTitle);
+          const storyName = storyNameFromExport(entry.exportName);
+          const derivedId = entry.title
+            ? toId(entry.title, storyName)
+            : undefined;
 
-        return {
-          ...entry,
-          title,
-          __id: entry.__id === derivedId ? toId(title, storyName) : entry.__id,
-        };
-      });
+          return {
+            ...entry,
+            title,
+            __id:
+              entry.__id === derivedId ? toId(title, storyName) : entry.__id,
+          };
+        });
+      },
+    }));
+}
+
+export function flatStoryTitlesPlugin(groups: readonly StoryTitleGroup[] = []) {
+  return {
+    name: "storybook-flat-story-titles",
+    enforce: "pre",
+    transform(code, id) {
+      const [fileName] = id.split("?");
+      if (!fileName || !STORY_FILE_PATTERN.test(fileName)) return null;
+
+      return addFlatStoryTitle(code, fileName, groups);
     },
-  }));
-
-export const flatStoryTitlesPlugin = {
-  name: "storybook-flat-story-titles",
-  enforce: "pre",
-  transform(code, id) {
-    const [fileName] = id.split("?");
-    if (!fileName || !STORY_FILE_PATTERN.test(fileName)) return null;
-
-    return addFlatStoryTitle(code, fileName);
-  },
-} satisfies Plugin;
+  } satisfies Plugin;
+}

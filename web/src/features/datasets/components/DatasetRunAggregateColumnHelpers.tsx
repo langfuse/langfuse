@@ -3,16 +3,14 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { DatasetAggregateTableCell } from "@/src/features/datasets/components/DatasetAggregateTableCell";
 import { type DatasetCompareRunRowData } from "@/src/features/datasets/components/DatasetCompareRunsTable";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { type ColumnDefinition } from "@langfuse/shared";
-import { type FilterState } from "@langfuse/shared";
+import { type ColumnDefinition, type FilterState } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
 import React, { useEffect, useRef, useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { type ScoreColumn } from "@/src/features/scores/types";
-import { Toggle } from "@/src/components/ui/toggle";
+import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
 import { useRouter } from "next/router";
-import { cn } from "@/src/utils/tailwind";
 
 function DatasetAggregateCellWithBaselineDetection({
   value,
@@ -98,10 +96,7 @@ function BaselineToggle({ runId }: { runId: string }) {
 
   return (
     <Toggle
-      className={cn(
-        "text-muted-foreground/50 hover:bg-background hover:text-primary-accent p-1 data-[state=on]:bg-transparent data-[state=on]:text-current",
-        isBaseline && "text-primary-accent",
-      )}
+      pressed={isBaseline}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { InvalidRequestError } from "../../../errors";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -130,6 +131,24 @@ describe("queryBuilder filter type validation", () => {
     },
   );
 
+  it("rejects filters on pair-expanded dimensions", async () => {
+    const result = buildQueryWithFilter(
+      {
+        column: "usageType",
+        operator: "contains",
+        value: "cache",
+        type: "string",
+      },
+      undefined,
+      "v2",
+    );
+
+    await expect(result).rejects.toThrow(InvalidRequestError);
+    await expect(result).rejects.toThrow(
+      "Field 'usageType' cannot be used as a filter.",
+    );
+  });
+
   it.each([
     {
       name: "arrayOptions on string array dimension",
@@ -169,6 +188,27 @@ describe("queryBuilder filter type validation", () => {
     expect(query).toContain("toBool(scores_boolean.value) = {booleanFilter");
     expect(query).toContain(": Boolean}");
   });
+
+  it.each(["v1", "v2"] as const)(
+    "lowers evaluator score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "evaluatorId",
+          operator: "any of",
+          value: ["evaluator-1", "rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain(
+        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
+      );
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
 
   it("lowers the semantic-root observation filter only in the v2 events view", async () => {
     const { query } = await buildQueryWithFilter(

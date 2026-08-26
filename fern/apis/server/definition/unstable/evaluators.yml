@@ -19,13 +19,14 @@ service:
         Naming behavior:
         - If this is a new evaluator name in your project, Langfuse creates version `1`.
         - If the name already exists in your project, Langfuse creates the next version and returns it.
-        - When a new project version is created, existing evaluation rules in that project automatically move to the newest version for that evaluator name.
+        - The evaluator `id` remains stable across versions.
+        - Existing evaluation rules automatically use the latest evaluator version; no rule update is required.
 
         Recommended workflow:
         1. Create the evaluator.
         2. Read the returned `variables` array.
         3. Read the returned `outputDefinition.dataType` so the client knows whether future scores will be numeric, boolean, or categorical.
-        4. Create one or more evaluation rules that reference the returned evaluator family using `name` and `scope`.
+        4. Create one or more evaluation rules that reference the returned evaluator family using `name` and `type`.
 
         Code evaluator validation:
         - At creation, Langfuse only validates the request shape
@@ -77,12 +78,16 @@ service:
             modelConfig:
               provider: openai
               model: gpt-4.1-mini
+            mapping:
+              - variable: input
+                source: input
+              - variable: output
+                source: output
           response:
             body:
               id: evaltmpl_123
               name: answer-correctness
               version: 2
-              scope: project
               type: llm_as_judge
               prompt: |
                 You are grading an answer.
@@ -97,6 +102,11 @@ service:
               variables:
                 - input
                 - output
+              mapping:
+                - variable: input
+                  source: input
+                - variable: output
+                  source: output
               outputDefinition:
                 dataType: NUMERIC
                 reasoning:
@@ -144,7 +154,6 @@ service:
               id: evaltmpl_ts_123
               name: exact-match
               version: 1
-              scope: project
               type: code
               variables:
                 - input
@@ -153,6 +162,7 @@ service:
                 - toolCalls
                 - experimentItemExpectedOutput
                 - experimentItemMetadata
+              mapping: null
               sourceCode: |
                 function evaluate(ctx: EvaluationContext): EvaluationResult {
                   const input = ctx.observation.input;
@@ -212,7 +222,6 @@ service:
               id: evaltmpl_py_123
               name: exact-match
               version: 1
-              scope: project
               type: code
               variables:
                 - input
@@ -221,6 +230,7 @@ service:
                 - toolCalls
                 - experimentItemExpectedOutput
                 - experimentItemMetadata
+              mapping: null
               sourceCode: |
                 def evaluate(ctx: EvaluationContext) -> EvaluationResult:
                     """Evaluates one observation and returns one or more Langfuse scores."""
@@ -252,8 +262,7 @@ service:
 
         Important behavior:
         - This endpoint returns the latest version of each available evaluator.
-        - Results can include evaluators from your project and Langfuse-managed evaluators.
-        - If the same evaluator name exists in both places, both are returned as separate items with different `scope` values.
+        - Every evaluator is owned by the authenticated project.
       method: GET
       path: /evaluators
       request:
@@ -278,7 +287,7 @@ service:
       docs: |
         Get one evaluator by `id`.
 
-        Use this endpoint when you want the prompt, output definition, model configuration, and derived variables for the evaluator you plan to use in an evaluation rule.
+        This endpoint always returns the evaluator's latest version. Use it when you want the current prompt, output definition, model configuration, and derived variables for the evaluator you plan to use in an evaluation rule.
       method: GET
       path: /evaluators/{evaluatorId}
       path-parameters:
@@ -300,9 +309,8 @@ service:
         Delete an evaluator.
 
         Important behavior:
-        - This deletes the evaluator including all of its stored versions; `evaluatorId` may reference any version.
-        - The API returns `409` while evaluation rules still reference the evaluator. Delete those evaluation rules first.
-        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the API returns `403`.
+        - This deletes the evaluator including all of its stored versions.
+        - Evaluation rule assignments referencing the evaluator are also deleted.
         - Scores already produced by the evaluator are not deleted.
       method: DELETE
       path: /evaluators/{evaluatorId}
@@ -317,7 +325,6 @@ service:
         - errors.AccessDeniedError
         - errors.NotFoundError
         - errors.MethodNotAllowedError
-        - errors.ConflictError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
@@ -343,7 +350,8 @@ types:
 
       Versioning behavior:
       - `GET /evaluators` returns the latest version of each available evaluator.
-      - `GET /evaluators/{id}` can return an older version.
+      - `GET /evaluators/{id}` returns the latest version.
+      - `id` identifies the evaluator family and remains stable when a new version is created.
       - Evaluation rules always run against the latest version for the selected evaluator name within the same source (`project` or `managed`).
     discriminant: type
     union:
@@ -356,25 +364,30 @@ types:
     properties:
       id:
         type: string
-        docs: Identifier of this evaluator.
+        docs: Stable identifier of this evaluator across all versions.
       name:
         type: string
         docs: Evaluator name.
       version:
         type: integer
         docs: Version number of this evaluator.
-      scope:
-        type: commons.EvaluatorScope
-        docs: "Where this evaluator comes from: your project or Langfuse-managed defaults."
       variables:
         type: list<string>
         docs: |
           Variables that can be mapped when creating an evaluation rule.
 
           LLM evaluators require every variable to be mapped exactly once. Code evaluators always expose the fixed runtime payload fields and Langfuse maps them automatically.
+      mapping:
+        type: nullable<list<commons.EvaluationRuleReadMapping>>
+        docs: |
+          Default variable mapping for this evaluator version, or `null` when no default is configured.
+
+          An entry's `source` is `null` when that variable was never fully configured, and sources
+          are not restricted by rule `target` here, because the default is stored on the evaluator
+          rather than on any one rule.
       evaluationRuleCount:
         type: integer
-        docs: Number of evaluation rules in the project that currently use this evaluator version.
+        docs: Number of evaluation rules in the project that currently use this evaluator.
       createdAt:
         type: datetime
         docs: Timestamp when this evaluator was created.
@@ -421,7 +434,7 @@ types:
       Request body for creating an evaluator.
 
       If the same `name` already exists in your project, Langfuse creates the next version and returns it.
-      Existing evaluation rules in the same project are then moved to that new latest version automatically.
+      Existing evaluation rules automatically use the latest evaluator version.
       If `type` is omitted, Langfuse defaults it to `llm_as_judge` for backwards compatibility.
     discriminant: type
     union:
@@ -448,6 +461,9 @@ types:
       modelConfig:
         type: optional<nullable<commons.EvaluatorModelConfig>>
         docs: Optional explicit model configuration. Omit or set to `null` to use the project default evaluation model.
+      mapping:
+        type: optional<list<commons.EvaluationRuleMapping>>
+        docs: Optional default variable mapping inherited by rule assignments that do not provide an override.
 
   CreateCodeEvaluatorRequest:
     properties:
