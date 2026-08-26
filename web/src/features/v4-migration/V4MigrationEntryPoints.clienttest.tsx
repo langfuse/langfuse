@@ -78,12 +78,12 @@ describe("v4 migration entry points", () => {
     mocks.cachedActionNeeded = false;
   });
 
-  it("places the Action required pill above Upgrade in the secondary nav", () => {
+  it("places the Action required pill above Upgrade Plan in the secondary nav", () => {
     const secondaryTitles = ROUTES.filter(
       (route) => route.section === RouteSection.Secondary,
     ).map((route) => route.title);
     const updateIndex = secondaryTitles.indexOf("Update");
-    const upgradeIndex = secondaryTitles.indexOf("Upgrade");
+    const upgradeIndex = secondaryTitles.indexOf("Upgrade Plan");
 
     expect(updateIndex).toBeGreaterThanOrEqual(0);
     expect(upgradeIndex).toBeGreaterThan(updateIndex);

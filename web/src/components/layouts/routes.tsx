@@ -201,32 +201,14 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
-    // Keep the v4 "Action required" pill above Upgrade so the callout is not
-    // sandwiched between regular secondary menu items.
+    // Keep Action required first in the secondary nav so it is not sandwiched
+    // between regular items like Upgrade Plan and Settings.
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
     show: ({ projectId, v4UpgradeUiAvailable }) =>
       v4UpgradeUiAvailable && projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
-  },
-  {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Cloud Status",
@@ -240,6 +222,24 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
     menuNode: <V4SidebarToggle />,
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/project/[projectId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    pathname: "/organization/[organizationId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Settings",

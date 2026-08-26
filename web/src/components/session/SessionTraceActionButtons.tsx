@@ -4,7 +4,10 @@ import { getNumberFromMap } from "@/src/utils/map-utils";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { Button } from "@/src/components/ui/button";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 
 type TraceScores =
@@ -60,13 +63,28 @@ export function SessionTraceActionButtons({
             environment: environment ?? undefined,
           }}
         />
-        <CreateNewAnnotationQueueItem
+        <AnnotationQueueItemDropdownMenuController
           projectId={projectId}
           objectId={traceId}
           objectType="TRACE"
-          variant="outline"
-          size={size}
-        />
+        >
+          {({ disabled, totalCount }) => (
+            <Button
+              variant="outline"
+              size={size}
+              disabled={disabled !== undefined}
+              className="rounded-l-none rounded-r-md border-l-2"
+            >
+              <span className="relative mr-1 text-xs">
+                <ChevronDown className="h-3 w-3" />
+                <AnnotationQueueItemCountBadge
+                  totalCount={totalCount}
+                  layout="toolbar"
+                />
+              </span>
+            </Button>
+          )}
+        </AnnotationQueueItemDropdownMenuController>
       </div>
       <CommentDrawerButton
         projectId={projectId}
