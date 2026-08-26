@@ -1,7 +1,7 @@
 import type { EventRecordBaseType } from "../../repositories/definitions";
 import { metadataArraysToRecord } from "../../utils/metadata_conversion";
 import type { ResourceSpan } from "../../otel/OtelIngestionProcessor";
-import { asRecord, parseArray, parseIfString } from "./utils/json";
+import { asRecord, parseArray, parseIfString } from "./core/utils/json";
 import type { NormalizedIO, SpanIO } from "./types";
 import {
   collect,

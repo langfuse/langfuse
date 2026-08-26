@@ -1,6 +1,6 @@
 import { registeredProviders } from "../../conventions";
 import type { RootMessageSource } from "../../conventions/IOConvention";
-import { asRecord, parseRecord } from "../../utils/json";
+import { asRecord, parseRecord } from "../utils/json";
 import type { NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
@@ -8,8 +8,8 @@ import {
   normalizePart,
   normalizeMessage,
   normalizeFinishReason,
-} from "../../normalize";
-import { isMessageLike, isToolDefinitionMessage } from "../format-utils";
+} from "../normalize";
+import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 
 export type ParsedIOValue = {
   value: unknown;

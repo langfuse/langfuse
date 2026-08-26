@@ -1,4 +1,4 @@
-import { normalizeToolDefinitionValue } from "../../normalize/toolDefinitions";
+import { normalizeToolDefinitionValue } from "../normalize/toolDefinitions";
 import {
   NormalizedMessage,
   NormalizedMessagePart,

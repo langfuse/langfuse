@@ -1,5 +1,5 @@
 import type { IOConvention } from "./IOConvention";
-import * as providers from "./providers";
+import * as providers from "./providers/index";
 
 export type {
   ConventionResult,
