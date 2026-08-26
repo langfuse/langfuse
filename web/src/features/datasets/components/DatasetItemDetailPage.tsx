@@ -1,6 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromExistingObjectCopy } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectCopy";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { api } from "@/src/utils/api";
 import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
@@ -212,7 +213,7 @@ export const DatasetItemDetailPage = ({
               listKey="datasetItems"
             />
             {item.data ? (
-              <NewDatasetItemFromExistingObject
+              <NewDatasetItemFromExistingObjectDialogController
                 projectId={projectId}
                 fromDatasetId={item.data.datasetId}
                 traceId={item.data.sourceTraceId ?? undefined}
@@ -220,8 +221,15 @@ export const DatasetItemDetailPage = ({
                 input={JSON.stringify(item.data.input)}
                 output={JSON.stringify(item.data.expectedOutput)}
                 metadata={JSON.stringify(item.data.metadata)}
-                isCopyItem
-              />
+              >
+                {({ disabled, openDialog }) => (
+                  <NewDatasetItemFromExistingObjectCopy
+                    hasAccess={disabled === undefined}
+                    size="default"
+                    onOpen={openDialog}
+                  />
+                )}
+              </NewDatasetItemFromExistingObjectDialogController>
             ) : (
               <Button variant="outline" size="icon" disabled>
                 <Skeleton className="h-5 w-5" />

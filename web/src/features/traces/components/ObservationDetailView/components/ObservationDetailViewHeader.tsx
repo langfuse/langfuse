@@ -20,7 +20,6 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
@@ -50,6 +49,12 @@ import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferenc
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { api } from "@/src/utils/api";
+import { NewDatasetItemFromExistingObjectAdd } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectAdd";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { NewDatasetItemFromExistingObjectInDatasets } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectInDatasets";
 import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
 import {
   Drawer,
@@ -90,6 +95,68 @@ export interface ObservationDetailViewHeaderProps {
   subtreeMetrics?: AggregatedTraceMetrics | null;
   treeNodeTotalCost?: Decimal;
 }
+
+const ObservationDatasetItemAction = ({
+  projectId,
+  traceId,
+  observationId,
+  observationWithIO,
+  layout,
+}: {
+  projectId: string;
+  traceId: string;
+  observationId: string;
+  observationWithIO: NonNullable<
+    ObservationDetailViewHeaderProps["observationWithIO"]
+  >;
+  layout: "toolbar" | "menu";
+}) => {
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+  const datasetItems =
+    api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
+      { projectId, traceId, observationId },
+      { enabled: isAuthenticatedAndProjectMember },
+    );
+  const capture = usePostHogClientCapture();
+
+  return (
+    <NewDatasetItemFromExistingObjectDialogController
+      projectId={projectId}
+      traceId={traceId}
+      observationId={observationId}
+      input={observationWithIO.input}
+      output={observationWithIO.output}
+      metadata={observationWithIO.metadata}
+      onOpen={() =>
+        capture("dataset_item:new_from_trace_form_open", {
+          object: "observation",
+        })
+      }
+    >
+      {({ disabled, openDialog }) =>
+        datasetItems.data && datasetItems.data.length > 0 ? (
+          <NewDatasetItemFromExistingObjectInDatasets
+            projectId={projectId}
+            items={datasetItems.data}
+            hasAccess={disabled === undefined}
+            size="default"
+            layout={layout}
+            onOpen={openDialog}
+          />
+        ) : (
+          <NewDatasetItemFromExistingObjectAdd
+            hasAccess={disabled === undefined}
+            variant="secondary"
+            size="default"
+            layout={layout}
+            onOpen={openDialog}
+          />
+        )
+      }
+    </NewDatasetItemFromExistingObjectDialogController>
+  );
+};
 
 export const ObservationDetailViewHeader = memo(
   function ObservationDetailViewHeader({
@@ -183,13 +250,11 @@ export const ObservationDetailViewHeader = memo(
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
                   {observationWithIO && (
-                    <NewDatasetItemFromExistingObject
+                    <ObservationDatasetItemAction
+                      projectId={projectId}
                       traceId={traceId}
                       observationId={observation.id}
-                      projectId={projectId}
-                      input={observationWithIO.input}
-                      output={observationWithIO.output}
-                      metadata={observationWithIO.metadata}
+                      observationWithIO={observationWithIO}
                       layout="menu"
                     />
                   )}
@@ -279,15 +344,13 @@ export const ObservationDetailViewHeader = memo(
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
-                <NewDatasetItemFromExistingObject
+                <ObservationDatasetItemAction
+                  projectId={projectId}
                   traceId={traceId}
                   observationId={observation.id}
-                  projectId={projectId}
-                  input={observationWithIO.input}
-                  output={observationWithIO.output}
-                  metadata={observationWithIO.metadata}
+                  observationWithIO={observationWithIO}
                   key={observation.id}
-                  size="sm"
+                  layout="toolbar"
                 />
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}

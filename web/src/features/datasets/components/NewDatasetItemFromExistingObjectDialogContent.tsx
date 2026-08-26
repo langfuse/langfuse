@@ -4,7 +4,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { NewDatasetItemForm } from "./NewDatasetItemForm";
-import { type Prisma } from "@langfuse/shared";
+import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 
 export type NewDatasetItemFromExistingObjectDialogContentProps = {
@@ -16,6 +16,19 @@ export type NewDatasetItemFromExistingObjectDialogContentProps = {
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
   onFormSuccess: () => void;
+};
+
+const normalizePrefillValue = (
+  value: Prisma.JsonValue | null,
+): Prisma.JsonValue | null => {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "string") {
+    const parsed = parseJsonPrioritised(value);
+    return parsed !== undefined ? parsed : value;
+  }
+
+  return value;
 };
 
 export const NewDatasetItemFromExistingObjectDialogContent = ({
@@ -36,8 +49,8 @@ export const NewDatasetItemFromExistingObjectDialogContent = ({
       traceId={traceId}
       observationId={observationId}
       projectId={projectId}
-      input={input}
-      output={output}
+      input={normalizePrefillValue(input)}
+      output={normalizePrefillValue(output)}
       metadata={metadata}
       onFormSuccess={onFormSuccess}
       className="h-full overflow-y-auto"

@@ -22,7 +22,9 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromExistingObjectAdd } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectAdd";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { NewDatasetItemFromExistingObjectInDatasets } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectInDatasets";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
@@ -41,7 +43,7 @@ import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveM
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import {
   Popover,
@@ -49,6 +51,9 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
+import { api } from "@/src/utils/api";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -67,6 +72,64 @@ export interface TraceDetailViewHeaderProps {
   isCommentDrawerOpen?: boolean;
   onCommentDrawerOpenChange?: (open: boolean) => void;
 }
+
+const TraceDatasetItemAction = ({
+  projectId,
+  trace,
+  layout,
+  size,
+}: {
+  projectId: string;
+  trace: TraceDetailViewHeaderProps["trace"];
+  layout: "toolbar" | "menu";
+  size?: ButtonProps["size"];
+}) => {
+  const isAuthenticatedAndProjectMember =
+    useIsAuthenticatedAndProjectMember(projectId);
+  const datasetItems =
+    api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
+      { projectId, traceId: trace.id },
+      { enabled: isAuthenticatedAndProjectMember },
+    );
+  const capture = usePostHogClientCapture();
+  const buttonSize = size ?? "default";
+
+  return (
+    <NewDatasetItemFromExistingObjectDialogController
+      projectId={projectId}
+      traceId={trace.id}
+      input={trace.input}
+      output={trace.output}
+      metadata={trace.metadata}
+      onOpen={() =>
+        capture("dataset_item:new_from_trace_form_open", {
+          object: "trace",
+        })
+      }
+    >
+      {({ disabled, openDialog }) =>
+        datasetItems.data && datasetItems.data.length > 0 ? (
+          <NewDatasetItemFromExistingObjectInDatasets
+            projectId={projectId}
+            items={datasetItems.data}
+            hasAccess={disabled === undefined}
+            size={buttonSize}
+            layout={layout}
+            onOpen={openDialog}
+          />
+        ) : (
+          <NewDatasetItemFromExistingObjectAdd
+            hasAccess={disabled === undefined}
+            variant="secondary"
+            size={buttonSize}
+            layout={layout}
+            onOpen={openDialog}
+          />
+        )
+      }
+    </NewDatasetItemFromExistingObjectDialogController>
+  );
+};
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   trace,
@@ -138,13 +201,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 forceMount
                 className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
               >
-                <NewDatasetItemFromExistingObject
-                  traceId={trace.id}
+                <TraceDatasetItemAction
                   projectId={projectId}
-                  input={trace.input}
-                  output={trace.output}
-                  metadata={trace.metadata}
                   layout="menu"
+                  trace={trace}
                 />
                 {!isAnnotationMode && (
                   <>
@@ -187,14 +247,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            <NewDatasetItemFromExistingObject
-              traceId={trace.id}
+            <TraceDatasetItemAction
               projectId={projectId}
-              input={trace.input}
-              output={trace.output}
-              metadata={trace.metadata}
               key={trace.id}
               size="sm"
+              trace={trace}
+              layout="toolbar"
             />
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
