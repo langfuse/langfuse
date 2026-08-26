@@ -583,18 +583,13 @@ export const createAnnotationQueueAssignmentForApi = async ({
     userId: input.userId,
   };
 
-  // Create the assignment (upsert to handle duplicates gracefully). The
-  // pre-check distinguishes a real grant from an idempotent re-assignment so
-  // the audit trail only records actual state changes - this endpoint is
-  // reachable from the public API, where clients may re-sync assignments on
-  // a schedule.
-  const existingAssignment = await prisma.annotationQueueAssignment.findUnique({
-    where: {
-      projectId_queueId_userId: assignmentWhere,
-    },
-    select: { id: true },
-  });
-
+  // Use the upsert result itself to decide whether to audit: a freshly
+  // created row has createdAt === updatedAt (Prisma @updatedAt is only
+  // bumped on update). This is atomic - no extra read, so concurrent
+  // re-assigns cannot both observe "no existing row" and double-log.
+  // update:{} is intentionally empty for the idempotent path; the
+  // timestamp comparison still works because @updatedAt stays equal to
+  // createdAt only on insertion.
   const assignment = await prisma.annotationQueueAssignment.upsert({
     where: {
       projectId_queueId_userId: assignmentWhere,
@@ -603,7 +598,10 @@ export const createAnnotationQueueAssignmentForApi = async ({
     update: {},
   });
 
-  if (auditScope && !existingAssignment) {
+  const isNewlyCreated =
+    assignment.createdAt.getTime() === assignment.updatedAt.getTime();
+
+  if (auditScope && isNewlyCreated) {
     await auditLog({
       action: "create",
       resourceType: "annotationQueueAssignment",
