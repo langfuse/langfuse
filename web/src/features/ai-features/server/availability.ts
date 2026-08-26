@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { getInAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 
 type LangfuseAiFeatureUnavailableReason =
@@ -39,13 +40,14 @@ export async function resolveLangfuseAiFeatureAvailability(params: {
     return { available: false, reason: "organization-disabled" };
   }
 
-  const model =
-    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
-  if (!model) return { available: false, reason: "model-not-configured" };
+  // Same resolution as the Assistant and Ask AI: the small model, whichever
+  // provider is configured.
+  const modelConfig = getInAppAgentModelConfig();
+  if (!modelConfig) return { available: false, reason: "model-not-configured" };
 
   return {
     available: true,
-    model,
+    model: modelConfig.titleModelId,
     aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
   };
 }

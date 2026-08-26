@@ -117,7 +117,7 @@ export const observationsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: 'o."level"::text',
@@ -127,6 +127,7 @@ export const observationsTableCols: ColumnDefinition[] = [
       { value: "WARNING" },
       { value: "ERROR" },
     ] as { value: ObservationLevelType }[],
+    aliases: ["Level"],
   },
   {
     name: "Status Message",

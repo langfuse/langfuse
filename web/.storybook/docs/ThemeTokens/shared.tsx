@@ -14,7 +14,7 @@
 import { ChevronRight } from "lucide-react";
 import { type ReactNode, useSyncExternalStore } from "react";
 
-import globalsCss from "../../../styles/globals.css?raw";
+import globalsCss from "../../../src/styles/globals.css?raw";
 import {
   CropFrame as Panel,
   DocsPageHeader as PageHeader,

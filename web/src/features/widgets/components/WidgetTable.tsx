@@ -6,8 +6,8 @@ import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
-import TableLink from "@/src/components/table/table-link";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import startCase from "lodash/startCase";
@@ -141,6 +141,10 @@ function WidgetActionsCell({
         kind: "widget",
         widget_id: widgetId,
       });
+      showSuccessToast({
+        title: "Widget copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
     } catch (error) {
       showErrorToast(
         "Failed to copy widget",
@@ -168,7 +172,7 @@ function WidgetActionsCell({
       });
       utils.dashboardWidgets.invalidate();
       showSuccessToast({
-        title: "Widget duplicated",
+        title: "Widget cloned",
         description: `Created "${exportSource.name} (Copy)".`,
       });
     } catch (error) {
@@ -190,11 +194,11 @@ function WidgetActionsCell({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={handleCopyToClipboard}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy to clipboard
+            Copy widget
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!hasCUDAccess} onClick={handleDuplicate}>
             <CopyPlus className="mr-2 h-4 w-4" />
-            Duplicate
+            Clone
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleDownloadJson}>
             <FileJson className="mr-2 h-4 w-4" />
@@ -274,19 +278,23 @@ export function DashboardWidgetTable() {
 
   const columnHelper = createColumnHelper<WidgetTableRow>();
   const widgetColumns = [
-    columnHelper.accessor("name", {
+    createLinkTableColumn<WidgetTableRow>({
+      accessorKey: "name",
       header: "Name",
-      id: "name",
       enableSorting: true,
       size: 200,
-      cell: (row) => {
-        const name = row.getValue();
-        return name ? (
-          <TableLink
-            path={`/project/${projectId}/widgets/${encodeURIComponent(row.row.original.id)}`}
-            value={name}
-          />
-        ) : undefined;
+      getCell: (name, { row }) => {
+        if (name) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/widgets/${encodeURIComponent(row.original.id)}`,
+              value: name,
+            },
+          };
+        }
+
+        return undefined;
       },
     }),
     createTextTableColumn<WidgetTableRow>({

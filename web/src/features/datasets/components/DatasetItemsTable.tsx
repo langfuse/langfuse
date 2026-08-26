@@ -1,5 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
@@ -142,52 +142,56 @@ export function DatasetItemsTable({
   );
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData>({
       accessorKey: "id",
       header: "Item id",
-      id: "id",
       size: 90,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const id: string = row.getValue("id");
-        const versionParam = selectedVersion
-          ? `?version=${encodeURIComponent(selectedVersion.toISOString())}`
-          : "";
-        return (
-          <TableLink
-            path={`/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (!id) return undefined;
+        let versionParam = "";
+        if (selectedVersion) {
+          versionParam = `?version=${encodeURIComponent(selectedVersion.toISOString())}`;
+        }
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`,
+            value: id,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<RowData, RowData["source"]>({
       accessorKey: "source",
       header: "Source",
       headerTooltip: {
         description:
           "Link to the source trace based on which this item was added",
       },
-      id: "source",
       size: 90,
-      cell: ({ row }) => {
-        const source: RowData["source"] = row.getValue("source");
-        if (!source) return null;
-        return source.observationId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}?observation=${encodeURIComponent(source.observationId)}`}
-            value={source.observationId}
-            icon={<ListTree className="h-4 w-4" />}
-          />
-        ) : (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}`}
-            value={source.traceId}
-            icon={<ListTree className="h-4 w-4" />}
-          />
-        );
+      getCell: (source) => {
+        if (!source) return undefined;
+        if (source.observationId) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(source.traceId)}?observation=${encodeURIComponent(source.observationId)}`,
+              value: source.observationId,
+              icon: ListTree,
+            },
+          };
+        }
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(source.traceId)}`,
+            value: source.traceId,
+            icon: ListTree,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "status",
       header: "Status",
