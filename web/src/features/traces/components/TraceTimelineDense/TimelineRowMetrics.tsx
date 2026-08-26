@@ -108,6 +108,9 @@ export function TimelineRowMetrics({
       : null;
   const showDuration = durationText != null && fitsText(durationText);
   const showCost = Boolean(metrics.costText) && fitsText(metrics.costText!);
+  // Nothing fitted: draw nothing. The row is not silent — hovering it names it
+  // and states the same duration and cost, for every row at every density,
+  // which is a better fallback than a title on a box of zero width.
   if (!showDuration && !showCost) return null;
 
   // What did not fit stays reachable on hover: a row that silently omits its

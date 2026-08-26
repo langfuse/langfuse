@@ -2223,3 +2223,59 @@ export const TheClusterTakesTheRoomierSide = meta.story({
     }
   },
 });
+
+/**
+ * When the lane is too narrow for even one metric, the row draws none — and the
+ * tooltip is what keeps it from going silent. It states the same duration and
+ * cost for every row at every density, which is why the cluster does not need a
+ * title on a box of zero width.
+ */
+export const ARowTooTightForMetricsStillSaysThem = meta.story({
+  name: "(Test) A Row Too Tight For Metrics Still Says Them",
+  args: {
+    // 600 rows in this box are 1px each: no room for a metric anywhere.
+    roots: manySpans(600),
+    box: PHONE,
+    gutter: "auto" as const,
+    pointer: "fine" as const,
+    barColor: "type" as const,
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    metricsOf: () => ({ costText: "$0.0021" }),
+  },
+  play: async ({ canvasElement }) => {
+    // Nothing is drawn beside a 1px bar.
+    await expect(
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-metrics"]')
+        .length,
+    ).toBe(0);
+
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.6,
+        clientY: rect.top + 200,
+      }),
+    );
+
+    const tooltip = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+      if (!el) throw new Error("no tooltip");
+      return el;
+    });
+    // The duration and the cost, on a row that had no room to print either.
+    await expect(tooltip.innerText).toMatch(/\d/);
+    await expect(tooltip.innerText).toContain("$0.0021");
+  },
+});

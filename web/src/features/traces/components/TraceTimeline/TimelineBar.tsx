@@ -17,7 +17,6 @@ import { type TimelineBarProps } from "./types";
 import { cn } from "@/src/utils/tailwind";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import {} from "@/src/components/score-tag";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtreeDurationOverflowMs";
