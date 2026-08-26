@@ -130,12 +130,15 @@ export default function DashboardDetail() {
   const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
 
   // PostHog is the external system: report one view per dashboard once the
-  // owner is known ("do the Langfuse-maintained templates get used?"). Keyed
-  // by id so client-side navigation between dashboards re-reports; `capture`
-  // has a stable identity.
+  // owner is known ("do the Langfuse-maintained templates get used?"). The
+  // id ref dedupes Strict Mode double-mounts while still re-reporting on
+  // client-side navigation between dashboards (same pattern as
+  // dashboard:home_dashboard_viewed).
   const dashboardOwner = dashboard.data?.owner;
+  const viewedDashboardRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!dashboardOwner) return;
+    if (!dashboardOwner || viewedDashboardRef.current === dashboardId) return;
+    viewedDashboardRef.current = dashboardId;
     capture("dashboard:view", { dashboardId, owner: dashboardOwner });
   }, [capture, dashboardId, dashboardOwner]);
 
