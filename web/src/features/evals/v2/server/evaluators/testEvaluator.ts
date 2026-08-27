@@ -1,5 +1,6 @@
 import {
   getCodeEvalVariableMapping,
+  getEvaluatorPromptMessages,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
@@ -97,10 +98,10 @@ async function testLlmEvaluator(params: {
   let estimatedCostUsd: number | null = null;
   try {
     const execution = await executeLlmEvaluator({
-      templatePrompt: params.definition.prompt,
-      templatePromptMessages: params.definition.promptMessages ?? [
-        { role: "user", content: params.definition.prompt },
-      ],
+      promptMessages: getEvaluatorPromptMessages({
+        prompt: params.definition.prompt,
+        promptMessages: params.definition.promptMessages,
+      }),
       variables: params.variables,
       outputDefinition: params.definition.outputDefinition,
       callLlm: async ({

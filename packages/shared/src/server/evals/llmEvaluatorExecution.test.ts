@@ -3,11 +3,11 @@ import { createNumericEvalOutputDefinition } from "../../features/evals/outputDe
 import { executeLlmEvaluator } from "./llmEvaluatorExecution";
 
 describe("executeLlmEvaluator", () => {
-  it("loads a legacy string prompt as one user message", async () => {
+  it("interpolates a single user prompt message", async () => {
     const callLlm = vi.fn().mockResolvedValue({ score: 1 });
 
     await executeLlmEvaluator({
-      templatePrompt: "legacy {{input}}",
+      promptMessages: [{ role: "user", content: "legacy {{input}}" }],
       variables: [{ var: "input", value: "prompt" }],
       outputDefinition: createNumericEvalOutputDefinition({
         scoreDescription: "score",
@@ -32,8 +32,7 @@ describe("executeLlmEvaluator", () => {
     const callLlm = vi.fn().mockResolvedValue({ score: 1 });
 
     await executeLlmEvaluator({
-      templatePrompt: "legacy fallback",
-      templatePromptMessages: [
+      promptMessages: [
         { role: "system", content: "Judge {{input}}" },
         { role: "user", content: "Response: {{output}}" },
         { role: "assistant", content: "Return only the score" },
@@ -70,8 +69,12 @@ describe("executeLlmEvaluator", () => {
     });
 
     const result = await executeLlmEvaluator({
-      templatePrompt:
-        "input={{input}} metadata={{metadata}} missing={{missing}}",
+      promptMessages: [
+        {
+          role: "user",
+          content: "input={{input}} metadata={{metadata}} missing={{missing}}",
+        },
+      ],
       variables: [
         { var: "input", value: "hello" },
         { var: "metadata", value: { source: "test" } },

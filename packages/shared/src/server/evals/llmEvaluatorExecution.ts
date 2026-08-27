@@ -4,10 +4,7 @@ import {
   type CompiledEvalOutputDefinition,
   type PersistedEvalOutputDefinition,
 } from "../../features/evals/outputDefinition";
-import {
-  getEvaluatorPromptMessages,
-  type PersistedEvaluatorPromptMessages,
-} from "../../features/evals/types";
+import type { PersistedEvaluatorPromptMessages } from "../../features/evals/types";
 import { compileEvalPrompt } from "../../utils/prompts";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import {
@@ -17,16 +14,10 @@ import {
 } from "../llm/types";
 
 function buildEvalMessages(params: {
-  templatePrompt: string;
-  templatePromptMessages?: PersistedEvaluatorPromptMessages | null;
+  promptMessages: PersistedEvaluatorPromptMessages;
   variables: ExtractedVariable[];
 }): ChatMessage[] {
-  const promptMessages = getEvaluatorPromptMessages({
-    prompt: params.templatePrompt,
-    promptMessages: params.templatePromptMessages,
-  });
-
-  return promptMessages.map((message): ChatMessage => {
+  return params.promptMessages.map((message): ChatMessage => {
     const content = compileEvalPrompt({
       templatePrompt: message.content,
       variables: params.variables,
@@ -54,8 +45,7 @@ function buildEvalMessages(params: {
 }
 
 export async function executeLlmEvaluator(params: {
-  templatePrompt: string;
-  templatePromptMessages?: PersistedEvaluatorPromptMessages | null;
+  promptMessages: PersistedEvaluatorPromptMessages;
   variables: ExtractedVariable[];
   outputDefinition: PersistedEvalOutputDefinition;
   callLlm: (params: {

@@ -1081,8 +1081,7 @@ export async function runLLMAsJudgeEvaluation({
       let evaluatorExecution: Awaited<ReturnType<typeof executeLlmEvaluator>>;
       try {
         evaluatorExecution = await executeLlmEvaluator({
-          templatePrompt: template.prompt,
-          templatePromptMessages: getEvaluatorPromptMessages({
+          promptMessages: getEvaluatorPromptMessages({
             prompt: template.prompt,
             promptMessages: template.promptMessages,
           }),
