@@ -188,6 +188,45 @@ describe("evaluator configuration validation", () => {
     );
   });
 
+  it("rejects empty prompt messages", async () => {
+    const definition = {
+      type: EvalTemplateType.LLM_AS_JUDGE,
+      prompt: "Judge {{output}}",
+      promptMessages: [
+        { role: "user" as const, content: "Judge {{output}}" },
+        { role: "assistant" as const, content: "   " },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["output"],
+      variableMapping: null,
+      outputDefinition: {
+        version: 2 as const,
+        dataType: "NUMERIC" as const,
+        score: { description: "Quality" },
+        reasoning: { description: "Reasoning" },
+      },
+    };
+
+    expect(
+      CreateEvaluatorSchema.safeParse({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        description: null,
+        definition,
+      }).success,
+    ).toBe(false);
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition,
+      }),
+    ).rejects.toThrow("Add content to every prompt message before saving.");
+  });
+
   it("rejects evaluator variables that do not match the prompt", async () => {
     await expect(
       assertEvaluatorConfigurationValid({

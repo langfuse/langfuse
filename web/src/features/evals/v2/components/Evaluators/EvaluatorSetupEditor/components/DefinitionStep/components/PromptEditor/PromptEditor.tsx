@@ -31,6 +31,11 @@ import { useShallow } from "zustand/react/shallow";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import {
@@ -43,6 +48,10 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
 import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
+import {
+  EMPTY_PROMPT_MESSAGE_ERROR,
+  INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
+} from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -185,7 +194,33 @@ function SortablePromptMessage({
 }) {
   const [expanded, setExpanded] = useState(true);
   const { copy } = useCopyToClipboard();
+  const hasEmptyContent = message.content.trim().length === 0;
   const hasInvalidSystemRole = index > 0 && message.role === "system";
+  const warningReason = [
+    hasEmptyContent ? EMPTY_PROMPT_MESSAGE_ERROR : null,
+    hasInvalidSystemRole ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const roleBadge = (
+    <Badge
+      variant="tertiary"
+      size="sm"
+      className="h-5 shrink-0 gap-1 leading-none"
+    >
+      {warningReason ? (
+        <TriangleAlert
+          className="text-dark-yellow h-3.5 w-3.5"
+          aria-label={
+            hasEmptyContent
+              ? "Empty prompt message"
+              : "Invalid system message position"
+          }
+        />
+      ) : null}
+      {ROLES.find((role) => role.value === message.role)?.label}
+    </Badge>
+  );
   const {
     attributes,
     listeners,
@@ -248,25 +283,19 @@ function SortablePromptMessage({
                 )}
               />
             </Button>
-            {messageCount > 1 || message.role !== "user" ? (
-              <Badge
-                variant="tertiary"
-                size="sm"
-                className="h-5 shrink-0 gap-1 leading-none"
-                title={
-                  hasInvalidSystemRole
-                    ? "System messages are only allowed as the first prompt message"
-                    : undefined
-                }
-              >
-                {hasInvalidSystemRole ? (
-                  <TriangleAlert
-                    className="text-dark-yellow h-3.5 w-3.5"
-                    aria-label="Invalid system message position"
-                  />
-                ) : null}
-                {ROLES.find((role) => role.value === message.role)?.label}
-              </Badge>
+            {messageCount > 1 || message.role !== "user" || warningReason ? (
+              warningReason ? (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex" tabIndex={0}>
+                      {roleBadge}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{warningReason}</TooltipContent>
+                </Tooltip>
+              ) : (
+                roleBadge
+              )
             ) : null}
             {!expanded ? (
               <span
@@ -296,18 +325,26 @@ function SortablePromptMessage({
               <DropdownMenuLabel className="text-muted-foreground px-2 py-1 text-[10px] font-bold tracking-wider uppercase">
                 Role
               </DropdownMenuLabel>
-              {ROLES.map((role) => (
-                <DropdownMenuItem
-                  key={role.value}
-                  disabled={index > 0 && role.value === "system"}
-                  onSelect={() => onChange({ ...message, role: role.value })}
-                >
-                  <span className="flex-1">{role.label}</span>
-                  {message.role === role.value ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : null}
-                </DropdownMenuItem>
-              ))}
+              {ROLES.map((role) => {
+                const disabledReason =
+                  index > 0 && role.value === "system"
+                    ? INVALID_SYSTEM_PROMPT_MESSAGE_ERROR
+                    : null;
+                return (
+                  <DropdownMenuItem
+                    key={role.value}
+                    disabled={Boolean(disabledReason)}
+                    allowPointerEventsWhenDisabled={Boolean(disabledReason)}
+                    title={disabledReason ?? undefined}
+                    onSelect={() => onChange({ ...message, role: role.value })}
+                  >
+                    <span className="flex-1">{role.label}</span>
+                    {message.role === role.value ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : null}
+                  </DropdownMenuItem>
+                );
+              })}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {

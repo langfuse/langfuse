@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
@@ -29,41 +30,54 @@ export function EvaluatorSetupFooter({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const { currentSnapshot, canSubmit, scoreOutputReason, nameMissing } =
-    useStore(
-      store,
-      useShallow((state) => {
-        const { definition, mappings } = prepareEvaluatorDraft(state);
-        const hasCompleteMappings =
-          state.type !== "LLM_AS_JUDGE" ||
-          mappings.every(({ fieldState }) =>
-            Boolean(fieldState.selectedColumnId),
-          );
+  const {
+    currentSnapshot,
+    canSubmit,
+    promptMessagesReason,
+    scoreOutputReason,
+    nameMissing,
+  } = useStore(
+    store,
+    useShallow((state) => {
+      const { definition, mappings } = prepareEvaluatorDraft(state);
+      const hasCompleteMappings =
+        state.type !== "LLM_AS_JUDGE" ||
+        mappings.every(({ fieldState }) =>
+          Boolean(fieldState.selectedColumnId),
+        );
 
-        return {
-          currentSnapshot: JSON.stringify({
-            name: state.name.trim(),
-            description: state.description.trim() || null,
-            definition,
-          }),
-          canSubmit: Boolean(definition) && hasCompleteMappings,
-          scoreOutputReason:
-            state.type === "LLM_AS_JUDGE"
-              ? getScoreOutputValidation(state.scoreOutput).reason
-              : null,
-          nameMissing: !state.name.trim(),
-        };
-      }),
-    );
+      return {
+        currentSnapshot: JSON.stringify({
+          name: state.name.trim(),
+          description: state.description.trim() || null,
+          definition,
+        }),
+        canSubmit: Boolean(definition) && hasCompleteMappings,
+        promptMessagesReason:
+          state.type === "LLM_AS_JUDGE"
+            ? getPromptMessagesValidationError(state.promptMessages)
+            : null,
+        scoreOutputReason:
+          state.type === "LLM_AS_JUDGE"
+            ? getScoreOutputValidation(state.scoreOutput).reason
+            : null,
+        nameMissing: !state.name.trim(),
+      };
+    }),
+  );
   const hasUnsavedChanges = currentSnapshot !== initialSnapshot;
   const disabledReason =
     nameMissing && !nameAIAssistanceAvailable
       ? "Add an evaluator name before saving."
-      : scoreOutputReason
-        ? scoreOutputReason
-        : codeValidation && !codeValidation.isPending && !codeValidation.isValid
-          ? "Fix the code validation errors before saving."
-          : null;
+      : promptMessagesReason
+        ? promptMessagesReason
+        : scoreOutputReason
+          ? scoreOutputReason
+          : codeValidation &&
+              !codeValidation.isPending &&
+              !codeValidation.isValid
+            ? "Fix the code validation errors before saving."
+            : null;
   const saveButton = (
     <Button
       type="button"

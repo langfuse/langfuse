@@ -140,9 +140,30 @@ export const InvalidSystemMessagePosition = meta.story({
     await userEvent.click(
       canvas.getAllByRole("button", { name: "Prompt message settings" })[1],
     );
-    await expect(
-      page.getByRole("menuitem", { name: "System" }),
-    ).toHaveAttribute("data-disabled");
+    const systemRole = page.getByRole("menuitem", { name: "System" });
+    await expect(systemRole).toHaveAttribute("data-disabled");
+    await expect(systemRole).toHaveAttribute(
+      "title",
+      "System messages are only allowed as the first prompt message.",
+    );
+  },
+});
+
+export const EmptyPromptMessage = meta.story({
+  name: "(Test) Empty prompt message",
+  render: () => (
+    <PromptEditorStory messages={[{ role: "user", content: "" }]} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const warning = canvas.getByLabelText("Empty prompt message");
+
+    await expect(warning).toBeVisible();
+    await userEvent.hover(warning);
+    await expect(page.getByRole("tooltip")).toHaveTextContent(
+      "Add content to every prompt message before saving.",
+    );
   },
 });
 

@@ -27,7 +27,9 @@ export const EvalTemplateSourceCodeLanguageEnum = {
 
 export const EvaluatorPromptMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
-  content: z.string(),
+  content: z.string().refine((content) => content.trim().length > 0, {
+    message: "Prompt messages cannot be empty",
+  }),
 });
 export type EvaluatorPromptMessage = z.infer<
   typeof EvaluatorPromptMessageSchema
