@@ -69,16 +69,27 @@ export default async function handler(
     // add context of api call to the span
     const currentSpan = getCurrentSpan();
 
+    // Preserve the raw x-langfuse-* attributes consumed by existing ingestion
+    // dashboards. The canonical attributes below are shared by all public API
+    // routes and intentionally use a bounded SDK name/version vocabulary.
+    Object.keys(req.headers).forEach((header) => {
+      if (
+        header.toLowerCase().startsWith("x-langfuse") ||
+        header.toLowerCase().startsWith("x_langfuse")
+      ) {
+        currentSpan?.setAttributes({
+          [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
+            req.headers[header],
+        });
+      }
+    });
+
     const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
     if (sdkName) {
       currentSpan?.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
-      // Keep the existing ingestion dashboard attribute while callers migrate
-      // to the canonical attribute that is now present on every public route.
-      currentSpan?.setAttribute("langfuse.header.sdk-name", sdkName);
     }
     if (sdkVersion) {
       currentSpan?.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
-      currentSpan?.setAttribute("langfuse.header.sdk-version", sdkVersion);
     }
 
     if (req.method !== "POST") throw new MethodNotAllowedError();

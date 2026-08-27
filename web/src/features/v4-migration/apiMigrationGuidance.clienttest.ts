@@ -42,6 +42,59 @@ describe("getApiMigrationGuidance", () => {
     });
   });
 
+  it("preserves the score ID when migrating the v2 score endpoint", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/v2/scores/{id}",
+        undefined,
+        undefined,
+      ),
+    ).toEqual({
+      replacement: "GET /api/public/v3/scores?id=<score id>",
+    });
+  });
+
+  it("bounds the observation ID lookup by time", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/observations/{id}",
+        "javascript",
+        "5.5.0",
+      ),
+    ).toMatchObject({
+      replacementMethod:
+        'client.api.observations.getMany({ filter: "<id filter>", fromStartTime, toStartTime })',
+      replacement:
+        "GET /api/public/v2/observations?filter=<id filter>&fromStartTime=<from>&toStartTime=<to>",
+    });
+  });
+
+  it("includes the required v2 query when migrating daily metrics", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/metrics/daily",
+        undefined,
+        undefined,
+      ),
+    ).toEqual({
+      replacement:
+        "GET /api/public/v2/metrics?query=<URL-encoded JSON with view, metrics, fromTimestamp, and toTimestamp>",
+    });
+  });
+
+  it("warns that trace metrics have no drop-in v2 replacement", () => {
+    expect(
+      getApiMigrationGuidance("GET /api/public/metrics", "python", "4.8.1"),
+    ).toMatchObject({
+      replacementMethod: expect.stringContaining(
+        "traces view has no drop-in v2 replacement",
+      ),
+      replacement: expect.stringContaining(
+        "traces view has no drop-in v2 replacement",
+      ),
+    });
+  });
+
   it("uses a bounded observation scan when migrating session listing", () => {
     expect(
       getApiMigrationGuidance(

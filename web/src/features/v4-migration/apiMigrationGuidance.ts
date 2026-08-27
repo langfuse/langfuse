@@ -69,17 +69,19 @@ const guidanceByEndpoint: Record<
     },
   },
   "GET /api/public/observations/{id}": {
-    replacement: "GET /api/public/v2/observations",
+    replacement:
+      "GET /api/public/v2/observations?filter=<id filter>&fromStartTime=<from>&toStartTime=<to>",
     methods: {
       python: {
         current: "client.api.legacy.observations_v1.get(...)",
-        replacement: 'client.api.observations.get_many(filter="<id filter>")',
+        replacement:
+          'client.api.observations.get_many(filter="<id filter>", from_start_time=..., to_start_time=...)',
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.legacy.observationsV1.get(...)",
         replacement:
-          'client.api.observations.getMany({ filter: "<id filter>" })',
+          'client.api.observations.getMany({ filter: "<id filter>", fromStartTime, toStartTime })',
         minimumVersion: "4.0.0",
       },
     },
@@ -100,7 +102,7 @@ const guidanceByEndpoint: Record<
     },
   },
   "GET /api/public/v2/scores/{id}": {
-    replacement: "GET /api/public/v3/scores",
+    replacement: "GET /api/public/v3/scores?id=<score id>",
     methods: {
       python: {
         current: "client.api.scores.get_by_id(...)",
@@ -166,15 +168,18 @@ const guidanceByEndpoint: Record<
     },
   },
   "GET /api/public/metrics": {
-    replacement: "GET /api/public/v2/metrics",
+    replacement:
+      "GET /api/public/v2/metrics with a supported observations or scores query; the traces view has no drop-in v2 replacement",
     methods: {
       python: {
         current: "client.api.legacy.metrics_v1.metrics(...)",
-        replacement: "client.api.metrics.metrics(...)",
+        replacement:
+          "client.api.metrics.metrics(...) with an observations or scores view; the traces view has no drop-in v2 replacement",
       },
       javascript: {
         current: "client.api.legacy.metricsV1.metrics(...)",
-        replacement: "client.api.metrics.metrics(...)",
+        replacement:
+          "client.api.metrics.metrics(...) with an observations or scores view; the traces view has no drop-in v2 replacement",
       },
     },
   },
@@ -233,7 +238,8 @@ const genericReplacements: Record<string, string> = {
   "GET /api/public/generations":
     "GET /api/public/v2/observations?type=GENERATION",
   "GET /api/public/scores": "GET /api/public/v3/scores",
-  "GET /api/public/metrics/daily": "GET /api/public/v2/metrics",
+  "GET /api/public/metrics/daily":
+    "GET /api/public/v2/metrics?query=<URL-encoded JSON with view, metrics, fromTimestamp, and toTimestamp>",
 };
 
 const isVersionBefore = (version: string, minimum: string): boolean => {
