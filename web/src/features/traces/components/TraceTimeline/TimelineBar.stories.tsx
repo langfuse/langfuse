@@ -1,12 +1,12 @@
 import { expect, userEvent, waitFor } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
+import { TimelineBar } from "./TimelineBar";
 import {
   MAX_SCORE_GROUPS,
   SCORE_GROUP_GAP_PX,
-  TimelineBar,
   overflowButtonWidth,
   scoreBadgesWidth,
-} from "./TimelineBar";
+} from "../../fns/timeline/metricCluster";
 import {
   createTextMeasurer,
   createTextMeasurerFrom,
