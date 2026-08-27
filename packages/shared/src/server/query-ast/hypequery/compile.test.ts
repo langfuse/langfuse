@@ -1,5 +1,7 @@
+import { spawnSync } from "child_process";
 import { describe, expect, it } from "vitest";
 
+import { clickhouseFormatAvailable } from "../goldenHarness";
 import { compile, UnscopedQueryError } from "./compile";
 import { table } from "./db";
 import {
@@ -10,6 +12,35 @@ import { TenantInjectionError } from "./executionContext";
 
 const PROJECT_ID = "golden-project";
 const FROM_TS = new Date("2026-01-01T00:00:00.000Z");
+
+function bindProjectId(sql: string): string {
+  return sql.replaceAll("{projectId:String}", `'${PROJECT_ID}'`);
+}
+
+function clickhouseLocal(
+  query: string,
+  analyzer?: 0 | 1,
+): { status: number | null; stderr: string; stdout: string } {
+  const input = [
+    analyzer === undefined ? "" : `SET enable_analyzer = ${analyzer};`,
+    "CREATE TABLE events_core (span_id String, project_id String, environment String) ENGINE = Memory;",
+    "CREATE TABLE scores (project_id String, span_id String) ENGINE = Memory;",
+    `INSERT INTO events_core VALUES ('s1', '${PROJECT_ID}', 'prod'), ('s2', 'other-project', 'default');`,
+    `INSERT INTO scores VALUES ('${PROJECT_ID}', 's1'), ('other-project', 's2');`,
+    query,
+  ]
+    .filter((line) => line.length > 0)
+    .join("\n");
+  const res = spawnSync("clickhouse", ["local", "--multiquery"], {
+    input,
+    encoding: "utf8",
+  });
+  return {
+    status: res.status,
+    stderr: res.stderr ?? "",
+    stdout: res.stdout ?? "",
+  };
+}
 
 describe("compile choke point", () => {
   it("refuses to compile without ExecutionContext.projectId", () => {
@@ -101,7 +132,7 @@ describe("compile choke point", () => {
     );
   });
 
-  it("injects project_id onto joined tenant tables", () => {
+  it("qualifies FROM and JOIN columns so two-tenant JOINs are not ambiguous", () => {
     const compiled = compile(
       table("events_core")
         .select(["span_id"])
@@ -109,8 +140,52 @@ describe("compile choke point", () => {
       { projectId: PROJECT_ID },
     );
     expect(compiled.sql).toMatch(/JOIN scores/i);
-    expect(compiled.sql).toContain("project_id = {projectId:String}");
+    expect(compiled.sql).toContain(
+      "ON events_core.project_id = scores.project_id",
+    );
+    expect(compiled.sql).toContain(
+      "events_core.project_id = {projectId:String}",
+    );
     expect(compiled.sql).toContain("scores.project_id = {projectId:String}");
+    expect(compiled.sql).not.toMatch(
+      /ON project_id = |WHERE project_id = |AND project_id = /,
+    );
     expect(compiled.params.projectId).toBe(PROJECT_ID);
+  });
+
+  it.skipIf(!clickhouseFormatAvailable())(
+    "executes a two-tenant JOIN on clickhouse local with the old analyzer",
+    () => {
+      const compiled = compile(
+        table("events_core")
+          .select(["span_id"])
+          .innerJoin("scores", "project_id", "scores.project_id"),
+        { projectId: PROJECT_ID },
+      );
+      const executed = clickhouseLocal(bindProjectId(compiled.sql), 0);
+      expect(executed.stderr, executed.stderr).not.toMatch(
+        /AMBIGUOUS_COLUMN_NAME|ambiguous/i,
+      );
+      expect(executed.status, executed.stderr).toBe(0);
+      expect(executed.stdout).toContain("s1");
+      expect(executed.stdout).not.toContain("s2");
+    },
+  );
+
+  it("parenthesizes a raw predicate that contains OR", () => {
+    const compiled = compile(
+      table("events_core")
+        .select(["span_id"])
+        .where((expr) =>
+          expr.raw("environment = 'prod' OR environment = 'default'"),
+        ),
+      { projectId: PROJECT_ID },
+    );
+    expect(compiled.sql).toMatch(
+      /project_id = \{projectId:String\} AND \(environment = 'prod' OR environment = 'default'\)/,
+    );
+    expect(compiled.sql).not.toMatch(
+      /project_id = \{projectId:String\} AND environment = 'prod' OR environment = 'default'/,
+    );
   });
 });

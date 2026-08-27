@@ -15,8 +15,10 @@ field metadata, `FilterState` embedding) will land under
   traced physical tables. `.execute()` is disabled; SQL leaves through
   `compile()`.
 - `compile.ts` — **the tenancy choke point**. Requires `ExecutionContext.projectId`.
-  Injects `project_id` onto every tenant table scan. An unscoped compile
-  throws `UnscopedQueryError`.
+  Injects `project_id` onto every tenant table scan. Joins qualify
+  `from.project_id` (unqualified is `AMBIGUOUS_COLUMN_NAME` on the old
+  analyzer). Raw `OR` predicates are parenthesized so AND cannot rebind.
+  An unscoped compile throws `UnscopedQueryError`.
 - `plan.ts` — `union-all` and `view-query` are our nodes. hypequery stores
   `unionQueries` as `string[]` and `withCTE` as a stringified `toSQL()`
   fragment; this arm does not use either.

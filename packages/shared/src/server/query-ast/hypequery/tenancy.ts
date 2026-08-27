@@ -28,9 +28,22 @@ function containsOr(expr: HypeExprNode): boolean {
       );
     case "group":
       return expr.expression ? containsOr(expr.expression) : false;
+    case "raw":
+      // `where((expr) => expr.raw("… OR …"))` stores a SQL string, not a
+      // logical node. AND-prepending tenancy without wrapping rebinds:
+      // `project_id = X AND a OR b` parses as `(project_id = X AND a) OR b`.
+      return true;
     default:
       return false;
   }
+}
+
+function fromProjectIdColumn(node: HypeSelectNode): string | undefined {
+  const tableName = node.from?.kind === "table" ? node.from.name : undefined;
+  if (!tableName || !TENANT_TABLES.has(tableName)) return undefined;
+  return tenantJoinQualifiers(node).length > 0
+    ? `${tableName}.${PROJECT_ID_COLUMN}`
+    : PROJECT_ID_COLUMN;
 }
 
 function prependAnd(
@@ -109,9 +122,13 @@ export function injectTenancy(
   const next: HypeSelectNode = structuredClone(node);
   const from = next.from;
   const tableName = from?.kind === "table" ? from.name : undefined;
+  const fromColumn = fromProjectIdColumn(next);
 
-  if (tableName && TENANT_TABLES.has(tableName)) {
-    next.where = prependAnd(next.where, projectIdCondition(projectId));
+  if (fromColumn) {
+    next.where = prependAnd(
+      next.where,
+      projectIdCondition(projectId, fromColumn),
+    );
   }
 
   for (const join of next.joins ?? []) {
@@ -133,18 +150,17 @@ export function injectTenancy(
 }
 
 export function hasTenantPredicate(node: HypeSelectNode): boolean {
-  const tableName = node.from?.kind === "table" ? node.from.name : undefined;
-  const fromIsTenant = Boolean(tableName && TENANT_TABLES.has(tableName));
+  const fromColumn = fromProjectIdColumn(node);
   const joinQualifiers = tenantJoinQualifiers(node);
 
-  if (!fromIsTenant && joinQualifiers.length === 0) {
+  if (!fromColumn && joinQualifiers.length === 0) {
     return true;
   }
 
   if (
-    fromIsTenant &&
-    !exprHasProjectIdEq(node.where) &&
-    !exprHasProjectIdEq(node.prewhere)
+    fromColumn &&
+    !exprHasProjectIdEq(node.where, fromColumn) &&
+    !exprHasProjectIdEq(node.prewhere, fromColumn)
   ) {
     return false;
   }

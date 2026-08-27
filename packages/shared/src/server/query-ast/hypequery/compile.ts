@@ -240,6 +240,10 @@ function compileMetadataAccess(
   return compileSubscript(node.subscript, binder);
 }
 
+function qualifyColumn(column: string, qualifier: string): string {
+  return column.includes(".") ? column : `${qualifier}.${column}`;
+}
+
 function compileSelectNode(
   node: HypeSelectNode,
   tableName: string,
@@ -276,12 +280,14 @@ function compileSelectNode(
   }
 
   if (node.joins?.length) {
+    const fromQualifier = extras?.tableAlias ?? fromName;
     for (const join of node.joins) {
       const tableClause = join.alias
         ? `${join.table} AS ${join.alias}`
         : join.table;
+      const rightQualifier = join.alias ?? join.table;
       parts.push(
-        `${join.type} JOIN ${tableClause} ON ${join.leftColumn} = ${join.rightColumn}`,
+        `${join.type} JOIN ${tableClause} ON ${qualifyColumn(join.leftColumn, fromQualifier)} = ${qualifyColumn(join.rightColumn, rightQualifier)}`,
       );
     }
   }
