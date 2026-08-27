@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type ButtonProps } from "@/src/components/ui/button";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { api } from "@/src/utils/api";

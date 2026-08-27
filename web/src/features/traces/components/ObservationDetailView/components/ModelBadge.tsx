@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * Model badge for ObservationDetailView
  * Handles linked models (with external link) and unlinked models (with create form)

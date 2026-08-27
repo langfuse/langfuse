@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import Header from "@/src/components/layouts/header";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
 import { Dialog, DialogTrigger } from "@/src/components/ui/dialog";
 import { api, reportNonTrpcError } from "@/src/utils/api";

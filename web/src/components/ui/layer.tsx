@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import * as React from "react";
 import { createPortal } from "react-dom";
 

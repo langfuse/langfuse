@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useState } from "react";
 import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";

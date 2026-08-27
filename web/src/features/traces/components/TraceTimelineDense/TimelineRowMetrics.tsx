@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * The metrics beside a bar: how long it took, what it cost, whether anyone
  * commented on it, and how it scored.

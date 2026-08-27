@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { env } from "@/src/env.mjs";
 import { CloudRegionPicker } from "@/src/features/auth/components/CloudRegionPicker";
 import { getAvailableCloudRegionOptions } from "@/src/features/organizations/cloudRegions";

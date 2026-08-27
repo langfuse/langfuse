@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * Simple metadata badges for ObservationDetailView
  * Each badge handles its own null checks and returns null when data is unavailable

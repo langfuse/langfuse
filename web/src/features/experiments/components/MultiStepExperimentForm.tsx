@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";

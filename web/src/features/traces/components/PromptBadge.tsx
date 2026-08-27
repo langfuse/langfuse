@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";

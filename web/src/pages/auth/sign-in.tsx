@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type GetServerSideProps } from "next";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";

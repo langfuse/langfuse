@@ -139,6 +139,24 @@ export default [
     },
   },
 
+  // Components should always render. Returning null/undefined hides the
+  // condition that owns visibility and makes composition unpredictable — the
+  // parent should branch, or the logic should live in a hook/HOC. Existing
+  // violations use a file-level eslint-disable; do not add new ones.
+  {
+    name: "langfuse/web/no-null-render",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-null-render": "error",
+    },
+  },
+
   // Component APIs should expose explicit variants instead of className or style
   // escape hatches. New file-level overrides are only acceptable for headless
   // components that do not apply any internal styling themselves.

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type V4MigrationTargetProject } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {

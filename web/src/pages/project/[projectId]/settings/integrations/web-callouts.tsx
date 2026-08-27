@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import ContainerPage from "@/src/components/layouts/container-page";
 import { WebCalloutSettingsPage } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { useRouter } from "next/router";

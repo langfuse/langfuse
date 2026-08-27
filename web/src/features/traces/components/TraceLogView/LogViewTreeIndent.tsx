@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * LogViewTreeIndent - Tree indentation lines for log view rows.
  *

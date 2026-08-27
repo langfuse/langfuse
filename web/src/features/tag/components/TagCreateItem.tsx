@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React from "react";
 import { CommandItem } from "cmdk";
 

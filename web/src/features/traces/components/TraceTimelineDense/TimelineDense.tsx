@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * The Compact Timeline renderer, shipped behind the `compactTimeline` feature
  * preview: `TraceTimelineCompact` measures a box and renders this inside it, and

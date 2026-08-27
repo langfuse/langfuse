@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { PlusCircle } from "lucide-react";
 import TableIdOrName from "@/src/components/table/table-id";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React, { useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import { LayoutDashboard } from "lucide-react";

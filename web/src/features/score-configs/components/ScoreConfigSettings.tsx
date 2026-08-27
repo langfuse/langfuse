@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import React from "react";
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";

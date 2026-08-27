@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";

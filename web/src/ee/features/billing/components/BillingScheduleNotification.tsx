@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 // Langfuse Cloud only
 
 import { InfoIcon } from "lucide-react";

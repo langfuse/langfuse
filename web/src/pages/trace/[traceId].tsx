@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 // Redirect helper for /trace/[traceId] URLs
 // Looks up the projectId for a trace and redirects to /project/[projectId]/traces/[traceId]
 // which displays the current trace view

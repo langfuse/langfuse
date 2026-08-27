@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 /**
  * PlaybackControls - transport for the trace playhead, in the navigation
  * header. The play/pause button is wrapped in a circular progress ring that

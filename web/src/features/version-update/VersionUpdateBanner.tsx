@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useEffect } from "react";
 import { Layer } from "@/src/components/ui/layer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

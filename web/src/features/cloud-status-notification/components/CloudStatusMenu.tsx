@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import Link from "next/link";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
