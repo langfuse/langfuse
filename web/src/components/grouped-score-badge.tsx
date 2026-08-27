@@ -72,15 +72,13 @@ const ScoreGroupBadge = <
   name,
   scores,
   compact,
-  badgeClassName,
   showLevels,
 }: {
   name: string;
   scores: T[];
   compact?: boolean;
-  badgeClassName?: string;
   /** Render this group's level tag(s). Set by GroupedScoreBadges only when
-   *  the whole selection mixes levels (LFE-10596). */
+   *  the whole selection mixes levels. */
   showLevels?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
@@ -96,7 +94,7 @@ const ScoreGroupBadge = <
     <Badge
       variant="tertiary"
       key={name}
-      className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
+      className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal`}
     >
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
@@ -166,13 +164,11 @@ export const GroupedScoreBadges = <
   scores,
   maxVisible,
   compact,
-  badgeClassName,
   expandable = true,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
-  badgeClassName?: string;
   /**
    * Whether "+N" expands the hidden chips IN PLACE. A caller that has measured a
    * box for exactly `maxVisible` chips has to say no: expanding is unbounded by
@@ -208,7 +204,6 @@ export const GroupedScoreBadges = <
     expandable ? "cursor-pointer" : "cursor-default",
     compact ? "px-0.5 py-0 leading-tight" : "px-1",
     "text-xs font-bold",
-    badgeClassName,
   );
 
   return (
@@ -219,7 +214,6 @@ export const GroupedScoreBadges = <
           name={name}
           scores={scores}
           compact={compact}
-          badgeClassName={badgeClassName}
           showLevels={showLevels}
         />
       ))}
@@ -254,7 +248,6 @@ export const GroupedScoreBadges = <
                   name={name}
                   scores={scores}
                   compact={compact}
-                  badgeClassName={badgeClassName}
                   showLevels={showLevels}
                 />
               ))}

@@ -14,7 +14,6 @@ interface HeatmapCellProps {
   onHover?: (cell: HeatmapCell | null) => void;
   onClick?: (cell: HeatmapCell) => void;
   renderTooltip?: (cell: HeatmapCell) => React.ReactNode;
-  cellClassName?: string;
   showValues?: boolean;
 }
 
@@ -24,20 +23,18 @@ interface CellWithDataProps {
   onHover?: (cell: HeatmapCell | null) => void;
   onClick?: (cell: HeatmapCell) => void;
   renderTooltip?: (cell: HeatmapCell) => React.ReactNode;
-  cellClassName?: string;
   showValues: boolean;
 }
 
 /**
  * Empty cell component (no data)
  */
-function EmptyCell({ cellClassName }: { cellClassName?: string }) {
+function EmptyCell() {
   return (
     <div
       className={cn(
         "h-full w-full rounded-sm border transition-all duration-150",
         "hover:brightness-95",
-        cellClassName,
       )}
       style={{
         backgroundColor: "hsl(var(--background))",
@@ -57,7 +54,6 @@ function CellWithData({
   onHover,
   onClick,
   renderTooltip,
-  cellClassName,
   showValues,
 }: CellWithDataProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -83,7 +79,6 @@ function CellWithData({
     // Apply CSS filters based on hover state and whether cell is empty
     isEmpty && isHovered && "brightness-95",
     !isEmpty && isHovered && "brightness-75 saturate-[3]",
-    cellClassName,
   );
 
   const sharedStyle = {
@@ -159,12 +154,11 @@ export function HeatmapCellComponent({
   onHover,
   onClick,
   renderTooltip,
-  cellClassName,
   showValues = true,
 }: HeatmapCellProps) {
   // Route to appropriate component based on whether cell has data
   if (!cell) {
-    return <EmptyCell cellClassName={cellClassName} />;
+    return <EmptyCell />;
   }
 
   return (
@@ -174,7 +168,6 @@ export function HeatmapCellComponent({
       onHover={onHover}
       onClick={onClick}
       renderTooltip={renderTooltip}
-      cellClassName={cellClassName}
       showValues={showValues}
     />
   );

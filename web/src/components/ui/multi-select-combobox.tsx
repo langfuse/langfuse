@@ -24,7 +24,6 @@ interface MultiSelectComboboxProps<T> {
   onOpenChange?: (open: boolean) => void;
   showSelectedItemsInInput?: boolean;
   showSearchIcon?: boolean;
-  dropdownClassName?: string;
   /** Optional label rendered as a chip flush against the left edge of the control. */
   labelLeft?: ReactNode;
 }
@@ -45,7 +44,6 @@ export function MultiSelectCombobox<T>({
   onOpenChange,
   showSelectedItemsInInput = true,
   showSearchIcon = true,
-  dropdownClassName,
   labelLeft,
 }: MultiSelectComboboxProps<T>) {
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -208,10 +206,7 @@ export function MultiSelectCombobox<T>({
           {searchResults.length > 0 ||
           (isLoading && previousResults.length > 0) ? (
             <div
-              className={
-                dropdownClassName ??
-                "bg-background absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border shadow-md"
-              }
+              className="bg-background absolute top-0 z-10 max-h-48 w-full overflow-y-auto rounded-md border shadow-md"
               onMouseDown={(e) => e.preventDefault()}
               onWheel={(e) => e.stopPropagation()}
             >

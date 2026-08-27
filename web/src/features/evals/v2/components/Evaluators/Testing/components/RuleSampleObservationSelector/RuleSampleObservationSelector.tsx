@@ -71,7 +71,6 @@ export function RuleSampleObservationSelector({
       onOpenTrace={onOpenTrace}
       leadingColumns={[]}
       resolveSelection={resolveSelection}
-      getRowClassName={undefined}
       filterDescription="Define which incoming observations match this rule."
       filterTooltip="Only new observations matching these filters are evaluated by this rule."
       matchingDescription="The first match is used to preview attached evaluator mappings."

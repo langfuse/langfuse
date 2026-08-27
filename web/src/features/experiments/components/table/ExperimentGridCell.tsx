@@ -15,6 +15,7 @@ import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
 import {
   type CellRowDef,
+  type ExperimentColorStyle,
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -65,7 +66,7 @@ type ExperimentGridCellProps = {
   baselineTraceScores?: ScoreAggregate;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
-  markerClassName?: string;
+  marker?: ExperimentColorStyle;
   showScoreLevelLabels: boolean;
 };
 
@@ -353,20 +354,20 @@ const MetadataItem = ({
 const GroupSection = ({
   header,
   children,
-  markerClassName,
+  marker,
 }: {
   header?: string;
   children: React.ReactNode;
-  markerClassName?: string;
+  marker?: ExperimentColorStyle;
 }) => (
   <div className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
     {header && (
       <div className="flex items-center gap-1.5">
-        {markerClassName !== undefined && (
+        {marker !== undefined && (
           <span
             className={cn(
               "h-3 w-0.5 shrink-0 rounded-full",
-              markerClassName || "bg-transparent",
+              marker.markerClass,
             )}
           />
         )}
@@ -405,7 +406,7 @@ export const ExperimentGridCell = ({
   baselineTraceScores,
   isLoading = false,
   columnVisibility = {},
-  markerClassName,
+  marker,
   showScoreLevelLabels,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
@@ -654,7 +655,7 @@ export const ExperimentGridCell = ({
             <Fragment key={row.accessorKey}>
               <GroupSection
                 header={row.header}
-                markerClassName={isFirst ? markerClassName : undefined}
+                marker={isFirst ? marker : undefined}
               >
                 <div className="h-16 overflow-hidden">
                   {row.cell({ data: cellData })}
@@ -671,7 +672,7 @@ export const ExperimentGridCell = ({
             <Fragment key={row.accessorKey}>
               <GroupSection
                 header={row.header}
-                markerClassName={isFirst ? markerClassName : undefined}
+                marker={isFirst ? marker : undefined}
               >
                 <div className="flex flex-col gap-0.5">
                   {(content as CellRowDef<GridCellData>[]).map((child) => (

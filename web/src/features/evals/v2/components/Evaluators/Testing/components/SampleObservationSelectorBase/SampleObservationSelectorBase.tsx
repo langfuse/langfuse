@@ -134,7 +134,6 @@ export type SampleObservationSelectorBaseProps = {
     observations: SampleObservation[],
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
-  getRowClassName: ((observation: SampleObservation) => string) | undefined;
   filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
@@ -161,7 +160,6 @@ export function SampleObservationSelectorBase(
     onOpenTrace,
     leadingColumns,
     resolveSelection,
-    getRowClassName,
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -576,7 +574,9 @@ export function SampleObservationSelectorBase(
             onColumnOrderChange={setColumnOrder}
             rowHeight={rowHeight}
             onRowClick={onOpenTrace}
-            getRowClassName={getRowClassName}
+            getRowClassName={(observation) =>
+              observation.id === selectedObservationId ? "bg-muted/50" : ""
+            }
             noResultsMessage="No observations match the current filters and time range."
           />
         </div>
