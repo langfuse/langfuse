@@ -15,7 +15,6 @@ import {
   type TriggerDomainWithActions,
 } from "../../../server/repositories/automation-repository";
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
-import type { QueryType } from "../../query/types";
 import { isValidQuery } from "../isValidQuery";
 import {
   MonitorQueueEventSchema,
@@ -36,6 +35,12 @@ import {
 } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
+import {
+  buildMonitorQuery,
+  groupMonitorsByFilters,
+  metricsForMonitorIds,
+  monitorMetricsForEvent,
+} from "./processorQueryHelpers";
 import { renderAlertMessage } from "./renderAlertMessage";
 
 export { monitorEvaluationOffsetMs } from "../types";
@@ -62,9 +67,9 @@ export class MonitorProcessor {
       span.setAttribute("monitors", monitors.length);
       if (monitors.length === 0) return;
 
-      const [metrics, triggers] = await Promise.all([
+      const [metricsByMonitorId, triggers] = await Promise.all([
         instrumentAsync({ name: "queryMetrics" }, () =>
-          this.queryMetrics(event),
+          this.queryMetrics(event, monitors),
         ),
         instrumentAsync({ name: "getTriggerConfigurations" }, () =>
           this.getTriggerConfigurations({
@@ -75,7 +80,13 @@ export class MonitorProcessor {
         ),
       ]);
 
-      span.setAttribute("metrics", Object.keys(metrics).length);
+      span.setAttribute(
+        "metrics",
+        Object.values(metricsByMonitorId).reduce(
+          (count, metrics) => count + Object.keys(metrics).length,
+          0,
+        ),
+      );
       span.setAttribute("triggers", triggers.length);
 
       const [completions, monitorWebhookInputs] = instrumentSync(
@@ -83,7 +94,7 @@ export class MonitorProcessor {
         () =>
           processMonitors({
             monitors,
-            metrics,
+            metricsByMonitorId,
             triggers,
             now,
             runAt: event.runAt,
@@ -136,58 +147,77 @@ export class MonitorProcessor {
     return prismaMonitors.map(monitorFromPrisma);
   }
 
-  /** queryMetrics pre-screens the batch's metrics against the v2 data model, runs the accepted ones, and returns each metric keyed by `${aggregation}_${measure}` as a number, null, or the ErrorBadQuery sentinel. */
-  private async queryMetrics(event: MonitorQueueEvent): Promise<MetricMap> {
-    const validation = isValidQuery({
-      view: event.view,
-      metrics: event.metrics,
-      filters: event.filters,
-    });
-    const metricMap: MetricMap = {};
-    for (const metric of validation.rejected) {
-      metricMap[metricKey(metric)] = ErrorBadQuery;
-    }
-    if (validation.accepted.length === 0) return metricMap;
+  /** queryMetrics pre-screens each monitor group's metrics against the v2 data model, runs the accepted ones with that monitor's stored filters, and returns each monitor's metrics keyed by `${aggregation}_${measure}` as a number, null, or the ErrorBadQuery sentinel. */
+  private async queryMetrics(
+    event: MonitorQueueEvent,
+    monitors: Monitor[],
+  ): Promise<MetricsByMonitorId> {
+    const metricsByMonitorId: MetricsByMonitorId = {};
+    const monitorMetrics = monitorMetricsForEvent(event, monitors);
+    const groups = groupMonitorsByFilters(monitors);
 
-    try {
-      const rows = await this.executeQuery(
-        event.projectId,
-        buildMonitorQuery(validation.accepted, event),
-        "v2",
-        true,
-      );
-      const row = (rows[0] ?? {}) as Record<string, unknown>;
-      for (const metric of validation.accepted) {
-        const key = metricKey(metric);
-        metricMap[key] = parseNumericValue(row[key]);
+    for (const group of groups) {
+      const metrics = metricsForMonitorIds(monitorMetrics, group.monitorIds);
+      const validation = isValidQuery({
+        view: event.view,
+        metrics,
+        filters: group.filters,
+      });
+
+      const metricMap: MetricMap = {};
+      for (const monitorId of group.monitorIds) {
+        metricsByMonitorId[monitorId] = metricMap;
       }
-      metricMap["count_count"] = parseNumericValue(row["count_count"]);
-    } catch (error) {
-      // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
-      if (error instanceof ClickHouseResourceError) {
-        logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
-          errorType: error.errorType,
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-        });
-        throw error;
-      }
-      logger.error(
-        "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
-        {
-          projectId: event.projectId,
-          schedulerBatchId: event.schedulerBatchId.toString(),
-          monitorIds: event.monitors.map((m) => m.monitorId),
-          error,
-        },
-      );
-      for (const metric of validation.accepted) {
+
+      for (const metric of validation.rejected) {
         metricMap[metricKey(metric)] = ErrorBadQuery;
       }
-      metricMap["count_count"] = ErrorBadQuery;
+      if (validation.accepted.length === 0) continue;
+
+      try {
+        const rows = await this.executeQuery(
+          event.projectId,
+          buildMonitorQuery(validation.accepted, event, group.filters),
+          "v2",
+          true,
+        );
+        const row = (rows[0] ?? {}) as Record<string, unknown>;
+        for (const metric of validation.accepted) {
+          const key = metricKey(metric);
+          metricMap[key] = parseNumericValue(row[key]);
+        }
+        metricMap["count_count"] = parseNumericValue(row["count_count"]);
+      } catch (error) {
+        // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
+        if (error instanceof ClickHouseResourceError) {
+          logger.warn(
+            "queryMetrics hit a ClickHouse resource limit; retrying",
+            {
+              errorType: error.errorType,
+              projectId: event.projectId,
+              schedulerBatchId: event.schedulerBatchId.toString(),
+              monitorIds: group.monitorIds,
+            },
+          );
+          throw error;
+        }
+        logger.error(
+          "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
+          {
+            projectId: event.projectId,
+            schedulerBatchId: event.schedulerBatchId.toString(),
+            monitorIds: group.monitorIds,
+            error,
+          },
+        );
+        for (const metric of validation.accepted) {
+          metricMap[metricKey(metric)] = ErrorBadQuery;
+        }
+        metricMap["count_count"] = ErrorBadQuery;
+      }
     }
-    return metricMap;
+
+    return metricsByMonitorId;
   }
 
   private async publishWebhookInputs(
@@ -211,42 +241,6 @@ export class MonitorProcessor {
       }),
     );
   }
-}
-
-/** buildMonitorQuery converts the accepted metrics of a MonitorQueueEvent into the scalar QueryType executeQuery accepts. */
-function buildMonitorQuery(
-  acceptedMetrics: QueryType["metrics"],
-  event: MonitorQueueEvent,
-): QueryType {
-  const { fromTimestamp, toTimestamp } = evaluationWindow(
-    event.window,
-    event.runAt,
-  );
-  const metrics = dedupeMetrics([
-    ...acceptedMetrics,
-    { measure: "count", aggregation: "count" as const },
-  ]);
-  return {
-    view: event.view,
-    dimensions: [],
-    metrics,
-    filters: event.filters,
-    timeDimension: null,
-    fromTimestamp: fromTimestamp.toISOString(),
-    toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
-  };
-}
-
-/** dedupeMetrics drops duplicate metrics keyed by `${aggregation}_${measure}` so the appended row-count metric never collides with an existing count metric. */
-function dedupeMetrics(metrics: QueryType["metrics"]): QueryType["metrics"] {
-  const seen = new Set<string>();
-  return metrics.filter((m) => {
-    const key = metricKey(m);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 /** metricKey is the `${aggregation}_${measure}` column name a metric resolves to in the query result row. */
@@ -279,7 +273,7 @@ function parseNumericValue(raw: unknown): number | null {
 /** processMonitors evaluates every claimed monitor, collecting the completions to persist and the webhook inputs to publish. */
 function processMonitors(args: {
   monitors: Monitor[];
-  metrics: MetricMap;
+  metricsByMonitorId: MetricsByMonitorId;
   triggers: TriggerDomainWithActions[];
   now: Date;
   runAt: Date;
@@ -290,7 +284,7 @@ function processMonitors(args: {
   for (const monitor of args.monitors) {
     const [completion, inputs] = processMonitor({
       monitor,
-      metrics: args.metrics,
+      metrics: args.metricsByMonitorId[monitor.id] ?? {},
       triggers: args.triggers,
       now: args.now,
       runAt: args.runAt,
@@ -520,6 +514,9 @@ export type MetricValue = number | null | typeof ErrorBadQuery;
 
 /** MetricMap keys each metric's MetricValue by `${aggregation}_${measure}`. */
 type MetricMap = Record<string, MetricValue>;
+
+/** MetricsByMonitorId maps each claimed monitor id to its evaluated metric map. */
+type MetricsByMonitorId = Record<string, MetricMap>;
 
 /** MonitorPublisher publishes one MonitorWebhookInput onto the webhook queue. */
 export type MonitorPublisher = (input: MonitorWebhookInput) => Promise<void>;

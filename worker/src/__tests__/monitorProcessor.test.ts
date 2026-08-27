@@ -47,6 +47,7 @@ type SeedOverrides = Partial<{
   status: MonitorStatus;
   view: MonitorView;
   metric: Metric;
+  filters: Prisma.InputJsonValue;
   alertThreshold: number;
   warningThreshold: number | null;
   thresholdOperator: ThresholdOperator;
@@ -148,7 +149,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       id: seed.id,
       projectId,
       view: seed.view ?? "OBSERVATIONS",
-      filters: [] as unknown as Prisma.InputJsonValue,
+      filters: (seed.filters ?? []) as unknown as Prisma.InputJsonValue,
       metric: (seed.metric ?? {
         measure: "count",
         aggregation: "count",
@@ -186,6 +187,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
 function makeEvent(
   projectId: string,
   monitors: (string | { id: string; metric?: Metric })[],
+  overrides: Partial<MonitorQueueEvent> = {},
 ): MonitorQueueEvent {
   const seeds = monitors.map((m) =>
     typeof m === "string" ? { id: m, metric: undefined } : m,
@@ -217,6 +219,7 @@ function makeEvent(
         metricName: `${metric.aggregation}_${metric.measure}`,
       };
     }),
+    ...overrides,
   };
 }
 
@@ -1464,6 +1467,116 @@ describe("MonitorProcessor.process (integration)", () => {
         exp.lastCompletedAt?.toISOString() ?? null,
       );
     }
+  });
+});
+
+describe("MonitorProcessor.process per-monitor filters", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+  });
+
+  it("evaluates each monitor with its stored filters even when the queue event carries a different batch filter set", async () => {
+    const envOnlyId = `m_env_${v4()}`;
+    const envAndTypeId = `m_env_type_${v4()}`;
+    const envFilter = {
+      column: "environment",
+      operator: "any of",
+      value: ["prd"],
+      type: "stringOptions",
+    };
+    const typeFilter = {
+      column: "type",
+      operator: "any of",
+      value: ["GENERATION"],
+      type: "stringOptions",
+    };
+
+    await seedMonitor(projectId, {
+      id: envOnlyId,
+      schedulerBatchId: 7n,
+      severity: MonitorSeveritySchema.enum.UNKNOWN,
+      lastPublishedAt: runAt,
+      triggerIds: ["trig_filters"],
+      filters: [envFilter],
+      metric: { measure: "latency", aggregation: "p95" },
+      alertThreshold: 500,
+    });
+    await seedMonitor(projectId, {
+      id: envAndTypeId,
+      schedulerBatchId: 7n,
+      severity: MonitorSeveritySchema.enum.UNKNOWN,
+      lastPublishedAt: runAt,
+      triggerIds: ["trig_filters"],
+      filters: [envFilter, typeFilter],
+      metric: { measure: "latency", aggregation: "p95" },
+      alertThreshold: 500,
+    });
+
+    const publish = vi.fn<MonitorPublisher>(async () => {});
+    const executeQuery: QueryExecutor = async (_projectId, query) => {
+      const hasTypeFilter = query.filters.some(
+        (filter) => filter.column === "type",
+      );
+      return [{ p95_latency: hasTypeFilter ? 49 : 900, count_count: 10 }];
+    };
+    const getTriggers: GetTriggerConfigurations = async () =>
+      [
+        {
+          id: "trig_filters",
+          filter: matchAnyAlertTrigger.filter,
+          eventActions: [],
+          automations: [{ id: "auto_filters", actionId: "act_filters" }],
+        },
+      ] as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
+
+    const processor = new MonitorProcessor(
+      prisma,
+      publish,
+      executeQuery,
+      getTriggers,
+    );
+
+    const event = makeEvent(
+      projectId,
+      [
+        { id: envOnlyId, metric: { measure: "latency", aggregation: "p95" } },
+        {
+          id: envAndTypeId,
+          metric: { measure: "latency", aggregation: "p95" },
+        },
+      ],
+      {
+        schedulerBatchId: 7n,
+        filters: [envFilter],
+        metrics: [{ measure: "latency", aggregation: "p95" }],
+      },
+    );
+
+    await processor.process(event, justAfterRunAt);
+
+    const envOnly = await prisma.monitor.findUniqueOrThrow({
+      where: { id: envOnlyId },
+    });
+    const envAndType = await prisma.monitor.findUniqueOrThrow({
+      where: { id: envAndTypeId },
+    });
+
+    expect(envOnly.severity).toBe(MonitorSeveritySchema.enum.ALERT);
+    expect(envAndType.severity).toBe(MonitorSeveritySchema.enum.OK);
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0].payload).toMatchObject({
+      payload: {
+        monitorId: envOnlyId,
+        severity: MonitorSeveritySchema.enum.ALERT,
+      },
+    });
   });
 });
 
