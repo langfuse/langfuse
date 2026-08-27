@@ -32,6 +32,10 @@ export function createUserTableColumn<
 }: TableColumnOptions<TData, TValue> &
   UserTableColumnPresentation & {
     emptyValue: string;
+    /**
+     * Return undefined when the row has no associated user. Return a user with
+     * an empty object when a user exists but their identity is unknown.
+     */
     getUser?: (
       value: TValue | null | undefined,
       context: CellContext<TData, TValue | null | undefined>,
@@ -57,9 +61,10 @@ export function createUserTableColumn<
       const cell = getUser
         ? getUser(value, context)
         : { type: "user" as const, user: value ?? {} };
-      if (cell?.type === "loading") return loadingCell;
+      if (!cell) return null;
+      if (cell.type === "loading") return loadingCell;
 
-      const { name, email, image, id } = cell?.user ?? {};
+      const { name, email, image, id } = cell.user;
       const label = name ?? email ?? id ?? emptyValue;
       if (variant === "text") {
         return (

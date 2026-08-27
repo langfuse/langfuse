@@ -9,9 +9,9 @@ import { createUserTableColumn } from "./createUserTableColumn";
 type Row = {
   isUserLoading?: boolean;
   user: {
-    name: string | null;
-    email: string | null;
-    image: string | null;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
   } | null;
 };
 
@@ -105,6 +105,18 @@ export const TextOnly = meta.story({
 
 export const EmptyValue = meta.story({
   name: "Empty Value",
+  args: {
+    variant: "avatar",
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ user: {} }],
+    },
+  },
+});
+
+export const AbsentUser = meta.story({
+  name: "Absent User",
   args: {
     variant: "avatar",
     data: {
