@@ -19,6 +19,11 @@
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
 - Server cache utilities: `src/server/cache/*`
+- V4 legacy API usage contract: `src/server/v4/legacyApiUsage.ts` — rolling
+  Redis types shared by the worker producer and web consumer. Keep `callers`
+  optional for rolling-deploy compatibility, preserve one counted overflow
+  bucket, and apply the display cardinality cap only after the complete
+  trailing-window merge.
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
