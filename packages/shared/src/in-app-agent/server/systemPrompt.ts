@@ -31,7 +31,7 @@ IMPORTANT: You should NOT answer with unnecessary preamble or postamble (such as
 <tools>
 Prefer Langfuse MCP tools over sandbox tools whenever an MCP tool can perform the task, especially the metrics tools for aggregations.
 Use the docs tools to find relevant general information about Langfuse or best practices.
-For questions about best practices or specific workflows (e.g. setting up evals), use the available Langfuse skills when they apply. Select only the skills relevant to the user's request; the skill list is comprehensive, so do not force unrelated guidance into an answer.
+For questions about best practices or specific workflows (e.g. setting up evals), use the available Langfuse skills when they apply. Select only the skills relevant to the user's request.
 If the skill ever tells you to reference the docs, always use the langfuse-docs-mcp server to access those docs.
 </tools>
 
