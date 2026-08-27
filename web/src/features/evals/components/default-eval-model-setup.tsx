@@ -106,8 +106,10 @@ function useDefaultEvalModelSetup({
 
 function DefaultEvalModelFields({
   setup,
+  errorSize = "base",
 }: {
   setup: ReturnType<typeof useDefaultEvalModelSetup>;
+  errorSize?: "base" | "sm";
 }) {
   return (
     <>
@@ -125,7 +127,13 @@ function DefaultEvalModelFields({
         Select a model which supports function calling.
       </p>
       {setup.formError ? (
-        <p className="w-full text-center text-sm">
+        <p
+          className={
+            errorSize === "sm"
+              ? "w-full text-center text-sm"
+              : "w-full text-center"
+          }
+        >
           <span className="font-bold">Error:</span> {setup.formError}
         </p>
       ) : null}
@@ -272,7 +280,7 @@ export function InlineDefaultEvalModelSetup({
   return (
     <>
       <div className="space-y-3">
-        <DefaultEvalModelFields setup={setup} />
+        <DefaultEvalModelFields setup={setup} errorSize="sm" />
       </div>
       <div className="flex w-full justify-end">
         <Button

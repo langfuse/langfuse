@@ -91,6 +91,7 @@ export function EvaluatorSampleObservationSelector({
       onOpenTrace={onOpenTrace}
       leadingColumns={leadingColumns}
       resolveSelection={resolveSelection}
+      highlightSelectedRow
       filterDescription="Filter the observations to a representative sample for testing this evaluator."
       filterTooltip="These filters control which observations you can pick to test with."
       matchingDescription="Select an observation to test the evaluator and verify the variable mapping."
