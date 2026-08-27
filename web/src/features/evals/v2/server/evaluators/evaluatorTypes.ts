@@ -70,7 +70,7 @@ export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   CodeEvaluatorDefinitionSchema,
 ]);
 
-const EvaluatorModelConfigSchema = z.object({
+export const EvaluatorModelConfigSchema = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
   modelParams: ZodModelConfig.nullable().optional(),

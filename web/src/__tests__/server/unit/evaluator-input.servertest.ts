@@ -1,6 +1,10 @@
 import { EvalTemplateType } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
-import { McpEvaluatorInput } from "@/src/features/mcp/features/evals/tools/evaluatorInput";
+import { z } from "zod";
+import {
+  McpEvaluatorInput,
+  McpEvaluatorInputBase,
+} from "@/src/features/mcp/features/evals/tools/evaluatorInput";
 
 const llmEvaluatorInput = {
   name: "Answer quality",
@@ -14,28 +18,58 @@ const llmEvaluatorInput = {
 };
 
 describe("MCP evaluator input", () => {
-  it("requires provider and model together for custom model configuration", () => {
-    const result = McpEvaluatorInput.safeParse({
+  it("exposes model configuration as an optional object without unions", () => {
+    const schema = z.toJSONSchema(McpEvaluatorInputBase);
+    const modelConfig = schema.properties?.modelConfig;
+
+    expect(modelConfig).toMatchObject({
+      type: "object",
+      required: ["provider", "model"],
+    });
+    expect(modelConfig).not.toHaveProperty("anyOf");
+    expect(modelConfig).not.toHaveProperty("oneOf");
+  });
+
+  it("reuses the observation variable mapping schema", () => {
+    expect(
+      McpEvaluatorInput.safeParse({
+        ...llmEvaluatorInput,
+        variableMapping: [
+          {
+            templateVariable: "output",
+            selectedColumnId: "output",
+            jsonSelector: null,
+          },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("validates custom model configuration through its schema", () => {
+    const incomplete = McpEvaluatorInput.safeParse({
       ...llmEvaluatorInput,
-      modelParams: { temperature: 0.2 },
+      modelConfig: { modelParams: { temperature: 0.2 } },
     });
 
-    expect(result.success).toBe(false);
-    if (result.success) return;
+    expect(incomplete.success).toBe(false);
+    if (!incomplete.success) {
+      expect(incomplete.error.issues.map(({ path }) => path)).toEqual(
+        expect.arrayContaining([
+          ["modelConfig", "provider"],
+          ["modelConfig", "model"],
+        ]),
+      );
+    }
 
-    expect(result.error.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          path: ["provider"],
-          message:
-            "Provider and model are required when model configuration is provided.",
-        }),
-        expect.objectContaining({
-          path: ["model"],
-          message:
-            "Provider and model are required when model configuration is provided.",
-        }),
-      ]),
-    );
+    expect(
+      McpEvaluatorInput.safeParse({
+        ...llmEvaluatorInput,
+        modelConfig: {
+          provider: "openai",
+          model: "gpt-4.1-mini",
+          modelParams: { temperature: 0.2 },
+        },
+      }).success,
+    ).toBe(true);
   });
 });

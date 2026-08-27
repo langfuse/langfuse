@@ -1,8 +1,12 @@
-import { EvalTemplateType } from "@langfuse/shared";
+import {
+  EvalTemplateType,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import { z } from "zod";
 import {
   CodeEvaluatorDefinitionSchema,
   CreateEvaluatorSchema,
+  EvaluatorModelConfigSchema,
   LlmEvaluatorDefinitionSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
@@ -14,21 +18,14 @@ export const McpEvaluatorInputBase = z.object({
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
   type: z.enum(EvalTemplateType),
   prompt: LlmEvaluatorDefinitionSchema.shape.prompt.optional(),
-  provider: LlmEvaluatorDefinitionSchema.shape.provider.unwrap().optional(),
-  model: LlmEvaluatorDefinitionSchema.shape.model.unwrap().optional(),
-  modelParams: z.record(z.string(), z.unknown()).optional(),
+  modelConfig: EvaluatorModelConfigSchema.optional().describe(
+    "Optional custom model configuration. Omit to use the project default model.",
+  ),
   outputDefinition: z.record(z.string(), z.unknown()).optional(),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
   sourceCodeLanguage:
     CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage.optional(),
-  variableMapping: z
-    .array(
-      z.object({
-        templateVariable: z.string(),
-        selectedColumnId: z.string(),
-        jsonSelector: z.string().optional(),
-      }),
-    )
+  variableMapping: observationVariableMappingList
     .optional()
     .describe("Variable mappings for LLM-as-a-judge evaluators only."),
 });
@@ -41,16 +38,7 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
       definition: {
         type: input.type,
         prompt: input.prompt!,
-        modelConfig:
-          input.provider !== undefined ||
-          input.model !== undefined ||
-          input.modelParams !== undefined
-            ? {
-                provider: input.provider,
-                model: input.model,
-                modelParams: input.modelParams ?? null,
-              }
-            : null,
+        modelConfig: input.modelConfig ?? null,
         variableMapping: input.variableMapping ?? null,
         outputDefinition: input.outputDefinition,
       },
@@ -72,29 +60,6 @@ function validateEvaluatorInput(
   input: z.infer<typeof McpEvaluatorInputBase>,
   ctx: z.RefinementCtx,
 ) {
-  if (input.type === EvalTemplateType.LLM_AS_JUDGE) {
-    const hasModelConfiguration =
-      input.provider !== undefined ||
-      input.model !== undefined ||
-      input.modelParams !== undefined;
-    const missingModelConfigurationFields = [
-      ...(input.provider === undefined ? ["provider"] : []),
-      ...(input.model === undefined ? ["model"] : []),
-    ];
-
-    if (hasModelConfiguration && missingModelConfigurationFields.length > 0) {
-      for (const field of missingModelConfigurationFields) {
-        ctx.addIssue({
-          code: "custom",
-          path: [field],
-          message:
-            "Provider and model are required when model configuration is provided.",
-        });
-      }
-      return;
-    }
-  }
-
   if (
     input.type === EvalTemplateType.CODE &&
     input.variableMapping !== undefined
