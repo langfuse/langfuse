@@ -207,12 +207,14 @@ function ExternalLink({
   children,
   className,
   analytics,
+  ariaLabel,
 }: {
   href: string;
   children: ReactNode;
   className?: string;
   /** Which guidance link in which section — for section_link_clicked. */
   analytics?: { section: string; link: string };
+  ariaLabel?: string;
 }) {
   const capture = usePostHogClientCapture();
   return (
@@ -221,6 +223,7 @@ function ExternalLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn("underline", className)}
+      aria-label={ariaLabel}
       onClick={
         analytics
           ? () => capture("v4_migration:section_link_clicked", analytics)
@@ -928,21 +931,33 @@ export function V4MigrationApisSection({
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
               const callers = row.callers ?? [];
+              const hasKnownCallers = callers.some((caller) => !caller.isOther);
+              const publicApiPrefix = "/api/public/";
+              const publicApiPrefixStart =
+                row.endpoint.indexOf(publicApiPrefix);
+              const publicApiPrefixEnd =
+                publicApiPrefixStart < 0
+                  ? 0
+                  : publicApiPrefixStart + publicApiPrefix.length;
 
               return (
                 <div key={row.endpoint} className="rounded-md border p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                     <ExternalLink
                       href={DEPRECATED_API_MIGRATION_URL}
-                      className="text-sm font-bold"
+                      className="text-sm"
                       analytics={{
                         section: "apis",
                         link: "deprecated_api_docs",
                       }}
+                      ariaLabel={row.endpoint}
                     >
-                      {row.endpoint}
+                      {row.endpoint.slice(0, publicApiPrefixEnd)}
+                      <span className="font-bold">
+                        {row.endpoint.slice(publicApiPrefixEnd)}
+                      </span>
                     </ExternalLink>
-                    {callers.length === 0 ? (
+                    {!hasKnownCallers ? (
                       <span
                         className="text-muted-foreground text-sm whitespace-nowrap"
                         title={`Last seen at ${row.lastSeen}`}
@@ -953,7 +968,7 @@ export function V4MigrationApisSection({
                       </span>
                     ) : null}
                   </div>
-                  {callers.length > 0 ? (
+                  {hasKnownCallers ? (
                     <ul className="mt-2 flex flex-col gap-2">
                       {callers.map((caller, index) => {
                         const codingAgent = getCodingAgentName(

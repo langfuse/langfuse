@@ -338,12 +338,15 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.queryByText("Legacy APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy Integrations")).not.toBeInTheDocument();
 
-    expect(
-      screen.getByRole("link", { name: "GET /api/public/traces" }),
-    ).toHaveAttribute(
+    const endpointLink = screen.getByRole("link", {
+      name: "GET /api/public/traces",
+    });
+    expect(endpointLink).toHaveAttribute(
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
+    expect(endpointLink).not.toHaveClass("font-bold");
+    expect(within(endpointLink).getByText("traces")).toHaveClass("font-bold");
     expect(
       screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
     ).toHaveTextContent(/42 calls · last seen/);
@@ -429,9 +432,9 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.getByText("Langfuse Python SDK 3.9.0")).toBeInTheDocument();
-    expect(screen.getByText("client.api.trace.get(...)")).toBeInTheDocument();
+    expect(screen.getByText("client.api.trace.get")).toBeInTheDocument();
     expect(
-      screen.getByText("client.api.observations.get_many(trace_id=trace_id)"),
+      screen.getByText("client.api.observations.get_many"),
     ).toBeInTheDocument();
     expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
     expect(screen.getByText("Codex")).toBeInTheDocument();
@@ -464,6 +467,31 @@ describe("V4MigrationDetailsContent", () => {
       "v4_migration:section_link_clicked",
       { section: "apis", link: "deprecated_api_caller_docs" },
     );
+  });
+
+  it("shows route totals without a caller section for unknown-only callers", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            isOther: true,
+            count: 42,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/42 calls · last seen/);
+    expect(screen.queryByText("Unknown callers")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("collapses clean sections into one up-to-date summary", () => {
