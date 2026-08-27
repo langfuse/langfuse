@@ -66,6 +66,7 @@ import {
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/data-table";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -113,12 +114,21 @@ const StackedExperimentCell = ({
   colorExperimentIds,
   renderValue,
   className,
+  row,
+  onExperimentClick,
 }: {
   experiments: ExperimentItemData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   renderValue: (exp: ExperimentItemData) => React.ReactNode;
   className?: string;
+  row?: ExperimentItemsTableRow;
+  /** Clicking a specific experiment's row selects it in peek navigation instead of the row's default (baseline) target. */
+  onExperimentClick?: (
+    event: React.MouseEvent,
+    row: ExperimentItemsTableRow,
+    experimentId: string,
+  ) => void;
 }) => {
   const experimentsById = useMemo(
     () => new Map(experiments.map((exp) => [exp.experimentId, exp])),
@@ -139,10 +149,19 @@ const StackedExperimentCell = ({
           colorExperimentIds ?? allExperimentIds,
         );
         const content = exp ? renderValue(exp) : null;
+        const isClickable = Boolean(exp && row && onExperimentClick);
         return (
           <div
             key={experimentId}
-            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5"
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden py-0.5 pr-2 pl-1.5",
+              isClickable && "cursor-pointer",
+            )}
+            onClick={
+              isClickable
+                ? (event) => onExperimentClick!(event, row!, experimentId)
+                : undefined
+            }
           >
             {content ? (
               <>
@@ -204,12 +223,21 @@ const StackedOutputCell = ({
   colorExperimentIds,
   singleLine,
   isLoading,
+  row,
+  onExperimentClick,
 }: {
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   singleLine: boolean;
   isLoading: boolean;
+  row?: ExperimentItemsTableRow;
+  /** Clicking a specific experiment's row selects it in peek navigation instead of the row's default (baseline) target. */
+  onExperimentClick?: (
+    event: React.MouseEvent,
+    row: ExperimentItemsTableRow,
+    experimentId: string,
+  ) => void;
 }) => {
   const outputsByExperimentId = useMemo(
     () => new Map(outputs.map((out) => [out.experimentId, out])),
@@ -229,10 +257,19 @@ const StackedOutputCell = ({
           experimentId,
           colorExperimentIds ?? allExperimentIds,
         );
+        const isClickable = Boolean(out?.output && row && onExperimentClick);
         return (
           <div
             key={experimentId}
-            className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5"
+            className={cn(
+              "flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5",
+              isClickable && "cursor-pointer",
+            )}
+            onClick={
+              isClickable
+                ? (event) => onExperimentClick!(event, row!, experimentId)
+                : undefined
+            }
           >
             {isLoading ? (
               <div className="flex min-w-0 items-start">
@@ -300,6 +337,68 @@ export default function ExperimentItemsTable({
     hasBaseline,
     hideControls,
   });
+
+  const peekNavigationProps = usePeekNavigation({
+    queryParams: [
+      "observation",
+      "display",
+      "timestamp",
+      "traceId",
+      "peekExperimentId",
+    ],
+    extractParamsValuesFromRow: (
+      row: ExperimentItemsTableRow & { clickedExperimentId?: string },
+    ) => {
+      // A specific experiment cell click targets that experiment directly.
+      // Otherwise, use the explicit baseline when present; without one, use
+      // the first selected experiment only as the primary trace for
+      // URL-compatible peek navigation (it is not treated as a baseline in
+      // comparison logic).
+      const targetExp = row.clickedExperimentId
+        ? row.experiments.find(
+            (e) => e.experimentId === row.clickedExperimentId,
+          )
+        : baselineId
+          ? row.experiments.find((e) => e.experimentId === baselineId)
+          : row.experiments[0];
+      return {
+        traceId: targetExp?.traceId || "",
+        timestamp: targetExp?.startTime.toISOString() || "",
+        observation: targetExp?.observationId || "",
+        ...(row.clickedExperimentId
+          ? { peekExperimentId: row.clickedExperimentId }
+          : {}),
+      };
+    },
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      pathParam: "traceId",
+    },
+  });
+
+  // Avoids invalidating memoized column builders below: usePeekNavigation's
+  // config object is a fresh literal every render, so openPeek is not
+  // referentially stable. Mirrors the queryFilterRef pattern further down.
+  const peekNavigationRef = useRef(peekNavigationProps);
+  peekNavigationRef.current = peekNavigationProps;
+
+  const handleExperimentCellClick = useCallback(
+    (
+      event: React.MouseEvent,
+      row: ExperimentItemsTableRow,
+      experimentId: string,
+    ) => {
+      if (!canUsePeek) return;
+      if (shouldIgnoreRowClickTarget(event.target)) return;
+      event.stopPropagation();
+      peekNavigationRef.current.openPeek(row.itemId, {
+        ...row,
+        clickedExperimentId: experimentId,
+      });
+    },
+    [canUsePeek],
+  );
+
   const { experimentNames } = useExperimentNames({ projectId });
   const selectedExperimentNames = useMemo(() => {
     return experimentNames.filter((exp) =>
@@ -588,6 +687,8 @@ export default function ExperimentItemsTable({
               experiments={experiments}
               allExperimentIds={allExperimentIds}
               colorExperimentIds={colorExperimentIds}
+              row={row.original}
+              onExperimentClick={handleExperimentCellClick}
               renderValue={(exp) => {
                 const scoresData = exp[scoreField] ?? {};
                 const value = scoresData[scoreKey];
@@ -636,7 +737,13 @@ export default function ExperimentItemsTable({
           );
         },
       })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
-    [allExperimentIds, baselineId, colorExperimentIds, hasBaseline],
+    [
+      allExperimentIds,
+      baselineId,
+      colorExperimentIds,
+      hasBaseline,
+      handleExperimentCellClick,
+    ],
   );
 
   const observationExperimentScoreColumns = useMemo(
@@ -691,6 +798,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
             renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
           />
         );
@@ -714,6 +823,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
             renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
           />
         );
@@ -734,6 +845,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
             renderValue={(exp) => <span>{exp.level}</span>}
           />
         );
@@ -755,6 +868,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
             renderValue={(exp) => (
               <span>
                 {exp.totalCost != null ? (
@@ -784,6 +899,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
             renderValue={(exp) =>
               exp.latencyMs != null ? (
                 <span>{latencyFormatter(exp.latencyMs)}</span>
@@ -807,6 +924,8 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
             renderValue={(exp) => {
               const expOption = selectedExperimentNames.find(
                 (e) => e.experimentId === exp.experimentId,
@@ -871,6 +990,8 @@ export default function ExperimentItemsTable({
             colorExperimentIds={colorExperimentIds}
             singleLine={ioSingleLine}
             isLoading={ioLoading}
+            row={row.original}
+            onExperimentClick={handleExperimentCellClick}
           />
         );
       },
@@ -913,33 +1034,6 @@ export default function ExperimentItemsTable({
     `experimentItemsColumnOrder-${projectId}`,
     columns,
   );
-
-  const peekNavigationProps = usePeekNavigation({
-    queryParams: [
-      "observation",
-      "display",
-      "timestamp",
-      "traceId",
-      "peekExperimentId",
-    ],
-    extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
-      // Use the explicit baseline when present. Without one, use the first
-      // selected experiment only as the primary trace for URL-compatible peek
-      // navigation; it is not treated as a baseline in comparison logic.
-      const baselineExp = baselineId
-        ? row.experiments.find((e) => e.experimentId === baselineId)
-        : row.experiments[0];
-      return {
-        traceId: baselineExp?.traceId || "",
-        timestamp: baselineExp?.startTime.toISOString() || "",
-        observation: baselineExp?.observationId || "",
-      };
-    },
-    expandConfig: {
-      basePath: `/project/${projectId}/traces`,
-      pathParam: "traceId",
-    },
-  });
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.ExperimentItems,

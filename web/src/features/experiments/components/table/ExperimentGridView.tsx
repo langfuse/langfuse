@@ -1,4 +1,7 @@
-import { DataTable } from "@/src/components/table/data-table";
+import {
+  DataTable,
+  shouldIgnoreRowClickTarget,
+} from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
@@ -177,6 +180,18 @@ export const ExperimentGridView = ({
               baselineTraceScores={baselineData?.traceScores}
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
+              onExperimentClick={
+                peekView?.openPeek
+                  ? (event) => {
+                      if (shouldIgnoreRowClickTarget(event.target)) return;
+                      event.stopPropagation();
+                      peekView.openPeek?.(row.original.itemId, {
+                        ...row.original,
+                        clickedExperimentId: expId,
+                      });
+                    }
+                  : undefined
+              }
             />
           );
         },
@@ -193,6 +208,7 @@ export const ExperimentGridView = ({
     columnVisibility,
     useExperimentColors,
     singleLine,
+    peekView,
   ]);
 
   // Build all columns: Select, Input, Expected Output, then experiment columns

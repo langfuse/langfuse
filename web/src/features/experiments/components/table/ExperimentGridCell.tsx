@@ -67,6 +67,8 @@ type ExperimentGridCellProps = {
   columnVisibility?: VisibilityState;
   markerClassName?: string;
   showScoreLevelLabels: boolean;
+  /** Clicking this experiment's cell selects it in peek navigation instead of the row's default (baseline) target. */
+  onExperimentClick?: (event: React.MouseEvent) => void;
 };
 
 /**
@@ -407,6 +409,7 @@ export const ExperimentGridCell = ({
   columnVisibility = {},
   markerClassName,
   showScoreLevelLabels,
+  onExperimentClick,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
@@ -642,7 +645,13 @@ export const ExperimentGridCell = ({
     .filter((section) => section.content !== null);
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
+    <div
+      className={cn(
+        "flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto",
+        onExperimentClick && "cursor-pointer",
+      )}
+      onClick={onExperimentClick}
+    >
       {sectionsToRender.map((section, index) => {
         const { row, content } = section;
         const isFirst = index === 0;
