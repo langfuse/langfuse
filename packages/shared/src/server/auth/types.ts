@@ -76,7 +76,8 @@ type ApiAccessScopeMetadata = {
   isInAppAgentKey?: boolean;
 };
 
-export type ApiAccessScopeIngestion = BaseApiAccessScope &
+export type ApiAccessScopeIngestion = Omit<BaseApiAccessScope, "accessLevel"> &
+  Partial<Pick<BaseApiAccessScope, "accessLevel">> &
   MakeOptional<ApiAccessScopeMetadata>;
 
 export type ApiAccessScope = BaseApiAccessScope & ApiAccessScopeMetadata;

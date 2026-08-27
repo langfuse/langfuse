@@ -1,7 +1,7 @@
 import { type IncomingHttpHeaders } from "http";
 
 import { ForbiddenError } from "@langfuse/shared";
-import { eventTypes } from "@langfuse/shared/src/server";
+import { type ApiAccessScope, eventTypes } from "@langfuse/shared/src/server";
 
 import { authorize } from "./authorize";
 import { enforceProjectAuth, type AuthError } from "./enforcement.projects";
@@ -34,6 +34,7 @@ export async function enforceIngestionAuth(
     success: true,
     context: access.context,
     projectId: access.projectId,
+    scope: access.scope,
   };
 }
 
@@ -78,6 +79,7 @@ export type EnforceIngestionAuthParams = {
 export type IngestionAccessResult = Success & {
   context: AuthorizationContext;
   projectId: string;
+  scope: ApiAccessScope;
 };
 
 /** EnforceIngestionAuthDecision is the ingestion whole-request pipeline's outcome. */

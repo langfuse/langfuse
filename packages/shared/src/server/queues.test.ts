@@ -85,4 +85,20 @@ describe("ingestion queue payload compatibility", () => {
 
     expect(parsed.success).toBe(true);
   });
+
+  it("accepts otel jobs without the deprecated accessLevel", () => {
+    const parsed = OtelIngestionEvent.safeParse({
+      data: {
+        fileKey: "otel-01",
+      },
+      authCheck: {
+        validKey: true,
+        scope: {
+          projectId: "project-01",
+        },
+      },
+    });
+
+    expect(parsed.success).toBe(true);
+  });
 });
