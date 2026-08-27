@@ -57,9 +57,6 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       ...(extra.limitBy
         ? { limitBy: this.transformLimitBy(extra.limitBy) }
         : {}),
-      ...(extra.langfuseTenancy
-        ? { langfuseTenancy: extra.langfuseTenancy }
-        : {}),
     } as ClickHouseSelectQueryNode;
   }
 

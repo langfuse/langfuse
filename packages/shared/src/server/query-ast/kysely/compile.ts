@@ -26,7 +26,8 @@ export type ClickhouseCompilable = {
 /**
  * The choke point. Every query that should produce ClickHouse SQL goes
  * through here: ExecutionContext is mandatory, tenancy is injected, the
- * dialect compiler refuses to emit SQL without that stamp.
+ * dialect compiler refuses to emit SQL unless the tree was identity-stamped
+ * by that pass (a copied property is not enough).
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
