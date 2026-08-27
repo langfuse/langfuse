@@ -1,12 +1,3 @@
-import { type SingleValueOption, scoresTableCols } from "@langfuse/shared";
+import { scoresTableCols } from "@langfuse/shared";
 
 export { scoresTableCols };
-
-export type ScoreOptions = {
-  name: Array<SingleValueOption>;
-  tags: Array<SingleValueOption>;
-  traceName: Array<SingleValueOption>;
-  userId: Array<SingleValueOption>;
-  stringValue: Array<SingleValueOption>;
-  booleanValue: Array<SingleValueOption>;
-};

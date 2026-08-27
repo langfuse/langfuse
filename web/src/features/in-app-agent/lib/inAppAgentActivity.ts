@@ -37,7 +37,7 @@ export type InAppAgentActivityAcknowledgement = {
   activityKey: string;
 };
 
-export type InAppAgentActivityEntry = {
+type InAppAgentActivityEntry = {
   activityKey: string;
   runId: string;
   title: string | null;

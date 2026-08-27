@@ -377,10 +377,3 @@ export function applyExpansionState(
  * @param tree - Current tree state
  * @returns Stats object
  */
-export interface ExpansionStats {
-  totalExpandable: number;
-  totalExpanded: number;
-  totalCollapsed: number;
-  visibleNodes: number;
-  maxVisibleDepth: number;
-}

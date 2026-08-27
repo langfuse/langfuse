@@ -30,12 +30,7 @@ import { quoteIfNeeded } from "./quoting";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
 
-export type CompletionStage =
-  | "empty"
-  | "field"
-  | "value"
-  | "operator"
-  | "recent";
+type CompletionStage = "empty" | "field" | "value" | "operator" | "recent";
 
 export type CompletionOption =
   | {
@@ -83,7 +78,7 @@ export type CompletionOption =
       query: string;
     };
 
-export type CompletionSection = { title: string; options: CompletionOption[] };
+type CompletionSection = { title: string; options: CompletionOption[] };
 
 export type QueryPresetSection = {
   title: string;
