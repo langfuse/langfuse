@@ -49,6 +49,34 @@ describe("getApiMigrationGuidance", () => {
       replacement: "GET /api/public/v2/observations",
     });
   });
+
+  it.each([
+    "GET /api/public/dataset-run-items",
+    "GET /api/public/datasets/{datasetName}/runs/{runName}",
+  ])(
+    "preserves dataset and renamed experiment filters for %s",
+    (entrypoint) => {
+      expect(
+        getApiMigrationGuidance(entrypoint, "javascript", "5.5.0"),
+      ).toMatchObject({
+        replacementMethod:
+          "client.api.experiments.listItems({ datasetId, experimentName: runName, fromStartTime })",
+      });
+    },
+  );
+
+  it("preserves the dataset filter when listing experiments", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/datasets/{datasetName}/runs",
+        "python",
+        "4.8.1",
+      ),
+    ).toMatchObject({
+      replacementMethod:
+        "client.api.experiments.list(dataset_id=dataset_id, from_start_time=from_start_time)",
+    });
+  });
 });
 
 describe("getCodingAgentName", () => {

@@ -148,41 +148,50 @@ const guidanceByEndpoint: Record<
     },
   },
   "GET /api/public/dataset-run-items": {
-    replacement: "GET /api/public/experiment-items",
+    replacement:
+      "GET /api/public/experiment-items?datasetId=<dataset id>&experimentName=<run name>&fromStartTime=<ISO timestamp>",
     methods: {
       python: {
         current: "client.api.dataset_run_items.list(...)",
-        replacement: "client.api.experiments.list_items(...)",
+        replacement:
+          "client.api.experiments.list_items(dataset_id=dataset_id, experiment_name=run_name, from_start_time=from_start_time)",
       },
       javascript: {
         current: "client.api.datasetRunItems.list(...)",
-        replacement: "client.api.experiments.listItems(...)",
+        replacement:
+          "client.api.experiments.listItems({ datasetId, experimentName: runName, fromStartTime })",
       },
     },
   },
   "GET /api/public/datasets/{datasetName}/runs": {
-    replacement: "GET /api/public/experiments",
+    replacement:
+      "GET /api/public/experiments?datasetId=<dataset id>&fromStartTime=<ISO timestamp>",
     methods: {
       python: {
         current: "client.api.datasets.get_runs(...)",
-        replacement: "client.api.experiments.list(...)",
+        replacement:
+          "client.api.experiments.list(dataset_id=dataset_id, from_start_time=from_start_time)",
       },
       javascript: {
         current: "client.api.datasets.getRuns(...)",
-        replacement: "client.api.experiments.list(...)",
+        replacement:
+          "client.api.experiments.list({ datasetId, fromStartTime })",
       },
     },
   },
   "GET /api/public/datasets/{datasetName}/runs/{runName}": {
-    replacement: "GET /api/public/experiment-items",
+    replacement:
+      "GET /api/public/experiment-items?datasetId=<dataset id>&experimentName=<run name>&fromStartTime=<ISO timestamp>",
     methods: {
       python: {
         current: "client.api.datasets.get_run(...)",
-        replacement: "client.api.experiments.list_items(...)",
+        replacement:
+          "client.api.experiments.list_items(dataset_id=dataset_id, experiment_name=run_name, from_start_time=from_start_time)",
       },
       javascript: {
         current: "client.api.datasets.getRun(...)",
-        replacement: "client.api.experiments.listItems(...)",
+        replacement:
+          "client.api.experiments.listItems({ datasetId, experimentName: runName, fromStartTime })",
       },
     },
   },
