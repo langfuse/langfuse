@@ -12,10 +12,6 @@ import { useExperimentResultsState } from "@/src/features/experiments/hooks/useE
 import { useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import {
-  EXPERIMENT_RUN_TABS,
-  getExperimentRunTabs,
-} from "@/src/features/navigation/utils/experiment-run-tabs";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
@@ -46,16 +42,6 @@ export default function ExperimentResults() {
     "overview-panel-experiment-detail",
     false,
   );
-
-  const [, setLastResultsUrl] = useSessionStorage<string | null>(
-    "experiment-results-url",
-    `/project/${projectId}/datasets`,
-  );
-
-  // Store current URL for back navigation from analytics
-  useEffect(() => {
-    setLastResultsUrl(window.location.pathname + window.location.search);
-  }, [setLastResultsUrl]);
 
   const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
@@ -95,10 +81,6 @@ export default function ExperimentResults() {
         breadcrumb: [
           { name: "Experiments", href: `/project/${projectId}/experiments` },
         ],
-        tabsProps: {
-          tabs: getExperimentRunTabs(projectId),
-          activeTab: EXPERIMENT_RUN_TABS.RESULTS,
-        },
         actionButtonsLeft: (
           <ExperimentSelectionControls
             projectId={projectId}
