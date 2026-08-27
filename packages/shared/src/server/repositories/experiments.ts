@@ -1282,9 +1282,9 @@ export const getExperimentNamesFromEvents = async (props: {
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
-    groupByColumn: "e.experiment_name",
+    groupByColumn: "e.experiment_id",
     selectExpression:
-      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
+      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
     .limit(1000, 0);
