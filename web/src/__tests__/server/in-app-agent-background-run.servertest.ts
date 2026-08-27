@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
@@ -96,10 +97,13 @@ vi.mock("@/src/server/auth", () => ({
 
 describe("in-app agent background runs", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const originalModel = env.LANGFUSE_AI_MODEL;
   const originalSharedCloudRegion = sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-  const originalSharedBedrockModel = sharedEnv.LANGFUSE_AWS_BEDROCK_MODEL;
-  const originalSharedBedrockRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  const originalSharedModel = sharedEnv.LANGFUSE_AI_MODEL;
+  const originalSharedSmallModel = sharedEnv.LANGFUSE_AI_SMALL_MODEL;
+  const originalSharedProvider = sharedEnv.LANGFUSE_AI_PROVIDER;
+  const originalSharedApiKey = sharedEnv.LANGFUSE_AI_API_KEY;
+  const originalSharedRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
   const originalSharedInAppAgentEnabled =
     sharedEnv.LANGFUSE_IN_APP_AGENT_ENABLED;
   const originalMaxActiveRunsPerUser =
@@ -109,10 +113,15 @@ describe("in-app agent background runs", () => {
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_MODEL = "test-model";
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = "eu-central-1";
+    // Pin the provider: a local .env with LANGFUSE_AI_PROVIDER=anthropic would
+    // otherwise route these Bedrock cases through the Anthropic branch.
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = undefined;
+    (sharedEnv as any).LANGFUSE_AI_API_KEY = undefined;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = "test-model";
+    (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = "eu-central-1";
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED = undefined;
     enqueuedJobs.length = 0;
     enqueueShouldFail = false;
@@ -126,12 +135,14 @@ describe("in-app agent background runs", () => {
   afterEach(() => {
     vi.useRealTimers();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+    (env as any).LANGFUSE_AI_MODEL = originalModel;
     (sharedEnv as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
       originalSharedCloudRegion;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = originalSharedBedrockModel;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION =
-      originalSharedBedrockRegion;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = originalSharedModel;
+    (sharedEnv as any).LANGFUSE_AI_SMALL_MODEL = originalSharedSmallModel;
+    (sharedEnv as any).LANGFUSE_AI_PROVIDER = originalSharedProvider;
+    (sharedEnv as any).LANGFUSE_AI_API_KEY = originalSharedApiKey;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = originalSharedRegion;
     (sharedEnv as any).LANGFUSE_IN_APP_AGENT_ENABLED =
       originalSharedInAppAgentEnabled;
     (env as any).LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER =
@@ -278,8 +289,8 @@ describe("in-app agent background runs", () => {
   it("lists conversations when the in-app agent model is not configured", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     const listed = await caller.listConversations({ projectId, limit: 50 });
 
@@ -288,10 +299,10 @@ describe("in-app agent background runs", () => {
     ]);
   });
 
-  it("starts a Cloud run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
+  it("starts a Cloud run when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     await expect(
       caller.startRun({
@@ -307,8 +318,8 @@ describe("in-app agent background runs", () => {
 
   it("rejects requests before queueing when the in-app agent model is not configured", async () => {
     const { caller, projectId } = await createCaller();
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_MODEL = undefined;
-    (sharedEnv as any).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+    (sharedEnv as any).LANGFUSE_AI_MODEL = undefined;
+    (sharedEnv as any).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
 
     await expect(
       caller.startRun({
@@ -318,8 +329,7 @@ describe("in-app agent background runs", () => {
       }),
     ).rejects.toMatchObject({
       code: "PRECONDITION_FAILED",
-      message:
-        "In-app agent Bedrock model is not configured. Set LANGFUSE_AWS_BEDROCK_MODEL.",
+      message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
     });
 
     expect(enqueuedJobs).toHaveLength(0);
@@ -726,7 +736,31 @@ describe("in-app agent background runs", () => {
     });
     expect(decisionEvent.event).toMatchObject({
       name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
-      value: { toolCallId: "tool-call-grant" },
+      value: {
+        toolCallId: "tool-call-grant",
+        approved: true,
+        alwaysAllow: true,
+        toolName: "langfuse_createTextPrompt",
+      },
+    });
+
+    const onceDecisionEvent = await prisma.inAppAgentEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: onceConversation.id,
+        runId: onceRunId,
+      },
+      orderBy: { sequenceNumber: "desc" },
+    });
+    expect(onceDecisionEvent.event).toMatchObject({
+      name: IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+      value: {
+        toolCallId: "tool-call-once",
+        approved: true,
+      },
+    });
+    expect(onceDecisionEvent.event).not.toMatchObject({
+      value: { alwaysAllow: true },
     });
   });
 

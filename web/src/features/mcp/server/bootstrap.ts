@@ -10,8 +10,7 @@
  * 3. Call toolRegistry.register(featureModule)
  */
 
-import { toolRegistry } from "./registry";
-import type { McpFeatureModule } from "./registry";
+import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "../features/prompts";
 import { observationsFeature } from "../features/observations";
 import { annotationQueuesFeature } from "../features/annotationQueues";
@@ -27,6 +26,7 @@ import { dashboardWidgetsFeature } from "../features/dashboardWidgets";
 import { feedbackFeature } from "../features/feedback";
 import { experimentsFeature } from "../features/experiments";
 import { monitorsFeature } from "../features/monitors";
+import { v4MigrationFeature } from "../features/v4Migration";
 
 const MCP_FEATURES = [
   promptsFeature,
@@ -44,6 +44,7 @@ const MCP_FEATURES = [
   feedbackFeature,
   experimentsFeature,
   monitorsFeature,
+  v4MigrationFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
 export type McpFeature = (typeof MCP_FEATURES)[number];

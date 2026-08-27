@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
@@ -123,16 +123,9 @@ export const InAppAiAgentButton = ({
       {!prominent && (
         <>
           <span className="hidden sm:inline">Assistant</span>
-          <KeyboardShortcut
-            className="bg-transparent shadow-none"
-            keys={[
-              typeof navigator !== "undefined" &&
-              navigator.userAgent.includes("Mac")
-                ? "⌘"
-                : "Ctrl",
-              "I",
-            ]}
-          />
+          <span className="hidden md:inline-flex">
+            <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
+          </span>
         </>
       )}
     </Button>

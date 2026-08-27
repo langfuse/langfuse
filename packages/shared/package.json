@@ -39,6 +39,10 @@
       "import": "./dist/src/server/auth/apiKeys.js",
       "require": "./dist/src/server/auth/apiKeys.js"
     },
+    "./instrumentation/bootstrap": {
+      "import": "./dist/src/server/instrumentation/bootstrap/index.js",
+      "require": "./dist/src/server/instrumentation/bootstrap/index.js"
+    },
     "./src/utils/chatml": {
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
@@ -106,6 +110,10 @@
     "./in-app-agent/server/modelProvider": {
       "import": "./dist/src/in-app-agent/server/modelProvider.js",
       "require": "./dist/src/in-app-agent/server/modelProvider.js"
+    },
+    "./in-app-agent/server/openaiCompatibility": {
+      "import": "./dist/src/in-app-agent/server/openaiCompatibility.js",
+      "require": "./dist/src/in-app-agent/server/openaiCompatibility.js"
     }
   },
   "scripts": {

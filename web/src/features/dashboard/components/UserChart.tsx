@@ -1,25 +1,20 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
-import { useState } from "react";
-import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
-import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
 import { cn } from "@/src/utils/tailwind";
 
-// Target height of one bar row (bar + spacing) and the x-axis strip; matches
-// TracesBarListChart so bars are the same thickness across the two cards.
-const BAR_ROW_HEIGHT = 40;
-const CHART_AXIS_PADDING = 30;
+// Cap on bars fetched and rendered; matches TracesBarListChart. The top list
+// scrolls within the tile when they don't all fit.
+const MAX_BARS = 20;
 
 type BarChartDataPoint = {
   name: string;
@@ -45,9 +40,6 @@ export const UserChart = ({
   metricsVersion?: ViewVersion;
   schedulerId?: string;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
-
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -70,7 +62,7 @@ export const UserChart = ({
     orderBy: [{ field: "sum_totalCost", direction: "desc" }],
     chartConfig: {
       type: "HORIZONTAL_BAR",
-      row_limit: maxNumberOfEntries.expanded,
+      row_limit: MAX_BARS,
     },
   };
 
@@ -113,7 +105,7 @@ export const UserChart = ({
     ],
     chartConfig: {
       type: "HORIZONTAL_BAR",
-      row_limit: maxNumberOfEntries.expanded,
+      row_limit: MAX_BARS,
     },
   };
 
@@ -166,17 +158,6 @@ export const UserChart = ({
     0,
   );
 
-  // Fit the number of bars to the tile height (see TracesBarListChart): render
-  // exactly the bars that fill the measured chart area, no scrollbar, and defer
-  // the rest to "Show all". The measured `height` flows one-way into the pure
-  // BarListChartArea chart. (LFE-11035, LFE-11060)
-  const { containerRef, rowCount, height } = useFitRowCount({
-    rowHeightPx: BAR_ROW_HEIGHT,
-    reservedPx: CHART_AXIS_PADDING,
-    min: 1,
-    fallback: maxNumberOfEntries.collapsed,
-  });
-
   const data = [
     {
       tabTitle: "Token cost",
@@ -200,9 +181,9 @@ export const UserChart = ({
 
   return (
     <DashboardCard
-      // h-full pins the card to the tile so the chart area measures the
-      // AVAILABLE height, not its own content; min-h-0 lets the flex column
-      // shrink so the chart viewport scrolls internally. (LFE-11035)
+      // h-full pins the card to the tile so the chart area gets the AVAILABLE
+      // height, not its own content; min-h-0 lets the flex column shrink so
+      // the top list scrolls internally.
       className={cn(className, "h-full")}
       cardContentClassName="min-h-0"
       title="User consumption"
@@ -210,12 +191,6 @@ export const UserChart = ({
     >
       <TabComponent
         tabs={data.map((item) => {
-          const shown = item.data.slice(
-            0,
-            isExpanded
-              ? Math.min(maxNumberOfEntries.expanded, item.data.length)
-              : Math.min(rowCount, item.data.length),
-          );
           return {
             tabTitle: item.tabTitle,
             content: (
@@ -227,13 +202,8 @@ export const UserChart = ({
                       description={item.metricDescription}
                     />
                     <BarListChartArea
-                      containerRef={containerRef}
-                      measuredHeightPx={height}
-                      isExpanded={isExpanded}
-                      data={shown}
-                      barRowHeightPx={BAR_ROW_HEIGHT}
-                      axisPaddingPx={CHART_AXIS_PADDING}
-                      maxExpandedBars={maxNumberOfEntries.expanded}
+                      data={item.data}
+                      maxBars={MAX_BARS}
                       metricLabel={item.chartMetricLabel}
                       unit={item.chartUnit}
                     />
@@ -250,17 +220,6 @@ export const UserChart = ({
             ),
           };
         })}
-      />
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={transformedCost.length}
-        maxLength={Math.min(rowCount, transformedCost.length)}
-        expandText={
-          transformedCost.length > maxNumberOfEntries.expanded
-            ? `Show top ${maxNumberOfEntries.expanded}`
-            : "Show all"
-        }
       />
     </DashboardCard>
   );

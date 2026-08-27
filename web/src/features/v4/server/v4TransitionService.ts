@@ -14,14 +14,17 @@ import {
   readExperimentPostUsageCache,
   readLegacyApiUsageCache,
 } from "@/src/features/v4/server/v4TransitionCache";
-import { trimLegacyApiUsageRows } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+import {
+  getLegacyApiUsageSummaries,
+  trimLegacyApiUsageRows,
+} from "@/src/features/v4/server/v4TransitionQueryLogUsage";
 import {
   deriveExperimentInstrumentationMigration,
+  getSdkUsageSummaries,
   getSdkUsageSeriesByProject,
 } from "@/src/features/v4/server/v4TransitionSdkUsage";
 
-export { getSdkUsageSummaries } from "@/src/features/v4/server/v4TransitionSdkUsage";
-export { getLegacyApiUsageSummaries } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+export { getSdkUsageSummaries, getLegacyApiUsageSummaries };
 
 const legacyIntegrationExportSources =
   new Set<AnalyticsIntegrationExportSource>([
@@ -105,7 +108,7 @@ type V4TransitionPrisma = Pick<
   | "posthogIntegration"
   | "mixpanelIntegration"
   | "blobStorageIntegration"
-  | "jobConfiguration"
+  | "evaluationRule"
 >;
 
 export const getAccessibleOrganizationProjects = async ({
@@ -192,11 +195,10 @@ export const getTraceLevelEvalSummaries = async ({
 }): Promise<TraceLevelEvalSummaryResultRow[]> => {
   if (projectIds.length === 0) return [];
 
-  const counts = await prisma.jobConfiguration.groupBy({
+  const counts = await prisma.evaluationRule.groupBy({
     by: ["projectId"],
     where: {
       projectId: { in: projectIds },
-      jobType: "EVAL",
       targetObject: { in: [TRACE_EVAL_TARGET, DATASET_EVAL_TARGET] },
       status: "ACTIVE",
       timeScope: { has: "NEW" },
@@ -211,6 +213,36 @@ export const getTraceLevelEvalSummaries = async ({
     projectId,
     traceLevelEvalCount: countByProjectId.get(projectId) ?? 0,
   }));
+};
+
+/**
+ * Project-scoped migration evidence exposed by the v4 migration API.
+ * Keep MCP and UI consumers on the same data sources and detection windows.
+ */
+export const getProjectV4MigrationData = async ({
+  prisma,
+  projectId,
+}: {
+  prisma: V4TransitionPrisma;
+  projectId: string;
+}) => {
+  const projectIds = [projectId];
+  const [sdkUsage, legacyIntegrations, legacyApiUsage, traceLevelEvals] =
+    await Promise.all([
+      getSdkUsageSummaries({ projectIds }),
+      getLegacyIntegrationSummaries({ prisma, projectIds }),
+      getLegacyApiUsageSummaries({ projectIds }),
+      getTraceLevelEvalSummaries({ prisma, projectIds }),
+    ]);
+
+  return {
+    projectId,
+    forceV3Experience: isForceV3ExperienceProject(projectId),
+    sdkUsage: sdkUsage[0]!,
+    legacyIntegrations: legacyIntegrations[0]!,
+    legacyApiUsage,
+    traceLevelEvals: traceLevelEvals[0]!,
+  };
 };
 
 /**

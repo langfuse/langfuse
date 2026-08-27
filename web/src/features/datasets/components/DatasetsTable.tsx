@@ -16,11 +16,14 @@ import {
   TableViewPresetTableName,
   type Prisma,
   type TableViewPresetState,
+  ActionId,
+  BatchActionType,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
@@ -37,11 +40,6 @@ import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/use
 import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import {
-  ActionId,
-  BatchActionType,
-  BatchExportTableName,
-} from "@langfuse/shared";
 import { type TableAction } from "@/src/features/table/types";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { Pen, Trash } from "lucide-react";
@@ -371,28 +369,18 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 60,
     },
-    {
+    createDateTableColumn<DatasetTableRow>({
       accessorKey: "createdAt",
       header: "Created",
-      id: "createdAt",
       enableHiding: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: DatasetTableRow["createdAt"] = row.getValue("createdAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createDateTableColumn<DatasetTableRow>({
       accessorKey: "lastRunAt",
       header: "Last Run",
-      id: "lastRunAt",
       enableHiding: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "inputSchema",
       header: "Input Schema",

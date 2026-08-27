@@ -14,6 +14,7 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
@@ -21,9 +22,10 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
-import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -32,7 +34,6 @@ import {
   ReleaseBadge,
   VersionBadge,
   LevelBadge,
-  StatusMessageBadge,
 } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
@@ -42,15 +43,25 @@ import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { type ScoreDomain } from "@langfuse/shared";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenu } from "@/src/features/traces/components/DetailHeaderActionsMenu";
+import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import {
+  ChevronDown,
+  EllipsisVertical,
+  ListPlus,
+  LockIcon,
+  MessageSquare,
+  MessageSquareOff,
+  MoreHorizontal,
+  SquarePen,
+  Terminal,
+} from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -144,7 +155,7 @@ export const ObservationDetailViewHeader = memo(
             >
               {observation.name || observation.id}
             </span>
-            <DetailHeaderActionsMenu
+            <DetailHeaderActionsMenuController
               idItems={[
                 { id: traceId, name: "Trace ID" },
                 { id: observation.id, name: "Observation ID" },
@@ -157,7 +168,21 @@ export const ObservationDetailViewHeader = memo(
                 observationId: observation.id,
                 sessionId: observation.sessionId ?? null,
               }}
-            />
+            >
+              {({ Trigger }) => (
+                <Trigger asChild>
+                  <Button
+                    aria-label="Options"
+                    className="mt-0.5 shrink-0"
+                    size="icon-xs"
+                    title="Options"
+                    variant="ghost"
+                  >
+                    <EllipsisVertical className="h-4 w-4" />
+                  </Button>
+                </Trigger>
+              )}
+            </DetailHeaderActionsMenuController>
             {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
                 full-width labeled rows, next to the `⋮` utility menu. */}
             {isMobile && (
@@ -174,7 +199,7 @@ export const ObservationDetailViewHeader = memo(
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  // forceMount + hide-when-closed: CommentDrawerButton lives in
+                  // forceMount + hide-when-closed: CommentDrawerController lives in
                   // here, and its deep-link auto-open effect (?comments=open) and
                   // controlled inline-selection flow only work while mounted. A
                   // default Popover unmounts its content when closed (the default
@@ -243,34 +268,90 @@ export const ObservationDetailViewHeader = memo(
                           layout="menu"
                         />
                       )}
-                      <CreateNewAnnotationQueueItem
+                      <AnnotationQueueItemDropdownMenuController
                         projectId={projectId}
                         objectId={observation.id}
                         objectType={AnnotationQueueObjectType.OBSERVATION}
-                        layout="menu"
-                      />
+                      >
+                        {({ disabled, totalCount }) => (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled !== undefined}
+                            className="w-full justify-start gap-2 font-normal"
+                          >
+                            <ListPlus className="h-4 w-4" />
+                            <span className="text-sm">Add to queue</span>
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="menu"
+                            />
+                          </Button>
+                        )}
+                      </AnnotationQueueItemDropdownMenuController>
                     </>
                   )}
                   {observationWithIO &&
                     isGenerationLike(observationWithIO.type) && (
-                      <JumpToPlaygroundButton
+                      <JumpToPlaygroundDropdownMenuController
                         source="generation"
                         generation={observationWithIO}
                         analyticsEventName="trace_detail:test_in_playground_button_click"
-                        layout="menu"
-                      />
+                      >
+                        {({ Trigger, disabled, title }) => (
+                          <Trigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={disabled}
+                              title={title}
+                              className={cn(
+                                "w-full justify-start gap-2 font-normal",
+                                disabled
+                                  ? "cursor-not-allowed opacity-50"
+                                  : "cursor-pointer",
+                              )}
+                            >
+                              <Terminal className="h-4 w-4" />
+                              <span className="text-sm">
+                                Test in playground
+                              </span>
+                            </Button>
+                          </Trigger>
+                        )}
+                      </JumpToPlaygroundDropdownMenuController>
                     )}
-                  <CommentDrawerButton
+                  <CommentDrawerController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType="OBSERVATION"
                     count={commentCount}
-                    layout="menu"
                     pendingSelection={pendingSelection}
                     onSelectionUsed={onSelectionUsed}
                     isOpen={isCommentDrawerOpen}
                     onOpenChange={onCommentDrawerOpenChange}
-                  />
+                  >
+                    {({ disabled, openDrawer }) => (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={openDrawer}
+                        className="w-full justify-start gap-2 font-normal"
+                      >
+                        {disabled ? (
+                          <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4" />
+                        )}
+                        <span className="text-sm">Add comment</span>
+                        {!disabled && commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </Button>
+                    )}
+                  </CommentDrawerController>
                 </PopoverContent>
               </Popover>
             )}
@@ -339,34 +420,92 @@ export const ObservationDetailViewHeader = memo(
                       size="sm"
                     />
                   )}
-                  <CreateNewAnnotationQueueItem
+                  <AnnotationQueueItemDropdownMenuController
                     projectId={projectId}
                     objectId={observation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
-                    size="sm"
-                  />
+                  >
+                    {({ disabled, totalCount }) => (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={disabled !== undefined}
+                        className="rounded-l-none rounded-r-md border-l-2"
+                      >
+                        <span className="relative mr-1 text-xs">
+                          <ChevronDown className="h-3 w-3" />
+                          <AnnotationQueueItemCountBadge
+                            totalCount={totalCount}
+                            layout="toolbar"
+                          />
+                        </span>
+                      </Button>
+                    )}
+                  </AnnotationQueueItemDropdownMenuController>
                 </div>
               )}
               {observationWithIO &&
                 isGenerationLike(observationWithIO.type) && (
-                  <JumpToPlaygroundButton
+                  <JumpToPlaygroundDropdownMenuController
                     source="generation"
                     generation={observationWithIO}
                     analyticsEventName="trace_detail:test_in_playground_button_click"
-                    size="sm"
-                  />
+                  >
+                    {({ Trigger, disabled, title }) => (
+                      <Trigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={disabled}
+                          title={title}
+                          className={cn(
+                            "flex items-center gap-1",
+                            disabled
+                              ? "cursor-not-allowed opacity-50"
+                              : "cursor-pointer",
+                          )}
+                        >
+                          <Terminal className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">Playground</span>
+                          <ChevronDown className="h-3 w-3" />
+                        </Button>
+                      </Trigger>
+                    )}
+                  </JumpToPlaygroundDropdownMenuController>
                 )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={observation.id}
                 objectType="OBSERVATION"
                 count={commentCount}
-                size="sm"
                 pendingSelection={pendingSelection}
                 onSelectionUsed={onSelectionUsed}
                 isOpen={isCommentDrawerOpen}
                 onOpenChange={onCommentDrawerOpenChange}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="gap-1"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>Add comment</span>
+                        {!!commentCount ? (
+                          <ActionButtonCountBadge count={commentCount} />
+                        ) : null}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CommentDrawerController>
             </div>
           )}
         </div>
@@ -375,12 +514,8 @@ export const ObservationDetailViewHeader = memo(
 
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-sm"
-            />
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
           </div>
 
           {/* Other badges */}
@@ -460,7 +595,6 @@ export const ObservationDetailViewHeader = memo(
                 modelParameters={observation.modelParameters}
               />
               <LevelBadge level={observation.level} />
-              <StatusMessageBadge statusMessage={observation.statusMessage} />
               {observation.promptId && (
                 <PromptBadge
                   promptId={observation.promptId}

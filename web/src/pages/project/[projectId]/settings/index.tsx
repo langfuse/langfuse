@@ -14,7 +14,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
-import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
+import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
@@ -120,7 +120,22 @@ export const getProjectSettingsPages = ({
               title: "Transfer ownership",
               description:
                 "Transfer this project to another organization where you have the ability to create projects.",
-              button: <TransferProjectButton />,
+              button: (
+                <TransferProjectDialogController
+                  project={project}
+                  organization={organization}
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      Transfer Project
+                    </Button>
+                  )}
+                </TransferProjectDialogController>
+              ),
             },
             {
               title: "Delete this project",

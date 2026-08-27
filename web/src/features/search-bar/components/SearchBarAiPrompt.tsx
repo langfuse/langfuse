@@ -19,7 +19,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
@@ -42,6 +42,7 @@ export function SearchBarAiPrompt({
   store,
   dataContext,
   scoreNames,
+  registryId = "events",
   onApply,
   onExit,
 }: {
@@ -57,6 +58,7 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
+  registryId?: "events" | "evaluationRules";
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
@@ -124,6 +126,7 @@ export function SearchBarAiPrompt({
     try {
       const result = await generateFilter.mutateAsync({
         projectId,
+        registryId,
         prompt,
         currentQuery: refineMode ? refine : undefined,
         dataContext,
@@ -284,11 +287,16 @@ export function SearchBarAiPrompt({
           ) : (
             <div className="flex shrink-0 items-center gap-1.5">
               {value.trim().length > 0 && (
-                <KeyboardShortcut title="Press Enter to generate">
-                  ↵
-                </KeyboardShortcut>
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut
+                    title="Press Enter to generate"
+                    keys={["Enter"]}
+                  />
+                </span>
               )}
-              <KeyboardShortcut>esc</KeyboardShortcut>
+              <span className="hidden md:inline-flex">
+                <KeyboardShortcut keys={["Escape"]} />
+              </span>
               <button
                 type="button"
                 aria-label="Generate filters"

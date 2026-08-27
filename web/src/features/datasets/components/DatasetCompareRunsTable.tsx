@@ -1,8 +1,8 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
@@ -136,23 +136,23 @@ function DatasetCompareRunsTableInternal(props: {
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
-    {
+    createLinkTableColumn<DatasetCompareRunRowData>({
       accessorKey: "id",
       header: "Item id",
-      id: "id",
       size: 90,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const id: string = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (!id) return undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`,
+            value: id,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
