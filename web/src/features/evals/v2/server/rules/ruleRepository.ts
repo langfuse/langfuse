@@ -134,10 +134,16 @@ export async function listRules(params: {
   input: ListRulesInput;
 }) {
   const where = ruleWhere(params.input);
+  const requestedOrder = params.input.orderBy;
+  const orderColumn =
+    requestedOrder?.column === "enabled"
+      ? "status"
+      : (requestedOrder?.column ?? "createdAt");
+  const orderDirection = requestedOrder?.order.toLowerCase() ?? "desc";
   const [rules, totalItems] = await Promise.all([
     params.prisma.evaluationRule.findMany({
       where,
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      orderBy: [{ [orderColumn]: orderDirection }, { id: "desc" }],
       skip: (params.input.page - 1) * params.input.limit,
       take: params.input.limit,
       include: ruleInclude,
