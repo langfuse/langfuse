@@ -22,9 +22,9 @@ service:
         type: Evaluator
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationMethodNotAllowedError
         - errors.PreconditionFailedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
@@ -48,9 +48,9 @@ service:
       response: EvaluatorsPage
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
@@ -67,10 +67,10 @@ service:
           docs: Stable evaluator identifier returned by the evaluator endpoints.
       response: Evaluator
       errors:
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
@@ -93,10 +93,10 @@ service:
       response: Evaluator
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.ConflictError
         - errors.PreconditionFailedError
         - errors.TooManyRequestsError
@@ -115,10 +115,10 @@ service:
           docs: Stable evaluator identifier returned by the evaluator endpoints.
       response: DeletedEvaluator
       errors:
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
@@ -145,10 +145,10 @@ service:
       response: EvaluatorVersionsPage
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
