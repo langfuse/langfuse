@@ -10,7 +10,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { getAiFeatureConfigTelemetry } from "@/src/features/telemetry/aiFeatures";
+import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
@@ -254,6 +257,9 @@ async function posthogTelemetry({
         },
       },
     });
+    // Resolve through the product config, not env vars, so telemetry cannot
+    // claim an instance is configured when the Assistant refuses to run.
+    const modelConfig = getInAppAgentModelConfig();
 
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
@@ -288,7 +294,9 @@ async function posthogTelemetry({
         totalOrganizations: totalOrganizations,
         aiFeaturesEnabledOrganizations: aiFeaturesEnabledOrganizations,
         assistantRuns: countAssistantRuns,
-        ...getAiFeatureConfigTelemetry(),
+        assistantInstanceEnabled: isInAppAgentInstanceEnabled(),
+        langfuseAiModelConfigured: modelConfig !== undefined,
+        langfuseAiProvider: modelConfig?.provider ?? null,
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,
