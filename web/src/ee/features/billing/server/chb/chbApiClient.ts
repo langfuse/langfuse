@@ -1,7 +1,8 @@
+import { SpanKind, type Span } from "@opentelemetry/api";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { logger } from "@langfuse/shared/src/server";
+import { instrumentAsync, logger } from "@langfuse/shared/src/server";
 
 import {
   ChbAccessTokenProvider,
@@ -106,6 +107,12 @@ const ChbPortalSessionSchema = z.object({
 const REQUEST_TIMEOUT_MS = 15_000;
 
 type ChbRequestOptions = {
+  /**
+   * APM span name for the CHB operation, e.g. `chb.checkout_session.create`.
+   * Named after the operation rather than the route so a path carrying an id
+   * does not fan one operation out into unrelated APM resources.
+   */
+  operation: string;
   method: "GET" | "POST" | "PUT" | "DELETE";
   path: string;
   /** CH-Organization-Id header — required for org-scoped endpoints */
@@ -140,33 +147,80 @@ export class ChbApiClient {
     return url;
   }
 
-  private async send(url: URL, opts: ChbRequestOptions): Promise<Response> {
-    return await fetch(url, {
-      method: opts.method,
-      headers: {
-        authorization: `Bearer ${await this.tokenProvider.getToken()}`,
-        ...(opts.chOrganizationId
-          ? { "CH-Organization-Id": opts.chOrganizationId }
-          : {}),
-        ...(opts.body !== undefined
-          ? { "content-type": "application/json" }
-          : {}),
-        ...(opts.idempotencyKey
-          ? { "Idempotency-Key": opts.idempotencyKey }
-          : {}),
+  /**
+   * One span per HTTP attempt, so a token replay shows as two attempt spans —
+   * each with the token mint it triggered nested underneath — rather than as
+   * one opaque slow call.
+   */
+  private async send(
+    url: URL,
+    opts: ChbRequestOptions,
+    attempt: number,
+  ): Promise<Response> {
+    return await instrumentAsync(
+      { name: "chb.api.request", spanKind: SpanKind.CLIENT },
+      async (span) => {
+        span.setAttributes({
+          "http.method": opts.method,
+          "http.route": opts.path,
+          "peer.hostname": url.hostname,
+          "chb.operation": opts.operation,
+          "chb.attempt": attempt,
+        });
+
+        const response = await fetch(url, {
+          method: opts.method,
+          headers: {
+            authorization: `Bearer ${await this.tokenProvider.getToken()}`,
+            ...(opts.chOrganizationId
+              ? { "CH-Organization-Id": opts.chOrganizationId }
+              : {}),
+            ...(opts.body !== undefined
+              ? { "content-type": "application/json" }
+              : {}),
+            ...(opts.idempotencyKey
+              ? { "Idempotency-Key": opts.idempotencyKey }
+              : {}),
+          },
+          body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+          // The base URL is operator-configured; an unexpected redirect is an
+          // error, not something to follow with a bearer token attached.
+          redirect: "error",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+
+        span.setAttribute("http.status_code", response.status);
+        return response;
       },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      // The base URL is operator-configured; an unexpected redirect is an
-      // error, not something to follow with a bearer token attached.
-      redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    );
   }
 
   private async request(opts: ChbRequestOptions): Promise<unknown> {
+    return await instrumentAsync(
+      { name: opts.operation, spanKind: SpanKind.CLIENT },
+      async (span) => {
+        span.setAttributes({
+          "http.method": opts.method,
+          "http.route": opts.path,
+          ...(opts.chOrganizationId
+            ? { "chb.ch_organization_id": opts.chOrganizationId }
+            : {}),
+          ...(opts.idempotencyKey
+            ? { "chb.idempotency_key": opts.idempotencyKey }
+            : {}),
+        });
+        return await this.sendWithReplay(opts, span);
+      },
+    );
+  }
+
+  private async sendWithReplay(
+    opts: ChbRequestOptions,
+    span: Span,
+  ): Promise<unknown> {
     const url = this.requestUrl(opts);
 
-    let response = await this.send(url, opts);
+    let response = await this.send(url, opts, 1);
     if (response.status === 401) {
       // CHB rejected a token we still considered fresh — revoked, or the Auth0
       // signing key rotated. A 401 means CHB did no work, and the retry carries
@@ -175,9 +229,12 @@ export class ChbApiClient {
         method: opts.method,
         path: opts.path,
       });
+      span.setAttribute("chb.token_replayed", true);
       this.tokenProvider.invalidate();
-      response = await this.send(url, opts);
+      response = await this.send(url, opts, 2);
     }
+
+    span.setAttribute("http.status_code", response.status);
 
     const responseBody = await response
       .json()
@@ -211,6 +268,7 @@ export class ChbApiClient {
     idempotencyKey?: string;
   }): Promise<ChbCheckoutSession> {
     const body = await this.request({
+      operation: "chb.checkout_session.create",
       method: "POST",
       path: "checkout-sessions",
       body: {
@@ -234,6 +292,7 @@ export class ChbApiClient {
     bundleId: string;
   }): Promise<ChbBundle> {
     const body = await this.request({
+      operation: "chb.bundle.get",
       method: "GET",
       path: `bundles/${encodeURIComponent(params.bundleId)}`,
       chOrganizationId: params.chOrganizationId,
@@ -254,6 +313,7 @@ export class ChbApiClient {
     idempotencyKey?: string;
   }): Promise<void> {
     await this.request({
+      operation: "chb.bundle.scheduled.set",
       method: "PUT",
       path: `bundles/${encodeURIComponent(params.bundleId)}/scheduled`,
       chOrganizationId: params.chOrganizationId,
@@ -269,6 +329,7 @@ export class ChbApiClient {
     idempotencyKey?: string;
   }): Promise<void> {
     await this.request({
+      operation: "chb.bundle.scheduled.clear",
       method: "DELETE",
       path: `bundles/${encodeURIComponent(params.bundleId)}/scheduled`,
       chOrganizationId: params.chOrganizationId,
@@ -281,6 +342,7 @@ export class ChbApiClient {
     bundleId: string;
   }): Promise<ChbInvoice[]> {
     const body = await this.request({
+      operation: "chb.invoices.list",
       method: "GET",
       path: "invoices",
       chOrganizationId: params.chOrganizationId,
@@ -294,6 +356,7 @@ export class ChbApiClient {
     returnUrl: string;
   }): Promise<string> {
     const body = await this.request({
+      operation: "chb.portal_session.create",
       method: "POST",
       path: "portal-sessions",
       chOrganizationId: params.chOrganizationId,

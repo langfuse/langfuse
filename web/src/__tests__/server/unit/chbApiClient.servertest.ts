@@ -1,22 +1,60 @@
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  env: {
-    CLICKHOUSE_BILLING_BASE_URL: undefined as string | undefined,
-    CLICKHOUSE_BILLING_AUTH0_DOMAIN: undefined as string | undefined,
-    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: undefined as string | undefined,
-    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: undefined as string | undefined,
-    CLICKHOUSE_BILLING_AUTH0_AUDIENCE: "billing-api",
-  },
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+type RecordedSpan = { name: string; attributes: Record<string, unknown> };
+
+const mocks = vi.hoisted(() => {
+  const spans: RecordedSpan[] = [];
+
+  /**
+   * Stand-in for instrumentAsync that records the span name and every attribute
+   * set on it, so a test can assert what APM would show. Spans land in the
+   * order they were started, which is the order APM nests them.
+   */
+  const instrumentAsync = vi.fn(
+    async (
+      ctx: { name: string },
+      callback: (span: unknown) => Promise<unknown>,
+    ) => {
+      const attributes: Record<string, unknown> = {};
+      spans.push({ name: ctx.name, attributes });
+      return await callback({
+        setAttribute: (key: string, value: unknown) => {
+          attributes[key] = value;
+        },
+        setAttributes: (values: Record<string, unknown>) => {
+          Object.assign(attributes, values);
+        },
+        recordException: vi.fn(),
+        setStatus: vi.fn(),
+        end: vi.fn(),
+      });
+    },
+  );
+
+  return {
+    env: {
+      CLICKHOUSE_BILLING_BASE_URL: undefined as string | undefined,
+      CLICKHOUSE_BILLING_AUTH0_DOMAIN: undefined as string | undefined,
+      CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: undefined as string | undefined,
+      CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: undefined as string | undefined,
+      CLICKHOUSE_BILLING_AUTH0_AUDIENCE: "billing-api",
+    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    spans,
+    instrumentAsync,
+  };
+});
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
-  return { ...actual, logger: mocks.logger };
+  return {
+    ...actual,
+    logger: mocks.logger,
+    instrumentAsync: mocks.instrumentAsync,
+  };
 });
 
 import {
@@ -78,6 +116,14 @@ const lastChbCall = () => {
 
 const headersOf = (init: RequestInit) => init.headers as Record<string, string>;
 
+const spanNames = () => mocks.spans.map((span) => span.name);
+
+const spanNamed = (name: string) => {
+  const matches = mocks.spans.filter((span) => span.name === name);
+  if (matches.length === 0) throw new Error(`no ${name} span was recorded`);
+  return matches;
+};
+
 const client = () =>
   new ChbApiClient({
     // Deliberately carries a path prefix: the URL join must keep it.
@@ -94,6 +140,7 @@ describe("chbApiClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     chbResponses.length = 0;
+    mocks.spans.length = 0;
     tokenCounter = 0;
     mocks.env.CLICKHOUSE_BILLING_BASE_URL = undefined;
     mocks.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN = undefined;
@@ -473,6 +520,134 @@ describe("chbApiClient", () => {
       // suddenly start talking to CHB.
       setAll();
       expect(getChbApiClient()).toBeNull();
+    });
+  });
+
+  describe("tracing", () => {
+    it("names the span after the operation, not the route", async () => {
+      onChb(jsonResponse(200, { id: "bundle_1" }));
+
+      await client().getBundle({
+        chOrganizationId: CH_ORG_ID,
+        bundleId: "bundle_1",
+      });
+
+      // A bundle id in the span name would fan one operation out into an
+      // unbounded set of APM resources.
+      expect(spanNames()).toContain("chb.bundle.get");
+      expect(spanNames().join()).not.toContain("bundle_1");
+    });
+
+    it("spans the operation with its route, org and idempotency key", async () => {
+      onChb(jsonResponse(202, {}));
+
+      await client().setScheduledChange({
+        chOrganizationId: CH_ORG_ID,
+        bundleId: "b1",
+        change: { type: "upgrade", when: "immediate", planCode: "pro" },
+        idempotencyKey: "chb.bundle.scheduled.set:bundleId=b1:op=abc",
+      });
+
+      expect(
+        spanNamed("chb.bundle.scheduled.set")[0]!.attributes,
+      ).toMatchObject({
+        "http.method": "PUT",
+        "http.route": "bundles/b1/scheduled",
+        "http.status_code": 202,
+        "chb.ch_organization_id": CH_ORG_ID,
+        "chb.idempotency_key": "chb.bundle.scheduled.set:bundleId=b1:op=abc",
+      });
+    });
+
+    it("spans each HTTP attempt separately when the token is replayed", async () => {
+      onChb(
+        jsonResponse(401, { error: "Invalid or expired token" }),
+        jsonResponse(200, {
+          url: "https://pay.example.com/s/1",
+          organizationId: CH_ORG_ID,
+        }),
+      );
+
+      await client().createCheckoutSession({
+        email: "user@example.com",
+        planCode: "core",
+        returnUrl: "https://cloud.langfuse.com/back",
+        organizationId: CH_ORG_ID,
+      });
+
+      // The operation, then each attempt with the mint it triggered beneath it.
+      expect(spanNames()).toEqual([
+        "chb.checkout_session.create",
+        "chb.api.request",
+        "chb.auth.token.mint",
+        "chb.api.request",
+        "chb.auth.token.mint",
+      ]);
+
+      const attempts = spanNamed("chb.api.request");
+      expect(attempts[0]!.attributes).toMatchObject({
+        "chb.attempt": 1,
+        "http.status_code": 401,
+        "http.method": "POST",
+        "http.route": "checkout-sessions",
+        "peer.hostname": "chb.example.com",
+        "chb.operation": "chb.checkout_session.create",
+      });
+      expect(attempts[1]!.attributes).toMatchObject({
+        "chb.attempt": 2,
+        "http.status_code": 200,
+      });
+    });
+
+    it("marks the operation span when a token replay happened", async () => {
+      onChb(jsonResponse(401, {}), jsonResponse(202, {}));
+
+      await client().clearScheduledChange({
+        chOrganizationId: CH_ORG_ID,
+        bundleId: "b1",
+      });
+
+      // A replay that succeeded leaves no error behind, so the span tag is the
+      // only way to see the token churn.
+      expect(
+        spanNamed("chb.bundle.scheduled.clear")[0]!.attributes,
+      ).toMatchObject({
+        "chb.token_replayed": true,
+        "http.status_code": 202,
+      });
+    });
+
+    it("carries the failing status on the operation span when the replay also 401s", async () => {
+      onChb(jsonResponse(401, {}), jsonResponse(401, {}));
+
+      await client()
+        .getBundle({ chOrganizationId: CH_ORG_ID, bundleId: "b1" })
+        .catch(() => undefined);
+
+      // This is the staging checkout failure shape: two attempts, both 401.
+      expect(spanNamed("chb.bundle.get")[0]!.attributes).toMatchObject({
+        "chb.token_replayed": true,
+        "http.status_code": 401,
+      });
+      expect(spanNamed("chb.api.request")).toHaveLength(2);
+    });
+
+    it("does not span a request that reuses the cached token", async () => {
+      onChb(jsonResponse(200, { id: "b1" }), jsonResponse(202, {}));
+      const chb = client();
+
+      await chb.getBundle({ chOrganizationId: CH_ORG_ID, bundleId: "b1" });
+      mocks.spans.length = 0;
+      await chb.clearScheduledChange({
+        chOrganizationId: CH_ORG_ID,
+        bundleId: "b1",
+      });
+
+      // No mint span means the token cache held — the absence is the signal.
+      expect(spanNames()).toEqual([
+        "chb.bundle.scheduled.clear",
+        "chb.api.request",
+      ]);
     });
   });
 });
