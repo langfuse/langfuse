@@ -177,7 +177,7 @@ const prefixCheck = (
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
   const client = clickhouseClient({
-    request_timeout: 120_000,
+    request_timeout: 300_000,
     clickhouse_settings: {
       send_progress_in_http_headers: 1,
       http_headers_progress_interval_ms: "100",
