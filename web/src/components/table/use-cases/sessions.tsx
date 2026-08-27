@@ -65,7 +65,7 @@ import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -307,10 +307,6 @@ export default function SessionsTable({
     useIsFeatureEnabled("sessionsSearchBar", { enableForAdmins: false }) &&
     isBetaEnabled &&
     !userId;
-  const searchRegistry = useMemo(
-    () => sessionsFieldRegistry(isBetaEnabled),
-    [isBetaEnabled],
-  );
   const observedOptions = useMemo(
     () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
     [newFilterOptions, isSidebarFilterLoading],
@@ -333,7 +329,7 @@ export default function SessionsTable({
     setFilterState: setFiltersWrapper,
     setSearchQuery: noSearchLane,
     setSearchType: noSearchLane,
-    registry: searchRegistry,
+    registry: SESSIONS_FIELD_REGISTRY,
   });
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
@@ -809,7 +805,7 @@ export default function SessionsTable({
             commit={searchBarCommit}
             observed={observedOptions}
             onApplyFilters={searchBarApplyFilters}
-            registry={searchRegistry}
+            registry={SESSIONS_FIELD_REGISTRY}
           />
         )}
         {/* Toolbar spanning full width */}

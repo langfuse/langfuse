@@ -347,6 +347,9 @@ const run = async (
           environment,
           name: "resolved",
           value: s % 6 === 0 ? 1 : 0,
+          // `score_booleans` is concat(name, ':', lowerUTF8(string_value)), so a
+          // boolean score without the True/False string can never be filtered.
+          string_value: s % 6 === 0 ? "True" : "False",
           data_type: "BOOLEAN",
           source: "API",
           comment: null,

@@ -74,6 +74,12 @@ export type FieldRegistry = {
    *  events examples advertise `latency:`/`level:` on a view that has neither. */
   searchExamples: readonly string[];
   /**
+   * Offer the project's recent searches on the empty bar. Off by default: the
+   * store is per PROJECT, not per view, so a view opts in and only the recents
+   * that are valid against its own registry are offered.
+   */
+  recentSearches: boolean;
+  /**
    * Whether this view has its OWN branch in `buildFilterSystemPrompt`. False
    * hides Ask AI: the fallback prompt is the events one — events prose, events
    * worked examples — so a view without its own branch would be handed a
@@ -116,6 +122,7 @@ export function fieldRegistryFromColumns(
     allowFreeText?: boolean;
     defaultTextField?: string;
     searchExamples?: readonly string[];
+    recentSearches?: boolean;
     aiFilterPrompt?: boolean;
     aiContextFields?: readonly AIContextField[];
   },
@@ -171,6 +178,7 @@ export function fieldRegistryFromColumns(
     allowFreeText: overlay.allowFreeText ?? true,
     defaultTextField: overlay.defaultTextField ?? null,
     searchExamples: overlay.searchExamples ?? [],
+    recentSearches: overlay.recentSearches ?? false,
     aiFilterPrompt: overlay.aiFilterPrompt ?? false,
     aiContextFields: overlay.aiContextFields ?? [],
   });
@@ -279,6 +287,7 @@ function createFieldRegistry({
   allowFreeText,
   defaultTextField,
   searchExamples,
+  recentSearches,
   aiFilterPrompt,
   aiContextFields,
 }: {
@@ -291,6 +300,7 @@ function createFieldRegistry({
   allowFreeText: boolean;
   defaultTextField: string | null;
   searchExamples: readonly string[];
+  recentSearches: boolean;
   aiFilterPrompt: boolean;
   aiContextFields: readonly AIContextField[];
 }): FieldRegistry {
@@ -319,6 +329,7 @@ function createFieldRegistry({
     traceScores,
     defaultTextField,
     searchExamples,
+    recentSearches,
     aiFilterPrompt,
     aiContextFields,
     resolveField: (name) => resolveFromRegistry(name, registry, byName),
@@ -352,6 +363,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
     "latency:>2",
     "scores.accuracy:>0.8",
   ],
+  recentSearches: true,
   aiFilterPrompt: true,
   aiContextFields: [
     { observedOptionsKey: "type", promptLabel: "type" },

@@ -4,10 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { EVENTS_FIELD_REGISTRY } from "./fields";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import {
-  SESSIONS_FIELD_REGISTRY,
-  SESSIONS_V3_FIELD_REGISTRY,
-} from "@/src/features/filters/config/sessionsSearchRegistry";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -514,13 +511,27 @@ describe("search bar invariants — sessions registry", () => {
     expect(RULE_FIELD_REGISTRY.aiFilterPrompt).toBe(true);
   });
 
-  it("drops metadata on the v3 registry, which has no metadata column", () => {
-    expect(
-      SESSIONS_V3_FIELD_REGISTRY.resolveField("metadata.region"),
-    ).toBeNull();
-    expect(SESSIONS_FIELD_REGISTRY.resolveField("metadata.region")).toEqual({
-      type: "metadata",
-      key: "region",
-    });
+  it("offers only the recent searches that are valid on this view", () => {
+    // Recents live in one per-PROJECT store shared with the events bar, so a
+    // query typed there can surface here. An events-only one must not be
+    // offered: picking it would insert a query that cannot commit.
+    const plan = planInputCompletions(
+      {
+        input: "",
+        caret: 0,
+        observed: {},
+        recents: ["latency:>2", "tags:billing", "level:ERROR", "countTraces:8"],
+        currentQueryText: "",
+      },
+      SESSIONS_FIELD_REGISTRY,
+    );
+    const offered = (plan?.sections ?? [])
+      .flatMap((section) => section.options)
+      .filter((option) => option.kind === "recent")
+      .map((option) => option.label);
+    expect(offered).toEqual(["tags:billing", "countTraces:8"]);
+
+    // Opt-in: a view that has not asked for recents gets none, valid or not.
+    expect(RULE_FIELD_REGISTRY.recentSearches).toBe(false);
   });
 });

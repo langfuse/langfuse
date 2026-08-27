@@ -5,10 +5,7 @@ import {
 } from "@/src/features/search-bar/lib/fields";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 
-import {
-  sessionEventsFilterConfig,
-  sessionFilterConfig,
-} from "./sessions-config";
+import { sessionEventsFilterConfig } from "./sessions-config";
 
 /**
  * The bar's field list is derived from the sidebar's FACETS, not from the raw
@@ -107,6 +104,7 @@ function sessionsRegistry(config: FilterConfig, metadata: boolean) {
     // by a wide margin, so a bare word means that rather than an error.
     allowFreeText: false,
     defaultTextField: "id",
+    recentSearches: true,
     searchExamples: [
       "userIds:alice",
       "tags:(billing AND urgent)",
@@ -119,20 +117,12 @@ function sessionsRegistry(config: FilterConfig, metadata: boolean) {
 }
 
 /**
- * v4 (events-backed) sessions. The v3 and v4 configs differ by exactly one
- * column — v4 adds `metadata` — so one derivation with the metadata flag
- * covers both instead of two hand-maintained registries.
+ * v4 (events-backed) sessions. The v3 config differs by exactly one column — v4
+ * adds `metadata` — so one derivation parameterised by the metadata flag would
+ * cover both. Only the v4 registry exists because the bar is gated on v4; a v3
+ * variant would be unreachable, and the recipe forbids speculative registries.
  */
-export const SESSIONS_FIELD_REGISTRY = sessionsRegistry(
+export const SESSIONS_FIELD_REGISTRY: FieldRegistry = sessionsRegistry(
   sessionEventsFilterConfig,
   true,
 );
-
-export const SESSIONS_V3_FIELD_REGISTRY = sessionsRegistry(
-  sessionFilterConfig,
-  false,
-);
-
-export function sessionsFieldRegistry(isV4: boolean): FieldRegistry {
-  return isV4 ? SESSIONS_FIELD_REGISTRY : SESSIONS_V3_FIELD_REGISTRY;
-}

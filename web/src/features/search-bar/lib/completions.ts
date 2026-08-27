@@ -27,6 +27,7 @@ import {
   type FieldRef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
 
@@ -399,16 +400,24 @@ function valueOptions(
 function recentOptions(
   recents: string[],
   currentQueryText: string,
+  registry: FieldRegistry,
 ): CompletionOption[] {
-  return recents
-    .filter((q) => q !== currentQueryText.trim())
-    .slice(0, MAX_RECENTS_SHOWN)
-    .map((q, i) => ({
-      id: `recent:${i}:${q}`,
-      kind: "recent" as const,
-      label: q,
-      query: q,
-    }));
+  return (
+    recents
+      .filter((q) => q !== currentQueryText.trim())
+      // Recents are stored per PROJECT, not per view, so a query typed on another
+      // table can be offered here. Picking one that names a field this view does
+      // not have would insert a query that cannot commit, so offer only the ones
+      // that are valid against THIS registry.
+      .filter((q) => validateQuery(q, undefined, registry).valid)
+      .slice(0, MAX_RECENTS_SHOWN)
+      .map((q, i) => ({
+        id: `recent:${i}:${q}`,
+        kind: "recent" as const,
+        label: q,
+        query: q,
+      }))
+  );
 }
 
 function queryPresetSections(
@@ -1209,8 +1218,8 @@ export function planInputCompletions(
           ...section(SECTION_FIELDS, fieldOptions(registry)),
           ...section(
             SECTION_RECENT,
-            registry.allowFreeText
-              ? recentOptions(ctx.recents, ctx.currentQueryText)
+            registry.recentSearches
+              ? recentOptions(ctx.recents, ctx.currentQueryText, registry)
               : [],
           ),
         ],
