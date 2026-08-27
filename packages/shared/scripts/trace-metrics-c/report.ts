@@ -11,6 +11,32 @@ export type QueryMetrics = {
   rows: Record<string, unknown>[];
 };
 
+export type FoldFactor = {
+  rawEventRows: number;
+  uniqueSpans: number;
+  rollupRows: number;
+  traces: number;
+  versionsPerSpan: number;
+  spansPerTrace: number;
+  rawRowsPerTrace: number;
+  rollupRowsPerTrace: number;
+  rowFold: number;
+};
+
+export type DurationShape = {
+  traces: number;
+  unfinishedTraces: number;
+  pctWithin5m: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  p99LatencyMs: number;
+  maxLatencyMs: number;
+  pctSingleBucket: number;
+  pctTwoBuckets: number;
+  pctThreeToSixBuckets: number;
+  pctOverSixBuckets: number;
+};
+
 export type TraceMetricsBenchmark = {
   generatedAt: string;
   projectId: string;
@@ -22,6 +48,8 @@ export type TraceMetricsBenchmark = {
     mismatchCount: number;
     mismatches: string[];
   };
+  foldFactor: FoldFactor;
+  durationShape: DurationShape;
   queries: QueryMetrics[];
 };
 
@@ -168,6 +196,136 @@ const dailyAverageChart = (queries: QueryMetrics[]): string => {
   </svg>`;
 };
 
+const ratio = (goldValue: number, rollupValue: number): string =>
+  rollupValue > 0 ? `${(goldValue / rollupValue).toFixed(1)}x` : "n/a";
+
+/**
+ * The headline the p95-buckets card alone does not give: how much less data the
+ * rollup touches for the same answer, per query pair.
+ */
+const scanReductionTable = (queries: QueryMetrics[]): string => {
+  const pairs = [
+    ["gold-traces", "rollup-traces", "Full trace list (collapse all)"],
+    ["gold-top-n", "rollup-top-n", "Top-N traces by cost"],
+    ["gold-chart", "rollup-chart", "Daily average chart"],
+  ] as const;
+
+  const rows = pairs.flatMap(([goldName, rollupName, label]) =>
+    queries
+      .filter((query) => query.name === goldName)
+      .map((gold) => {
+        const rollup = queries.find(
+          (query) => query.name === rollupName && query.window === gold.window,
+        );
+        if (!rollup) return "";
+        return `<tr>
+          <td>${escapeHtml(gold.window)}</td>
+          <td>${escapeHtml(label)}</td>
+          <td>${gold.readRows.toLocaleString()} → ${rollup.readRows.toLocaleString()}</td>
+          <td class="good">${ratio(gold.readRows, rollup.readRows)}</td>
+          <td>${humanBytes(gold.readBytes)} → ${humanBytes(rollup.readBytes)}</td>
+          <td class="good">${ratio(gold.readBytes, rollup.readBytes)}</td>
+          <td>${gold.elapsedMs.toFixed(1)} → ${rollup.elapsedMs.toFixed(1)} ms</td>
+        </tr>`;
+      }),
+  );
+
+  return `<table>
+    <thead><tr><th>Window</th><th>Query</th><th>Read rows gold → rollup</th><th>Rows saved</th><th>Read bytes gold → rollup</th><th>Bytes saved</th><th>Elapsed</th></tr></thead>
+    <tbody>${rows.join("")}</tbody>
+  </table>`;
+};
+
+const foldFactorSection = (fold: FoldFactor): string => `
+  <table>
+    <thead><tr><th>Stage</th><th>Rows</th><th>Per trace</th><th>What it costs</th></tr></thead>
+    <tbody>
+      <tr><td>Raw <code>events_core</code> versions</td><td>${fold.rawEventRows.toLocaleString()}</td><td>${fold.rawRowsPerTrace.toFixed(2)}</td><td>Scanned by the gold query before any dedup</td></tr>
+      <tr><td>Deduplicated spans</td><td>${fold.uniqueSpans.toLocaleString()}</td><td>${fold.spansPerTrace.toFixed(2)}</td><td>What <code>LIMIT 1 BY</code> leaves behind</td></tr>
+      <tr><td>Five-minute rollup rows</td><td>${fold.rollupRows.toLocaleString()}</td><td>${fold.rollupRowsPerTrace.toFixed(2)}</td><td>Scanned by the rollup query</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Row fold is <strong class="good">${fold.rowFold.toFixed(1)}x</strong>
+  (${fold.rawEventRows.toLocaleString()} raw versions → ${fold.rollupRows.toLocaleString()} rollup rows).
+  It is driven by spans per trace (${fold.spansPerTrace.toFixed(2)}) and versions per span
+  (${fold.versionsPerSpan.toFixed(3)}), <em>not</em> by trace duration. Duration only decides how
+  many five-minute keys one trace occupies.</p>`;
+
+const durationSection = (shape: DurationShape): string => {
+  const bars = [
+    ["1 bucket", shape.pctSingleBucket, "#22c55e"],
+    ["2 buckets", shape.pctTwoBuckets, "#84cc16"],
+    ["3–6 buckets", shape.pctThreeToSixBuckets, "#eab308"],
+    ["7+ buckets", shape.pctOverSixBuckets, "#ef4444"],
+  ] as const;
+
+  return `
+  <p class="muted"><strong>${shape.pctWithin5m.toFixed(1)}%</strong> of traces complete within five
+  minutes, and <strong>${shape.pctSingleBucket.toFixed(1)}%</strong> occupy a single bucket.
+  A high single-bucket share is the grain succeeding — one row answers the trace — and is also the
+  reason a coarser trace-keyed grain (1h, 1d) cannot shrink this table further.</p>
+  <svg viewBox="0 0 900 ${20 + bars.length * 40}" role="img" aria-label="Buckets per trace distribution">
+    ${bars
+      .map(([label, pct, color], index) => {
+        const y = 10 + index * 40;
+        const width = Math.max(1, (pct / 100) * 560);
+        return `<text x="0" y="${y + 20}" class="label">${escapeHtml(label)}</text>
+          <rect x="150" y="${y + 4}" width="${width}" height="22" rx="4" fill="${color}" />
+          <text x="${160 + width}" y="${y + 20}" class="value">${pct.toFixed(2)}%</text>`;
+      })
+      .join("")}
+  </svg>
+  <table>
+    <thead><tr><th>Traces</th><th>Unfinished</th><th>p50 latency</th><th>p95 latency</th><th>p99 latency</th><th>max latency</th></tr></thead>
+    <tbody><tr>
+      <td>${shape.traces.toLocaleString()}</td>
+      <td>${shape.unfinishedTraces.toLocaleString()}</td>
+      <td>${(shape.p50LatencyMs / 1000).toFixed(2)} s</td>
+      <td>${(shape.p95LatencyMs / 1000).toFixed(2)} s</td>
+      <td>${(shape.p99LatencyMs / 1000).toFixed(2)} s</td>
+      <td>${(shape.maxLatencyMs / 1000).toFixed(2)} s</td>
+    </tr></tbody>
+  </table>`;
+};
+
+/**
+ * Guards against over-reading a small local run. Each caveat is derived from
+ * the measured cohort, so it disappears when the data no longer warrants it.
+ */
+const caveats = (benchmark: TraceMetricsBenchmark): string[] => {
+  const { foldFactor: fold, durationShape: shape } = benchmark;
+  const notes: string[] = [];
+
+  if (fold.versionsPerSpan < 1.05) {
+    notes.push(
+      `Versions per span is ${fold.versionsPerSpan.toFixed(3)}, so this seed has almost no ReplacingMergeTree updates. The gold query's <code>LIMIT 1 BY</code> dedup is nearly free here and its production cost is <strong>understated</strong> by this run.`,
+    );
+  }
+  if (fold.spansPerTrace < 10) {
+    notes.push(
+      `Traces average ${fold.spansPerTrace.toFixed(2)} spans. Row fold scales with spans per trace, so deep agent traces (50–5000 spans) would fold far more than the ${fold.rowFold.toFixed(1)}x measured here.`,
+    );
+  }
+  if (fold.traces < 1_000_000) {
+    notes.push(
+      `The cohort is ${fold.traces.toLocaleString()} traces. At this size ClickHouse answers from memory, so wall-clock differences stay small even when bytes read drop sharply. Treat elapsed times as query shape, not capacity planning.`,
+    );
+  }
+  if (shape.pctSingleBucket > 90) {
+    notes.push(
+      `${shape.pctSingleBucket.toFixed(1)}% of traces sit in one bucket, so an additional hourly or daily <em>trace-keyed</em> rollup would copy roughly the same row count. That is an argument against a deeper ladder, not against the five-minute grain.`,
+    );
+  }
+  notes.push(
+    `Only complete five-minute buckets are measured. Production must UNION raw <code>events_core</code> edges for the in-flight bucket, or traces from the last few minutes vanish from the list.`,
+  );
+  notes.push(
+    `Dashboard questions that do not need <code>trace_id</code> (spend over time, cost by user or session) are a different table: a daily observation rollup without <code>trace_id</code>. This benchmark does not measure that path.`,
+  );
+
+  return notes;
+};
+
 const queryTable = (queries: QueryMetrics[]): string =>
   `<table>
     <thead><tr><th>Window</th><th>Query</th><th>Source</th><th>Elapsed</th><th>Read rows</th><th>Read bytes</th><th>Result rows</th></tr></thead>
@@ -204,7 +362,9 @@ export const renderTraceMetricsReport = async (
     .card, section { background: #111827; border: 1px solid #253047; border-radius: 12px; padding: 18px; }
     section { margin-top: 18px; overflow-x: auto; }
     .big { font-size: 28px; font-weight: 700; margin-top: 6px; }
-    .pass { color: #4ade80; } .fail { color: #f87171; }
+    .pass { color: #4ade80; } .fail { color: #f87171; } .good { color: #4ade80; }
+    ul { line-height: 1.65; padding-left: 20px; } li { margin-bottom: 8px; }
+    strong { color: #f1f5f9; }
     svg { width: 100%; min-width: 760px; } svg text { fill: #cbd5e1; font-size: 12px; }
     svg .label { text-anchor: start; } svg .value { font-variant-numeric: tabular-nums; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -218,10 +378,26 @@ export const renderTraceMetricsReport = async (
   <p class="muted">Generated ${escapeHtml(benchmark.generatedAt)} · prefix <code>${escapeHtml(benchmark.tracePrefix)}</code></p>
   <div class="cards">
     <div class="card"><div class="muted">Correctness</div><div class="big ${correctnessClass}">${benchmark.correctness.mismatchCount === 0 ? "PASS" : "FAIL"}</div></div>
-    <div class="card"><div class="muted">Compared traces</div><div class="big">${benchmark.correctness.comparedTraces}</div></div>
-    <div class="card"><div class="muted">p95 buckets / trace</div><div class="big">${escapeHtml(buckets?.p95 ?? "—")}</div></div>
-    <div class="card"><div class="muted">Max buckets / trace</div><div class="big">${escapeHtml(buckets?.max ?? "—")}</div></div>
+    <div class="card"><div class="muted">Compared traces</div><div class="big">${benchmark.correctness.comparedTraces.toLocaleString()}</div></div>
+    <div class="card"><div class="muted">Row fold raw → rollup</div><div class="big good">${benchmark.foldFactor.rowFold.toFixed(1)}x</div></div>
+    <div class="card"><div class="muted">Traces in one bucket</div><div class="big">${benchmark.durationShape.pctSingleBucket.toFixed(1)}%</div></div>
   </div>
+  <section><h2>Read this first</h2>
+    <p>The rollup answers the same trace metrics while reading
+    <strong class="good">${benchmark.foldFactor.rowFold.toFixed(1)}x</strong> fewer rows.
+    <strong>${benchmark.durationShape.pctSingleBucket.toFixed(1)}%</strong> of traces occupy a single
+    five-minute bucket (p95 buckets/trace ${escapeHtml(buckets?.p95 ?? "—")},
+    max ${escapeHtml(buckets?.max ?? "—")}).</p>
+    <p class="muted">A near-1 buckets-per-trace figure is the grain working, not a missing win: one
+    rollup row answers one trace. It only argues against stacking a coarser <em>trace-keyed</em>
+    rollup (1h, 1d) on top. See "What this run cannot tell you" before generalising.</p>
+  </section>
+  <section><h2>Scan reduction, gold vs rollup</h2><p class="muted">Same answer, same cohort. Lower is better for gold → rollup.</p>${scanReductionTable(benchmark.queries)}</section>
+  <section><h2>Where the rows go</h2>${foldFactorSection(benchmark.foldFactor)}</section>
+  <section><h2>Do traces fit in five minutes?</h2>${durationSection(benchmark.durationShape)}</section>
+  <section><h2>What this run cannot tell you</h2><ul>${caveats(benchmark)
+    .map((note) => `<li>${note}</li>`)
+    .join("")}</ul></section>
   <section><h2>Gold vs five-minute rollup costs</h2><p class="muted">Red is the deduplicated <code>events_core</code> gold query. Green is the trace rollup.</p>${traceCostChart(benchmark.queries)}</section>
   <section><h2>Daily average trace cost</h2><p class="muted">The dashed rollup series must overlap the deduplicated raw-event gold series.</p>${dailyAverageChart(benchmark.queries)}</section>
   <section><h2>Query elapsed time and bytes read</h2>${queryBarChart(benchmark.queries)}</section>

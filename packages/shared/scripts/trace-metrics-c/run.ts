@@ -5,6 +5,8 @@ import {
   convertDateToClickhouseDateTime,
 } from "../../src/server/clickhouse/client";
 import {
+  DurationShape,
+  FoldFactor,
   QueryMetrics,
   renderTraceMetricsReport,
   TraceMetricsBenchmark,
@@ -194,6 +196,52 @@ const main = async (): Promise<void> => {
   );
   const correctness = compareTraces(goldTraces, rollupTraces);
 
+  const [foldRow] = await runQuery(
+    "fold-factor",
+    "fold-factor.sql",
+    "all",
+    "diagnostic",
+  );
+  const [rollupRowStats] = await runQuery(
+    "rollup-row-stats",
+    "rollup-row-stats.sql",
+    "all",
+    "diagnostic",
+  );
+  const rawEventRows = toNumber(foldRow?.raw_event_rows);
+  const rollupRows = toNumber(rollupRowStats?.rollup_rows);
+  const foldFactor: FoldFactor = {
+    rawEventRows,
+    uniqueSpans: toNumber(foldRow?.unique_spans),
+    rollupRows,
+    traces: toNumber(foldRow?.traces),
+    versionsPerSpan: toNumber(foldRow?.versions_per_span),
+    spansPerTrace: toNumber(foldRow?.spans_per_trace),
+    rawRowsPerTrace: toNumber(foldRow?.raw_rows_per_trace),
+    rollupRowsPerTrace: toNumber(rollupRowStats?.rollup_rows_per_trace),
+    rowFold: rollupRows > 0 ? rawEventRows / rollupRows : 0,
+  };
+
+  const [durationRow] = await runQuery(
+    "trace-duration-distribution",
+    "trace-duration-distribution.sql",
+    "all",
+    "diagnostic",
+  );
+  const durationShape: DurationShape = {
+    traces: toNumber(durationRow?.traces),
+    unfinishedTraces: toNumber(durationRow?.unfinished_traces),
+    pctWithin5m: toNumber(durationRow?.pct_within_5m),
+    p50LatencyMs: toNumber(durationRow?.p50_latency_ms),
+    p95LatencyMs: toNumber(durationRow?.p95_latency_ms),
+    p99LatencyMs: toNumber(durationRow?.p99_latency_ms),
+    maxLatencyMs: toNumber(durationRow?.max_latency_ms),
+    pctSingleBucket: toNumber(durationRow?.pct_single_bucket),
+    pctTwoBuckets: toNumber(durationRow?.pct_two_buckets),
+    pctThreeToSixBuckets: toNumber(durationRow?.pct_three_to_six_buckets),
+    pctOverSixBuckets: toNumber(durationRow?.pct_over_six_buckets),
+  };
+
   const windows = [1, 7, options.days]
     .filter((days, index, all) => all.indexOf(days) === index)
     .map((days) => ({
@@ -267,6 +315,8 @@ const main = async (): Promise<void> => {
     from: fromDate.toISOString(),
     to: toDate.toISOString(),
     correctness,
+    foldFactor,
+    durationShape,
     queries,
   };
   const jsonPath = path.join(options.outputDir, "trace-metrics-c-results.json");
@@ -280,6 +330,11 @@ const main = async (): Promise<void> => {
   process.stdout.write(
     `${JSON.stringify({
       correctness,
+      rowFold: Number(foldFactor.rowFold.toFixed(2)),
+      versionsPerSpan: foldFactor.versionsPerSpan,
+      spansPerTrace: foldFactor.spansPerTrace,
+      pctWithin5m: durationShape.pctWithin5m,
+      pctSingleBucket: durationShape.pctSingleBucket,
       queries: queries.length,
       jsonPath,
       reportPath,
