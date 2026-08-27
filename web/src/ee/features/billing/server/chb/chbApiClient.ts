@@ -196,7 +196,7 @@ export class ChbApiClient {
   }
 
   private async request(opts: ChbRequestOptions): Promise<unknown> {
-    return await instrumentAsync(
+    const outcome = await instrumentAsync(
       { name: opts.operation, spanKind: SpanKind.CLIENT },
       async (span) => {
         span.setAttributes({
@@ -209,9 +209,31 @@ export class ChbApiClient {
             ? { "chb.idempotency_key": opts.idempotencyKey }
             : {}),
         });
-        return await this.sendWithReplay(opts, span);
+
+        try {
+          return {
+            thrown: undefined,
+            body: await this.sendWithReplay(opts, span),
+          };
+        } catch (error) {
+          // A 409 is the "organization needs a payment method" UX branch, not
+          // an incident — which is why it is deliberately not logged as an
+          // error either. Carrying it out of the span instead of throwing
+          // through it keeps instrumentAsync from marking the operation as an
+          // APM error, so a routine checkout prompt cannot inflate the error
+          // rate this instrumentation exists to make readable.
+          if (error instanceof ChbPaymentRequiredError) {
+            span.setAttribute("chb.payment_required", true);
+            return { thrown: error, body: undefined };
+          }
+          throw error;
+        }
       },
     );
+
+    // Rethrown outside the span so the caller contract is unchanged.
+    if (outcome.thrown) throw outcome.thrown;
+    return outcome.body;
   }
 
   private async sendWithReplay(
