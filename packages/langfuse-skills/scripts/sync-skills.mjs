@@ -54,14 +54,26 @@ const parseSkill = (fileName, markdown) => {
     throw new Error(`${fileName} is missing frontmatter`);
   }
 
-  const metadata = Object.fromEntries(
-    frontmatterMatch[1]
-      .split("\n")
-      .flatMap((line) => {
-        const match = line.match(/^([a-z_]+):\s*(.*)$/);
-        return match ? [[match[1], match[2]]] : [];
-      }),
-  );
+  const metadata = {};
+  let currentKey;
+  for (const line of frontmatterMatch[1].split("\n")) {
+    const match = line.match(/^([a-z_]+):\s*(.*)$/);
+    if (match) {
+      currentKey = match[1];
+      metadata[currentKey] = match[2];
+    } else if (currentKey === "description" && line.trim()) {
+      metadata.description += ` ${line.trim()}`;
+    }
+  }
+
+  for (const key of ["name", "description"]) {
+    if (
+      metadata[key]?.startsWith("'") &&
+      metadata[key]?.endsWith("'")
+    ) {
+      metadata[key] = metadata[key].slice(1, -1).replaceAll("''", "'");
+    }
+  }
   if (
     !metadata ||
     typeof metadata !== "object" ||
