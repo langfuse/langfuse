@@ -95,20 +95,16 @@ export const ArrayIndexNode = {
   },
 };
 
-export type TenancyStamp = {
-  readonly projectId: string;
-};
-
 /**
- * Select query extended with ClickHouse-only clauses and the tenancy stamp.
+ * Select query extended with ClickHouse-only clauses.
  * Extra fields are ignored by Kysely's default compiler/transformer; our
  * dialect compiler and {@link ClickHouseOperationNodeTransformer} are the
- * ones that read them.
+ * ones that read them. Tenancy is stamped by identity (WeakSet), not a
+ * copyable property on this node.
  */
 export type ClickHouseSelectQueryNode = SelectQueryNode & {
   readonly arrayJoins?: ReadonlyArray<ArrayJoinNode>;
   readonly limitBy?: LimitByNode;
-  readonly langfuseTenancy?: TenancyStamp;
 };
 
 export function isClickHouseSelectQueryNode(

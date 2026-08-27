@@ -42,6 +42,6 @@ Honest node-vs-raw-SQL note: ARRAY JOIN / LIMIT BY are real node objects (`kind:
 `compileClickhouseQuery(query, ctx)` is the only supported compile path:
 
 1. Missing `ExecutionContext` throws (`QueryCompileError`).
-2. `TenancyInjectionPlugin` walks every FROM/JOIN, injects `project_id = {projectId}` on tenanted physical tables that lack it, stamps the tree.
-3. `ClickHouseQueryCompiler` refuses to emit SQL without that stamp, so `qb.compile()` without the plugin also fails.
-4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) throw `UnscopedRelationError` — the escape hatch cannot introduce an unscoped relation.
+2. `TenancyInjectionPlugin` walks every FROM/JOIN, injects `project_id = {projectId}` on tenanted physical tables that lack it, then identity-stamps the tree (`WeakSet`). A copied `langfuseTenancy` property is not a valid stamp.
+3. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is present, so `qb.compile()` without the plugin also fails.
+4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments that embed a `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's own keyword fragments (`asc`/`desc`) are not relations.

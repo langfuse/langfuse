@@ -24,14 +24,18 @@ import {
 
 import type { ExecutionContext } from "../executionContext";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import {
-  isClickHouseSelectQueryNode,
-  type ClickHouseSelectQueryNode,
-} from "./nodes";
+import { type ClickHouseSelectQueryNode } from "./nodes";
 import { TENANTED_TABLES } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 const PROJECT_ID_COLUMN = "project_id";
+
+/**
+ * Identity-based stamp. A copied `langfuseTenancy` property on a cloned node
+ * is not enough — only trees that actually went through
+ * {@link TenancyInjectionPlugin} are in this set.
+ */
+const TENANCY_STAMPED = new WeakSet<object>();
 
 type Relation =
   | { kind: "table"; tableName: string; alias?: string }
@@ -44,8 +48,9 @@ type Relation =
  * tenanted physical relation that does not already have that predicate, then
  * stamps the tree so {@link ClickHouseQueryCompiler} will compile it.
  *
- * Raw table sources (`selectFrom(sql\`...\`)`) are rejected: the escape hatch
- * must not introduce an unscoped relation.
+ * Any `RawNode` whose SQL fragments introduce a relation (`SELECT` / `FROM` /
+ * `JOIN`) is rejected — not only FROM/JOIN table sources. Kysely's own
+ * keyword fragments (`asc` / `desc`) are not relations and are allowed.
  */
 export class TenancyInjectionPlugin implements KyselyPlugin {
   constructor(private readonly ctx: ExecutionContext) {
@@ -58,7 +63,9 @@ export class TenancyInjectionPlugin implements KyselyPlugin {
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
     const transformer = new TenancyInjectionTransformer(this.ctx);
-    return transformer.transformNode(args.node) as RootOperationNode;
+    const injected = transformer.transformNode(args.node) as RootOperationNode;
+    rejectUnscopedRawSql(injected);
+    return stampTenancy(injected);
   }
 
   async transformResult(args: PluginTransformResultArgs) {
@@ -96,10 +103,7 @@ function injectSelect(
   ctx: ExecutionContext,
   cteNames: Set<string>,
 ): ClickHouseSelectQueryNode {
-  let next: ClickHouseSelectQueryNode = {
-    ...node,
-    langfuseTenancy: { projectId: ctx.projectId },
-  };
+  let next: ClickHouseSelectQueryNode = { ...node };
 
   const fromRelations = (next.from?.froms ?? []).map(describeRelation);
   const joinRelations = (next.joins ?? []).map((join) => ({
@@ -281,10 +285,40 @@ export function requireExecutionContext(
   return ctx;
 }
 
+export function stampTenancy<T extends object>(node: T): T {
+  TENANCY_STAMPED.add(node);
+  return node;
+}
+
+export function isTenancyStamped(node: object): boolean {
+  return TENANCY_STAMPED.has(node);
+}
+
 export function assertTenancyStamped(node: RootOperationNode): void {
-  if (!isClickHouseSelectQueryNode(node) || !node.langfuseTenancy?.projectId) {
+  if (!isTenancyStamped(node)) {
     throw new QueryCompileError(
-      "ExecutionContext is required: a query with no tenancy scope cannot compile.",
+      "Refusing to compile: the tenancy injection pass was not applied. Compile through compileClickhouseQuery() with an ExecutionContext.",
     );
+  }
+}
+
+const RAW_RELATION_SQL = /\b(?:from|join|select)\b/i;
+
+function rejectUnscopedRawSql(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) rejectUnscopedRawSql(item);
+    return;
+  }
+  if (RawNode.is(node as OperationNode)) {
+    const fragments = (node as RawNode).sqlFragments;
+    if (fragments.some((fragment) => RAW_RELATION_SQL.test(fragment))) {
+      throw new UnscopedRelationError(
+        "Raw SQL fragments that introduce a relation (SELECT/FROM/JOIN) are rejected in any position: they can bypass tenancy injection. Use traced table and column references instead.",
+      );
+    }
+  }
+  for (const value of Object.values(node)) {
+    rejectUnscopedRawSql(value);
   }
 }

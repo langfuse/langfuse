@@ -14,14 +14,13 @@ import {
 } from "kysely";
 import type { QueryId } from "kysely";
 
-import { QueryCompileError } from "./errors";
 import {
   ArrayJoinNode,
   ArrayIndexNode,
-  isClickHouseSelectQueryNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
+import { assertTenancyStamped } from "./tenancy";
 
 const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
   default: "array join",
@@ -87,11 +86,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   compileQuery(node: RootOperationNode, queryId: QueryId) {
     this.namedParameters = {};
     this.intern = new Map();
-    if (!hasTenancyStamp(node)) {
-      throw new QueryCompileError(
-        "Refusing to compile: the tenancy injection pass was not applied. Compile through compileClickhouseQuery() with an ExecutionContext.",
-      );
-    }
+    assertTenancyStamped(node);
     return super.compileQuery(node, queryId);
   }
 
@@ -290,11 +285,4 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.namedParameters[name] = value;
     return `{${name}:${inferred}}`;
   }
-}
-
-function hasTenancyStamp(node: OperationNode): boolean {
-  if (!isClickHouseSelectQueryNode(node)) {
-    return false;
-  }
-  return Boolean(node.langfuseTenancy?.projectId);
 }

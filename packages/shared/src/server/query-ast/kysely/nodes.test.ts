@@ -1,7 +1,8 @@
-import { sql } from "kysely";
+import { createQueryId, sql, type KyselyPlugin } from "kysely";
 import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
+import { ClickHouseQueryCompiler } from "./compiler";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { mapKeys, mapValues, withArrayJoin, withLimitBy } from "./extensions";
@@ -73,6 +74,76 @@ describe("tenancy injection", () => {
     expect(() => compileClickhouseQuery(qb, ctx)).toThrow(
       UnscopedRelationError,
     );
+  });
+
+  it("rejects raw SQL fragments in SELECT and WHERE, not only FROM/JOIN", () => {
+    const selectRaw = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select(
+        sql<string>`(SELECT environment FROM traces LIMIT 1)`.as("stolen"),
+      );
+
+    const whereRaw = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment")
+      .where(sql<boolean>`id IN (SELECT id FROM traces)`);
+
+    expect(() => compileClickhouseQuery(selectRaw, ctx)).toThrow(
+      UnscopedRelationError,
+    );
+    expect(() => compileClickhouseQuery(whereRaw, ctx)).toThrow(
+      UnscopedRelationError,
+    );
+  });
+
+  it("does not treat a copied langfuseTenancy property as a valid stamp", () => {
+    const qb = getClickhouseKysely().selectFrom("traces").select("environment");
+    const forged = {
+      ...qb.toOperationNode(),
+      langfuseTenancy: { projectId: "proj-1" },
+    };
+    const compiler = new ClickHouseQueryCompiler();
+    expect(() => compiler.compileQuery(forged, createQueryId())).toThrow(
+      QueryCompileError,
+    );
+
+    const fakeStamp: KyselyPlugin = {
+      transformQuery(args) {
+        return {
+          ...args.node,
+          langfuseTenancy: { projectId: "forged" },
+        };
+      },
+      async transformResult(args) {
+        return args.result;
+      },
+    };
+    const stampedByProperty = getClickhouseKysely()
+      .withPlugin(fakeStamp)
+      .selectFrom("traces")
+      .select("environment");
+    expect(() => stampedByProperty.compile()).toThrow(QueryCompileError);
+  });
+
+  it("qualifies every project_id on a two-table JOIN", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("observations as o")
+      .innerJoin("traces as t", (join) =>
+        join
+          .onRef("o.trace_id", "=", "t.id")
+          .onRef("o.project_id", "=", "t.project_id"),
+      )
+      .select("o.environment")
+      .where("o.project_id", "=", "proj-1");
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    const refs = compiled.match(/[\w.]*project_id/gi) ?? [];
+    expect(refs.length).toBeGreaterThanOrEqual(3);
+    for (const ref of refs) {
+      expect(ref).toMatch(/^(o|t)\.project_id$/i);
+    }
+    expect(compiled).toMatch(/o\.project_id/i);
+    expect(compiled).toMatch(/t\.project_id/i);
   });
 });
 

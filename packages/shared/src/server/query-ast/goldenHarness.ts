@@ -204,6 +204,78 @@ export function formatSql(sql: string): string {
   return res.stdout.trimEnd();
 }
 
+let localAvailability: boolean | undefined;
+
+/** Whether `clickhouse local` can execute a query on this machine. */
+export function clickhouseLocalAvailable(): boolean {
+  if (localAvailability !== undefined) return localAvailability;
+  try {
+    const res = spawnSync(clickhouseBin, ["local", "--query", "SELECT 1"], {
+      encoding: "utf8",
+    });
+    localAvailability = res.status === 0;
+  } catch {
+    localAvailability = false;
+  }
+  return localAvailability;
+}
+
+const NAMED_PARAM = /\{([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^}]+)\}/g;
+
+function sqlLiteral(value: unknown, type: string): string {
+  const t = type.trim();
+  if (t.startsWith("Array")) {
+    if (!Array.isArray(value)) {
+      throw new Error(`Expected array bind for ${t}, got ${typeof value}`);
+    }
+    return `[${value.map((item) => sqlLiteral(item, "String")).join(", ")}]`;
+  }
+  if (t.startsWith("DateTime")) {
+    const iso =
+      value instanceof Date
+        ? value.toISOString().replace("T", " ").replace("Z", "")
+        : String(value);
+    return `'${iso}'`;
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "boolean") return value ? "1" : "0";
+  const escaped = String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return `'${escaped}'`;
+}
+
+/** Replace `{name:Type}` placeholders with ClickHouse literals for local exec. */
+export function substituteNamedParams(
+  sql: string,
+  params: Record<string, unknown>,
+): string {
+  return sql.replace(NAMED_PARAM, (_match, name: string, type: string) => {
+    if (!(name in params)) {
+      throw new Error(`Missing bind '${name}' for local execution`);
+    }
+    return sqlLiteral(params[name], type);
+  });
+}
+
+/**
+ * Run SQL through `clickhouse local` (no server). Throws on a non-zero status
+ * so an analyzer/parse error fails the test instead of comparing stdout.
+ */
+export function executeClickhouseLocal(sql: string): string {
+  const res = spawnSync(clickhouseBin, ["local", "--query", sql], {
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (res.error) throw res.error;
+  if (res.status !== 0) {
+    throw new Error(
+      `clickhouse local failed (status ${res.status}): ${res.stderr?.trim()}\n--- SQL ---\n${sql}`,
+    );
+  }
+  return (res.stdout ?? "").trimEnd();
+}
+
 const PARAM_PLACEHOLDER = /\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/g;
 
 /**
