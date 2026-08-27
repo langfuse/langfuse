@@ -2,6 +2,7 @@ import { assertUnreachable } from "@langfuse/shared";
 
 export const featurePreviewFlags = [
   "modernSession",
+  "v4UpgradeUi",
   "compactTimeline",
 ] as const;
 
@@ -31,6 +32,10 @@ export const isFeaturePreviewAvailable = (
 ) => {
   if (flag === "modernSession") {
     return context.v4BetaEnabled;
+  }
+
+  if (flag === "v4UpgradeUi") {
+    return true;
   }
 
   if (flag === "compactTimeline") {

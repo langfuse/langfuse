@@ -81,6 +81,23 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       alt: "A whole trace as dense coloured lines, one per observation, cascading across a time axis.",
     },
   },
+  {
+    flag: "v4UpgradeUi",
+    title: "V4 Migration",
+    sidebarLabel: "V4 Migration",
+    description:
+      "Review each project's readiness for Langfuse v4 and get guided steps for anything that still needs an update.",
+    details:
+      "The V4 Migration experience adds a migration status page, project-level readiness indicators, and contextual upgrade guidance for SDKs, evaluators, deprecated APIs, and integrations.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: "/assets/v4-beta-intro.jpg",
+      dark: "/assets/v4-beta-intro.jpg",
+      alt: "Langfuse v4 performance improvements across common observability workflows.",
+      width: 1024,
+      height: 598,
+    },
+  },
 ];
 
 const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";

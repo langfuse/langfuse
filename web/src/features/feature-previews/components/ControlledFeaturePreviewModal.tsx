@@ -18,6 +18,12 @@ type ControlledFeaturePreviewModalProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+const PREVIEW_LABEL: Record<PreviewFlag, string> = {
+  modernSession: "Compact Session View",
+  v4UpgradeUi: "V4 Migration",
+  compactTimeline: "Compact Timeline",
+};
+
 export function ControlledFeaturePreviewModal({
   open,
   onOpenChange,
