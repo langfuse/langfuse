@@ -1,4 +1,4 @@
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -19,12 +19,21 @@ import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFi
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { type Prisma } from "@langfuse/shared";
+import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+
+const jobExecutionStatusToStatus = {
+  [JobExecutionStatus.COMPLETED]: "completed",
+  [JobExecutionStatus.ERROR]: "error",
+  [JobExecutionStatus.PENDING]: "pending",
+  [JobExecutionStatus.CANCELLED]: "cancelled",
+  [JobExecutionStatus.DELAYED]: "delayed",
+} satisfies Record<JobExecutionStatus, Status>;
 
 export type JobExecutionRow = {
-  status: string;
+  status: JobExecutionStatus;
   scoreName?: string;
   scoreValue?: number | string;
   scoreComment?: string;
@@ -78,17 +87,11 @@ export default function EvalLogTable({
 
   const columnHelper = createColumnHelper<JobExecutionRow>();
   const columns = [
-    columnHelper.accessor("status", {
+    createStatusTableColumn<JobExecutionRow, JobExecutionStatus>({
+      accessorKey: "status",
       header: "Status",
-      id: "status",
-      cell: (row) => {
-        const status = row.getValue();
-        return (
-          <div className="w-fit self-start">
-            <StatusBadge type={status.toLowerCase()} />
-          </div>
-        );
-      },
+      getStatus: (status) =>
+        status ? jobExecutionStatusToStatus[status] : undefined,
     }),
     columnHelper.accessor("startTime", {
       id: "startTime",

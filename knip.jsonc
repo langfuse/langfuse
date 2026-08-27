@@ -4,11 +4,6 @@
   "rules": {
     "catalog": "off",
   },
-  "ignoreIssues": {
-    "web/**": ["types"],
-    "packages/shared/**": ["types"],
-    "worker/**": ["types"],
-  },
   "workspaces": {
     "packages/shared": {
       "ignoreFiles": [

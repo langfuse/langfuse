@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
 import {
@@ -14,6 +14,7 @@ import {
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
+import { BatchActionStatus } from "@langfuse/shared";
 
 type BatchActionRow = {
   id: string;
@@ -69,16 +70,21 @@ export function BatchActionsTable(props: { projectId: string }) {
         return <span className="capitalize">{tableName}</span>;
       },
     },
-    {
+    createStatusTableColumn<BatchActionRow, string>({
       accessorKey: "status",
-      id: "status",
+      getStatus: (status) => {
+        if (status === BatchActionStatus.Queued) return "queued";
+        if (status === BatchActionStatus.Processing) return "processing";
+        if (status === BatchActionStatus.Completed) return "completed";
+        if (status === BatchActionStatus.Failed) return "failed";
+        if (status === BatchActionStatus.Partial) return "partial";
+        if (!status) return undefined;
+
+        return status.toLowerCase();
+      },
       header: "Status",
       size: 110,
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return <StatusBadge type={status.toLowerCase()} />;
-      },
-    },
+    }),
     {
       accessorKey: "progress",
       id: "progress",

@@ -338,12 +338,15 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.queryByText("Legacy APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy Integrations")).not.toBeInTheDocument();
 
-    expect(
-      screen.getByRole("link", { name: "GET /api/public/traces" }),
-    ).toHaveAttribute(
+    const endpointLink = screen.getByRole("link", {
+      name: "GET /api/public/traces",
+    });
+    expect(endpointLink).toHaveAttribute(
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
+    expect(endpointLink).not.toHaveClass("font-bold");
+    expect(within(endpointLink).getByText("traces")).toHaveClass("font-bold");
     expect(
       screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
     ).toHaveTextContent(/42 calls · last seen/);
@@ -429,9 +432,9 @@ describe("V4MigrationDetailsContent", () => {
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
     expect(screen.getByText("Langfuse Python SDK 3.9.0")).toBeInTheDocument();
-    expect(screen.getByText("client.api.trace.get(...)")).toBeInTheDocument();
+    expect(screen.getByText("client.api.trace.get")).toBeInTheDocument();
     expect(
-      screen.getByText("client.api.observations.get_many(trace_id=trace_id)"),
+      screen.getByText("client.api.observations.get_many"),
     ).toBeInTheDocument();
     expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
     expect(screen.getByText("Codex")).toBeInTheDocument();
@@ -466,6 +469,31 @@ describe("V4MigrationDetailsContent", () => {
     );
   });
 
+  it("shows route totals without a caller section for unknown-only callers", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            isOther: true,
+            count: 42,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/42 calls · last seen/);
+    expect(screen.queryByText("Unknown callers")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
   it("collapses clean sections into one up-to-date summary", () => {
     mocks.migrationData.apis = { status: "loaded", count: 0 };
     mocks.migrationData.exports = { status: "loaded", count: 0 };
@@ -476,7 +504,7 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(
       screen.getByText(
-        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.",
+        `SDK, instrumentation, experiment, and API checks cover activity from the last ${V4_MIGRATION_LOOKBACK_DAYS} days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.`,
       ),
     ).toBeInTheDocument();
     expect(
@@ -647,7 +675,7 @@ describe("V4MigrationDetailsContent", () => {
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write," +
           "ingestionSdkName;stringOptions;;any of;python," +
           "ingestionSdkVersion;stringOptions;;any of;2.60.3",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -771,7 +799,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;," +
           "ingestionSource;stringOptions;;any of;otel-dual-write",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -1041,7 +1069,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");

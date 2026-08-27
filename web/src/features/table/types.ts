@@ -25,7 +25,7 @@ type BaseTableAction = {
   };
 };
 
-export type CreateTableAction = BaseTableAction & {
+type CreateTableAction = BaseTableAction & {
   type: BatchActionType.Create;
   targetLabel: string;
   execute: ({
