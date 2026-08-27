@@ -45,7 +45,7 @@ export type ArrayJoinItem = {
  * Plugin that attaches an {@link ArrayJoinNode} onto the select node.
  * Record for the evaluation: ARRAY JOIN = plugin + transformer (no fork).
  */
-export class ArrayJoinPlugin implements KyselyPlugin {
+class ArrayJoinPlugin implements KyselyPlugin {
   constructor(
     private readonly items: ReadonlyArray<ArrayJoinItem>,
     private readonly variant: ArrayJoinVariant = "default",
@@ -84,7 +84,7 @@ export type LimitBySpec = {
  * Plugin that attaches a {@link LimitByNode} onto the select node.
  * Record for the evaluation: LIMIT BY = plugin + transformer (no fork).
  */
-export class LimitByPlugin implements KyselyPlugin {
+class LimitByPlugin implements KyselyPlugin {
   constructor(private readonly spec: LimitBySpec) {}
 
   transformQuery(args: PluginTransformQueryArgs): RootOperationNode {

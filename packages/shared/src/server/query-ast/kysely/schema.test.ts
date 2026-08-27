@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { COLUMN_DATA_TYPES, TENANTED_TABLES } from "./schema";
+import { condition7TypeAssertions } from "./types.assert";
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
@@ -21,5 +22,11 @@ describe("table registry derivation", () => {
     expect(COLUMN_DATA_TYPES.timestamp).toBe("date");
     expect(COLUMN_DATA_TYPES.metadata_names).toBe("array");
     expect(COLUMN_DATA_TYPES.cost_details).toBe("map");
+  });
+
+  // The assertions themselves are compile-time (`tsc` is the test); this only
+  // anchors the file so its `@ts-expect-error` checks stay in the build graph.
+  it("keeps the compile-time type assertions in the build graph", () => {
+    expect(typeof condition7TypeAssertions).toBe("function");
   });
 });

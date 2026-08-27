@@ -36,7 +36,7 @@ function canonicalParamValue(value: unknown): string {
   return `${typeof value}:${String(value)}`;
 }
 
-export function inferClickHouseType(value: unknown): string {
+function inferClickHouseType(value: unknown): string {
   if (value instanceof Date) return "DateTime64(3)";
   if (Array.isArray(value)) {
     const inner = value.length === 0 ? "String" : inferClickHouseType(value[0]);

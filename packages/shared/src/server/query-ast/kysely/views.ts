@@ -39,7 +39,7 @@ export function defineView<N extends string>(name: N) {
   });
 }
 
-export class VirtualViewPlugin implements KyselyPlugin {
+class VirtualViewPlugin implements KyselyPlugin {
   private readonly views: Map<string, ClickHouseView<string, unknown>>;
 
   constructor(

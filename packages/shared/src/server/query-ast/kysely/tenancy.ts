@@ -307,12 +307,12 @@ export function requireExecutionContext(
   return ctx;
 }
 
-export function stampTenancy<T extends object>(node: T): T {
+function stampTenancy<T extends object>(node: T): T {
   TENANCY_STAMPED.add(node);
   return node;
 }
 
-export function isTenancyStamped(node: object): boolean {
+function isTenancyStamped(node: object): boolean {
   return TENANCY_STAMPED.has(node);
 }
 
