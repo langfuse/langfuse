@@ -124,7 +124,6 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
-        sessionsSearchBar: false,
       },
       management: {
         allowed: false,
@@ -152,7 +151,6 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
-        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -189,7 +187,6 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
-        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -217,7 +214,6 @@ describe("UserFeaturePreviewsControl", () => {
       featurePreviews: {
         modernSession: false,
         compactTimeline: false,
-        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
