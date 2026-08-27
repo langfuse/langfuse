@@ -27,7 +27,7 @@ const MARKER_PADDING_MAX_MS = 500;
 
 type Interval = [start: number, end: number];
 
-export type CompressedGap = {
+type CompressedGap = {
   /** real ms offsets */
   start: number;
   end: number;

@@ -7,13 +7,13 @@ import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue"
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { api } from "@/src/utils/api";
 
-export type BillingCancellationInfo = {
+type BillingCancellationInfo = {
   isCancelled: boolean;
   date: Date | null;
   formatted: string | null;
 };
 
-export type BillingScheduledSwitchInfo = {
+type BillingScheduledSwitchInfo = {
   isScheduled: boolean;
   date: Date | null;
   formatted: string | null;

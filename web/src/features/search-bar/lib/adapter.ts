@@ -43,7 +43,7 @@ import { quoteIfNeeded } from "./quoting";
 export const OR_NOT_SUPPORTED_MESSAGE =
   "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
 
-export type SingleEventsFilter = FilterState[number];
+type SingleEventsFilter = FilterState[number];
 
 export type AstToFilterStateResult = {
   filters: FilterState;

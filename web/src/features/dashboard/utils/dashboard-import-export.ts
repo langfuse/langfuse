@@ -211,7 +211,7 @@ export function buildDashboardExport(params: {
   };
 }
 
-export type ParsedDashboardImportPlacement =
+type ParsedDashboardImportPlacement =
   | ({ type: "widget"; widget: WidgetImport } & PlacementPosition)
   | ({ type: "preset"; presetId: HomeDashboardPresetId } & PlacementPosition);
 

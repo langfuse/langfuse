@@ -115,8 +115,8 @@ export function pickChartGranularity(params: {
 // ---------------------------------------------------------------------------
 
 export type OutlierStripMetricKey = "count" | "cost" | "latency";
-export type OutlierStripLatencyAgg = "p95" | "p50";
-export type OutlierStripCostAgg = "sum";
+type OutlierStripLatencyAgg = "p95" | "p50";
+type OutlierStripCostAgg = "sum";
 export type OutlierStripAggKey =
   | "count"
   | OutlierStripLatencyAgg

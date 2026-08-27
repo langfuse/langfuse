@@ -6,10 +6,8 @@ import { addMinutes, format } from "date-fns";
 // existing web import surface.
 export {
   TIME_RANGES,
-  type TimeRangePresets,
   TABLE_AGGREGATION_OPTIONS,
   type TableDateRangeAggregationOption,
-  type RelativeTimeRange,
   type AbsoluteTimeRange,
   type TimeRange,
   getAbbreviatedTimeRange,
@@ -56,15 +54,13 @@ export type DashboardDateRange = {
   to: Date;
 };
 
-export type DateRangeAggregationOption =
+type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
 export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
-
-export type TableDateRangeOptions = TableDateRangeAggregationOption | "custom";
 
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
@@ -219,13 +215,7 @@ export const formatDateRange = (from: Date, to: Date) => {
 /**
  * Supported interval units for time series aggregation
  */
-export type IntervalUnit =
-  | "second"
-  | "minute"
-  | "hour"
-  | "day"
-  | "month"
-  | "year";
+type IntervalUnit = "second" | "minute" | "hour" | "day" | "month" | "year";
 
 /**
  * Interval configuration with count and unit
