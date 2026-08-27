@@ -269,9 +269,9 @@ export const getApiMigrationGuidance = (
     replacementMethod: methods.replacement,
     replacement,
     minimumVersion: methods.minimumVersion,
-    requiresUpgrade:
-      Boolean(sdkVersion && methods.minimumVersion) &&
-      isVersionBefore(sdkVersion!, methods.minimumVersion!),
+    requiresUpgrade: methods.minimumVersion
+      ? !sdkVersion || isVersionBefore(sdkVersion, methods.minimumVersion)
+      : false,
   };
 };
 

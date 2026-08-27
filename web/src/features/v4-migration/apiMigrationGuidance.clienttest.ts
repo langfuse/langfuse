@@ -84,6 +84,16 @@ describe("getApiMigrationGuidance", () => {
     ).toMatchObject({ requiresUpgrade: true, minimumVersion: "4.0.0" });
   });
 
+  it("shows the minimum SDK version when the attributed version is unknown", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/v2/scores",
+        "javascript",
+        undefined,
+      ),
+    ).toMatchObject({ requiresUpgrade: true, minimumVersion: "5.5.0" });
+  });
+
   it("returns REST guidance without inventing an SDK method", () => {
     expect(
       getApiMigrationGuidance("GET /api/public/traces", undefined, undefined),
