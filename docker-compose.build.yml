@@ -95,9 +95,6 @@ services:
     environment:
       <<: *langfuse-web-env
       # In-app agent worker settings (ignored by the web service).
-      # Compose defaults the queue consumer on; the worker schema defaults it
-      # off so ingestion-only processes do not consume agent jobs.
-      QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: ${QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED:-true}
       LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY: ${LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY:-}
       LANGFUSE_IN_APP_AGENT_AWS_PROFILE: ${LANGFUSE_IN_APP_AGENT_AWS_PROFILE:-}
       LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: ${LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:-}
