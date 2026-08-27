@@ -5,10 +5,10 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -1270,11 +1270,12 @@ export default function TracesTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    tableName: "traces",
     // traceId is not written by this table but arrives on v4-dialect shared
     // URLs (LFE-11041); listing it clears it on open/navigate/close so it
     // cannot pin the peek to the originally shared trace.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: tracesFilterConfig.tableName,
+    isV4: false,
     extractParamsValuesFromRow: (row: TracesTableRow) => ({
       timestamp: row.timestamp?.toISOString() || "",
     }),
@@ -1407,6 +1408,8 @@ export default function TracesTable({
             columns={columns}
             filterWithAI
             filterState={queryFilter.explicitFilterState}
+            tableName={tracesFilterConfig.tableName}
+            isV4={false}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,

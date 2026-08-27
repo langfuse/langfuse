@@ -1,6 +1,4 @@
 import { useMemo } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { EXPERIMENT_ANALYTICS_DIMENSIONS } from "@/src/features/experiments/constants/analytics";
 import { Button } from "@/src/components/ui/button";
 import {
   Combobox,
@@ -15,6 +13,8 @@ import {
   UNNAMED_DATASET_LABEL,
 } from "@/src/features/experiments/constants/comparison";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {
   projectId: string;
@@ -36,16 +36,11 @@ export function ExperimentBaselineControls({
   });
   const capture = usePostHogClientCapture();
 
-  // Is the baseline control used, or ignored? Two paths, both from the control
-  // itself: picking a run and clearing it. Arriving on the page with a baseline
-  // already set (a row click on the experiments list, a shared link) is
-  // navigation rather than use of this control, and is deliberately not counted
-  // here — the results pageview is that denominator. (LFE-15720)
-  const captureBaselineChanged = (source: "picker" | "cleared") =>
-    capture("experiment:baseline_changed", {
-      source,
-      ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-    });
+  // `baseline_changed` fires from the two paths through this control — picking a
+  // run and clearing it. Arriving on the page with a baseline already set (a row
+  // click on the list, a shared link) is navigation rather than use of this
+  // control, and is deliberately not counted; the results pageview is that
+  // denominator.
 
   // Grouped by dataset and dated, so two runs sharing a name are two readable
   // options rather than the same label twice.
@@ -78,11 +73,16 @@ export function ExperimentBaselineControls({
         <Combobox
           options={baselineOptionGroups}
           value={baselineId}
-          onValueChange={(value) => {
-            // The combobox can re-announce the current value; only a different
-            // run is a change.
-            if (value !== baselineId) captureBaselineChanged("picker");
-            onBaselineChange(value);
+          onValueChange={(id) => {
+            if (id === baselineId) return;
+            capture(
+              "experiment:baseline_changed",
+              baselineChangedProps({
+                tableName: "experiment-items",
+                source: "picker",
+              }),
+            );
+            onBaselineChange(id);
           }}
           placeholder={baselineName ?? baselineId ?? "Select baseline..."}
           emptyText="No experiments found"
@@ -101,7 +101,13 @@ export function ExperimentBaselineControls({
           size="icon"
           className="-ml-px shrink-0 rounded-l-none"
           onClick={() => {
-            captureBaselineChanged("cleared");
+            capture(
+              "experiment:baseline_changed",
+              baselineChangedProps({
+                tableName: "experiment-items",
+                source: "clear",
+              }),
+            );
             onBaselineClear();
           }}
           disabled={isLoading}

@@ -213,8 +213,7 @@ const genericReplacements: Record<string, string> = {
   "GET /api/public/generations":
     "GET /api/public/v2/observations?type=GENERATION",
   "GET /api/public/scores": "GET /api/public/v3/scores",
-  "GET /api/public/metrics/daily":
-    "GET /api/public/v2/metrics?query=<URL-encoded JSON with view, metrics, fromTimestamp, and toTimestamp>",
+  "GET /api/public/metrics/daily": "GET /api/public/v2/metrics",
 };
 
 const isVersionBefore = (version: string, minimum: string): boolean => {

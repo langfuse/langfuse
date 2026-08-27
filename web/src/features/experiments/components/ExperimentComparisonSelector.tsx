@@ -11,7 +11,11 @@ import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperim
 import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { EXPERIMENT_ANALYTICS_DIMENSIONS } from "@/src/features/experiments/constants/analytics";
+import {
+  autoComparisonPreferenceChangedProps,
+  comparisonChangedProps,
+  comparisonPickerOpenedProps,
+} from "@/src/features/experiments/lib/analytics";
 import {
   MAX_SELECTED_EXPERIMENTS,
   MAX_VISIBLE_COMPARISON_CHIPS,
@@ -115,18 +119,24 @@ export function ExperimentComparisonSelector({
       if (isPickerOpenRef.current) return;
       isPickerOpenRef.current = true;
 
-      capture("experiment:comparison_picker_opened", {
-        optionCount: availableExperimentNames.length,
-        datasetCount: new Set(availableExperimentNames.map(datasetKeyOf)).size,
-        // The query the picker opens with: empty on a fresh open, non-empty
-        // when it is reopened with a query still in the box. The text itself is
-        // never sent — only whether there is one and how long it is.
-        hasSearchQuery: searchQuery.length > 0,
-        queryLength: searchQuery.length,
-        ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-      });
+      // Counted over the whole available list rather than the filtered rows, so
+      // it describes the pool the user chooses from; the baseline is not one of
+      // its options. The query itself is never sent — only whether there is one
+      // and how long it is.
+      const options = availableExperimentNames.filter(
+        (experiment) => experiment.experimentId !== baselineExperimentId,
+      );
+      capture(
+        "experiment:comparison_picker_opened",
+        comparisonPickerOpenedProps({
+          tableName: "experiment-items",
+          optionCount: options.length,
+          datasetIds: options.map((experiment) => experiment.datasetId),
+          queryLength: searchQuery.length,
+        }),
+      );
     },
-    [capture, availableExperimentNames, searchQuery],
+    [capture, availableExperimentNames, baselineExperimentId, searchQuery],
   );
 
   const baselineDatasetKey = useMemo(() => {
@@ -264,6 +274,31 @@ export function ExperimentComparisonSelector({
             (selectedExperimentCount - selectedIds.length),
         ),
       );
+    if (
+      newIds.length === selectedIds.length &&
+      newIds.every((id, index) => id === selectedIds[index])
+    ) {
+      return;
+    }
+    const baselineDatasetId = availableExperimentNames.find(
+      (exp) => exp.experimentId === baselineExperimentId,
+    )?.datasetId;
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiment-items",
+        comparisonCount: newIds.length,
+        datasetIds: [
+          baselineDatasetId,
+          ...newIds.map(
+            (id) =>
+              availableExperimentNames.find((exp) => exp.experimentId === id)
+                ?.datasetId,
+          ),
+        ],
+        source: "picker",
+      }),
+    );
     onSelectedIdsChange(newIds);
   };
 
@@ -295,10 +330,13 @@ export function ExperimentComparisonSelector({
               <button
                 type="button"
                 onClick={() => {
-                  capture("experiment:auto_comparison_preference_changed", {
-                    isEnabled: !isAutoSelectEnabled,
-                    ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-                  });
+                  capture(
+                    "experiment:auto_comparison_preference_changed",
+                    autoComparisonPreferenceChangedProps({
+                      tableName: "experiment-items",
+                      isEnabled: !isAutoSelectEnabled,
+                    }),
+                  );
                   onAutoSelectEnabledChange(!isAutoSelectEnabled);
                 }}
                 className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"

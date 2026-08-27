@@ -8572,7 +8572,7 @@ paths:
     post:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
         are unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -8745,7 +8745,7 @@ paths:
     get:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
         are unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -8827,7 +8827,7 @@ paths:
     get:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
         are unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -8901,7 +8901,7 @@ paths:
     patch:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
         are unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -9028,7 +9028,7 @@ paths:
     delete:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
         are unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -9100,7 +9100,7 @@ paths:
     post:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluators` API instead. Self-hosted deployments are
         unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -9250,7 +9250,7 @@ paths:
       deprecated: true
     get:
       description: |-
-        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on November 16, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
         List the evaluators available to the authenticated project.
 
@@ -9325,7 +9325,7 @@ paths:
     get:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluators` API instead. Self-hosted deployments are
         unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -9398,7 +9398,7 @@ paths:
     delete:
       description: >-
         **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
-        and will be removed on November 16, 2026. Use the stable
+        and will be removed on September 4, 2026. Use the stable
         `/api/public/v2/evaluators` API instead. Self-hosted deployments are
         unaffected by this date; the endpoint becomes unavailable when they
         upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
@@ -13693,8 +13693,8 @@ components:
             $ref: '#/components/schemas/EvaluationRuleAssignment'
           description: >-
             All modern and legacy evaluation-rule assignments in
-            newest-assignment-first order, including each assigned rule ID and
-            its stored mapping.
+            newest-assignment-first order. Rule-specific mappings are exposed as
+            `variableMappingOverride`; inherited defaults are omitted.
         createdAt:
           type: string
           format: date-time

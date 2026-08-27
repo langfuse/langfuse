@@ -1235,6 +1235,66 @@ describe("Clickhouse Experiment Repository Test", () => {
       // Experiment without metadata should not match
       expect(excludedExperiment).toBeUndefined();
     });
+
+    it("returns a row per experiment id when two experiments share a name", async () => {
+      const isolatedProjectId = randomUUID();
+      const sharedName = `v1-${randomUUID()}`;
+      const experimentIdA = randomUUID();
+      const experimentIdB = randomUUID();
+      const datasetIdA = randomUUID();
+      const datasetIdB = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: isolatedProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentIdA,
+          experiment_name: sharedName,
+          experiment_dataset_id: datasetIdA,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: randomUUID(),
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: isolatedProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentIdB,
+          experiment_name: sharedName,
+          experiment_dataset_id: datasetIdB,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: randomUUID(),
+        }),
+      ]);
+
+      const result = await getExperimentNamesFromEvents({
+        projectId: isolatedProjectId,
+      });
+
+      // `startTime` (the run's first event) came with the recency ordering the
+      // comparison picker needs — the rows are otherwise unchanged.
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            experimentId: experimentIdA,
+            experimentName: sharedName,
+            datasetId: datasetIdA,
+            startTime: expect.any(Date),
+          },
+          {
+            experimentId: experimentIdB,
+            experimentName: sharedName,
+            datasetId: datasetIdB,
+            startTime: expect.any(Date),
+          },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
   });
 
   maybe("getExperimentItemsFilterOptions", () => {
@@ -1762,7 +1822,7 @@ describe("Clickhouse Experiment Repository Test", () => {
       ]);
       options.forEach((option) => {
         expect(option.experimentName).toBe(sharedName);
-        expect(option.experimentDatasetId).toBe(datasetId);
+        expect(option.datasetId).toBe(datasetId);
       });
     });
   });

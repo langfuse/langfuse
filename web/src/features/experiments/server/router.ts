@@ -849,7 +849,7 @@ export const experimentsRouter = createTRPCRouter({
       const datasetIds = [
         ...new Set(
           experiments
-            .map((experiment) => experiment.experimentDatasetId)
+            .map((experiment) => experiment.datasetId)
             .filter((datasetId): datasetId is string => Boolean(datasetId)),
         ),
       ];
@@ -866,9 +866,9 @@ export const experimentsRouter = createTRPCRouter({
           experimentId: experiment.experimentId,
           experimentName: experiment.experimentName,
           startTime: experiment.startTime,
-          datasetId: experiment.experimentDatasetId,
-          datasetName: experiment.experimentDatasetId
-            ? (datasetNameById.get(experiment.experimentDatasetId) ?? null)
+          datasetId: experiment.datasetId,
+          datasetName: experiment.datasetId
+            ? (datasetNameById.get(experiment.datasetId) ?? null)
             : null,
         })),
       };

@@ -18,10 +18,7 @@ import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  describeStripMetric,
-  EXPERIMENT_ANALYTICS_DIMENSIONS,
-} from "@/src/features/experiments/constants/analytics";
+import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
 
 const AXIS_EXPLANATION =
   "One point per experiment in view, oldest on the left and newest on the right, so a metric that improved over time rises. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
@@ -124,13 +121,17 @@ export function ExperimentMetricStrip({
   // Do people move the strip off its score-first default, and onto which score
   // LEVEL? Trace-level is where an LLM-as-judge on a dataset run writes, so the
   // level is the interesting half. The score's NAME is user content and is
-  // never sent. (LFE-15720)
+  // never sent. Reuses `chart_metric_changed` from the chart grid this strip
+  // replaced, so the metric-choice history is continuous. (LFE-15720)
   const handleMetricChange = (newMetricId: string) => {
     if (newMetricId === metricId) return;
-    capture("experiment:strip_metric_changed", {
-      ...describeStripMetric(newMetricId),
-      ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-    });
+    capture(
+      "experiment:chart_metric_changed",
+      chartMetricChangedProps({
+        tableName: "experiments",
+        metricId: newMetricId,
+      }),
+    );
     setMetricId(newMetricId);
   };
 

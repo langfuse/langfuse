@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { OrganizationFeaturePreviewsSettings } from "./OrganizationFeaturePreviewsSettings";
+import { featurePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -161,7 +162,9 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     const switches = screen.getAllByRole("checkbox", {
       name: /organization default/i,
     });
-    expect(switches).toHaveLength(2);
+    // Derived, not hardcoded: the page renders one switch per registered
+    // preview, so a new preview must not fail this test.
+    expect(switches).toHaveLength(featurePreviewFlags.length);
     switches.forEach((featureSwitch) => {
       expect(featureSwitch).toBeChecked();
       expect(featureSwitch).toBeDisabled();

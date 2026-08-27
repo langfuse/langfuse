@@ -28,6 +28,13 @@ import {
   BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  COMPARISON_OPERATOR_PROPERTY,
+  itemRegressionFilterAppliedProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -38,7 +45,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -98,22 +105,6 @@ import {
   type ScoreLevel,
 } from "@/src/features/experiments/fns/scoreComparisonFilter";
 import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import {
-  COMPARISON_OPERATOR_PROPERTY,
-  EXPERIMENT_ANALYTICS_DIMENSIONS,
-} from "@/src/features/experiments/constants/analytics";
-import {
-  useScoreColumnScopeAnalytics,
-  type ScoreColumnGroupScopes,
-} from "@/src/features/experiments/hooks/useScoreColumnScopeAnalytics";
-
-/** The table's score column groups, by the score level each one holds. */
-const SCORE_COLUMN_GROUP_SCOPES: ScoreColumnGroupScopes = {
-  observationScores: "observation",
-  traceScores: "trace",
-};
-
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
 );
@@ -427,12 +418,6 @@ export default function ExperimentItemsTable({
   hideControls = false,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
-  const capture = usePostHogClientCapture();
-  // The column drawer's per-family Select All / Deselect All — the family-level
-  // intent behind "which score family do people want visible".
-  const handleScoreColumnGroupToggle = useScoreColumnScopeAnalytics(
-    SCORE_COLUMN_GROUP_SCOPES,
-  );
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
@@ -508,6 +493,7 @@ export default function ExperimentItemsTable({
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
+  const capture = usePostHogClientCapture();
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
@@ -793,14 +779,18 @@ export default function ExperimentItemsTable({
       dataType: ScoreColumnDataType | undefined;
       source: "header_menu" | "url";
     }) =>
-      capture("experiment:score_comparison_filter_applied", {
-        scoreLevel: filter.level,
-        dataType: dataType ?? "unknown",
-        operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
-        comparisonIndex: comparisonIds.indexOf(filter.comparisonExperimentId),
-        source,
-        ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-      }),
+      capture(
+        "experiment:item_regression_filter_applied",
+        itemRegressionFilterAppliedProps({
+          tableName: "experiment-items",
+          scoreLevel: filter.level,
+          dataType,
+          operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
+          comparisonExperimentId: filter.comparisonExperimentId,
+          comparisonIds,
+          source,
+        }),
+      ),
     [capture, comparisonIds],
   );
 
@@ -1453,7 +1443,6 @@ export default function ExperimentItemsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    tableName: "experiment-items",
     queryParams: [
       "observation",
       "display",
@@ -1461,6 +1450,8 @@ export default function ExperimentItemsTable({
       "traceId",
       "peekExperimentId",
     ],
+    tableName: experimentItemsFilterConfig.tableName,
+    isV4: true,
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
       // Use the explicit baseline when present. Without one, use the first
       // selected experiment only as the primary trace for URL-compatible peek
@@ -1674,6 +1665,20 @@ export default function ExperimentItemsTable({
     [filtersByExperiment, orderByState, allExperimentIds],
   );
 
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiment-items",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
   const tableActions: TableAction[] = hasEvalAccess
     ? [
         {
@@ -1698,9 +1703,6 @@ export default function ExperimentItemsTable({
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
-            // v4-only surface (LFE-15720).
-            isV4
-            onColumnGroupToggle={handleScoreColumnGroupToggle}
             columns={columns}
             filterState={queryFilter.filterState}
             viewConfig={{
@@ -1708,6 +1710,9 @@ export default function ExperimentItemsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={experimentItemsFilterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["datasetItemId"]}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}

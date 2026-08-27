@@ -3,7 +3,7 @@ import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {
   DataTableColumnVisibilityFilter,
-  type ColumnGroupToggleHandler,
+  type ColumnGroupTogglePayload,
 } from "@/src/components/table/data-table-column-visibility-filter";
 import { DataTableSettingsPopover } from "@/src/components/table/data-table-settings-popover";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
@@ -154,7 +154,8 @@ interface DataTableToolbarProps<TData, TValue> {
   tableName?: string;
   /** Whether this table reads the v4 (fast-mode) data path, at the moment of the
    * action. The headline segmentation dimension: filtering, columns and search
-   * behave very differently across v3 and v4. Defaults to the v4 events view. */
+   * behave very differently across v3 and v4. Forward it from the owning table —
+   * the fallback is the v4 events view, not a safe default. */
   isV4?: boolean;
   filterWithAI?: boolean;
   className?: string;
@@ -171,7 +172,7 @@ interface DataTableToolbarProps<TData, TValue> {
   mergeSettingsIntoPopover?: boolean;
   /** Notified when a whole column group is shown or hidden at once, for surfaces
    *  that report their own event for it (the experiments score families). */
-  onColumnGroupToggle?: ColumnGroupToggleHandler;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
 
 /**
@@ -264,9 +265,10 @@ export function DataTableToolbar<TData, TValue>({
   // emits (LFE-15720): an explicit `tableName` wins over the view's, and `isV4`
   // falls back to the one surface that is v4 without saying so — the v4 events
   // table, which filters through the grammar bar rather than this toolbar.
-  // The fallback is unreachable — `ToolbarTableIdentity` requires one of the two.
+  // The "unknown" fallback is unreachable — `ToolbarTableIdentity` requires one
+  // of the two sources.
   const analyticsTableName = tableName ?? viewConfig?.tableName ?? "unknown";
-  const isV4Surface =
+  const analyticsIsV4 =
     isV4 ??
     viewConfig?.tableName === TableViewPresetTableName.ObservationsEvents;
   const showSearchTypeSelector = Boolean(
@@ -357,7 +359,7 @@ export function DataTableToolbar<TData, TValue>({
               onSubmit={(value) => {
                 capture("table:search_submit", {
                   tableName: analyticsTableName,
-                  isV4: isV4Surface,
+                  isV4: analyticsIsV4,
                 });
                 submitSearch(value);
               }}
@@ -494,7 +496,7 @@ export function DataTableToolbar<TData, TValue>({
             // filters:applied/cleared events aren't mislabeled "unknown". Shares
             // the toolbar's single definition of both dimensions.
             tableName={analyticsTableName}
-            isV4={isV4Surface}
+            isV4={analyticsIsV4}
           />
         )}
 
@@ -509,7 +511,7 @@ export function DataTableToolbar<TData, TValue>({
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
               tableName={analyticsTableName}
-              isV4={isV4Surface}
+              isV4={analyticsIsV4}
               onColumnGroupToggle={onColumnGroupToggle}
             />
           ) : (
@@ -522,7 +524,7 @@ export function DataTableToolbar<TData, TValue>({
                   columnOrder={columnOrder}
                   setColumnOrder={setColumnOrder}
                   tableName={analyticsTableName}
-                  isV4={isV4Surface}
+                  isV4={analyticsIsV4}
                   onColumnGroupToggle={onColumnGroupToggle}
                 />
               )}
@@ -531,7 +533,7 @@ export function DataTableToolbar<TData, TValue>({
                   rowHeight={rowHeight}
                   setRowHeight={setRowHeight}
                   tableName={analyticsTableName}
-                  isV4={isV4Surface}
+                  isV4={analyticsIsV4}
                 />
               )}
             </>

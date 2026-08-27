@@ -15,7 +15,10 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { EXPERIMENT_ANALYTICS_DIMENSIONS } from "@/src/features/experiments/constants/analytics";
+import {
+  diffModeChangedProps,
+  layoutChangedProps,
+} from "@/src/features/experiments/lib/analytics";
 import {
   useExperimentResultsState,
   type ExperimentDiffMode,
@@ -60,11 +63,14 @@ export default function ExperimentResults() {
   const handleLayoutChange = useCallback(
     (newLayout: ExperimentResultsLayout) => {
       if (newLayout !== layout) {
-        capture("experiment:layout_changed", {
-          layout: newLayout,
-          comparisonCount: comparisonIds.length,
-          ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-        });
+        capture(
+          "experiment:layout_changed",
+          layoutChangedProps({
+            tableName: "experiment-items",
+            layout: newLayout,
+            comparisonCount: comparisonIds.length,
+          }),
+        );
       }
       setLayout(newLayout);
     },
@@ -74,11 +80,14 @@ export default function ExperimentResults() {
   const handleDiffModeChange = useCallback(
     (newDiffMode: ExperimentDiffMode) => {
       if (newDiffMode !== diffMode) {
-        capture("experiment:diff_mode_changed", {
-          mode: newDiffMode,
-          comparisonCount: comparisonIds.length,
-          ...EXPERIMENT_ANALYTICS_DIMENSIONS,
-        });
+        capture(
+          "experiment:diff_mode_changed",
+          diffModeChangedProps({
+            tableName: "experiment-items",
+            mode: newDiffMode,
+            comparisonCount: comparisonIds.length,
+          }),
+        );
       }
       setDiffMode(newDiffMode);
     },

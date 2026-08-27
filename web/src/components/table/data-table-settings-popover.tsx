@@ -9,7 +9,7 @@ import { PopoverController } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
 import {
   DataTableColumnVisibilityFilter,
-  type ColumnGroupToggleHandler,
+  type ColumnGroupTogglePayload,
 } from "@/src/components/table/data-table-column-visibility-filter";
 import {
   ROW_HEIGHT_OPTIONS,
@@ -51,7 +51,7 @@ export function DataTableSettingsPopover<TData, TValue>({
    *  popover — the row-height buttons here and the column drawer's toggles. */
   tableName: string;
   isV4: boolean;
-  onColumnGroupToggle?: ColumnGroupToggleHandler;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }) {
   const capture = usePostHogClientCapture();
 

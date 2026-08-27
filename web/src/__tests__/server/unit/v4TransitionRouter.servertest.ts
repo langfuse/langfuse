@@ -463,7 +463,7 @@ const accessibleProjectsFindManyArgs = {
 const TEST_NOW = new Date("2026-06-25T00:30:00Z");
 const HOT_START_ISO = "2026-06-25T00:00:00.000Z";
 const HOT_START_CLICKHOUSE = "2026-06-25 00:00:00.000";
-const WINDOW_START_CLICKHOUSE = "2026-06-11 01:00:00.000";
+const WINDOW_START_CLICKHOUSE = "2026-06-22 01:00:00.000";
 // Recent SDK gap cutoff: TEST_NOW floored to the minute (zero
 // seconds/millis) so repeated calls within the minute share one ClickHouse
 // query-cache key.
@@ -2006,15 +2006,15 @@ describe("v4TransitionRouter", () => {
       });
     });
 
-    it("drops cached SDK series that aged out of the 14-day window", async () => {
+    it("drops cached SDK series that aged out of the 3-day window", async () => {
       await seedRedisCache({
         [sdkUsageCacheKey]: sdkUsageBlob([
           cachedSdkSeries(),
           cachedSdkSeries({
             sdkVersion: "2.0.0",
-            // Older than now - 14d (2026-06-11T00:30Z): trimmed at read time.
-            firstSeen: "2026-06-08T00:00:00Z",
-            lastSeen: "2026-06-10T00:00:00Z",
+            // Older than now - 3d (2026-06-22T00:30Z): trimmed at read time.
+            firstSeen: "2026-06-20T00:00:00Z",
+            lastSeen: "2026-06-21T00:00:00Z",
           }),
         ]),
         [experimentPostUsageCacheKey]: experimentPostBlob(false),

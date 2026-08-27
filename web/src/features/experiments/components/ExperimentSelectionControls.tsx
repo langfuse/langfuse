@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { type UrlUpdateType } from "use-query-params";
 import { useExperimentComparisonAutoSelect } from "@/src/features/experiments/hooks/useExperimentComparisonAutoSelect";
-import { useExperimentComparisonAnalytics } from "@/src/features/experiments/hooks/useExperimentComparisonAnalytics";
+import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  comparisonChangedProps,
+  type ExperimentComparisonSource,
+} from "@/src/features/experiments/lib/analytics";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 
@@ -31,45 +36,46 @@ export function ExperimentSelectionControls({
   onComparisonIdsChange,
 }: ExperimentSelectionControlsProps) {
   const router = useRouter();
-  const { captureComparisonChanged, isDatasetContextLoading } =
-    useExperimentComparisonAnalytics({ projectId });
+  const capture = usePostHogClientCapture();
+  // The dataset each run belongs to, for `isSameDataset`. The picker reports its
+  // own change from the click; the two paths reported here are the ones no
+  // control owns — the auto-selected default, and a selection already in the URL.
+  const { experimentNames, isLoading: isDatasetContextLoading } =
+    useExperimentNames({ projectId });
 
-  // Analytics only — the selection itself still flows straight through, so
-  // nothing about comparing depends on a capture succeeding.
-  const handlePickerChange = useCallback(
-    (ids: string[], options?: { updateType?: UrlUpdateType }) => {
-      // A pick that lands on the same selection (a toggle the max-selection cap
-      // swallows) is not a change and must not be counted.
-      const isUnchanged =
-        ids.length === comparisonIds.length &&
-        ids.every((id, index) => id === comparisonIds[index]);
-      if (!isUnchanged) {
-        captureComparisonChanged({
-          baselineId,
-          comparisonIds: ids,
-          source: "picker",
-        });
-      }
-      onComparisonIdsChange(ids, options);
+  const captureComparisonChanged = useCallback(
+    ({
+      comparisonIds: ids,
+      source,
+    }: {
+      comparisonIds: string[];
+      source: ExperimentComparisonSource;
+    }) => {
+      const datasetOf = (experimentId: string) =>
+        experimentNames.find((exp) => exp.experimentId === experimentId)
+          ?.datasetId ?? null;
+      capture(
+        "experiment:comparison_changed",
+        comparisonChangedProps({
+          tableName: "experiment-items",
+          comparisonCount: ids.length,
+          datasetIds: [
+            baselineId ? datasetOf(baselineId) : null,
+            ...ids.map(datasetOf),
+          ],
+          source,
+        }),
+      );
     },
-    [
-      captureComparisonChanged,
-      baselineId,
-      comparisonIds,
-      onComparisonIdsChange,
-    ],
+    [capture, experimentNames, baselineId],
   );
 
   const handleAutoSelect = useCallback(
     (ids: string[], options?: { updateType?: UrlUpdateType }) => {
-      captureComparisonChanged({
-        baselineId,
-        comparisonIds: ids,
-        source: "auto",
-      });
+      captureComparisonChanged({ comparisonIds: ids, source: "auto" });
       onComparisonIdsChange(ids, options);
     },
-    [captureComparisonChanged, baselineId, onComparisonIdsChange],
+    [captureComparisonChanged, onComparisonIdsChange],
   );
 
   // Mounted once per results page, so the default comparison is decided here
@@ -98,12 +104,11 @@ export function ExperimentSelectionControls({
 
     hasReportedUrlSelection.current = true;
     if (comparisonIds.length === 0) return;
-    captureComparisonChanged({ baselineId, comparisonIds, source: "url" });
+    captureComparisonChanged({ comparisonIds, source: "url" });
   }, [
     router.isReady,
     isDatasetContextLoading,
     comparisonIds,
-    baselineId,
     captureComparisonChanged,
   ]);
 
@@ -130,7 +135,7 @@ export function ExperimentSelectionControls({
           baselineExperimentId={baselineId}
           selectedIds={comparisonIds}
           selectedExperimentCount={selectedExperimentCount}
-          onSelectedIdsChange={handlePickerChange}
+          onSelectedIdsChange={onComparisonIdsChange}
           isAutoSelectEnabled={isAutoSelectEnabled}
           onAutoSelectEnabledChange={setIsAutoSelectEnabled}
         />

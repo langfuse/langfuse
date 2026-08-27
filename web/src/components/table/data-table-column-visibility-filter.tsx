@@ -53,18 +53,16 @@ import { Separator } from "@/src/components/ui/separator";
  * A whole column GROUP was shown or hidden at once (its "Select All" /
  * "Deselect All"). Surfaces that care which family a group is — the experiments
  * tables and their score levels — hook in here rather than having this generic
- * picker know about them. (LFE-15720)
+ * picker know about them.
  */
-export type ColumnGroupToggleHandler = (params: {
+export type ColumnGroupTogglePayload = {
   /** The group column's accessorKey. */
   groupId: string;
+  /** Columns visible in the group after the toggle: all of them, or none. */
+  enabledCount: number;
   /** Columns in the group. */
-  columnCount: number;
-  /** How many were visible before the toggle. */
-  visibleCount: number;
-  /** What the toggle does: show all, or hide all. */
-  willBeVisible: boolean;
-}) => void;
+  totalCount: number;
+};
 
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -76,14 +74,9 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   /** Defaults to "Columns"; overridden where the surrounding surface already
    *  says "Columns" (the merged table-settings popover). */
   triggerLabel?: string;
-  /** Analytics identity (LFE-15720) for `table:column_visibility_changed`, which
-   *  otherwise has to be attributed to a surface by `$pathname`. Required rather
-   *  than defaulted to "unknown": a dimension a call site can forget to forward
-   *  is a dimension you cannot trust. */
-  tableName: string;
-  /** Whether this table reads the v4 (fast-mode) data path. */
-  isV4: boolean;
-  onColumnGroupToggle?: ColumnGroupToggleHandler;
+  tableName?: string;
+  isV4?: boolean;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
 
 /**
@@ -335,8 +328,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnOrder,
   triggerSize,
   triggerLabel = "Columns",
-  tableName,
-  isV4,
+  tableName = "unknown",
+  isV4 = false,
   onColumnGroupToggle,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
@@ -530,18 +523,18 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                               column.header &&
                               typeof column.header === "string"
                             ) {
-                              onColumnGroupToggle?.({
-                                groupId: column.accessorKey,
-                                columnCount: groupTotalCount,
-                                visibleCount: groupVisibleCount,
-                                willBeVisible:
-                                  groupVisibleCount !== groupTotalCount,
-                              });
+                              const enabling =
+                                groupVisibleCount !== groupTotalCount;
                               toggleAllColumns(
                                 groupVisibleCount,
                                 groupTotalCount,
                                 column.header,
                               );
+                              onColumnGroupToggle?.({
+                                groupId: column.accessorKey,
+                                enabledCount: enabling ? groupTotalCount : 0,
+                                totalCount: groupTotalCount,
+                              });
                             }
                           }}
                         >

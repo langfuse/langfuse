@@ -24,7 +24,6 @@ import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -43,7 +42,6 @@ const DatasetAggregateCellContent = ({
 }) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
   const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
@@ -114,10 +112,8 @@ const DatasetAggregateCellContent = ({
       capture("peek:opened", {
         routePattern: router.pathname,
         wasOpen: router.query.peek !== undefined,
-        // Matches the table this cell belongs to, so the open counts line up
-        // with the ones usePeekNavigation emits (LFE-15720).
-        tableName: "dataset-compare-runs",
-        isV4,
+        isV4: false,
+        tableName: "datasetCompareRuns",
       });
     }
     const newQuery: Record<string, string | string[] | undefined> = {

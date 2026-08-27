@@ -19,7 +19,7 @@ import {
  * blob covers the detection window up to an hour-aligned `hotStart` boundary;
  * readers always query the small `[hotStart, now]` gap live and merge it with
  * the blob so new SDK versions register within minutes. The TTL is one hour so
- * left-edge overcount on the sliding 14-day window (and stale classification
+ * left-edge overcount on the sliding 3-day window (and stale classification
  * fields embedded in the blob) stay bounded to ~1h.
  *
  * Deprecated public API and experiment POST usage are maintained by the
@@ -176,7 +176,7 @@ const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 
 /** Trailing detection window used for SDK cache blobs and usage queries. */
-export const V4_TRANSITION_DETECTION_WINDOW_MS = 14 * 24 * HOUR_MS;
+export const V4_TRANSITION_DETECTION_WINDOW_MS = 3 * 24 * HOUR_MS;
 
 /**
  * Detection windows are computed server-side so cache entries are shared

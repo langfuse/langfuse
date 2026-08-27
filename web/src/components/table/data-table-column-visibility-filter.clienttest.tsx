@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
-import {
-  DataTableColumnVisibilityFilter,
-  type ColumnGroupToggleHandler,
-} from "@/src/components/table/data-table-column-visibility-filter";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { LAYER_ORDER } from "@/src/components/ui/layer";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
-const capture = vi.fn();
+const h = vi.hoisted(() => ({
+  capture: vi.fn(),
+  onColumnGroupToggle: vi.fn(),
+}));
+
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => capture,
+  usePostHogClientCapture: () => h.capture,
 }));
 
 const columns: LangfuseColumnDef<{ id: string }>[] = [
@@ -34,15 +35,35 @@ const columns: LangfuseColumnDef<{ id: string }>[] = [
   },
 ];
 
-function ColumnVisibilityFilterHarness({
-  onColumnGroupToggle,
-}: {
-  onColumnGroupToggle?: ColumnGroupToggleHandler;
-} = {}) {
+const groupedColumns: LangfuseColumnDef<{ id: string }>[] = [
+  {
+    accessorKey: "name",
+    header: "Name",
+    enableHiding: true,
+  },
+  {
+    accessorKey: "traceItemScores",
+    header: "Trace Item Scores",
+    enableHiding: true,
+    columns: [
+      {
+        accessorKey: "traceItemScores-accuracy",
+        header: "accuracy",
+        enableHiding: true,
+      },
+      {
+        accessorKey: "traceItemScores-helpfulness",
+        header: "helpfulness",
+        enableHiding: true,
+      },
+    ],
+  },
+];
+
+function ColumnVisibilityFilterHarness() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     startTime: true,
     input: true,
-    "score-a": true,
   });
 
   return (
@@ -50,9 +71,27 @@ function ColumnVisibilityFilterHarness({
       columns={columns}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
-      tableName="test-table"
-      isV4={false}
-      onColumnGroupToggle={onColumnGroupToggle}
+      tableName="experiments"
+      isV4={true}
+    />
+  );
+}
+
+function GroupedColumnVisibilityHarness() {
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    name: true,
+    "traceItemScores-accuracy": false,
+    "traceItemScores-helpfulness": false,
+  });
+
+  return (
+    <DataTableColumnVisibilityFilter
+      columns={groupedColumns}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      tableName="experiments"
+      isV4={true}
+      onColumnGroupToggle={h.onColumnGroupToggle}
     />
   );
 }
@@ -96,7 +135,8 @@ describe("DataTableColumnVisibilityFilter", () => {
   });
 
   beforeEach(() => {
-    capture.mockClear();
+    h.capture.mockClear();
+    h.onColumnGroupToggle.mockClear();
     installOverlayLayers();
   });
 
@@ -117,42 +157,56 @@ describe("DataTableColumnVisibilityFilter", () => {
     expect(screen.getByRole("checkbox", { name: "Input" })).not.toBeChecked();
   });
 
-  // The capture used to sit inside the setState updater, which React invokes
-  // twice under StrictMode — every toggle was counted twice (LFE-15720).
-  it("reports one column_visibility_changed per toggle, with the table's identity", () => {
+  it("captures column_visibility_changed once with tableName and isV4", () => {
     render(<ColumnVisibilityFilterHarness />);
-    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
 
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
     fireEvent.click(screen.getByText("Input"));
 
-    const events = capture.mock.calls.filter(
+    expect(h.capture).toHaveBeenCalledTimes(1);
+    expect(h.capture).toHaveBeenCalledWith("table:column_visibility_changed", {
+      selectedColumns: ["startTime"],
+      tableName: "experiments",
+      isV4: true,
+    });
+  });
+
+  // The capture used to sit inside the setColumnVisibility updater. An updater
+  // has to be pure, and React re-invokes it under StrictMode — which the app
+  // enables — so every toggle was counted twice. Rendering the harness in
+  // StrictMode is what makes this a guard rather than a restatement of the
+  // test above. (LFE-15720)
+  it("counts one toggle once under StrictMode", () => {
+    render(
+      <StrictMode>
+        <ColumnVisibilityFilterHarness />
+      </StrictMode>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    fireEvent.click(screen.getByText("Input"));
+
+    const events = h.capture.mock.calls.filter(
       ([name]) => name === "table:column_visibility_changed",
     );
     expect(events).toHaveLength(1);
-    expect(events[0][1]).toMatchObject({
-      tableName: "test-table",
-      isV4: false,
-    });
     expect(events[0][1].selectedColumns).not.toContain("input");
   });
 
-  it("reports a whole group toggled once, with its counts", () => {
-    const onColumnGroupToggle = vi.fn();
-    render(
-      <ColumnVisibilityFilterHarness
-        onColumnGroupToggle={onColumnGroupToggle}
-      />,
-    );
+  it("notifies onColumnGroupToggle with the group id, not score names", () => {
+    render(<GroupedColumnVisibilityHarness />);
+
     fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Select All" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Deselect All" }));
-
-    expect(onColumnGroupToggle).toHaveBeenCalledTimes(1);
-    expect(onColumnGroupToggle).toHaveBeenCalledWith({
-      groupId: "traceScores",
-      columnCount: 1,
-      visibleCount: 1,
-      willBeVisible: false,
+    expect(h.onColumnGroupToggle).toHaveBeenCalledTimes(1);
+    expect(h.onColumnGroupToggle).toHaveBeenCalledWith({
+      groupId: "traceItemScores",
+      enabledCount: 2,
+      totalCount: 2,
     });
+    expect(JSON.stringify(h.onColumnGroupToggle.mock.calls[0][0])).not.toMatch(
+      /helpfulness|accuracy/,
+    );
   });
 });

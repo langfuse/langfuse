@@ -50,6 +50,7 @@ import {
 } from "./parseOutcomeScoring";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
@@ -61,7 +62,9 @@ const scoreNameList = z
 const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
-  registryId: z.enum(["events", "evaluationRules"]).default("events"),
+  registryId: z
+    .enum(["events", "evaluationRules", "sessions"])
+    .default("events"),
   /** Existing bar query text, so the model refines the current filters. */
   currentQuery: z.string().max(4096).optional(),
   /** Project data context (observed values, metadata keys, result count) built
@@ -90,7 +93,18 @@ export const searchBarRouter = createTRPCRouter({
         const registry =
           input.registryId === "evaluationRules"
             ? RULE_FIELD_REGISTRY
-            : EVENTS_FIELD_REGISTRY;
+            : input.registryId === "sessions"
+              ? SESSIONS_FIELD_REGISTRY
+              : EVENTS_FIELD_REGISTRY;
+        // Defence in depth for the client gate above: generating against the
+        // fallback (events) prompt for a view that has no branch of its own
+        // produces filters for columns that view does not have.
+        if (!registry.aiFilterPrompt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "AI filter generation is not available for this view",
+          });
+        }
         // Generating a filter reads nothing a project member cannot already
         // read by hand, so membership is the right bar; whether the org uses
         // AI at all is governed by `aiFeaturesEnabled` below.

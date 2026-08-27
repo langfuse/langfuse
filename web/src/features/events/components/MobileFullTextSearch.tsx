@@ -24,11 +24,15 @@ export function MobileFullTextSearch({
   updateQuery,
   tableAllowsFullTextSearch,
   metadataSearchFields,
+  tableName = "observations-events",
+  isV4 = true,
 }: {
   currentQuery?: string;
   updateQuery: (query: string) => void;
   tableAllowsFullTextSearch?: boolean;
   metadataSearchFields?: string[];
+  tableName?: string;
+  isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const committed = currentQuery ?? "";
@@ -45,11 +49,9 @@ export function MobileFullTextSearch({
   }
 
   const submit = (query: string) => {
-    // The mobile search sheet is the v4 events table's second search entry
-    // point; it reports the same identity as the toolbar's (LFE-15720).
     capture("table:search_submit", {
-      tableName: "observations-events",
-      isV4: true,
+      tableName,
+      isV4,
     });
     updateQuery(query);
   };

@@ -1310,12 +1310,12 @@ export const getExperimentNamesFromEvents = async (props: {
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
-    // Grouped by (name, id): two runs sharing a name are two runs, not one
+    // Grouped by experiment id: two runs sharing a name are two runs, not one
     // option pointing at an arbitrary id.
-    groupByColumn: "e.experiment_name, e.experiment_id",
-    selectExpression: `e.experiment_name as experimentName,
+    groupByColumn: "e.experiment_id",
+    selectExpression: `any(e.experiment_name) as experimentName,
     e.experiment_id as experimentId,
-    nullIf(any(e.experiment_dataset_id), '') as experimentDatasetId,
+    nullIf(any(e.experiment_dataset_id), '') as datasetId,
     min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
@@ -1328,7 +1328,7 @@ export const getExperimentNamesFromEvents = async (props: {
   const res = await queryClickhouse<{
     experimentName: string;
     experimentId: string;
-    experimentDatasetId: string | null;
+    datasetId: string | null;
     startTime: string;
   }>({
     query,
@@ -1340,7 +1340,7 @@ export const getExperimentNamesFromEvents = async (props: {
   return res.map((row) => ({
     experimentId: row.experimentId,
     experimentName: row.experimentName,
-    experimentDatasetId: row.experimentDatasetId,
+    datasetId: row.datasetId,
     startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
   }));
 };

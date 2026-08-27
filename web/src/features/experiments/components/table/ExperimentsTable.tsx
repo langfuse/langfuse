@@ -31,8 +31,8 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -63,17 +63,19 @@ import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptio
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
-import { useExperimentComparisonAnalytics } from "@/src/features/experiments/hooks/useExperimentComparisonAnalytics";
-import {
-  useScoreColumnScopeAnalytics,
-  type ScoreColumnGroupScopes,
-} from "@/src/features/experiments/hooks/useScoreColumnScopeAnalytics";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
 import { NotRecordedMetric } from "./NotRecordedMetric";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  baselineChangedProps,
+  comparisonChangedProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -102,12 +104,6 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
 };
 
 /** The table's score column groups, by the score level each one holds. */
-const SCORE_COLUMN_GROUP_SCOPES: ScoreColumnGroupScopes = {
-  traceItemScores: "trace",
-  observationItemScores: "observation",
-  experimentScores: "experiment",
-};
-
 /**
  * Owns every consumer of the selection state (action menu, compare navigation,
  * run-evaluator dialog) so checkbox clicks re-render only this menu and the
@@ -116,15 +112,15 @@ const SCORE_COLUMN_GROUP_SCOPES: ScoreColumnGroupScopes = {
 function ExperimentsMultiSelectActionMenu({
   projectId,
   store,
+  datasetIdByExperimentId,
 }: {
   projectId: string;
   store: ExperimentsTableStore;
+  datasetIdByExperimentId: Record<string, string>;
 }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
-  const { captureComparisonChanged } = useExperimentComparisonAnalytics({
-    projectId,
-  });
   // Page-scoped and in table order, so the first id is the topmost selected
   // row — the compare baseline.
   const selectedExperimentIds = useStore(
@@ -172,13 +168,26 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
-    // The list's own way into a comparison — the same event the picker emits,
-    // told apart by its source. (LFE-15720)
-    captureComparisonChanged({
-      baselineId: baseline,
-      comparisonIds: comparisons,
-      source: "table_selection",
-    });
+    // The list's own way into a comparison — the same events the picker and the
+    // baseline control emit, told apart by their source.
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiments",
+        comparisonCount: comparisons.length,
+        datasetIds: selectedExperimentIds.map(
+          (id) => datasetIdByExperimentId[id],
+        ),
+        source: "table-selection",
+      }),
+    );
+    capture(
+      "experiment:baseline_changed",
+      baselineChangedProps({
+        tableName: "experiments",
+        source: "table-selection",
+      }),
+    );
     const params = new URLSearchParams();
     params.set("baseline", baseline);
     comparisons.forEach((id) => {
@@ -819,17 +828,39 @@ export default function ExperimentsTable({
     }));
   }, [rows]);
 
+  const capture = usePostHogClientCapture();
+
+  const datasetIdByExperimentId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.id] = row.datasetId;
+    }
+    return map;
+  }, [rows]);
+
+  // Which score family do people actually want visible, now that all of them are
+  // on by default? The column drawer's per-family Select All / Deselect All is
+  // the family-level intent; the individual checkboxes stay on
+  // `table:column_visibility_changed`, which already carries the column.
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiments",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
   // the compare baseline relies on).
   const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
 
-  // Which score family do people actually want visible? The column drawer's
-  // per-family Select All / Deselect All is the family-level intent; the
-  // individual checkboxes stay on `table:column_visibility_changed`.
-  const handleScoreColumnGroupToggle = useScoreColumnScopeAnalytics(
-    SCORE_COLUMN_GROUP_SCOPES,
-  );
   useExperimentsTableSelectionSync({
     store: experimentsTableStore,
     pageRowIds,
@@ -838,7 +869,7 @@ export default function ExperimentsTable({
 
   return (
     <>
-      <DataTableControlsProvider>
+      <DataTableControlsProvider tableName={filterConfig.tableName}>
         <div className="flex h-full w-full flex-col">
           {showControlsInPageHeader && (
             <TableHeaderControls
@@ -848,8 +879,6 @@ export default function ExperimentsTable({
           )}
           {/* Toolbar spanning full width */}
           <DataTableToolbar
-            // v4-only surface (LFE-15720).
-            isV4
             columns={columns}
             filterState={queryFilter.filterState}
             viewConfig={{
@@ -857,6 +886,9 @@ export default function ExperimentsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={filterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["name", "datasetId"]}
             searchConfig={{
               metadataSearchFields: ["Name"],
@@ -872,7 +904,6 @@ export default function ExperimentsTable({
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
             mergeSettingsIntoPopover
-            onColumnGroupToggle={handleScoreColumnGroupToggle}
             timeRange={showControlsInPageHeader ? undefined : timeRange}
             setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
             actionButtons={[
@@ -880,6 +911,7 @@ export default function ExperimentsTable({
                 key="experiments-multi-select-actions"
                 projectId={projectId}
                 store={experimentsTableStore}
+                datasetIdByExperimentId={datasetIdByExperimentId}
               />,
             ]}
           />
