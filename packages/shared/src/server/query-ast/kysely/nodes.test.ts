@@ -145,6 +145,35 @@ describe("tenancy injection", () => {
     expect(compiled).toMatch(/o\.project_id/i);
     expect(compiled).toMatch(/t\.project_id/i);
   });
+
+  it("injects the context project even when the builder scoped a different project", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("environment")
+      .where("project_id", "=", "other-project");
+
+    const { sql: compiled, params } = compileClickhouseQuery(qb, ctx);
+    // The builder's `other-project` predicate does not scope the request's
+    // project, so the pass must still inject `project_id = proj-1`.
+    expect(Object.values(params)).toContain("proj-1");
+    const matches = compiled.match(/project_id/gi) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not let one unqualified project_id cover multiple tenanted JOIN relations", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("observations as o")
+      .innerJoin("traces as t", (join) => join.onRef("o.trace_id", "=", "t.id"))
+      .select("o.environment")
+      // Unqualified, and ambiguous across two tenanted tables — must not be
+      // treated as scoping either relation.
+      .where("project_id", "=", "proj-1");
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    // Both tenanted relations get their own qualified predicate injected.
+    expect(compiled).toMatch(/o\.project_id/i);
+    expect(compiled).toMatch(/t\.project_id/i);
+  });
 });
 
 describe("ARRAY JOIN and LIMIT BY nodes", () => {

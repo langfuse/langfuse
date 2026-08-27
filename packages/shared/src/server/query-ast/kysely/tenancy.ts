@@ -112,22 +112,36 @@ function injectSelect(
   }));
 
   for (const relation of fromRelations) {
-    assertRelationAllowed(relation, cteNames);
+    assertRelationAllowed(relation);
   }
   for (const { relation } of joinRelations) {
-    assertRelationAllowed(relation, cteNames);
+    assertRelationAllowed(relation);
   }
 
-  const tenantedFrom = fromRelations.filter(
-    (r): r is Extract<Relation, { kind: "table" }> =>
-      r.kind === "table" &&
-      TENANTED_TABLES.has(r.tableName) &&
-      !cteNames.has(r.tableName),
-  );
+  const isTenantedTable = (
+    r: Relation,
+  ): r is Extract<Relation, { kind: "table" }> =>
+    r.kind === "table" &&
+    TENANTED_TABLES.has(r.tableName) &&
+    !cteNames.has(r.tableName);
+
+  const tenantedFrom = fromRelations.filter(isTenantedTable);
+  const tenantedJoinCount = joinRelations.filter(({ relation }) =>
+    isTenantedTable(relation),
+  ).length;
+
+  // When more than one tenanted relation is in scope, an unqualified
+  // `project_id = …` predicate is ambiguous — it cannot be proven to scope a
+  // *specific* relation — so a table-qualified reference is required before a
+  // relation counts as already covered. With a single tenanted relation an
+  // unqualified reference is unambiguous and accepted.
+  const requireQualified = tenantedFrom.length + tenantedJoinCount > 1;
 
   let where = next.where;
   for (const table of tenantedFrom) {
-    if (!predicateCovers(where?.where, table)) {
+    if (
+      !predicateCovers(where?.where, table, ctx.projectId, requireQualified)
+    ) {
       const predicate = projectIdPredicate(table, ctx.projectId);
       where = where
         ? WhereNode.cloneWithOperation(where, "And", predicate)
@@ -137,17 +151,13 @@ function injectSelect(
 
   const joins = (next.joins ?? []).map((join, i) => {
     const { relation } = joinRelations[i];
-    if (
-      relation.kind !== "table" ||
-      !TENANTED_TABLES.has(relation.tableName) ||
-      cteNames.has(relation.tableName)
-    ) {
+    if (!isTenantedTable(relation)) {
       return join;
     }
     const onExpr = join.on?.on;
     if (
-      predicateCovers(onExpr, relation) ||
-      predicateCovers(where?.where, relation)
+      predicateCovers(onExpr, relation, ctx.projectId, requireQualified) ||
+      predicateCovers(where?.where, relation, ctx.projectId, requireQualified)
     ) {
       return join;
     }
@@ -167,21 +177,11 @@ function injectSelect(
   return next;
 }
 
-function assertRelationAllowed(
-  relation: Relation,
-  cteNames: Set<string>,
-): void {
+function assertRelationAllowed(relation: Relation): void {
   if (relation.kind === "raw") {
     throw new UnscopedRelationError(
       "Raw SQL table sources are rejected: they can introduce an unscoped relation that the tenancy pass cannot prove. Use a traced table reference instead.",
     );
-  }
-  if (
-    relation.kind === "table" &&
-    TENANTED_TABLES.has(relation.tableName) &&
-    !cteNames.has(relation.tableName)
-  ) {
-    return;
   }
 }
 
@@ -233,45 +233,67 @@ function projectIdPredicate(
   );
 }
 
+/**
+ * True only when `expr` provably constrains `table` to `projectId`. Both halves
+ * matter: the left operand must be `table`'s `project_id` column (qualified when
+ * {@link requireQualified}, see {@link injectSelect}) *and* the right operand
+ * must be the literal `projectId` from the {@link ExecutionContext}. A predicate
+ * such as `project_id = <someOtherProject>` or `o.project_id = t.project_id`
+ * does not scope the relation to the request's project, so it is not covered and
+ * the pass injects the correct predicate.
+ */
 function predicateCovers(
   expr: OperationNode | undefined,
   table: Extract<Relation, { kind: "table" }>,
+  projectId: string,
+  requireQualified: boolean,
 ): boolean {
   if (!expr) return false;
   if (AndNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table) || predicateCovers(expr.right, table)
+      predicateCovers(expr.left, table, projectId, requireQualified) ||
+      predicateCovers(expr.right, table, projectId, requireQualified)
     );
   }
   if (OrNode.is(expr)) {
     return (
-      predicateCovers(expr.left, table) && predicateCovers(expr.right, table)
+      predicateCovers(expr.left, table, projectId, requireQualified) &&
+      predicateCovers(expr.right, table, projectId, requireQualified)
     );
   }
   if (ParensNode.is(expr)) {
-    return predicateCovers(expr.node, table);
+    return predicateCovers(expr.node, table, projectId, requireQualified);
   }
   if (!BinaryOperationNode.is(expr)) return false;
   if (!OperatorNode.is(expr.operator) || expr.operator.operator !== "=") {
     return false;
   }
-  return isProjectIdColumn(expr.leftOperand, table);
+  return (
+    isProjectIdColumn(expr.leftOperand, table, requireQualified) &&
+    isProjectIdValue(expr.rightOperand, projectId)
+  );
 }
 
 function isProjectIdColumn(
   node: OperationNode,
   table: Extract<Relation, { kind: "table" }>,
+  requireQualified: boolean,
 ): boolean {
   if (ColumnNode.is(node)) {
-    return node.column.name === PROJECT_ID_COLUMN;
+    // Bare column with no table qualifier: accept only when unambiguous.
+    return !requireQualified && node.column.name === PROJECT_ID_COLUMN;
   }
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
     if (node.column.column.name !== PROJECT_ID_COLUMN) return false;
-    if (!node.table) return true;
+    if (!node.table) return !requireQualified;
     const referenced = tableNameOf(node.table);
     return referenced === table.tableName || referenced === table.alias;
   }
   return false;
+}
+
+function isProjectIdValue(node: OperationNode, projectId: string): boolean {
+  return ValueNode.is(node) && node.value === projectId;
 }
 
 export function requireExecutionContext(
