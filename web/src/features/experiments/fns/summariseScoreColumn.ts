@@ -54,7 +54,7 @@ const countValues = (aggregate: AggregatedScoreData) =>
  * The score read as a number, so two items can be ordered. A boolean's ordered
  * reading is its true-rate (false < true); a categorical has none.
  */
-const orderedValue = (
+export const readOrderedScoreValue = (
   aggregate: AggregatedScoreData | null,
   dataType: ScoreColumnDataType,
 ): number | null => {
@@ -107,7 +107,7 @@ const aggregateAcrossItems = (
   }
 
   const values = aggregates
-    .map((aggregate) => orderedValue(aggregate, dataType))
+    .map((aggregate) => readOrderedScoreValue(aggregate, dataType))
     .filter((value): value is number => value !== null);
   if (values.length === 0) return null;
 
@@ -188,8 +188,8 @@ export const summariseScoreColumn = ({
       continue;
     }
 
-    const baselineValue = orderedValue(pair.baseline, dataType);
-    const comparisonValue = orderedValue(pair.comparison, dataType);
+    const baselineValue = readOrderedScoreValue(pair.baseline, dataType);
+    const comparisonValue = readOrderedScoreValue(pair.comparison, dataType);
     if (baselineValue === null || comparisonValue === null) {
       movement.notComparable += 1;
     } else if (baselineValue > comparisonValue) {
