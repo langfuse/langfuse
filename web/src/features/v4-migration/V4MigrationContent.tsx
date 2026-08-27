@@ -981,7 +981,7 @@ export function V4MigrationApisSection({
                           </div>
                           <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
                             <span>
-                              {numberFormatter(callerCount, 0)} estimated{" "}
+                              {numberFormatter(callerCount, 0)}{" "}
                               {callerCount === 1 ? "call" : "calls"} · last seen{" "}
                               {formatCompactRelativeTime(
                                 new Date(caller.lastSeen),
