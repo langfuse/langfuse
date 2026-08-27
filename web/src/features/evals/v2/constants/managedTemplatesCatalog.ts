@@ -107,7 +107,6 @@ Replace these examples with your own taxonomy before use:
 User message: {{input}}`,
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Predicted category.",
@@ -193,7 +192,6 @@ Think step by step and return the structured result.`,
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -257,7 +255,6 @@ Last user message: {{last_user_message}}`,
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -412,7 +409,6 @@ Last user message: {{last_user_message}}`,
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "True if distress is present, false otherwise.",
@@ -477,7 +473,6 @@ Expected output: {{expected_output}}`,
           },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -730,7 +725,6 @@ Assistant output: {{assistant_output}}`,
           { name: "assistant_output", defaultMapping: { field: "output" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Relevance label.",
@@ -782,7 +776,6 @@ Assistant output: {{assistant_output}}`,
           { name: "assistant_output", defaultMapping: { field: "output" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: { description: "Boolean verdict." },
           reasoning: {
@@ -834,7 +827,6 @@ Replace these example definitions with your own taxonomy before use:
 Input: {{input}}`,
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Predicted category label.",
@@ -881,7 +873,6 @@ You will receive an input and must assign exactly one primary language category.
 Input: {{input}}`,
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Predicted category.",
@@ -950,7 +941,6 @@ Context: {{context}}`,
           { name: "context", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Groundedness label.",
@@ -1003,7 +993,6 @@ Context: {{context}}`,
           { name: "context", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Context precision label.",
@@ -1062,7 +1051,6 @@ Context: {{context}}`,
           { name: "context", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Context recall label.",
@@ -1127,7 +1115,6 @@ True if sensitive, identifying personal information appears in the output, false
 Assistant output: {{output}}`,
         variables: [{ name: "output", defaultMapping: { field: "output" } }],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -1174,7 +1161,6 @@ Assistant output: {{assistant_output}}`,
           { name: "assistant_output", defaultMapping: { field: "output" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: { description: "Boolean verdict." },
           reasoning: {
@@ -1225,7 +1211,6 @@ True if prompt injection is detected, false otherwise.
 Input text: {{input_text}}`,
         variables: [{ name: "input_text", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: {
             description: "Boolean verdict.",
@@ -1279,7 +1264,6 @@ Classify the user's primary requested outcome into exactly one engineering task 
 Task text: {{task_text}}`,
         variables: [{ name: "task_text", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Engineering task-type label.",
@@ -1344,7 +1328,6 @@ Classify the task into the one department it most likely serves.
 Task text: {{task_text}}`,
         variables: [{ name: "task_text", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Department usage label.",

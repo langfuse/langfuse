@@ -29,7 +29,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
@@ -298,16 +299,21 @@ export function AnnotationQueueItemsTable({
       enableHiding: true,
       defaultHidden: true,
     }),
-    {
+    createStatusTableColumn<QueueItemRowData, AnnotationQueueStatus>({
       accessorKey: "status",
       header: "Status",
-      id: "status",
+      getStatus: (status) =>
+        status
+          ? (
+              {
+                PENDING: "pending",
+                COMPLETED: "completed",
+              } satisfies Record<AnnotationQueueStatus, Status>
+            )[status]
+          : undefined,
       size: 60,
-      cell: ({ row }) => {
-        const status: QueueItemRowData["status"] = row.getValue("status");
-        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
-      },
-    },
+      isLive: false,
+    }),
     {
       accessorKey: "completedAt",
       header: "Completed At",

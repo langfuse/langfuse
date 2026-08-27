@@ -4,7 +4,7 @@ import {
   AuditLogRecordType,
 } from "@langfuse/shared/src/db";
 
-export type AuditableResource =
+type AuditableResource =
   | "annotationQueue"
   | "annotationQueueItem"
   | "annotationQueueAssignment"

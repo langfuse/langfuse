@@ -18,7 +18,6 @@ const template = {
     prompt: "Classify {{input}}.",
     variables: [{ name: "input", defaultMapping: { field: "input" } }],
     outputDefinition: {
-      version: 2,
       dataType: "CATEGORICAL",
       score: {
         description: "Intent.",

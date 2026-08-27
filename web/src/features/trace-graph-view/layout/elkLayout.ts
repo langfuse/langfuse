@@ -10,7 +10,7 @@ import {
 } from "../types";
 import { measureNode } from "./measureNode";
 
-export interface PositionedNode {
+interface PositionedNode {
   id: string;
   x: number;
   y: number;
@@ -18,7 +18,7 @@ export interface PositionedNode {
   height: number;
 }
 
-export interface PositionedEdge {
+interface PositionedEdge {
   id: string;
   source: string;
   target: string;

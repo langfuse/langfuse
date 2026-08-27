@@ -10,7 +10,7 @@ export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 
 type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
-export type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
+type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
 
 const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
 const FTS_MATCH_TARGET_ERROR =

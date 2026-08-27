@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import {
-  countLegacyApiEntrypoints,
+  countActionableLegacyApiEntrypoints,
+  isActionableLegacyApiUsage,
   normalizeLegacyApiEntrypoint,
 } from "@/src/features/v4/utils";
 import {
@@ -109,7 +110,7 @@ export function useAccountV4MigrationData(params: {
               ?.experimentInstrumentationMigration.status ?? "not_required",
         ),
         apis: getMigrationCountState(apiQuery, (rows) => {
-          return countLegacyApiEntrypoints(
+          return countActionableLegacyApiEntrypoints(
             rows.filter((row) => row.projectId === project.id),
           );
         }),
@@ -232,6 +233,12 @@ export function useProjectV4MigrationData(params: {
       endpoint: normalizeLegacyApiEntrypoint(row.entrypoint),
       count: row.count,
       lastSeen: row.lastSeen,
+      callers: row.callers ?? [
+        {
+          count: row.count,
+          lastSeen: row.lastSeen,
+        },
+      ],
     }))
     .sort(
       (left, right) =>
@@ -258,7 +265,10 @@ export function useProjectV4MigrationData(params: {
     ),
     experimentInstrumentationUpgradePath:
       sdkSummary?.experimentInstrumentationMigration.upgradePath ?? null,
-    apis: getMigrationCountState(apiQuery, () => apiUsage.length),
+    apis: getMigrationCountState(
+      apiQuery,
+      () => apiUsage.filter(isActionableLegacyApiUsage).length,
+    ),
     exports: getMigrationCountState(
       integrationQuery,
       (data) => data.legacyIntegrationCount,

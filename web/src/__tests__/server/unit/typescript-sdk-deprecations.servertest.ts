@@ -146,6 +146,15 @@ describe("TypeScript SDK deprecations", () => {
       "api/resources/sessions/client/Client.ts:get",
       "api/resources/trace/client/Client.ts:get",
       "api/resources/trace/client/Client.ts:list",
+      "api/resources/unstable/resources/evaluationRules/client/Client.ts:create",
+      "api/resources/unstable/resources/evaluationRules/client/Client.ts:list",
+      "api/resources/unstable/resources/evaluationRules/client/Client.ts:get",
+      "api/resources/unstable/resources/evaluationRules/client/Client.ts:update",
+      "api/resources/unstable/resources/evaluationRules/client/Client.ts:delete",
+      "api/resources/unstable/resources/evaluators/client/Client.ts:create",
+      "api/resources/unstable/resources/evaluators/client/Client.ts:list",
+      "api/resources/unstable/resources/evaluators/client/Client.ts:get",
+      "api/resources/unstable/resources/evaluators/client/Client.ts:delete",
     ]);
     expect(
       deprecations

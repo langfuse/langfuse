@@ -485,7 +485,19 @@ const experimentPostBlob = (
   });
 
 const legacyApiBlob = (
-  rows: { entrypoint: string; count: number; lastSeen: string }[],
+  rows: {
+    entrypoint: string;
+    count: number;
+    lastSeen: string;
+    callers?: {
+      sdkName?: "python" | "javascript";
+      sdkVersion?: string;
+      userAgent?: string;
+      isOther?: true;
+      count: number;
+      lastSeen: string;
+    }[];
+  }[],
 ) =>
   JSON.stringify({
     version: 1,
@@ -565,6 +577,15 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: 2,
           lastSeen: "2026-06-24T15:00:00.000000Z",
+          callers: [
+            {
+              sdkName: "python",
+              sdkVersion: "4.8.1",
+              userAgent: "langfuse-python/4.8.1",
+              count: 2,
+              lastSeen: "2026-06-24T15:00:00.000000Z",
+            },
+          ],
         },
       ]),
     });
@@ -586,6 +607,15 @@ describe("v4TransitionRouter", () => {
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: 2,
         lastSeen: "2026-06-24T15:00:00.000000Z",
+        callers: [
+          {
+            sdkName: "python",
+            sdkVersion: "4.8.1",
+            userAgent: "langfuse-python/4.8.1",
+            count: 2,
+            lastSeen: "2026-06-24T15:00:00.000000Z",
+          },
+        ],
       },
     ]);
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
@@ -2264,6 +2294,105 @@ describe("v4TransitionRouter", () => {
         await expect(readRedisJson(sdkUsageCacheKey)).resolves.toMatchObject({
           hotStart: HOT_START_ISO,
           series: [expect.objectContaining({ eventCount: 5 })],
+        });
+      });
+
+      it.each(["Claude Code/1.0", "codex-cli/1.2.3", "curl/8.7.1"])(
+        "does not require an API action for deprecated calls made only by %s",
+        async (userAgent) => {
+          await seedRedisCache({
+            [sdkUsageCacheKey]: sdkUsageBlob([]),
+            [experimentPostUsageCacheKey]: experimentPostBlob(false),
+            [legacyApiUsageCacheKey]: legacyApiBlob([
+              {
+                entrypoint: "publicapi: GET /api/public/traces",
+                count: 2,
+                lastSeen: "2026-06-24T12:00:00.000000Z",
+                callers: [
+                  {
+                    userAgent,
+                    count: 2,
+                    lastSeen: "2026-06-24T12:00:00.000000Z",
+                  },
+                ],
+              },
+            ]),
+          });
+          mockedQueryClickhouse.mockResolvedValue([]);
+          const caller = createCaller(mockPrismaForActions());
+
+          await expect(
+            caller.migrationActions({ projectId }),
+          ).resolves.toMatchObject({
+            sdkActionNeeded: false,
+            experimentsActionNeeded: false,
+            apisActionNeeded: false,
+            evalsActionNeeded: false,
+            exportsActionNeeded: false,
+          });
+        },
+      );
+
+      it("keeps the API action when any caller is not an agent or curl", async () => {
+        await seedRedisCache({
+          [sdkUsageCacheKey]: sdkUsageBlob([]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(false),
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 3,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+              callers: [
+                {
+                  userAgent: "codex-cli/1.2.3",
+                  count: 2,
+                  lastSeen: "2026-06-24T12:00:00.000000Z",
+                },
+                {
+                  userAgent: "langfuse-python/3.9.0",
+                  count: 1,
+                  lastSeen: "2026-06-24T11:00:00.000000Z",
+                },
+              ],
+            },
+          ]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller(mockPrismaForActions());
+
+        await expect(
+          caller.migrationActions({ projectId }),
+        ).resolves.toMatchObject({
+          apisActionNeeded: true,
+        });
+      });
+
+      it("keeps the API action for an aggregated unknown caller", async () => {
+        await seedRedisCache({
+          [sdkUsageCacheKey]: sdkUsageBlob([]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(false),
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 2,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+              callers: [
+                {
+                  isOther: true,
+                  count: 2,
+                  lastSeen: "2026-06-24T12:00:00.000000Z",
+                },
+              ],
+            },
+          ]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller(mockPrismaForActions());
+
+        await expect(
+          caller.migrationActions({ projectId }),
+        ).resolves.toMatchObject({
+          apisActionNeeded: true,
         });
       });
 

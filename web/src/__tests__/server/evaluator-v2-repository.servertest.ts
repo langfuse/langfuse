@@ -38,7 +38,6 @@ const llmDefinition = (
   vars: ["output"],
   variableMapping: null,
   outputDefinition: {
-    version: 2,
     dataType: "NUMERIC",
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },
