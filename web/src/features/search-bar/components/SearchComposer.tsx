@@ -1433,7 +1433,7 @@ export function SearchComposer({
           // wrapped lines of pills (single-line is unaffected).
           className={cn(
             COMPOSER_TEXT_CLASSES,
-            "caret-[hsl(var(--foreground))] outline-none",
+            "ph-no-capture caret-[hsl(var(--foreground))] outline-none",
           )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
