@@ -1194,7 +1194,7 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-        sandbox: expect.stringContaining("<sandbox>"),
+        sandbox_filesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",
         userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1202,9 +1202,9 @@ describe("createAgUiStream", () => {
         ).join(", "),
       }),
     );
-    expect(promptMocks.compile.mock.calls[0]?.[0].sandbox).not.toContain(
-      "tool_calls",
-    );
+    expect(
+      promptMocks.compile.mock.calls[0]?.[0].sandbox_filesystem,
+    ).not.toContain("tool_calls");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
         userContext: expect.stringContaining('"user_name": "Ada Lovelace"'),
@@ -1449,9 +1449,9 @@ describe("createAgUiStream", () => {
       "Persisted tool-output files explicitly named in tool results remain available",
     );
     expect(runInstruction).not.toContain("/workspace/tool_calls");
-    expect(promptMocks.compile.mock.calls.at(-1)?.[0]?.sandbox).not.toContain(
-      "has been replaced with an empty one",
-    );
+    expect(
+      promptMocks.compile.mock.calls.at(-1)?.[0]?.sandbox_filesystem,
+    ).not.toContain("has been replaced with an empty one");
   });
 
   it("stamps top-level error on TOOL_CALL_RESULT from structured failure payloads", async () => {
@@ -2552,7 +2552,7 @@ describe("createAgUiStream", () => {
     expect(agentConfig?.tools).not.toHaveProperty("bash");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        sandbox: "",
+        sandbox_filesystem: "",
       }),
     );
   });

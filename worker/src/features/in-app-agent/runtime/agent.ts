@@ -148,8 +148,7 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
     return "";
   }
 
-  return `
-<sandbox>
+  return `<sandbox_filesystem>
 The sandbox provides read, write, edit, and bash tools for the current task.
 The sandbox has no egress network connection, so the Langfuse CLI, Langfuse
 SDKs, and other application-specific CLIs or SDKs cannot act on the user's
@@ -160,8 +159,7 @@ MCP tools in the sandbox; MCP tools provide the authorized connection to the
 user's project, not the sandbox.
 When working in the sandbox, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
-</sandbox>
-`;
+</sandbox_filesystem>`;
 }
 
 /** Run-scoped, not part of the managed prompt: it describes one turn's environment. */
@@ -327,7 +325,7 @@ export async function createAgUiStream(params: {
     variables: {
       currentDate: "",
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-      sandbox: formatSandboxContext(params.options.sandbox),
+      sandbox_filesystem: formatSandboxContext(params.options.sandbox),
       screenContext: "",
       userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1539,7 +1537,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
-    sandbox: string;
+    sandbox_filesystem: string;
     screenContext: string;
     userContext: string;
     sidebarHiddenEnvironments: string;
