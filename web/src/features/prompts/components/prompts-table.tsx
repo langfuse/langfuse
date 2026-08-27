@@ -6,6 +6,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import TableLink from "@/src/components/table/table-link";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/Table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
@@ -28,7 +29,6 @@ import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextS
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 
 type PromptTableRow = {
   id: string;
@@ -267,34 +267,33 @@ export function PromptTable() {
   }, [prompts.isSuccess, prompts.data]);
 
   const promptColumns: LangfuseColumnDef<PromptTableRow>[] = [
-    {
+    createFolderKeyTableColumn<PromptTableRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       enableSorting: true,
       size: 250,
-      cell: ({ getValue, row }) => {
-        const name = getValue<string>();
+      getCell: (name, { row }) => {
+        if (!name) return undefined;
         const rowData = row.original;
 
         if (rowData.type === "folder") {
-          return (
-            <FolderBreadcrumbLink
-              name={name}
-              onClick={() => navigateToFolder(rowData.fullPath)}
-            />
-          );
+          return {
+            type: "folder",
+            name,
+            onClick: () => navigateToFolder(rowData.fullPath),
+          };
         }
 
-        return name ? (
-          <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`}
-            value={name}
-            title={rowData.fullPath} // Show full prompt path on hover
-          />
-        ) : undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`,
+            value: name,
+            title: rowData.fullPath,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "version",
       header: "Versions",

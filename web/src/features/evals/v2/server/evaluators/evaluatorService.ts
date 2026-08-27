@@ -2,11 +2,13 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
   EvalTemplateType,
+  type EvaluatorBlockReason,
   type FilterState,
   getBlockReasonForInvalidModelConfig,
   getCodeEvalVariableMapping,
   getEvaluatorBlockMetadata,
   getEvaluatorPromptMessages,
+  isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -28,8 +30,10 @@ import {
   type DeleteEvaluatorsInput,
   type EvaluatorDefinition,
   type EvaluatorDefinitionForPersistence,
+  type EvaluatorListOrderBy,
   type EvaluatorVersionCursor,
   type NormalizedEvaluatorDefinition,
+  type PatchEvaluatorInput,
   type UpdateEvaluatorInput,
   encodeEvaluatorVersionCursor,
   EvaluatorDefinitionSchema,
@@ -139,10 +143,26 @@ export class EvaluatorService {
     projectId: string;
     page: number;
     limit: number;
+    orderBy?: EvaluatorListOrderBy;
     search?: string;
     filter?: FilterState;
   }) {
     const page = await repository.listEvaluators({
+      prisma: this.prisma,
+      ...params,
+    });
+    return {
+      ...page,
+      evaluators: page.evaluators.map(normalizeEvaluatorPromptMessages),
+    };
+  }
+
+  async listCursor(params: {
+    projectId: string;
+    limit: number;
+    cursor?: { createdAt: Date; id: string };
+  }) {
+    const page = await repository.listEvaluatorsCursor({
       prisma: this.prisma,
       ...params,
     });
@@ -205,8 +225,8 @@ export class EvaluatorService {
       ...params,
       cursor: params.cursor?.version,
     });
-    if (page.data.length === 0 && params.cursor === undefined) {
-      throw new LangfuseNotFoundError("Evaluator not found");
+    if (page.data.length === 0) {
+      await this.get(params.projectId, params.evaluatorId);
     }
     return {
       ...page,
@@ -315,6 +335,7 @@ export class EvaluatorService {
         }
         throw error;
       });
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await this.audit({
       action: "create",
       projectId: input.projectId,
@@ -380,6 +401,7 @@ export class EvaluatorService {
         }),
       };
     });
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await this.audit({
       action: result.action,
       projectId: input.projectId,
@@ -406,12 +428,54 @@ export class EvaluatorService {
         block,
       }),
     );
+    await invalidateProjectEvalConfigCaches(input.projectId);
     await this.audit({
       action: "update",
       projectId: input.projectId,
       evaluatorId: evaluator.id,
     });
     return normalizeEvaluatorPromptMessages(evaluator);
+  }
+
+  async patch(input: PatchEvaluatorInput, createdByUserId: string | null) {
+    const validationResult = input.definition
+      ? await this.validatePatchedEvaluatorForPersistence(
+          input,
+          input.definition,
+        )
+      : null;
+    const evaluator = await this.prisma.$transaction((tx) =>
+      patchEvaluator({
+        tx,
+        input,
+        createdByUserId,
+        validationResult,
+      }),
+    );
+    await invalidateProjectEvalConfigCaches(input.projectId);
+    await this.audit({
+      action: "update",
+      projectId: input.projectId,
+      evaluatorId: evaluator.id,
+    });
+    return normalizeEvaluatorPromptMessages(evaluator);
+  }
+
+  private async validatePatchedEvaluatorForPersistence(
+    input: PatchEvaluatorInput,
+    definition: EvaluatorDefinition,
+  ) {
+    const current = await this.get(input.projectId, input.evaluatorId);
+    return validateEvaluatorForPersistence({
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      name: input.name ?? current.name,
+      description:
+        input.description === undefined
+          ? current.description
+          : input.description,
+      definition,
+    });
   }
 
   async reactivate(params: { projectId: string; evaluatorId: string }) {
@@ -628,6 +692,70 @@ async function deleteEvaluator(params: {
   if (!deleted) throw new LangfuseNotFoundError("Evaluator not found");
 }
 
+async function patchEvaluator(params: {
+  tx: Prisma.TransactionClient;
+  input: Omit<PatchEvaluatorInput, "definition"> & {
+    definition?: EvaluatorDefinition;
+  };
+  createdByUserId: string | null;
+  validationResult: Awaited<ReturnType<typeof validateEvaluatorForPersistence>>;
+}) {
+  const { tx, input, createdByUserId } = params;
+  const current = await repository.findEvaluator({
+    prisma: tx,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
+  });
+  if (!current) throw new LangfuseNotFoundError("Evaluator not found");
+  if (input.definition && current.type !== input.definition.type) {
+    throw new LangfuseConflictError("Evaluator type cannot be changed");
+  }
+
+  if (input.name !== undefined || input.description !== undefined) {
+    await repository.updateEvaluatorMetadata({
+      tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      name: input.name,
+      description: input.description,
+    });
+  }
+
+  if (input.definition) {
+    const latest = current.versions[0];
+    if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
+    const definitionChanged = !isDeepStrictEqual(
+      toEvaluatorDefinition(current.type, latest),
+      input.definition,
+    );
+    if (definitionChanged) {
+      await repository.appendEvaluatorVersion({
+        tx,
+        evaluatorId: input.evaluatorId,
+        version: latest.version + 1,
+        definition: prepareEvaluatorDefinitionForPersistence(input.definition),
+        createdByUserId,
+      });
+    }
+    await reconcileEvaluatorBlock({
+      tx,
+      projectId: input.projectId,
+      evaluatorId: input.evaluatorId,
+      validationResult: params.validationResult,
+      existingBlockedAt: current.blockedAt,
+      existingBlockReason: current.blockReason,
+    });
+  }
+
+  const updated = await repository.findEvaluator({
+    prisma: tx,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
+  });
+  if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
+  return updated;
+}
+
 async function updateEvaluator(params: {
   tx: Prisma.TransactionClient;
   input: UpdateEvaluatorInput;
@@ -675,14 +803,14 @@ async function updateEvaluator(params: {
     });
   }
 
-  if (params.block) {
-    await repository.blockEvaluator({
-      tx,
-      projectId: input.projectId,
-      evaluatorId: input.evaluatorId,
-      ...params.block,
-    });
-  }
+  await reconcileEvaluatorBlock({
+    tx,
+    projectId: input.projectId,
+    evaluatorId: input.evaluatorId,
+    validationResult: params.block,
+    existingBlockedAt: current.blockedAt,
+    existingBlockReason: current.blockReason,
+  });
 
   const updated = await repository.findEvaluator({
     prisma: tx,
@@ -691,6 +819,34 @@ async function updateEvaluator(params: {
   });
   if (!updated) throw new LangfuseNotFoundError("Evaluator not found");
   return updated;
+}
+
+async function reconcileEvaluatorBlock(params: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+  evaluatorId: string;
+  validationResult: Awaited<ReturnType<typeof validateEvaluatorForPersistence>>;
+  existingBlockedAt: Date | null;
+  existingBlockReason: EvaluatorBlockReason | null;
+}) {
+  if (params.validationResult) {
+    await repository.blockEvaluator({
+      tx: params.tx,
+      projectId: params.projectId,
+      evaluatorId: params.evaluatorId,
+      ...params.validationResult,
+    });
+    return;
+  }
+  if (!params.existingBlockedAt) return;
+  if (
+    !isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+      params.existingBlockReason,
+    )
+  ) {
+    return;
+  }
+  await repository.unblockEvaluator(params);
 }
 
 async function validateEvaluatorForPersistence(

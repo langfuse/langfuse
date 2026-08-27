@@ -191,7 +191,7 @@ export const FIELDS: FieldDef[] = [
   { id: "output", aliases: [], kind: "text", syncMode: "textSearch", label: "Output", description: "Observation output", nullable: true },
 ];
 
-export const METADATA_PREFIX = "metadata.";
+const METADATA_PREFIX = "metadata.";
 
 // Score dot-paths. Lowercased prefixes accepted by the grammar; the
 // canonical spellings are `scores.<name>` and `traceScores.<name>`.
@@ -201,7 +201,7 @@ const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 // Pseudo-fields: not columns — `has:<field>` lowers to a null filter. (The
 // former `content:` pseudo-field has been removed: a bare query now searches
 // input + output by default, and `input:`/`output:` narrow to one column.)
-export const HAS_KEY = "has";
+const HAS_KEY = "has";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
@@ -382,13 +382,6 @@ export function isDanglingDotPrefix(
   return registry.isDanglingDotPrefix(value);
 }
 
-/** Fields that can be unset — the value domain of `has:` / `-has:`. */
-export function nullableFields(
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): readonly FieldDef[] {
-  return registry.nullableFields();
-}
-
 // ---- operator validity ----
 //
 // One table consulted by the parser (span diagnostics), the validator (commit
@@ -535,7 +528,7 @@ export function negationIssue(
   return null;
 }
 
-export function refName(ref: FieldRef): string {
+function refName(ref: FieldRef): string {
   switch (ref.type) {
     case "field":
       return ref.field.id;

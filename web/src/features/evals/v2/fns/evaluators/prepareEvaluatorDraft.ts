@@ -29,7 +29,6 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
           variableFields: params.variableFields,
         })
       : [];
-  const variables = mappings.map(({ variable }) => variable);
   const definition =
     params.type === "LLM_AS_JUDGE"
       ? outputDefinition && promptMessagesValid
@@ -37,17 +36,14 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
             type: params.type,
             prompt: params.prompt,
             promptMessages: params.promptMessages,
-            provider:
-              params.modelMode === "custom"
-                ? (params.selectedModel?.provider ?? null)
+            modelConfig:
+              params.modelMode === "custom" && params.selectedModel
+                ? {
+                    provider: params.selectedModel.provider,
+                    model: params.selectedModel.model,
+                    modelParams: params.modelParams,
+                  }
                 : null,
-            model:
-              params.modelMode === "custom"
-                ? (params.selectedModel?.model ?? null)
-                : null,
-            modelParams:
-              params.modelMode === "custom" ? params.modelParams : null,
-            vars: variables,
             variableMapping: mappings.map(({ variable, fieldState }) => ({
               templateVariable: variable,
               selectedColumnId: fieldState.selectedColumnId,

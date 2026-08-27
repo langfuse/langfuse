@@ -15,7 +15,7 @@ import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
-export const MAX_QUERY_LENGTH = 2048;
+const MAX_QUERY_LENGTH = 2048;
 
 function nodeSpan(node: ASTNode, textLength: number): Span {
   if (node.kind === "and" || node.kind === "or") {

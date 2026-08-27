@@ -10,10 +10,10 @@ import type {
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
-  PublicEvaluationRuleReadMappingType,
+  PromptVariableMappingReadType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
-  LegacyEvaluationRuleMappingType,
+  LegacyPromptVariableMappingType,
   PublicEvaluationRuleLegacyTargetType,
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
@@ -37,7 +37,7 @@ type ApiEvaluatorRecordBase = {
   version: number;
   variables: string[];
   // Read shape: an evaluator default can be incomplete or name experiment-only sources.
-  mapping: PublicEvaluationRuleReadMappingType[] | null;
+  mapping: PromptVariableMappingReadType[] | null;
   evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -85,23 +85,23 @@ type ApiEvaluationRuleRecordBase = {
 export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   evaluators: Array<{
     evaluator: PublicEvaluationRuleEvaluatorType;
-    mapping: PublicEvaluationRuleReadMappingType[] | null;
+    mapping: PromptVariableMappingReadType[] | null;
   }>;
   target: PublicEvaluationRuleTargetType;
   filter: PublicEvaluationRuleFilterType[];
-  mapping: PublicEvaluationRuleReadMappingType[];
+  mapping: PromptVariableMappingReadType[];
 };
 
 type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   evaluators: Array<{
     evaluator: PublicEvaluationRuleEvaluatorType;
-    mapping: LegacyEvaluationRuleMappingType[] | null;
+    mapping: LegacyPromptVariableMappingType[] | null;
   }>;
   target: PublicEvaluationRuleLegacyTargetType;
   delay: number;
   timeScope: JobTimeScope[];
   filter: FilterCondition[];
-  mapping: LegacyEvaluationRuleMappingType[];
+  mapping: LegacyPromptVariableMappingType[];
 };
 
 export type ApiEvaluationRuleRecord =

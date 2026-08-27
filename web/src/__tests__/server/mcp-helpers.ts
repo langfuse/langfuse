@@ -81,69 +81,6 @@ export const mcpEvalOutputDefinition = {
 };
 
 /**
- * Verifies that a response follows the MCP content block format.
- * MCP tools return { content: [{ type: "text", text: "..." }] }
- */
-export function verifyMcpResponseFormat(
-  response: unknown,
-): asserts response is {
-  content: Array<{ type: "text"; text: string }>;
-} {
-  if (!response || typeof response !== "object") {
-    throw new Error("Response must be an object");
-  }
-
-  const resp = response as Record<string, unknown>;
-
-  if (!Array.isArray(resp.content)) {
-    throw new Error("Response must have 'content' array");
-  }
-
-  if (resp.content.length === 0) {
-    throw new Error("Response content array must not be empty");
-  }
-
-  for (const block of resp.content) {
-    if (typeof block !== "object" || block === null) {
-      throw new Error("Each content block must be an object");
-    }
-
-    const blockTyped = block as Record<string, unknown>;
-
-    if (blockTyped.type !== "text") {
-      throw new Error(
-        `Content block type must be 'text', got: ${blockTyped.type}`,
-      );
-    }
-
-    if (typeof blockTyped.text !== "string") {
-      throw new Error("Content block text must be a string");
-    }
-  }
-}
-
-/**
- * Extracts the text content from an MCP tool response.
- * Assumes the response has been validated with verifyMcpResponseFormat.
- */
-export function extractMcpResponseText(response: {
-  content: Array<{ type: "text"; text: string }>;
-}): string {
-  return response.content.map((block) => block.text).join("");
-}
-
-/**
- * Parses JSON from an MCP tool response text.
- * Handles the common case where tool responses are JSON strings.
- */
-export function parseMcpResponseJson<T = unknown>(response: {
-  content: Array<{ type: "text"; text: string }>;
-}): T {
-  const text = extractMcpResponseText(response);
-  return JSON.parse(text) as T;
-}
-
-/**
  * Verifies that an audit log entry was created for an MCP operation.
  * Returns the audit log entry for further assertions.
  */
@@ -224,16 +161,6 @@ export async function createPromptInDb(params: {
         connect: { id: params.projectId },
       },
     },
-  });
-}
-
-/**
- * Deletes all prompts for a specific project.
- * Useful for cleanup in tests.
- */
-export async function cleanupProjectPrompts(projectId: string): Promise<void> {
-  await prisma.prompt.deleteMany({
-    where: { projectId },
   });
 }
 

@@ -286,7 +286,6 @@ describe("createEvaluatorSetupStore", () => {
         },
       ],
       outputDefinition: {
-        version: 2,
         dataType: "NUMERIC",
         score: {
           description: "Answer quality",

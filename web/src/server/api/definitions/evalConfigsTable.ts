@@ -5,7 +5,7 @@ import {
   JobTimeScopeZod,
 } from "@langfuse/shared";
 
-export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
+const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
   (value) => ({
     value,
   }),

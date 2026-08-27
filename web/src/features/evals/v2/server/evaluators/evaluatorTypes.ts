@@ -1,6 +1,8 @@
 import {
+  EvalOutputDefinitionSchema,
   EvalTemplateType,
   EvaluatorPromptMessageSchema,
+  extractVariables,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
   PersistedEvalOutputDefinitionSchema,
@@ -78,16 +80,58 @@ export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   CodeEvaluatorDefinitionSchema,
 ]);
 
+export const EvaluatorModelConfigSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  modelParams: ZodModelConfig.nullable().optional(),
+});
+
+const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
+  type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+  prompt: z.string().min(1),
+  promptMessages: z
+    .array(EvaluatorPromptMessageSchema)
+    .min(1)
+    .refine((messages) => !hasInvalidSystemPromptMessage(messages), {
+      message: "System messages are only allowed as the first prompt message",
+    })
+    .optional(),
+  modelConfig: EvaluatorModelConfigSchema.nullable(),
+  outputDefinition: EvalOutputDefinitionSchema,
+});
+
+export const EvaluatorDefinitionInputSchema = z
+  .discriminatedUnion("type", [
+    LlmEvaluatorDefinitionInputSchema,
+    CodeEvaluatorDefinitionSchema,
+  ])
+  .transform(
+    (definition): z.infer<typeof EvaluatorDefinitionSchema> =>
+      definition.type === EvalTemplateType.CODE
+        ? definition
+        : {
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            prompt: definition.prompt,
+            promptMessages: definition.promptMessages,
+            provider: definition.modelConfig?.provider ?? null,
+            model: definition.modelConfig?.model ?? null,
+            modelParams: definition.modelConfig?.modelParams ?? null,
+            vars: extractVariables(definition.prompt),
+            variableMapping: definition.variableMapping,
+            outputDefinition: definition.outputDefinition,
+          },
+  );
+
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.uuid().optional(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const UpdateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.string(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const EvaluatorIdSchema = z.object({
@@ -164,6 +208,12 @@ export const ListEvaluatorsSchema = z.object({
   projectId: z.string(),
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
+  orderBy: z
+    .object({
+      column: z.enum(["name", "type", "createdAt", "updatedAt"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
   search: z.string().trim().max(200).optional(),
   filter: EvaluatorListFilterSchema,
 });
@@ -210,4 +260,12 @@ export type EvaluatorDefinitionForPersistence =
     });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
+export type PatchEvaluatorInput = Pick<
+  UpdateEvaluatorInput,
+  "projectId" | "evaluatorId"
+> &
+  Partial<Pick<UpdateEvaluatorInput, "name" | "description" | "definition">>;
 export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;
+export type EvaluatorListOrderBy = z.infer<
+  typeof ListEvaluatorsSchema
+>["orderBy"];

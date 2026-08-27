@@ -9,8 +9,8 @@ import {
   UpdateRuleSchema,
 } from "@/src/features/evals/v2/server/rules/ruleTypes";
 import {
-  ObservationEvaluationRuleMapping,
-  PublicEvaluationRuleReadMapping,
+  ObservationPromptVariableMappingInput,
+  PromptVariableMappingRead,
   PublicEvaluatorType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
@@ -31,7 +31,7 @@ const EvaluationRuleEvaluatorInputBase = {
 // The tool boundary speaks the public mapping contract (`variable`/`source`),
 // not the stored column ids. Handlers translate via `toStoredMappingList`.
 const VariableMappingSchema = z
-  .array(ObservationEvaluationRuleMapping)
+  .array(ObservationPromptVariableMappingInput)
   .describe(
     "Optional rule-specific variable mapping for LLM evaluators. Omit for code evaluators, whose mapping is managed by Langfuse.",
   );
@@ -159,7 +159,7 @@ export const EvaluationRuleResponseSchema = z
         evaluatorId: z.string(),
         evaluatorName: z.string(),
         evaluatorType: PublicEvaluatorType,
-        variableMapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
+        variableMapping: z.array(PromptVariableMappingRead).nullable(),
       }),
     ),
     createdAt: z.date(),

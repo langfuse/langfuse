@@ -34,7 +34,7 @@ export type CustomHeights = Record<RowHeight, string>;
  * and Large have room for far more text than that (LFE-14586). Sized to fill a
  * Large row even at a generously widened column.
  */
-export const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
+const EXPANDED_ROW_IO_CHAR_LIMIT = 2_000;
 
 /** Undefined for Small, which keeps the default truncated read. */
 export const getRowHeightIOCharLimit = (rowHeight: RowHeight) =>

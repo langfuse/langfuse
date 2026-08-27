@@ -12,7 +12,7 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
   name: "createEvaluator",
   description: [
     "Create a new evaluator with a stable id. Names do not act as identity and may be reused.",
-    "Set type to `LLM_AS_JUDGE` and provide prompt + outputDefinition (provider, model, and modelParams are optional), or set type to `CODE` and provide sourceCode + sourceCodeLanguage.",
+    "Set type to `LLM_AS_JUDGE` and provide prompt + outputDefinition. Omit modelConfig to use the project default, or provide modelConfig with provider, model, and optional modelParams. For `CODE`, provide sourceCode + sourceCodeLanguage.",
     "Use updateEvaluator with the returned evaluatorId to update it or append a new immutable definition version.",
   ].join(" "),
   baseSchema: McpEvaluatorInputBase,

@@ -5,7 +5,7 @@ import { organizationNameSchema } from "@/src/features/organizations/utils/organ
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
 
-export const validateQueryAndExtractId = (query: unknown): string | null => {
+const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
     organizationId: z.string(),
   });

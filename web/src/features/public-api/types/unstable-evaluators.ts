@@ -2,8 +2,8 @@ import { z } from "zod";
 import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-  ObservationEvaluationRuleMapping,
-  PublicEvaluationRuleReadMapping,
+  ObservationPromptVariableMappingInput,
+  PromptVariableMappingRead,
   PublicCodeEvaluatorDefinitionInput,
   PublicEvaluatorModelConfig,
   PublicEvaluatorOutputDefinition,
@@ -20,28 +20,28 @@ const APIEvaluatorBase = z
     variables: z.array(z.string()),
     // An evaluator's default mapping can name experiment-only sources, and a legacy one can be
     // incomplete, so reads use the permissive schema. Requests stay strict.
-    mapping: z.array(PublicEvaluationRuleReadMapping).nullable(),
+    mapping: z.array(PromptVariableMappingRead).nullable(),
     evaluationRuleCount: z.number().int().nonnegative(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
   })
   .strict();
 
-export const APILlmAsJudgeEvaluator = APIEvaluatorBase.extend({
+const APILlmAsJudgeEvaluator = APIEvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: z.string(),
   outputDefinition: PublicEvaluatorOutputDefinition,
   modelConfig: PublicEvaluatorModelConfig.nullable(),
 }).strict();
 
-export const APICodeEvaluator = APIEvaluatorBase.extend({
+const APICodeEvaluator = APIEvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_CODE),
   sourceCode: z.string().min(1),
   sourceCodeLanguage:
     PublicCodeEvaluatorDefinitionInput.shape.sourceCodeLanguage,
 }).strict();
 
-export const APIEvaluator = z.discriminatedUnion("type", [
+const APIEvaluator = z.discriminatedUnion("type", [
   APILlmAsJudgeEvaluator,
   APICodeEvaluator,
 ]);
@@ -73,7 +73,7 @@ export const DeleteUnstableEvaluatorResponse = z
 
 // Fields shared by every create body, regardless of evaluator type. Exported so
 // non-route consumers (e.g. the MCP tool layer) reuse the same definition.
-export const EvaluatorCreateBase = {
+const EvaluatorCreateBase = {
   name: z.string().min(1),
 };
 
@@ -81,7 +81,7 @@ const PostUnstableLlmAsJudgeEvaluatorBody = z.object({
   ...EvaluatorCreateBase,
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   ...PublicLlmAsJudgeEvaluatorDefinitionInput.shape,
-  mapping: z.array(ObservationEvaluationRuleMapping).optional(),
+  mapping: z.array(ObservationPromptVariableMappingInput).optional(),
   sourceCode: z.never().optional(),
   sourceCodeLanguage: z.never().optional(),
 });
