@@ -24,11 +24,16 @@ function unwrapTypeExpression(node: TSESTree.Node): TSESTree.Node {
   return current;
 }
 
+type ResolveReturnExpression = (
+  expression: TSESTree.Expression,
+) => TSESTree.Expression;
+
 function visitNullishRender(
-  node: TSESTree.Node,
+  node: TSESTree.Expression,
   onNullish: (nullishNode: TSESTree.Node) => void,
+  resolve: ResolveReturnExpression,
 ): void {
-  const unwrapped = unwrapTypeExpression(node);
+  const unwrapped = unwrapTypeExpression(resolve(node));
 
   if (isNullLiteral(unwrapped) || isUndefinedIdentifier(unwrapped)) {
     onNullish(unwrapped);
@@ -36,14 +41,14 @@ function visitNullishRender(
   }
 
   if (unwrapped.type === AST_NODE_TYPES.ConditionalExpression) {
-    visitNullishRender(unwrapped.consequent, onNullish);
-    visitNullishRender(unwrapped.alternate, onNullish);
+    visitNullishRender(unwrapped.consequent, onNullish, resolve);
+    visitNullishRender(unwrapped.alternate, onNullish, resolve);
     return;
   }
 
   if (unwrapped.type === AST_NODE_TYPES.LogicalExpression) {
-    visitNullishRender(unwrapped.left, onNullish);
-    visitNullishRender(unwrapped.right, onNullish);
+    visitNullishRender(unwrapped.left, onNullish, resolve);
+    visitNullishRender(unwrapped.right, onNullish, resolve);
   }
 }
 
@@ -63,13 +68,17 @@ const rule = createRule({
   defaultOptions: [],
   create(context) {
     return createComponentReturnExpressionVisitors({
-      onReturnExpression(node) {
-        visitNullishRender(node, (nullishNode) => {
-          context.report({
-            node: nullishNode,
-            messageId: "unexpectedNullishRender",
-          });
-        });
+      onReturnExpression(node, resolve = (expression) => expression) {
+        visitNullishRender(
+          node,
+          (nullishNode) => {
+            context.report({
+              node: nullishNode,
+              messageId: "unexpectedNullishRender",
+            });
+          },
+          resolve,
+        );
       },
     });
   },

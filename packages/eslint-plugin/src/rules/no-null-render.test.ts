@@ -56,6 +56,15 @@ ruleTester.run("no-null-render", rule, {
     `const Comp = forwardRef(() => <div />);`,
     `const Comp = React.memo(() => <div />);`,
     `function Comp() { return items.map((item) => null); }`,
+    `function Comp() {
+       const a = b;
+       const b = a;
+       return a;
+     }`,
+    `function Comp({ node }: { node: React.ReactNode }) {
+       if (node) return node;
+       return <div />;
+     }`,
   ],
   invalid: [
     {
@@ -161,9 +170,44 @@ ruleTester.run("no-null-render", rule, {
       errors: [unexpectedNullishRender],
     },
     {
+      filename: "file.ts",
+      code: `const Comp = () => <any>null;`,
+      errors: [unexpectedNullishRender],
+    },
+    {
       code: `function Comp({ show }: { show: boolean }) {
                const content = show ? <div /> : null;
                return content;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp() {
+               const nothing = null;
+               const result = nothing;
+               return result;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ show }: { show: boolean }) {
+               const nothing = null;
+               return show ? <div /> : nothing;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ show }: { show: boolean }) {
+               const missing = undefined;
+               const result = missing;
+               return (show && result) || <div />;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp() {
+               const boxed = null as any;
+               return boxed;
              }`,
       errors: [unexpectedNullishRender],
     },

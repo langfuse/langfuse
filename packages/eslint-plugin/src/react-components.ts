@@ -9,8 +9,15 @@ type RootElementCallbacks = {
   onRootElement: (node: TSESTree.JSXElement) => void;
 };
 
+type ResolveReturnExpression = (
+  expression: TSESTree.Expression,
+) => TSESTree.Expression;
+
 type ReturnExpressionCallbacks = {
-  onReturnExpression: (node: TSESTree.Expression) => void;
+  onReturnExpression: (
+    node: TSESTree.Expression,
+    resolve?: ResolveReturnExpression,
+  ) => void;
 };
 
 const REACT_COMPONENT_TYPES = new Set([
@@ -452,8 +459,16 @@ export function createComponentReturnExpressionVisitors(
     expression: TSESTree.Expression,
     initializers: Map<string, TSESTree.Expression>,
   ) {
-    if (expression.type !== AST_NODE_TYPES.Identifier) return expression;
-    return initializers.get(expression.name) ?? expression;
+    const seen = new Set<string>();
+    let current: TSESTree.Expression = expression;
+    while (current.type === AST_NODE_TYPES.Identifier) {
+      if (seen.has(current.name)) return current;
+      seen.add(current.name);
+      const init = initializers.get(current.name);
+      if (!init) return current;
+      current = init;
+    }
+    return current;
   }
 
   function maybeVisitFunctionComponentReturns(
@@ -475,27 +490,25 @@ export function createComponentReturnExpressionVisitors(
     }
 
     const initializers = getDirectVariableInitializers(node);
+    const resolve = (expression: TSESTree.Expression) =>
+      resolveDirectVariable(expression, initializers);
     const returnExpressions: TSESTree.Expression[] = [];
     for (const statement of (node.body as TSESTree.BlockStatement).body) {
       if (statement.type === AST_NODE_TYPES.ReturnStatement) {
         if (statement.argument) {
-          returnExpressions.push(
-            resolveDirectVariable(statement.argument, initializers),
-          );
+          returnExpressions.push(resolve(statement.argument));
         }
         continue;
       }
       visitReturnExpressionsInStatement(statement, {
         onReturnExpression(expression) {
-          returnExpressions.push(
-            resolveDirectVariable(expression, initializers),
-          );
+          returnExpressions.push(resolve(expression));
         },
       });
     }
     if (!returnExpressions.some(expressionReturnsJsxOrNull)) return;
     for (const expression of returnExpressions) {
-      callbacks.onReturnExpression(expression);
+      callbacks.onReturnExpression(expression, resolve);
     }
   }
 
