@@ -6,6 +6,7 @@ import {
   classifyIngestionSdkVersion,
   createIngestionAttribution,
   createUnknownSdkIngestionAttribution,
+  extractPublicApiCallerAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
 } from "./ingestionAttribution";
 
@@ -19,6 +20,39 @@ const authCheck = {
 } as AuthHeaderValidVerificationResult;
 
 describe("ingestion attribution", () => {
+  it("reuses ingestion SDK normalization for public API caller attribution", () => {
+    expect(
+      extractPublicApiCallerAttribution({
+        x_langfuse_sdk_name: "langfuse-python",
+        x_langfuse_sdk_version: "4.8.1rc1",
+        "user-agent": "Codex CLI/1.2.3\nignored",
+      }),
+    ).toEqual({
+      sdkName: "python",
+      sdkVersion: "4.8.1rc1",
+      userAgent: "Codex CLI/1.2.3ignored",
+    });
+  });
+
+  it("bounds caller-controlled attribution and drops invalid SDK metadata", () => {
+    expect(
+      extractPublicApiCallerAttribution({
+        "x-langfuse-sdk-name": "ruby",
+        "x-langfuse-sdk-version": "1.0.0",
+        "user-agent": `curl/${"x".repeat(300)}`,
+      }),
+    ).toEqual({
+      userAgent: `curl/${"x".repeat(251)}`,
+    });
+
+    expect(
+      extractPublicApiCallerAttribution({
+        "x-langfuse-sdk-name": "python",
+        "x-langfuse-sdk-version": "not-a-version",
+      }),
+    ).toEqual({ sdkName: "python" });
+  });
+
   it("reads SDK attribution from Langfuse request headers", () => {
     expect(
       createIngestionAttribution({

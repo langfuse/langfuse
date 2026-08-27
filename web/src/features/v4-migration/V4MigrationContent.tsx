@@ -66,6 +66,11 @@ import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import {
+  getApiMigrationGuidance,
+  getCodingAgentName,
+  type MigrationSdkName,
+} from "@/src/features/v4-migration/apiMigrationGuidance";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -868,7 +873,19 @@ export function V4MigrationApisSection({
   defaultOpen,
 }: {
   state: MigrationCountState;
-  usage: { endpoint: string; count: number; lastSeen: string }[];
+  usage: {
+    endpoint: string;
+    count: number;
+    lastSeen: string;
+    callers?: {
+      sdkName?: MigrationSdkName;
+      sdkVersion?: string;
+      userAgent?: string;
+      isOther?: true;
+      count: number;
+      lastSeen: string;
+    }[];
+  }[];
   defaultOpen?: boolean;
 }) {
   return (
@@ -907,33 +924,107 @@ export function V4MigrationApisSection({
             </ExternalLink>{" "}
             maps each endpoint to its replacement.
           </p>
-          <div className="flex flex-col">
+          <div className="flex flex-col gap-3">
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
+              const callers = row.callers ?? [
+                { count: row.count, lastSeen: row.lastSeen },
+              ];
 
               return (
-                <div
-                  key={row.endpoint}
-                  className="text-muted-foreground flex flex-wrap items-baseline justify-between gap-x-2 py-0.5"
-                >
-                  <ExternalLink
-                    href={DEPRECATED_API_MIGRATION_URL}
-                    className="text-sm"
-                    analytics={{
-                      section: "apis",
-                      link: "deprecated_api_docs",
-                    }}
-                  >
-                    {row.endpoint}
-                  </ExternalLink>
-                  <span
-                    className="text-muted-foreground text-sm whitespace-nowrap"
-                    title={`Last seen at ${row.lastSeen}`}
-                  >
-                    {numberFormatter(roundedCount, 0)}{" "}
-                    {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
-                    {formatCompactRelativeTime(new Date(row.lastSeen))}
-                  </span>
+                <div key={row.endpoint} className="rounded-md border p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <ExternalLink
+                      href={DEPRECATED_API_MIGRATION_URL}
+                      className="text-sm font-bold"
+                      analytics={{
+                        section: "apis",
+                        link: "deprecated_api_docs",
+                      }}
+                    >
+                      {row.endpoint}
+                    </ExternalLink>
+                    <span
+                      className="text-muted-foreground text-sm whitespace-nowrap"
+                      title={`Last seen at ${row.lastSeen}`}
+                    >
+                      {numberFormatter(roundedCount, 0)} estimated{" "}
+                      {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
+                      {formatCompactRelativeTime(new Date(row.lastSeen))}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {callers.map((caller, index) => {
+                      const codingAgent = getCodingAgentName(caller.userAgent);
+                      const guidance = getApiMigrationGuidance(
+                        row.endpoint,
+                        caller.sdkName,
+                        caller.sdkVersion,
+                      );
+                      const callerName = caller.isOther
+                        ? "Other callers"
+                        : caller.sdkName
+                          ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
+                          : codingAgent
+                            ? codingAgent
+                            : caller.userAgent || "Unknown caller";
+                      const callerCount = Math.max(1, Math.round(caller.count));
+
+                      return (
+                        <div
+                          key={`${callerName}-${index}`}
+                          className="bg-muted/40 rounded-md px-3 py-2 text-sm"
+                        >
+                          <div className="flex flex-wrap justify-between gap-x-2">
+                            <span className="font-bold">{callerName}</span>
+                            <span className="text-muted-foreground">
+                              {numberFormatter(callerCount, 0)} estimated{" "}
+                              {callerCount === 1 ? "call" : "calls"}
+                            </span>
+                          </div>
+                          {caller.sdkName && caller.userAgent ? (
+                            <p className="text-muted-foreground mt-1 text-xs break-all">
+                              User-Agent:{" "}
+                              <MonoValue>{caller.userAgent}</MonoValue>
+                            </p>
+                          ) : null}
+                          {codingAgent && !caller.sdkName ? (
+                            <p className="text-muted-foreground mt-1 text-xs">
+                              This looks like traffic from a coding agent. If
+                              the call was only exploratory and is not part of a
+                              running service, you may not need to migrate
+                              application code.
+                            </p>
+                          ) : guidance.currentMethod &&
+                            guidance.replacementMethod ? (
+                            <p className="text-muted-foreground mt-1 text-xs">
+                              Replace{" "}
+                              <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
+                              with{" "}
+                              <MonoValue>
+                                {guidance.replacementMethod}
+                              </MonoValue>
+                              {guidance.requiresUpgrade &&
+                              guidance.minimumVersion ? (
+                                <>
+                                  . First upgrade to SDK version{" "}
+                                  <MonoValue>
+                                    {guidance.minimumVersion} or newer
+                                  </MonoValue>
+                                </>
+                              ) : null}
+                              .
+                            </p>
+                          ) : (
+                            <p className="text-muted-foreground mt-1 text-xs">
+                              Migrate this caller to{" "}
+                              <MonoValue>{guidance.replacement}</MonoValue>.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}

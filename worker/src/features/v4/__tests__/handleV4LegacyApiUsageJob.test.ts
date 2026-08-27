@@ -120,12 +120,18 @@ const usageRow = (overrides: {
   hourStart?: string;
   projectId?: string;
   route?: string;
+  sdkName?: string;
+  sdkVersion?: string;
+  userAgent?: string;
   count?: string | number;
   lastSeen?: string;
 }) => ({
   hourStart: overrides.hourStart ?? "2026-06-25T09:00:00Z",
   projectId: overrides.projectId ?? "project-a",
   route: overrides.route ?? "GET /api/public/traces",
+  sdkName: overrides.sdkName ?? "",
+  sdkVersion: overrides.sdkVersion ?? "",
+  userAgent: overrides.userAgent ?? "",
   count: overrides.count ?? "4",
   lastSeen: overrides.lastSeen ?? "2026-06-25T09:15:00.000000Z",
 });
@@ -294,6 +300,75 @@ describe("handleV4LegacyApiUsageJob", () => {
       projectsWithExperimentPostUsage: 1,
       cursor: CURRENT_HOUR_ISO,
       deepRescanRecorded: true,
+    });
+  });
+
+  it("keeps one endpoint total with separate SDK and user-agent callers", async () => {
+    const rows = [
+      usageRow({
+        sdkName: "python",
+        sdkVersion: "4.8.1",
+        userAgent: "langfuse-python/4.8.1",
+        count: 2,
+      }),
+      usageRow({
+        userAgent: "Codex CLI/1.2.3",
+        count: 1,
+        lastSeen: "2026-06-25T09:20:00.000000Z",
+      }),
+    ];
+    mocks.queryClickhouse.mockResolvedValue(rows);
+
+    await handleV4LegacyApiUsageJob();
+
+    const query = mocks.queryClickhouse.mock.calls[0]?.[0].query as string;
+    expect(query).toContain("JSONExtractString(log_comment, 'sdkName')");
+    expect(query).toContain("JSONExtractString(log_comment, 'sdkVersion')");
+    expect(query).toContain("JSONExtractString(log_comment, 'userAgent')");
+    expect(query).toContain(
+      "GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent",
+    );
+
+    expect(
+      readJson(v4LegacyApiHourBucketKey(Date.parse("2026-06-25T09:00:00Z"))),
+    ).toMatchObject({
+      apiRows: [
+        {
+          projectId: "project-a",
+          entrypoint: "publicapi: GET /api/public/traces",
+          count: 3,
+          lastSeen: "2026-06-25T09:20:00.000000Z",
+          callers: expect.arrayContaining([
+            {
+              sdkName: "python",
+              sdkVersion: "4.8.1",
+              userAgent: "langfuse-python/4.8.1",
+              count: 2,
+              lastSeen: "2026-06-25T09:15:00.000000Z",
+            },
+            {
+              userAgent: "Codex CLI/1.2.3",
+              count: 1,
+              lastSeen: "2026-06-25T09:20:00.000000Z",
+            },
+          ]),
+        },
+      ],
+    });
+    expect(readJson(v4LegacyApiUsageProjectKey("project-a"))).toMatchObject({
+      rows: [
+        {
+          entrypoint: "publicapi: GET /api/public/traces",
+          count: 3,
+          callers: expect.arrayContaining([
+            expect.objectContaining({ sdkName: "python", count: 2 }),
+            expect.objectContaining({
+              userAgent: "Codex CLI/1.2.3",
+              count: 1,
+            }),
+          ]),
+        },
+      ],
     });
   });
 

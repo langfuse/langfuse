@@ -5,6 +5,7 @@ import {
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
   type ClickHouseQuerySurface,
 } from "./clickhouse/queryTags";
+import { extractPublicApiCallerAttribution } from "./ingestion/ingestionAttribution";
 
 export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
@@ -54,6 +55,31 @@ export const contextWithLangfuseProps = (
         });
       }
     });
+
+    if (props.clickhouse?.surface === "publicapi") {
+      const callerAttribution = extractPublicApiCallerAttribution(
+        props.headers,
+      );
+      if (callerAttribution.sdkName) {
+        baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkName, {
+          value: callerAttribution.sdkName,
+        });
+      }
+      if (callerAttribution.sdkVersion) {
+        baggage = baggage.setEntry(
+          CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkVersion,
+          { value: callerAttribution.sdkVersion },
+        );
+      }
+      if (callerAttribution.userAgent) {
+        baggage = baggage.setEntry(
+          CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.userAgent,
+          {
+            value: callerAttribution.userAgent,
+          },
+        );
+      }
+    }
   }
   if (props.userId) {
     baggage = baggage.setEntry("langfuse.user.id", { value: props.userId });

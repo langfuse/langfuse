@@ -151,7 +151,19 @@ const mocks = vi.hoisted(() => ({
         count: 42,
         lastSeen: "2026-07-23T10:37:00Z",
       },
-    ],
+    ] as {
+      endpoint: string;
+      count: number;
+      lastSeen: string;
+      callers?: {
+        sdkName?: "python" | "javascript";
+        sdkVersion?: string;
+        userAgent?: string;
+        isOther?: true;
+        count: number;
+        lastSeen: string;
+      }[];
+    }[],
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
@@ -332,7 +344,7 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
-    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
+    expect(screen.getByText(/42 estimated calls · last seen/)).toHaveAttribute(
       "title",
       "Last seen at 2026-07-23T10:37:00Z",
     );
@@ -381,9 +393,50 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/57 estimated calls · last seen/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/5 estimated calls · last seen/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 estimated call · last seen/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the caller and exact SDK migration action", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces/{id}",
+        count: 4,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            sdkName: "python" as const,
+            sdkVersion: "3.9.0",
+            userAgent: "langfuse-python/3.9.0",
+            count: 3,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+          {
+            userAgent: "codex-cli/1.2.3",
+            count: 1,
+            lastSeen: "2026-07-23T10:30:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Langfuse Python SDK 3.9.0")).toBeInTheDocument();
+    expect(screen.getByText("client.api.trace.get(...)")).toBeInTheDocument();
+    expect(
+      screen.getByText("client.api.observations.get_many(...)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText(/traffic from a coding agent/)).toBeInTheDocument();
   });
 
   it("collapses clean sections into one up-to-date summary", () => {

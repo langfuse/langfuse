@@ -62,6 +62,35 @@ describe("instrumentation baggage propagation", () => {
     });
   });
 
+  it("propagates bounded public API caller attribution into ClickHouse tags", () => {
+    const publicApiContext = contextWithLangfuseProps({
+      headers: {
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
+        "user-agent": "Codex CLI/1.2.3",
+      },
+      projectId: "project-1",
+      clickhouse: {
+        surface: "publicapi",
+        route: "GET /api/public/traces",
+      },
+    });
+
+    const tags = context.with(publicApiContext, () =>
+      normalizeClickHouseQueryTags(),
+    );
+
+    expect(tags).toMatchObject({
+      surface: "publicapi",
+      route: "GET /api/public/traces",
+      projectId: "project-1",
+      sdkName: "python",
+      sdkVersion: "4.8.1",
+      userAgent: "Codex CLI/1.2.3",
+    });
+    expect(tags).not.toHaveProperty("apiKeyId");
+  });
+
   it("does not add user emails to span attributes or baggage", () => {
     const span = {
       setAttribute: vi.fn(),

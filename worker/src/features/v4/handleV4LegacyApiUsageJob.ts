@@ -3,6 +3,7 @@ import {
   convertDateToClickhouseDateTime,
   listV4LegacyApiHourStarts,
   logger,
+  mergeV4LegacyApiCallers,
   queryClickhouse,
   redis,
   safeMultiDel,
@@ -27,6 +28,7 @@ import {
   V4_LEGACY_API_USAGE_LOCK_KEY,
   V4_LEGACY_API_USAGE_WINDOW_MS,
   type PreferredClickhouseService,
+  type V4LegacyApiCaller,
   type V4LegacyApiHourBucket,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
@@ -75,6 +77,9 @@ type HourUsageRow = {
   hourStart: string;
   projectId: string;
   route: string;
+  sdkName: string;
+  sdkVersion: string;
+  userAgent: string;
   count: string | number;
   lastSeen: string;
 };
@@ -83,6 +88,9 @@ type MergedHourUsageRow = {
   hourStart: string;
   projectId: string;
   route: string;
+  sdkName: string;
+  sdkVersion: string;
+  userAgent: string;
   count: number;
   lastSeen: string;
 };
@@ -129,6 +137,9 @@ const queryHourUsageRowsForService = async ({
 WITH selected AS (
   SELECT
     JSONExtractString(log_comment, 'projectId') AS project_id,
+    JSONExtractString(log_comment, 'sdkName') AS sdk_name,
+    JSONExtractString(log_comment, 'sdkVersion') AS sdk_version,
+    JSONExtractString(log_comment, 'userAgent') AS user_agent,
     event_time,
     event_time_microseconds,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
@@ -146,6 +157,9 @@ WITH selected AS (
 classified AS (
   SELECT
     project_id,
+    sdk_name,
+    sdk_version,
+    user_agent,
     event_time,
     event_time_microseconds,
     multiIf(
@@ -202,13 +216,16 @@ SELECT
   formatDateTime(toStartOfHour(event_time, 'UTC'), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS hourStart,
   project_id AS projectId,
   legacy_route AS route,
+  sdk_name AS sdkName,
+  sdk_version AS sdkVersion,
+  user_agent AS userAgent,
   sum(1.0 / clickhouse_queries_per_api_call) AS count,
   formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
 FROM classified
 WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
-GROUP BY hourStart, projectId, route
-ORDER BY hourStart ASC, projectId ASC, route ASC
+GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent
+ORDER BY hourStart ASC, projectId ASC, route ASC, sdkName ASC, sdkVersion ASC, userAgent ASC
 SETTINGS skip_unavailable_shards = 1
     `,
       params: {
@@ -254,7 +271,10 @@ const mergeServiceRows = (
       (left, right) =>
         left.hourStart.localeCompare(right.hourStart) ||
         left.projectId.localeCompare(right.projectId) ||
-        left.route.localeCompare(right.route),
+        left.route.localeCompare(right.route) ||
+        left.sdkName.localeCompare(right.sdkName) ||
+        left.sdkVersion.localeCompare(right.sdkVersion) ||
+        left.userAgent.localeCompare(right.userAgent),
     );
     uniqueServiceResultSets.set(JSON.stringify(sortedRows), sortedRows);
   }
@@ -262,7 +282,14 @@ const mergeServiceRows = (
   const merged = new Map<string, MergedHourUsageRow>();
   for (const rows of uniqueServiceResultSets.values()) {
     for (const row of rows) {
-      const key = [row.hourStart, row.projectId, row.route].join("\u0000");
+      const key = [
+        row.hourStart,
+        row.projectId,
+        row.route,
+        row.sdkName,
+        row.sdkVersion,
+        row.userAgent,
+      ].join("\u0000");
       const existing = merged.get(key);
       merged.set(
         key,
@@ -279,6 +306,9 @@ const mergeServiceRows = (
               hourStart: row.hourStart,
               projectId: row.projectId,
               route: row.route,
+              sdkName: row.sdkName,
+              sdkVersion: row.sdkVersion,
+              userAgent: row.userAgent,
               count: Number(row.count),
               lastSeen: row.lastSeen,
             },
@@ -351,13 +381,46 @@ const buildHourBuckets = ({
         lastSeen: row.lastSeen,
       });
     } else {
-      bucket.apiRows.push({
-        projectId: row.projectId,
-        entrypoint: `publicapi: ${row.route}`,
+      const entrypoint = `publicapi: ${row.route}`;
+      const existing = bucket.apiRows.find(
+        (apiRow) =>
+          apiRow.projectId === row.projectId &&
+          apiRow.entrypoint === entrypoint,
+      );
+      const caller: V4LegacyApiCaller = {
+        ...(row.sdkName === "python" || row.sdkName === "javascript"
+          ? { sdkName: row.sdkName }
+          : {}),
+        ...(row.sdkVersion ? { sdkVersion: row.sdkVersion } : {}),
+        ...(row.userAgent ? { userAgent: row.userAgent } : {}),
         count: row.count,
         lastSeen: row.lastSeen,
-      });
+      };
+      if (existing) {
+        existing.count += row.count;
+        existing.lastSeen =
+          existing.lastSeen > row.lastSeen ? existing.lastSeen : row.lastSeen;
+        existing.callers = mergeV4LegacyApiCallers([
+          ...(existing.callers ?? []),
+          caller,
+        ]);
+      } else {
+        bucket.apiRows.push({
+          projectId: row.projectId,
+          entrypoint,
+          count: row.count,
+          lastSeen: row.lastSeen,
+          callers: [caller],
+        });
+      }
     }
+  }
+  for (const bucket of buckets.values()) {
+    bucket.apiRows.sort(
+      (left, right) =>
+        left.projectId.localeCompare(right.projectId) ||
+        left.entrypoint.localeCompare(right.entrypoint),
+    );
   }
   return buckets;
 };

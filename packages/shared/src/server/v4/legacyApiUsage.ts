@@ -113,10 +113,24 @@ export const v4LegacyApiUsageProjectKey = (projectId: string): string =>
 export const v4ExperimentPostUsageProjectKey = (projectId: string): string =>
   `langfuse:v4:experiment-post-usage:v1:${projectId}`;
 
+const legacyApiCallerSchema = z.object({
+  sdkName: z.enum(["python", "javascript"]).optional(),
+  sdkVersion: z.string().optional(),
+  userAgent: z.string().optional(),
+  count: z.number(),
+  lastSeen: z.string(),
+  isOther: z.literal(true).optional(),
+});
+
+export type V4LegacyApiCaller = z.infer<typeof legacyApiCallerSchema>;
+
+export const MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT = 20;
+
 const legacyApiUsageRowSchema = z.object({
   entrypoint: z.string(),
   count: z.number(),
   lastSeen: z.string(),
+  callers: z.array(legacyApiCallerSchema).optional(),
 });
 
 export type V4LegacyApiUsageRow = z.infer<typeof legacyApiUsageRowSchema>;
@@ -213,6 +227,58 @@ export type V4LegacyApiUsageRollup = {
   experimentPostLastSeenByProjectId: Map<string, string | null>;
 };
 
+const legacyApiCallerKey = (caller: V4LegacyApiCaller): string =>
+  caller.isOther
+    ? "other"
+    : [
+        caller.sdkName ?? "",
+        caller.sdkVersion ?? "",
+        caller.userAgent ?? "",
+      ].join("\u0000");
+
+export const mergeV4LegacyApiCallers = (
+  callers: V4LegacyApiCaller[],
+): V4LegacyApiCaller[] => {
+  const merged = new Map<string, V4LegacyApiCaller>();
+  for (const caller of callers) {
+    const key = legacyApiCallerKey(caller);
+    const existing = merged.get(key);
+    merged.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            count: existing.count + caller.count,
+            lastSeen:
+              existing.lastSeen > caller.lastSeen
+                ? existing.lastSeen
+                : caller.lastSeen,
+          }
+        : caller,
+    );
+  }
+
+  const sorted = Array.from(merged.values()).sort(
+    (left, right) =>
+      right.count - left.count ||
+      right.lastSeen.localeCompare(left.lastSeen) ||
+      legacyApiCallerKey(left).localeCompare(legacyApiCallerKey(right)),
+  );
+  if (sorted.length <= MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT) return sorted;
+
+  const kept = sorted.slice(0, MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT - 1);
+  const overflow = sorted.slice(MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT - 1);
+  kept.push({
+    isOther: true,
+    count: overflow.reduce((sum, caller) => sum + caller.count, 0),
+    lastSeen: overflow.reduce(
+      (latest, caller) => (latest > caller.lastSeen ? latest : caller.lastSeen),
+      overflow[0]!.lastSeen,
+    ),
+  });
+  return kept;
+};
+
 /**
  * Aggregates hour buckets into the per-project trailing-window answer:
  * counts add per entrypoint, `lastSeen` takes the maximum. Buckets carry raw
@@ -233,6 +299,10 @@ export const aggregateV4LegacyApiHourBuckets = (
         rowsByProjectAndEntrypoint.get(row.projectId) ??
         new Map<string, V4LegacyApiUsageRow>();
       const existing = rowsByEntrypoint.get(row.entrypoint);
+      const callers =
+        row.callers && row.callers.length > 0
+          ? row.callers
+          : [{ count: row.count, lastSeen: row.lastSeen }];
       rowsByEntrypoint.set(
         row.entrypoint,
         existing
@@ -243,11 +313,16 @@ export const aggregateV4LegacyApiHourBuckets = (
                 existing.lastSeen > row.lastSeen
                   ? existing.lastSeen
                   : row.lastSeen,
+              callers: mergeV4LegacyApiCallers([
+                ...(existing.callers ?? []),
+                ...callers,
+              ]),
             }
           : {
               entrypoint: row.entrypoint,
               count: row.count,
               lastSeen: row.lastSeen,
+              callers: mergeV4LegacyApiCallers(callers),
             },
       );
       rowsByProjectAndEntrypoint.set(row.projectId, rowsByEntrypoint);
