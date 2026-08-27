@@ -534,4 +534,41 @@ describe("search bar invariants — sessions registry", () => {
     // Opt-in: a view that has not asked for recents gets none, valid or not.
     expect(RULE_FIELD_REGISTRY.recentSearches).toBe(false);
   });
+
+  it("surfaces has:/-has: while typing a nullable field name", () => {
+    const offered = (term: string) => {
+      const plan = planInputCompletions(
+        {
+          input: term,
+          caret: term.length,
+          observed: {},
+          recents: [],
+          currentQueryText: term,
+        },
+        SESSIONS_FIELD_REGISTRY,
+      );
+      return (plan?.sections ?? [])
+        .flatMap((section) => section.options)
+        .filter((option) => option.id.startsWith("presence:"))
+        .map((option) => option.label);
+    };
+    // Typing the column name reveals both presence forms — previously reachable
+    // only by knowing the `has:` pseudo-field existed.
+    expect(offered("userId")).toEqual(["has:userIds", "-has:userIds"]);
+    // Mid-word too, so they appear while typing rather than only on a full match.
+    expect(offered("userI")).toEqual(["has:userIds", "-has:userIds"]);
+    // A negated term already carries the `-`; offering it again would splice
+    // `--has:`.
+    expect(offered("-userIds")).toEqual(["has:userIds"]);
+    // Non-nullable and too-short terms stay quiet.
+    expect(offered("countTraces")).toEqual([]);
+    expect(offered("u")).toEqual([]);
+  });
+
+  it("pins the has: hint per view instead of deriving it from field order", () => {
+    // Derived from "first nullable field", the GA events hint silently became
+    // has:name; it is written down so reordering FIELDS cannot rewrite copy.
+    expect(EVENTS_FIELD_REGISTRY.hasExample).toBe("endTime");
+    expect(SESSIONS_FIELD_REGISTRY.hasExample).toBe("userIds");
+  });
 });

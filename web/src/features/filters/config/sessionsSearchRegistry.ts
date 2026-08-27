@@ -104,6 +104,7 @@ function sessionsRegistry(config: FilterConfig, metadata: boolean) {
     // by a wide margin, so a bare word means that rather than an error.
     allowFreeText: false,
     defaultTextField: "id",
+    hasExample: "userIds",
     recentSearches: true,
     searchExamples: [
       "userIds:alice",

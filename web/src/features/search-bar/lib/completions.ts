@@ -123,6 +123,7 @@ export const SECTION_MATCHING_FILTERS = "Matching filters";
 export const SECTION_VALUES = "Observed values";
 const SECTION_OPERATORS = "Operators";
 const SECTION_PATTERNS = "Patterns";
+const SECTION_PRESENCE = "Presence";
 export const SECTION_RECENT = "Recent searches";
 export const SECTION_MATCH_OPS = "Match operators";
 export const SECTION_COMPARE_OPS = "Comparisons";
@@ -229,9 +230,10 @@ function fieldOptions(
     );
   }
   if (includeVirtual) {
-    // The example names one of THIS view's nullable fields; `has:endTime` on a
-    // view without endTime advertises a filter that cannot resolve.
-    const example = registry.nullableFields()[0]?.id;
+    // Written per view where it matters (see FieldRegistry.hasExample); the
+    // first nullable field is only the fallback. `has:endTime` on a view
+    // without endTime advertises a filter that cannot resolve.
+    const example = registry.hasExample ?? registry.nullableFields()[0]?.id;
     opts.push({
       id: "field:has",
       kind: "field",
@@ -413,6 +415,54 @@ function recentOptions(
         query: q,
       }))
   );
+}
+
+/**
+ * `has:<field>` / `-has:<field>` for the nullable field the user is typing.
+ * Presence filters are otherwise only reachable by knowing the `has:`
+ * pseudo-field exists — typing the column name never revealed them.
+ */
+function presenceOptions(
+  keyPart: string,
+  registry: FieldRegistry,
+  negated: boolean,
+  rankedFields: CompletionOption[],
+): CompletionOption[] {
+  if (keyPart.length < 2) return [];
+  const exact = registry.resolveField(keyPart);
+  const candidate =
+    exact?.type === "field"
+      ? exact.field
+      : // Not an exact match yet: offer it for the field the list is already
+        // leading with, so the options appear WHILE typing the column name.
+        (() => {
+          const top = rankedFields[0];
+          const id = top?.kind === "field" ? top.fieldId : null;
+          const ref = id === null ? null : registry.resolveField(id);
+          return ref?.type === "field" ? ref.field : null;
+        })();
+  if (candidate === null || candidate === undefined) return [];
+  if (candidate.nullable !== true) return [];
+  const options: CompletionOption[] = [
+    {
+      id: `presence:has:${candidate.id}`,
+      kind: "pattern",
+      label: `has:${candidate.id}`,
+      detail: `${candidate.label} has a value`,
+      insert: `has:${candidate.id} `,
+    },
+  ];
+  // The typed term already carries a `-`; a second one would splice `--has:`.
+  if (!negated) {
+    options.push({
+      id: `presence:-has:${candidate.id}`,
+      kind: "pattern",
+      label: `-has:${candidate.id}`,
+      detail: `${candidate.label} is missing`,
+      insert: `-has:${candidate.id} `,
+    });
+  }
+  return options;
 }
 
 function queryPresetSections(
@@ -1310,6 +1360,8 @@ export function planInputCompletions(
               ? ranked
               : hoistFieldOption(ranked, exactId, allFields);
           })();
+    const presence =
+      colon === -1 ? presenceOptions(keyPart, registry, negated, fields) : [];
     const operators =
       colon === -1 ? rankFilter(OPERATOR_OPTIONS, tokenBody) : [];
     const patterns =
@@ -1385,7 +1437,8 @@ export function planInputCompletions(
         operators.length +
         patterns.length +
         matchingFilters.length +
-        searchScopes.length ===
+        searchScopes.length +
+        presence.length ===
       0
     )
       return null;
@@ -1412,6 +1465,7 @@ export function planInputCompletions(
         // and the full-text fallback.
         ...section(SECTION_FIELDS, fields),
         ...section(SECTION_MATCHING_FILTERS, matchingFilters),
+        ...section(SECTION_PRESENCE, presence),
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
         ...section(SECTION_SEARCH_IN, searchScopes),
