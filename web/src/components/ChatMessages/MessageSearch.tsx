@@ -1,7 +1,6 @@
 export {
   MessageSearchPageProvider,
   MessageSearchProvider,
-  useMessageSearch,
   useMessageSearchActions,
   useOptionalMessageSearchActions,
   useOptionalMessageSearchPageId,

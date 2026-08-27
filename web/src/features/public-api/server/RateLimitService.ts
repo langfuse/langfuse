@@ -180,7 +180,7 @@ export class RateLimitService {
   }
 }
 
-export class RateLimitHelper {
+class RateLimitHelper {
   res: RateLimitResult | undefined;
 
   constructor(res: RateLimitResult | undefined) {

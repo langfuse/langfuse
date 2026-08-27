@@ -39,7 +39,7 @@ export const MIGRATION_INGRESS_EVENT_SOURCES = [
 ] as const;
 
 /** Historical blob TTL: 60 minutes (1 hour). */
-export const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
+const SDK_USAGE_CACHE_TTL_SECONDS = 60 * 60;
 const sdkUsageSeriesSchema = z.object({
   source: z.enum(MIGRATION_INGRESS_EVENT_SOURCES),
   ingestionPath: z.enum(["otel", "ingestion_api"]),

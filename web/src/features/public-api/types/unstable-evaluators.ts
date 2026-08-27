@@ -27,21 +27,21 @@ const APIEvaluatorBase = z
   })
   .strict();
 
-export const APILlmAsJudgeEvaluator = APIEvaluatorBase.extend({
+const APILlmAsJudgeEvaluator = APIEvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: z.string(),
   outputDefinition: PublicEvaluatorOutputDefinition,
   modelConfig: PublicEvaluatorModelConfig.nullable(),
 }).strict();
 
-export const APICodeEvaluator = APIEvaluatorBase.extend({
+const APICodeEvaluator = APIEvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_CODE),
   sourceCode: z.string().min(1),
   sourceCodeLanguage:
     PublicCodeEvaluatorDefinitionInput.shape.sourceCodeLanguage,
 }).strict();
 
-export const APIEvaluator = z.discriminatedUnion("type", [
+const APIEvaluator = z.discriminatedUnion("type", [
   APILlmAsJudgeEvaluator,
   APICodeEvaluator,
 ]);
@@ -73,7 +73,7 @@ export const DeleteUnstableEvaluatorResponse = z
 
 // Fields shared by every create body, regardless of evaluator type. Exported so
 // non-route consumers (e.g. the MCP tool layer) reuse the same definition.
-export const EvaluatorCreateBase = {
+const EvaluatorCreateBase = {
   name: z.string().min(1),
 };
 

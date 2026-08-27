@@ -34,7 +34,7 @@ export const hasEntitlementLimit = (
   });
 };
 
-export const hasEntitlementLimitBasedOnPlan = ({
+const hasEntitlementLimitBasedOnPlan = ({
   plan,
   entitlementLimit,
 }: {
@@ -48,7 +48,7 @@ export const hasEntitlementLimitBasedOnPlan = ({
  * Check if a specific usage is within the entitlement limit
  * @returns true if usage is allowed, false if it exceeds the limit
  */
-export const isWithinEntitlementLimit = (
+const isWithinEntitlementLimit = (
   p: HasEntitlementLimitParams & { currentUsage: number },
 ): boolean => {
   const limit = hasEntitlementLimit(p);

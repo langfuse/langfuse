@@ -54,7 +54,7 @@ const RING_C = 2 * Math.PI * RING_R;
  * transport pop-in after first load. An actively-placed playhead keeps its
  * controls regardless.
  */
-export function useHasPlayback(): boolean {
+function useHasPlayback(): boolean {
   const { traceDuration } = useTraceData();
   const { isGraphViewAvailable, isLoading: isGraphDataLoading } =
     useTraceGraphData();

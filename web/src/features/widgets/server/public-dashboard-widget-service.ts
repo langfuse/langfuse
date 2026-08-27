@@ -255,7 +255,7 @@ export function validatePublicDashboardWidgetInput(
   }
 }
 
-export function toApiDashboardWidget(widget: WidgetDomain) {
+function toApiDashboardWidget(widget: WidgetDomain) {
   return PostUnstableDashboardWidgetResponse.parse({
     id: widget.id,
     createdAt: widget.createdAt,

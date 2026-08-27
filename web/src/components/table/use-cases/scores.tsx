@@ -10,10 +10,10 @@ import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -880,30 +880,24 @@ export default function ScoresTable({
         };
       },
     }),
-    {
+    createUserTableColumn<ScoresTableRow, ScoresTableRow["author"]>({
       accessorKey: "author",
-      id: "author",
       header: "Author",
       enableHiding: true,
       defaultHidden: true,
       size: 150,
-      cell: ({ row }) => {
-        const { userId, name, image } = row.getValue(
-          "author",
-        ) as ScoresTableRow["author"];
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{name ?? userId}</span>
-          </div>
-        );
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (author) => {
+        if (!author) return undefined;
+
+        const { userId, name, image } = author;
+        return {
+          type: "user",
+          user: { id: userId, name, image },
+        };
       },
-    },
+    }),
     createLinkTableColumn<ScoresTableRow>({
       accessorKey: "jobConfigurationId",
       header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",

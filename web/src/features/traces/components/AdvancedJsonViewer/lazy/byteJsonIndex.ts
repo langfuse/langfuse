@@ -245,7 +245,7 @@ class U8Builder {
 /**
  * Pure-TS UTF-8 byte scanner. This is the piece a WASM module would replace.
  */
-export class JsByteScanner implements ByteScanner {
+class JsByteScanner implements ByteScanner {
   readonly bytes: Uint8Array;
   private readonly decoder = new TextDecoder();
 
