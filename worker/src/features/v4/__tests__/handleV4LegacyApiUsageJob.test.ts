@@ -113,8 +113,8 @@ const loggedError = (message: string) =>
 // 10:30 UTC: a regular run (the deep re-scan happens at 03:xx UTC only).
 const TEST_NOW = new Date("2026-06-25T10:30:00Z");
 const CURRENT_HOUR_ISO = "2026-06-25T10:00:00Z";
-// floor(now - 14d) to the hour.
-const COVERAGE_START_CLICKHOUSE = "2026-06-11 10:00:00.000";
+// floor(now - 3d) to the hour.
+const COVERAGE_START_CLICKHOUSE = "2026-06-22 10:00:00.000";
 
 const usageRow = (overrides: {
   hourStart?: string;
@@ -155,7 +155,7 @@ const emptyBucket = () =>
 const seedCoverageBuckets = (skipHourIsos: string[] = []) => {
   const skip = new Set(skipHourIsos.map((iso) => Date.parse(iso)));
   for (const hourStartMs of listV4LegacyApiHourStarts(
-    Date.parse("2026-06-11T10:00:00Z"),
+    Date.parse("2026-06-22T10:00:00Z"),
     Date.parse(CURRENT_HOUR_ISO),
   )) {
     if (skip.has(hourStartMs)) continue;
@@ -189,7 +189,7 @@ describe("handleV4LegacyApiUsageJob", () => {
     vi.clearAllMocks();
   });
 
-  it("cold start: scans the full 14-day window once and materializes buckets, rollups, cursor, and heartbeat", async () => {
+  it("cold start: scans the full 3-day window once and materializes buckets, rollups, cursor, and heartbeat", async () => {
     const rows = [
       usageRow({}),
       usageRow({
@@ -219,8 +219,8 @@ describe("handleV4LegacyApiUsageJob", () => {
       "toStartOfHour(event_time, 'UTC')",
     );
 
-    // One bucket per hour in the window, empty ones included: 14*24 + 1.
-    expect(bucketKeyCount()).toBe(337);
+    // One bucket per hour in the window, empty ones included: 3*24 + 1.
+    expect(bucketKeyCount()).toBe(73);
     expect(
       readJson(v4LegacyApiHourBucketKey(Date.parse("2026-06-25T09:00:00Z"))),
     ).toMatchObject({
@@ -278,11 +278,11 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(redisState.store.has(V4_LEGACY_API_USAGE_LOCK_KEY)).toBe(false);
 
     expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
-      scanStart: "2026-06-11T10:00:00Z",
-      hours: 337,
+      scanStart: "2026-06-22T10:00:00Z",
+      hours: 73,
       coldStart: true,
       repairedHole: false,
-      missingBucketCount: 337,
+      missingBucketCount: 73,
       clickhouseServices: ["ReadWrite", "ReadOnly"],
     });
     expect(
@@ -296,7 +296,7 @@ describe("handleV4LegacyApiUsageJob", () => {
       experimentPostRowCount: 1,
     });
     expect(loggedInfo("Completed v4 legacy API usage job")).toMatchObject({
-      scannedHours: 337,
+      scannedHours: 73,
       nonEmptyBuckets: 2,
       projectsWithLegacyApiUsage: 1,
       projectsWithExperimentPostUsage: 1,
@@ -410,16 +410,16 @@ describe("handleV4LegacyApiUsageJob", () => {
     // Existing bucket from an earlier run, outside the re-scan range: its
     // counts must survive and merge into the rollup.
     redisState.store.set(
-      v4LegacyApiHourBucketKey(Date.parse("2026-06-20T00:00:00Z")),
+      v4LegacyApiHourBucketKey(Date.parse("2026-06-23T00:00:00Z")),
       JSON.stringify({
         version: 1,
-        computedAt: "2026-06-20T01:00:00.000Z",
+        computedAt: "2026-06-23T01:00:00.000Z",
         apiRows: [
           {
             projectId: "project-a",
             entrypoint: "publicapi: GET /api/public/traces",
             count: 2,
-            lastSeen: "2026-06-20T00:30:00.000000Z",
+            lastSeen: "2026-06-23T00:30:00.000000Z",
           },
         ],
         experimentPostRows: [],
@@ -502,21 +502,21 @@ describe("handleV4LegacyApiUsageJob", () => {
     seedRecentDeepRescan();
     // One bucket is missing well before the cursor margin; without repair the
     // rollup would silently lose that hour while the heartbeat stays fresh.
-    seedCoverageBuckets(["2026-06-21T05:00:00Z"]);
+    seedCoverageBuckets(["2026-06-23T05:00:00Z"]);
 
     await handleV4LegacyApiUsageJob();
 
     expect(mocks.queryClickhouse.mock.calls[0]?.[0].params).toMatchObject({
-      fromTimestamp: "2026-06-21 05:00:00.000",
+      fromTimestamp: "2026-06-23 05:00:00.000",
     });
     expect(
       redisState.store.has(
-        v4LegacyApiHourBucketKey(Date.parse("2026-06-21T05:00:00Z")),
+        v4LegacyApiHourBucketKey(Date.parse("2026-06-23T05:00:00Z")),
       ),
     ).toBe(true);
     expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
       repairedHole: true,
-      repairedHoleHour: "2026-06-21T05:00:00Z",
+      repairedHoleHour: "2026-06-23T05:00:00Z",
       missingBucketCount: 1,
     });
   });
@@ -660,7 +660,7 @@ describe("handleV4LegacyApiUsageJob", () => {
     seedRecentDeepRescan();
     seedCoverageBuckets();
     redisState.store.set(
-      v4LegacyApiHourBucketKey(Date.parse("2026-06-21T05:00:00Z")),
+      v4LegacyApiHourBucketKey(Date.parse("2026-06-23T05:00:00Z")),
       "not-json",
     );
 
@@ -670,11 +670,11 @@ describe("handleV4LegacyApiUsageJob", () => {
       loggedWarn("v4 legacy API usage: unparsable hour buckets"),
     ).toMatchObject({
       count: 1,
-      hourStarts: ["2026-06-21T05:00:00Z"],
+      hourStarts: ["2026-06-23T05:00:00Z"],
     });
     expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
       repairedHole: true,
-      repairedHoleHour: "2026-06-21T05:00:00Z",
+      repairedHoleHour: "2026-06-23T05:00:00Z",
       unparsableBucketCount: 1,
     });
   });
