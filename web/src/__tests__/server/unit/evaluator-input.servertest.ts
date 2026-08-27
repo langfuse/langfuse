@@ -17,20 +17,37 @@ const llmEvaluatorInput = {
   },
 };
 
-describe("MCP evaluator input", () => {
-  it("exposes model configuration as an optional object without unions", () => {
-    const schema = z.toJSONSchema(McpEvaluatorInputBase);
-    const modelConfig = schema.properties?.modelConfig;
+const hasJsonSchemaComposition = (value: unknown): boolean => {
+  if (typeof value !== "object" || value === null) return false;
+  if (Array.isArray(value)) return value.some(hasJsonSchemaComposition);
 
-    expect(modelConfig).toMatchObject({
+  const schema = value as Record<string, unknown>;
+  if (
+    Array.isArray(schema.anyOf) ||
+    Array.isArray(schema.oneOf) ||
+    Array.isArray(schema.allOf)
+  ) {
+    return true;
+  }
+
+  return Object.values(schema).some(hasJsonSchemaComposition);
+};
+
+describe("MCP evaluator input", () => {
+  it("exposes a plain JSON schema without unions or intersections", () => {
+    const schema = z.toJSONSchema(McpEvaluatorInputBase, {
+      target: "draft-7",
+      unrepresentable: "any",
+    });
+
+    expect(schema.properties?.modelConfig).toMatchObject({
       type: "object",
       required: ["provider", "model"],
     });
-    expect(modelConfig).not.toHaveProperty("anyOf");
-    expect(modelConfig).not.toHaveProperty("oneOf");
+    expect(hasJsonSchemaComposition(schema)).toBe(false);
   });
 
-  it("reuses the observation variable mapping schema", () => {
+  it("derives a plain variable mapping schema from the shared schema", () => {
     expect(
       McpEvaluatorInput.safeParse({
         ...llmEvaluatorInput,
@@ -38,7 +55,7 @@ describe("MCP evaluator input", () => {
           {
             templateVariable: "output",
             selectedColumnId: "output",
-            jsonSelector: null,
+            jsonSelector: "$.answer",
           },
         ],
       }).success,
@@ -67,7 +84,10 @@ describe("MCP evaluator input", () => {
         modelConfig: {
           provider: "openai",
           model: "gpt-4.1-mini",
-          modelParams: { temperature: 0.2 },
+          modelParams: {
+            temperature: 0.2,
+            providerOptions: { openai: { reasoningEffort: "low" } },
+          },
         },
       }).success,
     ).toBe(true);

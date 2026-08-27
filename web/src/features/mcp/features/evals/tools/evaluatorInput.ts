@@ -1,7 +1,4 @@
-import {
-  EvalTemplateType,
-  observationVariableMappingList,
-} from "@langfuse/shared";
+import { EvalTemplateType, observationVariableMapping } from "@langfuse/shared";
 import { z } from "zod";
 import {
   CodeEvaluatorDefinitionSchema,
@@ -13,19 +10,37 @@ import {
 const CreateEvaluatorWithoutProjectSchema = CreateEvaluatorSchema.omit({
   projectId: true,
 });
+
+const McpEvaluatorModelConfigSchema = EvaluatorModelConfigSchema.extend({
+  modelParams: z
+    .object({
+      max_tokens: z.number().optional(),
+      temperature: z.number().optional(),
+      top_p: z.number().optional(),
+      maxReasoningTokens: z.number().optional(),
+      providerOptions: z.record(z.string(), z.any()).optional(),
+    })
+    .optional(),
+});
+
+const McpObservationVariableMappingSchema = observationVariableMapping.extend({
+  jsonSelector: z.string().optional(),
+});
+
 export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name,
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
   type: z.enum(EvalTemplateType),
   prompt: LlmEvaluatorDefinitionSchema.shape.prompt.optional(),
-  modelConfig: EvaluatorModelConfigSchema.optional().describe(
+  modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
     "Optional custom model configuration. Omit to use the project default model.",
   ),
   outputDefinition: z.record(z.string(), z.unknown()).optional(),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
   sourceCodeLanguage:
     CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage.optional(),
-  variableMapping: observationVariableMappingList
+  variableMapping: z
+    .array(McpObservationVariableMappingSchema)
     .optional()
     .describe("Variable mappings for LLM-as-a-judge evaluators only."),
 });
