@@ -151,7 +151,19 @@ const mocks = vi.hoisted(() => ({
         count: 42,
         lastSeen: "2026-07-23T10:37:00Z",
       },
-    ],
+    ] as {
+      endpoint: string;
+      count: number;
+      lastSeen: string;
+      callers?: {
+        sdkName?: "python" | "javascript";
+        sdkVersion?: string;
+        userAgent?: string;
+        isOther?: true;
+        count: number;
+        lastSeen: string;
+      }[];
+    }[],
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
@@ -332,10 +344,9 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
-    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
-      "title",
-      "Last seen at 2026-07-23T10:37:00Z",
-    );
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/42 calls · last seen/);
 
     const expectedIntegrationGuides = {
       PostHog:
@@ -381,9 +392,78 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/57 calls · last seen/);
+    expect(
+      screen.getByTitle("Last seen at 2026-07-22T10:37:00Z"),
+    ).toHaveTextContent(/5 calls · last seen/);
+    expect(
+      screen.getByTitle("Last seen at 2026-07-21T10:37:00Z"),
+    ).toHaveTextContent(/1 call · last seen/);
+  });
+
+  it("shows the caller and exact SDK migration action", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces/{id}",
+        count: 4,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            sdkName: "python" as const,
+            sdkVersion: "3.9.0",
+            userAgent: "langfuse-python/3.9.0",
+            count: 3,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+          {
+            userAgent: "codex-cli/1.2.3",
+            count: 1,
+            lastSeen: "2026-07-23T10:30:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Langfuse Python SDK 3.9.0")).toBeInTheDocument();
+    expect(screen.getByText("client.api.trace.get(...)")).toBeInTheDocument();
+    expect(
+      screen.getByText("client.api.observations.get_many(trace_id=trace_id)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText(/traffic from a coding agent/)).toBeInTheDocument();
+    expect(screen.queryByText("User-Agent:")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).not.toBeInTheDocument();
+
+    for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
+      const caller = screen.getByText(callerName).closest("li");
+      expect(caller).toHaveClass("bg-muted/50", "border-l-4", "p-2");
+      expect(caller?.firstElementChild).toHaveTextContent(callerName);
+      expect(caller?.firstElementChild).toHaveTextContent(/calls? · last seen/);
+      expect(
+        within(caller?.firstElementChild as HTMLElement).queryByRole("link"),
+      ).not.toBeInTheDocument();
+      const docsLink = within(caller!).getByRole("link", {
+        name: "See docs.",
+      });
+      expect(docsLink).toHaveAttribute(
+        "href",
+        "https://langfuse.com/faq/all/deprecated-api-migration",
+      );
+      expect(docsLink.parentElement).toHaveTextContent(/See docs\.$/);
+    }
+
+    fireEvent.click(screen.getAllByRole("link", { name: "See docs." })[0]!);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:section_link_clicked",
+      { section: "apis", link: "deprecated_api_caller_docs" },
+    );
   });
 
   it("collapses clean sections into one up-to-date summary", () => {

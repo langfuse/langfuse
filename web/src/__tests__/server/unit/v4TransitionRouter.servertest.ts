@@ -485,7 +485,19 @@ const experimentPostBlob = (
   });
 
 const legacyApiBlob = (
-  rows: { entrypoint: string; count: number; lastSeen: string }[],
+  rows: {
+    entrypoint: string;
+    count: number;
+    lastSeen: string;
+    callers?: {
+      sdkName?: "python" | "javascript";
+      sdkVersion?: string;
+      userAgent?: string;
+      isOther?: true;
+      count: number;
+      lastSeen: string;
+    }[];
+  }[],
 ) =>
   JSON.stringify({
     version: 1,
@@ -565,6 +577,15 @@ describe("v4TransitionRouter", () => {
           entrypoint: "publicapi: GET /api/public/traces/{id}",
           count: 2,
           lastSeen: "2026-06-24T15:00:00.000000Z",
+          callers: [
+            {
+              sdkName: "python",
+              sdkVersion: "4.8.1",
+              userAgent: "langfuse-python/4.8.1",
+              count: 2,
+              lastSeen: "2026-06-24T15:00:00.000000Z",
+            },
+          ],
         },
       ]),
     });
@@ -586,6 +607,15 @@ describe("v4TransitionRouter", () => {
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: 2,
         lastSeen: "2026-06-24T15:00:00.000000Z",
+        callers: [
+          {
+            sdkName: "python",
+            sdkVersion: "4.8.1",
+            userAgent: "langfuse-python/4.8.1",
+            count: 2,
+            lastSeen: "2026-06-24T15:00:00.000000Z",
+          },
+        ],
       },
     ]);
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();

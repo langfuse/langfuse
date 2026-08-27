@@ -232,6 +232,12 @@ export function useProjectV4MigrationData(params: {
       endpoint: normalizeLegacyApiEntrypoint(row.entrypoint),
       count: row.count,
       lastSeen: row.lastSeen,
+      callers: row.callers ?? [
+        {
+          count: row.count,
+          lastSeen: row.lastSeen,
+        },
+      ],
     }))
     .sort(
       (left, right) =>
