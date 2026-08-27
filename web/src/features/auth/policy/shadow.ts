@@ -1,10 +1,10 @@
 import { getCurrentSpan, recordIncrement } from "@langfuse/shared/src/server";
 
 /** parityStat counts one authorization decision. */
-const parityStat = "langfuse.authz.parity";
+export const parityStat = "langfuse.authz.parity";
 
 /** coverageStat counts one request against its operation. */
-const coverageStat = "langfuse.authz.coverage";
+export const coverageStat = "langfuse.authz.coverage";
 
 /** defaultSink writes to dogstatsd and the active span; tests inject a capturing fake. */
 const defaultSink: ParitySink = {

@@ -1,0 +1,129 @@
+{
+  "title": "Authz Parity + Coverage — US",
+  "description": "Shadow-mode ship gate for granular API permissions. Read by a human, never automated: a region flips to enforce only when the gate is empty bar recognized rows.",
+  "layout_type": "ordered",
+  "reflow_type": "auto",
+  "widgets": [
+    {
+      "definition": {
+        "type": "note",
+        "content": "US (datadoghq.com) — this dashboard gates nothing automatically. Enforce and remove stay deliberate human decisions: flip a region only after the gate below is empty bar recognized rows (e.g. resolution shifts legacy_code:403, new_code:400).",
+        "background_color": "yellow",
+        "font_size": "14",
+        "text_align": "left",
+        "vertical_align": "top",
+        "show_tick": false
+      }
+    },
+    {
+      "definition": {
+        "type": "query_table",
+        "title": "Ship gate — must be empty bar recognized rows",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "metrics",
+                "query": "sum:langfuse.authz.parity{result:new_denies OR result:new_allows} by {seam,action,legacy_code,new_code}",
+                "aggregator": "sum"
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "new_allows — SECURITY HOLE (new path permits what legacy blocks)",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "style": {
+              "palette": "red"
+            },
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "metrics",
+                "query": "sum:langfuse.authz.parity{result:new_allows} by {seam,action,legacy_code,new_code}",
+                "aggregator": "sum"
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ]
+          }
+        ],
+        "markers": [
+          {
+            "value": "y = 0",
+            "display_type": "error dashed"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "new_denies — breakage (new path blocks what legacy permits)",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "style": {
+              "palette": "orange"
+            },
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "metrics",
+                "query": "sum:langfuse.authz.parity{result:new_denies} by {seam,action,legacy_code,new_code}",
+                "aggregator": "sum"
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "query_table",
+        "title": "Coverage per operation — zero here means no traffic, not parity",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "a",
+                "data_source": "metrics",
+                "query": "sum:langfuse.authz.coverage{*} by {operation}",
+                "aggregator": "sum"
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "a"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
