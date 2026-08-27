@@ -1,8 +1,7 @@
 # Search Bar
 
 Grammar-based query bar shared by the observations (v4 events) table,
-evaluation-rule observation filters, and the sessions table (Feature Preview,
-`sessionsSearchBar`). On the events table it does NOT replace
+evaluation-rule observation filters, and the sessions table. On the events table it does NOT replace
 the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
 with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
 (+ the table's full-text search) remains the single source of truth; the bar
@@ -398,7 +397,7 @@ adapter, serializer, completion planner, token projection, store, and AI prompt
 all take an injected `FieldRegistry`. `EVENTS_FIELD_REGISTRY` remains the default
 for existing call sites; evaluation rules pass `RULE_FIELD_REGISTRY`, which is
 derived from the same `eventsEvalFilterColumns` used by backend validation, and
-the sessions table passes `SESSIONS_FIELD_REGISTRY`
+the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
 (`features/filters/config/sessionsSearchRegistry.ts`).
 
 **Pass the registry to BOTH halves.** `registry` is an optional prop defaulting

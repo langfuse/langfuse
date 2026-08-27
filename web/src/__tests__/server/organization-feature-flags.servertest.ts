@@ -203,7 +203,6 @@ describe("organization feature preview defaults", () => {
     ).toEqual({
       modernSession: false,
       compactTimeline: true,
-      sessionsSearchBar: false,
     });
   });
 
@@ -435,7 +434,6 @@ describe("organization member feature preview overrides", () => {
     expect(row?.featurePreviews).toEqual({
       modernSession: false,
       compactTimeline: true,
-      sessionsSearchBar: false,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");
