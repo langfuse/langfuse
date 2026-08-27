@@ -190,6 +190,7 @@ export class InAppAgentInstrumentation {
   private readonly traceStartTime: Date;
   private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
+  private readonly wrappingRootInput: string | undefined;
   private readonly approvalContinuation?: ApprovalContinuation;
   private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<string, AgentRunToolSpan>();
@@ -251,6 +252,7 @@ export class InAppAgentInstrumentation {
         : {}),
     };
     this.agentRunInput = getAgentRunInput(params.input);
+    this.wrappingRootInput = getWrappingRootUserText(params.input);
     this.prompt = params.prompt;
     this.model = params.model;
     this.runId = params.runId;
@@ -286,7 +288,7 @@ export class InAppAgentInstrumentation {
       userId: params.userId,
       sessionId: params.input.threadId,
       timestamp: this.traceStartTime,
-      input: this.getTraceInput(),
+      input: this.wrappingRootInput,
       metadata: this.metadata,
       tags: ["in-app-agent"],
     });
@@ -468,8 +470,8 @@ export class InAppAgentInstrumentation {
       },
     });
     this.trace.update({
-      input: this.getTraceInput(),
-      output: this.getAgentRunOutput(),
+      input: this.wrappingRootInput,
+      output: this.getWrappingRootOutput(),
       metadata: { ...this.metadata, error: message },
     });
     this.ended = true;
@@ -494,8 +496,8 @@ export class InAppAgentInstrumentation {
     };
     this.emitRootAgentObservation({ metadata });
     this.trace.update({
-      input: this.getTraceInput(),
-      output: this.getAgentRunOutput(),
+      input: this.wrappingRootInput,
+      output: this.getWrappingRootOutput(),
       metadata,
     });
     this.ended = true;
@@ -1006,17 +1008,34 @@ export class InAppAgentInstrumentation {
     }
   }
 
+  private getWrappingRootOutput(): string | undefined {
+    const texts = this.getAgentRunOutputMessages().flatMap((message) => {
+      if (message.role !== "assistant") {
+        return [];
+      }
+
+      const text = getRenderedMessageText(message.content);
+      return text.trim() ? [text] : [];
+    });
+
+    if (texts.length === 0) {
+      return undefined;
+    }
+
+    return texts.join("\n\n");
+  }
+
   private getAgentRunOutput() {
-    const priorMessages =
-      this.approvalContinuation && isRecord(this.agentRunInput)
-        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
-        : [];
-    const messages = [...priorMessages, ...this.agentRunOutputMessages];
+    const messages = this.getAgentRunOutputMessages();
 
     if (messages.length === 0) {
       return undefined;
     }
 
+    const priorMessages = messages.slice(
+      0,
+      messages.length - this.agentRunOutputMessages.length,
+    );
     const priorToolCalls = priorMessages.flatMap(
       (message) => message.tool_calls ?? [],
     );
@@ -1027,6 +1046,15 @@ export class InAppAgentInstrumentation {
       ...(this.output ? { text: this.output } : {}),
       ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     };
+  }
+
+  private getAgentRunOutputMessages(): AgentRunChatMessage[] {
+    const priorMessages =
+      this.approvalContinuation && isRecord(this.agentRunInput)
+        ? getPriorAgentRunOutputMessages(this.agentRunInput.messages)
+        : [];
+
+    return [...priorMessages, ...this.agentRunOutputMessages];
   }
 
   private emitApprovalWaitObservation() {
@@ -1122,6 +1150,37 @@ function getPriorAgentRunOutputMessages(
       isRecord(message) &&
       (message.role === "assistant" || message.role === "tool"),
   );
+}
+
+function getWrappingRootUserText(input: AgUiRunAgentInput): string | undefined {
+  const lastUserMessage = input.messages.findLast(
+    (message) => message.role === "user",
+  );
+
+  if (!lastUserMessage) {
+    return undefined;
+  }
+
+  const text = getRenderedMessageText(lastUserMessage.content);
+  return text.length > 0 ? text : undefined;
+}
+
+function getRenderedMessageText(content: unknown): string {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .flatMap((part) =>
+        isRecord(part) && part.type === "text" && typeof part.text === "string"
+          ? [part.text]
+          : [],
+      )
+      .join("");
+  }
+
+  return "";
 }
 
 function getAgentRunInput(input: AgUiRunAgentInput): unknown {

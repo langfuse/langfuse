@@ -42,11 +42,8 @@ const processedEvents = [
       sessionId: "conversation-1",
       startTime: START_ISO,
       endTime: END_ISO,
-      input: { messages: [{ role: "user", content: "hello" }] },
-      output: {
-        messages: [{ role: "assistant", content: "hi" }],
-        text: "hi",
-      },
+      input: "hello",
+      output: "hi",
     },
   },
   {
@@ -155,8 +152,8 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       userId: "user-1",
       sessionId: "conversation-1",
     });
-    expect(wrappingRoot?.output).toContain('"role":"assistant"');
-    expect(wrappingRoot?.output).toContain('"content":"hi"');
+    expect(wrappingRoot?.input).toBe("hello");
+    expect(wrappingRoot?.output).toBe("hi");
     expect(wrappingRoot?.tags).toEqual(["in-app-agent"]);
     expect(agent).toMatchObject({
       traceId: TRACE_ID,

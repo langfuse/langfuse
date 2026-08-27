@@ -64,6 +64,7 @@ const input: AgUiRunAgentInput = {
 const expectedAgentRunInput = {
   messages: [{ role: "user", content: "hello" }],
 };
+const expectedWrappingRootInput = "hello";
 
 describe("InAppAgentInstrumentation", () => {
   beforeEach(() => {
@@ -147,7 +148,7 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
+        input: expectedWrappingRootInput,
       }),
     );
     expect(mocks.trace.generation).not.toHaveBeenCalled();
@@ -213,24 +214,8 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
-        output: {
-          messages: [
-            { role: "assistant", content: "hi there" },
-            {
-              role: "assistant",
-              content: "",
-              tool_calls: [toolCall],
-            },
-            {
-              role: "tool",
-              tool_call_id: "tool-1",
-              content: toolOutput,
-            },
-          ],
-          text: "hi there",
-          tool_calls: [toolCall],
-        },
+        input: expectedWrappingRootInput,
+        output: "hi there",
       }),
     );
   });
@@ -788,11 +773,8 @@ describe("InAppAgentInstrumentation", () => {
     );
     expect(mocks.trace.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: expectedAgentRunInput,
-        output: {
-          messages: [{ role: "assistant", content: "second turn output" }],
-          text: "second turn output",
-        },
+        input: expectedWrappingRootInput,
+        output: "second turn output",
       }),
     );
   });
@@ -818,6 +800,12 @@ describe("InAppAgentInstrumentation", () => {
 
     expect(mocks.trace.generation).not.toHaveBeenCalled();
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expectedWrappingRootInput,
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
       expect.objectContaining({
         input: {
           messages: [{ role: "user", content: "hello" }],
@@ -878,6 +866,12 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-turn",
+        input: expectedWrappingRootInput,
+      }),
+    );
+    expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
+      "agent-create",
+      expect.objectContaining({
         input: {
           messages: [{ role: "user", content: "hello" }],
         },
@@ -988,7 +982,7 @@ describe("InAppAgentInstrumentation", () => {
           name: "agent-turn",
           sessionId: "conversation-1",
           timestamp: new Date(traceStartedAt),
-          input: expectedAgentRunInput,
+          input: expectedWrappingRootInput,
           tags: ["in-app-agent"],
           metadata: expect.objectContaining({
             approval_continuation_count: 2,
@@ -1049,7 +1043,7 @@ describe("InAppAgentInstrumentation", () => {
       );
       expect(mocks.trace.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          input: expectedAgentRunInput,
+          input: expectedWrappingRootInput,
           metadata: expect.objectContaining({
             approval_continuation_count: 2,
           }),
@@ -1107,6 +1101,12 @@ describe("InAppAgentInstrumentation", () => {
             { role: "assistant", content: "The tool completed." },
           ],
         }),
+      }),
+    );
+    expect(mocks.trace.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expectedWrappingRootInput,
+        output: "I need your approval.\n\nThe tool completed.",
       }),
     );
   });
