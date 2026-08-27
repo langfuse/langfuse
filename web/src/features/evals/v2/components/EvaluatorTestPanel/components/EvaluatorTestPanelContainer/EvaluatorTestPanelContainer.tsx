@@ -3,13 +3,12 @@ import { useStore } from "zustand";
 
 import { EvaluatorTestPanel } from "@/src/features/evals/v2/components/EvaluatorTestPanel/EvaluatorTestPanel";
 import { TestSectionContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestSectionContainer/TestSectionContainer";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function EvaluatorTestPanelContainer({
   projectId,
   store,
-  defaultModel,
+  hasValidModel,
   sampleSelector,
   testResult,
   testPending,
@@ -20,7 +19,7 @@ export function EvaluatorTestPanelContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
-  defaultModel: JudgeModel | null;
+  hasValidModel: boolean;
   sampleSelector: ReactNode;
   testResult: unknown;
   testPending: boolean;
@@ -41,7 +40,7 @@ export function EvaluatorTestPanelContainer({
         <TestSectionContainer
           projectId={projectId}
           store={store}
-          defaultModel={defaultModel}
+          hasValidModel={hasValidModel}
           testResult={testResult}
           testPending={testPending}
           rawResultOpen={rawResultOpen}
