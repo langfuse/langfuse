@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 
-import { DeleteOrganizationDialog } from "@/src/features/organizations/components/DeleteOrganizationDialog";
+import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { DeleteOrganizationDialogContent } from "@/src/features/organizations/components/DeleteOrganizationDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -62,14 +63,16 @@ export function DeleteOrganizationDialogController({
   return (
     <>
       {children({ disabled, openDialog })}
-      <DeleteOrganizationDialog
-        open={hasAccess && open}
-        onOpenChange={setOpen}
-        confirmMessage={confirmMessage}
-        hasProjects={hasProjects}
-        isPending={deleteOrganization.isPending}
-        onConfirm={onSubmit}
-      />
+      <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DeleteOrganizationDialogContent
+            confirmMessage={confirmMessage}
+            hasProjects={hasProjects}
+            isPending={deleteOrganization.isPending}
+            onConfirm={onSubmit}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

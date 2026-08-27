@@ -2,26 +2,36 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { type ComponentProps } from "react";
 
 import preview from "../../../../.storybook/preview";
+import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 
-import { DeleteOrganizationDialog } from "./DeleteOrganizationDialog";
+import { DeleteOrganizationDialogContent } from "./DeleteOrganizationDialogContent";
 
 const defaultArgs = {
-  open: true,
-  onOpenChange: fn(),
   confirmMessage: "acme",
   hasProjects: false,
   isPending: false,
   onConfirm: fn(),
-} satisfies ComponentProps<typeof DeleteOrganizationDialog>;
+} satisfies ComponentProps<typeof DeleteOrganizationDialogContent>;
+
+const renderDialog = (
+  args: ComponentProps<typeof DeleteOrganizationDialogContent>,
+) => (
+  <Dialog open onOpenChange={fn()}>
+    <DialogContent className="sm:max-w-[425px]">
+      <DeleteOrganizationDialogContent {...args} />
+    </DialogContent>
+  </Dialog>
+);
 
 const meta = preview.meta({
-  component: DeleteOrganizationDialog,
+  component: DeleteOrganizationDialogContent,
 });
 
 export default meta;
 
 export const Default = meta.story({
   args: defaultArgs,
+  render: renderDialog,
 });
 
 export const WithProjects = meta.story({
@@ -29,6 +39,7 @@ export const WithProjects = meta.story({
     ...defaultArgs,
     hasProjects: true,
   },
+  render: renderDialog,
 });
 
 export const Loading = meta.story({
@@ -36,11 +47,13 @@ export const Loading = meta.story({
     ...defaultArgs,
     isPending: true,
   },
+  render: renderDialog,
 });
 
 export const ConfirmsDeletion = meta.story({
   name: "(Test) Confirms deletion",
   args: defaultArgs,
+  render: renderDialog,
   play: async ({ args, canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
 
