@@ -414,6 +414,11 @@ const caveats = (benchmark: TraceMetricsBenchmark): string[] => {
       `${shape.pctSingleBucket.toFixed(1)}% of traces sit in one bucket, so an additional hourly or daily <em>trace-keyed</em> rollup would copy roughly the same row count. That is an argument against a deeper ladder, not against the five-minute grain.`,
     );
   }
+  if (benchmark.dashboardCorrectness.bVersusCDay.mismatchCount === 0) {
+    notes.push(
+      `B vs C cost-by-day matched on this cohort. That is expected when almost every trace fits in one five-minute bucket (they cannot cross midnight). It is <strong>not</strong> evidence that the two charts are interchangeable: cost incurred by span start day (B) and trace total attributed to <code>min(start_time)</code> (C) diverge as soon as a trace spans a day boundary.`,
+    );
+  }
   notes.push(
     `Only complete five-minute buckets are measured. Production must UNION raw <code>events_core</code> edges for the in-flight bucket, or traces from the last few minutes vanish from the list.`,
   );
