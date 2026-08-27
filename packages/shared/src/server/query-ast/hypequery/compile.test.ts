@@ -87,4 +87,30 @@ describe("compile choke point", () => {
       }),
     ).not.toThrow(TenantInjectionError);
   });
+
+  it("parenthesizes a top-level OR so tenancy cannot be bypassed by precedence", () => {
+    const compiled = compile(
+      table("events_core")
+        .select(["span_id"])
+        .where("environment", "eq", "prod")
+        .orWhere("environment", "eq", "default"),
+      { projectId: PROJECT_ID },
+    );
+    expect(compiled.sql).toMatch(
+      /project_id = \{projectId:String\} AND \(environment = \{environment:String\} OR environment = \{environment2:String\}\)/,
+    );
+  });
+
+  it("injects project_id onto joined tenant tables", () => {
+    const compiled = compile(
+      table("events_core")
+        .select(["span_id"])
+        .innerJoin("scores", "project_id", "scores.project_id"),
+      { projectId: PROJECT_ID },
+    );
+    expect(compiled.sql).toMatch(/JOIN scores/i);
+    expect(compiled.sql).toContain("project_id = {projectId:String}");
+    expect(compiled.sql).toContain("scores.project_id = {projectId:String}");
+    expect(compiled.params.projectId).toBe(PROJECT_ID);
+  });
 });

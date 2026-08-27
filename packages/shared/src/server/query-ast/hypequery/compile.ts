@@ -184,10 +184,13 @@ function compileCondition(
     return `${column} ${kw} (${value})`;
   }
 
+  const bindColumn = column.includes(".")
+    ? column.slice(column.lastIndexOf(".") + 1)
+    : column;
   const placeholder = binder.bind(
-    column,
+    bindColumn,
     value,
-    clickHouseTypeFor(column, value),
+    clickHouseTypeFor(bindColumn, value),
   );
   const sqlOp = sqlOperator(operator);
   return `${column} ${sqlOp} ${placeholder}`;
