@@ -2,7 +2,6 @@
   "name": "@repo/langfuse-skills",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "engines": {
     "node": "24"
   },
@@ -11,7 +10,8 @@
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
-      "import": "./src/index.js"
+      "import": "./src/index.js",
+      "require": "./src/index.js"
     }
   },
   "scripts": {
