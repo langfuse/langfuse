@@ -2,8 +2,9 @@ import { useMemo } from "react";
 
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
-import { type Plan, planLabels } from "@langfuse/shared";
+import { type BillingProvider, type Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
+import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { api } from "@/src/utils/api";
 
 export type BillingCancellationInfo = {
@@ -31,6 +32,14 @@ export type UseBillingInformationResult = {
   isLegacySubscription: boolean;
   hasActiveSubscription: boolean;
   hasValidPaymentMethod: boolean;
+  billingProvider: BillingProvider;
+  /**
+   * Stripe product id of the current paid plan, provider-agnostic: the real
+   * product id for Stripe orgs, the mapped equivalent for CHB orgs. The plan
+   * dialog keys its cards on Stripe product ids until plan-code-first inputs
+   * ship.
+   */
+  currentProductId: string | null;
 };
 
 export const useBillingInformation = (): UseBillingInformationResult => {
@@ -93,6 +102,19 @@ export const useBillingInformation = (): UseBillingInformationResult => {
     }
   }, [subscriptionInfo]);
 
+  // Server-resolved provider once loaded; before that, derive from the
+  // session org's cloudConfig so gating does not flicker for CHB orgs.
+  const billingProvider: BillingProvider =
+    subscriptionInfo?.billingProvider ??
+    (organization?.cloudConfig?.clickhouse?.organizationId
+      ? "clickhouse"
+      : "stripe");
+
+  const chbPlanCode = organization?.cloudConfig?.clickhouse?.planCode;
+  const currentProductId =
+    organization?.cloudConfig?.stripe?.activeProductId ??
+    (chbPlanCode ? mapChbPlanCodeToStripeProductId(chbPlanCode) : null);
+
   return {
     isLoading: isLoadingSubscriptionInfo,
     organization,
@@ -103,8 +125,11 @@ export const useBillingInformation = (): UseBillingInformationResult => {
       organization?.cloudConfig?.stripe?.isLegacySubscription,
     ),
     hasActiveSubscription: Boolean(
-      organization?.cloudConfig?.stripe?.activeSubscriptionId,
+      organization?.cloudConfig?.stripe?.activeSubscriptionId ??
+      organization?.cloudConfig?.clickhouse?.bundleId,
     ),
     hasValidPaymentMethod: subscriptionInfo?.hasValidPaymentMethod ?? false,
+    billingProvider,
+    currentProductId,
   };
 };

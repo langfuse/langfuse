@@ -616,9 +616,18 @@ class BillingService {
    *
    * @param orgId Organization id
    * @param stripeProductId Stripe Product id for the subscription plan
+   * @param _opId Unused here, and deliberately so: Stripe checkout session
+   * creation sends no idempotency key today and this keeps that unchanged. The
+   * parameter exists only so `cloudBillingRouter` can forward `opId` across the
+   * provider union, where the ClickHouse Billing path does key its request on
+   * it.
    * @returns Redirect URL to Stripe Checkout
    */
-  async createCheckoutSession(orgId: string, stripeProductId: string) {
+  async createCheckoutSession(
+    orgId: string,
+    stripeProductId: string,
+    _opId?: string,
+  ) {
     return await instrumentAsync(
       { name: "stripe.checkout.create", spanKind: SpanKind.CLIENT },
       async (span) => {
