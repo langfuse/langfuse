@@ -87,8 +87,8 @@ describe("stable evaluators public API", () => {
         prompt: [{ role: "user", content: "Classify: {{input}}" }],
         outputDefinition: {
           dataType: "CATEGORICAL",
-          scoreReasoning: "Why the category was selected",
-          scoreDescription: "The selected category",
+          scoreReasoningInstructions: "Why the category was selected",
+          scoreValueInstructions: "The selected category",
           categories: ["pass", "fail"],
           shouldAllowMultipleMatches: false,
         },
@@ -100,8 +100,8 @@ describe("stable evaluators public API", () => {
       LlmAsJudgeEvaluator.parse(categoricalEvaluator.body).outputDefinition,
     ).toEqual({
       dataType: "CATEGORICAL",
-      scoreReasoning: "Why the category was selected",
-      scoreDescription: "The selected category",
+      scoreReasoningInstructions: "Why the category was selected",
+      scoreValueInstructions: "The selected category",
       categories: ["pass", "fail"],
       shouldAllowMultipleMatches: false,
     });
@@ -297,11 +297,11 @@ describe("stable evaluators public API", () => {
     const expectedAssignments = expect.arrayContaining([
       {
         evaluationRuleId: rule.id,
-        variableMapping: [{ variable: "input", source: "input" }],
+        overrideMapping: [{ variable: "input", source: "input" }],
       },
       {
         evaluationRuleId: legacyRule.id,
-        variableMapping: [
+        overrideMapping: [
           {
             mappingType: "legacy",
             variable: "input",
@@ -531,9 +531,7 @@ describe("stable evaluators public API", () => {
       pausedReason: null,
       pausedMessage: null,
       version: 1,
-      evaluationRuleAssignments: [
-        { evaluationRuleId: rule.body.id, variableMapping: null },
-      ],
+      evaluationRuleAssignments: [{ evaluationRuleId: rule.body.id }],
     });
 
     const metadataUpdate = await makeZodVerifiedAPICall(

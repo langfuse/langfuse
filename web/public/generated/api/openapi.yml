@@ -12357,7 +12357,8 @@ components:
 
         - `dataType` is required.
 
-        - `scoreReasoning` and `scoreDescription` are optional instructions.
+        - `scoreReasoningInstructions` and `scoreValueInstructions` are optional
+        instructions.
 
         - `minValue` and `maxValue` apply only to `NUMERIC` outputs. If both are
         set, `minValue` must not exceed `maxValue`.
@@ -12370,14 +12371,16 @@ components:
       title: EvaluatorOutputDefinitionBase
       type: object
       properties:
-        scoreReasoning:
+        scoreReasoningInstructions:
           type: string
           nullable: true
-          description: Optional instructions for the reasoning returned with the score.
-        scoreDescription:
+          description: >-
+            Optional instructions for deriving the reasoning returned with the
+            score.
+        scoreValueInstructions:
           type: string
           nullable: true
-          description: Optional instructions for the score value.
+          description: Optional instructions for deriving the score value.
     PublicEvaluatorNumericScore:
       title: PublicEvaluatorNumericScore
       type: object
@@ -13596,18 +13599,17 @@ components:
         evaluationRuleId:
           type: string
           description: Stable identifier of the assigned evaluation rule.
-        variableMapping:
+        overrideMapping:
           type: array
           items:
             $ref: '#/components/schemas/PromptVariableMapping'
           nullable: true
           description: >-
-            Stored rule-specific mapping, or `null` when the evaluator's latest
+            Rule-specific override mapping. Omitted when the evaluator's latest
             default mapping is inherited. Legacy mappings use the explicit
             `legacy` variant.
       required:
         - evaluationRuleId
-        - variableMapping
     EvaluatorBase:
       title: EvaluatorBase
       type: object

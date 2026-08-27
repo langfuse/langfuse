@@ -54,7 +54,7 @@ types:
       Flat structured output definition used when creating or updating an evaluator.
 
       - `dataType` is required.
-      - `scoreReasoning` and `scoreDescription` are optional instructions.
+      - `scoreReasoningInstructions` and `scoreValueInstructions` are optional instructions.
       - `minValue` and `maxValue` apply only to `NUMERIC` outputs. If both are set, `minValue` must not exceed `maxValue`.
       - `categories` and `shouldAllowMultipleMatches` apply only to `CATEGORICAL` outputs.
       - Do not send `version`; that is an internal storage detail.
@@ -75,12 +75,12 @@ types:
       - name: Boolean
         value:
           dataType: BOOLEAN
-          scoreDescription: Return true if the output satisfies the requirement, otherwise false.
+          scoreValueInstructions: Return true if the output satisfies the requirement, otherwise false.
       - name: Categorical
         value:
           dataType: CATEGORICAL
-          scoreReasoning: Explain which category best fits the output.
-          scoreDescription: Choose the best category.
+          scoreReasoningInstructions: Explain which category best fits the output.
+          scoreValueInstructions: Choose the best category.
           categories:
             - correct
             - partially_correct
@@ -89,12 +89,12 @@ types:
 
   EvaluatorOutputDefinitionBase:
     properties:
-      scoreReasoning:
+      scoreReasoningInstructions:
         type: optional<string>
-        docs: Optional instructions for the reasoning returned with the score.
-      scoreDescription:
+        docs: Optional instructions for deriving the reasoning returned with the score.
+      scoreValueInstructions:
         type: optional<string>
-        docs: Optional instructions for the score value.
+        docs: Optional instructions for deriving the score value.
 
   PublicEvaluatorNumericScore:
     extends: EvaluatorOutputDefinitionBase
@@ -152,8 +152,8 @@ types:
       - name: PublicCategorical
         value:
           dataType: CATEGORICAL
-          scoreReasoning: Explain which label best fits the output.
-          scoreDescription: Choose the best label.
+          scoreReasoningInstructions: Explain which label best fits the output.
+          scoreValueInstructions: Choose the best label.
           categories:
             - correct
             - partially_correct

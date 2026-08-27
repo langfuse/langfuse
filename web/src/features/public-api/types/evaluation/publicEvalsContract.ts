@@ -36,8 +36,8 @@ export const PublicEvaluatorModelConfig = z.object({
 const PublicEvaluatorOutputDescription = z.string().trim().min(1).optional();
 
 const PublicEvaluatorOutputDefinitionBase = z.object({
-  scoreReasoning: PublicEvaluatorOutputDescription,
-  scoreDescription: PublicEvaluatorOutputDescription,
+  scoreReasoningInstructions: PublicEvaluatorOutputDescription,
+  scoreValueInstructions: PublicEvaluatorOutputDescription,
 });
 
 export const PublicEvaluatorNumericScore =
@@ -75,8 +75,8 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
 );
 
 const PublicEvaluatorOutputDefinitionReadBase = z.object({
-  scoreReasoning: z.string().optional(),
-  scoreDescription: z.string().optional(),
+  scoreReasoningInstructions: z.string().optional(),
+  scoreValueInstructions: z.string().optional(),
 });
 
 export const PublicEvaluatorOutputDefinitionRead = z.discriminatedUnion(

@@ -74,7 +74,7 @@ export const EvaluatorVersion = z.discriminatedUnion("type", [
 export const EvaluationRuleAssignment = z
   .object({
     evaluationRuleId: z.string(),
-    variableMapping: z.array(PromptVariableMapping).nullable(),
+    overrideMapping: z.array(PromptVariableMapping).optional(),
   })
   .strict();
 

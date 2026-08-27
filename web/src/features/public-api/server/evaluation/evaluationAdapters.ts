@@ -144,10 +144,10 @@ export function toPublicOutputDefinition(outputDefinition: unknown) {
   const resolved = resolvePersistedEvalOutputDefinition(parsed.data);
   const descriptions = {
     ...(resolved.reasoningDescription
-      ? { scoreReasoning: resolved.reasoningDescription }
+      ? { scoreReasoningInstructions: resolved.reasoningDescription }
       : {}),
     ...(resolved.scoreDescription
-      ? { scoreDescription: resolved.scoreDescription }
+      ? { scoreValueInstructions: resolved.scoreDescription }
       : {}),
   };
   if (resolved.dataType === "NUMERIC") {
@@ -186,8 +186,10 @@ function toInternalOutputDefinition(
   outputDefinition: PublicEvaluatorOutputDefinitionType,
 ) {
   const descriptions = {
-    reasoning: { description: outputDefinition.scoreReasoning ?? "" },
-    scoreDescription: outputDefinition.scoreDescription ?? "",
+    reasoning: {
+      description: outputDefinition.scoreReasoningInstructions ?? "",
+    },
+    scoreDescription: outputDefinition.scoreValueInstructions ?? "",
   };
   if (outputDefinition.dataType === "NUMERIC") {
     return {
@@ -319,12 +321,13 @@ export function toPublicEvaluator(evaluator: ServiceEvaluator) {
     evaluationRuleAssignments: evaluator.assignments.map(
       ({ evaluationRule, variableMapping }) => ({
         evaluationRuleId: evaluationRule.id,
-        variableMapping:
-          variableMapping === null
-            ? null
-            : isLegacyEvalTarget(evaluationRule.targetObject)
-              ? toApiLegacyMappings(variableMapping)
-              : toApiReadMappings(variableMapping),
+        ...(variableMapping === null
+          ? {}
+          : {
+              overrideMapping: isLegacyEvalTarget(evaluationRule.targetObject)
+                ? toApiLegacyMappings(variableMapping)
+                : toApiReadMappings(variableMapping),
+            }),
       }),
     ),
     createdAt: evaluator.createdAt,
