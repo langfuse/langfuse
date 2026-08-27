@@ -25,8 +25,38 @@ export const EvalTemplateSourceCodeLanguageEnum = {
   EvalTemplateSourceCodeLanguage
 >;
 
+export const EvaluatorPromptMessageSchema = z.object({
+  role: z.enum(["system", "user", "assistant"]),
+  content: z.string(),
+});
+export type EvaluatorPromptMessage = z.infer<
+  typeof EvaluatorPromptMessageSchema
+>;
+
+/** Chat messages persisted alongside the legacy evaluator prompt string. */
+export const PersistedEvaluatorPromptMessagesSchema = z
+  .array(EvaluatorPromptMessageSchema)
+  .min(1);
+export type PersistedEvaluatorPromptMessages = z.infer<
+  typeof PersistedEvaluatorPromptMessagesSchema
+>;
+
+export function getEvaluatorPromptMessages(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}): PersistedEvaluatorPromptMessages {
+  const parsed = PersistedEvaluatorPromptMessagesSchema.safeParse(
+    params.promptMessages,
+  );
+  return parsed.success
+    ? parsed.data
+    : [{ role: "user", content: params.prompt ?? "" }];
+}
+
 export type EvalTemplateLlmAsAJudge = EvalTemplate & {
   type: typeof EvalTemplateType.LLM_AS_JUDGE;
+  /** Present when an evaluator-v2 version is adapted to the legacy runtime. */
+  promptMessages?: unknown;
   prompt: string;
   outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
   sourceCode: null;

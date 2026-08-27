@@ -3,6 +3,66 @@ import { createNumericEvalOutputDefinition } from "../../features/evals/outputDe
 import { executeLlmEvaluator } from "./llmEvaluatorExecution";
 
 describe("executeLlmEvaluator", () => {
+  it("loads a legacy string prompt as one user message", async () => {
+    const callLlm = vi.fn().mockResolvedValue({ score: 1 });
+
+    await executeLlmEvaluator({
+      templatePrompt: "legacy {{input}}",
+      variables: [{ var: "input", value: "prompt" }],
+      outputDefinition: createNumericEvalOutputDefinition({
+        scoreDescription: "score",
+        reasoningDescription: "reasoning",
+      }),
+      callLlm,
+    });
+
+    expect(callLlm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            role: "user",
+            content: "legacy prompt",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("preserves message order and roles while interpolating each message", async () => {
+    const callLlm = vi.fn().mockResolvedValue({ score: 1 });
+
+    await executeLlmEvaluator({
+      templatePrompt: "legacy fallback",
+      templatePromptMessages: [
+        { role: "system", content: "Judge {{input}}" },
+        { role: "user", content: "Response: {{output}}" },
+        { role: "assistant", content: "Return only the score" },
+      ],
+      variables: [
+        { var: "input", value: "quality" },
+        { var: "output", value: "great" },
+      ],
+      outputDefinition: createNumericEvalOutputDefinition({
+        scoreDescription: "score",
+        reasoningDescription: "reasoning",
+      }),
+      callLlm,
+    });
+
+    expect(callLlm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({ role: "system", content: "Judge quality" }),
+          expect.objectContaining({ role: "user", content: "Response: great" }),
+          expect.objectContaining({
+            role: "assistant",
+            content: "Return only the score",
+          }),
+        ],
+      }),
+    );
+  });
+
   it("uses production prompt interpolation and validates the model output", async () => {
     const callLlm = vi.fn().mockResolvedValue({
       score: 0.8,

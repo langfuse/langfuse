@@ -973,6 +973,62 @@ describe("evaluator v2 repository", () => {
       });
     });
 
+    it("round-trips ordered prompt messages across evaluator versions", async () => {
+      const evaluator = await createEvaluator({
+        definition: llmDefinition({
+          promptMessages: [
+            { role: "system", content: "Judge carefully" },
+            { role: "user", content: "Judge {{output}}" },
+          ],
+        }),
+      });
+
+      await prisma.$transaction((tx) =>
+        evaluatorRepository.appendEvaluatorVersion({
+          tx,
+          evaluatorId: evaluator.id,
+          version: 2,
+          definition: llmDefinition({
+            promptMessages: [
+              { role: "system", content: "Judge very carefully" },
+              { role: "user", content: "Judge {{output}}" },
+              { role: "assistant", content: "Return a score" },
+            ],
+          }),
+          createdByUserId: null,
+        }),
+      );
+
+      const versions = await evaluatorRepository.listEvaluatorVersions({
+        prisma,
+        projectId,
+        evaluatorId: evaluator.id,
+        limit: 10,
+      });
+      expect(
+        versions.data.map(({ version, promptMessages }) => ({
+          version,
+          promptMessages,
+        })),
+      ).toEqual([
+        {
+          version: 2,
+          promptMessages: [
+            { role: "system", content: "Judge very carefully" },
+            { role: "user", content: "Judge {{output}}" },
+            { role: "assistant", content: "Return a score" },
+          ],
+        },
+        {
+          version: 1,
+          promptMessages: [
+            { role: "system", content: "Judge carefully" },
+            { role: "user", content: "Judge {{output}}" },
+          ],
+        },
+      ]);
+    });
+
     it("persists LLM evaluator fields", async () => {
       const [nullableLlmEvaluator, configuredLlmEvaluator] = await Promise.all([
         createEvaluator({

@@ -231,19 +231,50 @@ describe("EvaluatorService", () => {
   it("creates an evaluator with version one and rejects cross-project reads", async () => {
     const service = createService();
     const evaluatorId = crypto.randomUUID();
-    const created = await service.create(
-      { ...llmInput("Create evaluator"), evaluatorId },
-      null,
-    );
+    const input = llmInput("Create evaluator");
+    input.definition.promptMessages = [
+      { role: "system", content: "Judge carefully" },
+      { role: "user", content: "Judge {{output}}" },
+    ];
+    const created = await service.create({ ...input, evaluatorId }, null);
 
     expect(created).toMatchObject({
       id: evaluatorId,
       projectId,
       name: "Create evaluator",
-      versions: [expect.objectContaining({ version: 1 })],
+      versions: [
+        expect.objectContaining({
+          version: 1,
+          promptMessages: input.definition.promptMessages,
+        }),
+      ],
     });
     await expect(service.get(projectId, created.id)).resolves.toMatchObject({
       id: created.id,
+      versions: [
+        expect.objectContaining({
+          promptMessages: input.definition.promptMessages,
+        }),
+      ],
+    });
+
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: created.id },
+      data: { promptMessages: Prisma.DbNull },
+    });
+    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
+      versions: [
+        expect.objectContaining({
+          promptMessages: [
+            {
+              role: "user",
+              content: input.definition.promptMessages
+                .map(({ content }) => content)
+                .join("\n\n"),
+            },
+          ],
+        }),
+      ],
     });
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",

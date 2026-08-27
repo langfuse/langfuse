@@ -3,7 +3,12 @@ import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
-const { mockGenerateLLMText, mockRecordIncrement } = vi.hoisted(() => ({
+const {
+  mockCompileLangfuseMediaMessages,
+  mockGenerateLLMText,
+  mockRecordIncrement,
+} = vi.hoisted(() => ({
+  mockCompileLangfuseMediaMessages: vi.fn(),
   mockGenerateLLMText: vi.fn(),
   mockRecordIncrement: vi.fn(),
 }));
@@ -13,6 +18,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...original,
+    compileLangfuseMediaMessages: mockCompileLangfuseMediaMessages,
     generateLLMText: mockGenerateLLMText,
     recordIncrement: mockRecordIncrement,
   };
@@ -32,6 +38,15 @@ vi.mock("../../../env", async (importOriginal) => {
 describe("createProductionEvalExecutionDeps", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCompileLangfuseMediaMessages.mockImplementation(
+      async ({ messages }) => {
+        const mapped = messages.map(({ role, content }: any) => ({
+          role,
+          content,
+        }));
+        return { providerMessages: mapped, traceMessages: mapped };
+      },
+    );
     mockGenerateLLMText.mockResolvedValue({ output: { completion: "ok" } });
   });
 
@@ -68,6 +83,9 @@ describe("createProductionEvalExecutionDeps", () => {
       },
     });
 
+    expect(mockCompileLangfuseMediaMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "project-123" }),
+    );
     expect(mockGenerateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
         trace: expect.objectContaining({

@@ -18,6 +18,31 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
+  it("reorders prompt messages and keeps the final message", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+
+    actions.setPromptMessage(0, { role: "system", content: "Rubric" });
+    actions.addPromptMessage();
+    actions.setPromptMessage(1, { role: "user", content: "Case" });
+    actions.reorderPromptMessage(1, 0);
+
+    expect(store.getState().promptMessages).toEqual([
+      { role: "user", content: "Case" },
+      { role: "system", content: "Rubric" },
+    ]);
+    expect(store.getState().promptMessageIds).toHaveLength(2);
+
+    actions.removePromptMessage(0);
+    actions.removePromptMessage(0);
+    expect(store.getState().promptMessages).toEqual([
+      { role: "system", content: "Rubric" },
+    ]);
+  });
+
   it("keeps prompt and code drafts when switching evaluator type", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,

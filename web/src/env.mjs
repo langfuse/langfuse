@@ -470,6 +470,14 @@ export const env = createEnv({
     LANGFUSE_AI_BASE_URL: z.string().optional(),
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
+    LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
+      .enum(["url", "inline", "disabled"])
+      .optional(),
+    LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20_000_000),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -1003,6 +1011,10 @@ export const env = createEnv({
     LANGFUSE_AI_BASE_URL: process.env.LANGFUSE_AI_BASE_URL,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
+    LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
+      process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES:
+      process.env.LANGFUSE_EVALUATOR_MEDIA_INLINE_MAX_BYTES,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,

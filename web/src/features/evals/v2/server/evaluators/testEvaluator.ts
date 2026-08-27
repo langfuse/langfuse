@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared";
 import {
   buildEvalExecutionMetadata,
+  compileLangfuseMediaMessages,
   createW3CTraceId,
   DefaultEvalModelService,
   createLLMOutput,
@@ -97,6 +98,9 @@ async function testLlmEvaluator(params: {
   try {
     const execution = await executeLlmEvaluator({
       templatePrompt: params.definition.prompt,
+      templatePromptMessages: params.definition.promptMessages ?? [
+        { role: "user", content: params.definition.prompt },
+      ],
       variables: params.variables,
       outputDefinition: params.definition.outputDefinition,
       callLlm: async ({
@@ -105,19 +109,29 @@ async function testLlmEvaluator(params: {
         interpolatedPrompt: prompt,
       }) => {
         interpolatedPrompt = prompt;
-        const result = await generateLLMText({
-          ...mapLegacyLLMCompletionParams({
-            connection: modelConfig.config.apiKey,
+        const modelParams = {
+          provider: modelConfig.config.provider,
+          model: modelConfig.config.model,
+          adapter: modelConfig.config.apiKey.adapter,
+          ...modelConfig.config.modelParams,
+        };
+        const llmParams = mapLegacyLLMCompletionParams({
+          connection: modelConfig.config.apiKey,
+          messages,
+          modelParams,
+        });
+        const { providerMessages, traceMessages } =
+          await compileLangfuseMediaMessages({
+            projectId: params.projectId,
             messages,
-            modelParams: {
-              provider: modelConfig.config.provider,
-              model: modelConfig.config.model,
-              adapter: modelConfig.config.apiKey.adapter,
-              ...modelConfig.config.modelParams,
-            },
-          }),
+            adapter: modelConfig.config.apiKey.adapter,
+          });
+        const result = await generateLLMText({
+          ...llmParams,
+          messages: providerMessages,
+          traceInput: traceMessages,
           output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
-          maxRetries: 1,
+          maxRetries: 0,
           trace: {
             targetProjectId: params.projectId,
             traceId: executionTraceId,

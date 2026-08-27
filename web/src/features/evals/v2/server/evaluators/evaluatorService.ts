@@ -6,6 +6,7 @@ import {
   getBlockReasonForInvalidModelConfig,
   getCodeEvalVariableMapping,
   getEvaluatorBlockMetadata,
+  getEvaluatorPromptMessages,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -51,12 +52,47 @@ type SuggestEvaluatorTextParams = {
 const FALLBACK_EVALUATOR_NAME = "Custom Evaluator";
 const MAX_GENERATED_EVALUATOR_NAME_WORDS = 6;
 
+function normalizeVersionPromptMessages<
+  T extends { prompt: string | null; promptMessages?: unknown },
+>(version: T) {
+  return {
+    ...version,
+    promptMessages:
+      version.prompt === null
+        ? null
+        : getEvaluatorPromptMessages({
+            prompt: version.prompt,
+            promptMessages: version.promptMessages,
+          }),
+  };
+}
+
+function normalizeEvaluatorPromptMessages<
+  T extends {
+    versions: Array<{ prompt: string | null; promptMessages?: unknown }>;
+  },
+>(evaluator: T) {
+  return {
+    ...evaluator,
+    versions: evaluator.versions.map(normalizeVersionPromptMessages),
+  };
+}
+
 function prepareEvaluatorDefinitionForPersistence(
   definition: EvaluatorDefinition,
 ): EvaluatorDefinitionForPersistence {
-  return definition.type === EvalTemplateType.CODE
-    ? { ...definition, variableMapping: getCodeEvalVariableMapping() }
-    : definition;
+  if (definition.type === EvalTemplateType.CODE) {
+    return { ...definition, variableMapping: getCodeEvalVariableMapping() };
+  }
+
+  const promptMessages = definition.promptMessages ?? [
+    { role: "user" as const, content: definition.prompt },
+  ];
+  return {
+    ...definition,
+    prompt: promptMessages.map(({ content }) => content).join("\n\n"),
+    promptMessages,
+  };
 }
 
 type EvaluatorExecutionTrace = {
@@ -82,17 +118,21 @@ export class EvaluatorService {
     private readonly audit: (event: EvaluatorAuditEvent) => Promise<void>,
   ) {}
 
-  list(params: {
+  async list(params: {
     projectId: string;
     page: number;
     limit: number;
     search?: string;
     filter?: FilterState;
   }) {
-    return repository.listEvaluators({
+    const page = await repository.listEvaluators({
       prisma: this.prisma,
       ...params,
     });
+    return {
+      ...page,
+      evaluators: page.evaluators.map(normalizeEvaluatorPromptMessages),
+    };
   }
 
   listFilterOptions(projectId: string) {
@@ -122,7 +162,7 @@ export class EvaluatorService {
       evaluatorId,
     });
     if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
-    return evaluator;
+    return normalizeEvaluatorPromptMessages(evaluator);
   }
 
   async getWithSampleFilter(projectId: string, evaluatorId: string) {
@@ -153,6 +193,7 @@ export class EvaluatorService {
     }
     return {
       ...page,
+      data: page.data.map(normalizeVersionPromptMessages),
       nextCursor:
         page.nextCursor === undefined
           ? undefined
@@ -262,7 +303,7 @@ export class EvaluatorService {
       projectId: input.projectId,
       evaluatorId: evaluator.id,
     });
-    return evaluator;
+    return normalizeEvaluatorPromptMessages(evaluator);
   }
 
   // Temporary fallback for the unstable Evaluators API until the final API
@@ -327,7 +368,10 @@ export class EvaluatorService {
       projectId: input.projectId,
       evaluatorId: result.evaluator.id,
     });
-    return result;
+    return {
+      ...result,
+      evaluator: normalizeEvaluatorPromptMessages(result.evaluator),
+    };
   }
 
   async update(
@@ -350,7 +394,7 @@ export class EvaluatorService {
       projectId: input.projectId,
       evaluatorId: evaluator.id,
     });
-    return evaluator;
+    return normalizeEvaluatorPromptMessages(evaluator);
   }
 
   async reactivate(params: { projectId: string; evaluatorId: string }) {
@@ -361,7 +405,8 @@ export class EvaluatorService {
       evaluatorId,
     });
     if (!evaluator) throw new LangfuseNotFoundError("Evaluator not found");
-    if (!evaluator.blockedAt) return evaluator;
+    if (!evaluator.blockedAt)
+      return normalizeEvaluatorPromptMessages(evaluator);
 
     const version = evaluator.versions[0];
     if (!version)
@@ -434,7 +479,7 @@ export class EvaluatorService {
 
     await invalidateProjectEvalConfigCaches(projectId);
     await this.audit({ action: "update", projectId, evaluatorId });
-    return reactivated;
+    return normalizeEvaluatorPromptMessages(reactivated);
   }
 
   async delete(projectId: string, evaluatorId: string) {
@@ -581,7 +626,9 @@ async function updateEvaluator(params: {
   if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
   const definitionChanged = !isDeepStrictEqual(
     toEvaluatorDefinition(current.type, latest),
-    input.definition,
+    input.definition.type === EvalTemplateType.CODE
+      ? input.definition
+      : prepareEvaluatorDefinitionForPersistence(input.definition),
   );
 
   await repository.updateEvaluatorMetadata({
@@ -649,6 +696,7 @@ export function toEvaluatorDefinition(
   type: EvalTemplateType,
   version: {
     prompt: string | null;
+    promptMessages?: unknown;
     provider: string | null;
     model: string | null;
     modelParams: unknown;
@@ -664,6 +712,10 @@ export function toEvaluatorDefinition(
       ? {
           type,
           prompt: version.prompt ?? "",
+          promptMessages: getEvaluatorPromptMessages({
+            prompt: version.prompt,
+            promptMessages: version.promptMessages,
+          }),
           provider: version.provider,
           model: version.model,
           modelParams: version.modelParams,

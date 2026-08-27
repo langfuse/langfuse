@@ -1,5 +1,6 @@
 import {
   EvalTemplateType,
+  EvaluatorPromptMessageSchema,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
   PersistedEvalOutputDefinitionSchema,
@@ -49,6 +50,7 @@ export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
 export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
   prompt: z.string().min(1),
+  promptMessages: z.array(EvaluatorPromptMessageSchema).min(1).optional(),
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),

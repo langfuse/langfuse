@@ -39,7 +39,10 @@ import { assertActiveRuleLimitNotExceeded } from "./ruleErrors";
 import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import { assertCompleteEvaluatorVariableMapping } from "../evaluators/evaluatorValidation";
+import {
+  assertCompleteEvaluatorVariableMapping,
+  extractEvaluatorPromptVariables,
+} from "../evaluators/evaluatorValidation";
 import { fallbackRuleName, filterStateKey } from "./ruleFilterMatching";
 
 const MAX_REUSABLE_FILTERS = 10;
@@ -744,7 +747,10 @@ export class RuleService {
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
       assertCompleteEvaluatorVariableMapping({
-        prompt: latestVersion.prompt ?? "",
+        promptVariables: extractEvaluatorPromptVariables({
+          prompt: latestVersion.prompt,
+          promptMessages: latestVersion.promptMessages,
+        }),
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });

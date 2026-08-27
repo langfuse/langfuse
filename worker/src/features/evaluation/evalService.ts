@@ -56,6 +56,7 @@ import {
   Observation,
   EvalTargetObject,
   getEvaluatorBlockMetadata,
+  getEvaluatorPromptMessages,
   getBlockReasonForInvalidModelConfig,
   isEvalRuleExecutable,
   type EvalTemplateLlmAsAJudge,
@@ -1081,6 +1082,10 @@ export async function runLLMAsJudgeEvaluation({
       try {
         evaluatorExecution = await executeLlmEvaluator({
           templatePrompt: template.prompt,
+          templatePromptMessages: getEvaluatorPromptMessages({
+            prompt: template.prompt,
+            promptMessages: template.promptMessages,
+          }),
           variables: extractedVariables,
           outputDefinition: parsedOutputDefinition.data,
           callLlm: async ({
@@ -1379,6 +1384,7 @@ async function resolveTraceExecution(params: {
     name: evaluator.name,
     version: version.version,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,

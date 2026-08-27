@@ -218,6 +218,8 @@ export function EvaluatorSetupPage(
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
     prompt: version.prompt,
+    promptMessages:
+      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
     provider: version.provider,
     model: version.model,
     outputDefinition: version.outputDefinition,

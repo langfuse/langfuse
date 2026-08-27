@@ -4,36 +4,75 @@ import {
   type CompiledEvalOutputDefinition,
   type PersistedEvalOutputDefinition,
 } from "../../features/evals/outputDefinition";
+import {
+  getEvaluatorPromptMessages,
+  type PersistedEvaluatorPromptMessages,
+} from "../../features/evals/types";
 import { compileEvalPrompt } from "../../utils/prompts";
 import type { ExtractedVariable } from "./extractObservationVariables";
-import { ChatMessageRole, ChatMessageType } from "../llm/types";
+import {
+  ChatMessageRole,
+  ChatMessageType,
+  type ChatMessage,
+} from "../llm/types";
 
-function buildEvalMessages(prompt: string) {
-  return [
-    {
+function buildEvalMessages(params: {
+  templatePrompt: string;
+  templatePromptMessages?: PersistedEvaluatorPromptMessages | null;
+  variables: ExtractedVariable[];
+}): ChatMessage[] {
+  const promptMessages = getEvaluatorPromptMessages({
+    prompt: params.templatePrompt,
+    promptMessages: params.templatePromptMessages,
+  });
+
+  return promptMessages.map((message): ChatMessage => {
+    const content = compileEvalPrompt({
+      templatePrompt: message.content,
+      variables: params.variables,
+    });
+    if (message.role === "system") {
+      return {
+        type: ChatMessageType.System,
+        role: ChatMessageRole.System,
+        content,
+      };
+    }
+    if (message.role === "assistant") {
+      return {
+        type: ChatMessageType.AssistantText,
+        role: ChatMessageRole.Assistant,
+        content,
+      };
+    }
+    return {
       type: ChatMessageType.User,
       role: ChatMessageRole.User,
-      content: prompt,
-    } as const,
-  ];
+      content,
+    };
+  });
 }
 
 export async function executeLlmEvaluator(params: {
   templatePrompt: string;
+  templatePromptMessages?: PersistedEvaluatorPromptMessages | null;
   variables: ExtractedVariable[];
   outputDefinition: PersistedEvalOutputDefinition;
   callLlm: (params: {
-    messages: ReturnType<typeof buildEvalMessages>;
+    messages: ChatMessage[];
     compiledOutputDefinition: CompiledEvalOutputDefinition;
     interpolatedPrompt: string;
   }) => Promise<unknown>;
 }) {
-  const interpolatedPrompt = compileEvalPrompt(params);
+  const messages = buildEvalMessages(params);
+  const interpolatedPrompt = messages
+    .map(({ content }) => content)
+    .join("\n\n");
   const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
     params.outputDefinition,
   );
   const response = await params.callLlm({
-    messages: buildEvalMessages(interpolatedPrompt),
+    messages,
     compiledOutputDefinition,
     interpolatedPrompt,
   });

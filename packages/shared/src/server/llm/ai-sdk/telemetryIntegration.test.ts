@@ -112,6 +112,58 @@ beforeEach(() => {
 });
 
 describe("AI SDK telemetry integration", () => {
+  it("uses the trace input override for both root and generation spans", async () => {
+    const originalReference =
+      "@@@langfuseMedia:type=image/jpeg|id=image-1|source=base64@@@";
+    const signedUrl = "https://signed.example/image-1?signature=secret";
+    const mapped = mapLegacyLLMCompletionParams({
+      messages: [
+        {
+          type: ChatMessageType.User,
+          role: ChatMessageRole.User,
+          content: originalReference,
+        },
+      ],
+      modelParams,
+      connection: { secretKey: encrypt("sk-test") },
+    });
+
+    await generateLLMText({
+      ...mapped,
+      messages: [{ role: "user", content: signedUrl }],
+      traceInput: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Inspect " },
+            {
+              type: "file",
+              data: originalReference,
+              mediaType: "image/jpeg",
+            },
+          ],
+        },
+      ],
+      trace: traceSinkParams,
+    });
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((rs: any) =>
+      rs.scopeSpans.flatMap((ss: any) => ss.spans),
+    );
+    const serializedAttributes = JSON.stringify(
+      spans.flatMap((span: any) => span.attributes),
+    );
+    expect(serializedAttributes.match(/@@@langfuseMedia/g)).toHaveLength(2);
+    expect(serializedAttributes).toContain(originalReference);
+    expect(serializedAttributes).toContain("Inspect");
+    expect(serializedAttributes).toContain("text");
+    expect(serializedAttributes).toContain("file");
+    expect(serializedAttributes).toContain("mediaType");
+    expect(serializedAttributes).not.toContain(signedUrl);
+    expect(serializedAttributes).not.toContain("signature=secret");
+  });
+
   it("captures generateText spans under the Langfuse trace and converts them via the OTel ingestion pipeline", async () => {
     const result = await generateLLMText({
       ...mapLegacyLLMCompletionParams({

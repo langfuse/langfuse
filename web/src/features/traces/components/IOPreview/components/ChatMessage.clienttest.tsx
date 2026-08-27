@@ -363,6 +363,26 @@ describe("ChatMessage media content parts", () => {
     );
   });
 
+  it("renders an AI SDK file part carrying a langfuse media reference", () => {
+    renderChatMessage({
+      role: "user",
+      content: [
+        { type: "text", text: "attached report" },
+        {
+          type: "file",
+          data: referenceString,
+          mediaType: "image/png",
+        },
+      ],
+    } as unknown as ChatMlMessage);
+
+    expect(screen.getByText("attached report")).toBeInTheDocument();
+    expect(screen.getByTestId("langfuse-media")).toHaveAttribute(
+      "data-media-ref",
+      referenceString,
+    );
+  });
+
   // LFE-9577: a single reference string renders inline, and so do several in
   // one string — but an ARRAY of bare references failed OpenAIContentParts
   // (which only accepted `{type, …}` objects) and dropped to a JSON table.

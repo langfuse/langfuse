@@ -1,13 +1,17 @@
+import { Fragment } from "react";
 import {
   type EvalTemplateSourceCodeLanguage,
   EvalTemplateTypeEnum,
   type EvalTemplateType,
   type ObservationVariableMapping,
+  type EvaluatorPromptMessage,
 } from "@langfuse/shared";
 
 import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import { PopoverTrigger } from "@/src/components/ui/popover";
 import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
 import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
@@ -33,6 +37,7 @@ export type EvaluatorDefinition =
   | {
       type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;
       prompt: string | null;
+      promptMessages?: EvaluatorPromptMessage[] | null;
       selectedModel: JudgeModel | null;
       defaultModel: JudgeModel | null;
       outputDefinition: unknown;
@@ -93,6 +98,9 @@ function LlmEvaluatorDefinitionView({
   definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 }) {
   const { variableMappings } = definition;
+  const promptMessages = definition.promptMessages ?? [
+    { role: "user" as const, content: definition.prompt ?? "" },
+  ];
   const mappings =
     variableMappings.state === "visible" ? variableMappings.mappings : [];
   // The prompt's {{variable}} tokens name their binding on hover, the same way
@@ -140,13 +148,26 @@ function LlmEvaluatorDefinitionView({
       </EvaluationTypeConfiguration>
       <section className="flex min-w-0 flex-col gap-2">
         <Label>Prompt</Label>
-        <PromptVariableEditor
-          value={definition.prompt ?? ""}
-          onChange={noop}
-          variableMappings={variableLabels}
-          readOnly
-          validateVariableMappings={false}
-        />
+        {promptMessages.map((message, index) => (
+          <div key={index} className="flex min-w-0 flex-col gap-1">
+            <Badge variant="outline" className="w-fit capitalize">
+              {message.role}
+            </Badge>
+            <PromptVariableEditor
+              value={message.content}
+              onChange={noop}
+              variableMappings={variableLabels}
+              readOnly
+              validateVariableMappings={false}
+              previewEnabled
+              preview={{
+                status: "ready",
+                fragments: [{ type: "text", text: message.content }],
+              }}
+              renderPreviewText={renderMediaAwareText}
+            />
+          </div>
+        ))}
       </section>
       {variableMappings.state === "visible" ? (
         <section className="flex flex-col gap-2">
@@ -168,6 +189,19 @@ function LlmEvaluatorDefinitionView({
         mode="read-only"
       />
     </div>
+  );
+}
+
+function renderMediaAwareText(value: string) {
+  return splitStringByMediaReferences(value).map((segment, index) =>
+    segment.type === "media" ? (
+      <MediaReferenceTag
+        key={`${segment.value}-${index}`}
+        descriptor={segment.descriptor}
+      />
+    ) : (
+      <Fragment key={index}>{segment.value}</Fragment>
+    ),
   );
 }
 

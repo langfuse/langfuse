@@ -116,6 +116,12 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   timeout?: TimeoutConfiguration<TOOLS>;
   abortSignal?: AbortSignal;
   trace?: TraceSinkParams;
+  /**
+   * Input recorded on traced root and generation spans. Defaults to messages.
+   * Use this when provider messages contain ephemeral credentials such as
+   * signed media URLs.
+   */
+  traceInput?: unknown;
   credentialSource?: LLMCredentialSource;
   onEnd?: GenerateTextOnEndCallback<TOOLS, RuntimeContext>;
 };
@@ -331,7 +337,8 @@ async function prepareLLMTextCall<
   const capture = options.trace
     ? createAiSdkTelemetryCapture({
         traceSinkParams: options.trace,
-        rootInput: options.messages,
+        rootInput: options.traceInput ?? options.messages,
+        generationInput: options.traceInput,
       })
     : undefined;
 
@@ -354,7 +361,7 @@ async function prepareLLMTextCall<
       abortSignal: options.abortSignal,
       // Do not let AI SDK download remote media on the Langfuse server.
       // Callers must use provider-supported URLs or inline data.
-      experimental_download: rejectRemoteMediaDownloads,
+      experimental_download: passThroughSupportedRemoteMedia,
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
@@ -401,18 +408,18 @@ function isJsonObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
-  downloads,
-) => {
-  if (downloads.length > 0) {
-    throw new LLMValidationError({
-      code: "invalid-request",
-      message:
-        "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
-    });
-  }
-  return [];
-};
+export const passThroughSupportedRemoteMedia: Experimental_DownloadFunction =
+  async (downloads) => {
+    if (downloads.some(({ isUrlSupportedByModel }) => !isUrlSupportedByModel)) {
+      throw new LLMValidationError({
+        code: "invalid-request",
+        message:
+          "This model adapter cannot consume one or more media URLs directly; Langfuse does not download remote media on the server",
+      });
+    }
+    // null instructs AI SDK to preserve each provider-supported URL as-is.
+    return downloads.map(() => null);
+  };
 
 function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
   if (!tools) return;

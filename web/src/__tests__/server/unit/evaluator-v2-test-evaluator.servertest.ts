@@ -3,6 +3,7 @@ import {
   LLMAdapter,
 } from "@langfuse/shared";
 import {
+  compileLangfuseMediaMessages,
   DefaultEvalModelService,
   findModel,
   generateLLMText,
@@ -22,6 +23,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   DefaultEvalModelService: {
     fetchValidModelConfig: vi.fn(),
   },
+  compileLangfuseMediaMessages: vi.fn(),
   generateLLMText: vi.fn(),
   findModel: vi.fn(),
   resolveConfiguredCodeEvalDispatcher: vi.fn(),
@@ -54,6 +56,12 @@ describe("testEvaluator", () => {
         },
       } as unknown as ValidModelConfig,
     });
+    vi.mocked(compileLangfuseMediaMessages).mockImplementation(
+      async ({ messages }) => {
+        const mapped = messages.map(({ role, content }) => ({ role, content }));
+        return { providerMessages: mapped, traceMessages: mapped } as never;
+      },
+    );
     vi.mocked(generateLLMText).mockResolvedValue({
       output: { score: 1, reasoning: "Correct" },
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
@@ -97,6 +105,10 @@ describe("testEvaluator", () => {
         definition: {
           type: "LLM_AS_JUDGE",
           prompt: "Judge {{answer}}",
+          promptMessages: [
+            { role: "system", content: "Judge consistently" },
+            { role: "user", content: "Judge {{answer}}" },
+          ],
           provider: null,
           model: null,
           modelParams: null,
@@ -128,10 +140,30 @@ describe("testEvaluator", () => {
       startTime,
       shouldReadFromObservationsTable: true,
     });
+    expect(compileLangfuseMediaMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "project-1" }),
+    );
     expect(generateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
         messages: [
-          expect.objectContaining({ content: "Judge It arrives tomorrow." }),
+          expect.objectContaining({
+            role: "system",
+            content: "Judge consistently",
+          }),
+          expect.objectContaining({
+            role: "user",
+            content: "Judge It arrives tomorrow.",
+          }),
+        ],
+        traceInput: [
+          expect.objectContaining({
+            role: "system",
+            content: "Judge consistently",
+          }),
+          expect.objectContaining({
+            role: "user",
+            content: "Judge It arrives tomorrow.",
+          }),
         ],
         trace: expect.objectContaining({
           metadata: expect.objectContaining({

@@ -4,6 +4,7 @@ import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   buildEventBucketPrefix,
+  compileLangfuseMediaMessages,
   createLLMOutput,
   DefaultEvalModelService,
   generateLLMText,
@@ -228,20 +229,29 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             )
           : 0);
 
+      const modelParams = {
+        provider: params.modelConfig.provider,
+        model: params.modelConfig.model,
+        adapter,
+        ...params.modelConfig.modelParams,
+      };
       const llmParams = mapLegacyLLMCompletionParams({
         connection,
         messages: params.messages,
-        modelParams: {
-          provider: params.modelConfig.provider,
-          model: params.modelConfig.model,
-          adapter,
-          ...params.modelConfig.modelParams,
-        },
+        modelParams,
       });
+      const { providerMessages, traceMessages } =
+        await compileLangfuseMediaMessages({
+          projectId: params.traceSinkParams.targetProjectId,
+          messages: params.messages,
+          adapter,
+        });
       const result = await generateLLMText({
         ...llmParams,
+        messages: providerMessages,
+        traceInput: traceMessages,
         output: createLLMOutput(params.structuredOutputSchema),
-        maxRetries: 1,
+        maxRetries: 0,
         trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,

@@ -1,5 +1,8 @@
+import { ChevronDown, MoreVertical } from "lucide-react";
 import { fn } from "storybook/test";
 
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import preview from "../../../../../../../../.storybook/preview";
 import { PromptVariableEditor } from "./PromptVariableEditor";
 
@@ -91,6 +94,90 @@ export const PreviewUnavailable = meta.story({
       message:
         "Select a sample observation in the test panel to preview the interpolated prompt.",
     },
+  },
+});
+
+export const MessageHeader = meta.story({
+  args: {
+    value: "Evaluate whether {{output}} is correct.",
+    onChange: fn(),
+    showPreviewToggle: true,
+    previewEnabled: false,
+    onPreviewEnabledChange: fn(),
+    onToolbarClick: fn(),
+    toolbarStart: (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0"
+        >
+          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+        </Button>
+        <Badge
+          variant="tertiary"
+          size="sm"
+          className="h-5 shrink-0 leading-none"
+        >
+          User
+        </Badge>
+      </>
+    ),
+    toolbarActions: (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Prompt message settings"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </Button>
+    ),
+  },
+});
+
+export const CollapsedMessage = meta.story({
+  args: {
+    value: "Evaluate whether {{output}} is correct.",
+    onChange: fn(),
+    showPreviewToggle: true,
+    previewEnabled: false,
+    onPreviewEnabledChange: fn(),
+    onToolbarClick: fn(),
+    collapsed: true,
+    toolbarStart: (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0"
+        >
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 -translate-x-0.5 -rotate-90" />
+        </Button>
+        <Badge
+          variant="tertiary"
+          size="sm"
+          className="h-5 shrink-0 leading-none"
+        >
+          User
+        </Badge>
+        <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none">
+          Evaluate whether the response is correct and follows the rubric.
+        </span>
+      </>
+    ),
+    toolbarActions: (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label="Prompt message settings"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </Button>
+    ),
   },
 });
 

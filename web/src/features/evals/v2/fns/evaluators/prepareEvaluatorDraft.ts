@@ -14,7 +14,8 @@ type EvaluatorSetupDraftState = Pick<
   | "selectedModel"
   | "modelParams"
   | "initialDefinition"
->;
+> &
+  Partial<Pick<EvaluatorSetupStoreState, "promptMessages">>;
 
 export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
@@ -32,6 +33,9 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
         ? {
             type: params.type,
             prompt: params.prompt,
+            promptMessages: params.promptMessages ?? [
+              { role: "user" as const, content: params.prompt },
+            ],
             provider:
               params.modelMode === "custom"
                 ? (params.selectedModel?.provider ?? null)

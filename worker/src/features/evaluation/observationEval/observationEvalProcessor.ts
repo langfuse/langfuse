@@ -403,7 +403,7 @@ const evaluatorInclude = {
 } satisfies Prisma.EvaluatorInclude;
 
 function normalizeEvalTemplate(
-  template: EvalTemplate,
+  template: EvalTemplate & { promptMessages?: unknown },
   executionType: ObservationEvalExecutionType,
 ): EvalTemplateWithType {
   switch (executionType) {
@@ -508,6 +508,7 @@ function buildV2Execution(params: {
     name: evaluator.name,
     version: version.version,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,
@@ -517,7 +518,7 @@ function buildV2Execution(params: {
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-  } satisfies EvalTemplate;
+  };
 
   return {
     type: "v2" as const,

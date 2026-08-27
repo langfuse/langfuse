@@ -1,6 +1,7 @@
 import {
   EvalTemplateType,
   extractVariables,
+  getEvaluatorPromptMessages,
   InvalidRequestError,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -16,14 +17,28 @@ import {
 } from "./evaluatorErrors";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
 
+export function extractEvaluatorPromptVariables(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}) {
+  return [
+    ...new Set(
+      getEvaluatorPromptMessages(params).flatMap(({ content }) =>
+        extractVariables(content),
+      ),
+    ),
+  ];
+}
+
 export function assertEvaluatorVariablesMatchPrompt(params: {
-  prompt: string;
+  promptVariables: string[];
   variables: string[];
 }) {
-  const promptVariables = extractVariables(params.prompt);
   if (
-    promptVariables.length !== params.variables.length ||
-    promptVariables.some((variable) => !params.variables.includes(variable))
+    params.promptVariables.length !== params.variables.length ||
+    params.promptVariables.some(
+      (variable) => !params.variables.includes(variable),
+    )
   ) {
     throw new InvalidRequestError(
       "Evaluator variables must match the prompt variables",
@@ -32,7 +47,7 @@ export function assertEvaluatorVariablesMatchPrompt(params: {
 }
 
 export function assertCompleteEvaluatorVariableMapping(params: {
-  prompt: string;
+  promptVariables: string[];
   variableMapping: unknown;
 }) {
   const parsed = observationVariableMappingList.safeParse(
@@ -51,7 +66,6 @@ export function assertCompleteEvaluatorVariableMapping(params: {
     }
   }
 
-  const promptVariables = extractVariables(params.prompt);
   const mappedVariables = parsed.data.map(
     ({ templateVariable }) => templateVariable,
   );
@@ -65,7 +79,7 @@ export function assertCompleteEvaluatorVariableMapping(params: {
   }
 
   const unknownVariables = mappedVariables.filter(
-    (variable) => !promptVariables.includes(variable),
+    (variable) => !params.promptVariables.includes(variable),
   );
   if (unknownVariables.length > 0) {
     throw new InvalidRequestError(
@@ -73,7 +87,7 @@ export function assertCompleteEvaluatorVariableMapping(params: {
     );
   }
 
-  const missingVariables = promptVariables.filter(
+  const missingVariables = params.promptVariables.filter(
     (variable) => !mappedVariables.includes(variable),
   );
   if (missingVariables.length > 0) {
@@ -106,13 +120,17 @@ export async function assertEvaluatorConfigurationValid(params: {
     return;
   }
 
-  assertEvaluatorVariablesMatchPrompt({
+  const promptVariables = extractEvaluatorPromptVariables({
     prompt: params.definition.prompt,
+    promptMessages: params.definition.promptMessages,
+  });
+  assertEvaluatorVariablesMatchPrompt({
+    promptVariables,
     variables: params.definition.vars,
   });
   if (params.definition.variableMapping !== null) {
     assertCompleteEvaluatorVariableMapping({
-      prompt: params.definition.prompt,
+      promptVariables,
       variableMapping: params.definition.variableMapping,
     });
   }
