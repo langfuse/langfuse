@@ -58,7 +58,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * the shared 30s default.
  */
 export const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
-export const V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT = 100;
+export const V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT = 20;
 
 const EXPERIMENT_POST_ROUTE = "POST /api/public/dataset-run-items";
 
