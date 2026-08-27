@@ -170,11 +170,23 @@ export class WorkerManager {
       });
     });
 
-    // Add error handling
+    // Add error handling. Log structured fields so every type:failed increment
+    // is attributable, including BullMQ out-of-band failures (stall beyond
+    // limit, lock loss, forced fail) where the processor never threw and would
+    // otherwise leave no correlating log.
     worker.on("failed", (job: Job | undefined, err: Error) => {
       logger.error(
         `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
-        err,
+        {
+          queueName,
+          ...shardTag,
+          jobId: job?.id,
+          jobName: job?.name,
+          attemptsMade: job?.attemptsMade,
+          attempts: job?.opts?.attempts,
+          failedReason: job?.failedReason ?? err?.message,
+          error: err,
+        },
       );
       traceException(err);
       recordIncrement(baseMetric + ".rate", 1, {

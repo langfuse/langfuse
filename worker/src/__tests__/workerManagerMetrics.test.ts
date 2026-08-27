@@ -73,6 +73,8 @@ vi.mock("../utils/hostId", () => ({
   WORKER_HOST_ID: "test-host",
 }));
 
+import { logger } from "@langfuse/shared/src/server";
+
 import { WorkerManager } from "../queues/workerManager";
 
 describe("WorkerManager queue metrics", () => {
@@ -116,9 +118,16 @@ describe("WorkerManager queue metrics", () => {
     expect(mocks.legacyRecordHistogram).not.toHaveBeenCalled();
 
     mocks.recordIncrement.mockClear();
+    const failedError = new Error("boom");
     mocks.handlers.get("failed")?.(
-      { id: "job-id", name: "job" },
-      new Error("failed"),
+      {
+        id: "job-id",
+        name: "job",
+        attemptsMade: 6,
+        opts: { attempts: 6 },
+        failedReason: "job stalled more than allowable limit",
+      },
+      failedError,
     );
     mocks.handlers.get("error")?.(new Error("errored"));
     mocks.handlers.get("stalled")?.("job-id");
@@ -128,6 +137,20 @@ describe("WorkerManager queue metrics", () => {
       ["langfuse.queue.trace_delete.rate", 1, { type: "error" }],
       ["langfuse.queue.trace_delete.rate", 1, { type: "stalled" }],
     ]);
+
+    // Every type:failed increment carries a co-timestamped structured log.
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("failed"),
+      expect.objectContaining({
+        queueName: "trace-delete",
+        jobId: "job-id",
+        jobName: "job",
+        attemptsMade: 6,
+        attempts: 6,
+        failedReason: "job stalled more than allowable limit",
+        error: failedError,
+      }),
+    );
   });
 
   it("emits a rate counter for completed jobs but not for active ones", () => {
