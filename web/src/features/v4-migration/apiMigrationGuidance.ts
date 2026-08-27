@@ -148,18 +148,19 @@ const guidanceByEndpoint: Record<
     }),
   },
   "GET /api/public/sessions/{id}": {
-    replacement: "GET /api/public/v2/observations?filter=<sessionId filter>",
+    replacement:
+      "GET /api/public/v2/observations?filter=<sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
     methods: {
       python: {
         current: "client.api.sessions.get(...)",
         replacement:
-          'client.api.observations.get_many(filter="<sessionId filter>")',
+          'client.api.observations.get_many(filter="<sessionId filter>", from_start_time=..., to_start_time=...)',
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.sessions.get(...)",
         replacement:
-          'client.api.observations.getMany({ filter: "<sessionId filter>" })',
+          'client.api.observations.getMany({ filter: "<sessionId filter>", fromStartTime, toStartTime })',
         minimumVersion: "4.0.0",
       },
     },

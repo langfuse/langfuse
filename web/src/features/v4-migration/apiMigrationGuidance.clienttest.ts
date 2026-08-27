@@ -58,6 +58,22 @@ describe("getApiMigrationGuidance", () => {
     });
   });
 
+  it("preserves the session ID and time bounds when migrating session lookup", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/sessions/{id}",
+        "python",
+        "4.8.1",
+      ),
+    ).toMatchObject({
+      currentMethod: "client.api.sessions.get(...)",
+      replacementMethod:
+        'client.api.observations.get_many(filter="<sessionId filter>", from_start_time=..., to_start_time=...)',
+      replacement:
+        "GET /api/public/v2/observations?filter=<sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
+    });
+  });
+
   it("recognizes a v-prefixed outdated SDK version", () => {
     expect(
       getApiMigrationGuidance(
