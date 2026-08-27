@@ -277,9 +277,9 @@ types:
       evaluationRuleId:
         type: string
         docs: Stable identifier of the assigned evaluation rule.
-      overrideMapping:
+      variableMappingOverride:
         type: optional<list<evals.PromptVariableMapping>>
-        docs: Rule-specific override mapping. Omitted when the evaluator's latest default mapping is inherited. Legacy mappings use the explicit `legacy` variant.
+        docs: Rule-specific variable mapping override. Omitted when the evaluator's latest default mapping is inherited. Legacy mappings use the explicit `legacy` variant.
 
   EvaluatorBase:
     properties:
@@ -309,7 +309,7 @@ types:
         docs: Human-readable explanation when `status=paused`, otherwise `null`.
       evaluationRuleAssignments:
         type: list<EvaluationRuleAssignment>
-        docs: All modern and legacy evaluation-rule assignments in newest-assignment-first order. Rule-specific mappings are exposed as `overrideMapping`; inherited defaults are omitted.
+        docs: All modern and legacy evaluation-rule assignments in newest-assignment-first order. Rule-specific mappings are exposed as `variableMappingOverride`; inherited defaults are omitted.
       createdAt:
         type: datetime
         docs: Timestamp when the evaluator was created.

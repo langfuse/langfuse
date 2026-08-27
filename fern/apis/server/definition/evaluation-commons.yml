@@ -416,9 +416,8 @@ types:
       - LegacyPromptVariableMapping
 
   LegacyPromptVariableMapping:
-    availability: deprecated
     docs: |
-      Connects one prompt variable to data from a legacy trace or dataset evaluation rule.
+      **Deprecated:** Connects one prompt variable to data from a legacy trace or dataset evaluation rule.
 
       `langfuseObject` selects the object kind. `objectName` separately selects a named observation and is `null` for trace and dataset-item mappings.
     properties:
@@ -458,8 +457,7 @@ types:
           jsonPath: "$.answer"
 
   LegacyEvaluationObject:
-    availability: deprecated
-    docs: Legacy Langfuse object kind used by trace and dataset evaluation rules.
+    docs: "**Deprecated:** Legacy Langfuse object kind used by trace and dataset evaluation rules."
     enum:
       - trace
       - span

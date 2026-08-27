@@ -297,11 +297,11 @@ describe("stable evaluators public API", () => {
     const expectedAssignments = expect.arrayContaining([
       {
         evaluationRuleId: rule.id,
-        overrideMapping: [{ variable: "input", source: "input" }],
+        variableMappingOverride: [{ variable: "input", source: "input" }],
       },
       {
         evaluationRuleId: legacyRule.id,
-        overrideMapping: [
+        variableMappingOverride: [
           {
             mappingType: "legacy",
             variable: "input",

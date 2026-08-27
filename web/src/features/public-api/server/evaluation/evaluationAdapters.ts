@@ -324,7 +324,9 @@ export function toPublicEvaluator(evaluator: ServiceEvaluator) {
         ...(variableMapping === null
           ? {}
           : {
-              overrideMapping: isLegacyEvalTarget(evaluationRule.targetObject)
+              variableMappingOverride: isLegacyEvalTarget(
+                evaluationRule.targetObject,
+              )
                 ? toApiLegacyMappings(variableMapping)
                 : toApiReadMappings(variableMapping),
             }),

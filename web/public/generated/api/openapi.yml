@@ -12806,8 +12806,8 @@ components:
       title: LegacyPromptVariableMapping
       type: object
       description: >-
-        Connects one prompt variable to data from a legacy trace or dataset
-        evaluation rule.
+        **Deprecated:** Connects one prompt variable to data from a legacy trace
+        or dataset evaluation rule.
 
 
         `langfuseObject` selects the object kind. `objectName` separately
@@ -12859,7 +12859,9 @@ components:
         - embedding
         - guardrail
         - dataset_item
-      description: Legacy Langfuse object kind used by trace and dataset evaluation rules.
+      description: >-
+        **Deprecated:** Legacy Langfuse object kind used by trace and dataset
+        evaluation rules.
     EvaluationRuleFilter:
       title: EvaluationRuleFilter
       oneOf:
@@ -13599,15 +13601,15 @@ components:
         evaluationRuleId:
           type: string
           description: Stable identifier of the assigned evaluation rule.
-        overrideMapping:
+        variableMappingOverride:
           type: array
           items:
             $ref: '#/components/schemas/PromptVariableMapping'
           nullable: true
           description: >-
-            Rule-specific override mapping. Omitted when the evaluator's latest
-            default mapping is inherited. Legacy mappings use the explicit
-            `legacy` variant.
+            Rule-specific variable mapping override. Omitted when the
+            evaluator's latest default mapping is inherited. Legacy mappings use
+            the explicit `legacy` variant.
       required:
         - evaluationRuleId
     EvaluatorBase:
@@ -19006,8 +19008,8 @@ components:
       title: unstableLegacyEvaluationRule
       type: object
       description: >-
-        Legacy trace- or dataset-level evaluation rule returned by list and get
-        for migration.
+        **Deprecated:** Legacy trace- or dataset-level evaluation rule returned
+        by list and get for migration.
 
 
         This resource is read-only through the unstable public API. Its mapping
@@ -19473,6 +19475,7 @@ components:
     unstableLegacyEvaluationRuleEvaluatorAssignment:
       title: unstableLegacyEvaluationRuleEvaluatorAssignment
       type: object
+      description: '**Deprecated:** Evaluator assignment on a legacy trace or dataset rule.'
       properties:
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
@@ -19496,12 +19499,13 @@ components:
       enum:
         - trace
         - dataset
+      description: '**Deprecated:** Legacy trace or dataset evaluation target.'
     unstableLegacyPromptVariableMapping:
       title: unstableLegacyPromptVariableMapping
       type: object
       description: >-
-        Connects one prompt variable to data from a trace, dataset item, or
-        named observation in a legacy rule.
+        **Deprecated:** Connects one prompt variable to data from a trace,
+        dataset item, or named observation in a legacy rule.
       properties:
         variable:
           type: string
@@ -19539,6 +19543,9 @@ components:
         - embedding
         - guardrail
         - dataset_item
+      description: >-
+        **Deprecated:** Legacy Langfuse object used by a trace or dataset
+        evaluation rule.
     unstableCreateEvaluationRuleEvaluatorAssignment:
       title: unstableCreateEvaluationRuleEvaluatorAssignment
       type: object
