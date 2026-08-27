@@ -51,7 +51,7 @@ type AppliedMetricType = {
   aggs?: Record<string, string>;
   measureName: string; // Original measure name for lookups
   requiresDimension?: string;
-  preAggregated?: boolean;
+  requiresExplicitDimension?: string;
 };
 
 type RawSqlPart = { query: string; params: Record<string, unknown> };
@@ -300,21 +300,6 @@ export class QueryBuilder {
     }>,
     view: ViewDeclarationType,
   ): AppliedMetricType[] {
-    // preAggregated measures auto-include an exploded dimension whose arrayJoin
-    // reshapes the whole inner query: rows without array entries drop out and
-    // rows with N entries repeat N times. Any other metric in the same query
-    // would be silently distorted (e.g. totalCost losing zero-tool observations
-    // and multiplying per repeat), so the combination is rejected outright.
-    if (metrics.length > 1) {
-      const preAggregated = metrics.filter(
-        (m) => view.measures[m.measure]?.preAggregated,
-      );
-      if (preAggregated.length > 0) {
-        throw new InvalidRequestError(
-          `Measure ${preAggregated[0].measure} cannot be combined with other measures in the same query. Query it on its own.`,
-        );
-      }
-    }
     return metrics.map((metric) => {
       if (!(metric.measure in view.measures)) {
         throw new InvalidRequestError(
@@ -340,6 +325,8 @@ export class QueryBuilder {
         aggregation: metric.aggregation,
         aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
+        requiresDimension: resolvedMeasureDef.requiresDimension,
+        requiresExplicitDimension: resolvedMeasureDef.requiresExplicitDimension,
       };
     });
   }
@@ -774,20 +761,16 @@ export class QueryBuilder {
     // 1. All metrics are single-level compatible, which means either:
     //    a. They have aggs configuration (@@AGGN@@ templates that resolve to function
     //       calls), OR
-    //    b. They are pairExpand value-alias measures (requiresDimension is set,
-    //       preAggregated is not). These reference a plain column brought into scope
-    //       by the ARRAY JOIN clause and work correctly with a direct sum()/avg()
-    //       in a single SELECT.
+    //    b. They are pairExpand value-alias measures (requiresDimension is set).
+    //       These reference a plain column brought into scope by the ARRAY JOIN
+    //       clause and work correctly with a direct sum()/avg() in a single SELECT.
     // 2. No custom aggregation functions on dimensions
-    // Measures without either (like uniq(scores.id)) must use the two-level approach,
-    // as must preAggregated measures (their sql is an inner-level aggregate like
-    // count(*), which the single-level shape would nest inside the user aggregation).
+    // Measures without either (like uniq(scores.id) or countEqual(...) over an
+    // exploded name) must use the two-level approach.
     const allMetricsHaveAggs =
       appliedMetrics.length === 0 ||
       appliedMetrics.every(
-        (m) =>
-          !m.preAggregated &&
-          (m.aggs !== undefined || m.requiresDimension !== undefined),
+        (m) => m.aggs !== undefined || m.requiresDimension !== undefined,
       );
 
     // Check if any dimension has custom aggregation
@@ -1093,10 +1076,19 @@ export class QueryBuilder {
     return dimensions;
   }
 
-  private buildInnerMetricsPart(appliedMetrics: AppliedMetricType[]) {
+  private buildInnerMetricsPart(
+    appliedMetrics: AppliedMetricType[],
+    appliedDimensions: AppliedDimensionType[],
+  ) {
     if (appliedMetrics.length === 0) {
       return "count(*) as count";
     }
+
+    // Exploded array dimensions group the inner query by (entity, exploded
+    // value). Observation-grain sums would then add the same row once per
+    // array entry. any() keeps one value per entity so the outer aggregation
+    // is not multiplied. Existing single-level explode queries are unchanged.
+    const hasExplodeArray = appliedDimensions.some((d) => d.explodeArray);
 
     return appliedMetrics
       .map((metric) => {
@@ -1104,7 +1096,12 @@ export class QueryBuilder {
 
         // For two-level queries, substitute @@AGGN@@ with actual agg function from template
         if (metric.aggs) {
-          sql = this.substituteAggTemplates(sql, metric.aggs);
+          const aggs = hasExplodeArray
+            ? Object.fromEntries(
+                Object.keys(metric.aggs).map((key) => [key, "any"]),
+              )
+            : metric.aggs;
+          sql = this.substituteAggTemplates(sql, aggs);
         }
 
         // pairExpand value-alias measures (e.g. costByType, usageByType) reference a raw
@@ -1112,13 +1109,8 @@ export class QueryBuilder {
         // inner GROUP BY, so wrap it in any() to satisfy ClickHouse. The outer query then
         // applies the real aggregation. We scope this to requiresDimension metrics only —
         // other measures use @@AGGN@@ templates that resolve to function calls, so they
-        // never need this treatment. preAggregated measures are already inner
-        // aggregates (e.g. count(*) counting arrayJoin repeats) and go through as-is.
-        if (
-          metric.requiresDimension &&
-          !metric.preAggregated &&
-          !sql.includes("(")
-        ) {
+        // never need this treatment.
+        if (metric.requiresDimension && !sql.includes("(")) {
           sql = `any(${sql})`;
         }
 
@@ -1618,6 +1610,16 @@ export class QueryBuilder {
           });
         }
       }
+      if (
+        metric.requiresExplicitDimension &&
+        !appliedDimensions.some(
+          (d) => d.alias === metric.requiresExplicitDimension,
+        )
+      ) {
+        throw new InvalidRequestError(
+          `Measure ${metric.measureName} requires the ${metric.requiresExplicitDimension} dimension.`,
+        );
+      }
     }
 
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
@@ -1787,7 +1789,10 @@ export class QueryBuilder {
         view,
         appliedBucketingDimension,
       );
-      const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
+      const innerMetricsPart = this.buildInnerMetricsPart(
+        appliedMetrics,
+        appliedDimensions,
+      );
 
       // Build inner SELECT
       const innerQuery = this.buildInnerSelect(

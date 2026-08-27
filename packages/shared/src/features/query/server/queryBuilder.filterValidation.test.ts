@@ -427,3 +427,59 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
     expect(parameters.fillToDate).toBe("2025-01-02 00:00:00.000");
   });
 });
+
+describe("toolCallInvocations measure", () => {
+  it("requires the calledToolNames dimension", async () => {
+    await expect(
+      new QueryBuilder(undefined, "v1").build(
+        {
+          ...baseQuery,
+          metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+        },
+        "test-project",
+      ),
+    ).rejects.toThrow(
+      "Measure toolCallInvocations requires the calledToolNames dimension",
+    );
+  });
+
+  it("emits countEqual against the original tool_call_names array", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        dimensions: [{ field: "calledToolNames" }],
+        metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain(
+      "countEqual(any(observations.tool_call_names), calledToolNames)",
+    );
+    expect(compiledQuery).toContain("sum(toolCallInvocations)");
+    expect(compiledQuery).toContain("arrayJoin(observations.tool_call_names)");
+  });
+
+  it("does not sum exploded sibling metrics in the inner query", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        dimensions: [{ field: "calledToolNames" }],
+        metrics: [
+          { measure: "toolCallInvocations", aggregation: "sum" },
+          { measure: "totalCost", aggregation: "sum" },
+        ],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("any(total_cost)");
+    expect(compiledQuery).not.toMatch(/sum\(total_cost\)/);
+  });
+});

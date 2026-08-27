@@ -21,6 +21,9 @@ export const getValidMonitorAggregationsForMeasure = (
   const aggs = getValidAggregationsForMeasureType(measure?.type).filter(
     (a) => a !== "histogram",
   );
+  if (measure?.requiresExplicitDimension) {
+    return [];
+  }
   const pinned = measure?.aggs?.agg as
     | z.infer<typeof metricAggregations>
     | undefined;
@@ -117,6 +120,13 @@ function invalidMetricReason(
     );
   }
   const measureDef = declaration.measures[m.measure];
+
+  if (measureDef.requiresExplicitDimension) {
+    return (
+      `Measure "${m.measure}" requires the ${measureDef.requiresExplicitDimension} ` +
+      `dimension and is not supported for monitors.`
+    );
+  }
 
   if (m.aggregation === "histogram") {
     return (

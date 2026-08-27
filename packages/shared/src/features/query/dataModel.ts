@@ -627,16 +627,15 @@ export const observationsView: ViewDeclarationType = {
       unit: "calls",
     },
     toolCallInvocations: {
-      // count(*) over the inner (observation, exploded tool name) group counts
-      // the arrayJoin repeats, so parallel calls to the SAME tool within one
-      // observation each count — unlike row counts, which dedupe them.
-      sql: "count(*)",
+      // countEqual against the exploded calledToolNames value counts repeats
+      // of that name in the original array. any() is required because the
+      // inner GROUP BY is (observation, exploded name).
+      sql: "countEqual(any(observations.tool_call_names), calledToolNames)",
       alias: "toolCallInvocations",
       type: "integer",
-      preAggregated: true,
-      requiresDimension: "calledToolNames",
+      requiresExplicitDimension: "calledToolNames",
       description:
-        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings. Cannot be combined with other metrics in the same query.",
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Requires the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
   },
@@ -1532,15 +1531,14 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "calls",
     },
     toolCallInvocations: {
-      // See observationsView.toolCallInvocations: inner count(*) counts the
-      // arrayJoin repeats per (observation, tool name) group.
-      sql: "count(*)",
+      // See observationsView.toolCallInvocations: countEqual on the original
+      // array vs the exploded calledToolNames value.
+      sql: "countEqual(any(events_observations.tool_call_names), calledToolNames)",
       alias: "toolCallInvocations",
       type: "integer",
-      preAggregated: true,
-      requiresDimension: "calledToolNames",
+      requiresExplicitDimension: "calledToolNames",
       description:
-        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. The Called Tool Names dimension is auto-included; use the Sum aggregation for totals and rankings. Cannot be combined with other metrics in the same query.",
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Requires the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
     costByType: {

@@ -2884,8 +2884,9 @@ describe("queryBuilder", () => {
         );
         expect(Number(fetchCountRow!.count_count)).toBe(2);
 
-        // The measure is pre-aggregated in the inner query; single-level
-        // optimization must not change the result (it is bypassed).
+        // The measure is an array count at observation grain; single-level
+        // optimization must not change the result (it is bypassed because
+        // the sql has no aggs template).
         const resultOptimized = await executeQuery(
           projectId,
           query,
@@ -2895,14 +2896,79 @@ describe("queryBuilder", () => {
         expect(resultOptimized).toEqual(result);
       });
 
-      it("rejects combining toolCallInvocations with other measures", async () => {
-        // The measure's auto-included arrayJoin reshapes the whole inner
-        // query: zero-tool observations drop out and multi-call observations
-        // repeat per call, silently distorting any other metric. Reproduced
-        // before the guard existed: three 100-cost observations (3 fetch
-        // calls / 1 fetch call / no tools) returned sum(totalCost) = 400
-        // instead of 300 when combined with toolCallInvocations. The
-        // combination is therefore rejected outright.
+      it("does not multiply sibling metrics when mixed with toolCallInvocations", async () => {
+        // Exploding calledToolNames used to repeat observation rows, so
+        // combining this measure with totalCost inflated cost by the number
+        // of array entries (3×100 + 100 = 400) and dropped zero-tool rows.
+        // countEqual is computed per (observation, tool name), so fetch cost
+        // is the sum of the two fetch observations (200), not 400.
+        const projectId = randomUUID();
+        const trace = createTrace({
+          project_id: projectId,
+          name: "tool-invocations-mixed-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        const now = new Date().getTime();
+        const base = {
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          environment: "default",
+          start_time: now,
+          end_time: now + 100,
+        };
+        await createObservationsCh([
+          createObservation({
+            ...base,
+            name: "obs-parallel-fetch",
+            total_cost: 100,
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-single-fetch",
+            total_cost: 100,
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-no-tools",
+            total_cost: 100,
+            tool_calls: [],
+            tool_call_names: [],
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "calledToolNames" }],
+            metrics: [
+              { measure: "toolCallInvocations", aggregation: "sum" },
+              { measure: "totalCost", aggregation: "sum" },
+            ],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(now - 86400000).toISOString(),
+            toTimestamp: new Date(now + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v1",
+          false,
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0].calledToolNames).toBe("fetch");
+        expect(Number(result[0].sum_toolCallInvocations)).toBe(4);
+        expect(Number(result[0].sum_totalCost)).toBe(200);
+      });
+
+      it("rejects toolCallInvocations without the calledToolNames dimension", async () => {
         const projectId = randomUUID();
         await expect(
           executeQuery(
@@ -2910,10 +2976,7 @@ describe("queryBuilder", () => {
             {
               view: "observations",
               dimensions: [],
-              metrics: [
-                { measure: "toolCallInvocations", aggregation: "sum" },
-                { measure: "totalCost", aggregation: "sum" },
-              ],
+              metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
               filters: [],
               timeDimension: null,
               fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
@@ -2924,70 +2987,8 @@ describe("queryBuilder", () => {
             false,
           ),
         ).rejects.toThrow(
-          "Measure toolCallInvocations cannot be combined with other measures",
+          "Measure toolCallInvocations requires the calledToolNames dimension",
         );
-      });
-
-      it("auto-includes calledToolNames when toolCallInvocations is queried without dimensions", async () => {
-        const projectId = randomUUID();
-        const trace = createTrace({
-          project_id: projectId,
-          name: "tool-invocations-no-dim-trace",
-          environment: "default",
-          timestamp: new Date().getTime(),
-        });
-        await createTracesCh([trace]);
-
-        const now = new Date().getTime();
-        await createObservationsCh([
-          createObservation({
-            project_id: projectId,
-            trace_id: trace.id,
-            type: "generation",
-            environment: "default",
-            start_time: now,
-            end_time: now + 100,
-            name: "obs-parallel-fetch",
-            tool_calls: ['{"id":"c1"}', '{"id":"c2"}'],
-            tool_call_names: ["fetch", "fetch"],
-          }),
-          createObservation({
-            project_id: projectId,
-            trace_id: trace.id,
-            type: "generation",
-            environment: "default",
-            start_time: now,
-            end_time: now + 100,
-            name: "obs-search",
-            tool_calls: ['{"id":"c3"}'],
-            tool_call_names: ["search"],
-          }),
-        ]);
-
-        // Like costByType/usageByType, the required dimension is auto-included
-        // (the arrayJoin must be emitted), so results come back per tool.
-        const result = await executeQuery(
-          projectId,
-          {
-            view: "observations",
-            dimensions: [],
-            metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
-            filters: [],
-            timeDimension: null,
-            fromTimestamp: new Date(now - 86400000).toISOString(),
-            toTimestamp: new Date(now + 86400000).toISOString(),
-            orderBy: null,
-          },
-          "v1",
-          false,
-        );
-        const byTool = Object.fromEntries(
-          result.map((r) => [
-            r.calledToolNames,
-            Number(r.sum_toolCallInvocations),
-          ]),
-        );
-        expect(byTool).toEqual({ fetch: 2, search: 1 });
       });
 
       it("counts per-tool invocations on the v2 events view (toolCallInvocations)", async () => {

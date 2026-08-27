@@ -82,12 +82,10 @@ export const viewDeclaration = z.object({
       // Used for pairExpand value-alias measures (e.g. costByType requires costType so
       // the ARRAY JOIN is emitted and "cost_value" is in scope).
       requiresDimension: z.string().optional(),
-      // When set, the measure's sql is itself an inner-level aggregate (e.g.
-      // `count(*)` counting arrayJoin repeats per inner group). Such measures
-      // are emitted as-is in the inner select and force the two-level query
-      // shape: the single-level optimization would wrap the sql in the
-      // user-selected aggregation and produce invalid nested aggregates.
-      preAggregated: z.boolean().optional(),
+      // When set, the caller must request this dimension. Unlike
+      // requiresDimension, it is never auto-included — exploding an array
+      // dimension silently reshapes the rest of the query.
+      requiresExplicitDimension: z.string().optional(),
     }),
   ),
   tableRelations: z.record(
