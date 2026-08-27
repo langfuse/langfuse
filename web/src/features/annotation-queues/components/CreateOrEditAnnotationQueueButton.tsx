@@ -33,53 +33,340 @@ export const CreateOrEditAnnotationQueueButton = ({
     { enabled: hasQueueAccess && !queueId },
   );
 
-  const controllerProps = queueId
-    ? ({ mode: "edit", queueId } as const)
-    : ({ mode: "create" } as const);
+  const configsData = api.scoreConfigs.all.useQuery(
+    {
+      projectId,
+    },
+    {
+      enabled: hasQueueAccess && isOpen,
+    },
+  );
 
-  return (
-    <AnnotationQueueFormDialogController
-      {...controllerProps}
-      projectId={projectId}
-      onSuccess={() => undefined}
-    >
-      {({ disabled, openDialog }) =>
-        isTableAction ? (
-          <IconOnlyButton
-            icon={<Pen className="h-4 w-4" />}
-            label="Edit"
-            aria-label="edit"
-            disabledReason={disabled?.reason}
-            onClick={(event) => {
-              event.stopPropagation();
-              openDialog();
-            }}
-          />
+  const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
+    { projectId },
+    { enabled: hasQueueAccess && !queueId },
+  );
+
+  const allQueueNames = useMemo(() => {
+    return !queueId && allQueueNamesAndIds.data
+      ? allQueueNamesAndIds.data.map((queue) => ({ value: queue.name }))
+      : [];
+  }, [allQueueNamesAndIds.data, queueId]);
+
+  useUniqueNameValidation({
+    currentName: form.watch("name"),
+    allNames: allQueueNames,
+    form,
+    errorMessage: "Queue name already exists.",
+  });
+
+  const configs = configsData.data?.configs ?? [];
+
+  const onSubmit = async (data: CreateQueueWithAssignments) => {
+    try {
+      // Step 1: Create or update the queue
+      let queueResponse;
+      if (queueId) {
+        // Update existing queue
+        queueResponse = await editQueueMutation.mutateAsync({
+          name: data.name,
+          description: data.description,
+          scoreConfigIds: data.scoreConfigIds,
+          projectId,
+          queueId,
+        });
+      } else {
+        // Create new queue
+        queueResponse = await createQueueMutation.mutateAsync({
+          name: data.name,
+          description: data.description,
+          scoreConfigIds: data.scoreConfigIds,
+          projectId,
+        });
+      }
+
+      // Step 2: Handle assignment if provided
+      if (data.newAssignmentUserIds && data.newAssignmentUserIds.length > 0) {
+        const targetQueueId = queueId || queueResponse.id;
+
+        await createQueueAssignmentsMutation.mutateAsync({
+          projectId,
+          queueId: targetQueueId,
+          userIds: data.newAssignmentUserIds,
+        });
+      }
+
+      // Step 3: Success handling
+      await Promise.all([
+        utils.annotationQueues.invalidate(),
+        utils.annotationQueueAssignments.invalidate(),
+      ]);
+      form.reset();
+      setIsOpen(false);
+
+      // capture posthog event
+    } catch {
+      showErrorToast(
+        "Operation failed",
+        "Failed to create or update queue or assign users. Please try again.",
+      );
+    }
+  };
+
+  const handleOnValueChange = (values: Record<string, string>[]) => {
+    form.setValue(
+      "scoreConfigIds",
+      values.map((value) => value.key),
+    );
+
+    // Empty `scoreConfigIds` is now a valid corrected-output-only queue —
+    // clear any stale manual error so the form stays submittable. The
+    // previous "at least 1" guard is intentionally removed; see
+    // langfuse/langfuse#15006.
+    if (values.length === 0) {
+      form.clearErrors("scoreConfigIds");
+    }
+  };
+
+  // Table rows render a compact icon button and rely on the disabled state plus
+  // a tooltip; everywhere else uses the labeled ActionButton with its built-in
+  // access/limit messaging.
+  const triggerButton = isTableAction ? (
+    <IconOnlyButton
+      icon={<Pen className="h-4 w-4" />}
+      label="Edit"
+      aria-label="edit"
+      disabledReason={
+        hasQueueAccess
+          ? undefined
+          : "You don't have permission to edit this queue."
+      }
+      onClick={(event) => {
+        event.stopPropagation();
+        setIsOpen(true);
+      }}
+    />
+  ) : (
+    <ActionButton
+      variant={variant}
+      onClick={() => setIsOpen(true)}
+      className="justify-start"
+      icon={
+        queueId ? (
+          <Edit className="h-4 w-4" aria-hidden="true" />
         ) : (
-          <ActionButton
-            variant={variant}
-            onClick={openDialog}
-            icon={
-              queueId ? (
-                <Edit className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <PlusIcon className="h-4 w-4" aria-hidden="true" />
-              )
-            }
-            hasAccess={!disabled}
-            usageLimit={
-              typeof queueLimit === "number"
-                ? { current: queueCountData.data, max: queueLimit }
-                : undefined
-            }
-            size={size}
-          >
-            <span className="ml-1 text-sm font-normal">
-              {queueId ? "Edit" : "New queue"}
-            </span>
-          </ActionButton>
+          <PlusIcon className="h-4 w-4" aria-hidden="true" />
         )
       }
-    </AnnotationQueueFormDialogController>
+      hasAccess={hasQueueAccess}
+      limitValue={queueCountData.data}
+      limit={queueLimit}
+      size={size}
+    >
+      <span className="ml-1 text-sm font-normal">
+        {queueId ? "Edit" : "New queue"}
+      </span>
+    </ActionButton>
+  );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      {isTableAction ? (
+        triggerButton
+      ) : (
+        <DialogTrigger asChild>{triggerButton}</DialogTrigger>
+      )}
+      {/* For an edit, also wait for the queue data so the form opens populated
+          rather than briefly showing empty fields while byId loads. */}
+      {configsData.data && (!queueId || queueQuery.data) && (
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {queueId ? "Edit" : "New"} annotation queue
+            </DialogTitle>
+            <DialogDescription>
+              {queueId ? "Edit" : "Create a new"} queue to manage your
+              annotation workflows.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+              <DialogBody>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="text"
+                          className="text-xs"
+                          onBlur={(e) =>
+                            field.onChange(e.target.value.trimEnd())
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          placeholder="Add description..."
+                          className="text-xs focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 active:ring-0"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="scoreConfigIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Score Configs</FormLabel>
+                      <FormDescription>
+                        Optional. Pick the dimensions annotators should score
+                        for this queue, or leave empty if this queue is only
+                        used for corrected-output workflows.
+                      </FormDescription>
+                      <FormControl>
+                        <MultiSelectKeyValues
+                          placeholder="Value"
+                          align="end"
+                          variant="outline"
+                          className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
+                          onValueChange={handleOnValueChange}
+                          options={configs
+                            .filter((config) => !config.isArchived)
+                            .map((config) => ({
+                              key: config.id,
+                              value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                              isArchived: config.isArchived,
+                            }))}
+                          values={(field.value ?? []).map((configId) => {
+                            const config = configs.find(
+                              (config) => config.id === configId,
+                            );
+                            return {
+                              value: config
+                                ? `${getScoreDataTypeIcon(config.dataType)} ${config.name}`
+                                : `${configId}`,
+                              key: configId,
+                            };
+                          })}
+                          controlButtons={
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                capture(
+                                  "score_configs:manage_configs_item_click",
+                                  { source: "AnnotationQueue" },
+                                );
+                                router.push(
+                                  `/project/${projectId}/settings/scores`,
+                                );
+                              }}
+                            >
+                              Manage score configs
+                            </DropdownMenuItem>
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Advanced Section */}
+                <FormField
+                  control={form.control}
+                  name="newAssignmentUserIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Advanced Settings</FormLabel>
+                      <div className="mt-1 rounded-md border">
+                        <Collapsible
+                          open={isAdvancedOpen && hasQueueAssignmentsReadAccess}
+                          onOpenChange={(open) => {
+                            if (!hasQueueAssignmentsReadAccess) {
+                              setIsAdvancedOpen(false);
+                            } else {
+                              setIsAdvancedOpen(open);
+                            }
+                          }}
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="group flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-transparent"
+                            >
+                              <div className="flex items-center gap-2">
+                                {isAdvancedOpen ? (
+                                  <ChevronDown className="text-muted-foreground h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="text-muted-foreground h-4 w-4" />
+                                )}
+                                <span className="text-sm font-medium">
+                                  User Assignment
+                                </span>
+                              </div>
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="border-border/20 border-t px-3 pt-1 pb-3">
+                            {hasQueueAssignmentsReadAccess && (
+                              <>
+                                <FormControl>
+                                  <UserAssignmentSection
+                                    projectId={projectId}
+                                    queueId={queueId}
+                                    selectedUserIds={field.value}
+                                    onChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </>
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </DialogBody>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  className="text-xs"
+                  disabled={
+                    !!form.formState.errors.name ||
+                    createQueueMutation.isPending ||
+                    editQueueMutation.isPending ||
+                    createQueueAssignmentsMutation.isPending
+                  }
+                >
+                  {createQueueMutation.isPending ||
+                  editQueueMutation.isPending ||
+                  createQueueAssignmentsMutation.isPending
+                    ? "Processing..."
+                    : `${queueId ? "Save" : "Create"} queue`}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      )}
+    </Dialog>
+>>>>>>> 7dfa6ea9f (feat(annotation-queues): allow empty scoreConfigIds for corrected-output workflows)
   );
 };
