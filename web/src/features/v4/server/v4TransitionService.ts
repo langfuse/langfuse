@@ -13,6 +13,7 @@ import { isForceV3ExperienceProject } from "@langfuse/shared/src/server";
 import {
   readExperimentPostUsageCache,
   readLegacyApiUsageCache,
+  type CachedLegacyApiUsageRow,
 } from "@/src/features/v4/server/v4TransitionCache";
 import {
   getLegacyApiUsageSummaries,
@@ -34,6 +35,19 @@ const legacyIntegrationExportSources =
 
 const TRACE_EVAL_TARGET = "trace";
 const DATASET_EVAL_TARGET = "dataset";
+const NON_ACTIONABLE_API_CALLER_USER_AGENT = /(claude|codex|curl)/i;
+
+const hasActionableLegacyApiUsage = (rows: CachedLegacyApiUsageRow[]) =>
+  rows.some(
+    (row) =>
+      !row.callers?.length ||
+      row.callers.some(
+        (caller) =>
+          caller.isOther ||
+          !caller.userAgent ||
+          !NON_ACTIONABLE_API_CALLER_USER_AGENT.test(caller.userAgent),
+      ),
+  );
 
 const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
@@ -313,7 +327,9 @@ export const getMigrationActions = async ({
     apisActionNeeded:
       apiBlob === null
         ? null
-        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).length > 0,
+        : hasActionableLegacyApiUsage(
+            trimLegacyApiUsageRows(apiBlob.rows, nowMs),
+          ),
     evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
     exportsActionNeeded:
       (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,
