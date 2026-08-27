@@ -306,6 +306,41 @@ const main = async (): Promise<void> => {
         window.params,
       );
     }
+    await runQuery(
+      "join-collapsed-vs-gold",
+      "join-collapsed-vs-gold.sql",
+      window.name,
+      "diagnostic",
+      window.params,
+    );
+    await runQuery(
+      "join-raw-c",
+      "join-raw-c.sql",
+      window.name,
+      "diagnostic",
+      window.params,
+    );
+    await runQuery(
+      "join-on-bucket",
+      "join-on-bucket.sql",
+      window.name,
+      "diagnostic",
+      window.params,
+    );
+    await runQuery(
+      "join-same-window-undercount",
+      "join-same-window-undercount.sql",
+      window.name,
+      "diagnostic",
+      window.params,
+    );
+    await runQuery(
+      "join-filter-expensive-traces",
+      "join-filter-expensive-traces.sql",
+      window.name,
+      "diagnostic",
+      window.params,
+    );
   }
 
   const benchmark: TraceMetricsBenchmark = {
@@ -341,6 +376,15 @@ const main = async (): Promise<void> => {
     })}\n`,
   );
   if (correctness.mismatchCount > 0) process.exitCode = 1;
+  const collapsedJoins = queries.filter(
+    (query) => query.name === "join-collapsed-vs-gold",
+  );
+  for (const query of collapsedJoins) {
+    const row = query.rows[0];
+    if (row && toNumber(row.cost_mismatches) > 0) {
+      process.exitCode = 1;
+    }
+  }
 };
 
 main().catch((error: unknown) => {

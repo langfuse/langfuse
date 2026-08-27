@@ -46,8 +46,10 @@ The runner:
 2. Aligns the requested range to complete five-minute buckets and backfills it
    from deduplicated `events_core` rows.
 3. Compares per-trace values with the raw-table gold query.
-4. Runs Top-N, chart, bucket-count, bounded event Top-K, and global event-sort
-   queries over 1-day, 7-day, and full windows.
+4. Runs Top-N, chart, bucket-count, bounded event Top-K, global event-sort,
+   and events⊕C join-pattern checks (collapsed join vs gold, raw C join,
+   bucket join, same-window undercount, filter-expensive-then-events)
+   over 1-day, 7-day, and full windows.
 5. Writes `trace-metrics-c-results.json` and
    `trace-metrics-c-report.html`.
 

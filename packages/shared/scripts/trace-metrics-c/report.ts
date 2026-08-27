@@ -77,6 +77,7 @@ const queryBarChart = (queries: QueryMetrics[]): string => {
       "rollup-top-n",
       "events-top-k",
       "events-global-sort",
+      "join-filter-expensive-traces",
     ].includes(query.name),
   );
   const max = Math.max(...comparable.map((query) => query.elapsedMs), 1);
@@ -208,6 +209,7 @@ const scanReductionTable = (queries: QueryMetrics[]): string => {
     ["gold-traces", "rollup-traces", "Full trace list (collapse all)"],
     ["gold-top-n", "rollup-top-n", "Top-N traces by cost"],
     ["gold-chart", "rollup-chart", "Daily average chart"],
+    ["events-global-sort", "events-top-k", "Events sorted by trace cost"],
   ] as const;
 
   const rows = pairs.flatMap(([goldName, rollupName, label]) =>
@@ -250,6 +252,68 @@ const foldFactorSection = (fold: FoldFactor): string => `
   It is driven by spans per trace (${fold.spansPerTrace.toFixed(2)}) and versions per span
   (${fold.versionsPerSpan.toFixed(3)}), <em>not</em> by trace duration. Duration only decides how
   many five-minute keys one trace occupies.</p>`;
+
+const joinRow = (
+  queries: QueryMetrics[],
+  name: string,
+  window: string,
+): Record<string, unknown> | undefined =>
+  queries.find((query) => query.name === name && query.window === window)
+    ?.rows[0];
+
+const joinPatternsSection = (queries: QueryMetrics[]): string => {
+  const windows = [...new Set(queries.map((query) => query.window))];
+  const rows = windows.flatMap((window) => {
+    const collapsed = joinRow(queries, "join-collapsed-vs-gold", window);
+    const raw = joinRow(queries, "join-raw-c", window);
+    const bucket = joinRow(queries, "join-on-bucket", window);
+    const sameWindow = joinRow(queries, "join-same-window-undercount", window);
+    const tracesFirst = queries.find(
+      (query) =>
+        query.name === "join-filter-expensive-traces" &&
+        query.window === window,
+    );
+    const eventsFirst = queries.find(
+      (query) => query.name === "events-global-sort" && query.window === window,
+    );
+    const topK = queries.find(
+      (query) => query.name === "events-top-k" && query.window === window,
+    );
+    if (!collapsed || !raw || !bucket || !sameWindow) return [];
+
+    const collapsedOk = toNumber(collapsed.cost_mismatches) === 0;
+    const rawDupes = toNumber(raw.duplicate_event_rows);
+    const bucketWrong = toNumber(bucket.fragment_ne_trace_cost);
+    const undercounted = toNumber(sameWindow.traces_undercounted_same_window);
+
+    return [
+      `<tr>
+      <td>${escapeHtml(window)}</td>
+      <td class="${collapsedOk ? "pass" : "fail"}">${collapsedOk ? "PASS" : "FAIL"} · ${Number(collapsed.event_rows).toLocaleString()} events, ${Number(collapsed.cost_mismatches).toLocaleString()} cost mismatches</td>
+      <td class="${rawDupes > 0 ? "fail" : "pass"}">${Number(raw.joined_rows).toLocaleString()} joined rows, ${rawDupes.toLocaleString()} duplicates</td>
+      <td class="${bucketWrong > 0 ? "fail" : "pass"}">${bucketWrong.toLocaleString()} events with fragment ≠ trace cost (${escapeHtml(bucket.pct_wrong_cost)}%)</td>
+      <td class="${undercounted > 0 ? "fail" : "pass"}">${undercounted.toLocaleString()} traces (${escapeHtml(sameWindow.pct_undercounted)}%)</td>
+      <td>${topK ? `${topK.elapsedMs.toFixed(1)} ms` : "—"} / ${eventsFirst ? `${eventsFirst.elapsedMs.toFixed(1)} ms` : "—"} / ${tracesFirst ? `${tracesFirst.elapsedMs.toFixed(1)} ms` : "—"}</td>
+    </tr>`,
+    ];
+  });
+
+  return `<p class="muted">Collapsed join must match gold. Raw C join, bucket join, and same-window C are expected to be <em>wrong or duplicated</em> whenever traces occupy more than one bucket. Last column is elapsed for traces-first Top-K / events-first global sort / filter-expensive-then-events.</p>
+  <table>
+    <thead><tr>
+      <th>Window</th>
+      <th>Join collapsed C</th>
+      <th>Join raw C</th>
+      <th>Join on 5m bucket</th>
+      <th>Same-window C undercount</th>
+      <th>Top-K / global sort / filter-then-events</th>
+    </tr></thead>
+    <tbody>${rows.join("")}</tbody>
+  </table>`;
+};
+
+const toNumber = (value: unknown): number =>
+  value === null || value === undefined ? 0 : Number(value);
 
 const durationSection = (shape: DurationShape): string => {
   const bars = [
@@ -393,6 +457,7 @@ export const renderTraceMetricsReport = async (
     rollup (1h, 1d) on top. See "What this run cannot tell you" before generalising.</p>
   </section>
   <section><h2>Scan reduction, gold vs rollup</h2><p class="muted">Same answer, same cohort. Lower is better for gold → rollup.</p>${scanReductionTable(benchmark.queries)}</section>
+  <section><h2>Events ⊕ traces AMT join patterns</h2>${joinPatternsSection(benchmark.queries)}</section>
   <section><h2>Where the rows go</h2>${foldFactorSection(benchmark.foldFactor)}</section>
   <section><h2>Do traces fit in five minutes?</h2>${durationSection(benchmark.durationShape)}</section>
   <section><h2>What this run cannot tell you</h2><ul>${caveats(benchmark)
