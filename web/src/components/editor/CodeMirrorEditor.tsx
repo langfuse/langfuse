@@ -567,7 +567,7 @@ export function CodeMirrorEditor({
       onChange={handleChange}
       onBlur={onBlur}
       className={cn(
-        "overflow-hidden overflow-y-auto rounded-md border text-xs",
+        "ph-no-capture overflow-hidden overflow-y-auto rounded-md border text-xs",
         className,
       )}
       editable={editable}

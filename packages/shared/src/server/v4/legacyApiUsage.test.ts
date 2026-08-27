@@ -75,12 +75,12 @@ describe("v4LegacyApiHourBucketTtlSeconds", () => {
   });
 
   it("shortens TTL for hole-repaired older hours so they expire with the window", () => {
-    const tenDaysAgo = nowMs - 10 * 24 * HOUR_MS;
-    const hourStartMs = Math.floor(tenDaysAgo / HOUR_MS) * HOUR_MS;
+    const twoDaysAgo = nowMs - 2 * 24 * HOUR_MS;
+    const hourStartMs = Math.floor(twoDaysAgo / HOUR_MS) * HOUR_MS;
     const ttl = v4LegacyApiHourBucketTtlSeconds(hourStartMs, nowMs);
-    // ~5 days remaining of the 15d horizon
-    expect(ttl).toBeGreaterThan(4 * 24 * 60 * 60);
-    expect(ttl).toBeLessThan(6 * 24 * 60 * 60);
+    // ~2 days remaining of the 4d horizon
+    expect(ttl).toBeGreaterThan(1 * 24 * 60 * 60);
+    expect(ttl).toBeLessThan(3 * 24 * 60 * 60);
   });
 
   it("clamps to at least 1 second when the hour is already past the horizon", () => {

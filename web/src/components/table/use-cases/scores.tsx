@@ -238,6 +238,8 @@ export default function ScoresTable({
     // the peek to that trace instead of the one just clicked — matches the
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: scoresFilterConfig.tableName,
+    isV4: isBetaEnabled,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -1254,6 +1256,8 @@ export default function ScoresTable({
             closePeek={closeScorePeek}
             expandPeek={expandScorePeek}
             itemType="TRACE"
+            tableName={scoresFilterConfig.tableName}
+            isV4={isBetaEnabled}
             projectId={projectId}
           />
         )}
