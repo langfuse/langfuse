@@ -150,10 +150,6 @@ export function getFernPythonDeprecations(
   return deprecations;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function pythonStringLiteral(value: string): string {
   // JSON string literals use the same escaping for quotes, backslashes, and
   // control characters as Python double-quoted strings.
@@ -165,11 +161,9 @@ function patchMethodPair(
   deprecation: FernPythonDeprecation,
   clientPath: string,
 ): { contents: string; decoratedMethods: number } {
-  const methodPattern = new RegExp(
-    `^    (async )?def ${escapeRegExp(deprecation.methodName)}(?=\\()`,
-    "gm",
-  );
-  const matches = [...contents.matchAll(methodPattern)];
+  const matches = [
+    ...contents.matchAll(/^    (async )?def ([a-zA-Z_]\w*)\(/gm),
+  ].filter((match) => match[2] === deprecation.methodName);
   const syncCount = matches.filter((match) => !match[1]).length;
   const asyncCount = matches.filter((match) => Boolean(match[1])).length;
 

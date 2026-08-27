@@ -271,10 +271,6 @@ export function getFernTypeScriptDeprecations(
   return deprecations;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function occurrenceCount(contents: string, value: string): number {
   return contents.split(value).length - 1;
 }
@@ -342,11 +338,9 @@ function patchJsDoc(
     };
   }
 
-  const tags = [
-    ...doc.matchAll(
-      new RegExp(`^${escapeRegExp(star)} @deprecated(?:\\s+.*)?$`, "gm"),
-    ),
-  ];
+  const tags = [...doc.matchAll(/^([ ]*)\* @deprecated(?:\s+.*)?$/gm)].filter(
+    (match) => match[1] === `${indent} `,
+  );
   if (tags.length > 1) {
     throw new Error(`${label}: found multiple @deprecated tags`);
   }
@@ -359,7 +353,9 @@ function patchJsDoc(
     };
   }
 
-  const firstTag = new RegExp(`^${escapeRegExp(star)} @`, "m").exec(doc);
+  const firstTag = [...doc.matchAll(/^([ ]*)\* @/gm)].find(
+    (match) => match[1] === `${indent} `,
+  );
   if (firstTag?.index !== undefined) {
     return {
       contents: `${doc.slice(0, firstTag.index)}${canonicalTag}\n${star}\n${doc.slice(firstTag.index)}`,
@@ -397,16 +393,12 @@ function patchEndpointMethod(
   deprecation: FernTypeScriptEndpointDeprecation,
   clientPath: string,
 ): { contents: string; changed: boolean } {
-  const publicPattern = new RegExp(
-    `^([ ]+)public ${escapeRegExp(deprecation.methodName)}\\($`,
-    "gm",
-  );
-  const privatePattern = new RegExp(
-    `^([ ]+)private async __${escapeRegExp(deprecation.methodName)}\\($`,
-    "gm",
-  );
-  const publicMethods = [...contents.matchAll(publicPattern)];
-  const privateMethods = [...contents.matchAll(privatePattern)];
+  const publicMethods = [
+    ...contents.matchAll(/^([ ]+)public ([a-zA-Z_$][\w$]*)\($/gm),
+  ].filter((match) => match[2] === deprecation.methodName);
+  const privateMethods = [
+    ...contents.matchAll(/^([ ]+)private async __([a-zA-Z_$][\w$]*)\($/gm),
+  ].filter((match) => match[2] === deprecation.methodName);
   if (publicMethods.length !== 1 || privateMethods.length !== 1) {
     throw new Error(
       `${clientPath}: expected one public ${deprecation.methodName} and one private __${deprecation.methodName} method, found ${publicMethods.length} public and ${privateMethods.length} private`,
@@ -451,11 +443,9 @@ function patchProperty(
   deprecation: FernTypeScriptPropertyDeprecation,
   generatedFilePath: string,
 ): { contents: string; changed: boolean } {
-  const interfacePattern = new RegExp(
-    `^export interface ${escapeRegExp(deprecation.typeName)} \\{$`,
-    "gm",
-  );
-  const interfaces = [...contents.matchAll(interfacePattern)];
+  const interfaces = [
+    ...contents.matchAll(/^export interface ([a-zA-Z_$][\w$]*) \{$/gm),
+  ].filter((match) => match[1] === deprecation.typeName);
   if (interfaces.length !== 1) {
     throw new Error(
       `${generatedFilePath}: expected one ${deprecation.typeName} interface, found ${interfaces.length}`,
@@ -469,13 +459,11 @@ function patchProperty(
       `${generatedFilePath}: could not determine the end of ${deprecation.typeName}`,
     );
   }
-  const propertyPattern = new RegExp(
-    `^([ ]+)${escapeRegExp(deprecation.propertyName)}\\??:`,
-    "gm",
-  );
   const properties = [
-    ...contents.slice(interfaceStart, interfaceEnd).matchAll(propertyPattern),
-  ];
+    ...contents
+      .slice(interfaceStart, interfaceEnd)
+      .matchAll(/^([ ]+)([a-zA-Z_$][\w$]*)\??:/gm),
+  ].filter((match) => match[2] === deprecation.propertyName);
   if (properties.length !== 1) {
     throw new Error(
       `${generatedFilePath}: expected one ${deprecation.propertyName} property on ${deprecation.typeName}, found ${properties.length}`,
