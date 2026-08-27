@@ -62,6 +62,8 @@ type ExperimentGridCellProps = {
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   isBaseline: boolean;
+  /** Whether this cell carries deltas against the baseline (the diff mode). */
+  showDiff?: boolean;
   baselineScores?: ScoreAggregate;
   baselineTraceScores?: ScoreAggregate;
   isLoading?: boolean;
@@ -583,6 +585,7 @@ export const ExperimentGridCell = ({
   observationScoreOrder,
   traceScoreOrder,
   isBaseline,
+  showDiff = true,
   baselineScores,
   baselineTraceScores,
   isLoading = false,
@@ -592,29 +595,33 @@ export const ExperimentGridCell = ({
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
-      isBaseline || !baselineScores
+      !showDiff || isBaseline || !baselineScores
         ? undefined
         : computeScoreDiffs(scores, baselineScores),
-    [scores, baselineScores, isBaseline],
+    [scores, baselineScores, isBaseline, showDiff],
   );
 
   const traceScoreDiffs = useMemo(
     () =>
-      isBaseline || !baselineTraceScores
+      !showDiff || isBaseline || !baselineTraceScores
         ? undefined
         : computeScoreDiffs(traceScores, baselineTraceScores),
-    [traceScores, baselineTraceScores, isBaseline],
+    [traceScores, baselineTraceScores, isBaseline, showDiff],
   );
 
   const totalCostDiff = useMemo(
     () =>
-      isBaseline ? null : calculateNumericDiff(totalCost, baselineTotalCost),
-    [baselineTotalCost, isBaseline, totalCost],
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(totalCost, baselineTotalCost),
+    [baselineTotalCost, isBaseline, showDiff, totalCost],
   );
   const latencyDiff = useMemo(
     () =>
-      isBaseline ? null : calculateNumericDiff(latencyMs, baselineLatencyMs),
-    [baselineLatencyMs, isBaseline, latencyMs],
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(latencyMs, baselineLatencyMs),
+    [baselineLatencyMs, isBaseline, latencyMs, showDiff],
   );
 
   const orderedObservationKeys = useMemo(

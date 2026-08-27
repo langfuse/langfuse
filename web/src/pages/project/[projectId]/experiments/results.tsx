@@ -29,6 +29,8 @@ export default function ExperimentResults() {
     setComparisonIds,
     layout,
     setLayout,
+    diffMode,
+    setDiffMode,
     itemVisibility,
     setItemVisibility,
     allExperimentIds,
@@ -98,6 +100,8 @@ export default function ExperimentResults() {
             <ExperimentDisplaySettings
               layout={layout}
               onLayoutChange={setLayout}
+              diffMode={diffMode}
+              onDiffModeChange={setDiffMode}
               itemVisibility={itemVisibility}
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}

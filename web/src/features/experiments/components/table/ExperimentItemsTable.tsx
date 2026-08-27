@@ -72,6 +72,7 @@ import {
   type ScoreColumnDef,
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { calculateNumericDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
@@ -350,8 +351,12 @@ export default function ExperimentItemsTable({
     comparisonIds,
     allExperimentIds,
     layout,
+    diffMode,
     itemVisibility,
   } = useExperimentResultsState();
+
+  // "Off" turns the whole diff apparatus into plain values.
+  const showComparisonDiff = diffMode === "comparison";
 
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
@@ -787,6 +792,7 @@ export default function ExperimentItemsTable({
                   } as any;
                   const scoreCell = scoreCol.cell;
                   const diff =
+                    showComparisonDiff &&
                     hasBaseline &&
                     baselineId &&
                     exp.experimentId !== baselineId &&
@@ -830,6 +836,7 @@ export default function ExperimentItemsTable({
       primaryComparisonName,
       scoreColumnSummaries,
       scoreDataTypesByKey,
+      showComparisonDiff,
     ],
   );
 
@@ -883,6 +890,29 @@ export default function ExperimentItemsTable({
         />
       );
     },
+  };
+
+  const baselineExperimentOf = (experiments: ExperimentItemData[]) =>
+    hasBaseline && baselineId
+      ? experiments.find((exp) => exp.experimentId === baselineId)
+      : undefined;
+
+  /** A comparison line's move against the baseline's, lower being better. */
+  const renderMetricDiff = ({
+    exp,
+    value,
+    baselineValue,
+    format,
+  }: {
+    exp: ExperimentItemData;
+    value?: number | null;
+    baselineValue?: number | null;
+    format: (value: number) => string;
+  }) => {
+    if (!showComparisonDiff || exp.experimentId === baselineId) return null;
+    const diff = calculateNumericDiff(value, baselineValue);
+    if (!diff) return null;
+    return <DiffLabel diff={diff} preferNegativeDiff formatValue={format} />;
   };
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
@@ -965,18 +995,27 @@ export default function ExperimentItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
+        const baselineCost = baselineExperimentOf(experiments)?.totalCost;
         return (
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) =>
-              exp.totalCost ? (
-                <span>{usdFormatter(exp.totalCost, 2, 6)}</span>
-              ) : (
-                <NotRecordedMetric metric="cost" />
-              )
-            }
+            renderValue={(exp) => (
+              <span className="inline-flex items-center gap-1">
+                {exp.totalCost ? (
+                  usdFormatter(exp.totalCost, 2, 6)
+                ) : (
+                  <NotRecordedMetric metric="cost" />
+                )}
+                {renderMetricDiff({
+                  exp,
+                  value: exp.totalCost,
+                  baselineValue: baselineCost,
+                  format: (value) => usdFormatter(value, 2, 6),
+                })}
+              </span>
+            )}
           />
         );
       },
@@ -992,18 +1031,27 @@ export default function ExperimentItemsTable({
       enableHiding: true,
       cell: ({ row }) => {
         const experiments = row.original.experiments;
+        const baselineLatency = baselineExperimentOf(experiments)?.latencyMs;
         return (
           <StackedExperimentCell
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) =>
-              exp.latencyMs != null ? (
-                <span>{latencyFormatter(exp.latencyMs)}</span>
-              ) : (
-                <NotRecordedMetric metric="latency" />
-              )
-            }
+            renderValue={(exp) => (
+              <span className="inline-flex items-center gap-1">
+                {exp.latencyMs != null ? (
+                  latencyFormatter(exp.latencyMs)
+                ) : (
+                  <NotRecordedMetric metric="latency" />
+                )}
+                {renderMetricDiff({
+                  exp,
+                  value: exp.latencyMs,
+                  baselineValue: baselineLatency,
+                  format: latencyFormatter,
+                })}
+              </span>
+            )}
           />
         );
       },
@@ -1383,6 +1431,7 @@ export default function ExperimentItemsTable({
                     baselineId ? comparisonIds : allExperimentIds
                   }
                   useExperimentColors={hasBaseline}
+                  showDiff={showComparisonDiff}
                   singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}

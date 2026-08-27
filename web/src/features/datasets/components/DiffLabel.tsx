@@ -43,7 +43,9 @@ export function DiffLabel({
   if (diff.isDifferent)
     return (
       <Badge size="sm" variant="warning" className="font-bold">
-        Varies
+        {/* Name the move when both sides are a single value: a categorical
+            score going pass → fail is a diff, just not a number. */}
+        {diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies"}
       </Badge>
     );
 }
