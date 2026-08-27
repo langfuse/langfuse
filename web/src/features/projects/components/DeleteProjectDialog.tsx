@@ -56,7 +56,7 @@ export function DeleteProjectDialog({
         </DialogDescription>
       </DialogHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
             <FormField
               control={form.control}
