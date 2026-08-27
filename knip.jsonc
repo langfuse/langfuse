@@ -17,8 +17,12 @@
       ],
     },
     "worker": {
-      // Migration implementations are loaded dynamically from script names persisted in the database.
-      "entry": ["src/backgroundMigrations/*.ts"],
+      "entry": [
+        // Migration implementations are loaded dynamically from script names persisted in the database.
+        "src/backgroundMigrations/*.ts",
+        // Loaded through a dynamic require from the tokenisation worker thread.
+        "src/features/tokenisation/usage.ts",
+      ],
       "ignoreFiles": [
         // Standalone fixture downloader invoked manually as documented in the adjacent README.
         "src/__tests__/chatml/framework-traces/download_traces.js",
