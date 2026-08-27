@@ -124,9 +124,14 @@ export const aggregateScores = <T extends ScoreToAggregate>(
       };
     } else {
       const isBoolean = scores[0].dataType === "BOOLEAN";
-      const values = scores.map((score) =>
-        isBoolean ? toBooleanScoreValue(score) : (score.stringValue ?? "n/a"),
-      );
+      // Sorted by value: the score rows arrive in event-timestamp order, so an
+      // unsorted cell lists "true, false" in one row and "false, true" in the
+      // next, which makes a score column impossible to scan.
+      const values = scores
+        .map((score) =>
+          isBoolean ? toBooleanScoreValue(score) : (score.stringValue ?? "n/a"),
+        )
+        .sort((a, b) => a.localeCompare(b));
       if (!Boolean(values.length)) return acc;
       const valueCounts = values.reduce(
         (acc, value) => {
