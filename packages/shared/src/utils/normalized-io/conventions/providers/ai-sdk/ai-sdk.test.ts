@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeIO } from "../../../parser";
+import { normalizeSpanIO } from "../../../parser";
 import {
   vercelAiSdkMixedToolMessagesFixture,
   vercelAiSdkOutputToolCallFixture,
@@ -11,7 +11,7 @@ describe("AI SDK normalized I/O", () => {
     vercelAiSdkMixedToolMessagesFixture,
     vercelAiSdkOutputToolCallFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeIO({ kind: "io", io: spanIO })).toEqual({
+    expect(normalizeSpanIO(spanIO)).toEqual({
       ...expected,
       span: spanIO,
     });

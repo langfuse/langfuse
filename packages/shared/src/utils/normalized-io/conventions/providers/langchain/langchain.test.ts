@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeIO } from "../../../parser";
+import { normalizeSpanIO } from "../../../parser";
 import {
   langchainSerializedEnvelopeFixture,
   langgraphProductionShapeFixture,
@@ -11,7 +11,7 @@ describe("LangChain normalized I/O", () => {
     langchainSerializedEnvelopeFixture,
     langgraphProductionShapeFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeIO({ kind: "io", io: spanIO })).toEqual({
+    expect(normalizeSpanIO(spanIO)).toEqual({
       ...expected,
       span: spanIO,
     });

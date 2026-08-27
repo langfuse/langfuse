@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeIO } from "../../../parser";
+import { normalizeSpanIO } from "../../../parser";
 import {
   anthropicMessagesRawServerToolsAndMediaFixture,
   anthropicMessagesRichContentFixture,
@@ -11,7 +11,7 @@ describe("Anthropic normalized I/O", () => {
     anthropicMessagesRawServerToolsAndMediaFixture,
     anthropicMessagesRichContentFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeIO({ kind: "io", io: spanIO })).toEqual({
+    expect(normalizeSpanIO(spanIO)).toEqual({
       ...expected,
       span: spanIO,
     });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeIO } from "../../../parser";
+import { normalizeSpanIO } from "../../../parser";
 import {
   openAiChatCompletionToolSequenceFixture,
   openAiChatMultimodalRichResponseFixture,
@@ -17,7 +17,7 @@ describe("OpenAI normalized I/O", () => {
     openAiResponsesBuiltInToolsAndMediaFixture,
     openAiResponsesReasoningWithParallelCallsFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeIO({ kind: "io", io: spanIO })).toEqual({
+    expect(normalizeSpanIO(spanIO)).toEqual({
       ...expected,
       span: spanIO,
     });

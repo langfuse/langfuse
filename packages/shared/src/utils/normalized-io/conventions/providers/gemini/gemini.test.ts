@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeIO } from "../../../parser";
+import { normalizeSpanIO } from "../../../parser";
 import {
   geminiEmbeddedToolDefinitionFixture,
   geminiMediaAndCodeExecutionFixture,
@@ -13,7 +13,7 @@ describe("Gemini normalized I/O", () => {
     geminiSystemInstructionWithGenericMessagesFixture,
     geminiMediaAndCodeExecutionFixture,
   ])("$name", ({ spanIO, expected }) => {
-    expect(normalizeIO({ kind: "io", io: spanIO })).toEqual({
+      expect(normalizeSpanIO(spanIO)).toEqual({
       ...expected,
       span: spanIO,
     });

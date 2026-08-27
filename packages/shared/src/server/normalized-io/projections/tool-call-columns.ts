@@ -1,4 +1,7 @@
-import type { NormalizedIO, ToolColumns } from "../types";
+import type {
+  NormalizedIO,
+  ToolColumns,
+} from "../../../utils/normalized-io/types";
 
 /**
  * NormalizedIO -> ClickHouse tool-call columns. Shape matches

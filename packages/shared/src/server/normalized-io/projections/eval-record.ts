@@ -1,4 +1,8 @@
-import type { NormalizedIO, NormalizedMessage, ToolDefinition } from "../types";
+import type {
+  NormalizedIO,
+  NormalizedMessage,
+  ToolDefinition,
+} from "../../../utils/normalized-io/types";
 import {
   ObservationForEval,
   ToolCallForEval,

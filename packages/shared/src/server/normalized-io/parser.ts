@@ -1,15 +1,8 @@
 import type { EventRecordBaseType } from "../repositories/definitions";
 import { metadataArraysToRecord } from "../utils/metadata_conversion";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
-import { asRecord, parseArray, parseIfString } from "./core/utils/json";
-import type { NormalizedIO, SpanIO } from "./types";
-import {
-  collectMetadata,
-  collectIO,
-  createAccumulator,
-  type ParsedIOValue,
-} from "./core/accumulator";
-import { createParserContext } from "./core/parser-context";
+import { normalizeSpanIO } from "../../utils/normalized-io";
+import type { NormalizedIO, SpanIO } from "../../utils/normalized-io";
 
 /**
  * Orchestration only: adapts a source into `SpanIO`, decodes exactly one
@@ -39,35 +32,6 @@ export type NormalizeIOSource =
   | { kind: "event-record"; record: EventRecordIOColumns }
   | { kind: "io"; io: SpanIO }
   | { kind: "otel"; span: OtelSpan; context: OtelSpanContext };
-
-type ParsedSpanIO = {
-  input: ParsedIOValue;
-  output: ParsedIOValue;
-  metadata: ParsedIOValue;
-};
-
-function parseIOValue(value: unknown): ParsedIOValue {
-  const parsed = parseIfString(value);
-  const record = asRecord(parsed);
-
-  return {
-    value: parsed,
-    record,
-    messages: Array.isArray(parsed)
-      ? parsed
-      : record
-        ? parseArray(record.messages)
-        : undefined,
-  };
-}
-
-function parseSpanIO(span: SpanIO): ParsedSpanIO {
-  return {
-    input: parseIOValue(span.input),
-    output: parseIOValue(span.output),
-    metadata: parseIOValue(span.metadata),
-  };
-}
 
 /**
  * OTel span -> SpanIO, one span (= one observation) at a time.
@@ -105,16 +69,5 @@ function toSpanIO(source: NormalizeIOSource): SpanIO {
 
 export function normalizeIO(source: NormalizeIOSource): NormalizedIO {
   const span = toSpanIO(source);
-  const { input, output, metadata } = parseSpanIO(span);
-  const accumulator = createAccumulator();
-
-  collectIO(input, createParserContext("input"), accumulator);
-  collectIO(output, createParserContext("output"), accumulator);
-  collectMetadata(metadata, accumulator);
-
-  return {
-    messages: accumulator.messages,
-    toolDefinitions: accumulator.toolDefinitions,
-    span,
-  };
+  return normalizeSpanIO(span);
 }
