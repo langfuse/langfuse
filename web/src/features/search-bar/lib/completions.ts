@@ -443,7 +443,21 @@ function presenceOptions(
         })();
   if (candidate === null || candidate === undefined) return [];
   if (candidate.nullable !== true) return [];
-  const options: CompletionOption[] = [
+  // The typed term already carries a `-`; insert only `has:` so the surviving
+  // dash yields `-has:` (a second dash would splice `--has:`). Label/detail
+  // must match that outcome — not the positive copy.
+  if (negated) {
+    return [
+      {
+        id: `presence:-has:${candidate.id}`,
+        kind: "pattern",
+        label: `-has:${candidate.id}`,
+        detail: `${candidate.label} is missing`,
+        insert: `has:${candidate.id} `,
+      },
+    ];
+  }
+  return [
     {
       id: `presence:has:${candidate.id}`,
       kind: "pattern",
@@ -451,18 +465,14 @@ function presenceOptions(
       detail: `${candidate.label} has a value`,
       insert: `has:${candidate.id} `,
     },
-  ];
-  // The typed term already carries a `-`; a second one would splice `--has:`.
-  if (!negated) {
-    options.push({
+    {
       id: `presence:-has:${candidate.id}`,
       kind: "pattern",
       label: `-has:${candidate.id}`,
       detail: `${candidate.label} is missing`,
       insert: `-has:${candidate.id} `,
-    });
-  }
-  return options;
+    },
+  ];
 }
 
 function queryPresetSections(

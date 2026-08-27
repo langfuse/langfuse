@@ -8,7 +8,11 @@ import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsS
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
-import { planInputCompletions } from "./completions";
+import {
+  applyPick,
+  planInputCompletions,
+  type CompletionOption,
+} from "./completions";
 import {
   generateQueryCases,
   runSearchBarInvariants,
@@ -536,8 +540,8 @@ describe("search bar invariants — sessions registry", () => {
   });
 
   it("surfaces has:/-has: while typing a nullable field name", () => {
-    const offered = (term: string) => {
-      const plan = planInputCompletions(
+    const planFor = (term: string) =>
+      planInputCompletions(
         {
           input: term,
           caret: term.length,
@@ -547,19 +551,32 @@ describe("search bar invariants — sessions registry", () => {
         },
         SESSIONS_FIELD_REGISTRY,
       );
-      return (plan?.sections ?? [])
+    const offered = (term: string) =>
+      (planFor(term)?.sections ?? [])
         .flatMap((section) => section.options)
         .filter((option) => option.id.startsWith("presence:"))
         .map((option) => option.label);
-    };
     // Typing the column name reveals both presence forms — previously reachable
     // only by knowing the `has:` pseudo-field existed.
     expect(offered("userId")).toEqual(["has:userIds", "-has:userIds"]);
     // Mid-word too, so they appear while typing rather than only on a full match.
     expect(offered("userI")).toEqual(["has:userIds", "-has:userIds"]);
-    // A negated term already carries the `-`; offering it again would splice
-    // `--has:`.
-    expect(offered("-userIds")).toEqual(["has:userIds"]);
+    // A negated term already carries the `-`; the sole option is the missing
+    // form (label matches what applyPick commits once the surviving dash joins
+    // the inserted `has:`). Offering `-has:` as insert would splice `--has:`.
+    expect(offered("-userIds")).toEqual(["-has:userIds"]);
+    const negatedPlan = planFor("-userIds");
+    const missing = (negatedPlan?.sections ?? [])
+      .flatMap((section) => section.options)
+      .find((option) => option.id === "presence:-has:userIds");
+    expect(missing).toBeDefined();
+    expect(
+      applyPick(
+        missing as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
+        "-userIds",
+        negatedPlan!,
+      ).next,
+    ).toBe("-has:userIds ");
     // Non-nullable and too-short terms stay quiet.
     expect(offered("countTraces")).toEqual([]);
     expect(offered("u")).toEqual([]);
