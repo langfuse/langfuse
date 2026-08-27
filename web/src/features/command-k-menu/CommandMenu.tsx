@@ -47,7 +47,7 @@ export const getIdNavigationItem = (
   const idType = getIdType(id);
 
   if (idType === "trace_id") {
-    const filter = `${isV4 ? "traceId" : "id"};string;;=;${encodeURIComponent(id)}`;
+    const filter = `${isV4 ? "traceId;string;;contains" : "id;string;;="};${encodeURIComponent(id)}`;
     return {
       type: "trace_id",
       title: "Find trace by ID",

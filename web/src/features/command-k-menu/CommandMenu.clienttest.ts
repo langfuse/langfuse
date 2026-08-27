@@ -21,7 +21,7 @@ describe("getIdNavigationItem", () => {
     ).toEqual({
       type: "trace_id",
       title: "Find trace by ID",
-      url: "/project/project-1/traces?filter=traceId%3Bstring%3B%3B%3D%3B0123456789abcdef0123456789ABCDEF",
+      url: "/project/project-1/traces?filter=traceId%3Bstring%3B%3Bcontains%3B0123456789abcdef0123456789ABCDEF",
     });
   });
 
