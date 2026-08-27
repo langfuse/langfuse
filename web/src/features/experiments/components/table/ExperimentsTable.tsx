@@ -359,13 +359,19 @@ export default function ExperimentsTable({
   const filterState = combinedFilterState;
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
-    useExperimentsTableData({
-      projectId,
-      filterState,
-      orderByState,
-      paginationState,
-    });
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentLimit,
+  } = useExperimentsTableData({
+    projectId,
+    filterState,
+    orderByState,
+    paginationState,
+  });
 
   // A score column that is empty for every experiment in view is noise, so only
   // create columns for the keys the metrics query actually returned. Undefined
@@ -834,6 +840,13 @@ export default function ExperimentsTable({
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
+          )}
+
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentLimit} most recent runs instead.
+            </div>
           )}
 
           {/* Content area with sidebar and table */}
