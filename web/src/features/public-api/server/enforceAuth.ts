@@ -32,7 +32,7 @@ const orgIdHeader = "x-langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select. */
+/** enforceAuth authenticates the request, then routes it to the admin, organization, or project flow its principal and action select; an action-less call resolves the project target and scope without an authorization gate. */
 export async function enforceAuth(
   params: EnforceAuthParams,
 ): Promise<EnforceAuthResult> {
@@ -60,7 +60,7 @@ export async function enforceAuth(
       `unexpected principal on the public-API seam: ${principal.kind}`,
     );
   }
-  return isOrgAction(params.action)
+  return params.action !== undefined && isOrgAction(params.action)
     ? enforceOrgAuth(context, principal, params)
     : enforceProjectAuth(context, principal, params);
 }
@@ -70,7 +70,7 @@ async function enforceAdminAuth(
   context: AuthorizationContext,
   params: EnforceAuthParams,
 ): Promise<EnforceAuthResult> {
-  if (isOrgAction(params.action)) {
+  if (params.action !== undefined && isOrgAction(params.action)) {
     return invariantBreak(
       "admin API key cannot serve an organization-scoped action",
     );
@@ -86,10 +86,12 @@ async function enforceAdminAuth(
   if (!project.success) return project;
   const org = await lookupProjectOrgId(project.projectId);
   if (!org.success) return org;
-  const decision = authorize(context, params.action, {
-    projectId: project.projectId,
-  });
-  if (!decision.success) return decision;
+  if (params.action !== undefined) {
+    const decision = authorize(context, params.action, {
+      projectId: project.projectId,
+    });
+    if (!decision.success) return decision;
+  }
   return {
     success: true,
     scope: adminScope(org.orgId, project.projectId),
@@ -105,8 +107,10 @@ function enforceOrgAuth(
 ): EnforceAuthResult {
   const org = getOrgId(context, params.req);
   if (!org.success) return org;
-  const decision = authorize(context, params.action, { orgId: org.orgId });
-  if (!decision.success) return { success: false, error: decision.error };
+  if (params.action !== undefined) {
+    const decision = authorize(context, params.action, { orgId: org.orgId });
+    if (!decision.success) return { success: false, error: decision.error };
+  }
   return {
     success: true,
     scope: apiKeyScope(principal, org.orgId, null),
@@ -132,10 +136,12 @@ function enforceProjectAuth(
       ),
     );
   }
-  const decision = authorize(context, params.action, {
-    projectId: project.projectId,
-  });
-  if (!decision.success) return { success: false, error: decision.error };
+  if (params.action !== undefined) {
+    const decision = authorize(context, params.action, {
+      projectId: project.projectId,
+    });
+    if (!decision.success) return { success: false, error: decision.error };
+  }
   return {
     success: true,
     scope: apiKeyScope(
@@ -309,10 +315,10 @@ function invariantBreak(message: string): ErrorResult {
   return { success: false, error: new InternalServerError(message) };
 }
 
-/** EnforceAuthParams is the request, the checked action, the access levels the route admits, and its key-kind opt-ins. */
+/** EnforceAuthParams is the request, the checked action, the access levels the route admits, and its key-kind opt-ins; an omitted action authenticates and resolves the target without an authorization gate, leaving per-item authorization to the caller. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
-  action: Action;
+  action?: Action;
   allowedAccessLevels: ApiAccessLevel[];
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
