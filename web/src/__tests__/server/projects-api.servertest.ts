@@ -149,16 +149,16 @@ describe("Projects API", () => {
     });
 
     it("should handle different authentication formats", async () => {
-      // Test with Bearer token format
+      // Bearer with a secret key authenticates as a full private key.
       const bearerResult = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/projects",
         undefined,
         `Bearer ${projectSecretKey}`,
       );
-      expect(bearerResult.status).toBe(401);
+      expect(bearerResult.status).toBe(200);
 
-      // Test with just the secret key (no Bearer prefix)
+      // A bare secret key with no scheme prefix is rejected.
       const secretKeyResult = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/projects",
