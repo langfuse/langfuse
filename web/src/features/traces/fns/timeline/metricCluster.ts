@@ -23,7 +23,7 @@ import type { ScoreDomain } from "@langfuse/shared";
 import type { WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /** The score shape the badges render, and therefore the one this prices. */
-export type ClusterScore = WithStringifiedMetadata<ScoreDomain>;
+type ClusterScore = WithStringifiedMetadata<ScoreDomain>;
 
 /**
  * The cluster's own `gap-2`. The budget has to reserve the gap the cluster
