@@ -20,6 +20,7 @@ import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -37,6 +38,7 @@ const getIdType = (search: string): IdNavigationItem["type"] | null => {
 export const getIdNavigationItem = (
   search: string,
   projectId?: string,
+  isV4 = false,
 ): IdNavigationItem | null => {
   if (!projectId) return null;
 
@@ -45,7 +47,7 @@ export const getIdNavigationItem = (
   const idType = getIdType(id);
 
   if (idType === "trace_id") {
-    const filter = `id;string;;=;${encodeURIComponent(id)}`;
+    const filter = `${isV4 ? "traceId" : "id"};string;;=;${encodeURIComponent(id)}`;
     return {
       type: "trace_id",
       title: "Find trace by ID",
@@ -54,11 +56,13 @@ export const getIdNavigationItem = (
   }
 
   if (idType === "observation_id") {
-    const filter = `id;string;;contains;${encodeURIComponent(id)}`;
+    const filter = isV4
+      ? `id;string;;contains;${encodeURIComponent(id)}`
+      : `id;stringOptions;;any of;${encodeURIComponent(id)}`;
     return {
       type: "observation_id",
       title: "Find observation by ID",
-      url: `/project/${encodedProjectId}/traces?filter=${encodeURIComponent(filter)}`,
+      url: `/project/${encodedProjectId}/${isV4 ? "traces" : "observations"}?filter=${encodeURIComponent(filter)}`,
     };
   }
 
@@ -334,8 +338,13 @@ function CommandMenuComponent({
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const { project } = useQueryProjectOrOrganization();
+  const { isBetaEnabled } = useV4Beta();
   const [search, setSearch] = useState("");
-  const idNavigationItem = getIdNavigationItem(search, project?.id);
+  const idNavigationItem = getIdNavigationItem(
+    search,
+    project?.id,
+    isBetaEnabled,
+  );
 
   const debouncedSearchChange = useDebounce(
     (value: string) => {
@@ -373,7 +382,9 @@ function CommandMenuComponent({
             source: "cmd_k",
           });
         }
-        setOpen(!open);
+        const nextOpen = !open;
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
       }
     };
     document.addEventListener("keydown", down);
@@ -381,13 +392,17 @@ function CommandMenuComponent({
   }, [capture, setOpen, open]);
 
   const handleNavigate = () => {
+    setSearch("");
     setOpen(false);
   };
 
   return (
     <CommandDialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
       filter={(value, search, keywords) => {
         const extendValue = value + " " + keywords?.join(" ");
         const searchTerms = search.toLowerCase().split(" ");
@@ -401,6 +416,7 @@ function CommandMenuComponent({
       <CommandInput
         placeholder="Type a command or search..."
         className="border-none focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
+        value={search}
         onValueChange={(value) => {
           setSearch(value);
           debouncedSearchChange(value);
