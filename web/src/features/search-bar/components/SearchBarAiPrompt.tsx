@@ -19,6 +19,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
+import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
@@ -58,7 +59,7 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
-  registryId?: "events" | "evaluationRules";
+  registryId?: FieldRegistry["id"];
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
