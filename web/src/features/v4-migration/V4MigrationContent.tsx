@@ -927,9 +927,7 @@ export function V4MigrationApisSection({
           <div className="flex flex-col gap-3">
             {usage.map((row) => {
               const roundedCount = Math.max(1, Math.round(row.count));
-              const callers = row.callers ?? [
-                { count: row.count, lastSeen: row.lastSeen },
-              ];
+              const callers = row.callers ?? [];
 
               return (
                 <div key={row.endpoint} className="rounded-md border p-3">
@@ -944,123 +942,126 @@ export function V4MigrationApisSection({
                     >
                       {row.endpoint}
                     </ExternalLink>
-                    <span
-                      className="text-muted-foreground text-sm whitespace-nowrap"
-                      title={`Last seen at ${row.lastSeen}`}
-                    >
-                      {numberFormatter(roundedCount, 0)}{" "}
-                      {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
-                      {formatCompactRelativeTime(new Date(row.lastSeen))}
-                    </span>
+                    {callers.length === 0 ? (
+                      <span
+                        className="text-muted-foreground text-sm whitespace-nowrap"
+                        title={`Last seen at ${row.lastSeen}`}
+                      >
+                        {numberFormatter(roundedCount, 0)}{" "}
+                        {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
+                        {formatCompactRelativeTime(new Date(row.lastSeen))}
+                      </span>
+                    ) : null}
                   </div>
-                  <ul className="mt-2 flex flex-col gap-2">
-                    {callers.map((caller, index) => {
-                      const codingAgent = getCodingAgentName(caller.userAgent);
-                      const guidance = getApiMigrationGuidance(
-                        row.endpoint,
-                        caller.sdkName,
-                        caller.sdkVersion,
-                      );
-                      const callerName = caller.isOther
-                        ? "Other callers"
-                        : caller.sdkName
-                          ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
-                          : codingAgent
-                            ? codingAgent
-                            : caller.userAgent || "Unknown caller";
-                      const callerCount = Math.max(1, Math.round(caller.count));
+                  {callers.length > 0 ? (
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {callers.map((caller, index) => {
+                        const codingAgent = getCodingAgentName(
+                          caller.userAgent,
+                        );
+                        const guidance = getApiMigrationGuidance(
+                          row.endpoint,
+                          caller.sdkName,
+                          caller.sdkVersion,
+                        );
+                        const callerName = caller.isOther
+                          ? "Other callers"
+                          : caller.sdkName
+                            ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
+                            : codingAgent
+                              ? codingAgent
+                              : caller.userAgent || "Unknown caller";
+                        const callerCount = Math.max(
+                          1,
+                          Math.round(caller.count),
+                        );
 
-                      return (
-                        <li
-                          key={`${callerName}-${index}`}
-                          className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
-                        >
-                          <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                            <div className="text-muted-foreground flex items-center gap-1.5">
-                              <span aria-hidden="true">⚠️</span>
-                              <MonoValue>{callerName}</MonoValue>
+                        return (
+                          <li
+                            key={`${callerName}-${index}`}
+                            className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
+                          >
+                            <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                              <div className="text-muted-foreground flex items-center gap-1.5">
+                                <span aria-hidden="true">⚠️</span>
+                                <MonoValue>{callerName}</MonoValue>
+                              </div>
+                              <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
+                                <span>
+                                  {numberFormatter(callerCount, 0)}{" "}
+                                  {callerCount === 1 ? "call" : "calls"} · last
+                                  seen{" "}
+                                  {formatCompactRelativeTime(
+                                    new Date(caller.lastSeen),
+                                  )}
+                                </span>
+                              </div>
                             </div>
-                            <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
-                              <span>
-                                {numberFormatter(callerCount, 0)}{" "}
-                                {callerCount === 1 ? "call" : "calls"} · last
-                                seen{" "}
-                                {formatCompactRelativeTime(
-                                  new Date(caller.lastSeen),
-                                )}
-                              </span>
-                            </div>
-                          </div>
-                          {caller.sdkName && caller.userAgent ? (
-                            <p className="text-muted-foreground mt-1 pl-5 text-xs break-all">
-                              User-Agent:{" "}
-                              <MonoValue>{caller.userAgent}</MonoValue>
-                            </p>
-                          ) : null}
-                          {codingAgent && !caller.sdkName ? (
-                            <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                              This looks like traffic from a coding agent. If
-                              the call was only exploratory and is not part of a
-                              running service, you may not need to migrate
-                              application code.{" "}
-                              <ExternalLink
-                                href={DEPRECATED_API_MIGRATION_URL}
-                                analytics={{
-                                  section: "apis",
-                                  link: "deprecated_api_caller_docs",
-                                }}
-                              >
-                                See docs.
-                              </ExternalLink>
-                            </p>
-                          ) : guidance.currentMethod &&
-                            guidance.replacementMethod ? (
-                            <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                              Replace{" "}
-                              <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
-                              with{" "}
-                              <MonoValue>
-                                {guidance.replacementMethod}
-                              </MonoValue>
-                              {guidance.requiresUpgrade &&
-                              guidance.minimumVersion ? (
-                                <>
-                                  . First upgrade to SDK version{" "}
-                                  <MonoValue>
-                                    {guidance.minimumVersion} or newer
-                                  </MonoValue>
-                                </>
-                              ) : null}
-                              .{" "}
-                              <ExternalLink
-                                href={DEPRECATED_API_MIGRATION_URL}
-                                analytics={{
-                                  section: "apis",
-                                  link: "deprecated_api_caller_docs",
-                                }}
-                              >
-                                See docs.
-                              </ExternalLink>
-                            </p>
-                          ) : (
-                            <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                              Migrate this caller to{" "}
-                              <MonoValue>{guidance.replacement}</MonoValue>.{" "}
-                              <ExternalLink
-                                href={DEPRECATED_API_MIGRATION_URL}
-                                analytics={{
-                                  section: "apis",
-                                  link: "deprecated_api_caller_docs",
-                                }}
-                              >
-                                See docs.
-                              </ExternalLink>
-                            </p>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                            {codingAgent && !caller.sdkName ? (
+                              <p className="text-muted-foreground mt-1 pl-5 text-xs">
+                                This looks like traffic from a coding agent. If
+                                the call was only exploratory and is not part of
+                                a running service, you may not need to migrate
+                                application code.{" "}
+                                <ExternalLink
+                                  href={DEPRECATED_API_MIGRATION_URL}
+                                  analytics={{
+                                    section: "apis",
+                                    link: "deprecated_api_caller_docs",
+                                  }}
+                                >
+                                  See docs.
+                                </ExternalLink>
+                              </p>
+                            ) : guidance.currentMethod &&
+                              guidance.replacementMethod ? (
+                              <p className="text-muted-foreground mt-1 pl-5 text-xs">
+                                Replace{" "}
+                                <MonoValue>{guidance.currentMethod}</MonoValue>{" "}
+                                with{" "}
+                                <MonoValue>
+                                  {guidance.replacementMethod}
+                                </MonoValue>
+                                {guidance.requiresUpgrade &&
+                                guidance.minimumVersion ? (
+                                  <>
+                                    . First upgrade to SDK version{" "}
+                                    <MonoValue>
+                                      {guidance.minimumVersion} or newer
+                                    </MonoValue>
+                                  </>
+                                ) : null}
+                                .{" "}
+                                <ExternalLink
+                                  href={DEPRECATED_API_MIGRATION_URL}
+                                  analytics={{
+                                    section: "apis",
+                                    link: "deprecated_api_caller_docs",
+                                  }}
+                                >
+                                  See docs.
+                                </ExternalLink>
+                              </p>
+                            ) : (
+                              <p className="text-muted-foreground mt-1 pl-5 text-xs">
+                                Migrate this caller to{" "}
+                                <MonoValue>{guidance.replacement}</MonoValue>.{" "}
+                                <ExternalLink
+                                  href={DEPRECATED_API_MIGRATION_URL}
+                                  analytics={{
+                                    section: "apis",
+                                    link: "deprecated_api_caller_docs",
+                                  }}
+                                >
+                                  See docs.
+                                </ExternalLink>
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
                 </div>
               );
             })}

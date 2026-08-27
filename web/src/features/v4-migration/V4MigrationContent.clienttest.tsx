@@ -436,6 +436,10 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
     expect(screen.getByText("Codex")).toBeInTheDocument();
     expect(screen.getByText(/traffic from a coding agent/)).toBeInTheDocument();
+    expect(screen.queryByText("User-Agent:")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).not.toBeInTheDocument();
 
     for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
       const caller = screen.getByText(callerName).closest("li");
