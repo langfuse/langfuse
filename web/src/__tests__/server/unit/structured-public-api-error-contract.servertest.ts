@@ -1,7 +1,38 @@
 import type { RateLimitResult } from "@langfuse/shared";
-import { createUnstablePublicApiRateLimitError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
+import {
+  createStructuredPublicApiRateLimitError,
+  structuredPublicApiErrorContract,
+  toStructuredPublicApiError,
+} from "@/src/features/public-api/server";
 
-describe("unstable public api error contract", () => {
+describe("structured public api error contract", () => {
+  it("uses one contract marker", () => {
+    expect(structuredPublicApiErrorContract).toBe("structured");
+  });
+
+  it("maps evaluator version conflicts to the conflict code", () => {
+    const error = toStructuredPublicApiError(
+      new EvaluatorVersionConflictError(),
+    );
+
+    expect(error.name).toBe("StructuredPublicApiError");
+    expect(error.httpCode).toBe(409);
+    expect(error.code).toBe("conflict");
+  });
+
+  it("only emits shared codes for mapped errors", () => {
+    const resourceError = new ClickHouseResourceError(
+      "TIMEOUT",
+      new Error("timed out"),
+    );
+
+    expect(toStructuredPublicApiError(resourceError).code).toBe(
+      "invalid_request",
+    );
+  });
+
   it("supports upgrade path rate limit messages and clamps remaining points", () => {
     const upgradePath = {
       legacyEndpoint: "GET /api/public/traces",
@@ -30,7 +61,7 @@ describe("unstable public api error contract", () => {
       isFirstInDuration: false,
     } satisfies RateLimitResult;
 
-    const error = createUnstablePublicApiRateLimitError(rateLimitResult, {
+    const error = createStructuredPublicApiRateLimitError(rateLimitResult, {
       upgradePath,
     });
 

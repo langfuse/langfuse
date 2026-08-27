@@ -18,10 +18,10 @@ import {
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
 import {
-  createUnstablePublicApiRateLimitError,
-  sendUnstablePublicApiErrorResponse,
+  createStructuredPublicApiRateLimitError,
+  sendStructuredPublicApiErrorResponse,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
@@ -217,9 +217,9 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  return sendUnstablePublicApiErrorResponse(
+  return sendStructuredPublicApiErrorResponse(
     res,
-    createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
+    createStructuredPublicApiRateLimitError(rateLimitRes, responseOptions),
   );
 };
 

@@ -12,41 +12,31 @@ import {
   type RateLimitResult,
 } from "@langfuse/shared";
 import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import {
+  createStructuredPublicApiError,
+  StructuredPublicApiError,
+} from "@/src/features/public-api/types/structuredPublicApiError";
 import type {
-  UnstablePublicApiErrorCodeType,
-  UnstablePublicApiErrorDetailsType,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+  StructuredPublicApiErrorCodeType,
+  StructuredPublicApiErrorDetailsType,
+} from "@/src/features/public-api/types/structuredPublicApiErrorSchema";
 import {
   getRateLimitUpgradeMessage,
   type RateLimitUpgradePath,
 } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
-export const unstablePublicEvalsErrorContract = "unstable-public-evals";
-export type PublicApiErrorContract = typeof unstablePublicEvalsErrorContract;
+export const structuredPublicApiErrorContract = "structured";
+export type PublicApiErrorContract = typeof structuredPublicApiErrorContract;
 
-type UnstablePublicApiErrorBody = {
+type StructuredPublicApiErrorBody = {
   message: string;
-  code: UnstablePublicApiErrorCodeType;
-  details?: UnstablePublicApiErrorDetailsType;
+  code: StructuredPublicApiErrorCodeType;
+  details?: StructuredPublicApiErrorDetailsType;
 };
 
-export class UnstablePublicApiError extends BaseError {
-  public readonly code: UnstablePublicApiErrorCodeType;
-  public readonly details?: UnstablePublicApiErrorDetailsType;
+export { StructuredPublicApiError };
 
-  constructor(params: {
-    httpCode: number;
-    code: UnstablePublicApiErrorCodeType;
-    message: string;
-    details?: UnstablePublicApiErrorDetailsType;
-  }) {
-    super("UnstablePublicApiError", params.httpCode, params.message, true);
-    this.code = params.code;
-    this.details = params.details;
-  }
-}
-
-function toBody(error: UnstablePublicApiError): UnstablePublicApiErrorBody {
+function toBody(error: StructuredPublicApiError): StructuredPublicApiErrorBody {
   return {
     message: error.message,
     code: error.code,
@@ -64,53 +54,44 @@ function toSerializableIssues(issues: ZodError["issues"]) {
   }));
 }
 
-export function sendUnstablePublicApiErrorResponse(
+export function sendStructuredPublicApiErrorResponse(
   res: NextApiResponse,
-  error: UnstablePublicApiError,
+  error: StructuredPublicApiError,
 ) {
   return res.status(error.httpCode).json(toBody(error));
 }
 
-export function createUnstablePublicApiError(params: {
-  httpCode: number;
-  code: UnstablePublicApiErrorCodeType;
-  message: string;
-  details?: UnstablePublicApiErrorDetailsType;
-}) {
-  return new UnstablePublicApiError(params);
-}
-
-export function createUnstablePublicApiAuthError(params: {
+export function createStructuredPublicApiAuthError(params: {
   statusCode: number;
   message: string;
 }) {
   switch (params.statusCode) {
     case 400:
-      return createUnstablePublicApiError({
+      return createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_request",
         message: params.message,
       });
     case 401:
-      return createUnstablePublicApiError({
+      return createStructuredPublicApiError({
         httpCode: 401,
         code: "authentication_failed",
         message: params.message,
       });
     case 403:
-      return createUnstablePublicApiError({
+      return createStructuredPublicApiError({
         httpCode: 403,
         code: "access_denied",
         message: params.message,
       });
     case 404:
-      return createUnstablePublicApiError({
+      return createStructuredPublicApiError({
         httpCode: 404,
         code: "resource_not_found",
         message: params.message,
       });
     default:
-      return createUnstablePublicApiError({
+      return createStructuredPublicApiError({
         httpCode: params.statusCode,
         code: params.statusCode >= 500 ? "internal_error" : "invalid_request",
         message: params.message,
@@ -118,14 +99,14 @@ export function createUnstablePublicApiAuthError(params: {
   }
 }
 
-export function createUnstablePublicApiRateLimitError(
+export function createStructuredPublicApiRateLimitError(
   rateLimitRes: RateLimitResult,
   options?: {
     errorContract?: PublicApiErrorContract;
     upgradePath?: RateLimitUpgradePath;
   },
 ) {
-  return createUnstablePublicApiError({
+  return createStructuredPublicApiError({
     httpCode: 429,
     code: "rate_limited",
     message: options?.upgradePath
@@ -140,11 +121,11 @@ export function createUnstablePublicApiRateLimitError(
   });
 }
 
-export function createUnstablePublicApiRequestValidationError(params: {
+export function createStructuredPublicApiRequestValidationError(params: {
   error: ZodError;
   requestPart: "query" | "body";
 }) {
-  return createUnstablePublicApiError({
+  return createStructuredPublicApiError({
     httpCode: 400,
     code: params.requestPart === "query" ? "invalid_query" : "invalid_body",
     message:
@@ -157,10 +138,10 @@ export function createUnstablePublicApiRequestValidationError(params: {
   });
 }
 
-export function toUnstablePublicApiError(
+export function toStructuredPublicApiError(
   error: unknown,
-): UnstablePublicApiError {
-  if (error instanceof UnstablePublicApiError) {
+): StructuredPublicApiError {
+  if (error instanceof StructuredPublicApiError) {
     return error;
   }
 
@@ -169,7 +150,7 @@ export function toUnstablePublicApiError(
     error.constructor.name === "ZodError" &&
     "issues" in error
   ) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_request",
       message: "Invalid request data",
@@ -180,7 +161,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof LangfuseNotFoundError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 404,
       code: "resource_not_found",
       message: error.message,
@@ -188,7 +169,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof UnauthorizedError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 403,
       code: "access_denied",
       message: error.message,
@@ -196,7 +177,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof ForbiddenError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 403,
       code: "access_denied",
       message: error.message,
@@ -204,7 +185,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof MethodNotAllowedError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 405,
       code: "method_not_allowed",
       message: error.message,
@@ -212,7 +193,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof LangfuseConflictError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 409,
       code: "conflict",
       message: error.message,
@@ -220,7 +201,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof InvalidRequestError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_request",
       message: error.message,
@@ -228,9 +209,9 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof ClickHouseResourceError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 422,
-      code: "unprocessable_content",
+      code: "invalid_request",
       message: [
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
         "See https://langfuse.com/docs/api-and-data-platform/features/public-api for more details.",
@@ -239,7 +220,7 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof InternalServerError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: 500,
       code: "internal_error",
       message: error.message,
@@ -247,14 +228,14 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof BaseError) {
-    return createUnstablePublicApiError({
+    return createStructuredPublicApiError({
       httpCode: error.httpCode,
       code: error.httpCode >= 500 ? "internal_error" : "invalid_request",
       message: error.message,
     });
   }
 
-  return createUnstablePublicApiError({
+  return createStructuredPublicApiError({
     httpCode: 500,
     code: "internal_error",
     message: "Internal Server Error",

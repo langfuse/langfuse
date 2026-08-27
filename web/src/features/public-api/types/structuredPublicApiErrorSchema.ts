@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const unstablePublicApiErrorCodes = [
+const structuredPublicApiErrorCodes = [
   "authentication_failed",
   "access_denied",
   "invalid_request",
@@ -22,9 +22,9 @@ const unstablePublicApiErrorCodes = [
   "internal_error",
 ] as const;
 
-const UnstablePublicApiErrorCode = z.enum(unstablePublicApiErrorCodes);
+const StructuredPublicApiErrorCode = z.enum(structuredPublicApiErrorCodes);
 
-const UnstablePublicApiValidationIssue = z
+const StructuredPublicApiValidationIssue = z
   .object({
     code: z.string(),
     message: z.string(),
@@ -32,9 +32,9 @@ const UnstablePublicApiValidationIssue = z
   })
   .loose();
 
-const UnstablePublicApiErrorDetails = z
+export const StructuredPublicApiErrorDetails = z
   .object({
-    issues: z.array(UnstablePublicApiValidationIssue).optional(),
+    issues: z.array(StructuredPublicApiValidationIssue).optional(),
     field: z.string().optional(),
     column: z.string().optional(),
     invalidValues: z.array(z.string()).optional(),
@@ -52,17 +52,17 @@ const UnstablePublicApiErrorDetails = z
   })
   .strict();
 
-export const UnstablePublicApiErrorResponse = z
+export const StructuredPublicApiErrorResponse = z
   .object({
     message: z.string(),
-    code: UnstablePublicApiErrorCode,
-    details: UnstablePublicApiErrorDetails.optional(),
+    code: StructuredPublicApiErrorCode,
+    details: StructuredPublicApiErrorDetails.optional(),
   })
   .strict();
 
-export type UnstablePublicApiErrorCodeType = z.infer<
-  typeof UnstablePublicApiErrorCode
+export type StructuredPublicApiErrorCodeType = z.infer<
+  typeof StructuredPublicApiErrorCode
 >;
-export type UnstablePublicApiErrorDetailsType = z.infer<
-  typeof UnstablePublicApiErrorDetails
+export type StructuredPublicApiErrorDetailsType = z.infer<
+  typeof StructuredPublicApiErrorDetails
 >;

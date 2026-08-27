@@ -14,7 +14,7 @@ import {
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { createStructuredPublicApiError } from "@/src/features/public-api";
 import {
   PostUnstableDashboardWidgetResponse,
   type DashboardWidgetViewOutputType,
@@ -42,7 +42,7 @@ const throwInvalidWidget = (params: {
   field?: string;
   allowedValues?: string[];
 }): never => {
-  throw createUnstablePublicApiError({
+  throw createStructuredPublicApiError({
     httpCode: 400,
     code: "invalid_request",
     message: params.message,
