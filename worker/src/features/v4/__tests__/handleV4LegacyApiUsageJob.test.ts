@@ -330,7 +330,7 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(query).toContain(
       "topK(20)(tuple(sdk_name, sdk_version, user_agent))",
     );
-    expect(query).toContain("ANY INNER JOIN caller_candidates");
+    expect(query).toContain("ALL INNER JOIN caller_candidates");
     expect(query).toContain(
       "GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent, isOther",
     );
