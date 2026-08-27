@@ -1,5 +1,5 @@
 import { env } from "../../env";
-import { compileEnvironmentsQueries } from "../query-ast/environmentsQuery";
+import { compileEnvironmentsQueries } from "../query-ast/kysely/environmentsQuery";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {

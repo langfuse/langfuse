@@ -1,7 +1,7 @@
-import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
-import type { ExecutionContext } from "./executionContext";
-import { compileClickhouseQuery } from "./kysely/compile";
-import { getClickhouseKysely } from "./kysely/dialect";
+import { LISTABLE_SCORE_TYPES } from "../../../domain/scores";
+import type { ExecutionContext } from "../executionContext";
+import { compileClickhouseQuery } from "./compile";
+import { getClickhouseKysely } from "./dialect";
 
 export type EnvironmentsQueryInput = {
   projectId: string;

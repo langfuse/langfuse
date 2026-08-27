@@ -1,5 +1,6 @@
 import {
   ColumnNode,
+  ExpressionWrapper,
   FunctionNode,
   IdentifierNode,
   ReferenceNode,
@@ -14,11 +15,13 @@ import {
 } from "kysely";
 
 import {
+  ArrayIndexNode,
   ArrayJoinNode,
   LimitByNode,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
+import type { ClickHouseDatabase } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 type OperationNodeSource = OperationNode | { toOperationNode(): OperationNode };
@@ -121,6 +124,26 @@ export function mapKeys(column: string): OperationNode {
 
 export function mapValues(column: string): OperationNode {
   return FunctionNode.create("mapValues", [columnRef(column)]);
+}
+
+/**
+ * Lower `metadata[key]` to a traced array-subscript + `indexOf` node.
+ * The key is a bound `ValueNode`, not a SQL literal. Record: helper builds
+ * an {@link ArrayIndexNode} (transformer + compiler, no plugin, no fork).
+ */
+export function metadataValue(
+  tableAlias: string,
+  key: string,
+): ExpressionWrapper<ClickHouseDatabase, "events_core", string | number> {
+  return new ExpressionWrapper(
+    ArrayIndexNode.create(
+      columnRef(`${tableAlias}.metadata_values`),
+      FunctionNode.create("indexOf", [
+        columnRef(`${tableAlias}.metadata_names`),
+        ValueNode.create(key),
+      ]),
+    ) as unknown as OperationNode,
+  );
 }
 
 export function withArrayJoin<DB, TB extends keyof DB, O>(

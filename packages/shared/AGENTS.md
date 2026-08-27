@@ -29,8 +29,9 @@
   `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
   `clickhouse format` for snapshot comparison. Every migrated call site is
   proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
-  LIMIT BY nodes, `ExecutionContext` tenancy injection, catalog parity) lives
-  under `src/server/query-ast/kysely/`.
+  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
+  typed selection, virtual views, catalog parity) lives under
+  `src/server/query-ast/kysely/`.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - ClickHouse migrations: `clickhouse/migrations/{clustered,unclustered}/*`

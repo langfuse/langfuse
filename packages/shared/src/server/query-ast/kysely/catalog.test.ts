@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { CATALOG, CATALOG_PROJECT_ID } from "./catalog";
 import {
   clickhouseFormatAvailable,
   formatSql,
   normalizeParams,
-} from "./goldenHarness";
-import { compileClickhouseQuery } from "./kysely/compile";
+} from "../goldenHarness";
+import { CATALOG, CATALOG_PROJECT_ID } from "./catalog";
+import { compileClickhouseQuery } from "./compile";
 
 const describeWithClickhouse = clickhouseFormatAvailable()
   ? describe

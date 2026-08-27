@@ -1,21 +1,16 @@
 import { sql } from "kysely";
 import { describe, expect, it } from "vitest";
 
-import { compileClickhouseQuery } from "./kysely/compile";
-import { getClickhouseKysely } from "./kysely/dialect";
-import { QueryCompileError, UnscopedRelationError } from "./kysely/errors";
-import {
-  mapKeys,
-  mapValues,
-  withArrayJoin,
-  withLimitBy,
-} from "./kysely/extensions";
+import { compileClickhouseQuery } from "./compile";
+import { getClickhouseKysely } from "./dialect";
+import { QueryCompileError, UnscopedRelationError } from "./errors";
+import { mapKeys, mapValues, withArrayJoin, withLimitBy } from "./extensions";
 import {
   ArrayJoinNode,
   LimitByNode,
   isClickHouseSelectQueryNode,
-} from "./kysely/nodes";
-import { TenancyInjectionPlugin } from "./kysely/tenancy";
+} from "./nodes";
+import { TenancyInjectionPlugin } from "./tenancy";
 
 const ctx = { projectId: "proj-1" };
 

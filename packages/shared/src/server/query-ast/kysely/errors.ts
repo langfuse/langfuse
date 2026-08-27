@@ -11,3 +11,10 @@ export class UnscopedRelationError extends QueryCompileError {
     this.name = "UnscopedRelationError";
   }
 }
+
+export class TypeCompatibilityError extends QueryCompileError {
+  constructor(message: string) {
+    super(message);
+    this.name = "TypeCompatibilityError";
+  }
+}
