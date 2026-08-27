@@ -492,6 +492,42 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      # Iron Bank needs a registry1.dso.mil account, and those credentials are
+      # not available to forks or to pull_request runs from a fork. Fall back
+      # to the Dockerfile default, Red Hat's public UBI9, which has the same
+      # content and the same FIPS-validated OpenSSL.
+      - name: Resolve FIPS base images
+        id: bases
+        env:
+          IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+          # True on runs that execute in this repo's own context, which is
+          # where the Registry1 secrets exist: push, merge_group, tags, and
+          # PRs raised from a branch here rather than from a fork.
+          SECRETS_EXPECTED: ${{ github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: |
+          if [ -n "$IRONBANK_USER" ]; then
+            echo "ironbank=true" >> "$GITHUB_OUTPUT"
+            echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
+            echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+          elif [ "$SECRETS_EXPECTED" = "true" ]; then
+            # Never degrade quietly where the credential is supposed to be
+            # present: a green build on the wrong base misreports which image
+            # was validated.
+            echo "::error::IRONBANK_USER is empty on a run that should have it. Check the repository secrets." >&2
+            exit 1
+          else
+            echo "Fork run without Registry1 access, building on Red Hat's public UBI9." >&2
+            echo "ironbank=false" >> "$GITHUB_OUTPUT"
+            echo "base=registry.access.redhat.com/ubi9/ubi:9.8" >> "$GITHUB_OUTPUT"
+            echo "micro=registry.access.redhat.com/ubi9/ubi-micro:9.8" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Login to Iron Bank
+        if: steps.bases.outputs.ironbank == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: registry1.dso.mil
+          username: ${{ secrets.IRONBANK_USER }}
+          password: ${{ secrets.IRONBANK_PASS }}
       - name: Setup Blacksmith Builder
         uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
         with:
@@ -505,14 +541,22 @@ jobs:
           (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
         # Type-checking runs in the lint job; release builds retain it.
+        env:
+          BASE_IMAGE: ${{ steps.bases.outputs.base }}
+          MICRO_BASE_IMAGE: ${{ steps.bases.outputs.micro }}
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
           if [ "${{ matrix.component }}" = "web" ]; then
             docker buildx bake -f /tmp/bake.json \
+              --set "*.args.BASE_IMAGE=$BASE_IMAGE" \
+              --set "*.args.MICRO_BASE_IMAGE=$MICRO_BASE_IMAGE" \
               --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true" \
               langfuse-web
           else
-            docker buildx bake -f /tmp/bake.json langfuse-worker
+            docker buildx bake -f /tmp/bake.json \
+              --set "*.args.BASE_IMAGE=$BASE_IMAGE" \
+              --set "*.args.MICRO_BASE_IMAGE=$MICRO_BASE_IMAGE" \
+              langfuse-worker
           fi
       - name: Start compose services and wait for healthchecks
         run: |
@@ -1283,6 +1327,30 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Released images always build on the Iron Bank bases. Both ubi9 and
+      # ubi9-micro publish an OCI index covering linux/amd64 and linux/arm64,
+      # so every leg of the platform matrix resolves there.
+      - name: Resolve FIPS base images
+        id: bases
+        env:
+          IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+        run: |
+          if [ -z "$IRONBANK_USER" ]; then
+            # Releases only ever build in this repo, so a missing credential is
+            # a misconfiguration. Publishing images that claim Iron Bank
+            # provenance but were built elsewhere is worse than a failed
+            # release, so stop here.
+            echo "::error::IRONBANK_USER is empty on a release build. Check the repository secrets." >&2
+            exit 1
+          fi
+          echo "base=registry1.dso.mil/ironbank/redhat/ubi/ubi9:9.8" >> "$GITHUB_OUTPUT"
+          echo "micro=registry1.dso.mil/ironbank/redhat/ubi/ubi9-micro:9.8" >> "$GITHUB_OUTPUT"
+      - name: Log in to Iron Bank
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: registry1.dso.mil
+          username: ${{ secrets.IRONBANK_USER }}
+          password: ${{ secrets.IRONBANK_PASS }}
       # build-push-action v2 requires this step; it no longer sets up buildkit
       # itself. Both inputs are load-bearing, do not drop them:
       # - cache-key is required as of setup-docker-builder v2. Without it the
@@ -1322,6 +1390,9 @@ jobs:
           outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
+          build-args: |
+            BASE_IMAGE=${{ steps.bases.outputs.base }}
+            MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
@@ -1333,6 +1404,9 @@ jobs:
           outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform }}
+          build-args: |
+            BASE_IMAGE=${{ steps.bases.outputs.base }}
+            MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
           provenance: false
           sbom: false
       - name: Record pushed digests
