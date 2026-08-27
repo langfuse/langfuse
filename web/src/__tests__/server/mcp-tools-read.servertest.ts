@@ -2219,9 +2219,70 @@ describe("MCP Read Tools", () => {
           } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
+      ).rejects.toThrow(/"config":\{"row_limit":100\}.*"field":"count_count"/i);
+    });
+
+    // "toString" is a distinct path: a bracket lookup on the view's measures
+    // resolves it to the inherited Object.prototype member rather than undefined.
+    it.each(["unknown", "toString"])(
+      "should not build top-N guidance from the unsupported measure %s",
+      async (measure) => {
+        const { context } = await createMcpTestSetup();
+        const query = handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "traceId" }],
+            metrics: [{ measure, aggregation: "count" }],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        );
+
+        await expect(query).rejects.toThrow(/getMetricsSchema/i);
+        await expect(query).rejects.not.toThrow(`count_${measure}`);
+      },
+    );
+
+    it("should direct raw observation payload filters to scoped observation retrieval", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                type: "string",
+                column: "input",
+                operator: "contains",
+                value: "customer question",
+              },
+            ],
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
       ).rejects.toThrow(
-        /require both 'config\.row_limit' and 'orderBy' with direction 'desc'/i,
+        /listObservations.*traceId.*getObservationFilterSchema/i,
       );
+    });
+
+    it("should explain the safe alternative for high-cardinality time series", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleQueryMetrics(
+          {
+            view: "observations",
+            dimensions: [{ field: "traceId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            timeDimension: { granularity: "day" },
+            ...metricsWindow,
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
+          context,
+        ),
+      ).rejects.toThrow(/Remove.*timeDimension.*getMetricsSchema/i);
     });
   });
 
