@@ -216,6 +216,12 @@ export async function publishInternalOtelSpans(params: {
   spans: ReadableSpan[];
   projectId: string;
   sdkName: string;
+  /**
+   * Judge/code-eval traces stay internal (`true`, the default). AI-feature
+   * product traces (Ask AI, titles) pass `false` so observation evals can
+   * match them.
+   */
+  isLangfuseInternal?: boolean;
 }): Promise<void> {
   const serialized = JsonTraceSerializer.serializeRequest(params.spans);
   if (!serialized) return;
@@ -240,7 +246,7 @@ export async function publishInternalOtelSpans(params: {
     // schema; the public schema strips the "langfuse-" environment prefix,
     // exposing internal traces as user environments and bypassing the
     // trace-upsert eval-loop guard.
-    isLangfuseInternal: true,
+    isLangfuseInternal: params.isLangfuseInternal ?? true,
   });
 }
 

@@ -16,7 +16,6 @@ import {
   InAppAgentRunRequestSchema,
   InAppAgentRunStatus,
   getInAppAgentInstrumentationTraceId,
-  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
   parseInAppAgentInterruptEvent,
   type AgUiEvent,
   type InAppAgentRunRequest,
@@ -769,7 +768,6 @@ function buildTracingConfig(params: {
   }
 
   const traceSinkParams = getLangfuseAITraceSinkParams({
-    environment: IN_APP_AGENT_PRODUCT_ENVIRONMENT,
     feature: "in-app-agent",
     projectId: params.projectId,
     traceId: getInAppAgentInstrumentationTraceId(params.runId),

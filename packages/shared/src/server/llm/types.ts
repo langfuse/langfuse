@@ -556,10 +556,12 @@ export type TraceSinkParams = {
   eventsWriter?: InternalEventsWriter;
   /**
    * When true, v4 write modes (`dual` / `events_only`) publish through
-   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`.
-   * Used by in-app agent product traces. Those traces use environment
-   * `production` (not `langfuse-*`) so they stay eligible as observation-eval
-   * targets. Legacy write mode keeps `processEventBatch`.
+   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`
+   * (LangChain) or with `isLangfuseInternal: false` (AI SDK). Used by
+   * in-app agent, Ask AI, and conversation-title product traces. Those
+   * traces use environment `production` (not `langfuse-*`) so they stay
+   * eligible as observation-eval targets. Legacy write mode keeps
+   * `processEventBatch` for the LangChain path.
    */
   aiFeatureOtelIngestion?: boolean;
 };
