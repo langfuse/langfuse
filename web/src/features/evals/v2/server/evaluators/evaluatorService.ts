@@ -29,6 +29,7 @@ import {
   type EvaluatorDefinition,
   type EvaluatorDefinitionForPersistence,
   type EvaluatorVersionCursor,
+  type NormalizedEvaluatorDefinition,
   type UpdateEvaluatorInput,
   encodeEvaluatorVersionCursor,
   EvaluatorDefinitionSchema,
@@ -78,20 +79,36 @@ function normalizeEvaluatorPromptMessages<
   };
 }
 
+export function normalizeEvaluatorDefinition(
+  definition: EvaluatorDefinition,
+): NormalizedEvaluatorDefinition {
+  if (definition.type === EvalTemplateType.CODE) return definition;
+
+  return {
+    ...definition,
+    promptMessages: getEvaluatorPromptMessages({
+      prompt: definition.prompt,
+      promptMessages: definition.promptMessages,
+    }),
+  };
+}
+
 function prepareEvaluatorDefinitionForPersistence(
   definition: EvaluatorDefinition,
 ): EvaluatorDefinitionForPersistence {
-  if (definition.type === EvalTemplateType.CODE) {
-    return { ...definition, variableMapping: getCodeEvalVariableMapping() };
+  const normalizedDefinition = normalizeEvaluatorDefinition(definition);
+  if (normalizedDefinition.type === EvalTemplateType.CODE) {
+    return {
+      ...normalizedDefinition,
+      variableMapping: getCodeEvalVariableMapping(),
+    };
   }
 
-  const promptMessages = definition.promptMessages ?? [
-    { role: "user" as const, content: definition.prompt },
-  ];
   return {
-    ...definition,
-    prompt: promptMessages.map(({ content }) => content).join("\n\n"),
-    promptMessages,
+    ...normalizedDefinition,
+    prompt: normalizedDefinition.promptMessages
+      .map(({ content }) => content)
+      .join("\n\n"),
   };
 }
 
@@ -524,7 +541,11 @@ export class EvaluatorService {
     return evaluatorIds;
   }
 
-  async testEvaluator(params: Parameters<typeof executeEvaluatorTest>[0]) {
+  async testEvaluator(
+    params: Omit<Parameters<typeof executeEvaluatorTest>[0], "definition"> & {
+      definition: EvaluatorDefinition;
+    },
+  ) {
     const evaluator = await this.prisma.evaluator.findFirst({
       where: { id: params.evaluatorId, projectId: params.projectId },
       select: { id: true },
@@ -536,7 +557,10 @@ export class EvaluatorService {
     if (!evaluator && !isPregeneratedEvaluatorId(params.evaluatorId)) {
       throw new LangfuseNotFoundError("Evaluator not found");
     }
-    return executeEvaluatorTest(params);
+    return executeEvaluatorTest({
+      ...params,
+      definition: normalizeEvaluatorDefinition(params.definition),
+    });
   }
 
   async suggestName(params: SuggestEvaluatorTextParams) {
@@ -706,8 +730,8 @@ export function toEvaluatorDefinition(
     sourceCode: string | null;
     sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
   },
-) {
-  return EvaluatorDefinitionSchema.parse(
+): NormalizedEvaluatorDefinition {
+  const definition = EvaluatorDefinitionSchema.parse(
     type === EvalTemplateType.LLM_AS_JUDGE
       ? {
           type,
@@ -729,6 +753,7 @@ export function toEvaluatorDefinition(
           sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
         },
   );
+  return normalizeEvaluatorDefinition(definition);
 }
 
 async function defaultNameGenerator(

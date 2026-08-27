@@ -31,6 +31,7 @@ import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/
 import {
   type CreateEvaluatorInput,
   type EvaluatorDefinition,
+  type NormalizedEvaluatorDefinition,
   EvaluatorVersionsSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
@@ -98,7 +99,7 @@ let otherProjectId = "";
 const llmInput = (
   name: string,
 ): CreateEvaluatorInput & {
-  definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
+  definition: Extract<NormalizedEvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 } => ({
   projectId,
   name,
@@ -106,6 +107,7 @@ const llmInput = (
   definition: {
     type: "LLM_AS_JUDGE",
     prompt: "Judge {{output}}",
+    promptMessages: [{ role: "user", content: "Judge {{output}}" }],
     provider: null,
     model: null,
     modelParams: null,
@@ -279,6 +281,22 @@ describe("EvaluatorService", () => {
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
     );
+  });
+
+  it("normalizes a legacy string prompt before returning it", async () => {
+    const input = llmInput("Legacy prompt evaluator");
+    const { promptMessages: _promptMessages, ...legacyDefinition } =
+      input.definition;
+    const legacyInput: CreateEvaluatorInput = {
+      ...input,
+      definition: legacyDefinition,
+    };
+
+    const created = await createService().create(legacyInput, null);
+
+    expect(created.versions[0]?.promptMessages).toEqual([
+      { role: "user", content: legacyDefinition.prompt },
+    ]);
   });
 
   it("writes the canonical mapping when creating a code evaluator", async () => {
@@ -598,6 +616,9 @@ describe("EvaluatorService", () => {
         definition: {
           ...input.definition,
           prompt: "Judge {{output}} strictly",
+          promptMessages: [
+            { role: "user", content: "Judge {{output}} strictly" },
+          ],
         },
       },
       null,

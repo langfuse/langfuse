@@ -273,6 +273,7 @@ describe("createEvaluatorSetupStore", () => {
     store.getState().actions.applyDefinition({
       type: "LLM_AS_JUDGE",
       prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       provider: "openai",
       model: "gpt-4.1-mini",
       modelParams: { temperature: 0.2 },

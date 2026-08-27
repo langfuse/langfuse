@@ -13,6 +13,7 @@ const currentVersion = {
   sourceCode: null,
   sourceCodeLanguage: null,
   prompt: "Current prompt",
+  promptMessages: [{ role: "user" as const, content: "Current prompt" }],
   provider: "openai",
   model: "gpt-4.1-mini",
   modelParams: null,

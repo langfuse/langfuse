@@ -19,7 +19,7 @@ import type {
 } from "@/src/features/evals/v2/types/variableMapping";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
-import type { EvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
@@ -30,7 +30,7 @@ Input: {{input}}
 Response: {{output}}`;
 
 function buildInitialVariableFields(
-  definition: EvaluatorDefinition | null | undefined,
+  definition: NormalizedEvaluatorDefinition | null | undefined,
 ): Record<string, VariableFieldState> {
   if (definition?.type !== "LLM_AS_JUDGE") return {};
 
@@ -84,11 +84,11 @@ type EvaluatorSetupStoreActions = {
   setSampleFilter: (sampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
-  applyDefinition: (definition: EvaluatorDefinition) => void;
+  applyDefinition: (definition: NormalizedEvaluatorDefinition) => void;
 };
 
 export type EvaluatorSetupStoreState = {
-  initialDefinition: EvaluatorDefinition | undefined;
+  initialDefinition: NormalizedEvaluatorDefinition | undefined;
   type: EvalTemplateType;
   prompt: string;
   promptMessages: EvaluatorPromptMessage[];
@@ -132,7 +132,7 @@ export function createEvaluatorSetupStore({
   initialEvaluator: {
     name: string;
     description: string | null;
-    definition: EvaluatorDefinition;
+    definition: NormalizedEvaluatorDefinition;
   } | null;
   initialSampleFilter?: FilterState;
   initialType?: EvalTemplateType;
@@ -151,9 +151,7 @@ export function createEvaluatorSetupStore({
 
   const initialPromptMessages =
     initialDefinition?.type === "LLM_AS_JUDGE"
-      ? (initialDefinition.promptMessages ?? [
-          { role: "user" as const, content: initialDefinition.prompt },
-        ])
+      ? initialDefinition.promptMessages
       : [{ role: "user" as const, content: DEFAULT_PROMPT }];
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
@@ -350,6 +348,10 @@ export function createEvaluatorSetupStore({
           return {
             type: definition.type,
             prompt: definition.prompt,
+            promptMessages: definition.promptMessages,
+            promptMessageIds: definition.promptMessages.map(() =>
+              safeRandomUUID(),
+            ),
             scoreOutput: toScoreOutputFormState(definition.outputDefinition),
             variableFields: buildInitialVariableFields(definition),
             activeMapping: null,

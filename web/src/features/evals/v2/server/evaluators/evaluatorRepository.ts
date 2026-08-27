@@ -66,9 +66,7 @@ function versionData(
     ? {
         ...commonVersionData,
         prompt: definition.prompt,
-        promptMessages: definition.promptMessages ?? [
-          { role: "user", content: definition.prompt },
-        ],
+        promptMessages: definition.promptMessages,
         provider: definition.provider,
         model: definition.model,
         modelParams:

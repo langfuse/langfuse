@@ -11,6 +11,9 @@ export function managedTemplateToEvaluatorSetupDraft(
       ? {
           type: template.evaluator.type,
           prompt: template.evaluator.prompt,
+          promptMessages: [
+            { role: "user" as const, content: template.evaluator.prompt },
+          ],
           provider: null,
           model: null,
           modelParams: null,

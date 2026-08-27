@@ -9,6 +9,7 @@ import {
   paginationLimitZod,
   singleFilter,
   type ObservationVariableMapping,
+  type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
 import { hasInvalidSystemPromptMessage } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { z } from "zod";
@@ -190,9 +191,21 @@ export const SuggestEvaluatorTextSchema = z.object({
 });
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
+type LlmEvaluatorDefinition = Extract<
+  EvaluatorDefinition,
+  { type: "LLM_AS_JUDGE" }
+>;
+export type NormalizedEvaluatorDefinition =
+  | (Omit<LlmEvaluatorDefinition, "promptMessages"> & {
+      promptMessages: PersistedEvaluatorPromptMessages;
+    })
+  | Extract<EvaluatorDefinition, { type: "CODE" }>;
 export type EvaluatorDefinitionForPersistence =
-  | Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
-  | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
+  | Extract<NormalizedEvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+  | (Omit<
+      Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>,
+      "variableMapping"
+    > & {
       variableMapping: ObservationVariableMapping[];
     });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;

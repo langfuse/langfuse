@@ -6,10 +6,7 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import * as evaluatorRepository from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import { EvaluatorVersionConflictError } from "@/src/features/evals/v2/server/evaluators/evaluatorErrors";
-import type {
-  EvaluatorDefinition,
-  EvaluatorDefinitionForPersistence,
-} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type { EvaluatorDefinitionForPersistence } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 const orgIds: string[] = [];
 let projectId = "";
@@ -27,11 +24,12 @@ const codeDefinition = (
 
 const llmDefinition = (
   overrides: Partial<
-    Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+    Extract<EvaluatorDefinitionForPersistence, { type: "LLM_AS_JUDGE" }>
   > = {},
-): Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> => ({
+): Extract<EvaluatorDefinitionForPersistence, { type: "LLM_AS_JUDGE" }> => ({
   type: "LLM_AS_JUDGE",
   prompt: "Judge {{output}}",
+  promptMessages: [{ role: "user", content: "Judge {{output}}" }],
   provider: null,
   model: null,
   modelParams: null,

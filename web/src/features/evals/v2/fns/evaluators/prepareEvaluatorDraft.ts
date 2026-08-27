@@ -7,6 +7,7 @@ type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
   | "prompt"
+  | "promptMessages"
   | "sourceCode"
   | "sourceCodeLanguage"
   | "scoreOutput"
@@ -15,16 +16,12 @@ type EvaluatorSetupDraftState = Pick<
   | "selectedModel"
   | "modelParams"
   | "initialDefinition"
-> &
-  Partial<Pick<EvaluatorSetupStoreState, "promptMessages">>;
+>;
 
 export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
-  const promptMessages = params.promptMessages ?? [
-    { role: "user" as const, content: params.prompt },
-  ];
   const promptMessagesValid =
-    getPromptMessagesValidationError(promptMessages) === null;
+    getPromptMessagesValidationError(params.promptMessages) === null;
   const mappings =
     params.type === "LLM_AS_JUDGE"
       ? buildEvaluatorVariableMappings({
@@ -39,7 +36,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
         ? {
             type: params.type,
             prompt: params.prompt,
-            promptMessages,
+            promptMessages: params.promptMessages,
             provider:
               params.modelMode === "custom"
                 ? (params.selectedModel?.provider ?? null)

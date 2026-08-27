@@ -13,6 +13,7 @@ const version = {
   sourceCode: null,
   sourceCodeLanguage: null,
   prompt: "Judge this response.",
+  promptMessages: [{ role: "user" as const, content: "Judge this response." }],
   provider: "openai",
   model: "gpt-4.1-mini",
   modelParams: null,

@@ -8,6 +8,7 @@ describe("prepareEvaluatorDraft", () => {
     const initialDefinition = {
       type: "LLM_AS_JUDGE" as const,
       prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user" as const, content: "Judge {{output}}" }],
       provider: "openai",
       model: "gpt-test",
       modelParams: { temperature: 0.2 },
@@ -25,6 +26,7 @@ describe("prepareEvaluatorDraft", () => {
       prepareEvaluatorDraft({
         type: "LLM_AS_JUDGE",
         prompt: "Judge {{output}}",
+        promptMessages: [{ role: "user", content: "Judge {{output}}" }],
         sourceCode: "",
         sourceCodeLanguage: "TYPESCRIPT",
         scoreOutput: {

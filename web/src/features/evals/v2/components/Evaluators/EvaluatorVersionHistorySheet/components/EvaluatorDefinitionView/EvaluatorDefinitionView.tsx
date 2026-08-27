@@ -37,7 +37,7 @@ export type EvaluatorDefinition =
   | {
       type: Extract<EvalTemplateType, "LLM_AS_JUDGE">;
       prompt: string | null;
-      promptMessages?: EvaluatorPromptMessage[] | null;
+      promptMessages: EvaluatorPromptMessage[];
       selectedModel: JudgeModel | null;
       defaultModel: JudgeModel | null;
       outputDefinition: unknown;
@@ -97,10 +97,7 @@ function LlmEvaluatorDefinitionView({
 }: {
   definition: Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>;
 }) {
-  const { variableMappings } = definition;
-  const promptMessages = definition.promptMessages ?? [
-    { role: "user" as const, content: definition.prompt ?? "" },
-  ];
+  const { variableMappings, promptMessages } = definition;
   const mappings =
     variableMappings.state === "visible" ? variableMappings.mappings : [];
   // The prompt's {{variable}} tokens name their binding on hover, the same way
