@@ -1,6 +1,6 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 

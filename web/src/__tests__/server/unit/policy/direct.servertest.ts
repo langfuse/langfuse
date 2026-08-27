@@ -23,7 +23,7 @@ vi.mock("@/src/features/auth/policy/enforcement.projects", () => ({
 import {
   verifyOrgAuth,
   verifyProjectAuthDirect,
-} from "@/src/features/auth/policy/shadow.direct";
+} from "@/src/features/auth/policy/direct";
 
 describe("org direct seam verifyOrgAuth", () => {
   const scope = { orgId: "org_1", accessLevel: "organization" };

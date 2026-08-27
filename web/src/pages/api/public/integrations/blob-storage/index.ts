@@ -18,7 +18,7 @@ import {
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits a blob-storage endpoint. */
 const orgKeyRequired =

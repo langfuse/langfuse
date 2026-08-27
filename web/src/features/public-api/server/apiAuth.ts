@@ -6,7 +6,7 @@ import {
   verifySecretKey,
   type AuthHeaderVerificationResult,
   CachedApiKey,
-  OrgEnrichedApiKey,
+  ApiKeyCacheValue,
   logger,
   instrumentAsync,
   addUserToSpan,
@@ -358,7 +358,7 @@ export class ApiAuthService {
 
   private async addApiKeyToRedis(
     hash: string,
-    newApiKey: z.infer<typeof OrgEnrichedApiKey> | typeof API_KEY_NON_EXISTENT,
+    newApiKey: z.infer<typeof ApiKeyCacheValue> | typeof API_KEY_NON_EXISTENT,
   ) {
     if (!this.redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") {
       return;
@@ -498,7 +498,7 @@ export class ApiAuthService {
     const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
       this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
-    const newApiKey = OrgEnrichedApiKey.parse({
+    const newApiKey = ApiKeyCacheValue.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
       orgId,

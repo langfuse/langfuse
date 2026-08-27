@@ -1,4 +1,4 @@
-import { assertMcpToolAccess } from "@/src/features/auth/policy/shadow.mcp";
+import { assertMcpToolAccess } from "@/src/features/auth/policy/mcp";
 import { type ProjectAction } from "@/src/features/auth/policy/types";
 import {
   defineTool,

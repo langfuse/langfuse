@@ -27,7 +27,7 @@ import {
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
-import { verifyAuth as verifyAuthWithPolicy } from "@/src/features/auth/policy/shadow.projects";
+import { verifyAuth as verifyAuthWithPolicy } from "@/src/features/auth/policy/projects";
 import { type ProjectAction } from "@/src/features/auth/policy/types";
 
 /** Access levels that can be accepted by project-scoped API routes. */

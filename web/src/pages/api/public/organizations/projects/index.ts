@@ -2,7 +2,7 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";

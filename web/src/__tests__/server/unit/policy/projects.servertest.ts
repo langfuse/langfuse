@@ -19,7 +19,7 @@ vi.mock("@/src/features/auth/policy/enforcement.projects", () => ({
   enforceProjectAuth: mockEnforceProjectAuth,
 }));
 
-import { verifyAuth } from "@/src/features/auth/policy/shadow.projects";
+import { verifyAuth } from "@/src/features/auth/policy/projects";
 
 describe("project route factory seam verifyAuth", () => {
   const scope = { projectId: "p1", accessLevel: "project" };

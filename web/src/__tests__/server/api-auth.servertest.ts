@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import {
-  OrgEnrichedApiKey,
+  ApiKeyCacheValue,
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
@@ -486,7 +486,7 @@ describe("Authenticate API calls", () => {
 
       expect(cachedKey2).not.toBeNull();
 
-      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey2!));
+      const parsed = ApiKeyCacheValue.parse(JSON.parse(cachedKey2!));
 
       expect(parsed).toEqual({
         ...apiKey,
@@ -579,7 +579,7 @@ describe("Authenticate API calls", () => {
 
       // Parse should fail because the scope is missing
       expect(() => {
-        OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
+        ApiKeyCacheValue.parse(JSON.parse(cachedKey!));
       }).toThrow("invalid_union");
 
       // Auth should still succeed by falling back to Postgres
@@ -600,7 +600,7 @@ describe("Authenticate API calls", () => {
       expect(cachedKeyAfterAuth).not.toBeNull();
 
       // The new key should be properly formatted with a scope
-      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKeyAfterAuth!));
+      const parsed = ApiKeyCacheValue.parse(JSON.parse(cachedKeyAfterAuth!));
 
       expect(parsed).toEqual({
         ...apiKey,
@@ -729,7 +729,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
+      const parsed = ApiKeyCacheValue.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         id: expect.any(String),
@@ -829,7 +829,7 @@ describe("Authenticate API calls", () => {
       );
       expect(cachedKey).not.toBeNull();
 
-      const parsed = OrgEnrichedApiKey.parse(JSON.parse(cachedKey!));
+      const parsed = ApiKeyCacheValue.parse(JSON.parse(cachedKey!));
 
       expect(parsed).toEqual({
         ...apiKey,

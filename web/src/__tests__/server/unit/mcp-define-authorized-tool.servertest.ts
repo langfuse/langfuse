@@ -5,7 +5,7 @@ import { ForbiddenError } from "@langfuse/shared";
 
 const { mockAssert } = vi.hoisted(() => ({ mockAssert: vi.fn() }));
 
-vi.mock("@/src/features/auth/policy/shadow.mcp", () => ({
+vi.mock("@/src/features/auth/policy/mcp", () => ({
   assertMcpToolAccess: mockAssert,
 }));
 

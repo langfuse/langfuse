@@ -18,7 +18,7 @@ vi.mock("@/src/features/auth/policy/enforcement.mcp", () => ({
 import {
   assertMcpToolAccess,
   resolveMcpAuthz,
-} from "@/src/features/auth/policy/shadow.mcp";
+} from "@/src/features/auth/policy/mcp";
 
 const context = {
   principal: { kind: "admin", userId: null },

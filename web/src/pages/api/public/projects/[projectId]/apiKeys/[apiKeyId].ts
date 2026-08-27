@@ -8,7 +8,7 @@ import {
   handleDeleteApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits an organization endpoint. */
 const orgKeyRequired =

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 /** orgKeyRequired is the 403 detail when a non-organization key hits a SCIM endpoint. */
 const orgKeyRequired =

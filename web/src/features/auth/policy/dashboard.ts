@@ -1,4 +1,8 @@
-import { coverageStat, parityStat } from "@/src/features/auth/policy/shadow";
+/** parityStat counts one authorization decision. */
+const parityStat = "langfuse.authz.parity";
+
+/** coverageStat counts one request against its operation. */
+const coverageStat = "langfuse.authz.coverage";
 
 /** groupBy is the dimension set every parity widget rolls up by. */
 const groupBy = ["seam", "action", "legacy_code", "new_code"] as const;

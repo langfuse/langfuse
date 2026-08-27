@@ -21,7 +21,7 @@ import { env } from "@/src/env.mjs";
 import {
   authorizeIngestionEvents,
   verifyIngestionAuth,
-} from "@/src/features/auth/policy/shadow.ingestion";
+} from "@/src/features/auth/policy/ingestion";
 
 export const config = {
   api: {

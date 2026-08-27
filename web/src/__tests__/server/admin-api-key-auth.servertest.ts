@@ -2,7 +2,7 @@ import { type NextApiRequest } from "next";
 import {
   verifyAdminApiKeyAuth,
   verifyAuth,
-} from "@/src/features/auth/policy/shadow.projects";
+} from "@/src/features/auth/policy/projects";
 import { env } from "@/src/env.mjs";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 

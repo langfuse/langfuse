@@ -7,7 +7,7 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import {
   verifyOrgAuth,
   verifyProjectAuthDirect,
-} from "@/src/features/auth/policy/shadow.direct";
+} from "@/src/features/auth/policy/direct";
 
 /** projectKeyRequired is the 403 body when the project-scoped GET receives a non-project key. */
 const projectKeyRequired =

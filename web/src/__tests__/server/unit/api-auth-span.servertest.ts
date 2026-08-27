@@ -57,7 +57,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
       closeAllConnections: vi.fn(),
     })),
   },
-  OrgEnrichedApiKey: {
+  ApiKeyCacheValue: {
     parse: vi.fn((value) => value),
   },
   addUserToSpan: addUserToSpanMock,

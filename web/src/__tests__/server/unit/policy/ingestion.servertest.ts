@@ -20,7 +20,7 @@ vi.mock("@/src/features/auth/policy/enforcement.ingestion", () => ({
 import {
   authorizeIngestionEvents,
   verifyIngestionAuth,
-} from "@/src/features/auth/policy/shadow.ingestion";
+} from "@/src/features/auth/policy/ingestion";
 
 const context: AuthorizationContext = {
   principal: {

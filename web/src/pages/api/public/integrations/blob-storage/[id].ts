@@ -12,7 +12,7 @@ import {
 } from "@langfuse/shared";
 import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/public-api/types/blob-storage-integrations";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits a blob-storage endpoint. */
 const orgKeyRequired =

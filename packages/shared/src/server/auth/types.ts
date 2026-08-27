@@ -24,7 +24,7 @@ const ApiKeyBaseSchema = z.object({
   createdByApiKeyId: z.string().nullish(),
 });
 
-export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
+export const ApiKeyCacheValue = z.discriminatedUnion("scope", [
   ApiKeyBaseSchema.extend({
     scope: z.literal(ApiKeyScope.ORGANIZATION),
     projectId: z.null(),
@@ -38,7 +38,7 @@ export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";
 
 export const CachedApiKey = z.union([
-  OrgEnrichedApiKey,
+  ApiKeyCacheValue,
   z.literal(API_KEY_NON_EXISTENT),
 ]);
 

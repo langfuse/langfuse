@@ -19,7 +19,7 @@ vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
   submitFeedback: mockSubmitFeedback,
 }));
 
-vi.mock("@/src/features/auth/policy/shadow.projects", () => ({
+vi.mock("@/src/features/auth/policy/projects", () => ({
   verifyAuth: mockVerifyAuth,
 }));
 

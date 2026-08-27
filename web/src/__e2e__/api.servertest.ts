@@ -3,7 +3,7 @@ import { JobExecutionStatus, Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   getObservationById,
   getTraceById,
-  OrgEnrichedApiKey,
+  ApiKeyCacheValue,
   redis,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
@@ -143,7 +143,7 @@ describe("Ingestion Pipeline", () => {
         }
         expect(redisValue).not.toBeNull();
 
-        const llmApiKey = OrgEnrichedApiKey.parse(JSON.parse(redisValue!));
+        const llmApiKey = ApiKeyCacheValue.parse(JSON.parse(redisValue!));
         expect(llmApiKey.projectId).toBe(
           "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
         );

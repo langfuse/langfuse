@@ -6,7 +6,7 @@ import {
   handleUpdateMembership,
   handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";

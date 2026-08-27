@@ -20,7 +20,7 @@ const {
   mockSendUnstablePublicApiErrorResponse: vi.fn(),
 }));
 
-vi.mock("@/src/features/auth/policy/shadow.projects", () => ({
+vi.mock("@/src/features/auth/policy/projects", () => ({
   verifyAuth: mockVerifyAuth,
 }));
 

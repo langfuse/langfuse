@@ -7,7 +7,7 @@ import {
 } from "@/src/ee/features/admin-api/server/projects/projectById";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
+import { verifyOrgAuth } from "@/src/features/auth/policy/direct";
 
 /** orgKeyRequired is the 403 body when a non-organization key hits an organization endpoint. */
 const orgKeyRequired =
