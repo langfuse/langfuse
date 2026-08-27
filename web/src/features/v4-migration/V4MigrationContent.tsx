@@ -965,7 +965,7 @@ export function V4MigrationApisSection({
                           caller.sdkVersion,
                         );
                         const callerName = caller.isOther
-                          ? "Other callers"
+                          ? "Unknown callers"
                           : caller.sdkName
                             ? `Langfuse ${caller.sdkName === "python" ? "Python" : "JavaScript"} SDK${caller.sdkVersion ? ` ${caller.sdkVersion}` : ""}`
                             : codingAgent
@@ -1044,7 +1044,7 @@ export function V4MigrationApisSection({
                               </p>
                             ) : (
                               <p className="text-muted-foreground mt-1 pl-5 text-xs">
-                                Migrate this caller to{" "}
+                                Migrate calls to{" "}
                                 <MonoValue>{guidance.replacement}</MonoValue>.{" "}
                                 <ExternalLink
                                   href={DEPRECATED_API_MIGRATION_URL}
