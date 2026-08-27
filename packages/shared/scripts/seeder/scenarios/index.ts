@@ -11,6 +11,7 @@ import { sessionShapesScenario } from "./session-shapes";
 import { supportAgentScenario } from "./support-agent";
 import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
+import { traceMetricsShapesScenario } from "./trace-metrics-shapes";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
 
@@ -32,6 +33,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "support-agent": supportAgentScenario,
   "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
+  "trace-metrics-shapes": traceMetricsShapesScenario,
 };
 
 export * from "./types";
