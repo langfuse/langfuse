@@ -21,8 +21,6 @@ const generatedModuleName = "skill-markdown.ts";
 const sourceApiUrl =
   "https://api.github.com/repos/langfuse/skills/contents/skills/langfuse/references?ref=main";
 
-const requiredAccess = "LANGFUSE_PROJECT_INTERFACE";
-
 const isCheckMode = process.argv.includes("--check");
 
 const getGitHubHeaders = () => ({
@@ -50,47 +48,6 @@ const fetchText = async (url) => {
   }
 
   return response.text();
-};
-
-const extractFrontmatter = (content) => {
-  if (!content.startsWith("---\n")) return null;
-
-  const endIndex = content.indexOf("\n---", 4);
-  if (endIndex === -1) return null;
-
-  return content.slice(4, endIndex);
-};
-
-const hasSupportedAccessRequirements = (content) => {
-  const frontmatter = extractFrontmatter(content);
-  if (!frontmatter) return false;
-
-  const lines = frontmatter.split("\n");
-  const metadataIndex = lines.findIndex((line) => line === "metadata:");
-  if (metadataIndex === -1) return true;
-
-  const requiredAccessIndex = lines.findIndex(
-    (line, index) => index > metadataIndex && line === "  required_access:",
-  );
-  if (requiredAccessIndex === -1) return true;
-
-  const accessValues = [];
-
-  for (let i = requiredAccessIndex + 1; i < lines.length; i += 1) {
-    const line = lines[i];
-
-    if (line.startsWith("  ") && !line.startsWith("    - ")) {
-      break;
-    }
-
-    if (!line.startsWith("    - ")) {
-      continue;
-    }
-
-    accessValues.push(line.slice("    - ".length).trim());
-  }
-
-  return accessValues.length === 1 && accessValues[0] === requiredAccess;
 };
 
 const listRemoteMarkdownFiles = async () => {
@@ -134,10 +91,7 @@ const getExpectedFiles = async () => {
 
   for (const remoteFile of remoteFiles) {
     const content = await fetchText(remoteFile.download_url);
-
-    if (hasSupportedAccessRequirements(content)) {
-      expectedFiles.push({ name: remoteFile.name, content });
-    }
+    expectedFiles.push({ name: remoteFile.name, content });
   }
 
   return expectedFiles;

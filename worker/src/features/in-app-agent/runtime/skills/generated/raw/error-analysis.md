@@ -2,12 +2,10 @@
 name: langfuse-error-analysis
 description: Deep-dive error analysis of an LLM pipeline or AI application using Langfuse traces.
   Use this skill whenever the user wants to understand why their AI system is producing
-  bad outputs, where their pipeline is failing, how to categorise or label failures,
-  what to prioritise fixing, or how to set up evaluators. Also trigger for "review my
+  bad outputs, where their pipeline is failing, or how to categorise and label failures
+  into a taxonomy and decide what to prioritise fixing. Also trigger for "review my
   traces", "my outputs look wrong", "help me debug my LLM app", "I want to analyse
-  errors", "build a failure taxonomy", "what's going wrong with my pipeline", or any
-  request to systematically inspect, annotate, or score Langfuse traces. If the user
-  is trying to understand or improve the quality of an AI system's outputs, use this skill.
+  errors", "build a failure taxonomy", or "what's going wrong with my pipeline".
 metadata:
   required_access:
     - LANGFUSE_PROJECT_INTERFACE
@@ -27,12 +25,13 @@ Read it in full. It defines the authoritative 5-step process (sample selection â
 
 **2. Guide the user through this step by step**
 
-You as a coding agent and the user go through this together to perform a full error analysis with their data in langfuse. Do as much of the work as you can directly for the user (look up traces, create annotation queues, ...). Provide them with direct links to UI wherever their action is required. Be proactive and narrate what is going on for the user. 
+You as a coding agent and the user go through this together to perform a full error analysis with their data in Langfuse. Set up the scores, representative sample, and annotation queue for the user, and provide direct UI links wherever their action is required. Be proactive and explain what is happening in plain language without reciting internal step numbers or jargon.
 
 ## Rules CRITICAL
-Perform interactions with the user's Langfuse instance yourself rather than telling the user to do them â€” don't say "now do this in Langfuse" when you can do it directly
-But don't barrel through on assumptions: where a step needs the user's judgment or input (e.g. what to fix, how to label, which evaluator), pause and ask before acting
-Use charts where possible to display data
+- Perform interactions with the user's Langfuse instance yourself rather than telling the user to do them.
+- The user performs the open-coding review and supplies human labels; do not do this on their behalf.
+- Where a step needs the user's judgment or input, pause and ask before acting.
+- Use charts where possible to display data.
 
 ---
 
@@ -74,7 +73,7 @@ When a category warrants a prompt fix, always offer the user two options:
 
 ### Setup evaluators
 
-When a category warrants an evaluator setup, propose the type of evaluator and offer to set it up for the user
+When a category warrants an evaluator, build it following `references/setting-up-evals.md`.
 
 
 ### Common gotchas

@@ -15,9 +15,9 @@ compiles under plain `tsc` in `worker`; the `raw/*.md` copies exist
 for reviewable diffs only.
 
 Use `sync-raw-skills.mjs` to download all markdown files from
-`https://github.com/langfuse/skills/tree/main/skills/langfuse/references` whose
-frontmatter either has no access requirements or only
-`LANGFUSE_PROJECT_INTERFACE` in `metadata.required_access`:
+`https://github.com/langfuse/skills/tree/main/skills/langfuse/references`.
+The in-app agent receives the complete reference set and decides which skills
+are relevant for each request:
 
 ```sh
 node scripts/in-app-agent/sync-raw-skills.mjs
