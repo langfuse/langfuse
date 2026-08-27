@@ -431,6 +431,23 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
     expect(screen.getByText("Codex")).toBeInTheDocument();
     expect(screen.getByText(/traffic from a coding agent/)).toBeInTheDocument();
+
+    for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
+      const caller = screen.getByText(callerName).closest("li");
+      expect(caller).toHaveClass("bg-muted/50", "border-l-4", "p-2");
+      expect(
+        within(caller!).getByRole("link", { name: "See docs." }),
+      ).toHaveAttribute(
+        "href",
+        "https://langfuse.com/faq/all/deprecated-api-migration",
+      );
+    }
+
+    fireEvent.click(screen.getAllByRole("link", { name: "See docs." })[0]!);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:section_link_clicked",
+      { section: "apis", link: "deprecated_api_caller_docs" },
+    );
   });
 
   it("collapses clean sections into one up-to-date summary", () => {

@@ -225,7 +225,7 @@ const combinedState = makeSdkState({
 const apiUsage = [
   {
     endpoint: "GET /api/public/traces/{id}",
-    count: 1284,
+    count: 1296,
     lastSeen: new Date(Date.now() - 2 * HOUR_MS).toISOString(),
     callers: [
       {
@@ -239,6 +239,11 @@ const apiUsage = [
         userAgent: "codex-cli/1.2.3",
         count: 3,
         lastSeen: new Date(Date.now() - 5 * HOUR_MS).toISOString(),
+      },
+      {
+        isOther: true as const,
+        count: 12,
+        lastSeen: new Date(Date.now() - 6 * HOUR_MS).toISOString(),
       },
     ],
   },
