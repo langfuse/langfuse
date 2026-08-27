@@ -199,7 +199,8 @@ const genericReplacements: Record<string, string> = {
 
 const isVersionBefore = (version: string, minimum: string): boolean => {
   const parts = version
-    .match(/^\d+(?:\.\d+){0,2}/)?.[0]
+    .match(/^v?\d+(?:\.\d+){0,2}/i)?.[0]
+    .replace(/^v/i, "")
     .split(".")
     .map(Number);
   if (!parts) return false;

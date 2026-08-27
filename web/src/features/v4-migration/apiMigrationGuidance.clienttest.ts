@@ -32,6 +32,16 @@ describe("getApiMigrationGuidance", () => {
     });
   });
 
+  it("recognizes a v-prefixed outdated SDK version", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/traces/{id}",
+        "python",
+        "v3.9.0",
+      ),
+    ).toMatchObject({ requiresUpgrade: true, minimumVersion: "4.0.0" });
+  });
+
   it("returns REST guidance without inventing an SDK method", () => {
     expect(
       getApiMigrationGuidance("GET /api/public/traces", undefined, undefined),

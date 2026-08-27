@@ -241,7 +241,21 @@ export const mergeV4LegacyApiCallers = (
   options: { maxCallers?: number | null } = {},
 ): V4LegacyApiCaller[] => {
   const merged = new Map<string, V4LegacyApiCaller>();
+  let otherCaller: V4LegacyApiCaller | undefined;
   for (const caller of callers) {
+    if (caller.isOther) {
+      otherCaller = otherCaller
+        ? {
+            isOther: true,
+            count: otherCaller.count + caller.count,
+            lastSeen:
+              otherCaller.lastSeen > caller.lastSeen
+                ? otherCaller.lastSeen
+                : caller.lastSeen,
+          }
+        : caller;
+      continue;
+    }
     const key = legacyApiCallerKey(caller);
     const existing = merged.get(key);
     merged.set(
@@ -269,17 +283,22 @@ export const mergeV4LegacyApiCallers = (
     options.maxCallers === null
       ? null
       : (options.maxCallers ?? MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT);
-  if (maxCallers === null || sorted.length <= maxCallers) return sorted;
+  if (maxCallers === null) {
+    return otherCaller ? [...sorted, otherCaller] : sorted;
+  }
+  if (!otherCaller && sorted.length <= maxCallers) return sorted;
 
   const kept = sorted.slice(0, maxCallers - 1);
   const overflow = sorted.slice(maxCallers - 1);
   kept.push({
     isOther: true,
-    count: overflow.reduce((sum, caller) => sum + caller.count, 0),
-    lastSeen: overflow.reduce(
-      (latest, caller) => (latest > caller.lastSeen ? latest : caller.lastSeen),
-      overflow[0]!.lastSeen,
-    ),
+    count:
+      (otherCaller?.count ?? 0) +
+      overflow.reduce((sum, caller) => sum + caller.count, 0),
+    lastSeen: [
+      ...(otherCaller ? [otherCaller.lastSeen] : []),
+      ...overflow.map((caller) => caller.lastSeen),
+    ].reduce((latest, lastSeen) => (latest > lastSeen ? latest : lastSeen), ""),
   });
   return kept;
 };

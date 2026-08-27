@@ -58,6 +58,7 @@ const HOUR_MS = 60 * 60 * 1000;
  * the shared 30s default.
  */
 export const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
+export const V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT = 100;
 
 const EXPERIMENT_POST_ROUTE = "POST /api/public/dataset-run-items";
 
@@ -80,6 +81,7 @@ type HourUsageRow = {
   sdkName: string;
   sdkVersion: string;
   userAgent: string;
+  isOther: number;
   count: string | number;
   lastSeen: string;
 };
@@ -91,6 +93,7 @@ type MergedHourUsageRow = {
   sdkName: string;
   sdkVersion: string;
   userAgent: string;
+  isOther: number;
   count: number;
   lastSeen: string;
 };
@@ -211,21 +214,41 @@ classified AS (
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
+),
+caller_candidates AS (
+  SELECT
+    project_id,
+    legacy_route,
+    topK(${V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT})(tuple(sdk_name, sdk_version, user_agent)) AS caller_keys
+  FROM classified
+  WHERE legacy_route IS NOT NULL
+    AND clickhouse_queries_per_api_call IS NOT NULL
+  GROUP BY project_id, legacy_route
+),
+bounded AS (
+  SELECT
+    classified.*,
+    has(caller_candidates.caller_keys, tuple(sdk_name, sdk_version, user_agent)) AS retain_caller
+  FROM classified
+  ANY INNER JOIN caller_candidates
+    ON classified.project_id = caller_candidates.project_id
+    AND classified.legacy_route = caller_candidates.legacy_route
+  WHERE classified.legacy_route IS NOT NULL
+    AND classified.clickhouse_queries_per_api_call IS NOT NULL
 )
 SELECT
   formatDateTime(toStartOfHour(event_time, 'UTC'), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS hourStart,
   project_id AS projectId,
   legacy_route AS route,
-  sdk_name AS sdkName,
-  sdk_version AS sdkVersion,
-  user_agent AS userAgent,
+  if(retain_caller, sdk_name, '') AS sdkName,
+  if(retain_caller, sdk_version, '') AS sdkVersion,
+  if(retain_caller, user_agent, '') AS userAgent,
+  if(retain_caller, 0, 1) AS isOther,
   sum(1.0 / clickhouse_queries_per_api_call) AS count,
   formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
-FROM classified
-WHERE legacy_route IS NOT NULL
-  AND clickhouse_queries_per_api_call IS NOT NULL
-GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent
-ORDER BY hourStart ASC, projectId ASC, route ASC, sdkName ASC, sdkVersion ASC, userAgent ASC
+FROM bounded
+GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent, isOther
+ORDER BY hourStart ASC, projectId ASC, route ASC, isOther ASC, sdkName ASC, sdkVersion ASC, userAgent ASC
 SETTINGS skip_unavailable_shards = 1
     `,
       params: {
@@ -274,7 +297,8 @@ const mergeServiceRows = (
         left.route.localeCompare(right.route) ||
         left.sdkName.localeCompare(right.sdkName) ||
         left.sdkVersion.localeCompare(right.sdkVersion) ||
-        left.userAgent.localeCompare(right.userAgent),
+        left.userAgent.localeCompare(right.userAgent) ||
+        left.isOther - right.isOther,
     );
     uniqueServiceResultSets.set(JSON.stringify(sortedRows), sortedRows);
   }
@@ -289,6 +313,7 @@ const mergeServiceRows = (
         row.sdkName,
         row.sdkVersion,
         row.userAgent,
+        row.isOther,
       ].join("\u0000");
       const existing = merged.get(key);
       merged.set(
@@ -309,6 +334,7 @@ const mergeServiceRows = (
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
               userAgent: row.userAgent,
+              isOther: row.isOther,
               count: Number(row.count),
               lastSeen: row.lastSeen,
             },
@@ -388,11 +414,15 @@ const buildHourBuckets = ({
           apiRow.entrypoint === entrypoint,
       );
       const caller: V4LegacyApiCaller = {
-        ...(row.sdkName === "python" || row.sdkName === "javascript"
-          ? { sdkName: row.sdkName }
-          : {}),
-        ...(row.sdkVersion ? { sdkVersion: row.sdkVersion } : {}),
-        ...(row.userAgent ? { userAgent: row.userAgent } : {}),
+        ...(row.isOther
+          ? { isOther: true as const }
+          : {
+              ...(row.sdkName === "python" || row.sdkName === "javascript"
+                ? { sdkName: row.sdkName }
+                : {}),
+              ...(row.sdkVersion ? { sdkVersion: row.sdkVersion } : {}),
+              ...(row.userAgent ? { userAgent: row.userAgent } : {}),
+            }),
         count: row.count,
         lastSeen: row.lastSeen,
       };

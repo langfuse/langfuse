@@ -33,6 +33,32 @@ describe("mergeV4LegacyApiCallers", () => {
       25,
     );
   });
+
+  it("keeps one overflow bucket when a capped rollup is merged again", () => {
+    const callers = [
+      ...Array.from({ length: 20 }, (_, index) => ({
+        userAgent: `caller-${index}`,
+        count: 1,
+        lastSeen: "2026-07-23T10:00:00Z",
+      })),
+      {
+        isOther: true as const,
+        count: 4,
+        lastSeen: "2026-07-23T11:00:00Z",
+      },
+    ];
+
+    const merged = mergeV4LegacyApiCallers(callers);
+
+    expect(merged).toHaveLength(20);
+    expect(merged.filter((caller) => caller.isOther)).toEqual([
+      {
+        isOther: true,
+        count: 5,
+        lastSeen: "2026-07-23T11:00:00Z",
+      },
+    ]);
+  });
 });
 
 describe("v4LegacyApiHourBucketTtlSeconds", () => {

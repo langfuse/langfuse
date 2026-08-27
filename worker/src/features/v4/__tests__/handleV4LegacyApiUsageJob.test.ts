@@ -123,6 +123,7 @@ const usageRow = (overrides: {
   sdkName?: string;
   sdkVersion?: string;
   userAgent?: string;
+  isOther?: number;
   count?: string | number;
   lastSeen?: string;
 }) => ({
@@ -132,6 +133,7 @@ const usageRow = (overrides: {
   sdkName: overrides.sdkName ?? "",
   sdkVersion: overrides.sdkVersion ?? "",
   userAgent: overrides.userAgent ?? "",
+  isOther: overrides.isOther ?? 0,
   count: overrides.count ?? "4",
   lastSeen: overrides.lastSeen ?? "2026-06-25T09:15:00.000000Z",
 });
@@ -326,7 +328,11 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(query).toContain("JSONExtractString(log_comment, 'sdkVersion')");
     expect(query).toContain("JSONExtractString(log_comment, 'userAgent')");
     expect(query).toContain(
-      "GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent",
+      "topK(100)(tuple(sdk_name, sdk_version, user_agent))",
+    );
+    expect(query).toContain("ANY INNER JOIN caller_candidates");
+    expect(query).toContain(
+      "GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent, isOther",
     );
 
     expect(
@@ -373,11 +379,12 @@ describe("handleV4LegacyApiUsageJob", () => {
   });
 
   it("retains hour callers until the bounded project rollup", async () => {
-    mocks.queryClickhouse.mockResolvedValue(
-      Array.from({ length: 25 }, (_, index) =>
+    mocks.queryClickhouse.mockResolvedValue([
+      ...Array.from({ length: 25 }, (_, index) =>
         usageRow({ userAgent: `caller-${index}`, count: 1 }),
       ),
-    );
+      usageRow({ isOther: 1, count: 3 }),
+    ]);
 
     await handleV4LegacyApiUsageJob();
 
@@ -385,11 +392,11 @@ describe("handleV4LegacyApiUsageJob", () => {
       v4LegacyApiHourBucketKey(Date.parse("2026-06-25T09:00:00Z")),
     );
     const projectBlob = readJson(v4LegacyApiUsageProjectKey("project-a"));
-    expect(hourBucket.apiRows[0].callers).toHaveLength(25);
+    expect(hourBucket.apiRows[0].callers).toHaveLength(26);
     expect(projectBlob.rows[0].callers).toHaveLength(20);
     expect(projectBlob.rows[0].callers.at(-1)).toMatchObject({
       isOther: true,
-      count: 6,
+      count: 9,
     });
   });
 
