@@ -56,24 +56,9 @@ tools:
     - "pnpm:*"
     - "npm view:*"
     - "node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs:*"
-    - "git status:*"
     - "git diff:*"
-    - "git log:*"
-    - "git show:*"
-    - "git rev-parse:*"
-    - "git ls-files:*"
     - "git restore:*"
   edit:
-
-jobs:
-  safe_outputs:
-    permissions:
-      contents: write
-      pull-requests: write
-  conclusion:
-    permissions:
-      actions: read
-      contents: read
 
 safe-outputs:
   # New installations preview only. Set the repository variable
@@ -100,17 +85,14 @@ safe-outputs:
       - pnpm-workspace.yaml
     protected-files: allowed
     max-patch-files: 30
-    max-patch-size: 4096
     if-no-changes: ignore
-    # PRs created with the job token do not start CI. This token is used only
-    # to push gh-aw's extra empty commit after PR creation.
-    github-token-for-extra-empty-commit: ${{ secrets.GH_ACCESS_TOKEN }}
+    # Override gh-aw's optional magic PAT so CI cannot bypass human approval.
+    github-token-for-extra-empty-commit: ${{ '' }}
   add-comment:
     max: 10
     target: "*"
     discussions: false
     issues: false
-    pull-requests: true
     required-title-prefix: "chore(deps): bump "
   noop:
     report-as-issue: false
@@ -162,42 +144,29 @@ The current run's safe-output staged flag is
 
 ## Upgrade loop
 
-Start every dependency from a clean `origin/main`; never build one dependency
-on another dependency's commit.
-
 For each selected dependency:
 
-1. Resolve current installed version(s), direct/transitive provenance, and the
-   common fixed target. Create branch
+1. Start from clean `origin/main`; never build on another dependency's commit.
+   Resolve the current version and common fixed target, then create branch
    `deps/security-<dependency-slug>-<target-version>-${{ github.run_id }}`.
-2. As the first upgrade analysis command, run exactly once:
+2. Follow `pnpm-upgrade-package`. The workflow supplies the package and target,
+   so do not ask for them. As the first upgrade command, run exactly once:
    `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <dependency> <target-version>`.
-   If the target is not permitted by the existing release-age policy, do not
-   add an exclusion; skip it and continue.
-3. Run `pnpm install --dry-run --ignore-scripts`, inspect baseline resolver
-   drift, and run `pnpm why -r <dependency>`.
-4. Apply the skill's smallest valid change. For a transitive dependency whose
-   existing parent range covers the target, prefer a lockfile refresh. Do not
-   add a transitive package directly. If the parent range does not cover the
-   target, upgrade the parent only when that is the smallest compatible fix.
-   A temporary scoped override is allowed only for resolution and must be
-   removed before finishing unless the skill proves it is still required.
-5. Run `pnpm dedupe --ignore-scripts`. Inspect the full diff. If install or
-   dedupe causes unrelated churn, restore the branch and do not publish it.
-6. Require all of these checks to pass:
+   Skip rather than add `minimumReleaseAgeExclude` or keep unrelated churn.
+3. Require all of these checks to pass:
    - `pnpm install --frozen-lockfile --ignore-scripts`
    - `pnpm why -r <dependency>` proves only safe versions remain
    - `pnpm dedupe --check --ignore-scripts`
    - `git diff --check`
    - the diff contains only allowed dependency files and only changes needed
      for this dependency group
-7. Commit only the verified dependency files with
+4. Commit only the verified dependency files with
    `chore(deps): bump <dependency> to <target-version>` and hooks disabled.
-8. Request one non-draft PR for this branch with a unique temporary ID such as
+5. Request one non-draft PR for this branch with a unique temporary ID such as
    `aw_pr_1`. The title is the commit subject. The body must summarize the
    dependency upgrade and list every covered Dependabot alert number and GHSA
    ID.
-9. When the staged flag above is `false`, immediately request one `add_comment`
+6. When the staged flag above is `false`, immediately request one `add_comment`
    on that PR using the same temporary ID as `item_number`. The comment is the
    remediation record: include the old and target versions, whether the package
    is direct or transitive, the parent dependency when transitive, every covered
@@ -207,7 +176,6 @@ For each selected dependency:
    `true`, do not request `add_comment` because no real PR number exists; put the
    exact proposed comment under `## Remediation record (staged preview)` in the
    staged PR body instead.
-10. Return to clean `origin/main` before starting the next group. If one group
-    fails, continue with the remaining groups.
+7. Return to clean `origin/main`. If one group fails, continue with the rest.
 
 If no dependency needs a new PR, call `noop`.
