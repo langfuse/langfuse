@@ -1420,7 +1420,7 @@ paths:
         guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
 
 
-        Get a dataset with up to 100 embedded items.
+        Get a dataset with up to 1,000 embedded items.
 
 
         This legacy endpoint does not paginate its embedded items. Use
