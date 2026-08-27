@@ -238,6 +238,7 @@ const main = async (): Promise<void> => {
 
   await mkdir(options.outputDir, { recursive: true });
   await command("00-drop.sql");
+  await command("00-drop-b.sql");
   await command("01-create.sql");
   await command("02-populate.sql");
   await command("03-create-b.sql");
