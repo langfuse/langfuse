@@ -46,7 +46,9 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   // client-side in InlineWidget, so no query-side ordering is needed.
   orderBy: null,
   chartType: "LINE_TIME_SERIES",
-  chartConfig: { type: "LINE_TIME_SERIES" },
+  // A dot per experiment: on an entity axis a metric that only two runs
+  // recorded would otherwise draw one long line across every other run.
+  chartConfig: { type: "LINE_TIME_SERIES", show_data_point_dots: true },
   timeDimension: null,
   entityDimension: { field: "experimentName" },
   filters: [],
@@ -92,7 +94,7 @@ export const NUMERIC_SCORE_CHART_CONFIG = {
   metrics: [{ measure: "value", agg: "avg" }],
   filters: [],
   chartType: "LINE_TIME_SERIES",
-  chartConfig: { type: "LINE_TIME_SERIES" },
+  chartConfig: { type: "LINE_TIME_SERIES", show_data_point_dots: true },
 } as const;
 
 export const CATEGORICAL_SCORE_CHART_CONFIG = {
