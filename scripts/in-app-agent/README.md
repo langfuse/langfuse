@@ -2,17 +2,12 @@
 
 ## Skill Sync
 
-The generated in-app agent skills live at:
-
-`worker/src/features/in-app-agent/runtime/skills/generated/raw`
-
-The generated TypeScript index lives at:
+The generated in-app agent skills live in:
 
 `worker/src/features/in-app-agent/runtime/skills/generated/skill-markdown.ts`
 
-The generated module inlines each markdown file as a string literal so it
-compiles under plain `tsc` in `worker`; the `raw/*.md` copies exist
-for reviewable diffs only.
+The generated module inlines each Markdown file as a string literal so it
+compiles under plain `tsc` in `worker`.
 
 Use `sync-raw-skills.mjs` to download all markdown files from
 `https://github.com/langfuse/skills/tree/main/skills/langfuse/references`.

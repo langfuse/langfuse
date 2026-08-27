@@ -2,12 +2,10 @@
 
 import {
   mkdirSync,
-  readdirSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import process from "node:process";
 import { format as formatWithPrettier } from "prettier";
 
@@ -16,7 +14,6 @@ const generatedDir = resolve(
   repoRoot,
   "worker/src/features/in-app-agent/runtime/skills/generated",
 );
-const rawTargetDir = resolve(generatedDir, "raw");
 const generatedModuleName = "skill-markdown.ts";
 const sourceApiUrl =
   "https://api.github.com/repos/langfuse/skills/contents/skills/langfuse/references?ref=main";
@@ -97,21 +94,9 @@ const getExpectedFiles = async () => {
   return expectedFiles;
 };
 
-const getCurrentManagedFileNames = () =>
-  readdirSync(rawTargetDir, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isFile() &&
-        entry.name.endsWith(".md") &&
-        entry.name !== "README.md",
-    )
-    .map((entry) => entry.name)
-    .sort((left, right) => left.localeCompare(right));
-
 const renderGeneratedModule = async (files) => {
   // Markdown is inlined as string literals (instead of raw `.md` imports) so
-  // the module compiles under plain tsc in worker without bundler
-  // support. The raw/*.md files are still written for reviewable diffs.
+  // the module compiles under plain tsc in worker without bundler support.
   const entries = files
     .map(
       ({ name, content }) =>
@@ -136,34 +121,10 @@ const main = async () => {
   const expectedFileNames = expectedFiles.map((file) => file.name);
   const generatedModuleContent = await renderGeneratedModule(expectedFiles);
 
-  mkdirSync(rawTargetDir, { recursive: true });
+  mkdirSync(generatedDir, { recursive: true });
 
   if (isCheckMode) {
     const mismatches = [];
-    const expectedFileNameSet = new Set(expectedFileNames);
-
-    for (const fileName of getCurrentManagedFileNames()) {
-      if (!expectedFileNameSet.has(fileName)) {
-        mismatches.push(`${fileName} exists locally but is not expected`);
-      }
-    }
-
-    for (const { name, content } of expectedFiles) {
-      const localPath = resolve(rawTargetDir, name);
-
-      try {
-        if (readFileSync(localPath, "utf8") !== content) {
-          mismatches.push(`${name} differs from upstream`);
-        }
-      } catch (error) {
-        if (error.code === "ENOENT") {
-          mismatches.push(`${name} is missing locally`);
-          continue;
-        }
-
-        throw error;
-      }
-    }
 
     try {
       if (
@@ -192,18 +153,6 @@ const main = async () => {
       `Generated in-app agent skills are in sync: ${expectedFileNames.join(", ")}`,
     );
     return;
-  }
-
-  const expectedFileNameSet = new Set(expectedFileNames);
-
-  for (const fileName of getCurrentManagedFileNames()) {
-    if (!expectedFileNameSet.has(fileName)) {
-      rmSync(resolve(rawTargetDir, fileName));
-    }
-  }
-
-  for (const { name, content } of expectedFiles) {
-    writeFileSync(resolve(rawTargetDir, basename(name)), content);
   }
 
   writeFileSync(
