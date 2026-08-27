@@ -29,7 +29,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 
 ## Encapsulation
 
-- No className / style props unless the component itself is a headless component that does not contain any styling or layout logic itself.
+- No className / style props, including prefixed variants such as `badgeClassName` or `contentStyle`, unless the component itself is a headless component that does not contain any styling or layout logic itself.
 - Internals such as cva classes or helper functions should not be exported
 
 ## Ownership
