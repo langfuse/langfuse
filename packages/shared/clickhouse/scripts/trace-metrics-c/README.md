@@ -4,6 +4,8 @@ This experiment evaluates a narrow five-minute `AggregatingMergeTree` for
 trace-level cost, token, latency, and span-count queries. It does not create a
 production migration or materialized view.
 
+Architecture conclusions: [FINDINGS.md](./FINDINGS.md).
+
 ## Run
 
 ```bash
