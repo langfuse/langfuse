@@ -1,55 +1,14 @@
-/**
- * The one gate for Langfuse's own PostHog product analytics.
- *
- * PostHog is disabled altogether in the HIPAA cloud region. The browser SDK is
- * never initialized (init itself phones home). The server SDK is constructed
- * as usual, then opted out with `disable()`, which is a local no-op on
- * `posthog-node` and does not contact PostHog. Because `ServerPosthog` falls
- * back to Langfuse's own telemetry key when no key is configured, "just don't
- * set the env vars" is not a sufficient gate — the region check has to live
- * in code.
- *
- * Every PostHog call site routes through here instead of carrying its own
- * region list, so the rule stays in one place and cannot drift per surface.
- *
- * The region and keys are read from `process.env` rather than the validated
- * `env` object so this module also works at module scope in the app shell,
- * where PostHog is initialized before React renders. Next.js inlines
- * `NEXT_PUBLIC_*` into the browser bundle at build time, and each Langfuse
- * Cloud region builds its own image with its own
- * `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` build arg (see web/Dockerfile), so the
- * HIPAA bundle ships with the gate already closed.
- */
+// PostHog product analytics are off in the HIPAA cloud region. Not setting the
+// env vars is not enough: ServerPosthog falls back to Langfuse's telemetry key.
+//
+// Read from process.env, not the validated env object, so this also works at
+// module scope in the app shell where posthog-js is initialized. Next.js inlines
+// NEXT_PUBLIC_* per region build (see web/Dockerfile).
 
-/**
- * Cloud regions that must never run Langfuse product analytics. This list is the
- * single place to change when a region joins or leaves the ban.
- */
-const PRODUCT_ANALYTICS_DISABLED_CLOUD_REGIONS = ["HIPAA"] as const;
-
-const isProductAnalyticsAllowedInRegion = (
-  region: string | undefined | null,
-): boolean =>
-  region == null ||
-  !(PRODUCT_ANALYTICS_DISABLED_CLOUD_REGIONS as readonly string[]).includes(
-    region,
-  );
-
-/**
- * Whether Langfuse product analytics may run in this deployment at all.
- * Server-side capture paths gate on this; it says nothing about whether a
- * PostHog key is configured.
- */
 export const isProductAnalyticsAvailable = (): boolean =>
-  isProductAnalyticsAllowedInRegion(
-    process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  );
+  process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "HIPAA";
 
-/**
- * The key/host the PostHog browser SDK should be initialized with, or null when
- * the browser SDK must stay dormant — either because no key/host pair is
- * configured or because the region runs no product analytics.
- */
+/** Key/host for posthog-js, or null when the browser SDK must not initialize. */
 export const getPostHogClientConfig = (): {
   key: string;
   host: string;
@@ -60,10 +19,5 @@ export const getPostHogClientConfig = (): {
   return { key, host };
 };
 
-/**
- * Whether the PostHog browser SDK is live: the deployment allows product
- * analytics and a client key/host pair is configured. Guards the capture,
- * identify and reset call sites that run after initialization.
- */
 export const isPostHogClientEnabled = (): boolean =>
   getPostHogClientConfig() !== null;
