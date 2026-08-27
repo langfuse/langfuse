@@ -1309,16 +1309,17 @@ describe("createAgUiStream", () => {
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
   });
 
-  it("does not wait for tracing flush before closing the agent stream", async () => {
+  it("waits for tracing flush before finishing an aborted agent stream", async () => {
     const { createAgUiStream } = await import("./agent");
+    let resolveFlush: (() => void) | undefined;
     instrumentationMocks.instrumentation.flush.mockReturnValue(
-      new Promise(() => {
-        // Hang forever — the stream must still complete.
+      new Promise<void>((resolve) => {
+        resolveFlush = resolve;
       }),
     );
     const input = {
       threadId: "conversation-1",
-      runId: "run-flush-async",
+      runId: "run-flush-abort",
       messages: [
         {
           id: "user-message-1",
@@ -1335,25 +1336,16 @@ describe("createAgUiStream", () => {
       },
       forwardedProps: {},
     };
-    adapterEvents.items = [
-      {
-        type: EventType.RUN_STARTED,
-        threadId: input.threadId,
-        runId: input.runId,
-      },
-      {
-        type: EventType.RUN_FINISHED,
-        threadId: input.threadId,
-        runId: input.runId,
-      },
-    ];
-    const onComplete = vi.fn();
+    adapterEvents.items = [];
+    const onAbort = vi.fn();
+    const abortController = new AbortController();
+    abortController.abort("worker_shutdown");
 
     const stream = await createAgUiStream({
       input,
-      signal: new AbortController().signal,
+      signal: abortController.signal,
       options: {
-        onComplete,
+        onAbort,
         model: testBedrockModel("test-model"),
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
@@ -1370,10 +1362,16 @@ describe("createAgUiStream", () => {
       },
     });
 
-    await readStream(stream);
+    const streamDone = readStream(stream);
+    await vi.waitFor(() => {
+      expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+    });
+    expect(onAbort).not.toHaveBeenCalled();
 
-    expect(onComplete).toHaveBeenCalledOnce();
-    expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+    resolveFlush?.();
+    await streamDone;
+
+    expect(onAbort).toHaveBeenCalledOnce();
   });
 
   it("does not enable Bedrock reasoning for non-Claude models", async () => {
