@@ -58,7 +58,11 @@ import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { revealScoreColumns } from "@/src/features/scores/lib/scoreColumns";
+import {
+  collectPresentScoreKeys,
+  revealScoreColumns,
+  withPresentScoreKeys,
+} from "@/src/features/scores/lib/scoreColumns";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
@@ -544,32 +548,56 @@ export default function ExperimentItemsTable({
     [hasBaseline, allExperimentIds],
   );
 
+  // A score column that is empty for every item in view is noise, so only keep
+  // the keys the items query actually returned. Undefined while items load, so
+  // columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (items.status !== "success") return undefined;
+    const experimentsInView = (items.rows ?? []).flatMap(
+      (row) => row.experiments,
+    );
+    return {
+      observation: collectPresentScoreKeys(
+        experimentsInView.map((exp) => exp.observationScores),
+      ),
+      trace: collectPresentScoreKeys(
+        experimentsInView.map((exp) => exp.traceScores),
+      ),
+    };
+  }, [items]);
+
   // Create score columns from the shared filter options data
   // This ensures sidebar filters and column visibility use the same data source
   const observationScoreColumns = useMemo(
     () =>
       createScoreColumns<ExperimentItemData>(
-        toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
+        withPresentScoreKeys(
+          toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
+          presentScoreKeys?.observation,
+        ),
         "observationScores",
         "smart",
         undefined,
         undefined,
         true,
       ),
-    [scoreColumnDefs.observationScoreColumns],
+    [scoreColumnDefs.observationScoreColumns, presentScoreKeys?.observation],
   );
 
   const traceScoreColumns = useMemo(
     () =>
       createScoreColumns<ExperimentItemData>(
-        toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
+        withPresentScoreKeys(
+          toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
+          presentScoreKeys?.trace,
+        ),
         "traceScores",
         "smart",
         "Trace",
         undefined,
         true,
       ),
-    [scoreColumnDefs.traceScoreColumns],
+    [scoreColumnDefs.traceScoreColumns, presentScoreKeys?.trace],
   );
 
   // Use the shared loading state for both sidebar and columns

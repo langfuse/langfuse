@@ -160,6 +160,34 @@ export const addPrefixToScoreKeys = (
 };
 
 /**
+ * Aggregate keys that carry a value somewhere in the current result set. Used
+ * to drop score columns that would render empty for every visible row.
+ */
+export const collectPresentScoreKeys = (
+  aggregates: (ScoreAggregate | null | undefined)[],
+): Set<string> => {
+  const presentKeys = new Set<string>();
+  for (const aggregate of aggregates) {
+    if (!aggregate) continue;
+    for (const key of Object.keys(aggregate)) presentKeys.add(key);
+  }
+  return presentKeys;
+};
+
+/**
+ * Keeps only the score columns that have a value in the current result set.
+ * Pass `undefined` while the score data is still loading, so columns are not
+ * dropped and re-added on every fetch.
+ */
+export const withPresentScoreKeys = <T extends { key: string }>(
+  scoreColumns: T[],
+  presentKeys: ReadonlySet<string> | undefined,
+): T[] =>
+  presentKeys
+    ? scoreColumns.filter(({ key }) => presentKeys.has(key))
+    : scoreColumns;
+
+/**
  * One-time transform that opts a returning user into score columns being
  * visible by default. Their stored visibility state already holds `false` for
  * every score column from the previous default, so changing `defaultHidden`

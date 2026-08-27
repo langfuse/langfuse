@@ -47,6 +47,7 @@ import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
+  collectPresentScoreKeys,
   revealScoreColumns,
   scoreFilters,
 } from "@/src/features/scores/lib/scoreColumns";
@@ -358,12 +359,28 @@ export default function ExperimentsTable({
   const filterState = combinedFilterState;
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
-    projectId,
-    filterState,
-    orderByState,
-    paginationState,
-  });
+  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
+    useExperimentsTableData({
+      projectId,
+      filterState,
+      orderByState,
+      paginationState,
+    });
+
+  // A score column that is empty for every experiment in view is noise, so only
+  // create columns for the keys the metrics query actually returned. Undefined
+  // while metrics load, so columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
+      observationItem: collectPresentScoreKeys(
+        rows.map((r) => r.observationItemScores),
+      ),
+      experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -395,6 +412,7 @@ export default function ExperimentsTable({
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.traceItem,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -413,6 +431,7 @@ export default function ExperimentsTable({
           })
         : [],
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.observationItem,
   });
 
   // Experiment-level scores (direct dataset_run_id match)
@@ -431,6 +450,7 @@ export default function ExperimentsTable({
     rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.experiment,
   });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({

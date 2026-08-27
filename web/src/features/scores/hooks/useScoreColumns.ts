@@ -8,7 +8,10 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { toOrderedScoresList } from "@/src/features/scores/lib/helpers";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import {
+  getScoreDataTypeIcon,
+  withPresentScoreKeys,
+} from "@/src/features/scores/lib/scoreColumns";
 
 // Simple score column creation - exported for reuse
 export function createScoreColumns<T extends Record<string, any>>(
@@ -72,6 +75,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   displayFormat = "smart",
   defaultHidden,
   rawKey = false,
+  presentKeys,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
@@ -83,6 +87,12 @@ export function useScoreColumns<T extends Record<string, any>>({
   displayFormat?: "smart" | "aggregate";
   defaultHidden?: boolean;
   rawKey?: boolean;
+  /**
+   * Restricts the columns to the score keys that actually carry a value in the
+   * current result set. Leave undefined to create a column per discovered
+   * score, and while that data is still loading.
+   */
+  presentKeys?: ReadonlySet<string>;
 }) {
   const scoreColumnsQuery = api.scores.getScoreColumns.useQuery(
     {
@@ -100,7 +110,10 @@ export function useScoreColumns<T extends Record<string, any>>({
     if (!scoreColumnsQuery.data?.scoreColumns) return [];
 
     return createScoreColumns<T>(
-      toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
+      withPresentScoreKeys(
+        toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
+        presentKeys,
+      ),
       scoreColumnKey,
       displayFormat,
       prefix,
@@ -114,6 +127,7 @@ export function useScoreColumns<T extends Record<string, any>>({
     displayFormat,
     defaultHidden,
     rawKey,
+    presentKeys,
   ]);
 
   return {
