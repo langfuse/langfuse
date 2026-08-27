@@ -494,6 +494,15 @@ export default function ExperimentItemsTable({
       itemVisibility,
     });
 
+  // Running items without an expected output is common, so don't spend a column
+  // on it when nothing in view has one. Kept while IO loads so it doesn't flash.
+  const showExpectedOutput = useMemo(
+    () =>
+      ioLoading ||
+      (items.rows ?? []).some((row) => Boolean(row.expectedOutput)),
+    [ioLoading, items.rows],
+  );
+
   useEffect(() => {
     if (items.status === "success") {
       // Store all experiment targets for peek navigation
@@ -707,6 +716,27 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.observationScoreColumns.length > 0 &&
     scoreColumnDefs.traceScoreColumns.length > 0;
 
+  const expectedOutputColumn: LangfuseColumnDef<ExperimentItemsTableRow> = {
+    accessorKey: "expectedOutput",
+    id: "expectedOutput",
+    header: "Expected Output",
+    size: 300,
+    enableHiding: true,
+    cell: ({ row }) => {
+      const expectedOutput = row.original.expectedOutput;
+      // An empty expected output used to render as two literal quote characters.
+      if (!ioLoading && !expectedOutput) return undefined;
+      return (
+        <MemoizedIOTableCell
+          isLoading={ioLoading}
+          data={expectedOutput ?? null}
+          singleLine={ioSingleLine}
+          className="bg-accent-light-green"
+        />
+      );
+    },
+  };
+
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
     ...(hideControls ? [] : [selectActionColumn]),
     createIdTableColumn<ExperimentItemsTableRow>({
@@ -876,23 +906,7 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    {
-      accessorKey: "expectedOutput",
-      id: "expectedOutput",
-      header: "Expected Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.expectedOutput ?? ""}
-            singleLine={ioSingleLine}
-            className="bg-accent-light-green"
-          />
-        );
-      },
-    },
+    ...(showExpectedOutput ? [expectedOutputColumn] : []),
     {
       accessorKey: "output",
       id: "output",
@@ -1225,6 +1239,7 @@ export default function ExperimentItemsTable({
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
                   rowHeight={rowHeight}
+                  showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
                   observationScoreOrder={observationScoreOrder}
                   traceScoreOrder={traceScoreOrder}

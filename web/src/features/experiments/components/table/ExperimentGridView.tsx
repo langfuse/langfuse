@@ -39,6 +39,8 @@ type ExperimentGridViewProps = {
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -70,6 +72,7 @@ export const ExperimentGridView = ({
   rows,
   isLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -195,6 +198,30 @@ export const ExperimentGridView = ({
     singleLine,
   ]);
 
+  const expectedOutputColumn: LangfuseColumnDef<ExperimentItemsTableRow> =
+    useMemo(
+      () => ({
+        accessorKey: "expectedOutput",
+        id: "expectedOutput",
+        header: "Expected Output",
+        size: 200,
+        cell: ({ row }) => {
+          const expectedOutput = row.original.expectedOutput;
+          // An empty expected output used to render as two literal quote characters.
+          if (!isLoading && !expectedOutput) return undefined;
+          return (
+            <MemoizedIOTableCell
+              isLoading={isLoading}
+              data={expectedOutput ?? null}
+              singleLine={singleLine}
+              className="bg-accent-light-green"
+            />
+          );
+        },
+      }),
+      [isLoading, singleLine],
+    );
+
   // Build all columns: Select, Input, Expected Output, then experiment columns
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = useMemo(
     () => [
@@ -213,23 +240,17 @@ export const ExperimentGridView = ({
           />
         ),
       },
-      {
-        accessorKey: "expectedOutput",
-        id: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+      ...(showExpectedOutput ? [expectedOutputColumn] : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [
+      expectedOutputColumn,
+      experimentColumns,
+      isLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
   );
 
   return (
