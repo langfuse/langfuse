@@ -6,7 +6,7 @@ import {
   enforceProjectAuth,
   type EnforceProjectAuthDecision,
 } from "./enforcement.projects";
-import { diffResults, legacyFromStatus } from "./shadow";
+import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
 import { type ProjectAction } from "./types";
 
 /** verifyAuth is the project seam: legacy decides in legacy/shadow (byte-identical), and the new PDP gates the legacy scope in enforce. */
@@ -14,6 +14,13 @@ export async function verifyAuth(
   params: VerifyAuthParams,
 ): Promise<LegacyResult> {
   const legacy = await runLegacyAuth(params);
+
+  // legacy mode skips the new pipeline entirely so self-host does no extra auth work
+  if (env.PUBLIC_API_AUTHZ_MIGRATION === "legacy") {
+    if (!legacy.ok) throw legacy.error;
+    return legacy.auth;
+  }
+
   const authz = await enforceProjectAuth({
     headers: params.req.headers,
     action: params.action ?? undefined,
@@ -22,6 +29,7 @@ export async function verifyAuth(
   });
 
   if (env.PUBLIC_API_AUTHZ_MIGRATION === "shadow") {
+    recordCoverage(params.name);
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: "project_route",
       action: params.action ?? "none",
@@ -59,6 +67,7 @@ async function runLegacyAuth(
 /** VerifyAuthParams is the request plus the route's action and legacy auth options. */
 export type VerifyAuthParams = {
   req: NextApiRequest;
+  name: string;
   action: ProjectAction | null;
   isAdminApiKeyAuthAllowed?: boolean;
   allowedAccessLevels?: Parameters<typeof legacyVerifyAuth>[2];
