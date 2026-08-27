@@ -72,6 +72,29 @@ function validateEvaluatorInput(
   input: z.infer<typeof McpEvaluatorInputBase>,
   ctx: z.RefinementCtx,
 ) {
+  if (input.type === EvalTemplateType.LLM_AS_JUDGE) {
+    const hasModelConfiguration =
+      input.provider !== undefined ||
+      input.model !== undefined ||
+      input.modelParams !== undefined;
+    const missingModelConfigurationFields = [
+      ...(input.provider === undefined ? ["provider"] : []),
+      ...(input.model === undefined ? ["model"] : []),
+    ];
+
+    if (hasModelConfiguration && missingModelConfigurationFields.length > 0) {
+      for (const field of missingModelConfigurationFields) {
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message:
+            "Provider and model are required when model configuration is provided.",
+        });
+      }
+      return;
+    }
+  }
+
   if (
     input.type === EvalTemplateType.CODE &&
     input.variableMapping !== undefined
