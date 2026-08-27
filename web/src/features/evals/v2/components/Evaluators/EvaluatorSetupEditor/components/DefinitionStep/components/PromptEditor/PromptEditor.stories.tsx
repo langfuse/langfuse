@@ -120,6 +120,32 @@ export const MultipleMessages = meta.story({
   },
 });
 
+export const InvalidSystemMessagePosition = meta.story({
+  name: "(Test) Invalid system message position",
+  render: () => (
+    <PromptEditorStory
+      messages={[
+        { role: "user", content: "Judge the response." },
+        { role: "system", content: "Be strict." },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(
+      canvas.getByLabelText("Invalid system message position"),
+    ).toBeVisible();
+
+    await userEvent.click(
+      canvas.getAllByRole("button", { name: "Prompt message settings" })[1],
+    );
+    await expect(
+      page.getByRole("menuitem", { name: "System" }),
+    ).toHaveAttribute("data-disabled");
+  },
+});
+
 export const DraggingMessage = meta.story({
   name: "(Test) Dragging a message",
   render: () => (

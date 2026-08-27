@@ -36,7 +36,16 @@ export type EvaluatorPromptMessage = z.infer<
 /** Chat messages persisted alongside the legacy evaluator prompt string. */
 export const PersistedEvaluatorPromptMessagesSchema = z
   .array(EvaluatorPromptMessageSchema)
-  .min(1);
+  .min(1)
+  .refine(
+    (messages) =>
+      !messages.some(
+        (message, index) => index > 0 && message.role === "system",
+      ),
+    {
+      message: "System messages are only allowed as the first prompt message",
+    },
+  );
 export type PersistedEvaluatorPromptMessages = z.infer<
   typeof PersistedEvaluatorPromptMessagesSchema
 >;

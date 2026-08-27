@@ -10,6 +10,7 @@ import {
   singleFilter,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+import { hasInvalidSystemPromptMessage } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { z } from "zod";
 
 const EvaluatorMetadataSchema = z.object({
@@ -50,7 +51,13 @@ export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
 export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
   prompt: z.string().min(1),
-  promptMessages: z.array(EvaluatorPromptMessageSchema).min(1).optional(),
+  promptMessages: z
+    .array(EvaluatorPromptMessageSchema)
+    .min(1)
+    .refine((messages) => !hasInvalidSystemPromptMessage(messages), {
+      message: "System messages are only allowed as the first prompt message",
+    })
+    .optional(),
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),

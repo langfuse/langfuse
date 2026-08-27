@@ -62,4 +62,35 @@ describe("prepareEvaluatorDraft", () => {
       },
     });
   });
+
+  it("does not prepare a definition with a non-first system message", () => {
+    const result = prepareEvaluatorDraft({
+      type: "LLM_AS_JUDGE",
+      prompt: "Judge {{output}}\n\nBe strict",
+      promptMessages: [
+        { role: "user", content: "Judge {{output}}" },
+        { role: "system", content: "Be strict" },
+      ],
+      sourceCode: "",
+      sourceCodeLanguage: "TYPESCRIPT",
+      scoreOutput: {
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        scoreDescription: "Quality",
+        reasoningDescription: "Reasoning",
+        choices: [],
+        shouldAllowMultipleMatches: false,
+        minValue: "0",
+        maxValue: "1",
+      },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: null },
+      },
+      modelMode: "default",
+      selectedModel: null,
+      modelParams: null,
+      initialDefinition: undefined,
+    });
+
+    expect(result.definition).toBeNull();
+  });
 });

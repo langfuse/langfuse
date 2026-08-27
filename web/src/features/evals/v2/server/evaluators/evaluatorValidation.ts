@@ -6,6 +6,7 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
+import { hasInvalidSystemPromptMessage } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
@@ -118,6 +119,15 @@ export async function assertEvaluatorConfigurationValid(params: {
       );
     }
     return;
+  }
+
+  if (
+    params.definition.promptMessages &&
+    hasInvalidSystemPromptMessage(params.definition.promptMessages)
+  ) {
+    throw new InvalidRequestError(
+      "System messages are only allowed as the first prompt message",
+    );
   }
 
   const promptVariables = extractEvaluatorPromptVariables({

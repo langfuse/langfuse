@@ -7,6 +7,7 @@ import {
   MoreVertical,
   Plus,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import {
   closestCenter,
@@ -184,6 +185,7 @@ function SortablePromptMessage({
 }) {
   const [expanded, setExpanded] = useState(true);
   const { copy } = useCopyToClipboard();
+  const hasInvalidSystemRole = index > 0 && message.role === "system";
   const {
     attributes,
     listeners,
@@ -250,8 +252,19 @@ function SortablePromptMessage({
               <Badge
                 variant="tertiary"
                 size="sm"
-                className="h-5 shrink-0 leading-none"
+                className="h-5 shrink-0 gap-1 leading-none"
+                title={
+                  hasInvalidSystemRole
+                    ? "System messages are only allowed as the first prompt message"
+                    : undefined
+                }
               >
+                {hasInvalidSystemRole ? (
+                  <TriangleAlert
+                    className="text-dark-yellow h-3.5 w-3.5"
+                    aria-label="Invalid system message position"
+                  />
+                ) : null}
                 {ROLES.find((role) => role.value === message.role)?.label}
               </Badge>
             ) : null}
@@ -286,6 +299,7 @@ function SortablePromptMessage({
               {ROLES.map((role) => (
                 <DropdownMenuItem
                   key={role.value}
+                  disabled={index > 0 && role.value === "system"}
                   onSelect={() => onChange({ ...message, role: role.value })}
                 >
                   <span className="flex-1">{role.label}</span>

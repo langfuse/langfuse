@@ -1,3 +1,4 @@
+import { hasInvalidSystemPromptMessage } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -19,6 +20,11 @@ type EvaluatorSetupDraftState = Pick<
 
 export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const outputDefinition = buildScoreOutputDefinition(params.scoreOutput);
+  const promptMessages = params.promptMessages ?? [
+    { role: "user" as const, content: params.prompt },
+  ];
+  const promptMessageRolesValid =
+    !hasInvalidSystemPromptMessage(promptMessages);
   const mappings =
     params.type === "LLM_AS_JUDGE"
       ? buildEvaluatorVariableMappings({
@@ -29,13 +35,11 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const variables = mappings.map(({ variable }) => variable);
   const definition =
     params.type === "LLM_AS_JUDGE"
-      ? outputDefinition
+      ? outputDefinition && promptMessageRolesValid
         ? {
             type: params.type,
             prompt: params.prompt,
-            promptMessages: params.promptMessages ?? [
-              { role: "user" as const, content: params.prompt },
-            ],
+            promptMessages,
             provider:
               params.modelMode === "custom"
                 ? (params.selectedModel?.provider ?? null)
