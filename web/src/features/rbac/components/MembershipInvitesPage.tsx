@@ -1,11 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
@@ -15,6 +10,7 @@ import { type Organization, type Role } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Header from "@/src/components/layouts/header";
 import useSessionStorage from "@/src/components/useSessionStorage";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 export type tmp = Organization;
 export type InvitesTableRow = {
@@ -124,37 +120,12 @@ export function MembershipInvitesPage({
           },
         ]
       : []),
-    {
+    createUserTableColumn<InvitesTableRow>({
       accessorKey: "invitedByUser",
-      id: "invitedByUser",
       header: "Invited By",
-      cell: ({ row }) => {
-        const invitedByUser = row.getValue(
-          "invitedByUser",
-        ) as InvitesTableRow["invitedByUser"];
-        const { name, image } = invitedByUser || {};
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {name
-                  ? name
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
-            <span>{name ?? "-"}</span>
-          </div>
-        );
-      },
-    },
+      variant: "avatar",
+      emptyValue: "-",
+    }),
     {
       accessorKey: "meta",
       id: "meta",
