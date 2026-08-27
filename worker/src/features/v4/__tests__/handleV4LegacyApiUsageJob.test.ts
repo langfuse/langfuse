@@ -372,6 +372,27 @@ describe("handleV4LegacyApiUsageJob", () => {
     });
   });
 
+  it("retains hour callers until the bounded project rollup", async () => {
+    mocks.queryClickhouse.mockResolvedValue(
+      Array.from({ length: 25 }, (_, index) =>
+        usageRow({ userAgent: `caller-${index}`, count: 1 }),
+      ),
+    );
+
+    await handleV4LegacyApiUsageJob();
+
+    const hourBucket = readJson(
+      v4LegacyApiHourBucketKey(Date.parse("2026-06-25T09:00:00Z")),
+    );
+    const projectBlob = readJson(v4LegacyApiUsageProjectKey("project-a"));
+    expect(hourBucket.apiRows[0].callers).toHaveLength(25);
+    expect(projectBlob.rows[0].callers).toHaveLength(20);
+    expect(projectBlob.rows[0].callers.at(-1)).toMatchObject({
+      isOther: true,
+      count: 6,
+    });
+  });
+
   it("incremental run: re-scans only the trailing margin and merges with existing buckets", async () => {
     redisState.store.set(
       V4_LEGACY_API_USAGE_CURSOR_KEY,

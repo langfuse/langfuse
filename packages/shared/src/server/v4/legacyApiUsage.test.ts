@@ -21,6 +21,18 @@ describe("mergeV4LegacyApiCallers", () => {
     expect(merged.at(-1)).toMatchObject({ isOther: true });
     expect(merged.reduce((sum, caller) => sum + caller.count, 0)).toBe(325);
   });
+
+  it("can retain raw hour-bucket callers until the final rollup", () => {
+    const callers = Array.from({ length: 25 }, (_, index) => ({
+      userAgent: `caller-${index}`,
+      count: 1,
+      lastSeen: "2026-07-23T10:00:00Z",
+    }));
+
+    expect(mergeV4LegacyApiCallers(callers, { maxCallers: null })).toHaveLength(
+      25,
+    );
+  });
 });
 
 describe("v4LegacyApiHourBucketTtlSeconds", () => {

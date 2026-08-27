@@ -400,10 +400,10 @@ const buildHourBuckets = ({
         existing.count += row.count;
         existing.lastSeen =
           existing.lastSeen > row.lastSeen ? existing.lastSeen : row.lastSeen;
-        existing.callers = mergeV4LegacyApiCallers([
-          ...(existing.callers ?? []),
-          caller,
-        ]);
+        existing.callers = mergeV4LegacyApiCallers(
+          [...(existing.callers ?? []), caller],
+          { maxCallers: null },
+        );
       } else {
         bucket.apiRows.push({
           projectId: row.projectId,

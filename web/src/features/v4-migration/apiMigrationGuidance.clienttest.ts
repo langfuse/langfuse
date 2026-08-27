@@ -10,7 +10,7 @@ describe("getApiMigrationGuidance", () => {
       getApiMigrationGuidance("GET /api/public/traces/{id}", "python", "3.9.0"),
     ).toEqual({
       currentMethod: "client.api.trace.get(...)",
-      replacementMethod: "client.api.observations.get_many(...)",
+      replacementMethod: "client.api.observations.get_many(trace_id=trace_id)",
       replacement: "GET /api/public/v2/observations",
       minimumVersion: "4.0.0",
       requiresUpgrade: true,

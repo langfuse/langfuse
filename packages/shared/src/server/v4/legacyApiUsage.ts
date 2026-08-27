@@ -238,6 +238,7 @@ const legacyApiCallerKey = (caller: V4LegacyApiCaller): string =>
 
 export const mergeV4LegacyApiCallers = (
   callers: V4LegacyApiCaller[],
+  options: { maxCallers?: number | null } = {},
 ): V4LegacyApiCaller[] => {
   const merged = new Map<string, V4LegacyApiCaller>();
   for (const caller of callers) {
@@ -264,10 +265,14 @@ export const mergeV4LegacyApiCallers = (
       right.lastSeen.localeCompare(left.lastSeen) ||
       legacyApiCallerKey(left).localeCompare(legacyApiCallerKey(right)),
   );
-  if (sorted.length <= MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT) return sorted;
+  const maxCallers =
+    options.maxCallers === null
+      ? null
+      : (options.maxCallers ?? MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT);
+  if (maxCallers === null || sorted.length <= maxCallers) return sorted;
 
-  const kept = sorted.slice(0, MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT - 1);
-  const overflow = sorted.slice(MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT - 1);
+  const kept = sorted.slice(0, maxCallers - 1);
+  const overflow = sorted.slice(maxCallers - 1);
   kept.push({
     isOther: true,
     count: overflow.reduce((sum, caller) => sum + caller.count, 0),

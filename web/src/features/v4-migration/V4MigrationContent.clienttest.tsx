@@ -432,7 +432,7 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.getByText("Langfuse Python SDK 3.9.0")).toBeInTheDocument();
     expect(screen.getByText("client.api.trace.get(...)")).toBeInTheDocument();
     expect(
-      screen.getByText("client.api.observations.get_many(...)"),
+      screen.getByText("client.api.observations.get_many(trace_id=trace_id)"),
     ).toBeInTheDocument();
     expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
     expect(screen.getByText("Codex")).toBeInTheDocument();

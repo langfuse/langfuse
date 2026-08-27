@@ -24,12 +24,14 @@ const guidanceByEndpoint: Record<
     methods: observationsMethods({
       python: {
         current: "client.api.trace.list(...)",
-        replacement: "client.api.observations.get_many(...)",
+        replacement:
+          "client.api.observations.get_many(from_start_time=..., to_start_time=...)",
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.trace.list(...)",
-        replacement: "client.api.observations.getMany(...)",
+        replacement:
+          "client.api.observations.getMany({ fromStartTime, toStartTime })",
         minimumVersion: "4.0.0",
       },
     }),
@@ -39,12 +41,12 @@ const guidanceByEndpoint: Record<
     methods: observationsMethods({
       python: {
         current: "client.api.trace.get(...)",
-        replacement: "client.api.observations.get_many(...)",
+        replacement: "client.api.observations.get_many(trace_id=trace_id)",
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.trace.get(...)",
-        replacement: "client.api.observations.getMany(...)",
+        replacement: "client.api.observations.getMany({ traceId })",
         minimumVersion: "4.0.0",
       },
     }),
@@ -54,12 +56,14 @@ const guidanceByEndpoint: Record<
     methods: {
       python: {
         current: "client.api.legacy.observations_v1.get_many(...)",
-        replacement: "client.api.observations.get_many(...)",
+        replacement:
+          "client.api.observations.get_many(from_start_time=..., to_start_time=...)",
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.legacy.observationsV1.getMany(...)",
-        replacement: "client.api.observations.getMany(...)",
+        replacement:
+          "client.api.observations.getMany({ fromStartTime, toStartTime })",
         minimumVersion: "4.0.0",
       },
     },
@@ -69,12 +73,13 @@ const guidanceByEndpoint: Record<
     methods: {
       python: {
         current: "client.api.legacy.observations_v1.get(...)",
-        replacement: "client.api.observations.get_many(...)",
+        replacement: 'client.api.observations.get_many(filter="<id filter>")',
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.legacy.observationsV1.get(...)",
-        replacement: "client.api.observations.getMany(...)",
+        replacement:
+          'client.api.observations.getMany({ filter: "<id filter>" })',
         minimumVersion: "4.0.0",
       },
     },
@@ -99,42 +104,32 @@ const guidanceByEndpoint: Record<
     methods: {
       python: {
         current: "client.api.scores.get_by_id(...)",
-        replacement: "client.api.scores_v3.get_many_v3(...)",
+        replacement: "client.api.scores_v3.get_many_v3(id=score_id)",
         minimumVersion: "4.8.1",
       },
       javascript: {
         current: "client.api.scores.getById(...)",
-        replacement: "client.api.scoresV3.getManyV3(...)",
+        replacement: "client.api.scoresV3.getManyV3({ id: scoreId })",
         minimumVersion: "5.5.0",
       },
     },
   },
   "GET /api/public/sessions": {
     replacement: "GET /api/public/v2/observations?filter=<sessionId filter>",
-    methods: {
-      python: {
-        current: "client.api.sessions.list(...)",
-        replacement: "client.api.observations.get_many(...)",
-        minimumVersion: "4.0.0",
-      },
-      javascript: {
-        current: "client.api.sessions.list(...)",
-        replacement: "client.api.observations.getMany(...)",
-        minimumVersion: "4.0.0",
-      },
-    },
   },
   "GET /api/public/sessions/{id}": {
     replacement: "GET /api/public/v2/observations?filter=<sessionId filter>",
     methods: {
       python: {
         current: "client.api.sessions.get(...)",
-        replacement: "client.api.observations.get_many(...)",
+        replacement:
+          'client.api.observations.get_many(filter="<sessionId filter>")',
         minimumVersion: "4.0.0",
       },
       javascript: {
         current: "client.api.sessions.get(...)",
-        replacement: "client.api.observations.getMany(...)",
+        replacement:
+          'client.api.observations.getMany({ filter: "<sessionId filter>" })',
         minimumVersion: "4.0.0",
       },
     },
