@@ -26,6 +26,9 @@ export type ClickHouseDatabase = {
     trace_id: string;
     event_ts: Date;
     type: string;
+    total_cost: number;
+    metadata_names: string[];
+    metadata_values: string[];
   };
   scores: {
     environment: string;

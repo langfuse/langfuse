@@ -1,11 +1,13 @@
 import {
   OperationNodeTransformer,
+  type OperationNode,
   type QueryId,
   type SelectQueryNode,
 } from "kysely";
 
 import {
   ArrayJoinNode,
+  ArrayIndexNode,
   LimitByNode,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
@@ -19,6 +21,23 @@ import {
  * vanish the moment any plugin walked the tree.
  */
 export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer {
+  protected override transformNodeImpl<T extends OperationNode>(
+    node: T,
+    queryId?: QueryId,
+  ): T {
+    if (ArrayIndexNode.is(node)) {
+      return this.transformArrayIndex(node) as unknown as T;
+    }
+    return super.transformNodeImpl(node, queryId);
+  }
+
+  protected transformArrayIndex(node: ArrayIndexNode): ArrayIndexNode {
+    return ArrayIndexNode.create(
+      this.transformNode(node.array),
+      this.transformNode(node.index),
+    );
+  }
+
   protected override transformSelectQuery(
     node: SelectQueryNode,
     queryId?: QueryId,

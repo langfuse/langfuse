@@ -17,6 +17,7 @@ import type { QueryId } from "kysely";
 import { QueryCompileError } from "./errors";
 import {
   ArrayJoinNode,
+  ArrayIndexNode,
   isClickHouseSelectQueryNode,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
@@ -64,6 +65,24 @@ export function inferClickHouseType(value: unknown): string {
 export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   namedParameters: Record<string, unknown> = {};
   private intern = new Map<string, string>();
+
+  constructor() {
+    super();
+    const parentVisit = this.visitNode.bind(this);
+    (
+      this as unknown as { visitNode: (node: OperationNode) => void }
+    ).visitNode = (node: OperationNode) => {
+      if (ArrayIndexNode.is(node)) {
+        (this as unknown as { nodeStack: OperationNode[] }).nodeStack.push(
+          node,
+        );
+        this.visitArrayIndex(node);
+        (this as unknown as { nodeStack: OperationNode[] }).nodeStack.pop();
+        return;
+      }
+      parentVisit(node);
+    };
+  }
 
   compileQuery(node: RootOperationNode, queryId: QueryId) {
     this.namedParameters = {};
@@ -231,6 +250,13 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     if (wrapInParens) {
       this.append(")");
     }
+  }
+
+  private visitArrayIndex(node: ArrayIndexNode): void {
+    this.visitNode(node.array);
+    this.append("[");
+    this.visitNode(node.index);
+    this.append("]");
   }
 
   private visitArrayJoin(node: ArrayJoinNode): void {

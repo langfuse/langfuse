@@ -27,7 +27,7 @@ export class ClickHouseCompileDialect implements Dialect {
     return new SqliteAdapter();
   }
 
-  createIntrospector(db: Kysely<ClickHouseDatabase>) {
+  createIntrospector(db: Kysely<any>) {
     return new SqliteIntrospector(db);
   }
 }

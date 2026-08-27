@@ -15,9 +15,10 @@ sugar, semantic field metadata, `FilterState` embedding) will land under
 - `environments.golden.test.ts` — baselines `environments.getEnvironmentsForProject`
   (both write-mode branches × the timestamp bound).
 - `kysely/` — compile-only ClickHouse dialect on Kysely 0.28. Real
-  `OperationNode`s for ARRAY JOIN and LIMIT BY, a mandatory tenancy injection
-  pass keyed on `ExecutionContext`, and `compileClickhouseQuery` as the choke
-  point.
+  `OperationNode`s for ARRAY JOIN, LIMIT BY, and metadata `indexOf`
+  subscripts; a mandatory tenancy injection pass keyed on `ExecutionContext`;
+  schema-typed selection (TS + runtime validation); virtual views as WITH
+  CTEs; catalog parity. Library-specific code lives only in this folder.
 
 Regenerate baselines with `-u` after an intentional SQL change:
 
@@ -27,10 +28,12 @@ pnpm --filter @langfuse/shared run test src/server/query-ast -- -u
 
 ## Kysely extension record (no fork)
 
-| Clause | How it lands | Fork? |
-| --- | --- | --- |
-| ARRAY JOIN | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no |
-| LIMIT BY | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT. | no |
+| Clause             | How it lands                                                                                                                                                                                               | Fork? |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
+| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
+| metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
+| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
 
 Honest node-vs-raw-SQL note: ARRAY JOIN / LIMIT BY are real node objects (`kind: ArrayJoinNode` / `LimitByNode`) whose children are traced Kysely FunctionNode/ColumnNode/ValueNode/IdentifierNode values — not `RawNode` string splices. Kysely's `OperationNodeKind` union is closed, so a first-class visitor-map kind would need a fork; instead they ride as extra fields on `SelectQueryNode`. Any plugin that uses the default `OperationNodeTransformer` would drop them — ours overrides `transformSelectQuery` so they survive. Upstream was not patched.
 

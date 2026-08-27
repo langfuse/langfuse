@@ -69,6 +69,32 @@ export const LimitByNode = {
   },
 };
 
+/**
+ * ClickHouse array subscript `arr[index]`. Children are traced nodes
+ * (typically a column ref and an `indexOf(...)` FunctionNode), not raw SQL.
+ *
+ * Same closed-`kind` constraint as ARRAY JOIN: not a Kysely visitor-map
+ * kind. The dialect compiler and transformer special-case this object.
+ */
+export type ArrayIndexNode = {
+  readonly kind: "ArrayIndexNode";
+  readonly array: OperationNode;
+  readonly index: OperationNode;
+};
+
+export const ArrayIndexNode = {
+  is(node: { kind: string }): node is ArrayIndexNode {
+    return node.kind === "ArrayIndexNode";
+  },
+  create(array: OperationNode, index: OperationNode): ArrayIndexNode {
+    return Object.freeze({
+      kind: "ArrayIndexNode",
+      array,
+      index,
+    });
+  },
+};
+
 export type TenancyStamp = {
   readonly projectId: string;
 };

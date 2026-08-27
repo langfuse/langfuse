@@ -7,6 +7,7 @@ import {
 import type { ExecutionContext } from "../executionContext";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { TenancyInjectionPlugin, requireExecutionContext } from "./tenancy";
+import { validateTypeCompatibility } from "./typecheck";
 
 export type CompiledClickhouseQuery = {
   sql: string;
@@ -36,6 +37,7 @@ export function compileClickhouseQuery(
     .withPlugin(new TenancyInjectionPlugin(scope))
     .toOperationNode();
   const compiler = new ClickHouseQueryCompiler();
+  validateTypeCompatibility(stamped);
   const compiled = compiler.compileQuery(stamped, createQueryId());
   return {
     sql: compiled.sql,

@@ -1,11 +1,6 @@
-import type { ClickhouseCompilable } from "./kysely/compile";
-import { getClickhouseKysely } from "./kysely/dialect";
-import {
-  mapKeys,
-  mapValues,
-  withArrayJoin,
-  withLimitBy,
-} from "./kysely/extensions";
+import type { ClickhouseCompilable } from "./compile";
+import { getClickhouseKysely } from "./dialect";
+import { mapKeys, mapValues, withArrayJoin, withLimitBy } from "./extensions";
 
 export type CatalogTier = 0 | 1 | 2 | 3 | 4;
 
