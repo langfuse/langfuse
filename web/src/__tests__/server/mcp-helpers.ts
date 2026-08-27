@@ -8,6 +8,36 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { ServerContext } from "@/src/features/mcp/types";
+import {
+  allProjectActions,
+  wildcard,
+  type AuthorizationContext,
+} from "@/src/features/auth/policy/types";
+
+/** mcpAuthzContext builds the resolved policy-core context the new MCP auth path attaches for a fully-granted project-bound key. */
+function mcpAuthzContext(
+  projectId: string,
+  apiKeyId: string,
+): AuthorizationContext {
+  return {
+    principal: {
+      kind: "apiKey",
+      apiKeyId,
+      userId: null,
+      organizations: [],
+      boundResource: { projectId },
+    },
+    policies: [
+      {
+        kind: "project",
+        source: { kind: "grant" },
+        effect: "allow",
+        actions: allProjectActions,
+        resources: wildcard,
+      },
+    ],
+  };
+}
 
 /**
  * Creates a complete MCP test setup including:
@@ -44,6 +74,7 @@ export async function createMcpTestSetup(): Promise<{
     publicKey: result.publicKey,
     plan: "oss",
     rateLimitOverrides: [],
+    authz: mcpAuthzContext(projectId, apiKey.id),
   };
 
   return {
@@ -62,14 +93,17 @@ export async function createMcpTestSetup(): Promise<{
 export function mockServerContext(
   overrides?: Partial<ServerContext>,
 ): ServerContext {
+  const projectId = overrides?.projectId ?? "test-project-id";
+  const apiKeyId = overrides?.apiKeyId ?? "test-api-key-id";
   return {
-    projectId: overrides?.projectId ?? "test-project-id",
+    projectId,
     orgId: overrides?.orgId ?? "test-org-id",
-    apiKeyId: overrides?.apiKeyId ?? "test-api-key-id",
+    apiKeyId,
     accessLevel: "project",
     publicKey: overrides?.publicKey ?? "pk-lf-test",
     plan: overrides?.plan ?? "oss",
     rateLimitOverrides: overrides?.rateLimitOverrides ?? [],
+    authz: mcpAuthzContext(projectId, apiKeyId),
     ...overrides,
   };
 }

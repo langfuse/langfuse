@@ -2,52 +2,24 @@ import { type IncomingHttpHeaders } from "http";
 
 import { ForbiddenError } from "@langfuse/shared";
 
-import { env } from "@/src/env.mjs";
-import {
-  authorizeMcpTool,
-  enforceMcpAccess,
-  mcpAccessAction,
-} from "./enforcement.mcp";
-import { diffResults, recordCoverage } from "./shadow";
+import { authorizeMcpTool, enforceMcpAccess } from "./enforcement.mcp";
 import { type AuthorizationContext, type ProjectAction } from "./types";
 
-/** mcpCoverageOperation is the coverage key for the MCP connection seam. */
-const mcpCoverageOperation = "mcp";
-
-/** resolveMcpAuthz is the MCP connection seam: legacy skips it, shadow attaches authz only when the new path resolves, enforce gates the connection on it. */
+/** resolveMcpAuthz is the MCP connection seam: authenticate, assert mcp:access, and resolve the bound project, throwing the denial to gate the connection. */
 export async function resolveMcpAuthz(
   params: ResolveMcpAuthzParams,
 ): Promise<ResolvedMcpAuthz> {
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "legacy") return {};
-
   const result = await enforceMcpAccess({ headers: params.headers });
-
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "shadow") {
-    recordCoverage(mcpCoverageOperation);
-    diffResults(
-      result,
-      { ok: true },
-      { seam: "mcp_access", action: mcpAccessAction },
-    );
-    return { authz: result.success ? result.context : undefined };
-  }
-
   if (!result.success) throw result.error;
-  return { authz: result.context };
+  return { authz: result.context, projectId: result.projectId };
 }
 
-/** assertMcpToolAccess is the per-tool seam: legacy has no opinion, shadow records net_new parity, enforce blocks fail-closed before argument validation. */
+/** assertMcpToolAccess is the per-tool seam: it asserts the tool's own action against the resolved context before argument validation, fail-closed. */
 export function assertMcpToolAccess(params: AssertMcpToolAccessParams): void {
-  const mode = env.PUBLIC_API_AUTHZ_MIGRATION;
-  if (mode === "legacy") return;
-
   if (!params.authz) {
-    if (mode === "enforce") {
-      throw new ForbiddenError(
-        "Access denied: authorization context unavailable",
-      );
-    }
-    return;
+    throw new ForbiddenError(
+      "Access denied: authorization context unavailable",
+    );
   }
 
   const decision = authorizeMcpTool(
@@ -55,17 +27,6 @@ export function assertMcpToolAccess(params: AssertMcpToolAccessParams): void {
     params.action,
     params.projectId,
   );
-
-  if (mode === "shadow") {
-    recordCoverage(params.toolName);
-    diffResults(
-      decision,
-      { absent: true },
-      { seam: "mcp_tool", action: params.action },
-    );
-    return;
-  }
-
   if (!decision.success) throw decision.error;
 }
 
@@ -74,9 +35,10 @@ export type ResolveMcpAuthzParams = {
   headers: IncomingHttpHeaders;
 };
 
-/** ResolvedMcpAuthz is the connection seam's output: the resolved context, or absent when legacy or an unresolved shadow path. */
+/** ResolvedMcpAuthz is the connection seam's output: the resolved context and the bound project. */
 export type ResolvedMcpAuthz = {
-  authz?: AuthorizationContext;
+  authz: AuthorizationContext;
+  projectId: string;
 };
 
 /** AssertMcpToolAccessParams is the resolved context, the bound project, and the tool's own action and name. */
