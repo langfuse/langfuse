@@ -250,7 +250,9 @@ export default function EvaluatorsPage() {
     {
       projectId,
       ...pagination,
-      orderBy: orderBy as RouterInputs["evalsV2"]["list"]["orderBy"],
+      orderBy: orderBy
+        ? (orderBy as RouterInputs["evalsV2"]["list"]["orderBy"])
+        : undefined,
       search: searchQuery ?? undefined,
       filter: filterState,
     },

@@ -159,7 +159,6 @@ export const ListEvaluatorsSchema = z.object({
       column: z.enum(["name", "type", "createdAt", "updatedAt"]),
       order: z.enum(["ASC", "DESC"]),
     })
-    .nullable()
     .optional(),
   search: z.string().trim().max(200).optional(),
   filter: EvaluatorListFilterSchema,

@@ -36,7 +36,6 @@ export const ListRulesSchema = z.object({
       column: z.enum(["name", "enabled", "sampling", "createdAt", "updatedAt"]),
       order: z.enum(["ASC", "DESC"]),
     })
-    .nullable()
     .optional(),
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),

@@ -188,7 +188,9 @@ export function RulesTable({
   const rules = api.evalsV2.rules.list.useQuery({
     projectId,
     ...pagination,
-    orderBy: orderBy as RouterInputs["evalsV2"]["rules"]["list"]["orderBy"],
+    orderBy: orderBy
+      ? (orderBy as RouterInputs["evalsV2"]["rules"]["list"]["orderBy"])
+      : undefined,
     search: searchQuery ?? undefined,
     filter: filterState,
   });
