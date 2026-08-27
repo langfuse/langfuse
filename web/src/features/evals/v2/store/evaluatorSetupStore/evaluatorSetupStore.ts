@@ -75,6 +75,7 @@ type EvaluatorSetupStoreActions = {
   setActiveMapping: (activeMapping: ActiveVariableMapping) => void;
   setModelPickerOpen: (modelPickerOpen: boolean) => void;
   setModelMode: (modelMode: "default" | "custom") => void;
+  setDefaultModel: (defaultModel: JudgeModel | null) => void;
   selectModel: (selectedModel: JudgeModel) => void;
   configureModel: (selectedModel: JudgeModel, modelParams: ModelConfig) => void;
   setSelectedObservation: (
@@ -83,6 +84,7 @@ type EvaluatorSetupStoreActions = {
   setSampleFilter: (sampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
+  applyDefinition: (definition: EvaluatorDefinition) => void;
 };
 
 export type EvaluatorSetupStoreState = {
@@ -103,6 +105,7 @@ export type EvaluatorSetupStoreState = {
   activeMapping: ActiveVariableMapping;
   modelPickerOpen: boolean;
   modelMode: "default" | "custom";
+  defaultModel: JudgeModel | null;
   selectedModel: JudgeModel | null;
   modelParams: ModelConfig | null;
   selectedObservation: SampleObservation | null;
@@ -114,10 +117,17 @@ export type EvaluatorSetupStoreState = {
 
 export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 
+export const selectHasValidModel = (state: EvaluatorSetupStoreState) =>
+  state.type !== EvalTemplateTypeEnum.LLM_AS_JUDGE ||
+  Boolean(
+    state.modelMode === "custom" ? state.selectedModel : state.defaultModel,
+  );
+
 export function createEvaluatorSetupStore({
   initialEvaluator,
   initialSampleFilter,
   initialType,
+  defaultModel = null,
 }: {
   initialEvaluator: {
     name: string;
@@ -126,6 +136,7 @@ export function createEvaluatorSetupStore({
   } | null;
   initialSampleFilter?: FilterState;
   initialType?: EvalTemplateType;
+  defaultModel?: JudgeModel | null;
   mode: "create" | "edit";
 }): EvaluatorSetupStore {
   const initialDefinition = initialEvaluator?.definition;
@@ -174,6 +185,7 @@ export function createEvaluatorSetupStore({
       initialDefinition?.type === "LLM_AS_JUDGE" && initialDefinition.model
         ? "custom"
         : "default",
+    defaultModel,
     selectedModel:
       initialDefinition?.type === "LLM_AS_JUDGE" &&
       initialDefinition.provider &&
@@ -293,6 +305,7 @@ export function createEvaluatorSetupStore({
       setActiveMapping: (activeMapping) => set({ activeMapping }),
       setModelPickerOpen: (modelPickerOpen) => set({ modelPickerOpen }),
       setModelMode: (modelMode) => set({ modelMode }),
+      setDefaultModel: (defaultModel) => set({ defaultModel }),
       selectModel: (selectedModel) =>
         set((state) => ({
           selectedModel,
@@ -311,6 +324,40 @@ export function createEvaluatorSetupStore({
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),
       setTestPanelOpen: (testPanelOpen) => set({ testPanelOpen }),
+      applyDefinition: (definition) =>
+        set((state) => {
+          if (definition.type === EvalTemplateTypeEnum.CODE) {
+            return {
+              type: definition.type,
+              sourceCode: definition.sourceCode,
+              sourceCodeLanguage: definition.sourceCodeLanguage,
+              sourceCodeDrafts: {
+                ...state.sourceCodeDrafts,
+                [definition.sourceCodeLanguage]: definition.sourceCode,
+              },
+              activeMapping: null,
+            };
+          }
+
+          const selectedModel =
+            definition.provider && definition.model
+              ? {
+                  provider: definition.provider,
+                  model: definition.model,
+                }
+              : null;
+
+          return {
+            type: definition.type,
+            prompt: definition.prompt,
+            scoreOutput: toScoreOutputFormState(definition.outputDefinition),
+            variableFields: buildInitialVariableFields(definition),
+            activeMapping: null,
+            modelMode: selectedModel ? "custom" : "default",
+            selectedModel,
+            modelParams: selectedModel ? definition.modelParams : null,
+          };
+        }),
     },
   }));
 }

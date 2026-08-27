@@ -7,6 +7,12 @@ import {
   isStaleChunkParseErrorEvent,
   STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
+import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
+
+// Isolation-scope tags are copied onto the pageload transaction at start.
+// Session hydrate (and the v4 flag) arrives after that, so apply the last-known
+// cache before init. Missing cache leaves the tag unset rather than guessing false.
+applyCachedV4BetaEnabledSentryTag();
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,

@@ -41,7 +41,7 @@ const promptFontTheme = EditorView.theme({
 // Tailwind class cannot outrank.
 const readOnlySurfaceTheme = EditorView.theme({
   "&.cm-editor, &.cm-editor .cm-gutters": {
-    backgroundColor: "hsl(var(--muted))",
+    backgroundColor: "hsl(var(--muted) / 0.5)",
   },
 });
 
@@ -291,18 +291,18 @@ export function PromptVariableEditor({
       {!collapsed &&
         (previewEnabled && preview ? (
           preview.status === "unavailable" ? (
-            <p className="bg-card text-muted-foreground rounded-b-md border p-3 text-sm">
+            <p className="bg-muted/50 text-muted-foreground min-h-[140px] rounded-b-md border px-3 py-2 text-sm">
               {preview.message}
             </p>
           ) : (
-            <pre className="bg-card text-card-foreground max-h-[60dvh] overflow-y-auto rounded-b-md border p-3 font-sans text-sm whitespace-pre-wrap">
+            <pre className="bg-muted/50 text-card-foreground max-h-[50dvh] min-h-[140px] overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm whitespace-pre-wrap">
               {preview.fragments.map((fragment, index) => (
                 <Fragment key={index}>
                   {fragment.type === "text" ? (
                     renderPreviewText(fragment.text)
                   ) : (
                     <span
-                      className="bg-primary-accent/10 rounded px-0.5"
+                      className="bg-primary-accent/10 dark:bg-accent-light-blue dark:text-accent-dark-blue rounded px-0.5"
                       title={`{{${fragment.name}}}`}
                     >
                       {renderPreviewText(fragment.value)}

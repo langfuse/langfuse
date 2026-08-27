@@ -13,7 +13,7 @@ import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
 import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
-} from "@/src/components/ui/keyboard-shortcut";
+} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
@@ -148,11 +148,19 @@ const InputCommandItem = React.forwardRef<
 
 InputCommandItem.displayName = CommandPrimitive.Item.displayName;
 
+type InputCommandShortcutProps = KeyboardShortcutProps & {
+  className?: string;
+};
+
 const InputCommandShortcut = ({
   className,
   ...props
-}: KeyboardShortcutProps) => {
-  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
+}: InputCommandShortcutProps) => {
+  return (
+    <span className={cn("ml-auto hidden md:inline-flex", className)}>
+      <KeyboardShortcut {...props} />
+    </span>
+  );
 };
 InputCommandShortcut.displayName = "CommandShortcut";
 

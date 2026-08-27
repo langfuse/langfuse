@@ -863,7 +863,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<ObservationsTableRow>({
       accessorKey: "toolCalls",
@@ -872,7 +872,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1095,65 +1095,41 @@ export default function ObservationsTable({
           },
           header: "Tokens per second",
           size: 200,
-          maximumFractionDigits: 1,
+          formatter: (value) => numberFormatter(value, 0, 1),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
         }),
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.inputUsage,
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "outputTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.outputUsage,
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "totalTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.totalUsage,
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
-        },
+          formatter: (value) => numberFormatter(value, 0),
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {

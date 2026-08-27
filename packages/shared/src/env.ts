@@ -523,13 +523,36 @@ const EnvSchema = z.object({
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
   // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
-  // apply to both providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL are
-  // Anthropic-only.
-  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+  // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
+  // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+  // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
   LANGFUSE_AI_BASE_URL: z.string().optional(),
+  LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
+  LANGFUSE_AI_EXTRA_HEADERS: z
+    .string()
+    .optional()
+    .refine(
+      (value) => {
+        if (value == null || value.trim() === "") {
+          return true;
+        }
+
+        try {
+          z.record(z.string(), z.string()).parse(JSON.parse(value));
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "LANGFUSE_AI_EXTRA_HEADERS must be a JSON object of string header names and values",
+      },
+    ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z

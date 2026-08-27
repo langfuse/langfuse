@@ -23,7 +23,7 @@ createNumberTableColumn<Row>({
     return row.outputTokens / row.latency;
   },
   header: "Tokens per second",
-  maximumFractionDigits: 1,
+  formatter: (value) => numberFormatter(value, 0, 1),
 });
 ```
 
