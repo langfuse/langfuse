@@ -553,4 +553,11 @@ export type TraceSinkParams = {
    * events are still written to the legacy traces/observations tables.
    */
   eventsWriter?: InternalEventsWriter;
+  /**
+   * When true, v4 write modes (`dual` / `events_only`) publish through
+   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`.
+   * Used by in-app agent product traces so observation evals can match them.
+   * Legacy write mode keeps `processEventBatch`.
+   */
+  aiFeatureOtelIngestion?: boolean;
 };

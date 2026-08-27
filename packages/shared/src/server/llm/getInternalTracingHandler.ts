@@ -1,10 +1,12 @@
 import { Langfuse } from "langfuse";
+import { env } from "../../env";
 import { ProcessedTraceEvent, TraceSinkParams } from "./types";
 import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
 import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
+import { publishAiFeatureTraceViaOtelIngestion } from "../otel/aiFeatureOtelWriter";
 
 export function prepareInternalTraceEvents(params: {
   events: Array<{
@@ -98,6 +100,37 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
         environment,
         prompt,
       });
+
+      const useAiFeatureOtel =
+        Boolean(traceSinkParams.aiFeatureOtelIngestion) &&
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
+
+      if (useAiFeatureOtel) {
+        try {
+          const { eventInputs } = buildInternalTraceEventInputs({
+            processedEvents,
+            traceId: traceSinkParams.traceId,
+            projectId: targetProjectId,
+          });
+
+          if (eventInputs.length > 0) {
+            await publishAiFeatureTraceViaOtelIngestion({
+              eventInputs,
+              projectId: targetProjectId,
+            });
+          }
+        } catch (otelError) {
+          traceException(otelError);
+          logger.error(
+            "Failed to process AI-feature traces via OTel ingestion",
+            {
+              error: otelError,
+            },
+          );
+        }
+
+        return;
+      }
 
       // Legacy write to traces/observations tables
       try {

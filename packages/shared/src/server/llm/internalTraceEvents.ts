@@ -7,6 +7,10 @@ import {
 } from "../../utils/objects";
 import { stringifyValue } from "../../utils/stringChecks";
 import {
+  ObservationTypeDomain,
+  type ObservationType,
+} from "../../domain/observations";
+import {
   convertCallsToArrays,
   convertDefinitionsToMap,
   extractToolsFromObservation,
@@ -108,7 +112,7 @@ type InternalTraceSnapshot = {
   traceId: string;
   parentSpanId?: string;
   name?: string;
-  type: "SPAN" | "GENERATION";
+  type: ObservationType;
   environment?: string;
   version?: string;
   release?: string;
@@ -142,8 +146,10 @@ function isCreateEvent(type: string): boolean {
   return type.endsWith("-create");
 }
 
-function getSnapshotType(eventType: string): "SPAN" | "GENERATION" {
-  return eventType.startsWith("generation-") ? "GENERATION" : "SPAN";
+function getSnapshotType(eventType: string): ObservationType {
+  const prefix = eventType.replace(/-(create|update)$/i, "").toUpperCase();
+  const parsed = ObservationTypeDomain.safeParse(prefix);
+  return parsed.success ? parsed.data : "SPAN";
 }
 
 function getEventTime(
@@ -214,9 +220,7 @@ function mergeSnapshotEvent(
     traceId: asString(body.traceId) ?? snapshot.traceId,
     parentSpanId: asString(body.parentObservationId) ?? snapshot.parentSpanId,
     type:
-      snapshot.type === "GENERATION"
-        ? snapshot.type
-        : getSnapshotType(event.type),
+      snapshot.type !== "SPAN" ? snapshot.type : getSnapshotType(event.type),
     name: asString(body.name) ?? snapshot.name,
     environment: asString(body.environment) ?? snapshot.environment,
     version: asString(body.version) ?? snapshot.version,
