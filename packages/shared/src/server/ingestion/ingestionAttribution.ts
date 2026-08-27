@@ -65,6 +65,14 @@ const getHeaderValue = (
   const underscoreValue = headers[name.replaceAll("-", "_")];
   if (typeof underscoreValue === "string") return underscoreValue;
 
+  const normalizedName = name.toLowerCase().replaceAll("_", "-");
+  const matchedValue = Object.entries(headers).find(
+    ([headerName, value]) =>
+      typeof value === "string" &&
+      headerName.toLowerCase().replaceAll("_", "-") === normalizedName,
+  )?.[1];
+  if (typeof matchedValue === "string") return matchedValue;
+
   return "";
 };
 

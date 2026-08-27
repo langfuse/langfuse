@@ -77,6 +77,22 @@ describe("ingestion attribution", () => {
     });
   });
 
+  it("matches Langfuse request header names case-insensitively", () => {
+    expect(
+      createIngestionAttribution({
+        headers: {
+          "X-Langfuse-Sdk-Name": "python",
+          "X-Langfuse-Sdk-Version": "4.8.1",
+        },
+        authCheck,
+      }),
+    ).toEqual({
+      ingestionApiKey: "pk-lf-public",
+      ingestionSdkName: "python",
+      ingestionSdkVersion: "4.8.1",
+    });
+  });
+
   it("reads SDK attribution from underscore header variants", () => {
     expect(
       createIngestionAttribution({
