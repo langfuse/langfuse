@@ -77,7 +77,7 @@ const config: StorybookConfig = {
   stories: [
     // Curated design-system documentation shown under Design.
     {
-      directory: "../storybook/docs",
+      directory: "./docs",
       files: "**/*.mdx",
       titlePrefix: "Design",
     },
@@ -95,7 +95,7 @@ const config: StorybookConfig = {
     })),
     // Design-system reference pages shown directly under Design.
     ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
-      directory: "../src/components/design-system",
+      directory: "./docs",
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design",
     })),

@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../preview";
 import { Layout as LayoutPage } from "./Layout";
 
 const meta = preview.meta({

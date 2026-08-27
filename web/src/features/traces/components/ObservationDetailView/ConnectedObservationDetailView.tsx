@@ -1,5 +1,5 @@
 /**
- * ObservationDetailView - Shows observation-level details when an observation is selected
+ * ConnectedObservationDetailView - Connects observation details to application data.
  *
  * Responsibility:
  * - Display observation metadata (type, timestamp, model, environment, etc.)
@@ -19,29 +19,28 @@
  */
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { useCallback, useMemo, useState } from "react";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import {
   TabsBar,
   TabsBarContent,
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
-import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
@@ -57,27 +56,27 @@ import { api } from "@/src/utils/api";
 // Extracted components
 import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/features/traces/fns/traceAggregation";
-import TagList from "@/src/features/tag/components/TagList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
+import { ObservationPreview } from "./ObservationPreview";
 
-export interface ObservationDetailViewProps {
+export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
   projectId: string;
   traceId: string;
 }
 
-export function ObservationDetailView({
+export function ConnectedObservationDetailView({
   observation,
   projectId,
   traceId,
-}: ObservationDetailViewProps) {
+}: ConnectedObservationDetailViewProps) {
   // Tab and view state from URL (via SelectionContext)
   const {
     selectedTab: globalSelectedTab,
@@ -97,7 +96,6 @@ export function ObservationDetailView({
   } = useTraceData();
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
-
   // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
   const {
     jsonViewPreference,
@@ -180,9 +178,8 @@ export function ObservationDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-
-  const selectedViewTab =
-    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -203,9 +200,6 @@ export function ObservationDetailView({
     },
     [setJsonBetaEnabled, setJsonViewPreference],
   );
-
-  const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
-  const [isJSONBetaVirtualized, setIsJSONBetaVirtualized] = useState(false);
 
   // states for the inline comments
   const [pendingSelection, setPendingSelection] =
@@ -313,7 +307,6 @@ export function ObservationDetailView({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header section (extracted component) */}
       <ObservationDetailViewHeader
         observation={observation}
         observationWithIO={observationWithIO}
@@ -330,7 +323,6 @@ export function ObservationDetailView({
         treeNodeTotalCost={treeNode?.totalCost}
       />
 
-      {/* Tabs section */}
       <TabsBar
         value={selectedTab}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -338,15 +330,14 @@ export function ObservationDetailView({
           setSelectedTab(value as "preview" | "log" | "scores")
         }
       >
-        {/* Hide entire tabs bar when only Preview tab remains (annotation mode) */}
         {showTabsBar && (
           <TooltipProvider>
             <TabsBarList>
               <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-              {showScoresTab && (
+              {showScoresTab ? (
                 <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
-              )}
-              {showLogViewTab && (
+              ) : null}
+              {showLogViewTab ? (
                 <TabsBarTrigger value="log">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -359,10 +350,8 @@ export function ObservationDetailView({
                     </TooltipContent>
                   </Tooltip>
                 </TabsBarTrigger>
-              )}
+              ) : null}
 
-              {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
-              {/* JSON views are disabled for virtualized log view (large traces) */}
               {(selectedTab === "log" ||
                 (selectedTab === "preview" && isPrettyViewAvailable)) && (
                 <>
@@ -374,7 +363,6 @@ export function ObservationDetailView({
                         : selectedViewTab
                     }
                     onValueChange={(value) => {
-                      // Don't allow JSON views for virtualized log view
                       if (
                         selectedTab === "log" &&
                         isLogViewVirtualized &&
@@ -431,7 +419,6 @@ export function ObservationDetailView({
                       )}
                     </TabsList>
                   </Tabs>
-                  {/* Beta toggle - only show when JSON is selected and not in virtualized log view */}
                   {selectedViewTab === "json" &&
                     !(selectedTab === "log" && isLogViewVirtualized) && (
                       <div className="mr-1 flex items-center gap-1.5">
@@ -451,105 +438,75 @@ export function ObservationDetailView({
           </TooltipProvider>
         )}
 
-        {/* Preview tab content */}
         <TabsBarContent
           value="preview"
           className="mt-0 flex max-h-full min-h-0 w-full flex-1"
         >
-          <div
-            className={`flex min-h-0 w-full flex-1 flex-col ${
-              currentView === "json-beta" && isJSONBetaVirtualized
-                ? "overflow-hidden"
-                : "overflow-auto pb-4"
-            }`}
-          >
-            {isRoot &&
-              observation.traceTags &&
-              observation.traceTags.length > 0 && (
-                <>
-                  <div
-                    className={`px-2 pt-2 text-sm font-bold ${currentView !== "pretty" ? "shrink-0" : ""}`}
-                  >
-                    Tags
-                  </div>
-                  <div
-                    className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
-                  >
-                    <TagList
-                      selectedTags={observation.traceTags}
-                      isLoading={false}
-                    />
-                  </div>
-                </>
-              )}
-            <IOPreview
-              key={observation.id}
-              observationName={observation.name ?? undefined}
-              input={observationWithIOCompat.data?.input ?? undefined}
-              output={observationWithIOCompat.data?.output ?? undefined}
-              outputCorrection={outputCorrection}
-              metadata={observationWithIOCompat.data?.metadata ?? undefined}
-              parsedInput={parsedInput}
-              parsedOutput={parsedOutput}
-              parsedMetadata={parsedMetadata}
-              isLoading={observationWithIOCompat.isLoading}
-              isParsing={isWaitingForParsing}
-              media={observationMedia.data}
-              currentView={currentView}
-              setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-              inputExpansionState={formattedExpansion.input}
-              outputExpansionState={formattedExpansion.output}
-              metadataExpansionState={formattedExpansion.metadata}
-              onInputExpansionChange={(exp) =>
+          <ObservationPreview
+            currentView={currentView}
+            tags={isRoot ? observation.traceTags : undefined}
+            previewKey={observation.id}
+            onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
+            previewProps={{
+              observationName: observation.name ?? undefined,
+              input: observationWithIOCompat.data?.input ?? undefined,
+              output: observationWithIOCompat.data?.output ?? undefined,
+              status: observation.statusMessage
+                ? {
+                    level: observation.level,
+                    message: observation.statusMessage,
+                  }
+                : undefined,
+              outputCorrection,
+              metadata: observationWithIOCompat.data?.metadata ?? undefined,
+              parsedInput,
+              parsedOutput,
+              parsedMetadata,
+              isLoading: observationWithIOCompat.isLoading,
+              isParsing: isWaitingForParsing,
+              media: observationMedia.data,
+              inputExpansionState: formattedExpansion.input,
+              outputExpansionState: formattedExpansion.output,
+              metadataExpansionState: formattedExpansion.metadata,
+              onInputExpansionChange: (exp) =>
                 setFormattedFieldExpansion(
                   "input",
                   exp as Record<string, boolean>,
-                )
-              }
-              onOutputExpansionChange={(exp) =>
+                ),
+              onOutputExpansionChange: (exp) =>
                 setFormattedFieldExpansion(
                   "output",
                   exp as Record<string, boolean>,
-                )
-              }
-              onMetadataExpansionChange={(exp) =>
+                ),
+              onMetadataExpansionChange: (exp) =>
                 setFormattedFieldExpansion(
                   "metadata",
                   exp as Record<string, boolean>,
-                )
-              }
-              advancedJsonExpansionState={advancedJsonExpansion}
-              onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
-              jsonInputExpanded={jsonExpansion.input}
-              jsonOutputExpanded={jsonExpansion.output}
-              jsonMetadataExpanded={jsonExpansion.metadata}
-              onJsonInputExpandedChange={(expanded) =>
-                setJsonFieldExpansion("input", expanded)
-              }
-              onJsonOutputExpandedChange={(expanded) =>
-                setJsonFieldExpansion("output", expanded)
-              }
-              onJsonMetadataExpandedChange={(expanded) =>
-                setJsonFieldExpansion("metadata", expanded)
-              }
-              enableInlineComments={true}
-              onAddInlineComment={handleAddInlineComment}
-              commentedPathsByField={commentedPathsByField}
-              showMetadata
-              observationId={observation.id}
-              onVirtualizationChange={setIsJSONBetaVirtualized}
-              projectId={projectId}
-              traceId={traceId}
-              environment={observation.environment}
-            />
-            {currentView !== "json-beta" && (
-              <div className="h-4 w-full shrink-0" />
-            )}
-          </div>
+                ),
+              advancedJsonExpansionState: advancedJsonExpansion,
+              onAdvancedJsonExpansionChange: setAdvancedJsonExpansion,
+              jsonInputExpanded: jsonExpansion.input,
+              jsonOutputExpanded: jsonExpansion.output,
+              jsonMetadataExpanded: jsonExpansion.metadata,
+              onJsonInputExpandedChange: (expanded) =>
+                setJsonFieldExpansion("input", expanded),
+              onJsonOutputExpandedChange: (expanded) =>
+                setJsonFieldExpansion("output", expanded),
+              onJsonMetadataExpandedChange: (expanded) =>
+                setJsonFieldExpansion("metadata", expanded),
+              enableInlineComments: true,
+              onAddInlineComment: handleAddInlineComment,
+              commentedPathsByField,
+              showMetadata: true,
+              observationId: observation.id,
+              projectId,
+              traceId,
+              environment: observation.environment,
+            }}
+          />
         </TabsBarContent>
 
-        {/* Scores tab content */}
-        {showScoresTab && (
+        {showScoresTab ? (
           <TabsBarContent
             value="scores"
             className="mt-0 mr-4 mb-2 flex h-full min-h-0 flex-1 overflow-hidden"
@@ -573,10 +530,9 @@ export function ObservationDetailView({
               />
             </div>
           </TabsBarContent>
-        )}
+        ) : null}
 
-        {/* Log View tab content (v4 mode only) */}
-        {showLogViewTab && (
+        {showLogViewTab ? (
           <TabsBarContent
             value="log"
             className="mt-0 flex max-h-full min-h-0 w-full flex-1"
@@ -587,7 +543,7 @@ export function ObservationDetailView({
               currentView={isLogViewVirtualized ? "pretty" : currentView}
             />
           </TabsBarContent>
-        )}
+        ) : null}
       </TabsBar>
     </div>
   );
