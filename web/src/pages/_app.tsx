@@ -108,7 +108,12 @@ if (
     },
     session_recording: {
       maskAllInputs: true,
-      maskTextSelector: "*",
+      // Custom editors and the trace search composer render customer text in
+      // contenteditable elements, which maskAllInputs does not cover.
+      maskTextSelector: '[contenteditable="true"]',
+      // Trace/observation payload renderers use this class so recordings show
+      // the surrounding UI without capturing customer input/output values.
+      blockClass: "ph-no-capture",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;

@@ -17,7 +17,7 @@ vi.mock("posthog-js/react", () => ({
 }));
 
 describe("PostHog session replay privacy", () => {
-  it("masks all rendered text and input values", async () => {
+  it("records regular UI text while masking input values", async () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
 
@@ -27,7 +27,10 @@ describe("PostHog session replay privacy", () => {
     const config = initMock.mock.calls[0]![1] as Partial<PostHogConfig>;
     expect(config.session_recording).toMatchObject({
       maskAllInputs: true,
-      maskTextSelector: "*",
+      blockClass: "ph-no-capture",
     });
+    expect(config.session_recording?.maskTextSelector).toBe(
+      '[contenteditable="true"]',
+    );
   });
 });

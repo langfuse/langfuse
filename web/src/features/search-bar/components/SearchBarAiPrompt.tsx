@@ -219,7 +219,7 @@ export function SearchBarAiPrompt({
           >
             <span className="shrink-0">Refining</span>
             <code
-              className="bg-muted text-foreground/80 min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-[11px]"
+              className="ph-no-capture bg-muted text-foreground/80 min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-[11px]"
               title={refineContext}
             >
               {refineContext}

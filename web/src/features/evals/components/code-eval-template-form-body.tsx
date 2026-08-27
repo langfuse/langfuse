@@ -433,7 +433,7 @@ export function CodeEvalTemplateFormBody({
         editable={editable}
         onChange={handleSourceCodeChange}
         onCreateEditor={handleCreateEditor}
-        className="overflow-hidden rounded-md border text-xs"
+        className="ph-no-capture overflow-hidden rounded-md border text-xs"
       />
       <p className="text-muted-foreground text-xs">
         Hover over <code className="font-mono">ctx</code> to preview its type
