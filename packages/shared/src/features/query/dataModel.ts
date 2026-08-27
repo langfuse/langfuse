@@ -660,6 +660,7 @@ export const observationsView: ViewDeclarationType = {
       description:
         "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
+      defaultAggregation: "sum",
     },
   },
   tableRelations: {
@@ -1579,6 +1580,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       description:
         "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
+      defaultAggregation: "sum",
     },
     costByType: {
       sql: "cost_value",

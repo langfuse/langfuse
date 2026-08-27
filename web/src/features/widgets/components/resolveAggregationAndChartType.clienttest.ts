@@ -190,6 +190,8 @@ describe("resolveMeasureChangeAggregation", () => {
   it.each([
     ["v1", "toolCalls", "sum"],
     ["v2", "toolCalls", "sum"],
+    ["v1", "toolCallInvocations", "sum"],
+    ["v2", "toolCallInvocations", "sum"],
     ["v1", "totalTokens", "sum"],
     ["v1", "totalCost", "sum"],
     ["v1", "latency", "avg"],
