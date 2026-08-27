@@ -57,7 +57,7 @@ export const getAppRootDefaultPolicy = (params: {
   };
 };
 
-export const hasEnabledAppRootFilter = (filters: FilterState) =>
+const hasEnabledAppRootFilter = (filters: FilterState) =>
   filters.some(
     (filter) =>
       filter.column === APP_ROOT_OBSERVATION_FILTER.column &&

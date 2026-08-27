@@ -27,7 +27,7 @@ export const DeleteAnnotationQueueAssignmentToolSchema =
     DeleteAnnotationQueueAssignmentBody.shape,
   );
 
-export const annotationQueueToApi = (queue: {
+const annotationQueueToApi = (queue: {
   id: string;
   name: string;
   description: string | null;
@@ -43,7 +43,7 @@ export const annotationQueueToApi = (queue: {
   updatedAt: queue.updatedAt,
 });
 
-export const annotationQueueItemToApi = (item: {
+const annotationQueueItemToApi = (item: {
   id: string;
   queueId: string;
   objectId: string;

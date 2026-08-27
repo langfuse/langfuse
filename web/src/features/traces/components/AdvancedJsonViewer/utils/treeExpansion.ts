@@ -378,7 +378,7 @@ export function applyExpansionState(
  * @param depth - Maximum depth to expand to
  * @returns Updated tree state
  */
-export function expandToDepth(tree: TreeState, depth: number): TreeState {
+function expandToDepth(tree: TreeState, depth: number): TreeState {
   debugTime("[expandToDepth]");
 
   // Iterate through all nodes (bottom-up for offset computation)
@@ -434,7 +434,7 @@ export interface ExpansionStats {
   maxVisibleDepth: number;
 }
 
-export function getExpansionStats(tree: TreeState): ExpansionStats {
+function getExpansionStats(tree: TreeState): ExpansionStats {
   let totalExpandable = 0;
   let totalExpanded = 0;
   let maxVisibleDepth = 0;

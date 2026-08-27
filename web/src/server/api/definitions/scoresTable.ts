@@ -16,7 +16,7 @@ export type ScoreOptions = {
   booleanValue: Array<SingleValueOption>;
 };
 
-export function scoresTableColsWithOptions(
+function scoresTableColsWithOptions(
   options?: ScoreOptions,
 ): ColumnDefinition[] {
   return scoresTableCols.map((col) => {

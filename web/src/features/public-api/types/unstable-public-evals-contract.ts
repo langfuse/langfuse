@@ -17,8 +17,8 @@ import {
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
 export {
-  UnstablePublicApiErrorCode,
-  UnstablePublicApiErrorDetails,
+  
+  
   UnstablePublicApiErrorResponse,
 } from "@/src/features/public-api/shared/unstable-public-api-error-schema";
 import type {
@@ -26,12 +26,12 @@ import type {
   UnstablePublicApiErrorDetailsType,
 } from "@/src/features/public-api/shared/unstable-public-api-error-schema";
 
-export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
+const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
 export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
   PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
-export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
+const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
   "PYTHON",
   "TYPESCRIPT",
 ]);
@@ -41,11 +41,11 @@ export const PublicEvaluatorModelConfig = z.object({
   model: z.string().min(1),
 });
 
-export const PublicEvaluatorOutputFieldDefinition = z.object({
+const PublicEvaluatorOutputFieldDefinition = z.object({
   description: z.string().trim().min(1),
 });
 
-export const PublicNumericEvaluatorOutputScoreDefinition =
+const PublicNumericEvaluatorOutputScoreDefinition =
   PublicEvaluatorOutputFieldDefinition.extend({
     minValue: z.number().optional(),
     maxValue: z.number().optional(),
@@ -57,25 +57,25 @@ export const PublicNumericEvaluatorOutputScoreDefinition =
     },
   );
 
-export const PublicNumericEvaluatorOutputDefinition = z.object({
+const PublicNumericEvaluatorOutputDefinition = z.object({
   dataType: z.literal("NUMERIC"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
   score: PublicNumericEvaluatorOutputScoreDefinition,
 });
 
-export const PublicBooleanEvaluatorOutputDefinition = z.object({
+const PublicBooleanEvaluatorOutputDefinition = z.object({
   dataType: z.literal("BOOLEAN"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
   score: PublicEvaluatorOutputFieldDefinition,
 });
 
-export const PublicCategoricalEvaluatorOutputScoreDefinition = z.object({
+const PublicCategoricalEvaluatorOutputScoreDefinition = z.object({
   description: z.string().trim().min(1),
   categories: z.array(z.string().trim().min(1)).min(2),
   shouldAllowMultipleMatches: z.boolean(),
 });
 
-export const PublicCategoricalEvaluatorOutputDefinition = z.object({
+const PublicCategoricalEvaluatorOutputDefinition = z.object({
   dataType: z.literal("CATEGORICAL"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
   score: PublicCategoricalEvaluatorOutputScoreDefinition,
@@ -92,7 +92,7 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
 
 export const PublicEvaluationRuleTarget = z.enum(["observation", "experiment"]);
 export const PublicEvaluationRuleLegacyTarget = z.enum(["trace", "dataset"]);
-export const PublicEvaluationRuleReadTarget = z.union([
+const PublicEvaluationRuleReadTarget = z.union([
   PublicEvaluationRuleTarget,
   PublicEvaluationRuleLegacyTarget,
 ]);
@@ -166,7 +166,7 @@ export const ExperimentEvaluationRuleMapping = createMappingSchema(
   ExperimentEvaluationRuleMappingSource,
 );
 
-export const PublicEvaluationRuleMapping = z.union([
+const PublicEvaluationRuleMapping = z.union([
   ObservationEvaluationRuleMapping,
   ExperimentEvaluationRuleMapping,
 ]);

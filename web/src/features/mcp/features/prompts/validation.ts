@@ -65,7 +65,7 @@ export const ParamPromptTag = z
  * Commit message parameter (optional)
  * Used when creating new prompt versions
  */
-export const ParamCommitMessage = z
+const ParamCommitMessage = z
   .string()
   .max(COMMIT_MESSAGE_MAX_LENGTH)
   .optional()

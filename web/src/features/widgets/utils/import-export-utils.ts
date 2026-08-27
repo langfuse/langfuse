@@ -39,7 +39,7 @@ const widgetMetricSchema = MetricSchema.extend({
  */
 export const WIDGET_FILE_FORMAT_VERSION = 1;
 
-export const widgetImportBaseSchema = z
+const widgetImportBaseSchema = z
   .object({
     $langfuseWidget: z.literal(true).optional(),
     version: z.number().int().positive().optional(),
@@ -55,7 +55,7 @@ export const widgetImportBaseSchema = z
   })
   .loose();
 
-export const widgetImportSchema = widgetImportBaseSchema.superRefine(
+const widgetImportSchema = widgetImportBaseSchema.superRefine(
   (widget, ctx) => {
     if (widget.chartConfig.type !== widget.chartType) {
       ctx.addIssue({
@@ -85,7 +85,7 @@ export type WidgetImport = z.infer<typeof widgetImportSchema>;
  * (silently ignore) from "claims to be a widget but is malformed" (surface an
  * error).
  */
-export function isLangfuseWidgetPayload(parsed: unknown): boolean {
+function isLangfuseWidgetPayload(parsed: unknown): boolean {
   return (
     typeof parsed === "object" &&
     parsed !== null &&
@@ -233,7 +233,7 @@ export function downloadWidgetJson(widget: WidgetExportSource) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
-export function buildWidgetJsonFileName(widgetName: string) {
+function buildWidgetJsonFileName(widgetName: string) {
   const fileSafeName = widgetName
     .trim()
     .toLowerCase()
@@ -243,7 +243,7 @@ export function buildWidgetJsonFileName(widgetName: string) {
   return `${fileSafeName || "widget"}.json`;
 }
 
-export function normalizeImportedFilters(params: {
+function normalizeImportedFilters(params: {
   filters: FilterState;
   view: z.infer<typeof views>;
   allowedValuesByColumn: Map<string, Set<string>>;
@@ -307,7 +307,7 @@ export function normalizeImportedFilters(params: {
   return { filters, removedValues, removedFilters };
 }
 
-export function normalizeImportedWidget(params: {
+function normalizeImportedWidget(params: {
   widget: WidgetImport;
   allowedValuesByColumn: Map<string, Set<string>>;
 }): {
@@ -348,7 +348,7 @@ export function parseAndNormalizeImportedWidget(params: {
   return normalized;
 }
 
-export function validateImportedWidget(params: {
+function validateImportedWidget(params: {
   widget: WidgetImport;
   importedViewVersion: ViewVersion;
 }): void {
@@ -391,7 +391,7 @@ export function validateImportedWidget(params: {
   }
 }
 
-export function toImportedWidgetFormSnapshot(
+function toImportedWidgetFormSnapshot(
   widget: WidgetImport,
 ): ImportedWidgetFormSnapshot {
   const importedMetrics =

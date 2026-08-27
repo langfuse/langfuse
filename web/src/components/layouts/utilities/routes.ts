@@ -40,7 +40,7 @@ const groupProcessedNavigation = (items: NavigationItem[]) => {
   };
 };
 
-export function processNavigation(
+function processNavigation(
   mapNavigation: (route: Route) => NavigationItem | null,
 ) {
   // First process all routes (apply filtering, permissions, etc.)

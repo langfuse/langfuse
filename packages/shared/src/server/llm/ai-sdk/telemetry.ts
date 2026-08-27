@@ -296,7 +296,7 @@ export function createAiSdkTelemetryCapture(params: {
 /**
  * Minimal AI SDK telemetry integration for Langfuse-internal LLM completions.
  */
-export function createGenerationSpanTelemetry(params: {
+function createGenerationSpanTelemetry(params: {
   tracer: Tracer;
   /**
    * Extra attributes for every generation span (Langfuse prompt link,

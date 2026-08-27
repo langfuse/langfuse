@@ -22,7 +22,7 @@ import { expandToNode } from "./treeExpansion";
  * @param options - Search options (case sensitivity, regex, etc.)
  * @returns Array of search matches with positions
  */
-export function searchInRows(
+function searchInRows(
   rows: FlatJSONRow[],
   query: string,
   options: SearchOptions = {},
@@ -145,7 +145,7 @@ function findMatchesInString(
  * @param rows - All flattened rows
  * @returns Array of path strings to expand
  */
-export function getPathsToExpand(
+function getPathsToExpand(
   match: SearchMatch,
   rows: FlatJSONRow[],
 ): string[] {
@@ -200,7 +200,7 @@ function expandAncestors(
  * @param currentState - Current expansion state
  * @returns New expansion state with ancestors expanded
  */
-export function expandToMatch(
+function expandToMatch(
   match: SearchMatch,
   rows: FlatJSONRow[],
   currentState: ExpansionState,
@@ -214,7 +214,7 @@ export function expandToMatch(
 /**
  * Get the next match index (circular)
  */
-export function getNextMatchIndex(
+function getNextMatchIndex(
   currentIndex: number,
   totalMatches: number,
 ): number {
@@ -225,7 +225,7 @@ export function getNextMatchIndex(
 /**
  * Get the previous match index (circular)
  */
-export function getPreviousMatchIndex(
+function getPreviousMatchIndex(
   currentIndex: number,
   totalMatches: number,
 ): number {
@@ -237,7 +237,7 @@ export function getPreviousMatchIndex(
  * Filter matches to only those in visible rows
  * Useful when some rows are collapsed
  */
-export function filterVisibleMatches(
+function filterVisibleMatches(
   matches: SearchMatch[],
   visibleRowIndices: Set<number>,
 ): SearchMatch[] {
@@ -248,7 +248,7 @@ export function filterVisibleMatches(
  * Group matches by row
  * Useful for showing "3 matches in this row" indicators
  */
-export function groupMatchesByRow(
+function groupMatchesByRow(
   matches: SearchMatch[],
 ): Map<string, SearchMatch[]> {
   const grouped = new Map<string, SearchMatch[]>();
@@ -301,7 +301,7 @@ export interface SearchStats {
   valueMatches: number;
 }
 
-export function getSearchStats(matches: SearchMatch[]): SearchStats {
+function getSearchStats(matches: SearchMatch[]): SearchStats {
   const matchedRowIds = new Set(matches.map((m) => m.rowId));
   const keyMatches = matches.filter((m) => m.matchType === "key").length;
   const valueMatches = matches.filter((m) => m.matchType === "value").length;
@@ -322,7 +322,7 @@ export function getSearchStats(matches: SearchMatch[]): SearchStats {
  * @param matches - All search matches
  * @returns Map of rowId -> count of matches in this row and its descendants
  */
-export function getMatchCountsPerRow(
+function getMatchCountsPerRow(
   rows: FlatJSONRow[],
   matches: SearchMatch[],
 ): Map<string, number> {
@@ -500,7 +500,7 @@ export function searchInTree(
  * @param match - Search match to reveal
  * @returns Updated tree state
  */
-export function expandToMatch_Tree(
+function expandToMatch_Tree(
   tree: TreeState,
   match: SearchMatch,
 ): TreeState {
@@ -560,7 +560,7 @@ export function getMatchCountsPerNode(
  * @param nodeId - ID of node to find
  * @returns Visible index, or -1 if not visible/not found
  */
-export function findNodeVisibleIndex(tree: TreeState, nodeId: string): number {
+function findNodeVisibleIndex(tree: TreeState, nodeId: string): number {
   // Lazy import to avoid circular dependencies
   const { findNodeIndex } = require("./treeNavigation");
   return findNodeIndex(tree.rootNode, nodeId);

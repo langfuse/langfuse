@@ -14,7 +14,7 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.media_retention_cleaner";
 
-export const MEDIA_RETENTION_CLEANER_LOCK_KEY =
+const MEDIA_RETENTION_CLEANER_LOCK_KEY =
   "langfuse:media-retention-cleaner";
 
 /**

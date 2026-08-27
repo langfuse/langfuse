@@ -31,13 +31,13 @@ export const debugTimeEnd = (label: string) => {
 /**
  * Log warning in development only
  */
-export const debugWarn = (...args: unknown[]) => {
+const debugWarn = (...args: unknown[]) => {
   if (DEBUG) console.warn(...args);
 };
 
 /**
  * Log error (always logs, even in production)
  */
-export const debugError = (...args: unknown[]) => {
+const debugError = (...args: unknown[]) => {
   console.error(...args);
 };

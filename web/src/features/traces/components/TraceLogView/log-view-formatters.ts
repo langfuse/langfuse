@@ -65,7 +65,7 @@ export function formatRelativeTime(ms: number, showMs = false): string {
  * @param depth - Tree depth (0 for root observations)
  * @returns Formatted depth string or empty for depth 0
  */
-export function formatDepthIndicator(depth: number): string {
+function formatDepthIndicator(depth: number): string {
   if (depth <= 0) {
     return "";
   }

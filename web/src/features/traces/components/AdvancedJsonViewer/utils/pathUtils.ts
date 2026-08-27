@@ -39,7 +39,7 @@ export function getParentPath(path: string): string | null {
  * Get the key (last part) of a path
  * @example getPathKey("root.users.0.name") => "name"
  */
-export function getPathKey(path: string): string | number {
+function getPathKey(path: string): string | number {
   const parts = splitPath(path);
   return parts[parts.length - 1]!;
 }
@@ -64,7 +64,7 @@ export function isAncestorPath(
  * @example isDirectChild("root.users", "root.users.0") => true
  * @example isDirectChild("root.users", "root.users.0.name") => false
  */
-export function isDirectChild(parentPath: string, childPath: string): boolean {
+function isDirectChild(parentPath: string, childPath: string): boolean {
   const parentParts = splitPath(parentPath);
   const childParts = splitPath(childPath);
 
@@ -97,14 +97,14 @@ export function getAncestorPaths(path: string): string[] {
  * @example getPathDepth("root") => 0
  * @example getPathDepth("root.users.0.name") => 3
  */
-export function getPathDepth(path: string): number {
+function getPathDepth(path: string): number {
   return splitPath(path).length - 1;
 }
 
 /**
  * Check if a path is the root
  */
-export function isRootPath(path: string): boolean {
+function isRootPath(path: string): boolean {
   return splitPath(path).length === 1;
 }
 
@@ -112,7 +112,7 @@ export function isRootPath(path: string): boolean {
  * Normalize a path (ensure consistent format)
  * Handles trailing dots, double dots, etc.
  */
-export function normalizePath(path: string): string {
+function normalizePath(path: string): string {
   const parts = path
     .split(".")
     .filter((part) => part.length > 0)
@@ -128,7 +128,7 @@ export function normalizePath(path: string): string {
  * Compare two paths for sorting
  * Returns: -1 if a < b, 0 if a === b, 1 if a > b
  */
-export function comparePaths(a: string, b: string): number {
+function comparePaths(a: string, b: string): number {
   const partsA = splitPath(a);
   const partsB = splitPath(b);
 
@@ -157,7 +157,7 @@ export function comparePaths(a: string, b: string): number {
  * Get child paths of a parent path from a list of paths
  * Only returns direct children, not descendants
  */
-export function getChildPaths(
+function getChildPaths(
   parentPath: string,
   allPaths: string[],
 ): string[] {
@@ -168,7 +168,7 @@ export function getChildPaths(
  * Get descendant paths of an ancestor path from a list of paths
  * Returns all descendants, not just direct children
  */
-export function getDescendantPaths(
+function getDescendantPaths(
   ancestorPath: string,
   allPaths: string[],
 ): string[] {
@@ -179,7 +179,7 @@ export function getDescendantPaths(
  * Build a path from a parent path and a key
  * @example buildPath("root.users", 0) => "root.users.0"
  */
-export function buildPath(parentPath: string, key: string | number): string {
+function buildPath(parentPath: string, key: string | number): string {
   return `${parentPath}.${key}`;
 }
 
@@ -187,7 +187,7 @@ export function buildPath(parentPath: string, key: string | number): string {
  * Check if any ancestor of a path is collapsed
  * Used to determine if a row should be visible
  */
-export function hasCollapsedAncestor(
+function hasCollapsedAncestor(
   path: string,
   collapsedPaths: Set<string>,
 ): boolean {

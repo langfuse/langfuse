@@ -180,7 +180,7 @@ export function createDefaultVariableMappings(
  * @param template - The evaluation template containing variables
  * @returns Array of observation variable mappings
  */
-export function createDefaultObservationVariableMappings(
+function createDefaultObservationVariableMappings(
   template: EvalTemplate,
 ): ObservationVariableMapping[] {
   if (!template.vars || template.vars.length === 0) {

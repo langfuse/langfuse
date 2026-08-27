@@ -74,7 +74,7 @@ export const useJsonExpansion = () => {
 /**
  * Read formatted expansion state directly from sessionStorage
  */
-export function readFormattedExpansion(field: string): Record<string, boolean> {
+function readFormattedExpansion(field: string): Record<string, boolean> {
   if (typeof window === "undefined") return {};
 
   try {
@@ -91,7 +91,7 @@ export function readFormattedExpansion(field: string): Record<string, boolean> {
 /**
  * Write formatted expansion state directly to sessionStorage
  */
-export function writeFormattedExpansion(
+function writeFormattedExpansion(
   field: string,
   state: Record<string, boolean>,
 ): void {

@@ -80,7 +80,7 @@ function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
  * This is only for the scrollable column (excludes fixed column with line numbers/buttons).
  * Always calculates FULL untruncated width (data layer).
  */
-export function calculateMinimumWidth(
+function calculateMinimumWidth(
   rows: FlatJSONRow[],
   theme: JSONTheme,
 ): number {

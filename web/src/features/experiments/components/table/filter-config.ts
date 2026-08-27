@@ -140,11 +140,11 @@ export const getExperimentsColumnName = (id: string): string => {
 /**
  * Maps frontend column IDs to backend-expected column IDs for experiments table
  */
-export const EXPERIMENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
+const EXPERIMENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
   // No mapping needed currently
 };
 
-export const experimentsFilterConfig: FilterConfig = {
+const experimentsFilterConfig: FilterConfig = {
   tableName: "experiments",
 
   columnDefinitions: experimentsTableCols,

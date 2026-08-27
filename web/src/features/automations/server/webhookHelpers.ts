@@ -173,7 +173,7 @@ function processWebhookHeaders(
 /**
  * Extracts webhook secret for one-time display after creation
  */
-export function extractWebhookSecret(
+function extractWebhookSecret(
   actionConfig: ActionConfig,
 ): string | undefined {
   if (actionConfig.type !== "WEBHOOK" || !actionConfig.secretKey) {

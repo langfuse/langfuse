@@ -268,7 +268,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
  *
  * @returns Map of windowId to PlaygroundHandle
  */
-export const getPlaygroundWindowRegistry = (): Map<
+const getPlaygroundWindowRegistry = (): Map<
   string,
   PlaygroundHandle
 > => {
@@ -291,6 +291,6 @@ export const getPlaygroundEventBus = (): EventTarget => {
  *
  * @returns Number of currently registered windows
  */
-export const getWindowCount = (): number => {
+const getWindowCount = (): number => {
   return playgroundWindowRegistry.size;
 };

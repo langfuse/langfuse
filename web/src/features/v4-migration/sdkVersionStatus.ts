@@ -30,7 +30,7 @@ const requiresOtelIngestionHeader = (
   series.actionLevel === "required";
 
 // SQL owns remediation classification; the client only groups rows for display.
-export const isCustomInstrumentationSeries = (
+const isCustomInstrumentationSeries = (
   series: V4MigrationSdkUsageSeries,
 ): boolean => series.remediationType === "upgrade_instrumentation";
 
@@ -110,7 +110,7 @@ export const getV4MigrationSdkState = (params: {
 
 // Recognized Langfuse SDK traffic stays in the SDK bucket even when it uses
 // OTLP; raw/third-party OTel is classified separately by SQL.
-export const isOtelExporterSeries = (
+const isOtelExporterSeries = (
   series: V4MigrationSdkUsageSeries,
 ): boolean => series.remediationType === "update_otel_instrumentation";
 

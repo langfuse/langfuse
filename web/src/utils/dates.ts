@@ -1,17 +1,17 @@
-export const utcDateOffsetByDays = (days: number) => {
+const utcDateOffsetByDays = (days: number) => {
   const date = new Date();
   date.setUTCHours(0, 0, 0, 0);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
 };
 
-export const localtimeDateOffsetByDays = (days: number) => {
+const localtimeDateOffsetByDays = (days: number) => {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() + days);
   return date;
 };
-export const utcDate = (localDateTime: Date) =>
+const utcDate = (localDateTime: Date) =>
   new Date(
     Date.UTC(
       localDateTime.getFullYear(),
@@ -32,7 +32,7 @@ export const setEndOfDay = (date: Date) => {
   return newDate;
 };
 
-export const intervalInSeconds = (start: Date, end: Date | null) =>
+const intervalInSeconds = (start: Date, end: Date | null) =>
   end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
 export const formatIntervalSeconds = (seconds: number, scale = 2) => {

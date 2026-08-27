@@ -20,7 +20,7 @@ export const CreateObservationBatchEvaluationActionSchema = z.object({
   evalVersion: z.literal("v2").optional(),
 });
 
-export const ValidateBatchAddToDatasetMappingSchema = z.object({
+const ValidateBatchAddToDatasetMappingSchema = z.object({
   projectId: z.string(),
   observationId: z.string(),
   traceId: z.string(),
@@ -33,7 +33,7 @@ export const GetBatchActionByIdSchema = z.object({
   batchActionId: z.string(),
 });
 
-export const ListBatchActionsSchema = z.object({
+const ListBatchActionsSchema = z.object({
   projectId: z.string(),
   page: z.number(),
   limit: z.number(),

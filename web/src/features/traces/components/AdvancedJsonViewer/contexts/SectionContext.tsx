@@ -64,7 +64,7 @@ export function SectionContextProvider({
  *     {context.isExpanded ? '▼' : '▶'} Input ({context.rowCount} rows)
  *   </div>
  */
-export function useSectionContext(sectionKey: string): SectionContext {
+function useSectionContext(sectionKey: string): SectionContext {
   const map = useContext(SectionContextMapContext);
 
   const context = map[sectionKey];

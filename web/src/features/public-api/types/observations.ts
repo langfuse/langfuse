@@ -24,7 +24,7 @@ import { useEventsTableSchema } from "@langfuse/shared/query";
 
 // Re-export for convenience
 export {
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  
   type ObservationFieldGroupPublicApi,
 };
 
@@ -258,7 +258,7 @@ export const GetObservationV1Response = APIObservation.extend({
  * Encodes the position in the result set using the table's ordering:
  * (start_time, xxHash32(trace_id), span_id)
  */
-export const ObservationsCursorV2 = z.object({
+const ObservationsCursorV2 = z.object({
   lastStartTimeTo: z.coerce.date(),
   lastTraceId: z.string(),
   lastId: z.string(),

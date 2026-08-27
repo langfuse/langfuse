@@ -30,7 +30,7 @@ const ABBREVIATION_TO_KEY = new Map(
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
-export const TABLE_AGGREGATION_PLACEHOLDER = "custom" as const;
+const TABLE_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -74,7 +74,7 @@ export type DashboardDateRangeAggregationSettings = Record<
   TimeRangeDefinition
 >;
 
-export const dateTimeAggregationOptions = [
+const dateTimeAggregationOptions = [
   ...TABLE_AGGREGATION_OPTIONS,
   ...DASHBOARD_AGGREGATION_OPTIONS,
 ] as const;
@@ -126,7 +126,7 @@ const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
   ]),
 );
 
-export const isTableDataRangeOptionAvailable = ({
+const isTableDataRangeOptionAvailable = ({
   option,
   limitDays,
 }: {
@@ -164,21 +164,21 @@ export const getDateFromOption = (
   return undefined;
 };
 
-export function isValidDashboardDateRangeAggregationOption(
+function isValidDashboardDateRangeAggregationOption(
   value?: string,
 ): value is DashboardDateRangeAggregationOption {
   if (!value) return false;
   return (DASHBOARD_AGGREGATION_OPTIONS as readonly string[]).includes(value);
 }
 
-export function isValidTableDateRangeAggregationOption(
+function isValidTableDateRangeAggregationOption(
   value?: string,
 ): value is TableDateRangeAggregationOption {
   if (!value) return false;
   return (TABLE_AGGREGATION_OPTIONS as readonly string[]).includes(value);
 }
 
-export function getFullTimeRangeFromAbbreviated(
+function getFullTimeRangeFromAbbreviated(
   abbreviated: string,
 ): DateRangeAggregationOption | null {
   return (
@@ -210,14 +210,14 @@ export const findClosestDashboardInterval = (
 };
 
 // Helper function to check if time represents full day
-export const isFullDay = (date: Date) => {
+const isFullDay = (date: Date) => {
   return (
     date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
   );
 };
 
 // Helper function to check if date range represents full days
-export const isFullDayRange = (from: Date, to: Date) => {
+const isFullDayRange = (from: Date, to: Date) => {
   return (
     isFullDay(from) &&
     to.getHours() === 23 &&
@@ -277,7 +277,7 @@ export type IntervalConfig = {
  * Allowed intervals - only "clean" values to avoid crooked numbers
  * These are the only intervals that can be selected by the algorithm
  */
-export const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
+const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
   // Seconds
   { count: 1, unit: "second" },
   { count: 5, unit: "second" },
@@ -429,7 +429,7 @@ export function getOptimalInterval(
  * @param timeRange - The time range (relative or absolute)
  * @returns Interval suitable for score analytics API ("hour" | "day" | "week" | "month")
  */
-export function getScoreAnalyticsInterval(
+function getScoreAnalyticsInterval(
   timeRange: TimeRange,
 ): "hour" | "day" | "week" | "month" {
   // Handle preset ranges
@@ -673,4 +673,4 @@ export function getChartTooltipFormat(
 }
 
 // Re-export fillTimeSeriesGaps from its own module
-export { fillTimeSeriesGaps } from "./fill-time-series-gaps";
+;

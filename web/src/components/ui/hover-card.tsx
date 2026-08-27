@@ -84,6 +84,6 @@ export {
   HoverCard,
   HoverCardTrigger,
   HoverCardContent,
-  HoverCardTitle,
+  
   HoverCardPortal,
 };

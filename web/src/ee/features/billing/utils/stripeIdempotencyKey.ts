@@ -50,7 +50,7 @@ export type IdempotencyKind = z.infer<typeof IdempotencyKind>;
  * @param obj - Any JSON-serializable object to hash
  * @returns A 16-character hexadecimal hash string
  */
-export function stableHash(obj: unknown): string {
+function stableHash(obj: unknown): string {
   try {
     const json = JSON.stringify(obj, Object.keys(obj as any).sort());
     return crypto.createHash("sha256").update(json).digest("hex").slice(0, 16);

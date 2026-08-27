@@ -164,7 +164,7 @@ export function clickhouseFormatAvailable(): boolean {
  * which `clickhouse-local` provides — no server, no state. Throws on a parse
  * error so malformed SQL fails the test instead of comparing raw.
  */
-export function formatSql(sql: string): string {
+function formatSql(sql: string): string {
   const res = spawnSync(clickhouseBin, ["format"], {
     input: sql,
     encoding: "utf8",

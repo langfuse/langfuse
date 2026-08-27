@@ -122,7 +122,7 @@ export function isCompleteShortcut(event: KeyboardEvent): boolean {
  * in shortcut hints. Call from an effect (not during render) to avoid an SSR
  * hydration mismatch.
  */
-export function isAppleDevice(): boolean {
+function isAppleDevice(): boolean {
   if (typeof navigator === "undefined") return false;
   return navigator.userAgent.includes("Mac");
 }

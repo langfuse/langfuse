@@ -11,7 +11,7 @@ import { z } from "zod";
 import { areGitHubDispatchUrlsEquivalent } from "../../githubDispatchUrl";
 
 // Define the form schema for GitHub dispatch actions
-export const GitHubDispatchActionFormSchema = z.object({
+const GitHubDispatchActionFormSchema = z.object({
   githubDispatch: z.object({
     url: z.url("Invalid URL"),
     eventType: z.string().min(1, "Event type is required").max(100),

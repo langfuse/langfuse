@@ -11,7 +11,7 @@ import chroma from "chroma-js";
  * OKLCH base colors from global.css
  * These are used for different charts when comparing multiple scores
  */
-export const HEATMAP_BASE_COLORS = {
+const HEATMAP_BASE_COLORS = {
   chart1: { l: 66.2, c: 0.225, h: 25.9 }, // --color-1 (orange-ish)
   chart2: { l: 60.4, c: 0.26, h: 302 }, // --color-2 (magenta-ish)
   chart3: { l: 69.6, c: 0.165, h: 251 }, // --color-3 (blue-ish)
@@ -30,7 +30,7 @@ export type HeatmapColorVariant = keyof typeof HEATMAP_BASE_COLORS;
  * @param maxLightness - Maximum lightness value (0-100, default: 95)
  * @returns Array of OKLCH color strings
  */
-export function generateMonoColorScale(
+function generateMonoColorScale(
   baseColor: { l: number; c: number; h: number },
   steps = 10,
   minLightness = 30,
@@ -58,7 +58,7 @@ export function generateMonoColorScale(
  * @param steps - Number of color steps (default: 10)
  * @returns OKLCH color string
  */
-export function getColorFromMonoScale(
+function getColorFromMonoScale(
   value: number,
   min: number,
   max: number,
@@ -103,7 +103,7 @@ export function getContrastColor(oklchColor: string): "black" | "white" {
  * @param chromaMultiplier - How much to multiply chroma by (default: 2.5)
  * @returns OKLCH color string with increased chroma
  */
-export function getHoverColor(
+function getHoverColor(
   oklchColor: string,
   chromaMultiplier = 2.5,
 ): string {
@@ -131,7 +131,7 @@ export function getHoverColor(
  * @param maxLightness - Maximum lightness (0-100)
  * @param steps - Number of steps
  */
-export function createCustomMonoScale(
+function createCustomMonoScale(
   variant: HeatmapColorVariant,
   minLightness: number,
   maxLightness: number,
@@ -149,7 +149,7 @@ export function createCustomMonoScale(
  * @param max - The maximum value in the range
  * @param variant - Which chart color variant to use
  */
-export function getDiagonalColor(
+function getDiagonalColor(
   value: number,
   min: number,
   max: number,
@@ -206,7 +206,7 @@ export function getTwoScoreColors(): {
  * @param hasActiveHover - Whether any bar is currently being hovered
  * @returns Opacity value (0-1)
  */
-export function getBarChartHoverOpacity(
+function getBarChartHoverOpacity(
   isHovered: boolean,
   hasActiveHover: boolean,
 ): number {
@@ -226,7 +226,7 @@ export function getBarChartHoverOpacity(
  * Chart color configuration for Recharts ChartConfig
  * Single score variant
  */
-export function getSingleScoreChartConfig(metricKey: string, label?: string) {
+function getSingleScoreChartConfig(metricKey: string, label?: string) {
   return {
     [metricKey]: {
       label: label,
@@ -242,7 +242,7 @@ export function getSingleScoreChartConfig(metricKey: string, label?: string) {
  * Chart color configuration for Recharts ChartConfig
  * Two score comparison variant
  */
-export function getTwoScoreChartConfig(
+function getTwoScoreChartConfig(
   score1Key: string,
   score2Key: string,
   score1Label?: string,
@@ -281,7 +281,7 @@ export function getTwoScoreChartConfig(
  * Score 2: Yellow (chart-2)
  * These are the single source of truth for score colors
  */
-export const SCORE_BASE_COLORS = {
+const SCORE_BASE_COLORS = {
   score1: "hsl(var(--chart-3))", // blue
   score2: "hsl(var(--chart-2))", // yellow
 } as const;
@@ -371,7 +371,7 @@ function mixColorsInOklab(
  * @param maxPercentage - Maximum baseColor percentage (default: 1.0 = 100%)
  * @returns Array of hex color strings
  */
-export function getMonochromeScale(
+function getMonochromeScale(
   baseColor: string,
   steps: number,
   mixColor = "white",
@@ -527,7 +527,7 @@ export function getHeatmapCellColor(
  * =======================
  * Constants for special color mapping keys to avoid magic strings
  */
-export const COLOR_MAPPING_KEYS = {
+const COLOR_MAPPING_KEYS = {
   SCORE1_NUMERIC: "__score1_numeric__",
   SCORE2_NUMERIC: "__score2_numeric__",
   SCORE2_TRUE: "__score2_True",

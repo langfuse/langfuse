@@ -3,7 +3,7 @@ import { type VisibilityState } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
 // Shared font color palette for experiment rows/columns
-export const EXPERIMENT_COLOR_STYLES = [
+const EXPERIMENT_COLOR_STYLES = [
   {
     textClass: "text-foreground",
     markerClass: "bg-foreground",
@@ -76,7 +76,7 @@ export type ExperimentColorStyle = (typeof EXPERIMENT_COLOR_STYLES)[number];
 /**
  * Get the text color class for an experiment based on its index.
  */
-export const getExperimentColor = (
+const getExperimentColor = (
   experimentId: string,
   allExperimentIds: string[],
 ): string => {

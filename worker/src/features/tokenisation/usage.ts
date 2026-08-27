@@ -28,7 +28,7 @@ const OpenAiChatTokenConfig = z.object({
   tokensPerName: z.number(),
 });
 
-export function tokenCount(p: {
+function tokenCount(p: {
   model: Model;
   text: unknown;
 }): number | undefined {

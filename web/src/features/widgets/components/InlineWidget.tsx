@@ -106,7 +106,7 @@ export interface WidgetWrapperProps {
 /**
  * Simple wrapper providing consistent widget styling (border, padding, background).
  */
-export function WidgetWrapper({ children, className }: WidgetWrapperProps) {
+function WidgetWrapper({ children, className }: WidgetWrapperProps) {
   return (
     <div
       className={cn(
@@ -122,7 +122,7 @@ export function WidgetWrapper({ children, className }: WidgetWrapperProps) {
 /**
  * Widget header with title, description, and optional action buttons.
  */
-export function WidgetHeader({
+function WidgetHeader({
   title,
   description,
   actions,

@@ -84,7 +84,7 @@ export const mcpEvalOutputDefinition = {
  * Verifies that a response follows the MCP content block format.
  * MCP tools return { content: [{ type: "text", text: "..." }] }
  */
-export function verifyMcpResponseFormat(
+function verifyMcpResponseFormat(
   response: unknown,
 ): asserts response is {
   content: Array<{ type: "text"; text: string }>;
@@ -126,7 +126,7 @@ export function verifyMcpResponseFormat(
  * Extracts the text content from an MCP tool response.
  * Assumes the response has been validated with verifyMcpResponseFormat.
  */
-export function extractMcpResponseText(response: {
+function extractMcpResponseText(response: {
   content: Array<{ type: "text"; text: string }>;
 }): string {
   return response.content.map((block) => block.text).join("");
@@ -136,7 +136,7 @@ export function extractMcpResponseText(response: {
  * Parses JSON from an MCP tool response text.
  * Handles the common case where tool responses are JSON strings.
  */
-export function parseMcpResponseJson<T = unknown>(response: {
+function parseMcpResponseJson<T = unknown>(response: {
   content: Array<{ type: "text"; text: string }>;
 }): T {
   const text = extractMcpResponseText(response);
@@ -231,7 +231,7 @@ export async function createPromptInDb(params: {
  * Deletes all prompts for a specific project.
  * Useful for cleanup in tests.
  */
-export async function cleanupProjectPrompts(projectId: string): Promise<void> {
+async function cleanupProjectPrompts(projectId: string): Promise<void> {
   await prisma.prompt.deleteMany({
     where: { projectId },
   });

@@ -368,7 +368,7 @@ export const listDatasetsForApi = async ({
   };
 };
 
-export const getDatasetForApi = async ({
+const getDatasetForApi = async ({
   projectId,
   datasetName,
 }: GetDatasetInput) => {

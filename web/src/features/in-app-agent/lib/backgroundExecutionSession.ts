@@ -589,7 +589,7 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
 };
 
-export function getBackgroundRunFailureMessage(
+function getBackgroundRunFailureMessage(
   errorCode: string | null,
 ): string {
   return (

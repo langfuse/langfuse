@@ -401,7 +401,7 @@ export const protectedProjectProcedure = withOtelTracingProcedure
   .use(enforceUserIsAuthedAndProjectMember);
 
 /** requireFeatureFlag gates a procedure behind a server-side feature flag. */
-export const requireFeatureFlag = (flag: Flag) =>
+const requireFeatureFlag = (flag: Flag) =>
   t.middleware(({ ctx, next }) => {
     const session = ctx.session;
     const enabled =
@@ -418,7 +418,7 @@ export const requireFeatureFlag = (flag: Flag) =>
   });
 
 /** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
-export const requireLangfuseCloud = t.middleware(({ next }) => {
+const requireLangfuseCloud = t.middleware(({ next }) => {
   if (!isLangfuseCloud) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
   }

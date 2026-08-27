@@ -51,7 +51,7 @@ export const parseDatasetItemInput = (
   }
 };
 
-export const fetchDatasetRun = async (
+const fetchDatasetRun = async (
   datasetRunId: string,
   projectId: string,
 ) => {
@@ -63,7 +63,7 @@ export const fetchDatasetRun = async (
   });
 };
 
-export const fetchPrompt = async (promptId: string, projectId: string) => {
+const fetchPrompt = async (promptId: string, projectId: string) => {
   const promptService = new PromptService(prisma, redis);
 
   const rawPrompt = await prisma.prompt.findUnique({

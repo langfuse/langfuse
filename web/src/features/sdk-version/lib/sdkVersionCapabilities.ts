@@ -93,7 +93,7 @@ export const getSdkVersionCapabilityStatus = (
   return "supported";
 };
 
-export const getSdkVersionCapabilityMinimum = (
+const getSdkVersionCapabilityMinimum = (
   sdkName: SdkVersionInfo["language"],
   capability: SdkVersionCapability,
 ): string | null => {

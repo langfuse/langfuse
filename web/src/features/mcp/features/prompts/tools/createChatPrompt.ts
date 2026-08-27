@@ -28,7 +28,7 @@ import { ParamCreatePromptLabels } from "../validation";
  * defineTool). The runtime input schema below enforces the actual message
  * shape ({role, content} or {type: 'placeholder', name}).
  */
-export const ChatMessageBaseSchema = z.object({
+const ChatMessageBaseSchema = z.object({
   type: z
     .enum(["message", "placeholder"])
     .optional()

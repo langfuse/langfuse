@@ -52,7 +52,7 @@ export function InlineCommentSelectionProvider({
   );
 }
 
-export function useInlineCommentSelection() {
+function useInlineCommentSelection() {
   const context = useContext(InlineCommentSelectionContext);
   if (!context) {
     throw new Error(

@@ -364,7 +364,7 @@ async function ensureMetadataIsSetOnStripeSubscription(
  * When no anchor is provided, sets to start of current day in UTC.
  * When an anchor is provided, stores it as-is (caller is responsible for UTC normalization).
  */
-export async function updateOrgBillingCycleAnchor(
+async function updateOrgBillingCycleAnchor(
   orgId: string,
   anchor?: Date,
 ) {

@@ -24,7 +24,7 @@ import {
  * Size threshold for sync vs Web Worker
  * Tree building with >10K nodes can block main thread for 50ms+
  */
-export const TREE_BUILD_THRESHOLD = 10_000;
+const TREE_BUILD_THRESHOLD = 10_000;
 
 /**
  * TreeNode represents a single node in the hierarchical JSON tree
@@ -594,7 +594,7 @@ export function buildTreeFromJSON(
  * @param data - The JSON data
  * @returns Estimated node count
  */
-export function estimateNodeCount(data: unknown): number {
+function estimateNodeCount(data: unknown): number {
   let count = 0;
 
   // Iterative traversal (stack-based)
@@ -621,7 +621,7 @@ export function estimateNodeCount(data: unknown): number {
  * @param data - The JSON data
  * @returns True if Web Worker should be used
  */
-export function shouldUseWorkerForTreeBuild(data: unknown): boolean {
+function shouldUseWorkerForTreeBuild(data: unknown): boolean {
   const estimatedCount = estimateNodeCount(data);
   return estimatedCount > TREE_BUILD_THRESHOLD;
 }

@@ -41,7 +41,7 @@ export function isExpandable(value: unknown): boolean {
 /**
  * Get the number of children for expandable values
  */
-export function getChildCount(value: unknown): number {
+function getChildCount(value: unknown): number {
   const type = getJSONType(value);
 
   if (type === "array") {
@@ -106,7 +106,7 @@ export function formatValuePreview(value: unknown, maxLength = 50): string {
 /**
  * Get a short type label for display
  */
-export function getTypeLabel(type: JSONType): string {
+function getTypeLabel(type: JSONType): string {
   switch (type) {
     case "array":
       return "[]";
@@ -130,7 +130,7 @@ export function getTypeLabel(type: JSONType): string {
 /**
  * Check if a value is a primitive (not object or array)
  */
-export function isPrimitive(value: unknown): boolean {
+function isPrimitive(value: unknown): boolean {
   const type = getJSONType(value);
   return (
     type === "string" ||
@@ -174,7 +174,7 @@ export function isArrayIndex(key: string | number): boolean {
 /**
  * Format a string value for display (handle escaping, newlines, etc.)
  */
-export function formatStringValue(value: string, truncate?: number): string {
+function formatStringValue(value: string, truncate?: number): string {
   let formatted = value;
 
   // Truncate if needed

@@ -91,7 +91,7 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
 ];
 
-export const SESSION_DETAIL_LLM_CALL_PRESETS =
+const SESSION_DETAIL_LLM_CALL_PRESETS =
   SESSION_DETAIL_SYSTEM_PRESETS.filter((preset) =>
     preset.filters.some((filter) => filter.type === "positionInTrace"),
   );
@@ -102,7 +102,7 @@ export const SESSION_DETAIL_LLM_CALL_PRESETS =
  * old "first generation" default that rendered empty cards for agentic sessions
  * with no GENERATION (LFE-10520).
  */
-export const getSessionDetailDefaultPreset = () =>
+const getSessionDetailDefaultPreset = () =>
   SESSION_DETAIL_SYSTEM_PRESETS[0];
 
 /**

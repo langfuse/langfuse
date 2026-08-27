@@ -83,7 +83,7 @@ export function createHistogramData(
   };
 }
 
-export function padChartData(chartData: HistogramBin[]) {
+function padChartData(chartData: HistogramBin[]) {
   const emptyBin = { binLabel: "", empty: 0 };
   if (chartData.length < 3) {
     return [emptyBin, emptyBin, ...chartData, emptyBin, emptyBin];

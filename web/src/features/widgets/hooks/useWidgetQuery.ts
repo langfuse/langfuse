@@ -107,7 +107,7 @@ export interface UseWidgetQueryResult {
  * return <WidgetContent query={query} version={version} ... />;
  * ```
  */
-export function useWidgetQuery({
+function useWidgetQuery({
   widgetConfig,
   dateRange,
   filterState = [],

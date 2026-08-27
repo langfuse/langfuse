@@ -6,7 +6,7 @@ export const MessageTypeSchema = z.enum(["Question", "Feedback", "Bug"]);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
 /** ── Form Sections (for your stepper/wizard) ─────────────────────────────── */
-export const FormSectionSchema = z.enum(["intro", "form", "success"]);
+const FormSectionSchema = z.enum(["intro", "form", "success"]);
 export type FormSection = z.infer<typeof FormSectionSchema>;
 
 /** ── Topics (grouped + flattened) ────────────────────────────────────────── */
@@ -31,7 +31,7 @@ export const TopicGroups = {
 
 export type TopicGroup = keyof typeof TopicGroups;
 
-export const ALL_TOPICS = [
+const ALL_TOPICS = [
   ...TopicGroups.Operations,
   ...TopicGroups["Product Features"],
 ] as const;
@@ -60,7 +60,7 @@ export const SEVERITY_3 = SeveritySchema.options[2];
  * requests — Enterprise only. All other plans (and free/unknown plans) are
  * limited to Severity 3. Mirrors the check in `mapToPylonCaseSeverity`.
  */
-export const ENTERPRISE_SUPPORT_PLANS = [
+const ENTERPRISE_SUPPORT_PLANS = [
   "cloud:enterprise",
   "self-hosted:enterprise",
 ] as const;
@@ -74,7 +74,7 @@ export const isEnterpriseSupportPlan = (plan?: string): boolean =>
  * field is omitted from the issue instead of defaulting to Sev-3. See
  * `mapToPylonCaseSeverity`.
  */
-export const NO_CASE_SEVERITY_SUPPORT_PLANS = [
+const NO_CASE_SEVERITY_SUPPORT_PLANS = [
   "cloud:hobby",
   "cloud:core",
 ] as const;
@@ -98,7 +98,7 @@ export const isSeverityAllowedForPlan = (
   return true; // Severity 3 is always available
 };
 
-export const IntegrationTypeSchema = z.enum([
+const IntegrationTypeSchema = z.enum([
   "Python SDK",
   "TypeScript SDK",
   "Other SDK",
@@ -130,6 +130,6 @@ export const SupportFormSchema = z.object({
 export type SupportFormValues = z.infer<typeof SupportFormSchema>;
 
 export const MESSAGE_TYPES = MessageTypeSchema.options;
-export const FORM_SECTIONS = FormSectionSchema.options;
+const FORM_SECTIONS = FormSectionSchema.options;
 export const SEVERITIES = SeveritySchema.options;
 export const INTEGRATION_TYPES = IntegrationTypeSchema.options;

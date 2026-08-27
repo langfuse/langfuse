@@ -7,7 +7,7 @@ const paginationSchema = {
   limit: z.number().int().positive().max(100).default(50),
 };
 
-export const resolveMetadata = (
+const resolveMetadata = (
   metadata: JSONValue,
 ): Record<string, unknown> => {
   if (Array.isArray(metadata)) {

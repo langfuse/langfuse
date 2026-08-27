@@ -18,7 +18,7 @@ import { z } from "zod";
  * Project ID parameter
  * No format enforcement - validated via API key authentication
  */
-export const ParamProjectId = z.string().describe("The project ID");
+const ParamProjectId = z.string().describe("The project ID");
 
 /**
  * Pagination limit parameter
@@ -46,6 +46,6 @@ export const ParamPage = z.coerce
 /**
  * Helper to extract schema description for MCP tool definitions
  */
-export function getSchemaDescription(schema: z.ZodType): string | undefined {
+function getSchemaDescription(schema: z.ZodType): string | undefined {
   return schema.description;
 }

@@ -390,4 +390,4 @@ export async function processUsageAggregationForAllOrgs(
 }
 
 // Export helper functions for testing
-export { buildProjectToOrgMap, fetchAllOrgsWithBillingInfo, aggregateByOrg };
+export { buildProjectToOrgMap,  aggregateByOrg };

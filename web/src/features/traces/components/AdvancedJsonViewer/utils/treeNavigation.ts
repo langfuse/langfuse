@@ -265,7 +265,7 @@ export function getAllVisibleNodes(rootNode: TreeNode): TreeNode[] {
  * @param rootNode - Root of the tree
  * @returns True if valid, throws error if invalid
  */
-export function validateTreeOffsets(rootNode: TreeNode): boolean {
+function validateTreeOffsets(rootNode: TreeNode): boolean {
   const stack: TreeNode[] = [rootNode];
 
   while (stack.length > 0) {
@@ -308,7 +308,7 @@ export function validateTreeOffsets(rootNode: TreeNode): boolean {
  * @param node - Target node
  * @returns Array of nodes from root to target (inclusive)
  */
-export function getPathToNode(node: TreeNode): TreeNode[] {
+function getPathToNode(node: TreeNode): TreeNode[] {
   const path: TreeNode[] = [];
   let current: TreeNode | null = node;
 
@@ -371,7 +371,7 @@ export function getVisibleDepthRange(rootNode: TreeNode): [number, number] {
  * @returns True if validation passes
  * @throws Error with detailed context if validation fails
  */
-export function validateGetNodeByIndex(rootNode: TreeNode): boolean {
+function validateGetNodeByIndex(rootNode: TreeNode): boolean {
   const expectedNodes = getAllVisibleNodes(rootNode);
   const totalVisibleRows = expectedNodes.length;
 

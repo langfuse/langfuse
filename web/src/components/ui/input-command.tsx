@@ -166,7 +166,7 @@ InputCommandShortcut.displayName = "CommandShortcut";
 
 export {
   InputCommand,
-  InputCommandDialog,
+  
   InputCommandInput,
   InputCommandList,
   InputCommandEmpty,

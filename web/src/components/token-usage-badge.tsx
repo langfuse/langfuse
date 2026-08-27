@@ -3,7 +3,7 @@ import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { numberFormatter } from "@/src/utils/numbers";
 import { type Observation } from "@langfuse/shared";
 
-export const AggUsageBadge = (props: {
+const AggUsageBadge = (props: {
   observations: ObservationReturnType[];
   rightIcon?: React.ReactNode;
   variant?:

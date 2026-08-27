@@ -46,7 +46,7 @@ export function singleRunToExperimentsUrl(
 /**
  * Parse experiments results URL params.
  */
-export function parseExperimentsResultsParams(query: {
+function parseExperimentsResultsParams(query: {
   baseline?: string;
   c?: string;
 }): { baseline: string | null; comparisons: string[] } {

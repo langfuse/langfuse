@@ -49,7 +49,7 @@ export const REALISTIC_MODELS = [
   "claude-opus-5",
 ];
 
-export const REALISTIC_USER_INPUTS = [
+const REALISTIC_USER_INPUTS = [
   "What is the weather in San Francisco?",
   "Summarize this document for me",
   "Generate a Python function to sort a list",
@@ -62,7 +62,7 @@ export const REALISTIC_USER_INPUTS = [
   "Help me plan a trip to Europe",
 ];
 
-export const REALISTIC_AI_RESPONSES = [
+const REALISTIC_AI_RESPONSES = [
   "The current weather in San Francisco is 60 degrees and foggy.",
   "Here's a summary of the key points from the document...",
   "Here's a Python function that sorts a list efficiently...",
@@ -75,7 +75,7 @@ export const REALISTIC_AI_RESPONSES = [
   "Here's a detailed 10-day European itinerary for you...",
 ];
 
-export const REALISTIC_METADATA_EXAMPLES = [
+const REALISTIC_METADATA_EXAMPLES = [
   { thread_id: 42, session_type: "interactive" },
   { user_id: "user_123", conversation_id: "conv_456" },
   { model_version: "v2.1", temperature: 0.7 },

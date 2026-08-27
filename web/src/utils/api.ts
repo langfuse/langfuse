@@ -709,7 +709,7 @@ export const api = createTRPCNext<AppRouter>({
  * Type-safe tRPC client for usage in the browser.
  * To be used whenever you need to call the API without react hooks.
  */
-export const directApi = createTRPCProxyClient<AppRouter>({
+const directApi = createTRPCProxyClient<AppRouter>({
   links: [
     loggerLink({
       // Only enable in development - production logs would be captured by Sentry

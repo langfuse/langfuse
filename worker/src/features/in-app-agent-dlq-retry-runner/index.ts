@@ -5,7 +5,7 @@ import { getQueue, logger, QueueName } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
-export const IN_APP_AGENT_DLQ_RETRY_LOCK_KEY =
+const IN_APP_AGENT_DLQ_RETRY_LOCK_KEY =
   "langfuse:in-app-agent-dlq-retry";
 
 const LOCK_TTL_SECONDS = 120;
@@ -80,7 +80,7 @@ export class InAppAgentDlqRetryRunner extends PeriodicExclusiveRunner {
   }
 }
 
-export function isFailedInAppAgentJobReadyToRetry(
+function isFailedInAppAgentJobReadyToRetry(
   job: Pick<Job, "finishedOn">,
   nowMs: number,
 ): boolean {

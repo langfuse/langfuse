@@ -15,7 +15,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 
-export const getQueues = () => {
+const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
     ...IngestionQueue.getShardNames(),
