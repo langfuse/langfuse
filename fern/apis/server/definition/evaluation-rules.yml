@@ -29,10 +29,10 @@ service:
         type: EvaluationRule
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.ConflictError
         - errors.TooManyRequestsError
         - errors.InternalServerError
@@ -56,9 +56,9 @@ service:
       response: EvaluationRulesPage
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
@@ -72,10 +72,10 @@ service:
           docs: Stable evaluation-rule identifier returned by the evaluation-rule endpoints.
       response: EvaluationRule
       errors:
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
@@ -96,10 +96,10 @@ service:
       response: EvaluationRule
       errors:
         - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.ConflictError
         - errors.TooManyRequestsError
         - errors.InternalServerError
@@ -119,10 +119,10 @@ service:
           docs: Stable evaluation-rule identifier returned by the evaluation-rule endpoints.
       response: DeletedEvaluationRule
       errors:
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
+        - errors.EvaluationUnauthorizedError
+        - errors.EvaluationAccessDeniedError
+        - errors.EvaluationNotFoundError
+        - errors.EvaluationMethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
 

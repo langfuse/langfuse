@@ -91,19 +91,19 @@ errors:
     docs: Request validation failed or the requested state is invalid.
     status-code: 400
     type: PublicApiError
-  UnauthorizedError:
+  EvaluationUnauthorizedError:
     docs: Authentication failed.
     status-code: 401
     type: PublicApiError
-  AccessDeniedError:
+  EvaluationAccessDeniedError:
     docs: The caller is not allowed to access this resource.
     status-code: 403
     type: PublicApiError
-  NotFoundError:
+  EvaluationNotFoundError:
     docs: The requested evaluator or evaluation rule was not found in the authenticated project.
     status-code: 404
     type: PublicApiError
-  MethodNotAllowedError:
+  EvaluationMethodNotAllowedError:
     docs: The HTTP method is not supported by this endpoint.
     status-code: 405
     type: PublicApiError
