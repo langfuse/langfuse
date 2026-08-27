@@ -1,6 +1,7 @@
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
+import { isProductAnalyticsAvailable } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 
 const BACKEND_ACTIVITY_EVENT = "backend:activity";
@@ -97,8 +98,11 @@ export const recordBackendActivity = createBackendActivityTracker({
     serverPosthog ??= new ServerPosthog();
     serverPosthog.capture(event);
   },
+  // No region means "not Langfuse Cloud" to the tracker, which is also the
+  // right answer for a region that runs no product analytics: it then skips the
+  // Redis deduplication write as well, not just the capture.
   cloudRegion:
-    env.NODE_ENV === "production"
+    env.NODE_ENV === "production" && isProductAnalyticsAvailable()
       ? env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       : undefined,
   now: () => new Date(),

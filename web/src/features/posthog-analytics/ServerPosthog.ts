@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { isProductAnalyticsAvailable } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
 import { PostHog } from "posthog-node";
 
 const FALLBACK_POSTHOG_KEY = "phc_zkMwFajk8ehObUlMth0D7DtPItFnxETi3lmSvyQDrwB";
@@ -8,6 +9,13 @@ export class ServerPosthog {
   private posthog: PostHog | null;
 
   constructor() {
+    // Regions that run no product analytics get no client at all, so every
+    // capture below is a no-op regardless of the configured key.
+    if (!isProductAnalyticsAvailable()) {
+      this.posthog = null;
+      return;
+    }
+
     const telemetryEnabled = env.TELEMETRY_ENABLED !== "false";
 
     const apiKey =
