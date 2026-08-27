@@ -1,14 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// The blob-export builders must filter their time window half-open:
-// `timestamp >= minTimestamp AND timestamp < maxTimestamp`. Every run/chunk
-// handoff sets the next window's inclusive `minTimestamp` to the previous
-// window's `maxTimestamp` (lastSyncAt = maxTimestamp). With an inclusive upper
-// bound a row landing exactly on the boundary was exported in BOTH adjacent
-// windows (duplicate); with a half-open upper bound it moves to the next window
-// and is exported exactly once. See the analytics-integration exporters, which
-// already use `< maxTimestamp`.
-
 const mockQueryClickhouseStream = vi.hoisted(() =>
   vi.fn(() => (async function* () {})()),
 );
@@ -25,8 +16,6 @@ vi.mock("./clickhouse", () => ({
   BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: {},
 }));
 
-// Break the query-options -> server-barrel import cycle and avoid a real
-// ClickHouse round-trip for the observations FINAL decision.
 vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
 }));
@@ -57,7 +46,7 @@ const builders = [
   },
   {
     name: "getObservationsForBlobStorageExport",
-    // async generator: iterate once to run the body up to the yield*
+    // async generator: iterate once to run the builder
     run: async () => {
       await getObservationsForBlobStorageExport(PROJECT, MIN, MAX).next();
     },
@@ -87,24 +76,21 @@ describe("blob-storage export window is half-open", () => {
       await run();
       const query = capturedQuery();
 
-      // Inclusive lower bound
       expect(query).toContain(">= {minTimestamp");
-      // Exclusive upper bound
       expect(query).toContain("< {maxTimestamp");
-      // Never inclusive on the upper bound — that is the double-count bug
       expect(query).not.toContain("<= {maxTimestamp");
     },
   );
 
   it("boundary row belongs to the next window only (traces)", async () => {
-    // Window 1: [MIN, MAX). A row at exactly MAX is excluded here...
+    // Window 1 [MIN, MAX) excludes a row at exactly MAX...
     getTracesForBlobStorageExport(PROJECT, MIN, MAX);
     const window1 = capturedQuery();
     expect(window1).toContain("< {maxTimestamp");
 
     vi.clearAllMocks();
 
-    // ...and included in window 2, whose inclusive minTimestamp = prior MAX.
+    // ...window 2's inclusive min = prior MAX includes it.
     const next = new Date("2026-01-01T02:00:00.000Z");
     getTracesForBlobStorageExport(PROJECT, MAX, next);
     const window2 = capturedQuery();
