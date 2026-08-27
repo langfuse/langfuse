@@ -29,7 +29,6 @@ import {
   getScoresForTraces,
   getDatasetItems,
   type PreferredClickhouseService,
-  parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -325,7 +324,7 @@ export const getDatabaseReadStreamPaginated = async ({
               totalCost: new Decimal(s.session_total_cost),
               totalTokens: BigInt(s.session_total_usage),
               traceTags: s.trace_tags,
-              createdAt: parseClickhouseUTCDateTimeFormat(s.min_timestamp),
+              createdAt: new Date(s.min_timestamp),
               bookmarked:
                 prismaSessionInfo.find((p) => p.id === s.session_id)
                   ?.bookmarked ?? false,
