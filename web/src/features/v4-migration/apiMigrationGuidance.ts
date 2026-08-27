@@ -104,7 +104,7 @@ const guidanceByEndpoint: Record<
       },
       javascript: {
         current: "client.api.scores.getById",
-        replacement: "client.api.scoresV3.getManyV3()",
+        replacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },

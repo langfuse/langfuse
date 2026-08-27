@@ -5,12 +5,12 @@ import {
 } from "./apiMigrationGuidance";
 
 describe("getApiMigrationGuidance", () => {
-  it("provides exact Python trace migration methods", () => {
+  it("provides bare Python trace migration methods", () => {
     expect(
       getApiMigrationGuidance("GET /api/public/traces/{id}", "python", "3.9.0"),
     ).toEqual({
-      currentMethod: "client.api.trace.get(...)",
-      replacementMethod: "client.api.observations.get_many(trace_id=trace_id)",
+      currentMethod: "client.api.trace.get",
+      replacementMethod: "client.api.observations.get_many",
       replacement: "GET /api/public/v2/observations",
       minimumVersion: "4.0.0",
       requiresUpgrade: true,
@@ -25,24 +25,24 @@ describe("getApiMigrationGuidance", () => {
         "5.4.0",
       ),
     ).toMatchObject({
-      currentMethod: "client.api.scores.getMany(...)",
-      replacementMethod: "client.api.scoresV3.getManyV3(...)",
+      currentMethod: "client.api.scores.getMany",
+      replacementMethod: "client.api.scoresV3.getManyV3",
       minimumVersion: "5.5.0",
       requiresUpgrade: true,
     });
   });
 
-  it("preserves the score ID when migrating the legacy score endpoint", () => {
+  it("uses bare score methods for the legacy score endpoint", () => {
     expect(
       getApiMigrationGuidance("GET /api/public/scores/{id}", "python", "4.8.1"),
     ).toMatchObject({
-      currentMethod: "client.api.scores.get_by_id(...)",
-      replacementMethod: "client.api.scores_v3.get_many_v3(id=score_id)",
-      replacement: "GET /api/public/v3/scores?id=<score id>",
+      currentMethod: "client.api.scores.get_by_id",
+      replacementMethod: "client.api.scores_v3.get_many_v3",
+      replacement: "GET /api/public/v3/scores",
     });
   });
 
-  it("preserves the score ID when migrating the v2 score endpoint", () => {
+  it("uses the bare v3 route when migrating the v2 score endpoint", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/v2/scores/{id}",
@@ -50,11 +50,11 @@ describe("getApiMigrationGuidance", () => {
         undefined,
       ),
     ).toEqual({
-      replacement: "GET /api/public/v3/scores?id=<score id>",
+      replacement: "GET /api/public/v3/scores",
     });
   });
 
-  it("bounds the observation ID lookup by time", () => {
+  it("uses bare observation guidance for the legacy ID lookup", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/observations/{id}",
@@ -62,10 +62,8 @@ describe("getApiMigrationGuidance", () => {
         "5.5.0",
       ),
     ).toMatchObject({
-      replacementMethod:
-        'client.api.observations.getMany({ filter: "<id filter>", fromStartTime, toStartTime })',
-      replacement:
-        "GET /api/public/v2/observations?filter=<id filter>&fromStartTime=<from>&toStartTime=<to>",
+      replacementMethod: "client.api.observations.getMany",
+      replacement: "GET /api/public/v2/observations",
     });
   });
 
@@ -82,20 +80,16 @@ describe("getApiMigrationGuidance", () => {
     });
   });
 
-  it("warns that trace metrics have no drop-in v2 replacement", () => {
+  it("uses bare metrics guidance", () => {
     expect(
       getApiMigrationGuidance("GET /api/public/metrics", "python", "4.8.1"),
     ).toMatchObject({
-      replacementMethod: expect.stringContaining(
-        "traces view has no drop-in v2 replacement",
-      ),
-      replacement: expect.stringContaining(
-        "traces view has no drop-in v2 replacement",
-      ),
+      replacementMethod: "client.api.metrics.metrics",
+      replacement: "GET /api/public/v2/metrics",
     });
   });
 
-  it("uses a bounded observation scan when migrating session listing", () => {
+  it("uses bare observation guidance when migrating session listing", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/sessions",
@@ -103,15 +97,13 @@ describe("getApiMigrationGuidance", () => {
         "5.5.0",
       ),
     ).toMatchObject({
-      currentMethod: "client.api.sessions.list(...)",
-      replacementMethod:
-        "client.api.observations.getMany({ fromStartTime, toStartTime }) // group by sessionId",
-      replacement:
-        "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>, then group rows by sessionId",
+      currentMethod: "client.api.sessions.list",
+      replacementMethod: "client.api.observations.getMany",
+      replacement: "GET /api/public/v2/observations",
     });
   });
 
-  it("preserves the session ID and time bounds when migrating session lookup", () => {
+  it("uses bare observation guidance when migrating a session lookup", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/sessions/{id}",
@@ -119,11 +111,9 @@ describe("getApiMigrationGuidance", () => {
         "4.8.1",
       ),
     ).toMatchObject({
-      currentMethod: "client.api.sessions.get(...)",
-      replacementMethod:
-        'client.api.observations.get_many(filter="<sessionId filter>", from_start_time=..., to_start_time=...)',
-      replacement:
-        "GET /api/public/v2/observations?filter=<sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
+      currentMethod: "client.api.sessions.get",
+      replacementMethod: "client.api.observations.get_many",
+      replacement: "GET /api/public/v2/observations",
     });
   });
 
@@ -158,19 +148,15 @@ describe("getApiMigrationGuidance", () => {
   it.each([
     "GET /api/public/dataset-run-items",
     "GET /api/public/datasets/{datasetName}/runs/{runName}",
-  ])(
-    "preserves dataset and renamed experiment filters for %s",
-    (entrypoint) => {
-      expect(
-        getApiMigrationGuidance(entrypoint, "javascript", "5.5.0"),
-      ).toMatchObject({
-        replacementMethod:
-          "client.api.experiments.listItems({ datasetId, experimentName: runName, fromStartTime })",
-      });
-    },
-  );
+  ])("uses the bare experiment-items method for %s", (entrypoint) => {
+    expect(
+      getApiMigrationGuidance(entrypoint, "javascript", "5.5.0"),
+    ).toMatchObject({
+      replacementMethod: "client.api.experiments.listItems",
+    });
+  });
 
-  it("preserves the dataset filter when listing experiments", () => {
+  it("uses the bare experiments method when listing experiments", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/datasets/{datasetName}/runs",
@@ -178,8 +164,7 @@ describe("getApiMigrationGuidance", () => {
         "4.8.1",
       ),
     ).toMatchObject({
-      replacementMethod:
-        "client.api.experiments.list(dataset_id=dataset_id, from_start_time=from_start_time)",
+      replacementMethod: "client.api.experiments.list",
     });
   });
 });
