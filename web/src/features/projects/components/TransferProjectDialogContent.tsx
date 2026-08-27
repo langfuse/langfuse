@@ -70,24 +70,6 @@ export function TransferProjectDialogContent({
     <DialogContent className="sm:max-w-[425px]">
       <DialogHeader>
         <DialogTitle>Transfer Project</DialogTitle>
-        <Alert className="mt-2">
-          <TriangleAlert className="h-4 w-4" />
-          <AlertTitle>Warning</AlertTitle>
-          <AlertDescription>
-            Transferring the project will move it to a different organization:
-            <ul className="list-disc pl-4">
-              <li>
-                Members who are not part of the new organization will lose
-                access.
-              </li>
-              <li>
-                The project remains fully operational as API keys, settings, and
-                data will remain unchanged. All features (e.g. tracing, prompt
-                management) will continue to work without interruption.
-              </li>
-            </ul>
-          </AlertDescription>
-        </Alert>
       </DialogHeader>
       <Form {...form}>
         <form
@@ -97,6 +79,26 @@ export function TransferProjectDialogContent({
           className="flex flex-col gap-8"
         >
           <DialogBody>
+            <Alert>
+              <TriangleAlert className="h-4 w-4" />
+              <AlertTitle>Warning</AlertTitle>
+              <AlertDescription>
+                Transferring the project will move it to a different
+                organization:
+                <ul className="list-disc pl-4">
+                  <li>
+                    Members who are not part of the new organization will lose
+                    access.
+                  </li>
+                  <li>
+                    The project remains fully operational as API keys, settings,
+                    and data will remain unchanged. All features (e.g. tracing,
+                    prompt management) will continue to work without
+                    interruption.
+                  </li>
+                </ul>
+              </AlertDescription>
+            </Alert>
             <FormField
               control={form.control}
               name="organizationId"
