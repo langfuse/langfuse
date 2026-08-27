@@ -29,7 +29,7 @@ import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
  * itself never fetches, which keeps it pure and Storybook-able.
  */
 export type MediaTagStatus = "idle" | "loading" | "ready" | "error";
-export type MediaTagIntent = "default" | "attachment";
+type MediaTagIntent = "default" | "attachment";
 
 export interface MediaTagProps {
   /**
