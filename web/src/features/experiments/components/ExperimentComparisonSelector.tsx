@@ -22,6 +22,7 @@ export type ExperimentOption = Omit<ExperimentNameOption, "startTime"> & {
  * the rows carry the dataset grouping: a header per dataset, its runs beneath.
  */
 type ComparisonRow =
+  | { kind: "preference" }
   | {
       kind: "group";
       datasetKey: string;
@@ -45,10 +46,16 @@ const datasetLabelOf = (option: ExperimentOption) =>
     ? NO_DATASET_LABEL
     : (option.datasetName ?? UNNAMED_DATASET_LABEL);
 
-const rowKeyOf = (row: ComparisonRow) =>
-  row.kind === "group"
-    ? `group:${row.datasetKey}`
-    : `experiment:${row.option.experimentId}`;
+const rowKeyOf = (row: ComparisonRow) => {
+  switch (row.kind) {
+    case "preference":
+      return "preference";
+    case "group":
+      return `group:${row.datasetKey}`;
+    default:
+      return `experiment:${row.option.experimentId}`;
+  }
+};
 
 type ExperimentComparisonSelectorProps = {
   projectId: string;
@@ -56,6 +63,8 @@ type ExperimentComparisonSelectorProps = {
   selectedIds: string[];
   selectedExperimentCount: number;
   onSelectedIdsChange: (ids: string[]) => void;
+  isAutoSelectEnabled: boolean;
+  onAutoSelectEnabledChange: (isEnabled: boolean) => void;
 };
 
 export function ExperimentComparisonSelector({
@@ -64,6 +73,8 @@ export function ExperimentComparisonSelector({
   selectedIds,
   selectedExperimentCount,
   onSelectedIdsChange,
+  isAutoSelectEnabled,
+  onAutoSelectEnabledChange,
 }: ExperimentComparisonSelectorProps) {
   const {
     searchResults,
@@ -134,7 +145,7 @@ export function ExperimentComparisonSelector({
     // With no baseline yet there is no "current" dataset, so open the one
     // holding the most recent run instead of showing nothing but headers.
     const defaultExpandedKey = baselineDatasetKey ?? groups[0]?.datasetKey;
-    const result: ComparisonRow[] = [];
+    const result: ComparisonRow[] = [{ kind: "preference" }];
 
     for (const group of groups) {
       const isExpanded =
@@ -230,6 +241,23 @@ export function ExperimentComparisonSelector({
         dropdownClassName="bg-background absolute top-0 z-10 max-h-80 w-full overflow-y-auto rounded-md border shadow-md"
         getItemKey={rowKeyOf}
         renderItem={(row, isSelected, onToggle) => {
+          if (row.kind === "preference") {
+            return (
+              <button
+                type="button"
+                onClick={() => onAutoSelectEnabledChange(!isAutoSelectEnabled)}
+                className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"
+              >
+                <div className="border-input flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border">
+                  {isAutoSelectEnabled && <Check className="h-3 w-3" />}
+                </div>
+                <span className="text-xs">
+                  Auto-select a comparison experiment by default
+                </span>
+              </button>
+            );
+          }
+
           if (row.kind === "group") {
             return (
               <button

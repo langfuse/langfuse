@@ -3,6 +3,7 @@ import {
   withDefault,
   ArrayParam,
   StringParam,
+  type UrlUpdateType,
 } from "use-query-params";
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 
@@ -37,15 +38,19 @@ export function useExperimentResultsState() {
   const commitSelection = (
     orderedIds: string[],
     baseline: string | undefined,
+    updateType?: UrlUpdateType,
   ) => {
     const ids = dedupe([baseline, ...orderedIds]).slice(
       0,
       MAX_SELECTED_EXPERIMENTS,
     );
-    setState({
-      baseline,
-      c: baseline ? ids.filter((id) => id !== baseline) : ids,
-    });
+    setState(
+      {
+        baseline,
+        c: baseline ? ids.filter((id) => id !== baseline) : ids,
+      },
+      updateType,
+    );
   };
 
   // Selecting a baseline moves it to the front of the selection and marks it,
@@ -65,8 +70,13 @@ export function useExperimentResultsState() {
     commitSelection([...comparisonIds, explicitBaselineId], undefined);
   };
 
-  const setComparisonIds = (ids: string[]) =>
-    commitSelection(ids, explicitBaselineId);
+  // `options.updateType` carries the history semantics: a user's own pick keeps
+  // the default (a Back-able step), a programmatic default passes `replaceIn` so
+  // it does not mint a history entry Back would bounce off.
+  const setComparisonIds = (
+    ids: string[],
+    options?: { updateType?: UrlUpdateType },
+  ) => commitSelection(ids, explicitBaselineId, options?.updateType);
 
   const addComparisonId = (id: string) => {
     if (id === explicitBaselineId) return; // Can't compare baseline with itself

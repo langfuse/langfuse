@@ -1,3 +1,5 @@
+import { type UrlUpdateType } from "use-query-params";
+import { useExperimentComparisonAutoSelect } from "@/src/features/experiments/hooks/useExperimentComparisonAutoSelect";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 
@@ -9,7 +11,10 @@ type ExperimentSelectionControlsProps = {
   selectedExperimentCount: number;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
-  onComparisonIdsChange: (ids: string[]) => void;
+  onComparisonIdsChange: (
+    ids: string[],
+    options?: { updateType?: UrlUpdateType },
+  ) => void;
 };
 
 export function ExperimentSelectionControls({
@@ -22,6 +27,16 @@ export function ExperimentSelectionControls({
   onBaselineClear,
   onComparisonIdsChange,
 }: ExperimentSelectionControlsProps) {
+  // Mounted once per results page, so the default comparison is decided here
+  // rather than in the state hook that every consumer of the URL calls.
+  const { isAutoSelectEnabled, setIsAutoSelectEnabled } =
+    useExperimentComparisonAutoSelect({
+      projectId,
+      baselineId,
+      comparisonIds,
+      onComparisonIdsChange,
+    });
+
   return (
     <div className="flex w-[50dvw] min-w-0 flex-row gap-3">
       <div className="flex min-w-0 items-center">
@@ -46,6 +61,8 @@ export function ExperimentSelectionControls({
           selectedIds={comparisonIds}
           selectedExperimentCount={selectedExperimentCount}
           onSelectedIdsChange={onComparisonIdsChange}
+          isAutoSelectEnabled={isAutoSelectEnabled}
+          onAutoSelectEnabledChange={setIsAutoSelectEnabled}
         />
       </div>
     </div>
