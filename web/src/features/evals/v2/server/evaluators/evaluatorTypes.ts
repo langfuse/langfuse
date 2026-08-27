@@ -51,7 +51,7 @@ export type EvaluatorVersionCursor = z.infer<
 export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
   Buffer.from(JSON.stringify(cursor)).toString("base64url");
 
-export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
   promptMessages: z
     .array(EvaluatorPromptMessageSchema)

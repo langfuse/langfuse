@@ -13,9 +13,7 @@ export function hasInvalidSystemPromptMessage(
   );
 }
 
-export function hasEmptyPromptMessage(
-  messages: EvaluatorPromptMessage[],
-): boolean {
+function hasEmptyPromptMessage(messages: EvaluatorPromptMessage[]): boolean {
   return messages.some((message) => message.content.trim().length === 0);
 }
 

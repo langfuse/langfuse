@@ -24,6 +24,10 @@ import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
+  getLegacyEvaluatorPrompt,
+  reconcileEvaluatorPromptMessages,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import {
   LegacyPromptVariableMapping,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
@@ -113,11 +117,16 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
 };
 
 export function deriveEvaluatorVariables(
-  template: Pick<StoredPublicEvaluatorTemplate, "vars" | "prompt">,
+  template: Pick<
+    StoredPublicEvaluatorTemplate,
+    "vars" | "prompt" | "promptMessages"
+  >,
 ) {
   return template.vars.length > 0
     ? template.vars
-    : extractVariables(template.prompt ?? "");
+    : reconcileEvaluatorPromptMessages(template).flatMap(({ content }) =>
+        extractVariables(content),
+      );
 }
 
 export function toStoredVariableMappings(params: {
@@ -454,14 +463,15 @@ export function toApiEvaluator(params: {
     };
   }
 
-  if (!template.prompt) {
-    throw new InternalServerError("Evaluator prompt is corrupted");
+  const promptMessages = reconcileEvaluatorPromptMessages(template);
+  if (promptMessages.every(({ content }) => content.length === 0)) {
+    throw new InternalServerError("Evaluator prompt messages are corrupted");
   }
 
   return {
     ...base,
     type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-    prompt: template.prompt,
+    prompt: getLegacyEvaluatorPrompt(promptMessages),
     outputDefinition: parseStoredOutputDefinition(template),
     modelConfig: toApiModelConfig(template),
   };
