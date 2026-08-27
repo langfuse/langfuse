@@ -65,9 +65,9 @@ import {
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
