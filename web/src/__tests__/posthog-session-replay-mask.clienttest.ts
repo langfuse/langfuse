@@ -17,9 +17,16 @@ vi.mock("posthog-js/react", () => ({
 }));
 
 describe("PostHog session replay privacy", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    initMock.mockReset();
+  });
+
   it("records regular UI text while masking input values", async () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
+    vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "EU");
 
     await import("@/src/pages/_app");
 
@@ -32,5 +39,30 @@ describe("PostHog session replay privacy", () => {
     expect(config.session_recording?.maskTextSelector).toBe(
       '[contenteditable="true"]',
     );
+    expect(config.disable_session_recording).toBe(false);
+  });
+
+  it("disables session recording in the HIPAA cloud region", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "HIPAA");
+
+    await import("@/src/pages/_app");
+
+    expect(initMock).toHaveBeenCalledTimes(1);
+    const config = initMock.mock.calls[0]![1] as Partial<PostHogConfig>;
+    expect(config.disable_session_recording).toBe(true);
+  });
+
+  it("disables session recording outside Langfuse Cloud", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", "phc_test");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.i.posthog.com");
+    vi.stubEnv("NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", "");
+
+    await import("@/src/pages/_app");
+
+    expect(initMock).toHaveBeenCalledTimes(1);
+    const config = initMock.mock.calls[0]![1] as Partial<PostHogConfig>;
+    expect(config.disable_session_recording).toBe(true);
   });
 });
