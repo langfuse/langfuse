@@ -364,6 +364,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
   },
+  getV4MigrationData: {
+    approval: "auto",
+    availability: { scope: "project:read" },
+  },
 } satisfies Record<string, InAppAgentMcpToolPolicy>;
 
 export type InAppAgentLangfuseMcpToolName =
