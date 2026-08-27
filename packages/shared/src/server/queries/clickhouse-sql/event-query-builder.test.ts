@@ -2,10 +2,44 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildEventsFullTableSplitQuery,
+  buildEventsTraceToolCallCountsQuery,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
 } from "./event-query-builder";
+
+describe("buildEventsTraceToolCallCountsQuery", () => {
+  it("bounds and deduplicates the page trace aggregation", () => {
+    const { query, params } = buildEventsTraceToolCallCountsQuery({
+      projectId: "test-project",
+      traceIds: ["trace-1", "trace-2"],
+      minStartTime: "2026-08-27 10:00:00.000000",
+      maxStartTime: "2026-08-27 11:00:00.000000",
+    });
+
+    expect(query).toContain("project_id = {projectId: String}");
+    expect(query).toContain(
+      "start_time >= {minStartTime: DateTime64(6)} - INTERVAL 2 DAY - INTERVAL 1 HOUR",
+    );
+    expect(query).toContain(
+      "start_time <= {maxStartTime: DateTime64(6)} + INTERVAL 2 DAY + INTERVAL 1 HOUR",
+    );
+    expect(query).toContain("trace_id IN ({traceIds: Array(String)})");
+    expect(query).toContain("GROUP BY trace_id, span_id");
+    expect(query).toContain(
+      "tupleElement(argMax(tuple(tool_calls, is_deleted), event_ts), 1) AS tool_calls",
+    );
+    expect(query).toContain(
+      "sumIf(length(tool_calls), is_deleted = 0) AS tool_calls_count",
+    );
+    expect(params).toEqual({
+      projectId: "test-project",
+      traceIds: ["trace-1", "trace-2"],
+      minStartTime: "2026-08-27 10:00:00.000000",
+      maxStartTime: "2026-08-27 11:00:00.000000",
+    });
+  });
+});
 
 describe("EventsQueryBuilder public API v2 field groups", () => {
   it.each([

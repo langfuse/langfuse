@@ -64,6 +64,7 @@ export {
   ExperimentsAggregationQueryBuilder,
   OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
+  buildEventsTraceToolCallCountsQuery,
   type CTESchema,
   type CTEWithSchema,
   type QueryWithParams,

@@ -1765,9 +1765,7 @@ export default function ObservationsEventsTable({
               toolDefinitions: observation.toolDefinitions
                 ? Object.keys(observation.toolDefinitions).length
                 : undefined,
-              toolCalls: observation.toolCalls
-                ? observation.toolCalls.length
-                : undefined,
+              toolCalls: observation.toolCallsCount ?? undefined,
             };
           })
         : [];

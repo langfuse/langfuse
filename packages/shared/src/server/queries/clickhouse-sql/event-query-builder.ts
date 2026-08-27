@@ -7,7 +7,10 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  TRACE_TO_OBSERVATIONS_INTERVAL,
+} from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
 /**
@@ -591,6 +594,46 @@ const AGGREGATION_FIELD_SETS = {
  */
 export const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
+
+/**
+ * Build a bounded trace tool-call rollup for the Events list.
+ *
+ * ReplacingMergeTree versions are collapsed by span before the live rows are
+ * counted. The caller supplies page trace IDs and start-time bounds so this
+ * does not scan the complete events table for every list row.
+ */
+export const buildEventsTraceToolCallCountsQuery = (params: {
+  projectId: string;
+  traceIds: string[];
+  minStartTime: string;
+  maxStartTime: string;
+}): { query: string; params: Record<string, any> } => ({
+  query: `
+    SELECT
+      trace_id,
+      sumIf(length(tool_calls), is_deleted = 0) AS tool_calls_count
+    FROM (
+      SELECT
+        trace_id,
+        span_id,
+        tupleElement(argMax(tuple(tool_calls, is_deleted), event_ts), 1) AS tool_calls,
+        tupleElement(argMax(tuple(tool_calls, is_deleted), event_ts), 2) AS is_deleted
+      FROM events_core
+      WHERE project_id = {projectId: String}
+        AND start_time >= {minStartTime: DateTime64(6)} - ${OBSERVATIONS_TO_TRACE_INTERVAL} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
+        AND start_time <= {maxStartTime: DateTime64(6)} + ${OBSERVATIONS_TO_TRACE_INTERVAL} + ${TRACE_TO_OBSERVATIONS_INTERVAL}
+        AND trace_id IN ({traceIds: Array(String)})
+      GROUP BY trace_id, span_id
+    )
+    GROUP BY trace_id
+  `,
+  params: {
+    projectId: params.projectId,
+    traceIds: params.traceIds,
+    minStartTime: params.minStartTime,
+    maxStartTime: params.maxStartTime,
+  },
+});
 
 /**
  * Most abstract base class - contains common query building logic
