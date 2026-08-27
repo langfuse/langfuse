@@ -23,6 +23,8 @@ export const langfuseClickHouseSchema = {
     span_id: "String",
     trace_id: "String",
     is_deleted: "UInt8",
+    metadata_names: "Array(String)",
+    metadata_values: "Array(String)",
   },
   events_full: {
     environment: "String",
@@ -32,6 +34,8 @@ export const langfuseClickHouseSchema = {
     span_id: "String",
     trace_id: "String",
     is_deleted: "UInt8",
+    metadata_names: "Array(String)",
+    metadata_values: "Array(String)",
   },
   scores: {
     environment: "String",

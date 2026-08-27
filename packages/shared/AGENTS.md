@@ -24,9 +24,10 @@
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
-- Query-builder AST (server half, WIP): `src/server/query-ast/*` — hypequery
-  compile path plus the golden-SQL recording/diff harness that captures SQL at
-  the `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
+- Query-builder AST (server half, WIP): `src/server/query-ast/hypequery/*`
+  is this arm's library-specific compile path. The golden-SQL harness lives
+  at `src/server/query-ast/goldenHarness.ts` and captures SQL at the
+  `src/server/repositories/clickhouse.ts` exec seam, then normalizes it via
   `clickhouse format`. `compile()` is the tenancy choke point; every migrated
   call site is proven against its baseline here.
 - Postgres schema: `prisma/schema.prisma`

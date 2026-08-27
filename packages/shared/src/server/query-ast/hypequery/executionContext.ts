@@ -35,3 +35,17 @@ export class TenantInjectionError extends Error {
     this.name = "TenantInjectionError";
   }
 }
+
+export class TypeIncompatibleTransformationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TypeIncompatibleTransformationError";
+  }
+}
+
+export class ViewColumnError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ViewColumnError";
+  }
+}

@@ -3,8 +3,22 @@ import {
   UnscopedQueryError,
   type ExecutionContext,
 } from "./executionContext";
-import { isQueryPlan, type QueryPlan, type SelectPlan } from "./plan";
+import type {
+  BoundParamNode,
+  ColumnRefNode,
+  IndexOfNode,
+  MetadataAccessNode,
+  SubscriptNode,
+} from "./metadata";
+import {
+  isQueryPlan,
+  type QueryPlan,
+  type SelectExtras,
+  type SelectPlan,
+  type ViewQueryPlan,
+} from "./plan";
 import { injectTenancy } from "./tenancy";
+import { assertCompatibleAggregations } from "./validate";
 import {
   asCompilableSelect,
   type CompilableSelect,
@@ -200,22 +214,57 @@ function sqlOperator(operator: string): string {
   }
 }
 
+function compileColumnRef(column: ColumnRefNode): string {
+  return column.table ? `${column.table}.${column.name}` : column.name;
+}
+
+function compileBoundParam(param: BoundParamNode, binder: ParamBinder): string {
+  return binder.bind(param.name, param.value, param.clickHouseType);
+}
+
+function compileIndexOf(node: IndexOfNode, binder: ParamBinder): string {
+  return `indexOf(${compileColumnRef(node.haystack)}, ${compileBoundParam(node.needle, binder)})`;
+}
+
+function compileSubscript(node: SubscriptNode, binder: ParamBinder): string {
+  return `${compileColumnRef(node.array)}[${compileIndexOf(node.index, binder)}]`;
+}
+
+function compileMetadataAccess(
+  node: MetadataAccessNode,
+  binder: ParamBinder,
+): string {
+  return compileSubscript(node.subscript, binder);
+}
+
 function compileSelectNode(
   node: HypeSelectNode,
   tableName: string,
   binder: ParamBinder,
+  extras?: SelectExtras,
 ): string {
   const parts: string[] = [];
   const distinct = node.distinct ? "DISTINCT " : "";
-  const selections =
-    node.select && node.select.length > 0
-      ? node.select.map((item) => item.selection).join(", ")
-      : "*";
-  parts.push(`SELECT ${distinct}${selections}`);
+  const selections = [
+    ...(node.select && node.select.length > 0
+      ? node.select.map((item) => item.selection)
+      : extras?.metadataSelect
+        ? []
+        : ["*"]),
+  ];
+  if (extras?.metadataSelect) {
+    selections.push(
+      `${compileMetadataAccess(extras.metadataSelect.access, binder)} AS ${extras.metadataSelect.alias}`,
+    );
+  }
+  parts.push(
+    `SELECT ${distinct}${selections.length > 0 ? selections.join(", ") : "*"}`,
+  );
 
   const fromName = node.from?.kind === "table" ? node.from.name : tableName;
   const final = node.from?.kind === "table" && node.from.final ? " FINAL" : "";
-  parts.push(`FROM ${fromName}${final}`);
+  const alias = extras?.tableAlias ? ` AS ${extras.tableAlias}` : "";
+  parts.push(`FROM ${fromName}${alias}${final}`);
 
   if (node.arrayJoins?.length) {
     for (const arrayJoin of node.arrayJoins) {
@@ -237,18 +286,38 @@ function compileSelectNode(
   if (node.prewhere) {
     parts.push(`PREWHERE ${compileExpr(node.prewhere, binder)}`);
   }
+
+  const whereParts: string[] = [];
   if (node.where) {
-    parts.push(`WHERE ${compileExpr(node.where, binder)}`);
+    whereParts.push(compileExpr(node.where, binder));
   }
+  if (extras?.metadataWhere) {
+    whereParts.push(
+      `${compileMetadataAccess(extras.metadataWhere.access, binder)} ${sqlOperator(extras.metadataWhere.operator)} ${compileBoundParam(extras.metadataWhere.value, binder)}`,
+    );
+  }
+  if (whereParts.length > 0) {
+    parts.push(`WHERE ${whereParts.join(" AND ")}`);
+  }
+
   if (node.groupBy?.length) {
     const groupBy = `GROUP BY ${node.groupBy.map((item) => item.expression).join(", ")}`;
     parts.push(node.withTotals ? `${groupBy} WITH TOTALS` : groupBy);
   }
+
+  const havingParts: string[] = [];
   if (node.having?.length) {
-    parts.push(
-      `HAVING ${node.having.map((item) => item.expression).join(" AND ")}`,
+    havingParts.push(...node.having.map((item) => item.expression));
+  }
+  if (extras?.metadataHaving) {
+    havingParts.push(
+      `${compileMetadataAccess(extras.metadataHaving.access, binder)} ${sqlOperator(extras.metadataHaving.operator)} ${compileBoundParam(extras.metadataHaving.value, binder)}`,
     );
   }
+  if (havingParts.length > 0) {
+    parts.push(`HAVING ${havingParts.join(" AND ")}`);
+  }
+
   if (node.orderBy?.length) {
     parts.push(
       `ORDER BY ${node.orderBy.map((item) => `${item.column} ${item.direction}`).join(", ")}`,
@@ -270,7 +339,54 @@ function compileSelectPlan(
   binder: ParamBinder,
 ): string {
   const injected = injectTenancy(plan.builder.getQueryNode(), ctx.projectId);
-  return compileSelectNode(injected, plan.builder.getTableName(), binder);
+  assertCompatibleAggregations(injected);
+  return compileSelectNode(
+    injected,
+    plan.builder.getTableName(),
+    binder,
+    plan.extras,
+  );
+}
+
+function compileViewQuery(
+  plan: ViewQueryPlan,
+  ctx: ExecutionContext,
+  binder: ParamBinder,
+): string {
+  const innerSql = compilePlan(plan.view.source, ctx, binder);
+  const parts = [
+    `WITH ${plan.view.name} AS (\n${innerSql}\n)`,
+    `SELECT ${plan.select.join(", ")}`,
+    `FROM ${plan.view.name}`,
+  ];
+  if (plan.where?.length) {
+    const clauses = plan.where.map((filter) => {
+      const placeholder = binder.bind(
+        filter.column,
+        filter.value,
+        clickHouseTypeFor(filter.column, filter.value),
+      );
+      return `${filter.column} ${sqlOperator(filter.operator)} ${placeholder}`;
+    });
+    parts.push(`WHERE ${clauses.join(" AND ")}`);
+  }
+  return parts.join("\n");
+}
+
+function compilePlan(
+  plan: QueryPlan,
+  ctx: ExecutionContext,
+  binder: ParamBinder,
+): string {
+  if (plan.kind === "select") {
+    return compileSelectPlan(plan, ctx, binder);
+  }
+  if (plan.kind === "union-all") {
+    return plan.arms
+      .map((arm) => compileSelectPlan(arm, ctx, binder))
+      .join("\nUNION ALL\n");
+  }
+  return compileViewQuery(plan, ctx, binder);
 }
 
 /**
@@ -295,15 +411,7 @@ export function compile(
     ? query
     : { kind: "select", builder: asCompilableSelect(query) };
   const binder = new ParamBinder();
-
-  if (plan.kind === "select") {
-    return { sql: compileSelectPlan(plan, ctx, binder), params: binder.params };
-  }
-
-  const sql = plan.arms
-    .map((arm) => compileSelectPlan(arm, ctx, binder))
-    .join("\nUNION ALL\n");
-  return { sql, params: binder.params };
+  return { sql: compilePlan(plan, ctx, binder), params: binder.params };
 }
 
 /**

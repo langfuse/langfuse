@@ -1,9 +1,9 @@
 import { env } from "../../env";
-import { compile } from "../query-ast/compile";
+import { compile } from "../query-ast/hypequery/compile";
 import {
   buildScoreEnvironmentsPlan,
   buildTracingEnvironmentsPlan,
-} from "../query-ast/environmentsQuery";
+} from "../query-ast/hypequery/environmentsQuery";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {

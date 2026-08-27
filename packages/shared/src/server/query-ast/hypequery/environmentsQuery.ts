@@ -1,4 +1,4 @@
-import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import { LISTABLE_SCORE_TYPES } from "../../../domain/scores";
 import { dateParam, table } from "./db";
 import { selectPlan, unionAllPlan, type QueryPlan } from "./plan";
 
