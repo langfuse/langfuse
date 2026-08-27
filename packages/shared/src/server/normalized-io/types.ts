@@ -64,7 +64,9 @@ export type ToolCallPart = NormalizedPartBase & {
   toolCallId: string | null;
   toolName: string;
   input: JsonValue;
-  toolType?: string; // only set if it's not a "function" tool call.
+  /** Raw source type used by compatibility projections (for example
+   * `function`, `custom`, or a provider-specific built-in kind). */
+  toolType?: string;
   index?: number;
   providerExecuted?: boolean;
   /** Attempt the model made whose arguments could not be parsed (e.g.

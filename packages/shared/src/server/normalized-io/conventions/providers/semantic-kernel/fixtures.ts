@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 /** Synthetic Semantic Kernel case adapted from the playground suite. */
 export const semanticKernelEventContentFixture = {

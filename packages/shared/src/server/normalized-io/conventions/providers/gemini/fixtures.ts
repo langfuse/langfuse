@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 /** Synthetic Gemini case adapted from the playground suite. */
 export const geminiEmbeddedToolDefinitionFixture = {
@@ -58,9 +58,40 @@ export const geminiEmbeddedToolDefinitionFixture = {
           required: ["city"],
         },
         type: "function",
-        providerMetadata: undefined,
       },
     ],
+  },
+} satisfies NormalizedIOFixture;
+
+/** Gemini system instructions can sit beside a generic message carrier. */
+export const geminiSystemInstructionWithGenericMessagesFixture = {
+  name: "keeps a Gemini system instruction beside generic messages",
+  spanIO: {
+    input: {
+      messages: [{ role: "user", content: "Help me plan a trip." }],
+      config: {
+        system_instruction: {
+          parts: [{ text: "Keep the answer concise." }],
+        },
+      },
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "system",
+        parts: [{ type: "text", text: "Keep the answer concise." }],
+        source: "input",
+      },
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Help me plan a trip." }],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [],
   },
 } satisfies NormalizedIOFixture;
 

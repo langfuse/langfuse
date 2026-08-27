@@ -1,7 +1,7 @@
 import { claimed, dropped, unmatched } from "../..";
-import { asRecord, compact } from "../../../core/utils/json";
-import { toolCallPart } from "../../../core/normalize/message-parts/toolCalls";
-import { toolResultPart } from "../../../core/normalize/message-parts/toolResults";
+import { asRecord, compact, optionalString } from "../../../core/utils/json";
+import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
+import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FinishReason,
   NormalizedMessage,
@@ -14,7 +14,7 @@ import type {
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * OTel GenAI event-stream convention (the semconv vocabulary also emitted by
@@ -66,6 +66,7 @@ const OTEL_GENAI_PART_HANDLERS = {
           value.input ??
           value.arguments /* otel */ ??
           value.args /* langchain */,
+        toolType: optionalString(value.type),
       }),
     ),
   tool_call_response: (value: Record<string, unknown>) =>

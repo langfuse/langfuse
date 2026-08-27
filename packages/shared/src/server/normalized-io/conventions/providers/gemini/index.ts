@@ -12,8 +12,8 @@ import {
   parseMediaReference,
 } from "../../../core/normalize/message-parts/media";
 import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
-import { toolCallPart } from "../../../core/normalize/message-parts/toolCalls";
-import { toolResultPart } from "../../../core/normalize/message-parts/toolResults";
+import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
+import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FilePart,
   FinishReason,
@@ -27,7 +27,7 @@ import type {
   RootMessageSource,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * Gemini / Vertex convention. Gemini parts are keyed unions without a `type`
@@ -72,6 +72,7 @@ export function normalizeGeminiPart(
       toolCallId: functionCall.id ?? value.id,
       toolName: functionCall.name,
       input: functionCall.args ?? functionCall.arguments,
+      toolType: "functionCall",
     });
     return part ? claimed(part) : unmatched;
   }
@@ -212,7 +213,7 @@ function geminiRootMessageSources(
 ): RootMessageSource[] {
   const sources: RootMessageSource[] = [];
 
-  if (kind === "input" && "contents" in root) {
+  if (kind === "input") {
     const config = asRecord(root.config);
     const systemInstruction =
       config?.system_instruction ?? config?.systemInstruction;
@@ -227,16 +228,29 @@ function geminiRootMessageSources(
       });
     }
 
-    const contents = Array.isArray(root.contents)
-      ? root.contents
-      : [root.contents];
-    sources.push({
-      kind: "sequence",
-      sourceKey: "contents",
-      values: contents,
-      fallbackRole: "user",
-      claimsConversation: true,
-    });
+    if ("new_message" in root) {
+      sources.push({
+        kind: "single",
+        sourceKey: "new_message",
+        value: root.new_message,
+        fallbackRole: "user",
+        claimsConversation: true,
+      });
+      return sources;
+    }
+
+    if ("contents" in root) {
+      const contents = Array.isArray(root.contents)
+        ? root.contents
+        : [root.contents];
+      sources.push({
+        kind: "sequence",
+        sourceKey: "contents",
+        values: contents,
+        fallbackRole: "user",
+        claimsConversation: true,
+      });
+    }
   }
 
   if (kind === "output") {
@@ -267,6 +281,6 @@ export const geminiProvider = {
   // Gemini contents carry their blocks in a `parts` array.
   messageLikeKeys: new Set(["parts"]),
   tryNormalizeUntypedPart: normalizeGeminiPart,
-  collectRootMessageSources: geminiRootMessageSources,
+  claimRootMessageSources: geminiRootMessageSources,
   collectToolDefinitionSources: geminiToolDefinitionSources,
 } satisfies IOConvention;

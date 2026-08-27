@@ -1,6 +1,6 @@
 import type { SpanIO, ToolDefinition } from "../../../types";
 
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 const inputToolCallId = "call_5iGKBMczvh1pevPChrZNGSFB";
 const outputToolCallId = "toolu_01XXtujJ3DBaYEZGzn96xpGt";
@@ -221,6 +221,7 @@ export const vercelAiSdkMixedToolMessagesFixture = {
             toolCallId: inputToolCallId,
             toolName: "getLangfuseOverview",
             input: {},
+            toolType: "tool-call",
           },
         ],
         source: "input",
@@ -256,6 +257,7 @@ export const vercelAiSdkMixedToolMessagesFixture = {
               reasoning:
                 "The last user message is a how-to question asking for guidance on using Langfuse evaluation features. It does not express feedback about a feature.",
             },
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
         ],
@@ -267,7 +269,6 @@ export const vercelAiSdkMixedToolMessagesFixture = {
       description: definition.description,
       inputSchema: definition.inputSchema,
       type: definition.type,
-      providerMetadata: undefined,
     })),
   },
 } satisfies NormalizedIOFixture;
@@ -480,6 +481,7 @@ export const vercelAiSdkOutputToolCallFixture = {
             toolCallId: previousToolCallId,
             toolName: "searchLangfuseDocs",
             input: previousToolInput,
+            toolType: "tool_call",
           },
         ],
         source: "input",
@@ -541,6 +543,7 @@ export const vercelAiSdkOutputToolCallFixture = {
             toolCallId: outputToolCallIdFromRecovery,
             toolName: "searchLangfuseDocs",
             input: outputToolInput,
+            toolType: "tool_call",
           },
         ],
         finishReason: { type: "tool-calls", raw: "tool_call" },
@@ -553,7 +556,6 @@ export const vercelAiSdkOutputToolCallFixture = {
         description: toolDefinition.description,
         inputSchema: toolDefinition.inputSchema,
         type: toolDefinition.type,
-        providerMetadata: undefined,
       },
     ],
   },

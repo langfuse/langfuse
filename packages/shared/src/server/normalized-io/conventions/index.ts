@@ -1,13 +1,13 @@
-import type { IOConvention } from "./IOConvention";
+import type { IOConvention } from "./io-convention";
 import { agnoProvider } from "./providers/agno";
-import { aiSdkProvider } from "./providers/aiSdk";
+import { aiSdkProvider } from "./providers/ai-sdk";
 import { anthropicProvider } from "./providers/anthropic";
 import { geminiProvider } from "./providers/gemini";
 import { langchainProvider } from "./providers/langchain";
 import { openAiProvider } from "./providers/openai";
-import { otelGenaiProvider } from "./providers/otelGenai";
-import { pydanticAiProvider } from "./providers/pydanticAi";
-import { semanticKernelProvider } from "./providers/semanticKernel";
+import { otelGenaiProvider } from "./providers/otel-genai";
+import { pydanticAiProvider } from "./providers/pydantic-ai";
+import { semanticKernelProvider } from "./providers/semantic-kernel";
 
 export type {
   ConventionResult,
@@ -21,15 +21,17 @@ export type {
   ToolDefinitionCarrier,
   ToolDefinitionOptions,
   ToolDefinitionSource,
-} from "./IOConvention";
-export { claimed, dropped, unmatched } from "./IOConvention";
+} from "./io-convention";
+export { claimed, dropped, unmatched } from "./io-convention";
 
 /**
  * All registered provider conventions, in deliberate order: common providers
  * first, so every fold checks the hot dialects before the long tail.
- * Provider shapes are disjoint, so order never decides *whether* something
- * is recognized — it is observable only where several providers contribute
- * to the same message (sibling-part slots), which the fixtures pin.
+ * Part and tool-definition shapes are mostly disjoint, but root message
+ * carriers are intentionally exclusive: the first provider claiming a
+ * conversation owns that carrier. Keep this list ordered from the most
+ * specific/common root envelopes to the generic tail; parser context then
+ * tries the selected provider first while normalizing nested parts.
  * Adding a provider is a directory plus one entry here; `registry.test.ts`
  * asserts folder <-> registry parity.
  *

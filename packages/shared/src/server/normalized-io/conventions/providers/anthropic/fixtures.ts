@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 const searchSchema = {
   type: "object",
@@ -271,6 +271,7 @@ export const anthropicMessagesRawServerToolsAndMediaFixture = {
             toolCallId: "output-call-1",
             toolName: "lookup_report",
             input: { id: "report-1" },
+            toolType: "tool_use",
           },
           {
             type: "tool-call",
@@ -527,6 +528,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: inputToolInput1,
             index: 1,
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
           {
@@ -535,6 +537,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: inputToolInput2,
             index: 2,
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
         ],
@@ -558,6 +561,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: outputToolInput1,
             index: 1,
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
           {
@@ -566,6 +570,7 @@ export const anthropicMessagesRichContentFixture = {
             toolName: "search_docs",
             input: outputToolInput2,
             index: 2,
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
         ],

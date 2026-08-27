@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 /**
  * LangChain serialization envelope: instrumentation that dumps LangChain
@@ -87,6 +87,7 @@ export const langchainSerializedEnvelopeFixture = {
             toolCallId: "call_lc_1",
             toolName: "get_weather",
             input: { city: "Zurich" },
+            toolType: "tool_call",
           },
           {
             type: "tool-call",
@@ -411,6 +412,7 @@ export const langgraphProductionShapeFixture = {
             input: {
               synthetic_field_003: "Synthetic assistant response 012.",
             },
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
           {
@@ -420,6 +422,7 @@ export const langgraphProductionShapeFixture = {
             input: {
               synthetic_field_003: "Synthetic assistant response 013.",
             },
+            toolType: "tool_use",
             providerMetadata: { caller: { type: "direct" } },
           },
         ],

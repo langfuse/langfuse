@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../fixtureTypes";
+import type { NormalizedIOFixture } from "../../fixture-types";
 
 export const outputOnlyStructuredMessageFixture = {
   name: "normalizes an output-only structured assistant message",

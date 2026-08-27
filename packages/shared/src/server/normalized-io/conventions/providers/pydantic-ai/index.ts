@@ -3,12 +3,12 @@ import { parseRecord } from "../../../core/utils/json";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-} from "../../../core/normalize/toolDefinitions";
+} from "../../../core/normalize/tool-definitions";
 import type {
   IOConvention,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * Pydantic AI convention. Currently tool-definition discovery only: Pydantic

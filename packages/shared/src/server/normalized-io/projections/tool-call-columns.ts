@@ -4,10 +4,7 @@ import type { NormalizedIO, ToolColumns } from "../types";
  * NormalizedIO -> ClickHouse tool-call columns. Shape matches
  * extractToolsBackend.ts's convertCallsToArrays/convertDefinitionsToMap
  * exactly, since this projection is meant to eventually replace that path.
- *
- * TODO: align dedup with extractToolsBackend (it dedups by
- * `id || "${name}-${arguments}"`; the parser dedups by toolCallId) before
- * replacing that path.
+ * Output-side tool calls have already been deduplicated by the parser.
  */
 export function toToolColumns(io: NormalizedIO): ToolColumns {
   const tool_calls: string[] = [];
@@ -31,7 +28,7 @@ export function toToolColumns(io: NormalizedIO): ToolColumns {
         JSON.stringify({
           id: part.toolCallId ?? "",
           arguments: JSON.stringify(part.input ?? {}),
-          type: "",
+          type: part.toolType ?? "",
           index: part.index ?? 0,
         }),
       );

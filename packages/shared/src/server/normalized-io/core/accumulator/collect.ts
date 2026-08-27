@@ -1,9 +1,10 @@
 import { registeredProviders } from "../../conventions";
-import type { RootMessageSource } from "../../conventions/IOConvention";
-import { asRecord, parseRecord } from "../utils/json";
-import type { NormalizedMessagePart } from "../../types";
+import type { RootMessageSource } from "../../conventions/io-convention";
+import { asRecord, parseIfString, parseRecord } from "../utils/json";
+import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
+import type { ParserContext } from "../parser-context";
 import {
   normalizePart,
   normalizeMessage,
@@ -18,7 +19,7 @@ export type ParsedIOValue = {
 };
 
 export type CollectContext =
-  | { kind: "io"; source: "input" | "output" }
+  | { kind: "io"; parserContext: ParserContext }
   | { kind: "metadata" };
 
 function collectToolDefinitionsFromRecord(
@@ -40,6 +41,36 @@ function collectRootToolDefinitions(
   accumulator: NormalizedIOAccumulator,
 ): void {
   collectToolDefinitionsFromRecord(root, accumulator);
+
+  // Definitions are independent of the message claim. A record can contain
+  // an OpenAI `choices` carrier and, next to it, a framework `messages` or
+  // `contents` carrier with additional declarations. Inspect only these
+  // known carrier boundaries; do not recursively walk arbitrary payloads.
+  for (const key of [
+    "messages",
+    "choices",
+    "candidates",
+    "contents",
+    "output",
+    "new_message",
+  ]) {
+    const parsed = parseIfString(root[key]);
+    const candidate = parseRecord(parsed);
+    const values = Array.isArray(parsed)
+      ? parsed
+      : candidate
+        ? [candidate]
+        : [];
+    for (const value of values) {
+      const record = asRecord(value);
+      if (!record) continue;
+      collectToolDefinitionsFromRecord(record, accumulator);
+      for (const nestedKey of ["message", "content", "parts"]) {
+        const nested = parseRecord(record[nestedKey]);
+        if (nested) collectToolDefinitionsFromRecord(nested, accumulator);
+      }
+    }
+  }
 
   for (const provider of registeredProviders) {
     const sources = provider.collectToolDefinitionSources?.({ root }) ?? [];
@@ -73,18 +104,24 @@ function collectMetadataToolDefinitions(
 function collectMessageSequence(
   values: unknown[],
   fallbackRole: "user" | "assistant",
-  source: "input" | "output",
+  parserContext: ParserContext,
+  messages: NormalizedMessage[],
   accumulator: NormalizedIOAccumulator,
 ): void {
+  const { source } = parserContext;
   const standaloneToolCalls: NormalizedMessagePart[] = [];
 
   const flushStandaloneToolCalls = () => {
     if (standaloneToolCalls.length === 0) return;
-    addMessage(accumulator, {
-      role: "assistant",
-      parts: standaloneToolCalls.splice(0),
-      source,
-    });
+    addMessage(
+      messages,
+      {
+        role: "assistant",
+        parts: standaloneToolCalls.splice(0),
+        source,
+      },
+      parserContext,
+    );
   };
 
   for (const value of values) {
@@ -96,7 +133,7 @@ function collectMessageSequence(
     if (record?.type === "mcp_list_tools") continue;
 
     if (record && !isMessageLike(record)) {
-      const part = normalizePart(record);
+      const part = normalizePart(record, parserContext);
       if (part?.type === "tool-call") {
         standaloneToolCalls.push(part);
         continue;
@@ -104,8 +141,8 @@ function collectMessageSequence(
     }
 
     flushStandaloneToolCalls();
-    const message = normalizeMessage(value, fallbackRole, source);
-    if (message) addMessage(accumulator, message);
+    const message = normalizeMessage(value, fallbackRole, parserContext);
+    if (message) addMessage(messages, message, parserContext);
   }
 
   flushStandaloneToolCalls();
@@ -113,14 +150,16 @@ function collectMessageSequence(
 
 function emitRootSource(
   rootSource: RootMessageSource,
-  source: "input" | "output",
+  parserContext: ParserContext,
+  messages: NormalizedMessage[],
   accumulator: NormalizedIOAccumulator,
 ): void {
   if (rootSource.kind === "sequence") {
     collectMessageSequence(
       rootSource.values,
       rootSource.fallbackRole,
-      source,
+      parserContext,
+      messages,
       accumulator,
     );
     return;
@@ -129,7 +168,7 @@ function emitRootSource(
   const message = normalizeMessage(
     rootSource.value,
     rootSource.fallbackRole,
-    source,
+    parserContext,
   );
   if (!message) return;
 
@@ -137,79 +176,97 @@ function emitRootSource(
     (rootSource.finishReasonCarrier
       ? normalizeFinishReason(rootSource.finishReasonCarrier)
       : undefined) ?? message.finishReason;
-  addMessage(accumulator, {
-    ...message,
-    role: rootSource.roleOverride ?? message.role,
-    ...(finishReason ? { finishReason } : {}),
-  });
+  addMessage(
+    messages,
+    {
+      ...message,
+      role: rootSource.roleOverride ?? message.role,
+      ...(finishReason ? { finishReason } : {}),
+    },
+    parserContext,
+  );
 }
 
 function collectRecordMessages(
   parsedValue: ParsedIOValue,
-  source: "input" | "output",
+  parserContext: ParserContext,
   accumulator: NormalizedIOAccumulator,
 ): void {
   const record = parsedValue.record;
   if (!record) return;
 
+  const { source } = parserContext;
   const fallbackRole = source === "input" ? "user" : "assistant";
-  let conversationClaimed = false;
 
-  for (const provider of registeredProviders) {
-    const rootSources =
-      provider.collectRootMessageSources?.(record, source) ?? [];
-    for (const rootSource of rootSources) {
-      emitRootSource(rootSource, source, accumulator);
-      conversationClaimed ||= rootSource.claimsConversation;
-    }
+  const providerClaims = registeredProviders.map((provider) => ({
+    provider,
+    sources: provider.claimRootMessageSources?.(record, source) ?? [],
+  }));
+  const selectedClaim = providerClaims.find(({ sources }) =>
+    sources.some((rootSource) => rootSource.claimsConversation),
+  );
+
+  if (selectedClaim) {
+    parserContext.preferredProvider = selectedClaim.provider;
   }
 
-  if (parsedValue.messages) {
+  const messages: NormalizedMessage[] = [];
+  const claimedSources = selectedClaim?.sources.filter(
+    (rootSource) => rootSource.claimsConversation,
+  );
+
+  if (claimedSources && claimedSources.length > 0) {
+    for (const rootSource of claimedSources) {
+      emitRootSource(rootSource, parserContext, messages, accumulator);
+    }
+  } else if (parsedValue.messages) {
     collectMessageSequence(
       parsedValue.messages,
       fallbackRole,
-      source,
+      parserContext,
+      messages,
       accumulator,
     );
-    conversationClaimed = true;
+  } else {
+    const recordMessage = normalizeMessage(record, fallbackRole, parserContext);
+    if (recordMessage) addMessage(messages, recordMessage, parserContext);
   }
 
-  // Google ADK stores the input message beside the event payload.
-  const newMessage = asRecord(record.new_message);
-  if (source === "input" && newMessage) {
-    collectToolDefinitionsFromRecord(newMessage, accumulator);
-    const message = normalizeMessage(newMessage, "user", source);
-    if (message) addMessage(accumulator, message);
-    conversationClaimed = true;
+  // System instructions supplement the selected input conversation. Defer
+  // them until after message normalization so an existing system message
+  // suppresses every top-level system sidecar.
+  if (source === "input" && !parserContext.hasSystemMessage) {
+    const systemMessages: NormalizedMessage[] = [];
+    for (const { sources } of providerClaims) {
+      for (const rootSource of sources.filter(
+        (source) => !source.claimsConversation,
+      )) {
+        emitRootSource(rootSource, parserContext, systemMessages, accumulator);
+        if (parserContext.hasSystemMessage) break;
+      }
+      if (parserContext.hasSystemMessage) break;
+    }
+    messages.unshift(...systemMessages);
   }
 
-  // Rule 1: when no nested source claims the conversation, the record is the
-  // message. Rule 2: a message/tool-shaped record is also a message even when
-  // it contains nested sources. Normalize once, then inspect the result.
-  const recordMessage = normalizeMessage(record, fallbackRole, source);
-  const hasToolPart = recordMessage?.parts.some(
-    (part) => part.type === "tool-call" || part.type === "tool-result",
-  );
-  if (
-    recordMessage &&
-    (!conversationClaimed || isMessageLike(record) || hasToolPart)
-  ) {
-    addMessage(accumulator, recordMessage);
-  }
+  accumulator.messages.push(...messages);
 }
 
-export function collect(
+export function collectMetadata(
   parsedValue: ParsedIOValue,
-  context: CollectContext,
   accumulator: NormalizedIOAccumulator,
 ): void {
-  if (context.kind === "metadata") {
-    if (parsedValue.record) {
-      collectMetadataToolDefinitions(parsedValue.record, accumulator);
-    }
-    return;
+  if (parsedValue.record) {
+    collectMetadataToolDefinitions(parsedValue.record, accumulator);
   }
+  return;
+}
 
+export function collectIO(
+  parsedValue: ParsedIOValue,
+  context: ParserContext,
+  accumulator: NormalizedIOAccumulator,
+): void {
   const { source } = context;
   const fallbackRole = source === "input" ? "user" : "assistant";
 
@@ -217,7 +274,8 @@ export function collect(
     collectMessageSequence(
       parsedValue.messages ?? parsedValue.value,
       fallbackRole,
-      source,
+      context,
+      accumulator.messages,
       accumulator,
     );
     return;
@@ -225,10 +283,10 @@ export function collect(
 
   if (parsedValue.record) {
     collectRootToolDefinitions(parsedValue.record, accumulator);
-    collectRecordMessages(parsedValue, source, accumulator);
+    collectRecordMessages(parsedValue, context, accumulator);
     return;
   }
 
-  const message = normalizeMessage(parsedValue.value, fallbackRole, source);
-  if (message) addMessage(accumulator, message);
+  const message = normalizeMessage(parsedValue.value, fallbackRole, context);
+  if (message) addMessage(accumulator.messages, message, context);
 }

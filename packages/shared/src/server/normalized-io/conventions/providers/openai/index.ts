@@ -6,6 +6,7 @@ import {
   omitKeys,
   optionalString,
   parseArray,
+  parseIfString,
   toJsonValue,
   toProviderMetadata,
 } from "../../../core/utils/json";
@@ -18,12 +19,12 @@ import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
 import {
   providerExecutedToolCall,
   toolCallPart,
-} from "../../../core/normalize/message-parts/toolCalls";
-import { toolResultPart } from "../../../core/normalize/message-parts/toolResults";
+} from "../../../core/normalize/message-parts/tool-calls";
+import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-} from "../../../core/normalize/toolDefinitions";
+} from "../../../core/normalize/tool-definitions";
 import type {
   FilePart,
   FinishReason,
@@ -38,7 +39,7 @@ import type {
   PartHandler,
   RootMessageSource,
   SiblingPartContribution,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * OpenAI convention: Chat Completions and Responses API shapes. This module
@@ -119,6 +120,8 @@ const normalizeOpenAiFunctionCall: PartHandler = (value) => {
       toolCallId: value.call_id ?? value.id,
       toolName: value.name ?? functionCall?.name,
       input: value.arguments ?? functionCall?.arguments,
+      toolType:
+        optionalString(value.type) ?? (functionCall ? "function" : undefined),
       index: value.index,
     }),
   );
@@ -386,10 +389,9 @@ function openAiRootMessageSources(
 ): RootMessageSource[] {
   if (kind !== "output") return [];
 
-  const sources: RootMessageSource[] = [];
-
   const choices = parseArray(root.choices);
   if (choices) {
+    const sources: RootMessageSource[] = [];
     for (const choice of choices) {
       const choiceRecord = asRecord(choice);
       sources.push({
@@ -403,20 +405,35 @@ function openAiRootMessageSources(
         finishReasonCarrier: choiceRecord,
       });
     }
+    return sources;
   }
 
   const responseOutput = parseArray(root.output);
-  if (responseOutput) {
-    sources.push({
-      kind: "sequence",
-      sourceKey: "output",
-      values: responseOutput,
-      fallbackRole: "assistant",
-      claimsConversation: true,
-    });
+  if (
+    responseOutput &&
+    responseOutput.some((item) => {
+      const record = asRecord(item);
+      return Boolean(
+        record?.type &&
+        (String(record.type).includes("call") ||
+          String(record.type).endsWith("_output") ||
+          record.type === "message" ||
+          record.type === "reasoning"),
+      );
+    })
+  ) {
+    return [
+      {
+        kind: "sequence",
+        sourceKey: "output",
+        values: responseOutput,
+        fallbackRole: "assistant",
+        claimsConversation: true,
+      },
+    ];
   }
 
-  return sources;
+  return [];
 }
 
 // OpenAI carries citations as `annotations` — per part on Responses
@@ -485,6 +502,29 @@ const tryUnwrapLegacyFunctionMessage = (
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> => {
   if (
+    value.role === "tool" &&
+    (typeof value.tool_call_id === "string" ||
+      typeof value.tool_call_id === "number")
+  ) {
+    return claimed({
+      role: "tool",
+      parts: [
+        compact({
+          type: "tool-result",
+          toolCallId: nullableString(value.tool_call_id),
+          output: toJsonValue(parseIfString(value.content ?? null)),
+          isError: value.status === "error" ? true : undefined,
+          providerMetadata:
+            value.artifact !== undefined && value.artifact !== null
+              ? toProviderMetadata({ artifact: value.artifact })
+              : undefined,
+        }),
+      ],
+      source: ctx.source,
+    });
+  }
+
+  if (
     typeof value.role !== "string" ||
     value.role.toLowerCase() !== "function"
   ) {
@@ -519,5 +559,5 @@ export const openAiProvider: IOConvention = {
   citationKeys: OPENAI_CITATION_KEYS,
   typedParts: OPENAI_PART_HANDLERS,
   collectSiblingParts: openAiCollectSiblingParts,
-  collectRootMessageSources: openAiRootMessageSources,
+  claimRootMessageSources: openAiRootMessageSources,
 };

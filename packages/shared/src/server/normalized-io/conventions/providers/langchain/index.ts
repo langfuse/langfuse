@@ -5,7 +5,7 @@ import {
   optionalString,
   parseArray,
 } from "../../../core/utils/json";
-import { toolCallPart } from "../../../core/normalize/message-parts/toolCalls";
+import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
@@ -16,7 +16,7 @@ import type {
   IOConvention,
   MessageEnvelopeContext,
   PartHandlerContext,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * LangChain / LangGraph convention: this module owns the `lc`/`kwargs`

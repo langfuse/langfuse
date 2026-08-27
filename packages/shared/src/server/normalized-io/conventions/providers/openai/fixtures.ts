@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 const toolCallId = "call_weather_001";
 const customToolCallId = "call_custom_002";
@@ -82,6 +82,7 @@ export const openAiChatCompletionToolSequenceFixture = {
             toolCallId,
             toolName: "get_weather",
             input: { city: "Zurich" },
+            toolType: "function",
           },
           {
             type: "tool-call",
@@ -134,14 +135,12 @@ export const openAiChatCompletionToolSequenceFixture = {
           required: ["city"],
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "run_python",
         description: "Runs a python snippet",
         inputSchema: { type: "text" },
         type: "custom",
-        providerMetadata: undefined,
       },
     ],
   },
@@ -278,6 +277,7 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
             toolCallId: callId1,
             toolName: "search_docs",
             input: toolInput1,
+            toolType: "function_call",
             providerMetadata: { status: "completed" },
           },
           {
@@ -285,6 +285,7 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
             toolCallId: callId2,
             toolName: "search_docs",
             input: toolInput2,
+            toolType: "function_call",
             providerMetadata: { status: "completed" },
           },
         ],
@@ -382,6 +383,7 @@ export const openAiResponsesFunctionCallFixture = {
             toolCallId: responsesToolCallId,
             toolName: "get_weather",
             input: { city: "Basel" },
+            toolType: "function_call",
             providerMetadata: { status: "completed" },
           },
         ],
@@ -874,7 +876,6 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
         description: "Run a SQL query",
         inputSchema: { type: "object" },
         type: undefined,
-        providerMetadata: undefined,
       },
     ],
   },

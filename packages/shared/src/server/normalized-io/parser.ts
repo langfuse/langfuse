@@ -4,10 +4,12 @@ import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { asRecord, parseArray, parseIfString } from "./core/utils/json";
 import type { NormalizedIO, SpanIO } from "./types";
 import {
-  collect,
+  collectMetadata,
+  collectIO,
   createAccumulator,
   type ParsedIOValue,
 } from "./core/accumulator";
+import { createParserContext } from "./core/parser-context";
 
 /**
  * Orchestration only: adapts a source into `SpanIO`, decodes exactly one
@@ -106,9 +108,9 @@ export function normalizeIO(source: NormalizeIOSource): NormalizedIO {
   const { input, output, metadata } = parseSpanIO(span);
   const accumulator = createAccumulator();
 
-  collect(input, { kind: "io", source: "input" }, accumulator);
-  collect(output, { kind: "io", source: "output" }, accumulator);
-  collect(metadata, { kind: "metadata" }, accumulator);
+  collectIO(input, createParserContext("input"), accumulator);
+  collectIO(output, createParserContext("output"), accumulator);
+  collectMetadata(metadata, accumulator);
 
   return {
     messages: accumulator.messages,

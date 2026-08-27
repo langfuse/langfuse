@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../fixtureTypes";
+import type { NormalizedIOFixture } from "../../fixture-types";
 
 /**
  * Loosely structured shapes surfaced by the ChatML-corpus cross-check:
@@ -69,6 +69,7 @@ export const looseProviderMessageShapesFixture = {
             toolCallId: "call_loose_1",
             toolName: "get_weather",
             input: { city: "Berlin" },
+            toolType: "function",
           },
         ],
         source: "input",

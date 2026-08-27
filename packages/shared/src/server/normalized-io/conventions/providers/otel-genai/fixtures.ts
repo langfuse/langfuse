@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 export const microsoftAgentProductionShapeFixture = {
   name: "normalizes an anonymized Microsoft Agent Framework span",
@@ -612,7 +612,6 @@ export const microsoftAgentProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_002",
@@ -724,7 +723,6 @@ export const microsoftAgentProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_003",
@@ -742,7 +740,6 @@ export const microsoftAgentProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_004",
@@ -760,7 +757,6 @@ export const microsoftAgentProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_005",
@@ -783,7 +779,6 @@ export const microsoftAgentProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
     ],
   },

@@ -1,7 +1,7 @@
-import { looseProviderMessageShapesFixture } from "./looseProviderMessageShapes";
-import { outputOnlyPlainTextFixture } from "./outputOnlyPlainText";
-import { outputOnlyStructuredMessageFixture } from "./outputOnlyStructuredMessage";
-import { rawPassthroughToolCallsFixture } from "./rawPassthroughToolCalls";
+import { looseProviderMessageShapesFixture } from "./loose-provider-message-shapes";
+import { outputOnlyPlainTextFixture } from "./output-only-plain-text";
+import { outputOnlyStructuredMessageFixture } from "./output-only-structured-message";
+import { rawPassthroughToolCallsFixture } from "./raw-passthrough-tool-calls";
 
 export const mixedNormalizedIOFixtures = [
   looseProviderMessageShapesFixture,

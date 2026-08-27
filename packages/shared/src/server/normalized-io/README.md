@@ -5,6 +5,28 @@ raw observation input/output/metadata into a canonical, provider-independent
 representation; downstream consumers (ClickHouse tool columns, eval records,
 rendering) derive their shapes from that representation.
 
+## TL;DR
+
+A telemetry JSON blob can contain the same conversation under keys such as
+`messages`, `choices`, or `contents`. The parser handles input and output
+separately and does three things:
+
+1. **Claim the messages once.** Providers are checked in the explicit order in
+   `conventions/index.ts`. The first provider that recognizes a conversation
+   container wins. If none does, the parser uses `messages`, then the value
+   itself. Other message containers are ignored, so the conversation is not
+   added twice.
+2. **Normalize those messages.** Each message is split into parts such as text,
+   tool calls, tool results, and files. The provider that claimed the messages
+   is tried first for each part, but all other providers remain fallbacks. A
+   top-level system instruction is added only when the messages do not already
+   contain a system message.
+3. **Collect tool definitions separately.** Claiming one message container does
+   not hide tools stored under another known key or in metadata.
+
+Known fields become the normalized shape. Anything else is kept in
+`providerMetadata`, so provider-specific information is not silently lost.
+
 ## Interface
 
 ```ts
@@ -39,7 +61,7 @@ parts, while untyped structured values remain lossless `data` parts.
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `text`        | `text`                                                                                                                                  | citations/annotations land in `providerMetadata.citations`                                                                                                                                  |
 | `reasoning`   | `content` union: `{kind:"text", text, signature?}` \| `{kind:"redacted", data}` \| `{kind:"encrypted", data}` \| `{kind:"data", value}` | visible CoT/summaries; provider-withheld blobs; replayable encrypted blobs; structured payloads                                                                                             |
-| `tool-call`   | `toolCallId` (nullable), `toolName`, `input`, `toolType?`, `providerExecuted?`, `index?`                                                | `toolType` set only for non-function kinds (`custom`, raw built-in item types); `providerExecuted` for server-side tools                                                                    |
+| `tool-call`   | `toolCallId` (nullable), `toolName`, `input`, `toolType?`, `providerExecuted?`, `index?`                                                | `toolType` preserves the source kind (`function`, `custom`, provider-specific built-ins); `providerExecuted` marks server-side tools                                                        |
 | `tool-result` | `toolCallId` (nullable), `toolName?`, `output`, `isError?`                                                                              | AI-SDK `{type, value}` output wrappers are unwrapped                                                                                                                                        |
 | `file`        | `content` union: `{kind:"url"}` \| `{kind:"base64"}` \| `{kind:"reference", id}`, `mediaType?`, `filename?`                             | all media, incl. `@@@langfuseMedia:…@@@` tokens → references; `mediaType` is exact when declared, a modality wildcard (`image/*`) when only the part kind reveals it, absent for opaque ids |
 | `data`        | `value`                                                                                                                                 | structured non-message payloads (function-span args/results, loose records) — JSON-passthrough parity with the trace view                                                                   |
@@ -114,11 +136,11 @@ core never changes. The pipeline:
    recognized type, and finally the `data`/`custom` fallback. Messages that produce no parts
    but have no message keys become single `data`-part messages (JSON
    passthrough) rather than being dropped.
-5. **Accumulation.** Tool-call parts dedup by `toolCallId` (fallback:
-   name + input) **within each side only** — a call echoed across the
-   input/output boundary is kept on both sides. Tool definitions merge by
-   name with first-seen-wins per field across input → output → metadata, so
-   request-time declarations win and later echoes only fill gaps.
+5. **Accumulation.** Within one message, the first carrier of a tool call wins,
+   so the same call in both `content` and `tool_calls` is not added twice.
+   Repeated calls in input history remain. Output deduplicates calls by name and arguments. A call present in both input and output remains
+   on both sides. Tool definitions merge by name with first-seen-wins per field
+   across input → output → metadata.
 
 ## Semantics and invariants
 
@@ -128,17 +150,12 @@ or the fixture documents it.
 
 ### Tool calls
 
-- **Dedup is scoped to one side; a call in output always counts.**
-  Instrumentation frequently reports the same call twice on one side (in
-  `tool_calls` and again as a content part). Across sides, no dedup — the
-  trace view concatenates without dedup, and outputs echoing full history
-  attribute historical calls to this observation (accepted, shared with the
-  trace view and legacy extractor).
-- **Id-less identical calls collapse** (key: name + input). The dedup's
-  primary job is killing the common echo, which appears at different
-  positions — positional disambiguation would rescue the rare genuine
-  id-less parallel duplicate by double-counting the common echo. Legacy
-  collapses identically; providers that care emit ids.
+- **Duplicate carriers are not duplicate calls.** If one message exposes the
+  same call in `content` and `tool_calls`, the first carrier wins. Identical
+  calls within one carrier or in different input messages remain valid calls.
+- **Output dedup remains output-only.** It uses `toolCallId`, falling
+  back to the raw name + arguments. Input history is not globally deduplicated,
+  and the same call may survive once in input and once in output.
 - **Absent ids are `null`;** the column projection maps `null` to `""` for
   byte-compatibility with the legacy ClickHouse format.
 - **Tool columns count executable output-side calls only**: input-side calls
@@ -202,7 +219,7 @@ produces a concrete miss.
 
 ## Projections
 
-- `projections/toolCallColumns.ts` — `NormalizedIO` → the legacy ClickHouse
+- `projections/tool-call-columns.ts` — `NormalizedIO` → the legacy ClickHouse
   `tool_definitions`/`tool_calls`/`tool_call_names` column format.
-- `projections/evalRecord.ts` — `NormalizedIO` + observation → eval-ready
+- `projections/eval-record.ts` — `NormalizedIO` + observation → eval-ready
   record (input/output message split, output-side tool calls).

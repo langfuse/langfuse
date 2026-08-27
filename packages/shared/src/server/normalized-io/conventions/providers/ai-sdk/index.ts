@@ -10,19 +10,19 @@ import {
   mediaTypeFromDataUri,
   parseMediaReference,
 } from "../../../core/normalize/message-parts/media";
-import { toolCallPart } from "../../../core/normalize/message-parts/toolCalls";
-import { toolResultPart } from "../../../core/normalize/message-parts/toolResults";
+import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
+import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-} from "../../../core/normalize/toolDefinitions";
+} from "../../../core/normalize/tool-definitions";
 import type { FilePart, FinishReason } from "../../../types";
 import type {
   IOConvention,
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * Vercel AI SDK convention: this module owns AI SDK's typed part vocabulary
@@ -147,6 +147,7 @@ const normalizeAiSdkToolCall: PartHandler = (value) =>
       toolCallId: value.toolCallId,
       toolName: value.toolName,
       input: value.input ?? value.args,
+      toolType: optionalString(value.type),
       providerExecuted: value.providerExecuted,
     }),
   );

@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../../fixtureTypes";
+import type { NormalizedIOFixture } from "../../fixture-types";
 
 /** Synthetic passthrough case adapted from useChatMLParser.clienttest.ts. */
 export const rawPassthroughToolCallsFixture = {

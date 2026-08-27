@@ -1,11 +1,13 @@
-import { normalizeToolDefinitionValue } from "../normalize/toolDefinitions";
+import { normalizeToolDefinitionValue } from "../normalize/tool-definitions";
 import {
   NormalizedMessage,
   NormalizedMessagePart,
   ToolDefinition,
 } from "../../types";
-import { NormalizedIOAccumulator } from "./interface";
-import { ToolDefinitionOptions } from "../../conventions/IOConvention";
+import type { NormalizedIOAccumulator } from "./interface";
+import { ToolDefinitionOptions } from "../../conventions/io-convention";
+import type { ParserContext } from "../parser-context";
+import { getToolCallKeyForPart } from "../normalize/part";
 
 export function addToolDefinitionValue(
   accumulator: NormalizedIOAccumulator,
@@ -20,6 +22,11 @@ export function addToolDefinitionValue(
 function getToolCallKey(part: NormalizedMessagePart): string | undefined {
   if (part.type !== "tool-call") return undefined;
 
+  // Keep legacy identity (including raw argument spelling) out of the public
+  // part shape while still using it for output-side compatibility deduping.
+  const rawKey = getToolCallKeyForPart(part);
+  if (rawKey) return rawKey;
+
   const id = part.toolCallId;
   if (typeof id === "string" && id.length > 0) return `id:${id}`;
 
@@ -31,23 +38,30 @@ function getToolCallKey(part: NormalizedMessagePart): string | undefined {
 }
 
 export function addMessage(
-  accumulator: NormalizedIOAccumulator,
+  messages: NormalizedMessage[],
   message: NormalizedMessage,
+  context: ParserContext,
 ): void {
-  // Dedup tool calls within one source only. A call echoed across the
-  // input/output boundary is kept on both sides.
-  const seenKeys = accumulator.toolCallKeys[message.source];
-  const parts = message.parts.filter((part) => {
-    const key = getToolCallKey(part);
-    if (!key) return true;
-    if (seenKeys.has(key)) return false;
+  // Input is conversation history and must preserve repeated calls. Output
+  // is projected into the legacy tool columns, where duplicate
+  // representations are removed as they are encountered.
+  const parts =
+    context.source === "output"
+      ? message.parts.filter((part) => {
+          const key = getToolCallKey(part);
+          if (!key) return true;
+          if (context.toolCallKeys.has(key)) return false;
 
-    seenKeys.add(key);
-    return true;
-  });
+          context.toolCallKeys.add(key);
+          return true;
+        })
+      : message.parts;
 
   if (parts.length > 0) {
-    accumulator.messages.push({ ...message, parts });
+    if (context.source === "input" && message.role === "system") {
+      context.hasSystemMessage = true;
+    }
+    messages.push({ ...message, parts });
   }
 }
 

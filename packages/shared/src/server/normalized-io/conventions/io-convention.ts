@@ -158,8 +158,14 @@ export interface IOConvention {
     context: PartHandlerContext,
   ): SiblingPartContribution[];
 
-  /** Provider-specific message containers at the IO root. */
-  collectRootMessageSources?(
+  /**
+   * Provider-specific message containers at the IO root. The core invokes
+   * conventions in registry order and uses the first result that contains a
+   * conversation source. A result may also contain sidecars such as a system
+   * instruction. Providers must guard weak keys (for example `output`) so an
+   * unrelated record cannot claim the conversation.
+   */
+  claimRootMessageSources?(
     root: Record<string, unknown>,
     kind: "input" | "output",
   ): RootMessageSource[];

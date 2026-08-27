@@ -1,4 +1,4 @@
-import type { NormalizedIOFixture } from "../fixtureTypes";
+import type { NormalizedIOFixture } from "../fixture-types";
 
 export const pydanticAiProductionShapeFixture = {
   name: "normalizes an anonymized Pydantic AI span",
@@ -1389,6 +1389,7 @@ export const pydanticAiProductionShapeFixture = {
             input: {
               synthetic_field_072: "Synthetic assistant response 392.",
             },
+            toolType: "tool_call",
           },
         ],
         finishReason: { type: "tool-calls", raw: "tool_call" },
@@ -1410,7 +1411,6 @@ export const pydanticAiProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_002",
@@ -1421,7 +1421,6 @@ export const pydanticAiProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_003",
@@ -1444,7 +1443,6 @@ export const pydanticAiProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_004",
@@ -1833,7 +1831,6 @@ export const pydanticAiProductionShapeFixture = {
           },
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_005",
@@ -2228,7 +2225,6 @@ export const pydanticAiProductionShapeFixture = {
           },
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_006",
@@ -2258,7 +2254,6 @@ export const pydanticAiProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_007",
@@ -2301,7 +2296,6 @@ export const pydanticAiProductionShapeFixture = {
           },
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_008",
@@ -2312,7 +2306,6 @@ export const pydanticAiProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_009",
@@ -2371,7 +2364,6 @@ export const pydanticAiProductionShapeFixture = {
           },
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_010",
@@ -2440,7 +2432,6 @@ export const pydanticAiProductionShapeFixture = {
           },
         },
         type: "function",
-        providerMetadata: undefined,
       },
       {
         name: "synthetic_tool_011",
@@ -2458,7 +2449,6 @@ export const pydanticAiProductionShapeFixture = {
           type: "object",
         },
         type: "function",
-        providerMetadata: undefined,
       },
     ],
   },

@@ -1,6 +1,6 @@
 import { NormalizedMessagePart } from "../../../types";
 import { asRecord, toJsonValue } from "../../utils/json";
-import { toolCallPart } from "./toolCalls";
+import { toolCallPart } from "./tool-calls";
 
 // `type` strings that count as tool-call evidence for the flat sniff below,
 // by owner. The flattening itself has no single emitter (OTel GenAI event
@@ -66,6 +66,12 @@ function sniffLooseToolCall(
       value.arguments /* openai, otel */ ??
       value.args /* ai sdk, langchain */ ??
       functionCall?.arguments,
+    toolType:
+      typeof value.type === "string"
+        ? value.type
+        : functionCall
+          ? "function"
+          : undefined,
     index: value.index, // openai chat completions streaming
     providerExecuted: value.providerExecuted, // ai sdk
   });

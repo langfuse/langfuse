@@ -1,11 +1,11 @@
-import { claimed, unmatched } from "../../IOConvention";
+import { claimed, unmatched } from "../../io-convention";
 import { asRecord, parseRecord } from "../../../core/utils/json";
 import type { NormalizedMessage } from "../../../types";
 import type {
   ConventionResult,
   IOConvention,
   MessageEnvelopeContext,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * Semantic Kernel convention. SK logs whole messages as OTel GenAI event

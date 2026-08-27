@@ -1,5 +1,5 @@
 import { registeredProviders } from "../../conventions";
-import type { ToolDefinitionSource } from "../../conventions/IOConvention";
+import type { ToolDefinitionSource } from "../../conventions/io-convention";
 import {
   asRecord,
   compact,

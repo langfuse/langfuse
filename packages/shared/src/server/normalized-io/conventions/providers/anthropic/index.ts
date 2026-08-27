@@ -14,18 +14,18 @@ import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
 import {
   providerExecutedToolCall,
   toolCallPart,
-} from "../../../core/normalize/message-parts/toolCalls";
-import { toolResultPart } from "../../../core/normalize/message-parts/toolResults";
+} from "../../../core/normalize/message-parts/tool-calls";
+import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import {
   toolDefinition,
   toolDefinitionProviderMetadata,
-} from "../../../core/normalize/toolDefinitions";
+} from "../../../core/normalize/tool-definitions";
 import type { FilePart, FinishReason } from "../../../types";
 import type {
   IOConvention,
   PartHandler,
   RootMessageSource,
-} from "../../IOConvention";
+} from "../../io-convention";
 
 /**
  * Anthropic Messages API convention: this module owns Anthropic's typed
@@ -179,7 +179,7 @@ const normalizeAnthropicToolResult: PartHandler = (value) =>
   );
 
 const ANTHROPIC_PART_HANDLERS = {
-  tool_use: (value) => claimed(anthropicToolCall(value)),
+  tool_use: (value) => claimed(anthropicToolCall(value, "tool_use")),
   image: normalizeAnthropicImage,
   server_tool_use: normalizeAnthropicServerToolCall,
   mcp_tool_use: normalizeAnthropicMcpToolCall,
@@ -250,5 +250,5 @@ export const anthropicProvider = {
       ? [{ sourceKey: "thinking", slot: "after-content", parts }]
       : [];
   },
-  collectRootMessageSources: anthropicRootMessageSources,
+  claimRootMessageSources: anthropicRootMessageSources,
 } satisfies IOConvention;

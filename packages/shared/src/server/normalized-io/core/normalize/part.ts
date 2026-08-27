@@ -1,8 +1,8 @@
-import { claimed, registeredProviders } from "../../conventions";
+import { claimed } from "../../conventions";
 import type {
   PartHandler,
   PartHandlerContext,
-} from "../../conventions/IOConvention";
+} from "../../conventions/io-convention";
 import type { NormalizedMessagePart } from "../../types";
 import { asRecord, isRecord, remainingProviderMetadata } from "../utils/json";
 import { normalizeFallbackPart } from "./message-parts/fallback";
@@ -13,6 +13,10 @@ import {
 } from "./message-parts/media";
 import { normalizeReasoningTextPart } from "./message-parts/reasoning";
 import { normalizeTextPart } from "./message-parts/text";
+import type { ParserContext } from "../parser-context";
+import { providersInOrder } from "../utils/providers";
+
+const rawToolCallKeys = new WeakMap<object, string>();
 
 /**
  * Part dispatch. Typed parts are claimed exclusively by one handler; a
@@ -32,8 +36,18 @@ export const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> =
     reasoning: (value) => claimed(normalizeReasoningTextPart(value)),
   };
 
+function createPartContext(parserContext?: ParserContext): PartHandlerContext {
+  return {
+    normalizePart: (value) => normalizePart(value, parserContext),
+    normalizePartList: (values) => normalizePartList(values, parserContext),
+  };
+}
+
 /** Value-array -> parts mapper handed to providers as `context.normalizePartList`. */
-export function normalizePartList(values: unknown[]): NormalizedMessagePart[] {
+export function normalizePartList(
+  values: unknown[],
+  parserContext?: ParserContext,
+): NormalizedMessagePart[] {
   const parts: NormalizedMessagePart[] = [];
   for (const value of values) {
     if (typeof value === "string") {
@@ -41,7 +55,7 @@ export function normalizePartList(values: unknown[]): NormalizedMessagePart[] {
       continue;
     }
 
-    const part = normalizePart(value);
+    const part = normalizePart(value, parserContext);
     if (!part) continue;
 
     // Text parts frequently embed media reference tokens mid-string; split
@@ -55,18 +69,19 @@ export function normalizePartList(values: unknown[]): NormalizedMessagePart[] {
   return parts;
 }
 
-const partContext: PartHandlerContext = {
-  normalizePart: normalizePart,
-  normalizePartList,
-};
-
-function normalizePartBase(value: unknown): NormalizedMessagePart | null {
+function normalizePartBase(
+  value: unknown,
+  parserContext?: ParserContext,
+): NormalizedMessagePart | null {
   if (typeof value === "string") {
     const mediaReference = parseMediaReference(value);
     if (mediaReference) return filePartFromMediaReference(mediaReference);
     return { type: "text", text: value };
   }
   if (!isRecord(value)) return null;
+
+  const partContext = createPartContext(parserContext);
+  const providers = providersInOrder(parserContext?.preferredProvider);
 
   const type = typeof value.type === "string" ? value.type : undefined;
   if (type) {
@@ -76,14 +91,14 @@ function normalizePartBase(value: unknown): NormalizedMessagePart | null {
       if (result.matched) return result.value;
     }
 
-    for (const provider of registeredProviders) {
+    for (const provider of providers) {
       const handler = provider.typedParts?.[type];
       if (!handler) continue;
       const result = handler(value, partContext);
       if (result.matched) return result.value;
     }
   } else {
-    for (const provider of registeredProviders) {
+    for (const provider of providers) {
       const result = provider.tryNormalizeUntypedPart?.(value, partContext);
       if (result?.matched) return result.value;
     }
@@ -236,10 +251,61 @@ function withProviderMetadata<T extends NormalizedMessagePart>(
   return providerMetadata ? ({ ...part, providerMetadata } as T) : part;
 }
 
-export function normalizePart(value: unknown): NormalizedMessagePart | null {
-  const part = normalizePartBase(value);
+export function normalizePart(
+  value: unknown,
+  parserContext?: ParserContext,
+): NormalizedMessagePart | null {
+  const part = normalizePartBase(value, parserContext);
   if (!part) return null;
   const record = asRecord(value);
-  if (!record) return part;
-  return withProviderMetadata(part, record);
+  const normalized = record ? withProviderMetadata(part, record) : part;
+
+  if (normalized.type === "tool-call") {
+    rawToolCallKeys.set(normalized, getRawToolCallKey(value, normalized));
+  }
+
+  return normalized;
+}
+
+/**
+ * Preserve the legacy ingestion identity for idless calls while the raw
+ * arguments are still available. The key is kept outside the public part
+ * shape so client-safe consumers never see ingestion-only compatibility data.
+ */
+export function getToolCallKeyForPart(
+  part: NormalizedMessagePart,
+): string | undefined {
+  return part.type === "tool-call" ? rawToolCallKeys.get(part) : undefined;
+}
+
+function getRawToolCallKey(
+  value: unknown,
+  part: Extract<NormalizedMessagePart, { type: "tool-call" }>,
+): string {
+  if (part.toolCallId) return `id:${part.toolCallId}`;
+
+  const record = asRecord(value);
+  const functionCall =
+    asRecord(record?.function) ??
+    asRecord(record?.functionCall) ??
+    asRecord(record?.function_call);
+  const rawArguments =
+    functionCall?.arguments ??
+    functionCall?.args ??
+    functionCall?.input ??
+    record?.arguments ??
+    record?.args ??
+    record?.input;
+  let argumentsValue: string;
+  if (typeof rawArguments === "string") {
+    argumentsValue = rawArguments;
+  } else {
+    try {
+      argumentsValue = JSON.stringify(rawArguments ?? {});
+    } catch {
+      argumentsValue = JSON.stringify(part.input);
+    }
+  }
+
+  return `value:${part.toolName}:${argumentsValue}`;
 }
