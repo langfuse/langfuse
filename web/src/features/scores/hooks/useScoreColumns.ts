@@ -14,24 +14,37 @@ import {
 } from "@/src/features/scores/lib/scoreColumns";
 
 // Simple score column creation - exported for reuse
-export function createScoreColumns<T extends Record<string, any>>(
+export function createScoreColumns<T extends Record<string, any>>({
+  scoreColumns,
+  scoreColumnKey,
+  displayFormat,
+  prefix,
+  headerPrefix,
+  defaultHidden,
+  rawKey,
+}: {
   scoreColumns: Array<{
     key: string;
     name: string;
     source: string;
     dataType: ScoreDataTypeType;
-  }>,
-  scoreColumnKey: keyof T & string,
-  displayFormat: "smart" | "aggregate",
-  prefix?: string,
-  defaultHidden?: boolean,
-  rawKey?: boolean,
-): LangfuseColumnDef<T>[] {
+  }>;
+  scoreColumnKey: keyof T & string;
+  displayFormat: "smart" | "aggregate";
+  /** Prefix for the column id/accessor, keeping two score levels apart. */
+  prefix?: string;
+  /** Score level shown in the header. Defaults to `prefix`. */
+  headerPrefix?: string;
+  defaultHidden?: boolean;
+  rawKey?: boolean;
+}): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
-    // Apply prefix to both column ID/accessor and header
     const accessorKey = prefix ? `${prefix}-${key}` : key;
-    const header = prefix
-      ? `${prefix}: ${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`
+    // The header prefix is decoupled from the id prefix so the score level can
+    // be renamed without orphaning persisted column visibility and order.
+    const level = headerPrefix ?? prefix;
+    const header = level
+      ? `${level}: ${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`
       : `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
 
     return {
@@ -71,6 +84,7 @@ export function useScoreColumns<T extends Record<string, any>>({
   fromTimestamp,
   toTimestamp,
   prefix,
+  headerPrefix,
   isFilterDataPending = false,
   displayFormat = "smart",
   defaultHidden,
@@ -83,6 +97,8 @@ export function useScoreColumns<T extends Record<string, any>>({
   fromTimestamp?: Date;
   toTimestamp?: Date;
   prefix?: string;
+  /** Score level shown in the header. Defaults to `prefix`. */
+  headerPrefix?: string;
   isFilterDataPending?: boolean;
   displayFormat?: "smart" | "aggregate";
   defaultHidden?: boolean;
@@ -109,21 +125,23 @@ export function useScoreColumns<T extends Record<string, any>>({
   const scoreColumns = useMemo(() => {
     if (!scoreColumnsQuery.data?.scoreColumns) return [];
 
-    return createScoreColumns<T>(
-      withPresentScoreKeys(
+    return createScoreColumns<T>({
+      scoreColumns: withPresentScoreKeys(
         toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
         presentKeys,
       ),
       scoreColumnKey,
       displayFormat,
       prefix,
+      headerPrefix,
       defaultHidden,
       rawKey,
-    );
+    });
   }, [
     scoreColumnsQuery.data?.scoreColumns,
     scoreColumnKey,
     prefix,
+    headerPrefix,
     displayFormat,
     defaultHidden,
     rawKey,

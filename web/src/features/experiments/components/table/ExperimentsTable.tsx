@@ -430,6 +430,7 @@ export default function ExperimentsTable({
     rawKey: true,
     displayFormat: "aggregate",
     scoreColumnKey: "observationItemScores",
+    headerPrefix: "Observation",
     projectId,
     filter:
       experiments.rows && experiments.rows.length > 0
@@ -641,7 +642,7 @@ export default function ExperimentsTable({
     }),
     {
       accessorKey: "traceItemScores",
-      header: "Trace Item Scores",
+      header: "Trace Scores",
       id: "traceItemScores",
       enableHiding: true,
       cell: () => {
@@ -653,7 +654,7 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: "Observation Scores",
       id: "observationItemScores",
       enableHiding: true,
       cell: () => {
@@ -665,7 +666,7 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: "Experiment Scores",
       id: "experimentScores",
       enableHiding: true,
       cell: () => {

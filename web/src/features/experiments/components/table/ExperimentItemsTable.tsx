@@ -580,33 +580,31 @@ export default function ExperimentItemsTable({
   // This ensures sidebar filters and column visibility use the same data source
   const observationScoreColumns = useMemo(
     () =>
-      createScoreColumns<ExperimentItemData>(
-        withPresentScoreKeys(
+      createScoreColumns<ExperimentItemData>({
+        scoreColumns: withPresentScoreKeys(
           toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
           presentScoreKeys?.observation,
         ),
-        "observationScores",
-        "smart",
-        undefined,
-        undefined,
-        true,
-      ),
+        scoreColumnKey: "observationScores",
+        displayFormat: "smart",
+        headerPrefix: "Observation",
+        rawKey: true,
+      }),
     [scoreColumnDefs.observationScoreColumns, presentScoreKeys?.observation],
   );
 
   const traceScoreColumns = useMemo(
     () =>
-      createScoreColumns<ExperimentItemData>(
-        withPresentScoreKeys(
+      createScoreColumns<ExperimentItemData>({
+        scoreColumns: withPresentScoreKeys(
           toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
           presentScoreKeys?.trace,
         ),
-        "traceScores",
-        "smart",
-        "Trace",
-        undefined,
-        true,
-      ),
+        scoreColumnKey: "traceScores",
+        displayFormat: "smart",
+        prefix: "Trace",
+        rawKey: true,
+      }),
     [scoreColumnDefs.traceScoreColumns, presentScoreKeys?.trace],
   );
 
