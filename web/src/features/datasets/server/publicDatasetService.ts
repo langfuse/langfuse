@@ -151,9 +151,9 @@ type DeleteDatasetRunByIdInput = DatasetAuditScope & {
 type DeleteDatasetItemInput = DatasetAuditScope &
   z.infer<typeof GetDatasetItemV1Query>;
 
-// This deprecated endpoint embeds items without pagination. Match the maximum
-// page size of the replacement GET /dataset-items endpoint.
-const LEGACY_DATASET_ITEM_LIMIT = 100;
+// This deprecated endpoint embeds items without pagination. Keep its response
+// bounded while giving existing users room to migrate to GET /dataset-items.
+const LEGACY_DATASET_ITEM_LIMIT = 1_000;
 
 const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   if (Array.isArray(metadata)) {

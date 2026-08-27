@@ -201,7 +201,7 @@ describe("Dataset item media references (public API read path)", () => {
     const dataset = await createDataset();
     const result = await createManyDatasetItems({
       projectId,
-      items: Array.from({ length: 101 }, (_, index) => ({
+      items: Array.from({ length: 1_001 }, (_, index) => ({
         datasetId: dataset.id,
         id: v4(),
         input: { index },
@@ -214,7 +214,7 @@ describe("Dataset item media references (public API read path)", () => {
       name: dataset.name,
     });
 
-    expect(response.items).toHaveLength(100);
+    expect(response.items).toHaveLength(1_000);
   });
 
   it("returns empty mediaReferences for items without media", async () => {
