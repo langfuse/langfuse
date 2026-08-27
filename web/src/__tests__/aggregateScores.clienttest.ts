@@ -140,12 +140,13 @@ describe("aggregateScores", () => {
     });
   });
 
-  it("should correctly aggregate multiple Categorical scores with the same key", () => {
+  it("should render Boolean scores as true/false", () => {
     const scores = [
       {
         name: "test",
         source: "API",
         dataType: "BOOLEAN",
+        value: 1,
         stringValue: "True",
         comment: "test comment",
       },
@@ -153,6 +154,7 @@ describe("aggregateScores", () => {
         name: "test",
         source: "API",
         dataType: "BOOLEAN",
+        value: 0,
         stringValue: "False",
         comment: "another comment",
       },
@@ -160,10 +162,10 @@ describe("aggregateScores", () => {
     expect(aggregateScores(scores)).toEqual({
       "test-API-BOOLEAN": {
         type: "CATEGORICAL",
-        values: ["True", "False"],
+        values: ["true", "false"],
         valueCounts: [
-          { value: "True", count: 1 },
-          { value: "False", count: 1 },
+          { value: "true", count: 1 },
+          { value: "false", count: 1 },
         ],
         comment: undefined,
       },
