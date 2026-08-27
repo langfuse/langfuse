@@ -7,10 +7,7 @@ import {
   eventsTableTraceNameAggregationSql,
   eventsTableTraceNameSelectSql,
 } from "../../../eventsTable";
-import {
-  OBSERVATIONS_TO_TRACE_INTERVAL,
-  TRACE_TO_OBSERVATIONS_INTERVAL,
-} from "../../repositories/constants";
+import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
 /**
@@ -596,17 +593,16 @@ export const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
- * Build a bounded trace tool-call rollup for the Events list.
+ * Build a trace-scoped tool-call rollup for the Events list.
  *
  * ReplacingMergeTree versions are collapsed by span before the live rows are
- * counted. The caller supplies page trace IDs and start-time bounds so this
- * does not scan the complete events table for every list row.
+ * counted. The caller supplies only trace IDs from the current page; no time
+ * bound is valid because ingestion permits independently timestamped children.
+ * The events_core trace_id bloom-filter index keeps this lookup selective.
  */
 export const buildEventsTraceToolCallCountsQuery = (params: {
   projectId: string;
   traceIds: string[];
-  minStartTime: string;
-  maxStartTime: string;
 }): { query: string; params: Record<string, any> } => ({
   query: `
     SELECT
@@ -620,8 +616,6 @@ export const buildEventsTraceToolCallCountsQuery = (params: {
         tupleElement(argMax(tuple(tool_calls, is_deleted), event_ts), 2) AS is_deleted
       FROM events_core
       WHERE project_id = {projectId: String}
-        AND start_time >= {minStartTime: DateTime64(6)} - ${OBSERVATIONS_TO_TRACE_INTERVAL} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-        AND start_time <= {maxStartTime: DateTime64(6)} + ${OBSERVATIONS_TO_TRACE_INTERVAL} + ${TRACE_TO_OBSERVATIONS_INTERVAL}
         AND trace_id IN ({traceIds: Array(String)})
       GROUP BY trace_id, span_id
     )
@@ -630,8 +624,6 @@ export const buildEventsTraceToolCallCountsQuery = (params: {
   params: {
     projectId: params.projectId,
     traceIds: params.traceIds,
-    minStartTime: params.minStartTime,
-    maxStartTime: params.maxStartTime,
   },
 });
 

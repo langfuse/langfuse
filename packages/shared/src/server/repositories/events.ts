@@ -564,14 +564,6 @@ export async function getObservationsWithModelDataFromEventsTable(
         traceIds: Array.from(
           new Set(chainRecords.map((record) => record.trace_id as string)),
         ),
-        minStartTime: chainRecords.reduce<Date | undefined>((min, record) => {
-          const startTime = parseClickhouseUTCDateTimeFormat(record.start_time);
-          return !min || startTime < min ? startTime : min;
-        }, undefined),
-        maxStartTime: chainRecords.reduce<Date | undefined>((max, record) => {
-          const startTime = parseClickhouseUTCDateTimeFormat(record.start_time);
-          return !max || startTime > max ? startTime : max;
-        }, undefined),
       })
     : new Map<string, number>();
   const enriched = await enrichObservationsWithTraceFields(
@@ -619,23 +611,13 @@ export async function getObservationsWithModelDataFromEventsTable(
 async function getToolCallCountsForTraces(params: {
   projectId: string;
   traceIds: string[];
-  minStartTime?: Date;
-  maxStartTime?: Date;
 }): Promise<Map<string, number>> {
-  if (
-    params.traceIds.length === 0 ||
-    !params.minStartTime ||
-    !params.maxStartTime
-  ) {
-    return new Map();
-  }
+  if (params.traceIds.length === 0) return new Map();
 
   const rows = await queryClickhouse<ToolCallCountRow>({
     ...buildEventsTraceToolCallCountsQuery({
       projectId: params.projectId,
       traceIds: params.traceIds,
-      minStartTime: convertDateToClickhouseDateTime(params.minStartTime),
-      maxStartTime: convertDateToClickhouseDateTime(params.maxStartTime),
     }),
     tags: { projectId: params.projectId },
     preferredClickhouseService: "EventsReadOnly",

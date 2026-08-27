@@ -707,6 +707,7 @@ describe("Clickhouse Events Repository Test", () => {
       const traceId = randomUUID();
       const chainId = randomUUID();
       const generationId = randomUUID();
+      const chainStartTime = Date.now() * 1000;
 
       await createEventsCh([
         createEvent({
@@ -716,6 +717,7 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           type: "CHAIN",
           name: "agent-loop",
+          start_time: chainStartTime,
           tool_calls: [],
         }),
         createEvent({
@@ -726,6 +728,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           type: "GENERATION",
           name: "agent-turn",
+          // Child timestamps are independent and may fall outside conventional trace windows.
+          start_time: chainStartTime + 72 * 60 * 60 * 1_000 * 1_000,
           tool_calls: ["call-1", "call-2"],
         }),
       ]);
