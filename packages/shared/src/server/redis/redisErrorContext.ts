@@ -86,7 +86,7 @@ const CODE_FAILURE_MODES: Record<string, RedisFailureMode> = {
   ERR_TLS_CERT_ALTNAME_INVALID: "tls",
 };
 
-export const classifyRedisFailure = (error: unknown): RedisFailureMode => {
+const classifyRedisFailure = (error: unknown): RedisFailureMode => {
   const { code, message } = describeError(error);
 
   if (code) {

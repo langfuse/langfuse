@@ -95,7 +95,7 @@ import { summarizeTableViewPreset } from "../lib/viewPreview";
  * (not stored in DB). Using this prefix prevents DB lookups and allows special handling.
  * Convention: `__langfuse_{preset_name}__`
  */
-export const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
+const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
 
 /** Check if a view ID is a system preset (defined in code, not stored in DB) */
 export const isSystemPresetId = (id: string | undefined | null): boolean =>

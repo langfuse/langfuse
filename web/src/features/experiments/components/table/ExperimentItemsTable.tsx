@@ -93,12 +93,12 @@ function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
   }));
 }
 
-export const getDefaultExperimentFilterTarget = (props: {
+const getDefaultExperimentFilterTarget = (props: {
   baselineId?: string;
   comparisonIds: string[];
 }) => props.baselineId ?? props.comparisonIds[0];
 
-export const shouldEnableExperimentPeek = (props: {
+const shouldEnableExperimentPeek = (props: {
   hasBaseline: boolean;
   hideControls: boolean;
 }) => !props.hideControls && props.hasBaseline;

@@ -308,7 +308,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
   );
 };
 
-export const RegenerateWebhookSecretButton = ({
+const RegenerateWebhookSecretButton = ({
   projectId,
   action,
 }: {

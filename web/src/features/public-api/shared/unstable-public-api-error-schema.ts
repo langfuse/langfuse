@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const unstablePublicApiErrorCodes = [
+const unstablePublicApiErrorCodes = [
   "authentication_failed",
   "access_denied",
   "invalid_request",
@@ -22,7 +22,7 @@ export const unstablePublicApiErrorCodes = [
   "internal_error",
 ] as const;
 
-export const UnstablePublicApiErrorCode = z.enum(unstablePublicApiErrorCodes);
+const UnstablePublicApiErrorCode = z.enum(unstablePublicApiErrorCodes);
 
 const UnstablePublicApiValidationIssue = z
   .object({
@@ -32,7 +32,7 @@ const UnstablePublicApiValidationIssue = z
   })
   .loose();
 
-export const UnstablePublicApiErrorDetails = z
+const UnstablePublicApiErrorDetails = z
   .object({
     issues: z.array(UnstablePublicApiValidationIssue).optional(),
     field: z.string().optional(),

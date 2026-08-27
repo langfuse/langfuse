@@ -33,7 +33,7 @@ const APIEvaluationRuleBase = {
   updatedAt: z.coerce.date(),
 };
 
-export const APIEvaluationRule = z
+const APIEvaluationRule = z
   .object({
     ...APIEvaluationRuleBase,
     evaluators: z.array(
@@ -48,7 +48,7 @@ export const APIEvaluationRule = z
   })
   .strict();
 
-export const APILegacyEvaluationRule = z
+const APILegacyEvaluationRule = z
   .object({
     ...APIEvaluationRuleBase,
     evaluators: z.array(
@@ -65,7 +65,7 @@ export const APILegacyEvaluationRule = z
   })
   .strict();
 
-export const APIReadableEvaluationRule = z.union([
+const APIReadableEvaluationRule = z.union([
   APIEvaluationRule,
   APILegacyEvaluationRule,
 ]);
@@ -86,7 +86,7 @@ export const GetUnstableEvaluationRuleQuery = z.object({
 /** @alias */
 export const GetUnstableEvaluationRuleResponse = APIReadableEvaluationRule;
 
-export const EvaluationRuleCreateBase = {
+const EvaluationRuleCreateBase = {
   name: z.string().min(1),
   evaluator: PublicEvaluationRuleEvaluatorReference.optional(),
   enabled: z.boolean(),
@@ -168,7 +168,7 @@ export const PatchUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;
 
 // Exported for reuse (see EvaluationRuleCreateBase) — the create fields, all
 // made optional for PATCH.
-export const EvaluationRulePatchBase = {
+const EvaluationRulePatchBase = {
   name: z.string().min(1).optional(),
   evaluator: PublicEvaluationRuleEvaluatorReferencePatch.optional(),
   enabled: z.boolean().optional(),
