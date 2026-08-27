@@ -3,27 +3,21 @@
  * field names. Never experiment/dataset names, score values, or item content.
  */
 
-export const EXPERIMENT_TABLE_NAMES = {
-  list: "experiments",
-  items: "experiment-items",
-} as const;
+type ExperimentTableName = "experiments" | "experiment-items";
 
-export type ExperimentTableName =
-  (typeof EXPERIMENT_TABLE_NAMES)[keyof typeof EXPERIMENT_TABLE_NAMES];
-
-export const EXPERIMENT_ANALYTICS_IS_V4 = true as const;
+const EXPERIMENT_ANALYTICS_IS_V4 = true as const;
 
 export type ExperimentComparisonSource = "picker" | "table-selection" | "url";
 export type ExperimentBaselineSource = "picker" | "table-selection" | "clear";
 export type ExperimentScoreScope = "trace" | "observation" | "experiment";
 export type ExperimentChartMetricGroup = "base" | "score";
 
-export type ExperimentAnalyticsDimensions = {
+type ExperimentAnalyticsDimensions = {
   isV4: typeof EXPERIMENT_ANALYTICS_IS_V4;
   tableName: ExperimentTableName;
 };
 
-export function experimentAnalyticsDimensions(
+function experimentAnalyticsDimensions(
   tableName: ExperimentTableName,
 ): ExperimentAnalyticsDimensions {
   return { isV4: EXPERIMENT_ANALYTICS_IS_V4, tableName };
