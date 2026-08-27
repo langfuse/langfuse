@@ -25,12 +25,15 @@ export type TraceMetricsBenchmark = {
   queries: QueryMetrics[];
 };
 
+const HTML_ESCAPE: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+};
+
 const escapeHtml = (value: unknown): string =>
-  String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+  Array.from(String(value), (ch) => HTML_ESCAPE[ch] ?? ch).join("");
 
 const humanBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
