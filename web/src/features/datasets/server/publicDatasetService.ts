@@ -151,6 +151,10 @@ type DeleteDatasetRunByIdInput = DatasetAuditScope & {
 type DeleteDatasetItemInput = DatasetAuditScope &
   z.infer<typeof GetDatasetItemV1Query>;
 
+// This deprecated endpoint embeds items without pagination. Keep its response
+// bounded while giving existing users room to migrate to GET /dataset-items.
+const LEGACY_DATASET_ITEM_LIMIT = 1_000;
+
 const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   if (Array.isArray(metadata)) {
     return { metadata };
@@ -494,22 +498,15 @@ export const getDatasetByNameForApi = async ({
       status: "ACTIVE",
     }),
     includeDatasetName: true,
+    limit: LEGACY_DATASET_ITEM_LIMIT,
+    page: 0,
   });
 
   const { datasetRuns = [], ...params } = dataset;
 
-  const mediaReferences = await resolveDatasetItemMediaReferences({
-    projectId,
-    items: datasetItems,
-  });
-
   return {
     ...transformDbDatasetToAPIDataset(params),
-    items: datasetItems.map((item) => ({
-      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
-      mediaReferences:
-        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
-    })),
+    items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
     runs: datasetRuns.map(({ name }) => name),
   };
 };

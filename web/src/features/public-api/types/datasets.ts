@@ -335,7 +335,7 @@ export const GetDatasetV1Query = z.object({
   name: queryStringZod,
 });
 export const GetDatasetV1Response = APIDataset.extend({
-  items: z.array(APIDatasetItem),
+  items: z.array(APIDatasetItem.omit({ mediaReferences: true })),
   runs: z.array(z.string()), // dataset run names
 }).strict();
 
