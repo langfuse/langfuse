@@ -344,7 +344,7 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
-    expect(screen.getByText(/42 estimated calls · last seen/)).toHaveAttribute(
+    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
       "title",
       "Last seen at 2026-07-23T10:37:00Z",
     );
@@ -393,15 +393,9 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(
-      screen.getByText(/57 estimated calls · last seen/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/5 estimated calls · last seen/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/1 estimated call · last seen/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
+    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
   });
 
   it("shows the caller and exact SDK migration action", () => {

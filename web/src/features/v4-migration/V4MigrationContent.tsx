@@ -948,7 +948,7 @@ export function V4MigrationApisSection({
                       className="text-muted-foreground text-sm whitespace-nowrap"
                       title={`Last seen at ${row.lastSeen}`}
                     >
-                      {numberFormatter(roundedCount, 0)} estimated{" "}
+                      {numberFormatter(roundedCount, 0)}{" "}
                       {roundedCount === 1 ? "call" : "calls"} · last seen{" "}
                       {formatCompactRelativeTime(new Date(row.lastSeen))}
                     </span>
