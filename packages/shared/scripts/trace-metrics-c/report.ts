@@ -37,6 +37,20 @@ export type DurationShape = {
   pctOverSixBuckets: number;
 };
 
+export type DashboardCheck = {
+  compared: number;
+  mismatchCount: number;
+  mismatches: string[];
+};
+
+export type DashboardCorrectness = {
+  costByDay: DashboardCheck;
+  costByUser: DashboardCheck;
+  avgTraceCostByDay: DashboardCheck;
+  bVersusCDay: DashboardCheck;
+  avgTraceVersusAvgSpan: DashboardCheck;
+};
+
 export type TraceMetricsBenchmark = {
   generatedAt: string;
   projectId: string;
@@ -50,6 +64,7 @@ export type TraceMetricsBenchmark = {
   };
   foldFactor: FoldFactor;
   durationShape: DurationShape;
+  dashboardCorrectness: DashboardCorrectness;
   queries: QueryMetrics[];
 };
 
@@ -78,6 +93,10 @@ const queryBarChart = (queries: QueryMetrics[]): string => {
       "events-top-k",
       "events-global-sort",
       "join-filter-expensive-traces",
+      "dash-pushdown-cost-by-day",
+      "dash-rollup-b-cost-by-day",
+      "dash-pushdown-avg-trace-cost-by-day",
+      "dash-rollup-c-avg-trace-cost-by-day",
     ].includes(query.name),
   );
   const max = Math.max(...comparable.map((query) => query.elapsedMs), 1);
@@ -210,6 +229,21 @@ const scanReductionTable = (queries: QueryMetrics[]): string => {
     ["gold-top-n", "rollup-top-n", "Top-N traces by cost"],
     ["gold-chart", "rollup-chart", "Daily average chart"],
     ["events-global-sort", "events-top-k", "Events sorted by trace cost"],
+    [
+      "dash-pushdown-cost-by-day",
+      "dash-rollup-b-cost-by-day",
+      "Dashboard: cost incurred by day (B)",
+    ],
+    [
+      "dash-pushdown-cost-by-user",
+      "dash-rollup-b-cost-by-user",
+      "Dashboard: cost by user (B)",
+    ],
+    [
+      "dash-pushdown-avg-trace-cost-by-day",
+      "dash-rollup-c-avg-trace-cost-by-day",
+      "Dashboard: avg trace total by day (C)",
+    ],
   ] as const;
 
   const rows = pairs.flatMap(([goldName, rollupName, label]) =>
@@ -384,11 +418,37 @@ const caveats = (benchmark: TraceMetricsBenchmark): string[] => {
     `Only complete five-minute buckets are measured. Production must UNION raw <code>events_core</code> edges for the in-flight bucket, or traces from the last few minutes vanish from the list.`,
   );
   notes.push(
-    `Dashboard questions that do not need <code>trace_id</code> (spend over time, cost by user or session) are a different table: a daily observation rollup without <code>trace_id</code>. This benchmark does not measure that path.`,
+    `Dashboard windows use complete calendar days only (partial days would UNION <code>events_core</code>). A 1-day clock window often has zero complete days and is skipped.`,
   );
 
   return notes;
 };
+
+const dashboardCheckRow = (label: string, check: DashboardCheck): string => {
+  const ok = check.mismatchCount === 0;
+  return `<tr>
+    <td>${escapeHtml(label)}</td>
+    <td>${check.compared.toLocaleString()}</td>
+    <td class="${ok ? "pass" : "fail"}">${ok ? "PASS" : "FAIL"} · ${check.mismatchCount.toLocaleString()} mismatches</td>
+    <td>${check.mismatches.length > 0 ? `<pre>${escapeHtml(check.mismatches.join("\n"))}</pre>` : "—"}</td>
+  </tr>`;
+};
+
+const dashboardSection = (dashboard: DashboardCorrectness): string => `
+  <p>Job B is a daily observation rollup <em>without</em> <code>trace_id</code> in the key
+  (cost incurred by span start day / user). Job C is the five-minute trace-keyed table
+  (true per-trace totals attributed to <code>min(start_time)</code>). They answer different
+  dashboard questions and are allowed to disagree.</p>
+  <table>
+    <thead><tr><th>Check</th><th>Compared keys</th><th>Result</th><th>Sample diffs</th></tr></thead>
+    <tbody>
+      ${dashboardCheckRow("Push-down vs B: cost by day (must match)", dashboard.costByDay)}
+      ${dashboardCheckRow("Push-down vs B: cost by user (must match)", dashboard.costByUser)}
+      ${dashboardCheckRow("Push-down vs C: avg trace cost by day (must match)", dashboard.avgTraceCostByDay)}
+      ${dashboardCheckRow("B vs C: cost by day (expected diffs when traces cross midnight)", dashboard.bVersusCDay)}
+      ${dashboardCheckRow("Avg trace total vs avg span cost (wrong chart; expected diffs)", dashboard.avgTraceVersusAvgSpan)}
+    </tbody>
+  </table>`;
 
 const queryTable = (queries: QueryMetrics[]): string =>
   `<table>
@@ -409,7 +469,12 @@ export const renderTraceMetricsReport = async (
     (query) => query.name === "buckets-per-trace" && query.window === "all",
   )?.rows[0];
   const correctnessClass =
-    benchmark.correctness.mismatchCount === 0 ? "pass" : "fail";
+    benchmark.correctness.mismatchCount === 0 &&
+    benchmark.dashboardCorrectness.costByDay.mismatchCount === 0 &&
+    benchmark.dashboardCorrectness.costByUser.mismatchCount === 0 &&
+    benchmark.dashboardCorrectness.avgTraceCostByDay.mismatchCount === 0
+      ? "pass"
+      : "fail";
 
   const html = `<!doctype html>
 <html lang="en">
@@ -458,6 +523,7 @@ export const renderTraceMetricsReport = async (
   </section>
   <section><h2>Scan reduction, gold vs rollup</h2><p class="muted">Same answer, same cohort. Lower is better for gold → rollup.</p>${scanReductionTable(benchmark.queries)}</section>
   <section><h2>Events ⊕ traces AMT join patterns</h2>${joinPatternsSection(benchmark.queries)}</section>
+  <section><h2>Dashboard roll-up vs push-down</h2>${dashboardSection(benchmark.dashboardCorrectness)}</section>
   <section><h2>Where the rows go</h2>${foldFactorSection(benchmark.foldFactor)}</section>
   <section><h2>Do traces fit in five minutes?</h2>${durationSection(benchmark.durationShape)}</section>
   <section><h2>What this run cannot tell you</h2><ul>${caveats(benchmark)

@@ -5,6 +5,8 @@ import {
   convertDateToClickhouseDateTime,
 } from "../../src/server/clickhouse/client";
 import {
+  DashboardCheck,
+  DashboardCorrectness,
   DurationShape,
   FoldFactor,
   QueryMetrics,
@@ -111,6 +113,67 @@ const compareTraces = (
   };
 };
 
+const compareKeyedRows = (
+  gold: QueryRow[],
+  rollup: QueryRow[],
+  key: string,
+  fields: string[],
+): { compared: number; mismatchCount: number; mismatches: string[] } => {
+  const rollupByKey = new Map(rollup.map((row) => [String(row[key]), row]));
+  const mismatches: string[] = [];
+
+  for (const goldRow of gold) {
+    const id = String(goldRow[key]);
+    const rollupRow = rollupByKey.get(id);
+    if (!rollupRow) {
+      mismatches.push(`${id}: absent from rollup`);
+      continue;
+    }
+    for (const field of fields) {
+      if (
+        Math.abs(toNumber(goldRow[field]) - toNumber(rollupRow[field])) > 1e-6
+      ) {
+        mismatches.push(
+          `${id}.${field}: gold=${String(goldRow[field])} rollup=${String(rollupRow[field])}`,
+        );
+      }
+    }
+    rollupByKey.delete(id);
+  }
+  for (const id of rollupByKey.keys()) {
+    mismatches.push(`${id}: absent from gold`);
+  }
+
+  return {
+    compared: gold.length,
+    mismatchCount: mismatches.length,
+    mismatches: mismatches.slice(0, 20),
+  };
+};
+
+const emptyDashboardCheck = (): DashboardCheck => ({
+  compared: 0,
+  mismatchCount: 0,
+  mismatches: [],
+});
+
+const mergeDashboardChecks = (
+  left: DashboardCheck,
+  right: DashboardCheck,
+): DashboardCheck => ({
+  compared: left.compared + right.compared,
+  mismatchCount: left.mismatchCount + right.mismatchCount,
+  mismatches: [...left.mismatches, ...right.mismatches].slice(0, 20),
+});
+
+const prefixCheck = (
+  window: string,
+  check: DashboardCheck,
+): DashboardCheck => ({
+  ...check,
+  mismatches: check.mismatches.map((line) => `${window}: ${line}`),
+});
+
 const main = async (): Promise<void> => {
   const options = parseArgs(process.argv.slice(2));
   const client = clickhouseClient({
@@ -177,6 +240,8 @@ const main = async (): Promise<void> => {
   await command("00-drop.sql");
   await command("01-create.sql");
   await command("02-populate.sql");
+  await command("03-create-b.sql");
+  await command("04-populate-b.sql");
 
   const goldTraces = await runQuery(
     "gold-traces",
@@ -343,6 +408,128 @@ const main = async (): Promise<void> => {
     );
   }
 
+  let dashboardCorrectness: DashboardCorrectness = {
+    costByDay: emptyDashboardCheck(),
+    costByUser: emptyDashboardCheck(),
+    avgTraceCostByDay: emptyDashboardCheck(),
+    bVersusCDay: emptyDashboardCheck(),
+    avgTraceVersusAvgSpan: emptyDashboardCheck(),
+  };
+
+  for (const window of windows) {
+    const pushdownDay = await runQuery(
+      "dash-pushdown-cost-by-day",
+      "dash-pushdown-cost-by-day.sql",
+      window.name,
+      "gold",
+      window.params,
+    );
+    const rollupBDay = await runQuery(
+      "dash-rollup-b-cost-by-day",
+      "dash-rollup-b-cost-by-day.sql",
+      window.name,
+      "rollup",
+      window.params,
+    );
+    const rollupCDay = await runQuery(
+      "dash-rollup-c-cost-by-day",
+      "dash-rollup-c-cost-by-day.sql",
+      window.name,
+      "rollup",
+      window.params,
+    );
+    const pushdownUser = await runQuery(
+      "dash-pushdown-cost-by-user",
+      "dash-pushdown-cost-by-user.sql",
+      window.name,
+      "gold",
+      window.params,
+    );
+    const rollupBUser = await runQuery(
+      "dash-rollup-b-cost-by-user",
+      "dash-rollup-b-cost-by-user.sql",
+      window.name,
+      "rollup",
+      window.params,
+    );
+    const pushdownAvgTrace = await runQuery(
+      "dash-pushdown-avg-trace-cost-by-day",
+      "dash-pushdown-avg-trace-cost-by-day.sql",
+      window.name,
+      "gold",
+      window.params,
+    );
+    const rollupCAvgTrace = await runQuery(
+      "dash-rollup-c-avg-trace-cost-by-day",
+      "dash-rollup-c-avg-trace-cost-by-day.sql",
+      window.name,
+      "rollup",
+      window.params,
+    );
+    const wrongAvgSpan = await runQuery(
+      "dash-wrong-avg-span-cost-by-day",
+      "dash-wrong-avg-span-cost-by-day.sql",
+      window.name,
+      "diagnostic",
+      window.params,
+    );
+
+    if (pushdownDay.length === 0 && rollupBDay.length === 0) {
+      continue;
+    }
+
+    dashboardCorrectness = {
+      costByDay: mergeDashboardChecks(
+        dashboardCorrectness.costByDay,
+        prefixCheck(
+          window.name,
+          compareKeyedRows(pushdownDay, rollupBDay, "day", [
+            "sum_cost",
+            "span_count",
+            "traces",
+          ]),
+        ),
+      ),
+      costByUser: mergeDashboardChecks(
+        dashboardCorrectness.costByUser,
+        prefixCheck(
+          window.name,
+          compareKeyedRows(pushdownUser, rollupBUser, "user_id", [
+            "sum_cost",
+            "traces",
+          ]),
+        ),
+      ),
+      avgTraceCostByDay: mergeDashboardChecks(
+        dashboardCorrectness.avgTraceCostByDay,
+        prefixCheck(
+          window.name,
+          compareKeyedRows(pushdownAvgTrace, rollupCAvgTrace, "day", [
+            "avg_cost",
+            "traces",
+          ]),
+        ),
+      ),
+      bVersusCDay: mergeDashboardChecks(
+        dashboardCorrectness.bVersusCDay,
+        prefixCheck(
+          window.name,
+          compareKeyedRows(rollupBDay, rollupCDay, "day", [
+            "sum_cost",
+            "traces",
+          ]),
+        ),
+      ),
+      avgTraceVersusAvgSpan: mergeDashboardChecks(
+        dashboardCorrectness.avgTraceVersusAvgSpan,
+        prefixCheck(
+          window.name,
+          compareKeyedRows(pushdownAvgTrace, wrongAvgSpan, "day", ["avg_cost"]),
+        ),
+      ),
+    };
+  }
+
   const benchmark: TraceMetricsBenchmark = {
     generatedAt: new Date().toISOString(),
     projectId: options.projectId,
@@ -352,6 +539,7 @@ const main = async (): Promise<void> => {
     correctness,
     foldFactor,
     durationShape,
+    dashboardCorrectness,
     queries,
   };
   const jsonPath = path.join(options.outputDir, "trace-metrics-c-results.json");
@@ -365,6 +553,7 @@ const main = async (): Promise<void> => {
   process.stdout.write(
     `${JSON.stringify({
       correctness,
+      dashboardCorrectness,
       rowFold: Number(foldFactor.rowFold.toFixed(2)),
       versionsPerSpan: foldFactor.versionsPerSpan,
       spansPerTrace: foldFactor.spansPerTrace,
@@ -376,6 +565,13 @@ const main = async (): Promise<void> => {
     })}\n`,
   );
   if (correctness.mismatchCount > 0) process.exitCode = 1;
+  if (
+    dashboardCorrectness.costByDay.mismatchCount > 0 ||
+    dashboardCorrectness.costByUser.mismatchCount > 0 ||
+    dashboardCorrectness.avgTraceCostByDay.mismatchCount > 0
+  ) {
+    process.exitCode = 1;
+  }
   const collapsedJoins = queries.filter(
     (query) => query.name === "join-collapsed-vs-gold",
   );

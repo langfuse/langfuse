@@ -42,14 +42,16 @@ sorting strategy under test.
 
 The runner:
 
-1. Recreates `trace_metrics_5m_benchmark`.
+1. Recreates `trace_metrics_5m_benchmark` (job C) and
+   `obs_daily_agg_benchmark` (job B).
 2. Aligns the requested range to complete five-minute buckets and backfills it
    from deduplicated `events_core` rows.
 3. Compares per-trace values with the raw-table gold query.
 4. Runs Top-N, chart, bucket-count, bounded event Top-K, global event-sort,
-   and events⊕C join-pattern checks (collapsed join vs gold, raw C join,
-   bucket join, same-window undercount, filter-expensive-then-events)
-   over 1-day, 7-day, and full windows.
+   events⊕C join-pattern checks (collapsed join vs gold, raw C join,
+   bucket join, same-window undercount, filter-expensive-then-events),
+   and dashboard roll-up vs push-down queries over 1-day, 7-day, and full
+   windows. Dashboard queries use complete calendar days only.
 5. Writes `trace-metrics-c-results.json` and
    `trace-metrics-c-report.html`.
 
@@ -84,3 +86,7 @@ The runner:
 - The raw gold queries deliberately use `ORDER BY event_ts DESC LIMIT 1 BY
   project_id, trace_id, span_id`. An insert-triggered MV that sums every
   ReplacingMergeTree version is not equivalent and is outside this benchmark.
+- Dashboard **cost incurred by day / user** must match B. Dashboard **average
+  trace total by day** must match C after collapsing traces. B vs C day totals
+  and avg-trace vs avg-span are expected to differ; they are findings, not
+  runner failures.
