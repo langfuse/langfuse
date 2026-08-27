@@ -104,6 +104,8 @@ type ObservationBody = {
   metadata?: Record<string, unknown>;
   promptName?: string;
   promptVersion?: number;
+  userId?: string;
+  sessionId?: string;
 };
 type ToolCallApprovalStatus = "approved" | "rejected";
 type AgentRunToolSpan = {
@@ -183,6 +185,8 @@ export class InAppAgentInstrumentation {
   private readonly runId: string;
   private readonly traceId: string;
   private readonly rootObservationId: string;
+  private readonly userId: string;
+  private readonly sessionId: string;
   private readonly traceStartTime: Date;
   private readonly agentRunStartTime: Date;
   private agentRunInput: unknown;
@@ -198,6 +202,9 @@ export class InAppAgentInstrumentation {
     InAppAgentToolApprovalSource
   >();
   private readonly toolExecutionTimes = new Map<string, ToolExecutionTimes>();
+  private readonly toolCallToModelObservationId = new Map<string, string>();
+  private openModelObservationId?: string;
+  private lastModelObservationId?: string;
   private readonly metadata: Record<string, unknown>;
   private readonly agentRunOutputMessages: AgentRunChatMessage[] = [];
   private readonly agentRunToolCalls: AgentRunToolCall[] = [];
@@ -247,6 +254,8 @@ export class InAppAgentInstrumentation {
     this.prompt = params.prompt;
     this.model = params.model;
     this.runId = params.runId;
+    this.userId = params.userId;
+    this.sessionId = params.input.threadId;
     const rootRunId = this.approvalContinuation?.rootRunId ?? params.runId;
     this.traceId = getInAppAgentInstrumentationTraceId(rootRunId);
     this.rootObservationId =
@@ -261,6 +270,7 @@ export class InAppAgentInstrumentation {
       traceName: IN_APP_AGENT_TURN_NAME,
       environment: params.environment,
       userId: params.userId,
+      sessionId: params.input.threadId,
       metadata: this.metadata,
       prompt: params.prompt,
       aiFeatureOtelIngestion: true,
@@ -354,8 +364,14 @@ export class InAppAgentInstrumentation {
     }
 
     const now = new Date();
+    const callNumber =
+      this.openModelCall?.callNumber ?? ++this.nextModelCallNumber;
+    this.openModelObservationId = getInAppAgentLlmCallObservationId(
+      this.runId,
+      callNumber,
+    );
     this.openModelCall = {
-      callNumber: this.openModelCall?.callNumber ?? ++this.nextModelCallNumber,
+      callNumber,
       startTime: this.openModelCall?.startTime ?? now,
       input: getModelCallInput(options),
       textDeltas: [],
@@ -697,7 +713,7 @@ export class InAppAgentInstrumentation {
     const body: ObservationBody = {
       id: toolCallId,
       traceId: this.traceId,
-      parentObservationId: this.rootObservationId,
+      parentObservationId: this.getToolParentObservationId(toolCallId),
       name: tool.name,
       startTime,
       endTime,
@@ -765,6 +781,11 @@ export class InAppAgentInstrumentation {
     const finishReason = getModelFinishReason(finish);
     const model = call.modelId ?? this.model;
     const id = getInAppAgentLlmCallObservationId(this.runId, call.callNumber);
+    this.lastModelObservationId = id;
+    this.openModelObservationId = undefined;
+    for (const toolCall of call.toolCalls) {
+      this.toolCallToModelObservationId.set(toolCall.toolCallId, id);
+    }
     const text = call.textDeltas.join("");
     const output =
       text || call.toolCalls.length > 0
@@ -872,12 +893,25 @@ export class InAppAgentInstrumentation {
     }
   }
 
+  private getToolParentObservationId(toolCallId: string): string {
+    return (
+      this.toolCallToModelObservationId.get(toolCallId) ??
+      this.openModelObservationId ??
+      this.lastModelObservationId ??
+      this.rootObservationId
+    );
+  }
+
   private enqueueObservation(type: string, body: ObservationBody) {
     (
       this.langfuse as unknown as {
         enqueue: (type: string, body: ObservationBody) => void;
       }
-    ).enqueue(type, body);
+    ).enqueue(type, {
+      ...body,
+      userId: this.userId,
+      sessionId: this.sessionId,
+    });
   }
 
   // Reasoning that no assistant message followed (e.g. aborted or errored

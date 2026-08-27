@@ -139,6 +139,7 @@ describe("InAppAgentInstrumentation", () => {
         traceId,
         traceName: "agent-turn",
         userId: "user-1",
+        sessionId: "conversation-1",
       }),
     );
     expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
@@ -157,6 +158,8 @@ describe("InAppAgentInstrumentation", () => {
         traceId,
         parentObservationId: agentRunObservationId,
         name: "listObservations",
+        userId: "user-1",
+        sessionId: "conversation-1",
         input: { limit: 10 },
         output: toolOutput,
         startTime: expect.any(Date),
@@ -1585,7 +1588,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(toolCreates[0]?.[1]).toEqual(
       expect.objectContaining({
         id: "tool-a",
-        parentObservationId: agentRunObservationId,
+        parentObservationId: getInAppAgentLlmCallObservationId(runId, 1),
         startTime: toolAStart,
         endTime: toolAEnd,
       }),
@@ -1593,7 +1596,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(toolCreates[1]?.[1]).toEqual(
       expect.objectContaining({
         id: "tool-b",
-        parentObservationId: agentRunObservationId,
+        parentObservationId: getInAppAgentLlmCallObservationId(runId, 1),
         startTime: toolBStart,
         endTime: toolBEnd,
       }),

@@ -111,6 +111,8 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
             processedEvents,
             traceId: traceSinkParams.traceId,
             projectId: targetProjectId,
+            userId: traceSinkParams.userId,
+            sessionId: traceSinkParams.sessionId,
           });
 
           if (eventInputs.length > 0) {
@@ -167,6 +169,8 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
             processedEvents,
             traceId: traceSinkParams.traceId,
             projectId: targetProjectId,
+            userId: traceSinkParams.userId,
+            sessionId: traceSinkParams.sessionId,
             experimentContext: eventsWriter.experimentContext,
           });
 

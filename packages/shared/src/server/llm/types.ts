@@ -541,6 +541,7 @@ export type TraceSinkParams = {
   // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
   environment: string;
   userId?: string;
+  sessionId?: string;
   metadata?: Record<string, unknown>;
   prompt?: {
     name: string;
@@ -556,8 +557,9 @@ export type TraceSinkParams = {
   /**
    * When true, v4 write modes (`dual` / `events_only`) publish through
    * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`.
-   * Used by in-app agent product traces so observation evals can match them.
-   * Legacy write mode keeps `processEventBatch`.
+   * Used by in-app agent product traces. Those traces use environment
+   * `production` (not `langfuse-*`) so they stay eligible as observation-eval
+   * targets. Legacy write mode keeps `processEventBatch`.
    */
   aiFeatureOtelIngestion?: boolean;
 };

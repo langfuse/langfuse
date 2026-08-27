@@ -80,8 +80,8 @@ const processedEvents = [
       parentObservationId: RUN_ID,
       name: "invoke-model",
       environment: "production",
-      startTime: START_ISO,
-      endTime: END_ISO,
+      startTime: new Date(START_ISO),
+      endTime: new Date(END_ISO),
       model: "claude-opus",
       usageDetails: { input: 10, output: 5, total: 15 },
     },
@@ -149,13 +149,6 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       sessionId: "conversation-1",
     });
     expect(root?.tags).toEqual(["in-app-agent"]);
-    expect(tool).toMatchObject({
-      traceId: TRACE_ID,
-      parentSpanId: RUN_ID,
-      name: "langfuse_listPrompts",
-      type: "TOOL",
-      environment: "production",
-    });
     expect(generation).toMatchObject({
       traceId: TRACE_ID,
       parentSpanId: RUN_ID,
@@ -163,6 +156,17 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       type: "GENERATION",
       environment: "production",
       modelName: "claude-opus",
+      userId: "user-1",
+      sessionId: "conversation-1",
+    });
+    expect(tool).toMatchObject({
+      traceId: TRACE_ID,
+      parentSpanId: RUN_ID,
+      name: "langfuse_listPrompts",
+      type: "TOOL",
+      environment: "production",
+      userId: "user-1",
+      sessionId: "conversation-1",
     });
     expect(generation?.providedUsageDetails).toMatchObject({
       input: 10,
