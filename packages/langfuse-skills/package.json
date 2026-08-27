@@ -1,0 +1,34 @@
+{
+  "name": "@repo/langfuse-skills",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24"
+  },
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/src/index.js",
+      "require": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:check": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
+    "sync": "node scripts/sync-skills.mjs",
+    "sync:check": "node scripts/sync-skills.mjs --check"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.3.0",
+    "eslint": "catalog:",
+    "prettier": "^3.8.3",
+    "typescript": "catalog:",
+    "yaml": "^2.9.0"
+  }
+}

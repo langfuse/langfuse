@@ -2,26 +2,19 @@
 
 ## Skill Sync
 
-The generated in-app agent skills live in:
+The generic Langfuse skill catalog and its sync script live in the
+`@repo/langfuse-skills` package:
 
-`worker/src/features/in-app-agent/runtime/skills/generated/skill-markdown.ts`
-
-The generated module inlines each Markdown file as a string literal so it
-compiles under plain `tsc` in `worker`.
-
-Use `sync-raw-skills.mjs` to download all markdown files from
-`https://github.com/langfuse/skills/tree/main/skills/langfuse/references`.
-The in-app agent receives the complete reference set and decides which skills
-are relevant for each request:
+`packages/langfuse-skills/src/generated/skills.ts`
 
 ```sh
-node scripts/in-app-agent/sync-raw-skills.mjs
+pnpm --filter @repo/langfuse-skills run sync
 ```
 
 To verify the checked-in generated skills match upstream without changing files:
 
 ```sh
-node scripts/in-app-agent/sync-raw-skills.mjs --check
+pnpm --filter @repo/langfuse-skills run sync:check
 ```
 
 ## Prompt Sync

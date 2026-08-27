@@ -34,6 +34,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@ag-ui/core": "^0.0.52",
     "@ag-ui/mastra": "1.1.1",
+    "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/shared": "workspace:*",
     "@aws-sdk/client-lambda-microvms": "catalog:",
