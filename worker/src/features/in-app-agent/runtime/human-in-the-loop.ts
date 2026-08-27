@@ -178,7 +178,7 @@ function getResumeForwardedProps(
   return forwardedProps;
 }
 
-export function createManualToolCallAssistantMessage(
+function createManualToolCallAssistantMessage(
   approvalRequest: InAppAgentToolApprovalRequest,
 ): AgUiMessage {
   return {
@@ -218,7 +218,7 @@ function createToolExecutionErrorGuidanceMessage(
   };
 }
 
-export function createManualToolApprovalEvents(params: {
+function createManualToolApprovalEvents(params: {
   approvalRequest: InAppAgentToolApprovalRequest;
   toolResultContent: string;
   toolError?: string;

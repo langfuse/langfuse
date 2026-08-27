@@ -3,7 +3,6 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { renderLevelIcon } from "@/src/components/level-colors";
 
@@ -16,18 +15,10 @@ export const getEventsColumnName = (id: string): string => {
   return column.name;
 };
 
-/**
- * Maps frontend column IDs to backend-expected column IDs for events table
- * Events table uses different naming conventions than observations table
- */
-export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  // No mapping needed currently - events table column names align with UI
-};
-
 const isBooleanEqualityOperator = (operator: string): operator is "=" | "<>" =>
   operator === "=" || operator === "<>";
 
-export const migrateLegacyRootObservationFilters = (
+const migrateLegacyRootObservationFilters = (
   filters: FilterState,
 ): FilterState => {
   const hasRootObservationFilter = filters.some(

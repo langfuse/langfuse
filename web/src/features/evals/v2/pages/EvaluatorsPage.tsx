@@ -1,5 +1,9 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import { TableViewPresetTableName, ZodModelConfig } from "@langfuse/shared";
+import {
+  type OrderByState,
+  TableViewPresetTableName,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { type ComponentProps, useMemo, useState } from "react";
@@ -40,7 +44,7 @@ import {
   createEvaluatorsTableStore,
   type EvaluatorsTableStore,
 } from "../store/evaluatorsTableStore";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
@@ -66,6 +70,8 @@ import {
 import type { GalleryTemplate } from "../types/templateGallery";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["list"]["evaluators"][number];
 
@@ -169,6 +175,10 @@ export default function EvaluatorsPage() {
     source: "overview",
   });
   const [pagination, setPagination] = usePaginationState(1, 50);
+  const [orderBy, setOrderBy] = useOrderByState({
+    column: "updatedAt",
+    order: "DESC",
+  });
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "evaluatorsV2",
     "s",
@@ -241,6 +251,9 @@ export default function EvaluatorsPage() {
     {
       projectId,
       ...pagination,
+      orderBy: orderBy
+        ? (orderBy as RouterInputs["evalsV2"]["list"]["orderBy"])
+        : undefined,
       search: searchQuery ?? undefined,
       filter: filterState,
     },
@@ -332,6 +345,7 @@ export default function EvaluatorsPage() {
         header: "Name",
         size: 320,
         isFixedPosition: true,
+        enableSorting: true,
         cell: ({ row }) => (
           <span className="block truncate font-bold" title={row.original.name}>
             {row.original.name}
@@ -397,6 +411,7 @@ export default function EvaluatorsPage() {
         header: "Type",
         size: 160,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => <EvaluatorTypeBadge type={row.original.type} />,
       },
       createNumberTableColumn<EvaluatorRow>({
@@ -433,24 +448,14 @@ export default function EvaluatorsPage() {
           );
         },
       },
-      {
+      createUserTableColumn<EvaluatorRow>({
         accessorKey: "createdByUser",
-        id: "createdByUser",
         header: "Created by",
         size: 180,
         enableHiding: true,
-        cell: ({ row }) => {
-          const creator =
-            row.original.createdByUser?.name ??
-            row.original.createdByUser?.email ??
-            "API";
-          return (
-            <span className="block truncate" title={creator}>
-              {creator}
-            </span>
-          );
-        },
-      },
+        variant: "text",
+        emptyValue: "API",
+      }),
       {
         accessorKey: "createdAt",
         id: "createdAt",
@@ -458,6 +463,7 @@ export default function EvaluatorsPage() {
         size: 180,
         enableHiding: true,
         defaultHidden: true,
+        enableSorting: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -466,6 +472,7 @@ export default function EvaluatorsPage() {
         header: "Updated at",
         size: 180,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
       },
       {
@@ -531,6 +538,11 @@ export default function EvaluatorsPage() {
     "evaluatorsV2ColumnOrder-v2",
     columns,
   );
+  const setEvaluatorOrderBy = (nextOrderBy: OrderByState) => {
+    setOrderBy(nextOrderBy);
+    setPagination({ page: 1, limit: pagination.limit });
+    selectionStore.getState().actions.clearSelection();
+  };
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Evaluators,
     projectId,
@@ -545,6 +557,7 @@ export default function EvaluatorsPage() {
       },
       setColumnOrder,
       setColumnVisibility,
+      setOrderBy: setEvaluatorOrderBy,
     },
     validationContext: {
       columns,
@@ -641,6 +654,7 @@ export default function EvaluatorsPage() {
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
               filterState={filterState}
+              orderByState={orderBy}
               currentSearchQuery={searchQuery ?? undefined}
               viewConfig={{
                 tableName: TableViewPresetTableName.Evaluators,
@@ -708,6 +722,8 @@ export default function EvaluatorsPage() {
                   columnOrder={columnOrder}
                   onColumnOrderChange={setColumnOrder}
                   rowHeight={rowHeight}
+                  orderBy={orderBy}
+                  setOrderBy={setEvaluatorOrderBy}
                   onRowClick={(row) =>
                     router.push(`/project/${projectId}/evals/${row.id}`)
                   }

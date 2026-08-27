@@ -45,6 +45,15 @@ export type IngestionSdkAttributionStatus =
   | "missing_version"
   | "missing_name_and_version";
 
+export type PublicApiCallerAttribution = {
+  sdkName?: IngestionSdkCanonicalName;
+  sdkVersion?: string;
+  userAgent?: string;
+};
+
+export const PUBLIC_API_SDK_VERSION_MAX_LENGTH = 64;
+export const PUBLIC_API_USER_AGENT_MAX_LENGTH = 256;
+
 const getHeaderValue = (
   headers: IngestionHeaderMap | undefined,
   name: string,
@@ -56,6 +65,14 @@ const getHeaderValue = (
 
   const underscoreValue = headers[name.replaceAll("-", "_")];
   if (typeof underscoreValue === "string") return underscoreValue;
+
+  const normalizedName = name.toLowerCase().replaceAll("_", "-");
+  const matchedValue = Object.entries(headers).find(
+    ([headerName, value]) =>
+      typeof value === "string" &&
+      headerName.toLowerCase().replaceAll("_", "-") === normalizedName,
+  )?.[1];
+  if (typeof matchedValue === "string") return matchedValue;
 
   return "";
 };
@@ -184,6 +201,57 @@ export const classifyIngestionSdkAttribution = (params: {
   if (missingName) return "missing_name";
   if (missingVersion) return "missing_version";
   return "attributed";
+};
+
+const sanitizeCallerAttributionValue = (
+  value: string,
+  maxLength: number,
+): string | undefined => {
+  const sanitized = Array.from(value)
+    .filter((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint > 31 && codePoint !== 127;
+    })
+    .join("")
+    .trim();
+  const bounded = Array.from(sanitized).slice(0, maxLength).join("");
+  return bounded || undefined;
+};
+
+/**
+ * Extracts the bounded, allowlisted caller metadata shared by public API
+ * telemetry and ClickHouse query attribution. SDK parsing intentionally
+ * reuses the ingestion pipeline's header and version normalization.
+ */
+export const extractPublicApiCallerAttribution = (
+  headers: IngestionHeaderMap | undefined,
+): PublicApiCallerAttribution => {
+  const sdkName = normalizeIngestionSdkName(
+    getHeaderValue(headers, "x-langfuse-sdk-name"),
+  );
+  const rawSdkVersion = sanitizeCallerAttributionValue(
+    getHeaderValue(headers, "x-langfuse-sdk-version"),
+    PUBLIC_API_SDK_VERSION_MAX_LENGTH,
+  );
+  const sdkVersionClassification = classifyIngestionSdkVersion({
+    sdkName,
+    sdkVersion: rawSdkVersion,
+  });
+  const sdkVersion =
+    sdkVersionClassification.status === "current" ||
+    sdkVersionClassification.status === "outdated_major"
+      ? rawSdkVersion
+      : undefined;
+  const userAgent = sanitizeCallerAttributionValue(
+    getHeaderValue(headers, "user-agent"),
+    PUBLIC_API_USER_AGENT_MAX_LENGTH,
+  );
+
+  return {
+    ...(sdkName ? { sdkName } : {}),
+    ...(sdkVersion ? { sdkVersion } : {}),
+    ...(userAgent ? { userAgent } : {}),
+  };
 };
 
 export const createIngestionAttribution = (params: {

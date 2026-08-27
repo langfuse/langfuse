@@ -3,6 +3,7 @@ import {
   convertDateToClickhouseDateTime,
   listV4LegacyApiHourStarts,
   logger,
+  mergeV4LegacyApiCallers,
   queryClickhouse,
   redis,
   safeMultiDel,
@@ -27,6 +28,7 @@ import {
   V4_LEGACY_API_USAGE_LOCK_KEY,
   V4_LEGACY_API_USAGE_WINDOW_MS,
   type PreferredClickhouseService,
+  type V4LegacyApiCaller,
   type V4LegacyApiHourBucket,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
@@ -55,7 +57,8 @@ const HOUR_MS = 60 * 60 * 1000;
  * ClickHouse client request timeout (and derived max_execution_time) above
  * the shared 30s default.
  */
-export const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
+const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
+const V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT = 20;
 
 const EXPERIMENT_POST_ROUTE = "POST /api/public/dataset-run-items";
 
@@ -75,6 +78,10 @@ type HourUsageRow = {
   hourStart: string;
   projectId: string;
   route: string;
+  sdkName: string;
+  sdkVersion: string;
+  userAgent: string;
+  isOther: number;
   count: string | number;
   lastSeen: string;
 };
@@ -83,6 +90,10 @@ type MergedHourUsageRow = {
   hourStart: string;
   projectId: string;
   route: string;
+  sdkName: string;
+  sdkVersion: string;
+  userAgent: string;
+  isOther: number;
   count: number;
   lastSeen: string;
 };
@@ -129,6 +140,9 @@ const queryHourUsageRowsForService = async ({
 WITH selected AS (
   SELECT
     JSONExtractString(log_comment, 'projectId') AS project_id,
+    JSONExtractString(log_comment, 'sdkName') AS sdk_name,
+    JSONExtractString(log_comment, 'sdkVersion') AS sdk_version,
+    JSONExtractString(log_comment, 'userAgent') AS user_agent,
     event_time,
     event_time_microseconds,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
@@ -146,6 +160,9 @@ WITH selected AS (
 classified AS (
   SELECT
     project_id,
+    sdk_name,
+    sdk_version,
+    user_agent,
     event_time,
     event_time_microseconds,
     multiIf(
@@ -197,18 +214,41 @@ classified AS (
       NULL
     ) AS clickhouse_queries_per_api_call
   FROM selected
+),
+caller_candidates AS (
+  SELECT
+    project_id,
+    legacy_route,
+    topK(${V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT})(tuple(sdk_name, sdk_version, user_agent)) AS caller_keys
+  FROM classified
+  WHERE legacy_route IS NOT NULL
+    AND clickhouse_queries_per_api_call IS NOT NULL
+  GROUP BY project_id, legacy_route
+),
+bounded AS (
+  SELECT
+    classified.*,
+    has(caller_candidates.caller_keys, tuple(sdk_name, sdk_version, user_agent)) AS retain_caller
+  FROM classified
+  ANY INNER JOIN caller_candidates
+    ON classified.project_id = caller_candidates.project_id
+    AND classified.legacy_route = caller_candidates.legacy_route
+  WHERE classified.legacy_route IS NOT NULL
+    AND classified.clickhouse_queries_per_api_call IS NOT NULL
 )
 SELECT
   formatDateTime(toStartOfHour(event_time, 'UTC'), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS hourStart,
   project_id AS projectId,
   legacy_route AS route,
+  if(retain_caller, sdk_name, '') AS sdkName,
+  if(retain_caller, sdk_version, '') AS sdkVersion,
+  if(retain_caller, user_agent, '') AS userAgent,
+  if(retain_caller, 0, 1) AS isOther,
   sum(1.0 / clickhouse_queries_per_api_call) AS count,
   formatDateTime(max(event_time_microseconds), '%Y-%m-%dT%H:%i:%S.%fZ', 'UTC') AS lastSeen
-FROM classified
-WHERE legacy_route IS NOT NULL
-  AND clickhouse_queries_per_api_call IS NOT NULL
-GROUP BY hourStart, projectId, route
-ORDER BY hourStart ASC, projectId ASC, route ASC
+FROM bounded
+GROUP BY hourStart, projectId, route, sdkName, sdkVersion, userAgent, isOther
+ORDER BY hourStart ASC, projectId ASC, route ASC, isOther ASC, sdkName ASC, sdkVersion ASC, userAgent ASC
 SETTINGS skip_unavailable_shards = 1
     `,
       params: {
@@ -242,8 +282,8 @@ SETTINGS skip_unavailable_shards = 1
 
 /**
  * Merges per-service results. Services pointing at overlapping replicas can
- * return identical result sets; those are deduplicated wholesale before
- * counts are summed, mirroring the request-path fallback behavior.
+ * return identical per-endpoint totals with different tied topK caller
+ * partitions. Deduplicate those service results before counts are summed.
  */
 const mergeServiceRows = (
   serviceRowSets: HourUsageRow[][],
@@ -254,15 +294,59 @@ const mergeServiceRows = (
       (left, right) =>
         left.hourStart.localeCompare(right.hourStart) ||
         left.projectId.localeCompare(right.projectId) ||
-        left.route.localeCompare(right.route),
+        left.route.localeCompare(right.route) ||
+        left.sdkName.localeCompare(right.sdkName) ||
+        left.sdkVersion.localeCompare(right.sdkVersion) ||
+        left.userAgent.localeCompare(right.userAgent) ||
+        left.isOther - right.isOther,
     );
-    uniqueServiceResultSets.set(JSON.stringify(sortedRows), sortedRows);
+    const endpointTotals = new Map<
+      string,
+      {
+        hourStart: string;
+        projectId: string;
+        route: string;
+        count: number;
+        lastSeen: string;
+      }
+    >();
+    for (const row of sortedRows) {
+      const key = [row.hourStart, row.projectId, row.route].join("\u0000");
+      const existing = endpointTotals.get(key);
+      endpointTotals.set(key, {
+        hourStart: row.hourStart,
+        projectId: row.projectId,
+        route: row.route,
+        count: (existing?.count ?? 0) + Number(row.count),
+        lastSeen:
+          existing && existing.lastSeen > row.lastSeen
+            ? existing.lastSeen
+            : row.lastSeen,
+      });
+    }
+    const resultSetKey = JSON.stringify(
+      Array.from(endpointTotals.values()).sort(
+        (left, right) =>
+          left.hourStart.localeCompare(right.hourStart) ||
+          left.projectId.localeCompare(right.projectId) ||
+          left.route.localeCompare(right.route),
+      ),
+    );
+    uniqueServiceResultSets.set(resultSetKey, sortedRows);
   }
 
   const merged = new Map<string, MergedHourUsageRow>();
   for (const rows of uniqueServiceResultSets.values()) {
     for (const row of rows) {
-      const key = [row.hourStart, row.projectId, row.route].join("\u0000");
+      const key = [
+        row.hourStart,
+        row.projectId,
+        row.route,
+        row.sdkName,
+        row.sdkVersion,
+        row.userAgent,
+        row.isOther,
+      ].join("\u0000");
       const existing = merged.get(key);
       merged.set(
         key,
@@ -279,6 +363,10 @@ const mergeServiceRows = (
               hourStart: row.hourStart,
               projectId: row.projectId,
               route: row.route,
+              sdkName: row.sdkName,
+              sdkVersion: row.sdkVersion,
+              userAgent: row.userAgent,
+              isOther: row.isOther,
               count: Number(row.count),
               lastSeen: row.lastSeen,
             },
@@ -351,13 +439,50 @@ const buildHourBuckets = ({
         lastSeen: row.lastSeen,
       });
     } else {
-      bucket.apiRows.push({
-        projectId: row.projectId,
-        entrypoint: `publicapi: ${row.route}`,
+      const entrypoint = `publicapi: ${row.route}`;
+      const existing = bucket.apiRows.find(
+        (apiRow) =>
+          apiRow.projectId === row.projectId &&
+          apiRow.entrypoint === entrypoint,
+      );
+      const caller: V4LegacyApiCaller = {
+        ...(row.isOther
+          ? { isOther: true as const }
+          : {
+              ...(row.sdkName === "python" || row.sdkName === "javascript"
+                ? { sdkName: row.sdkName }
+                : {}),
+              ...(row.sdkVersion ? { sdkVersion: row.sdkVersion } : {}),
+              ...(row.userAgent ? { userAgent: row.userAgent } : {}),
+            }),
         count: row.count,
         lastSeen: row.lastSeen,
-      });
+      };
+      if (existing) {
+        existing.count += row.count;
+        existing.lastSeen =
+          existing.lastSeen > row.lastSeen ? existing.lastSeen : row.lastSeen;
+        existing.callers = mergeV4LegacyApiCallers(
+          [...(existing.callers ?? []), caller],
+          { maxCallers: null },
+        );
+      } else {
+        bucket.apiRows.push({
+          projectId: row.projectId,
+          entrypoint,
+          count: row.count,
+          lastSeen: row.lastSeen,
+          callers: [caller],
+        });
+      }
     }
+  }
+  for (const bucket of buckets.values()) {
+    bucket.apiRows.sort(
+      (left, right) =>
+        left.projectId.localeCompare(right.projectId) ||
+        left.entrypoint.localeCompare(right.entrypoint),
+    );
   }
   return buckets;
 };

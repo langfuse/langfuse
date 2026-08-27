@@ -19,7 +19,7 @@
  */
 
 const COLLAPSE_THRESHOLD_RATIO = 0.05;
-export const COLLAPSED_GAP_WIDTH_PX = 28;
+const COLLAPSED_GAP_WIDTH_PX = 28;
 /** Reserve room next to a bar for its duration label, so labels never land in a gap. */
 const DURATION_LABEL_BUFFER_PX = 48;
 const MARKER_PADDING_RATIO = 0.01;

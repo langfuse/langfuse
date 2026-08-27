@@ -39,7 +39,7 @@ export class ChbPaymentRequiredError extends ChbApiError {
   }
 }
 
-export const ChbScheduledChangeSchema = z.object({
+const ChbScheduledChangeSchema = z.object({
   type: z.string(), // "upgrade" | "downgrade" | "cancel"
   when: z.string(), // "immediate" | "billing_cycle_end" | ISO date
   planCode: z.string().nullish(),
@@ -47,7 +47,7 @@ export const ChbScheduledChangeSchema = z.object({
 });
 export type ChbScheduledChange = z.infer<typeof ChbScheduledChangeSchema>;
 
-export const ChbBundleSchema = z.object({
+const ChbBundleSchema = z.object({
   id: z.string(),
   plan: z
     .object({
@@ -75,7 +75,7 @@ export const ChbBundleSchema = z.object({
 });
 export type ChbBundle = z.infer<typeof ChbBundleSchema>;
 
-export const ChbCheckoutSessionSchema = z.object({
+const ChbCheckoutSessionSchema = z.object({
   url: z.string(),
   // ClickHouse Organization ID — persisted on the Langfuse org right away so a
   // checkout retry recovers the same CH org instead of orphaning one.
@@ -83,7 +83,7 @@ export const ChbCheckoutSessionSchema = z.object({
 });
 export type ChbCheckoutSession = z.infer<typeof ChbCheckoutSessionSchema>;
 
-export const ChbInvoiceSchema = z.object({
+const ChbInvoiceSchema = z.object({
   id: z.string().nullish(),
   number: z.string().nullish(),
   status: z.string().nullish(),
@@ -100,7 +100,7 @@ const ChbInvoiceListSchema = z.object({
   invoices: z.array(ChbInvoiceSchema).default([]),
 });
 
-export const ChbPortalSessionSchema = z.object({
+const ChbPortalSessionSchema = z.object({
   url: z.string(),
 });
 

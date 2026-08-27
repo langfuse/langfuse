@@ -1,6 +1,6 @@
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -160,12 +160,16 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowUp className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>K</KeyboardShortcut>}
+              {!compact && (
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut keys={["K"]} />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate up</span>
-            <InputCommandShortcut className="ml-2">K</InputCommandShortcut>
+            <InputCommandShortcut className="ml-2" keys={["K"]} />
           </TooltipContent>
         </Tooltip>
 
@@ -184,12 +188,16 @@ export const DetailPageNav = (props: {
               }}
             >
               <ArrowDown className="h-4 w-4" />
-              {!compact && <KeyboardShortcut>J</KeyboardShortcut>}
+              {!compact && (
+                <span className="hidden md:inline-flex">
+                  <KeyboardShortcut keys={["J"]} />
+                </span>
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             <span>Navigate down</span>
-            <InputCommandShortcut className="ml-2">J</InputCommandShortcut>
+            <InputCommandShortcut className="ml-2" keys={["J"]} />
           </TooltipContent>
         </Tooltip>
       </div>

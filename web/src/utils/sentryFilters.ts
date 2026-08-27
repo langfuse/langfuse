@@ -15,7 +15,7 @@ import { type ErrorEvent } from "@sentry/nextjs";
  * Matched by URL path SUFFIX so an optional `NEXT_PUBLIC_BASE_PATH` prefix
  * (e.g. `/self-hosted/api/auth/session`) still matches.
  */
-export const HTTP_CLIENT_NOISE_PATHS = [
+const HTTP_CLIENT_NOISE_PATHS = [
   "/api/auth/session", // NextAuth session poll (5-min interval + on window focus)
   // The two probes below are defensive/inert: they are only fetched by infra
   // liveness/readiness checks, never by the browser, so they cannot actually

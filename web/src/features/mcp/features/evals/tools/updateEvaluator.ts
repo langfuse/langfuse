@@ -12,7 +12,7 @@ export const [updateEvaluatorTool, handleUpdateEvaluator] = defineTool({
   name: "updateEvaluator",
   description: [
     "Update an evaluator by stable id. Definition changes append an immutable version; name and description changes do not.",
-    "Set type to `LLM_AS_JUDGE` and provide prompt + outputDefinition (provider, model, and modelParams are optional), or set type to `CODE` and provide sourceCode + sourceCodeLanguage.",
+    "Set type to `LLM_AS_JUDGE` and provide prompt + outputDefinition. Omit modelConfig to use the project default, or provide modelConfig with provider, model, and optional modelParams. For `CODE`, provide sourceCode + sourceCodeLanguage.",
   ].join(" "),
   baseSchema: McpUpdateEvaluatorInputBase,
   inputSchema: McpUpdateEvaluatorInput,

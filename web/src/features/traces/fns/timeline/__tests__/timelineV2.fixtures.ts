@@ -17,6 +17,8 @@ type SpanSpec = {
   durationMs: number | null;
   children?: SpanSpec[];
   latency?: number;
+  /** ms after the trace origin; the moment a streaming model produced its first token */
+  firstTokenMs?: number;
 };
 
 function toNode(spec: SpanSpec, path: string): LayoutNode {
@@ -31,6 +33,10 @@ function toNode(spec: SpanSpec, path: string): LayoutNode {
         ? null
         : new Date(BASE_START + spec.startMs + spec.durationMs),
     latency: spec.latency,
+    completionStartTime:
+      spec.firstTokenMs == null
+        ? null
+        : new Date(BASE_START + spec.firstTokenMs),
     children: (spec.children ?? []).map((child, index) =>
       toNode(child, `${path}.${index}`),
     ),
@@ -310,3 +316,23 @@ export const TIMELINE_SHAPES = {
 } satisfies Record<string, () => LayoutNode[]>;
 
 export type TimelineShapeKey = keyof typeof TIMELINE_SHAPES;
+
+/**
+ * One streaming model call: a quarter of its time waiting for the first token,
+ * the rest producing. The wide timeline splits such a bar into two shades; this
+ * is the shape that has to keep saying where the split is.
+ */
+export const streamingSpan = (): LayoutNode[] =>
+  build([
+    {
+      name: "chat.completion",
+      type: "GENERATION",
+      startMs: 0,
+      durationMs: 1000,
+      firstTokenMs: 250,
+      children: [
+        { name: "tokenize", startMs: 10, durationMs: 40 },
+        { name: "post-process", startMs: 900, durationMs: 80 },
+      ],
+    },
+  ]);

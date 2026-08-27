@@ -13,13 +13,13 @@ import {
   ParamPromptVersion,
 } from "../validation";
 
-export const PromptReadBaseSchema = z.object({
+const PromptReadBaseSchema = z.object({
   name: ParamPromptName,
   label: ParamPromptLabel,
   version: ParamPromptVersion,
 });
 
-export const PromptReadInputSchema = PromptReadBaseSchema.refine(
+const PromptReadInputSchema = PromptReadBaseSchema.refine(
   (data) => !(data.label && data.version),
   {
     message:
