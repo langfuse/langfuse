@@ -20,17 +20,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useState } from "react";
-import { getDatasetItemTabs } from "@/src/features/navigation/utils/dataset-item-tabs";
-import { type DatasetItemTab } from "@/src/features/navigation/utils/dataset-item-tabs";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import {
+  getDatasetItemTabs,
+  DATASET_ITEM_TABS,
+  type DatasetItemTab,
+} from "@/src/features/navigation/utils/dataset-item-tabs";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-
 export const DatasetItemDetailPage = ({
   activeTab,
   withPadding = true,
@@ -51,11 +51,13 @@ export const DatasetItemDetailPage = ({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { selectedVersion } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-  } = useExperimentAccess();
+
+  // The per-item "Experiments" (runs) tab reads legacy dataset_run_items and
+  // has no events-backed equivalent, so hide it for fast-preview (v4) users.
+  const { isExperimentsBetaActive } = useExperimentAccess();
+  const tabs = getDatasetItemTabs({ projectId, datasetId, itemId }).filter(
+    (tab) => !isExperimentsBetaActive || tab.value !== DATASET_ITEM_TABS.RUNS,
+  );
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -139,7 +141,7 @@ export const DatasetItemDetailPage = ({
           },
         ],
         tabsProps: {
-          tabs: getDatasetItemTabs({ projectId, datasetId, itemId }),
+          tabs,
           activeTab,
         },
         actionButtonsLeft: (
@@ -157,7 +159,7 @@ export const DatasetItemDetailPage = ({
                 <PopoverContent className="w-80" align="start" side="bottom">
                   <div className="flex flex-col gap-4">
                     <div className="space-y-2">
-                      <h4 className="leading-none font-medium">
+                      <h4 className="leading-none font-bold">
                         {item.data.status === DatasetStatus.ACTIVE
                           ? "Archive this item?"
                           : "Unarchive this item?"}
@@ -202,12 +204,6 @@ export const DatasetItemDetailPage = ({
         ),
         actionButtonsRight: (
           <>
-            {canUseExperimentsBetaToggle && (
-              <ExperimentsBetaSwitch
-                enabled={isExperimentsBetaEnabled}
-                onEnabledChange={setExperimentsBetaEnabled}
-              />
-            )}
             <DetailPageNav
               currentId={itemId}
               path={(entry) =>

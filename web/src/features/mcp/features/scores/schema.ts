@@ -1,9 +1,19 @@
-import { ScoreConfigNameSchema } from "@langfuse/shared";
+import {
+  SCORE_CONFIG_NAME_MAX_LENGTH,
+  SCORE_CONFIG_NAME_MIN_LENGTH,
+} from "@langfuse/shared";
 import { z } from "zod";
 
-const McpScoreConfigNameSchema = ScoreConfigNameSchema.describe(
-  "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
-);
+// Deliberately not reusing ScoreConfigNameSchema: its Unicode-aware regex is
+// not representable in MCP JSON Schema, character rules are
+// still enforced at runtime via the strict input schemas.
+const McpScoreConfigNameSchema = z
+  .string()
+  .min(SCORE_CONFIG_NAME_MIN_LENGTH)
+  .max(SCORE_CONFIG_NAME_MAX_LENGTH)
+  .describe(
+    "Allowed characters: letters, numbers, spaces, underscores, periods, parentheses, and hyphens.",
+  );
 
 const McpScoreConfigNumericMinValueSchema = z
   .number()

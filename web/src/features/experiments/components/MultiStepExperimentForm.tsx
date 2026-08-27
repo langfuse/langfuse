@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import {
@@ -16,7 +16,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/src/components/ui/dialog";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CircleX } from "lucide-react";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
@@ -28,6 +28,8 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
+import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
+import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -47,9 +49,33 @@ import { DatasetStep } from "./steps/DatasetStep";
 import { EvaluatorsStep } from "./steps/EvaluatorsStep";
 import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
+import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import { canNavigateToExperimentStep } from "@/src/features/experiments/fns/canNavigateToExperimentStep";
 
 // Import step prop types
-import { PromptType } from "@langfuse/shared";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  PromptType,
+} from "@langfuse/shared";
+
+const LegacyExperimentNameValidation = ({
+  projectId,
+  datasetId,
+  form,
+}: {
+  projectId: string;
+  datasetId: string;
+  form: UseFormReturn<any>;
+}) => {
+  useExperimentNameValidation({
+    projectId,
+    datasetId,
+    form,
+  });
+
+  return null;
+};
 
 export const MultiStepExperimentForm = ({
   projectId,
@@ -58,6 +84,8 @@ export const MultiStepExperimentForm = ({
   promptDefault,
   handleExperimentSettled,
   handleExperimentSuccess,
+  enableLegacyNameValidation = false,
+  useV2Evaluators = false,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
@@ -78,9 +106,14 @@ export const MultiStepExperimentForm = ({
     runId: string;
     runName: string;
   }) => Promise<void>;
+  enableLegacyNameValidation?: boolean;
+  useV2Evaluators?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
+  const evaluatorAssignmentsRef =
+    useRef<ExperimentEvaluatorAssignmentsHandle>(null);
+  const [hasAttemptedReview, setHasAttemptedReview] = useState(false);
   const [selectedPromptName, setSelectedPromptName] = useState<string>(
     promptDefault?.name ?? "",
   );
@@ -110,6 +143,15 @@ export const MultiStepExperimentForm = ({
     projectId,
     scope: "evalJob:read",
   });
+
+  const hasEvaluatorReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  const canReadEvaluators = useV2Evaluators
+    ? hasEvaluatorReadAccess
+    : hasEvalReadAccess;
 
   const hasEvalWriteAccess = useHasProjectAccess({
     projectId,
@@ -144,23 +186,20 @@ export const MultiStepExperimentForm = ({
       targetObject: ["dataset", "experiment"],
     },
     {
-      enabled: hasEvalReadAccess && !!datasetId,
+      enabled: !useV2Evaluators && hasEvalReadAccess && !!datasetId,
     },
   );
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
     {
-      enabled: hasEvalReadAccess,
+      enabled: !useV2Evaluators && hasEvalReadAccess,
     },
   );
 
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -174,12 +213,12 @@ export const MultiStepExperimentForm = ({
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
   });
-
   const {
     promptId: promptIdFromHook,
     promptsByName,
     expectedColumns,
     selectedPromptModelConfig,
+    selectedPromptToolConfig,
   } = useExperimentPromptData({
     projectId,
     form,
@@ -202,12 +241,6 @@ export const MultiStepExperimentForm = ({
           model: selectedPromptModelConfig.model,
         }
       : null,
-  });
-
-  useExperimentNameValidation({
-    projectId,
-    datasetId,
-    form,
   });
 
   // Watch model config changes and update form
@@ -262,6 +295,14 @@ export const MultiStepExperimentForm = ({
       enabled: true,
     },
   );
+  const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+  const v2EvaluatorSelection = useExperimentV2EvaluatorSelection({
+    projectId,
+    datasetId,
+    datasetName: selectedDataset?.name,
+    enabled: useV2Evaluators && hasEvaluatorReadAccess,
+    canWrite: hasEvalWriteAccess,
+  });
 
   // Callback for preprocessing evaluator form values
   // For new experiment evaluators (beta enabled), we only run on new data (not historic)
@@ -271,6 +312,19 @@ export const MultiStepExperimentForm = ({
   };
 
   const onSubmit = async (data: CreateExperiment) => {
+    if (
+      hasPromptToolStructuredOutputConflict(
+        selectedPromptToolConfig,
+        Boolean(data.structuredOutputSchema),
+      )
+    ) {
+      showErrorToast(
+        PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+        "Disable structured output or choose a prompt without tools.",
+      );
+      return;
+    }
+
     capture("dataset_run:new_form_submit");
     const experiment = {
       ...data,
@@ -295,7 +349,7 @@ export const MultiStepExperimentForm = ({
       selectedPromptVersion,
       selectedDataset.name,
     );
-    form.setValue("name", defaultName);
+    form.setValue("name", defaultName, { shouldValidate: true });
 
     const defaultDescription = generateDefaultExperimentDescription(
       selectedPromptName,
@@ -323,13 +377,18 @@ export const MultiStepExperimentForm = ({
   }, [experimentName, form]);
 
   // Get evaluator names for review step
-  const activeEvaluatorNames =
-    evalTemplates.data?.templates
-      .filter((t) => activeEvaluators.includes(t.id))
-      .map((t) => t.name) ?? [];
+  const activeEvaluatorNames = useV2Evaluators
+    ? v2EvaluatorSelection.selectedEvaluatorNames
+    : Object.values(getExistingEvaluators(evaluators.data, datasetId))
+        .filter((evaluator) => evaluator.isActive)
+        .map((evaluator) => evaluator.templateName);
 
-  // Get dataset info for review step
-  const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
+  const isDatasetValidationPending =
+    Boolean(promptIdFromHook && datasetId) && validationResult.isPending;
 
   // Step validation function
   const isStepValid = (stepId: string): boolean => {
@@ -339,6 +398,7 @@ export const MultiStepExperimentForm = ({
           form.getValues("promptId") &&
           modelParams.provider.value &&
           modelParams.model.value &&
+          !hasToolStructuredOutputConflict &&
           !form.formState.errors.promptId &&
           !form.formState.errors.modelConfig
         );
@@ -363,23 +423,91 @@ export const MultiStepExperimentForm = ({
     }
   };
 
+  const canNavigateToStep = (stepId: string) =>
+    canNavigateToExperimentStep({
+      targetStepId: stepId,
+      useV2Evaluators,
+      isLoadingAssignments: v2EvaluatorSelection.isLoadingAssignments,
+    });
+
+  const handleStepChange = (stepId: string) => {
+    if (!canNavigateToStep(stepId)) return;
+
+    if (stepId === "review") {
+      setHasAttemptedReview(true);
+    }
+    setActiveStep(stepId);
+  };
+
+  const handleNextStep = async () => {
+    if (activeStep === "evaluators" && useV2Evaluators) {
+      await evaluatorAssignmentsRef.current?.save();
+    }
+
+    const stepIds = steps.map((step) => step.id);
+    const currentIndex = stepIds.indexOf(activeStep);
+    if (currentIndex < steps.length - 1) {
+      handleStepChange(stepIds[currentIndex + 1]);
+    }
+  };
+
+  const renderStepStatusIcon = (stepId: string, stepLabel: string) => {
+    if (stepId === "dataset" && isDatasetValidationPending) {
+      return null;
+    }
+
+    if (isStepValid(stepId)) {
+      return <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />;
+    }
+
+    if (
+      hasAttemptedReview &&
+      ["prompt", "dataset", "details"].includes(stepId)
+    ) {
+      return (
+        <CircleX
+          aria-label={`${stepLabel} has errors`}
+          className="mr-1.5 h-3.5 w-3.5 text-red-500"
+        />
+      );
+    }
+
+    return null;
+  };
+
+  const invalidRequiredStepLabels = steps
+    .filter((step) => ["prompt", "dataset", "details"].includes(step.id))
+    .filter((step) => step.id !== "dataset" || !isDatasetValidationPending)
+    .filter((step) => !isStepValid(step.id))
+    .map((step) => step.label);
+  const reviewErrorMessage =
+    invalidRequiredStepLabels.length === 0
+      ? undefined
+      : invalidRequiredStepLabels.length === 1
+        ? `Complete the ${invalidRequiredStepLabels[0]} step before running the experiment.`
+        : `Complete the following steps before running the experiment: ${invalidRequiredStepLabels.join(", ")}.`;
+
   if (
     !promptsByName ||
     !datasets.data ||
-    (hasEvalReadAccess && !!datasetId && !evaluators.data)
+    (canReadEvaluators &&
+      (useV2Evaluators
+        ? v2EvaluatorSelection.isPending
+        : !!datasetId && !evaluators.data))
   ) {
     return <Skeleton className="min-h-[70dvh] w-full" />;
   }
 
   // Prepare grouped props
   const formState = { form: form as UseFormReturn<CreateExperiment> };
-  const navigationState = { setActiveStep };
+  const navigationState = { setActiveStep: handleStepChange };
   const promptModelState = {
     selectedPromptName,
     setSelectedPromptName,
     selectedPromptVersion,
     setSelectedPromptVersion,
     promptsByName,
+    selectedPromptToolConfig,
   };
   const modelState = {
     modelParams,
@@ -407,22 +535,34 @@ export const MultiStepExperimentForm = ({
       outputVariableName: "expected_output",
     },
   };
-  const evaluatorState = {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
-    evalTemplates: evalTemplates.data?.templates ?? [],
-    activeEvaluatorNames,
-    selectedEvaluatorData,
-    showEvaluatorForm,
-    handleConfigureEvaluator,
-    handleCloseEvaluatorForm,
-    handleEvaluatorSuccess,
-    handleSelectEvaluator,
-    handleEvaluatorToggled: () => evaluators.refetch(),
-    preprocessFormValues,
+  const evaluatorState = useV2Evaluators
+    ? {
+        version: "v2" as const,
+        evaluatorOptions: v2EvaluatorSelection.options,
+        selectedAssignments: v2EvaluatorSelection.selectedAssignments,
+        activeEvaluatorNames,
+        search: v2EvaluatorSelection.search,
+        onSearchChange: v2EvaluatorSelection.onSearchChange,
+        onSaveAssignments: v2EvaluatorSelection.onSaveAssignments,
+        isLoadingAssignments: v2EvaluatorSelection.isLoadingAssignments,
+        isUpdating: v2EvaluatorSelection.isUpdating,
+      }
+    : {
+        version: "legacy" as const,
+        evalTemplates: evalTemplates.data?.templates ?? [],
+        activeEvaluatorNames,
+        selectedEvaluatorData,
+        showEvaluatorForm,
+        handleConfigureEvaluator,
+        handleCloseEvaluatorForm,
+        handleEvaluatorSuccess,
+        handleSelectEvaluator,
+        preprocessFormValues,
+      };
+  const permissions = {
+    hasEvalReadAccess: canReadEvaluators,
+    hasEvalWriteAccess,
   };
-  const permissions = { hasEvalReadAccess, hasEvalWriteAccess };
   const reviewSummary = {
     selectedPromptName,
     selectedPromptVersion,
@@ -451,36 +591,47 @@ export const MultiStepExperimentForm = ({
           to learn more.
         </DialogDescription>
       </DialogHeader>
+      {enableLegacyNameValidation && (
+        <LegacyExperimentNameValidation
+          projectId={projectId}
+          datasetId={datasetId}
+          form={form}
+        />
+      )}
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
             <Breadcrumb className="mb-6 w-full">
               <BreadcrumbList className="flex w-full justify-between sm:justify-start">
-                {steps.map((step, index) => (
-                  <React.Fragment key={step.id}>
-                    <BreadcrumbItem>
-                      {step.id === activeStep ? (
-                        <BreadcrumbPage className="flex items-center">
-                          {isStepValid(step.id) && (
-                            <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-                          )}
-                          {step.label}
-                        </BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink
-                          onClick={() => setActiveStep(step.id)}
-                          className="flex cursor-pointer items-center"
-                        >
-                          {isStepValid(step.id) && (
-                            <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
-                          )}
-                          {step.label}
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                    {index < steps.length - 1 && <BreadcrumbSeparator />}
-                  </React.Fragment>
-                ))}
+                {steps.map((step, index) => {
+                  const isNavigationDisabled = !canNavigateToStep(step.id);
+                  return (
+                    <React.Fragment key={step.id}>
+                      <BreadcrumbItem>
+                        {step.id === activeStep ? (
+                          <BreadcrumbPage className="flex items-center">
+                            {renderStepStatusIcon(step.id, step.label)}
+                            {step.label}
+                          </BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink
+                            aria-disabled={isNavigationDisabled}
+                            onClick={() => handleStepChange(step.id)}
+                            className={`flex items-center ${
+                              isNavigationDisabled
+                                ? "pointer-events-none opacity-50"
+                                : "cursor-pointer"
+                            }`}
+                          >
+                            {renderStepStatusIcon(step.id, step.label)}
+                            {step.label}
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                      {index < steps.length - 1 && <BreadcrumbSeparator />}
+                    </React.Fragment>
+                  );
+                })}
               </BreadcrumbList>
             </Breadcrumb>
 
@@ -511,6 +662,8 @@ export const MultiStepExperimentForm = ({
                 <EvaluatorsStep
                   projectId={projectId}
                   datasetId={datasetId}
+                  datasetVersion={datasetVersion}
+                  evaluatorAssignmentsRef={evaluatorAssignmentsRef}
                   evaluatorState={evaluatorState}
                   permissions={permissions}
                 />
@@ -524,6 +677,7 @@ export const MultiStepExperimentForm = ({
                 <ReviewStep
                   formState={formState}
                   navigationState={navigationState}
+                  errorMessage={reviewErrorMessage}
                   summary={reviewSummary}
                 />
               )}
@@ -540,7 +694,7 @@ export const MultiStepExperimentForm = ({
                   const stepIds = steps.map((s) => s.id);
                   const currentIndex = stepIds.indexOf(activeStep);
                   if (currentIndex > 0) {
-                    setActiveStep(stepIds[currentIndex - 1]);
+                    handleStepChange(stepIds[currentIndex - 1]);
                   }
                 }}
                 disabled={activeStep === "prompt"}
@@ -555,12 +709,16 @@ export const MultiStepExperimentForm = ({
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
-                      const stepIds = steps.map((s) => s.id);
-                      const currentIndex = stepIds.indexOf(activeStep);
-                      if (currentIndex < steps.length - 1) {
-                        setActiveStep(stepIds[currentIndex + 1]);
-                      }
+                      handleNextStep().catch(() => {
+                        // The evaluator mutation displays its own error toast.
+                      });
                     }}
+                    loading={
+                      activeStep === "evaluators" &&
+                      useV2Evaluators &&
+                      (v2EvaluatorSelection.isLoadingAssignments ||
+                        v2EvaluatorSelection.isUpdating)
+                    }
                   >
                     Next
                     <ChevronRight className="ml-2 h-4 w-4" />
@@ -568,11 +726,7 @@ export const MultiStepExperimentForm = ({
                 ) : (
                   <Button
                     type="submit"
-                    disabled={
-                      (Boolean(promptIdFromHook && datasetId) &&
-                        !validationResult.data?.isValid) ||
-                      !!form.formState.errors.name
-                    }
+                    disabled={!isStepValid("review")}
                     loading={form.formState.isSubmitting}
                   >
                     Run Experiment

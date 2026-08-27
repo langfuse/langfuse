@@ -1,0 +1,106 @@
+name: AWS preview deployment cleanup
+
+# Closing/merging is what tears the real preview down: the Argo CD
+# ApplicationSet only generates Applications for OPEN labeled PRs. This
+# workflow separately removes the PR's native GitHub deployment records from
+# the shared `PR Preview` environment so GitHub does not advertise a dead URL.
+#
+# Safe triggers: plain `pull_request` close / label removal with no checkout,
+# no PR-code execution, and no cloud credentials. It only mutates deployment
+# records, so it stays off zizmor's dangerous-triggers list.
+on:
+  pull_request:
+    types: [closed, unlabeled]
+
+permissions: {}
+
+concurrency:
+  # Same queue-time reason as preview-build.yml: only runs that clean up join
+  # its `preview-build-<n>` group (verbatim match = cancel-on-close), so an
+  # unrelated `unlabeled` event can't kill a live build. That cancel only
+  # narrows the notify race; the real guard is `needs.build.result == 'success'`
+  # on preview-build's deployment step.
+  group: >-
+    ${{ (github.event.action == 'closed' || github.event.label.name == 'preview')
+        && format('preview-build-{0}', github.event.pull_request.number)
+        || format('preview-cleanup-noop-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    name: Delete preview deployment records
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the preview-system feature flag (same
+    # gate as preview-build / preview-autolabel): unset => system off, no
+    # deployments were ever recorded.
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      (github.event.action == 'closed' || github.event.label.name == 'preview')
+    permissions:
+      deployments: write
+    steps:
+      - name: Retire and delete PR deployments
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_TASK: preview-pr-${{ github.event.pull_request.number }}
+          LEGACY_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            // Environment + task must stay byte-identical to preview-build.yml
+            // and preview-stale-cleanup.yml, or listDeployments matches nothing
+            // and this logs success while dead records pile up.
+            const task = process.env.PREVIEW_TASK;
+
+            // TRANSITIONAL (added 2026-07-27, drop once every PR opened before
+            // that date has closed): PRs predating the shared environment
+            // recorded into a per-PR `pr-<n>` environment under the default
+            // `deploy` task, which the query above cannot see — so without this
+            // their still-active record would advertise a dead URL forever.
+            // Omitting `task` matches every task in that environment.
+            const deployments = [
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment: "PR Preview",
+                task,
+                per_page: 100,
+              })),
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment: process.env.LEGACY_ENVIRONMENT,
+                per_page: 100,
+              })),
+            ];
+            if (deployments.length === 0) {
+              core.info(`No deployments recorded for ${task}; nothing to delete.`);
+              return;
+            }
+
+            // Isolate failures per deployment (same pattern as the stale-cleanup
+            // sweep): one transient 5xx must not skip the rest, and partial
+            // failure should surface as a failed run rather than silent green.
+            let failures = 0;
+            for (const deployment of deployments) {
+              try {
+                await github.rest.repos.createDeploymentStatus({
+                  owner,
+                  repo,
+                  deployment_id: deployment.id,
+                  state: "inactive",
+                });
+                await github.rest.repos.deleteDeployment({
+                  owner,
+                  repo,
+                  deployment_id: deployment.id,
+                });
+              } catch (e) {
+                failures++;
+                core.warning(`Deployment ${deployment.id}: ${e.message} — continuing`);
+              }
+            }
+            core.info(`Deleted ${deployments.length - failures} of ${deployments.length} deployment(s) for ${task}.`);
+            if (failures) {
+              core.setFailed(`${failures} of ${deployments.length} deployment(s) could not be deleted.`);
+            }

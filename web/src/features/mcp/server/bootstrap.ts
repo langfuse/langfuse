@@ -10,7 +10,7 @@
  * 3. Call toolRegistry.register(featureModule)
  */
 
-import { toolRegistry } from "./registry";
+import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "../features/prompts";
 import { observationsFeature } from "../features/observations";
 import { annotationQueuesFeature } from "../features/annotationQueues";
@@ -21,9 +21,32 @@ import { scoresFeature } from "../features/scores";
 import { metricsFeature } from "../features/metrics";
 import { modelsFeature } from "../features/models";
 import { mediaFeature } from "../features/media";
-// Import future features as they're added:
-// import { tracesFeature } from "../features/traces";
-// import { evalsFeature } from "../features/evals";
+import { evalsFeature } from "../features/evals";
+import { dashboardWidgetsFeature } from "../features/dashboardWidgets";
+import { feedbackFeature } from "../features/feedback";
+import { experimentsFeature } from "../features/experiments";
+import { monitorsFeature } from "../features/monitors";
+
+const MCP_FEATURES = [
+  promptsFeature,
+  observationsFeature,
+  annotationQueuesFeature,
+  commentsFeature,
+  datasetsFeature,
+  healthFeature,
+  scoresFeature,
+  metricsFeature,
+  modelsFeature,
+  mediaFeature,
+  evalsFeature,
+  dashboardWidgetsFeature,
+  feedbackFeature,
+  experimentsFeature,
+  monitorsFeature,
+] as const satisfies readonly McpFeatureModule[];
+
+export type McpFeature = (typeof MCP_FEATURES)[number];
+export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**
  * Bootstrap all MCP features
@@ -33,20 +56,9 @@ import { mediaFeature } from "../features/media";
  */
 export function bootstrapMcpFeatures(): void {
   // Register all feature modules
-  toolRegistry.register(promptsFeature);
-  toolRegistry.register(observationsFeature);
-  toolRegistry.register(annotationQueuesFeature);
-  toolRegistry.register(commentsFeature);
-  toolRegistry.register(datasetsFeature);
-  toolRegistry.register(healthFeature);
-  toolRegistry.register(scoresFeature);
-  toolRegistry.register(metricsFeature);
-  toolRegistry.register(modelsFeature);
-  toolRegistry.register(mediaFeature);
-
-  // Add future features here:
-  // toolRegistry.register(tracesFeature);
-  // toolRegistry.register(evalsFeature);
+  for (const feature of MCP_FEATURES) {
+    toolRegistry.register(feature);
+  }
 }
 
 /**

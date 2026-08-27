@@ -1,1127 +1,552 @@
 import type * as PrismaClientModule from "@prisma/client";
 import type { Mock } from "vitest";
 
-const mockEvalTemplateCreate = vi.fn();
-const mockEvalTemplateFindMany = vi.fn();
-const mockJobConfigurationFindMany = vi.fn();
-const mockJobConfigurationUpdate = vi.fn();
-
-vi.mock(
-  "../../../features/evals/server/unstable-public-api/validation",
-  async () => {
-    const actual = await vi.importActual(
-      "../../../features/evals/server/unstable-public-api/validation",
-    );
-
-    return {
-      ...actual,
-      assertEvaluatorDefinitionCanRunForPublicApi: vi.fn(),
-    };
-  },
-);
-
-vi.mock("../../../features/evals/server/unstable-public-api/queries", () => ({
-  countActiveEvaluationRules: vi.fn(),
-  findPublicEvaluatorTemplateOrThrow: vi.fn(),
-  countEvaluationRulesForEvaluator: vi.fn(),
-  countEvaluationRulesForEvaluatorIds: vi.fn(),
-  listPublicEvaluatorTemplates: vi.fn(),
-  loadEvaluatorForEvaluationRule: vi.fn(),
-  findPublicEvaluationRuleOrThrow: vi.fn(),
-}));
-
-vi.mock("@langfuse/shared/src/server", async () => ({
-  ...(await vi.importActual("@langfuse/shared/src/server")),
-  invalidateProjectEvalConfigCaches: vi.fn(),
-  ClickHouseClientManager: {
-    getInstance: () => ({
-      closeAllConnections: vi.fn().mockResolvedValue(undefined),
-    }),
-  },
-  logger: {
-    debug: vi.fn(),
-  },
-}));
-
-vi.mock("@langfuse/shared/src/db", async () => {
-  const { EvalTemplateType } =
-    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
-
-  return {
-    EvalTemplateType,
-    Prisma: {
-      PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
-        code: string;
-        clientVersion: string;
-
-        constructor(
-          message: string,
-          {
-            code,
-            clientVersion,
-          }: {
-            code: string;
-            clientVersion: string;
-          },
-        ) {
-          super(message);
-          this.code = code;
-          this.clientVersion = clientVersion;
-        }
-      },
-    },
-    prisma: {
-      $transaction: vi.fn(),
-      dataset: {
-        findMany: vi.fn(),
-      },
-      jobConfiguration: {
-        findFirst: vi.fn(),
-        create: vi.fn(),
-        update: vi.fn(),
-      },
-    },
-  };
-});
-
-import {
-  createNumericEvalOutputDefinition,
-  EvalTargetObject,
-  JobConfigState,
-} from "@langfuse/shared";
-import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
-import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
-import {
-  createPublicEvaluationRule,
-  updatePublicEvaluationRule,
-} from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
-import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api/evaluator-service";
-import * as queryModule from "@/src/features/evals/server/unstable-public-api/queries";
-import * as validationModule from "@/src/features/evals/server/unstable-public-api/validation";
-
-const numericOutputDefinition = createNumericEvalOutputDefinition({
-  reasoningDescription: "Why the score was assigned",
-  scoreDescription: "A score between 0 and 1",
-});
-
-const projectTemplate = {
-  id: "tmpl_project_v2",
-  projectId: "project_123",
-  name: "Answer correctness",
-  version: 2,
-  prompt: "Judge {{input}}",
-  partner: null,
-  provider: null,
-  model: null,
-  modelParams: null,
-  vars: ["input"],
-  outputDefinition: numericOutputDefinition,
-  createdAt: new Date("2026-03-30T08:00:00.000Z"),
-  updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-};
-
-const managedTemplate = {
-  id: "tmpl_managed",
-  projectId: null,
-  name: "Answer correctness",
-  version: 7,
-  prompt: "Judge {{input}}",
-  partner: "ragas",
-  provider: null,
-  model: null,
-  modelParams: null,
-  vars: ["input"],
-  outputDefinition: numericOutputDefinition,
-  createdAt: new Date("2026-03-30T08:00:00.000Z"),
-  updatedAt: new Date("2026-03-30T08:00:00.000Z"),
-};
-
-const mockedPrisma = prisma as unknown as {
-  $transaction: Mock;
-  dataset: {
-    findMany: Mock;
-  };
-  jobConfiguration: {
-    findFirst: Mock;
-    create: Mock;
-    update: Mock;
-  };
-};
-const mockAssertEvaluatorDefinitionCanRunForPublicApi = vi.mocked(
-  validationModule.assertEvaluatorDefinitionCanRunForPublicApi,
-);
-const mockLoadEvaluatorForEvaluationRule = vi.mocked(
-  queryModule.loadEvaluatorForEvaluationRule,
-);
-const mockCountActiveEvaluationRules = vi.mocked(
-  queryModule.countActiveEvaluationRules,
-);
-const mockFindPublicEvaluationRuleOrThrow = vi.mocked(
-  queryModule.findPublicEvaluationRuleOrThrow,
-);
-const mockCountEvaluationRulesForEvaluator = vi.mocked(
-  queryModule.countEvaluationRulesForEvaluator,
-);
-
-const createEvaluationRuleRecord = (overrides?: Record<string, unknown>) =>
-  ({
-    id: "ceval_123",
-    projectId: "project_123",
-    evalTemplateId: "tmpl_project_v2",
-    scoreName: "answer_quality",
-    targetObject: EvalTargetObject.EVENT,
-    filter: [],
-    variableMapping: [
-      {
-        templateVariable: "input",
-        selectedColumnId: "input",
-        jsonSelector: null,
-      },
-    ],
-    sampling: 1,
-    status: JobConfigState.ACTIVE,
+const { evaluator, codeEvaluator } = vi.hoisted(() => ({
+  codeEvaluator: {
+    id: "code-evaluator",
+    projectId: "project",
+    name: "Toxicity",
+    type: "CODE" as const,
+    description: null,
+    createdByUserId: null,
     blockedAt: null,
     blockReason: null,
     blockMessage: null,
-    createdAt: new Date("2026-03-30T08:00:00.000Z"),
-    updatedAt: new Date("2026-03-30T09:00:00.000Z"),
-    evalTemplate: {
-      id: "tmpl_project_v2",
-      projectId: "project_123",
-      name: "Answer correctness",
-      vars: ["input"],
-      prompt: "Judge {{input}}",
-    },
-    ...overrides,
-  }) as any;
-
-describe("unstable public eval services", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockCountActiveEvaluationRules.mockResolvedValue(0);
-    mockCountEvaluationRulesForEvaluator.mockResolvedValue(0);
-    mockedPrisma.dataset.findMany.mockResolvedValue([]);
-
-    mockedPrisma.$transaction.mockImplementation(async (callback) =>
-      callback({
-        evalTemplate: {
-          create: mockEvalTemplateCreate,
-          findMany: mockEvalTemplateFindMany,
-        },
-        jobConfiguration: {
-          findMany: mockJobConfigurationFindMany,
-          update: mockJobConfigurationUpdate,
-        },
-      }),
-    );
-  });
-
-  it("rejects unrunnable evaluator submissions before writing", async () => {
-    mockAssertEvaluatorDefinitionCanRunForPublicApi.mockRejectedValueOnce(
-      createUnstablePublicApiError({
-        httpCode: 422,
-        code: "evaluator_preflight_failed",
-        message: "No valid LLM model found for evaluator",
-      }),
-    );
-
-    await expect(
-      createPublicEvaluator({
-        projectId: "project_123",
-        input: {
-          name: "Answer correctness",
-          prompt: "Judge {{input}}",
-          outputDefinition: numericOutputDefinition,
-        },
-      }),
-    ).rejects.toThrow("No valid LLM model found for evaluator");
-
-    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
-    expect(mockEvalTemplateCreate).not.toHaveBeenCalled();
-  });
-
-  it("creates a new project-owned evaluator family at version 1", async () => {
-    mockEvalTemplateFindMany.mockResolvedValueOnce([]);
-    mockEvalTemplateCreate.mockResolvedValueOnce({
-      ...projectTemplate,
-      id: "tmpl_project_v1",
-      version: 1,
-      createdAt: new Date("2026-03-31T08:00:00.000Z"),
-      updatedAt: new Date("2026-03-31T08:00:00.000Z"),
-    });
-
-    const result = await createPublicEvaluator({
-      projectId: "project_123",
-      input: {
-        name: "Answer correctness",
-        prompt: "Judge {{input}}",
-        outputDefinition: numericOutputDefinition,
-      },
-    });
-
-    expect(mockEvalTemplateFindMany).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        name: "Answer correctness",
-        type: EvalTemplateType.LLM_AS_JUDGE,
-      },
-      select: {
-        id: true,
-        version: true,
-      },
-      orderBy: [
-        {
-          version: "desc",
-        },
-        {
-          createdAt: "desc",
-        },
-        {
-          id: "desc",
-        },
-      ],
-    });
-    expect(mockEvalTemplateCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        projectId: "project_123",
-        name: "Answer correctness",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    versions: [
+      {
+        id: "code-version",
+        evaluatorId: "code-evaluator",
         version: 1,
-      }),
-    });
-    expect(mockJobConfigurationFindMany).not.toHaveBeenCalled();
-    expect(mockJobConfigurationUpdate).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      id: "tmpl_project_v1",
-      version: 1,
-      scope: "project",
-    });
-  });
-
-  it("creates a new evaluator version when the project name already exists", async () => {
-    mockCountEvaluationRulesForEvaluator.mockResolvedValueOnce(2);
-    mockEvalTemplateFindMany.mockResolvedValueOnce([
-      {
-        id: "tmpl_project_v2",
-        version: 2,
+        createdAt: new Date("2026-01-01"),
+        createdByUserId: null,
+        prompt: null,
+        partner: null,
+        provider: null,
+        model: null,
+        modelParams: null,
+        vars: [],
+        variableMapping: null,
+        outputDefinition: null,
+        sourceCode: "def evaluate(ctx): return []",
+        sourceCodeLanguage: "PYTHON" as const,
       },
+    ],
+  },
+  evaluator: {
+    id: "evaluator",
+    projectId: "project",
+    name: "Quality",
+    type: "LLM_AS_JUDGE" as const,
+    description: null,
+    createdByUserId: null,
+    blockedAt: null,
+    blockReason: null,
+    blockMessage: null,
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    versions: [
       {
-        id: "tmpl_project_v1",
+        id: "version",
+        evaluatorId: "evaluator",
         version: 1,
-      },
-    ]);
-    mockJobConfigurationFindMany.mockResolvedValueOnce([
-      {
-        id: "ceval_123",
-        scoreName: "answer_quality",
-        targetObject: EvalTargetObject.EVENT,
+        createdAt: new Date("2026-01-01"),
+        createdByUserId: null,
+        prompt: "Judge {{output}}",
+        partner: null,
+        provider: "openai",
+        model: "gpt-4o-mini",
+        modelParams: {},
+        vars: ["output"],
         variableMapping: [
-          {
-            templateVariable: "input",
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        ],
-      },
-    ]);
-    mockEvalTemplateCreate.mockResolvedValueOnce({
-      ...projectTemplate,
-      id: "tmpl_project_v3",
-      version: 3,
-    });
-
-    const result = await createPublicEvaluator({
-      projectId: "project_123",
-      input: {
-        name: "Answer correctness",
-        prompt: "Judge {{input}}",
-        outputDefinition: numericOutputDefinition,
-      },
-    });
-
-    expect(mockEvalTemplateCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        projectId: "project_123",
-        name: "Answer correctness",
-        version: 3,
-      }),
-    });
-    expect(mockJobConfigurationFindMany).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        evalTemplateId: {
-          in: ["tmpl_project_v2", "tmpl_project_v1"],
-        },
-        evalTemplate: {
-          is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
-          },
-        },
-      },
-      select: {
-        id: true,
-        scoreName: true,
-        targetObject: true,
-        variableMapping: true,
-      },
-    });
-    expect(mockJobConfigurationUpdate).toHaveBeenCalledWith({
-      where: {
-        id: "ceval_123",
-        projectId: "project_123",
-      },
-      data: {
-        evalTemplateId: "tmpl_project_v3",
-        variableMapping: [
-          {
-            templateVariable: "input",
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        ],
-      },
-    });
-    expect(result).toMatchObject({
-      id: "tmpl_project_v3",
-      version: 3,
-      scope: "project",
-      evaluationRuleCount: 2,
-    });
-  });
-
-  it("preserves legacy trace mapping fields when auto-upgrading linked evaluators", async () => {
-    mockEvalTemplateFindMany.mockResolvedValueOnce([
-      {
-        id: "tmpl_project_v2",
-        version: 2,
-      },
-    ]);
-    mockJobConfigurationFindMany.mockResolvedValueOnce([
-      {
-        id: "ceval_legacy_trace",
-        scoreName: "answer_quality",
-        targetObject: EvalTargetObject.TRACE,
-        variableMapping: [
-          {
-            templateVariable: "input",
-            langfuseObject: "trace",
-            objectName: null,
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        ],
-      },
-    ]);
-    mockEvalTemplateCreate.mockResolvedValueOnce({
-      ...projectTemplate,
-      id: "tmpl_project_v3",
-      version: 3,
-    });
-
-    await createPublicEvaluator({
-      projectId: "project_123",
-      input: {
-        name: "Answer correctness",
-        prompt: "Judge {{input}}",
-        outputDefinition: numericOutputDefinition,
-      },
-    });
-
-    expect(mockJobConfigurationUpdate).toHaveBeenCalledWith({
-      where: {
-        id: "ceval_legacy_trace",
-        projectId: "project_123",
-      },
-      data: {
-        evalTemplateId: "tmpl_project_v3",
-        variableMapping: [
-          {
-            templateVariable: "input",
-            langfuseObject: "trace",
-            objectName: null,
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        ],
-      },
-    });
-  });
-
-  it("drops obsolete variable mappings when auto-upgrading linked evaluation rules", async () => {
-    mockEvalTemplateFindMany.mockResolvedValueOnce([
-      {
-        id: "tmpl_project_v2",
-        version: 2,
-      },
-    ]);
-    mockJobConfigurationFindMany.mockResolvedValueOnce([
-      {
-        id: "ceval_123",
-        scoreName: "answer_quality",
-        targetObject: EvalTargetObject.EVENT,
-        variableMapping: [
-          {
-            templateVariable: "input",
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
           {
             templateVariable: "output",
             selectedColumnId: "output",
             jsonSelector: null,
           },
         ],
+        outputDefinition: { score: { type: "NUMERIC", min: 0, max: 1 } },
+        sourceCode: null,
+        sourceCodeLanguage: null,
       },
-    ]);
-    mockEvalTemplateCreate.mockResolvedValueOnce({
-      ...projectTemplate,
-      id: "tmpl_project_v3",
-      prompt: "Judge {{input}}",
-      vars: ["input"],
-      version: 3,
-    });
+    ],
+  },
+}));
 
-    await createPublicEvaluator({
-      projectId: "project_123",
-      input: {
-        name: "Answer correctness",
-        prompt: "Judge {{input}}",
-        outputDefinition: numericOutputDefinition,
-      },
-    });
+vi.mock("@langfuse/shared/src/db", async () => {
+  const actual =
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
+  const prisma = {
+    evaluator: { count: vi.fn(), findMany: vi.fn() },
+    evaluationRule: {
+      count: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+      update: vi.fn(),
+    },
+    jobExecution: { deleteMany: vi.fn() },
+    $transaction: vi.fn(),
+    evaluationRuleEvaluatorAssignment: { update: vi.fn(), create: vi.fn() },
+  };
+  prisma.$transaction.mockImplementation(
+    (callback: (client: typeof prisma) => unknown) => callback(prisma),
+  );
+  return {
+    EvalTemplateType: actual.EvalTemplateType,
+    JobConfigState: actual.JobConfigState,
+    Prisma: { DbNull: { dbNull: true } },
+    prisma,
+  };
+});
 
-    expect(mockJobConfigurationUpdate).toHaveBeenCalledWith({
-      where: {
-        id: "ceval_123",
-        projectId: "project_123",
-      },
-      data: {
-        evalTemplateId: "tmpl_project_v3",
-        variableMapping: [
-          {
-            templateVariable: "input",
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        ],
-      },
-    });
-  });
+vi.mock("@/src/features/evals/server/unstable-public-api/queries", () => ({
+  findPublicV2EvaluatorByIdOrThrow: vi.fn().mockResolvedValue(evaluator),
+  findPublicV2EvaluatorInFamilyOrThrow: vi.fn().mockResolvedValue(evaluator),
+  findPublicV2EvaluationRule: vi.fn(),
+  listPublicEvaluationRulePage: vi.fn(),
+}));
 
-  it("rejects evaluator version creation when linked evaluation rules need new mappings", async () => {
-    mockEvalTemplateFindMany.mockResolvedValueOnce([
+vi.mock(
+  "@/src/features/evals/server/unstable-public-api/validation",
+  async () => ({
+    ...(await vi.importActual(
+      "@/src/features/evals/server/unstable-public-api/validation",
+    )),
+    assertEvaluationRuleFilterValuesExistForProject: vi.fn(),
+    assertEvaluatorDefinitionCanRunForPublicApi: vi.fn(),
+  }),
+);
+
+vi.mock("@/src/features/evals/server/codeEvalJobConfigValidation", () => ({
+  CodeEvalJobConfigError: class CodeEvalJobConfigError extends Error {
+    constructor(
+      message: string,
+      public readonly code = "preflight_failed",
+    ) {
+      super(message);
+    }
+  },
+  assertCodeEvalRuleCanRun: vi.fn(),
+}));
+
+vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
+  isCodeEvalEnabled: vi.fn().mockReturnValue(true),
+  isCodeEvalSourceCodeLanguageSupported: vi.fn().mockReturnValue(true),
+}));
+
+vi.mock("@langfuse/shared/src/server", async () => ({
+  ...(await vi.importActual("@langfuse/shared/src/server")),
+  invalidateProjectEvalConfigCaches: vi.fn(),
+}));
+
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  CodeEvalJobConfigError,
+  assertCodeEvalRuleCanRun,
+} from "@/src/features/evals/server/codeEvalJobConfigValidation";
+import {
+  createPublicEvaluationRule,
+  deletePublicEvaluationRule,
+  listPublicEvaluationRules,
+  updatePublicEvaluationRule,
+} from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
+import {
+  findPublicV2EvaluationRule,
+  findPublicV2EvaluatorInFamilyOrThrow,
+  listPublicEvaluationRulePage,
+} from "@/src/features/evals/server/unstable-public-api/queries";
+import { MAX_ACTIVE_EVALUATION_RULES } from "@/src/features/evals/v2/server/rules/ruleErrors";
+
+function buildCreatedRule(data: {
+  projectId: string;
+  name: string;
+  status: string;
+  targetObject: string;
+  filter: unknown;
+  sampling: number;
+}) {
+  return {
+    id: "rule",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+    projectId: data.projectId,
+    createdByUserId: null,
+    name: data.name,
+    status: data.status,
+    targetObject: data.targetObject,
+    filter: data.filter,
+    sampling: {
+      toNumber: () => data.sampling,
+      valueOf: () => data.sampling,
+    },
+    delay: 0,
+    timeScope: ["NEW"],
+    assignments: [
       {
-        id: "tmpl_project_v2",
-        version: 2,
+        id: "assignment",
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-01"),
+        projectId: "project",
+        evaluationRuleId: "rule",
+        evaluatorId: evaluator.id,
+        variableMapping: null,
+        evaluator,
       },
-    ]);
-    mockJobConfigurationFindMany.mockResolvedValueOnce([
+    ],
+  };
+}
+
+function buildMigratedRuleWithLegacyFilter() {
+  const migratedRule = buildCreatedRule({
+    projectId: "project",
+    name: "Migrated rule",
+    status: "ACTIVE",
+    targetObject: "event",
+    filter: [
       {
-        id: "ceval_123",
-        scoreName: "answer_quality",
-        targetObject: EvalTargetObject.EVENT,
-        variableMapping: [
-          {
-            templateVariable: "input",
-            selectedColumnId: "input",
-            jsonSelector: null,
-          },
-        ],
+        type: "stringOptions",
+        column: "experimentDatasetId",
+        operator: "any of",
+        value: ["legacy-value"],
       },
-    ]);
+    ],
+    sampling: 1,
+  });
+  return migratedRule;
+}
 
-    await expect(
-      createPublicEvaluator({
-        projectId: "project_123",
-        input: {
-          name: "Answer correctness",
-          prompt: "Judge {{input}} against {{output}}",
-          outputDefinition: numericOutputDefinition,
-        },
-      }),
-    ).rejects.toThrow(
-      'Creating a new evaluator version would invalidate the evaluation rule "answer_quality"',
+describe("unstable public evaluation-rule service", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (prisma.evaluator.count as Mock).mockResolvedValue(1);
+    (prisma.evaluator.findMany as Mock).mockResolvedValue([evaluator]);
+    (prisma.evaluationRule.count as Mock).mockResolvedValue(0);
+    (findPublicV2EvaluatorInFamilyOrThrow as Mock).mockResolvedValue(evaluator);
+    (findPublicV2EvaluationRule as Mock).mockImplementation(
+      () => (prisma.evaluationRule.create as Mock).mock.results.at(-1)?.value,
     );
-
-    expect(mockEvalTemplateCreate).not.toHaveBeenCalled();
-    expect(mockJobConfigurationUpdate).not.toHaveBeenCalled();
   });
 
-  it("resolves an older evaluator version to the latest version when creating an evaluation rule", async () => {
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: {
-        ...projectTemplate,
-        id: "tmpl_project_v3",
-        version: 3,
-      },
-    });
-    mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        evalTemplateId: "tmpl_project_v3",
-        evalTemplate: {
-          id: "tmpl_project_v3",
-          projectId: "project_123",
-          name: "Answer correctness",
-          vars: ["input"],
-          prompt: "Judge {{input}}",
-        },
-      }),
-    );
-
-    const result = await createPublicEvaluationRule({
-      projectId: "project_123",
-      input: {
-        name: "answer_quality_latest",
-        evaluator: {
-          name: "Answer correctness",
-          scope: "project",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [{ variable: "input", source: "input" }],
-      },
-    });
-
-    expect(mockLoadEvaluatorForEvaluationRule).toHaveBeenCalledWith({
-      projectId: "project_123",
-      evaluator: {
-        name: "Answer correctness",
-        scope: "project",
-      },
-    });
-    expect(mockedPrisma.jobConfiguration.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        evalTemplateId: "tmpl_project_v3",
-      }),
-      include: expect.any(Object),
-    });
-    expect(result).toMatchObject({
-      evaluator: {
-        id: "tmpl_project_v3",
-        name: "Answer correctness",
-        scope: "project",
-      },
-    });
-  });
-
-  it("rejects unrunnable enabled evaluation rules before writing", async () => {
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: projectTemplate,
-    });
-    mockAssertEvaluatorDefinitionCanRunForPublicApi.mockRejectedValueOnce(
-      createUnstablePublicApiError({
-        httpCode: 422,
-        code: "evaluator_preflight_failed",
-        message: "Model configuration not valid for evaluator",
-      }),
+  it("creates rules and assignments only in the new tables", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(null);
+    (prisma.evaluationRule.create as Mock).mockImplementation(({ data }) =>
+      buildCreatedRule(data),
     );
 
     await expect(
       createPublicEvaluationRule({
-        projectId: "project_123",
+        orgId: "org",
+        projectId: "project",
         input: {
-          name: "answer_quality",
+          name: "Quality rule",
           evaluator: {
-            name: "Answer correctness",
-            scope: "project",
+            name: "Quality",
+            type: "llm_as_judge",
           },
           target: "observation",
-          enabled: true,
+          enabled: false,
           sampling: 1,
           filter: [],
-          mapping: [{ variable: "input", source: "input" }],
+          mapping: [{ variable: "output", source: "output" }],
         },
       }),
-    ).rejects.toThrow("Model configuration not valid for evaluator");
-
-    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ id: "rule", target: "observation" });
+    expect(prisma.evaluationRule.create).toHaveBeenCalledOnce();
   });
 
-  it("returns a conflict when an evaluation rule name already exists in the project", async () => {
-    mockedPrisma.jobConfiguration.findFirst.mockResolvedValueOnce({
-      id: "ceval_existing",
-    });
-
-    await expect(
-      createPublicEvaluationRule({
-        projectId: "project_123",
-        input: {
-          name: "answer_quality",
-          evaluator: {
-            name: "Answer correctness",
-            scope: "project",
-          },
-          target: "observation",
-          enabled: true,
-          sampling: 1,
-          filter: [],
-          mapping: [{ variable: "input", source: "input" }],
-        },
-      }),
-    ).rejects.toThrow(
-      'An evaluation rule named "answer_quality" already exists in this project.',
-    );
-
-    expect(mockedPrisma.jobConfiguration.findFirst).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        jobType: "EVAL",
-        targetObject: {
-          in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-        },
-        scoreName: "answer_quality",
-        evalTemplate: {
-          is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
-            OR: [{ projectId: "project_123" }, { projectId: null }],
-          },
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
-  });
-
-  it("rejects creating more than 50 active evaluation rules", async () => {
-    mockCountActiveEvaluationRules.mockResolvedValueOnce(50);
-
-    await expect(
-      createPublicEvaluationRule({
-        projectId: "project_123",
-        input: {
-          name: "answer_quality",
-          evaluator: {
-            name: "Answer correctness",
-            scope: "project",
-          },
-          target: "observation",
-          enabled: true,
-          sampling: 1,
-          filter: [],
-          mapping: [{ variable: "input", source: "input" }],
-        },
-      }),
-    ).rejects.toThrow(
-      "This project already has the maximum number of active evaluation rules (50).",
-    );
-
-    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
-  });
-
-  it("rejects experiment evaluation rules that reference unknown dataset ids", async () => {
-    mockedPrisma.dataset.findMany.mockResolvedValueOnce([
-      { id: "dataset_valid" },
-    ]);
-
-    await expect(
-      createPublicEvaluationRule({
-        projectId: "project_123",
-        input: {
-          name: "experiment_answer_quality",
-          evaluator: {
-            name: "Answer correctness",
-            scope: "project",
-          },
-          target: "experiment",
-          enabled: true,
-          sampling: 1,
-          filter: [
-            {
-              type: "stringOptions",
-              column: "datasetId",
-              operator: "any of",
-              value: ["dataset_valid", "dataset_missing"],
-            },
-          ],
-          mapping: [{ variable: "input", source: "input" }],
-        },
-      }),
-    ).rejects.toThrow(
-      'Filter column "datasetId" contains dataset id(s) that do not exist in this project: dataset_missing',
-    );
-
-    expect(mockedPrisma.dataset.findMany).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        id: {
-          in: ["dataset_valid", "dataset_missing"],
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
-  });
-
-  it("passes stored modelParams into create-time evaluator preflight", async () => {
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: {
-        ...projectTemplate,
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        modelParams: { temperature: 0.2 },
-      },
-    });
-    mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createEvaluationRuleRecord(),
+  it("resolves the evaluator family by name and type within the project", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(null);
+    (prisma.evaluationRule.create as Mock).mockImplementation(({ data }) =>
+      buildCreatedRule(data),
     );
 
     await createPublicEvaluationRule({
-      projectId: "project_123",
+      orgId: "org",
+      projectId: "project",
       input: {
-        name: "answer_quality",
-        evaluator: {
-          name: "Answer correctness",
-          scope: "project",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [{ variable: "input", source: "input" }],
-      },
-    });
-
-    expect(
-      mockAssertEvaluatorDefinitionCanRunForPublicApi,
-    ).toHaveBeenCalledWith({
-      projectId: "project_123",
-      template: expect.objectContaining({
-        name: "Answer correctness",
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        modelParams: { temperature: 0.2 },
-      }),
-    });
-  });
-
-  it("allows disabled evaluation rules without preflight", async () => {
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: projectTemplate,
-    });
-    mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        status: JobConfigState.INACTIVE,
-      }),
-    );
-
-    const result = await createPublicEvaluationRule({
-      projectId: "project_123",
-      input: {
-        name: "answer_quality",
-        evaluator: {
-          name: "Answer correctness",
-          scope: "project",
-        },
+        name: "Quality rule",
+        evaluator: { name: "Quality", type: "llm_as_judge" },
         target: "observation",
         enabled: false,
         sampling: 1,
         filter: [],
-        mapping: [{ variable: "input", source: "input" }],
+        mapping: [{ variable: "output", source: "output" }],
       },
     });
 
-    expect(
-      mockAssertEvaluatorDefinitionCanRunForPublicApi,
-    ).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      evaluator: {
-        id: "tmpl_project_v2",
-        name: "Answer correctness",
-        scope: "project",
-      },
-      enabled: false,
-      status: "inactive",
+    expect(findPublicV2EvaluatorInFamilyOrThrow).toHaveBeenCalledWith({
+      projectId: "project",
+      evaluator: { name: "Quality", type: "llm_as_judge" },
     });
   });
 
-  it("allows evaluation rules to reference managed evaluators by exact template id", async () => {
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: managedTemplate,
-    });
-    mockedPrisma.jobConfiguration.create.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        evalTemplateId: "tmpl_managed",
-        evalTemplate: {
-          id: "tmpl_managed",
-          projectId: null,
-          name: "Answer correctness",
-          vars: ["input"],
-          prompt: "Judge {{input}}",
-        },
-      }),
+  it("rejects creating more active evaluation rules than the shared cap", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(null);
+    (prisma.evaluationRule.count as Mock).mockResolvedValue(
+      MAX_ACTIVE_EVALUATION_RULES,
     );
-
-    const result = await createPublicEvaluationRule({
-      projectId: "project_123",
-      input: {
-        name: "managed_answer_quality",
-        evaluator: {
-          name: "Answer correctness",
-          scope: "managed",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [{ variable: "input", source: "input" }],
-      },
-    });
-
-    expect(mockedPrisma.jobConfiguration.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        evalTemplateId: "tmpl_managed",
-      }),
-      include: expect.any(Object),
-    });
-    expect(result).toMatchObject({
-      evaluator: {
-        id: "tmpl_managed",
-        name: "Answer correctness",
-        scope: "managed",
-      },
-      enabled: true,
-      status: "active",
-    });
-  });
-
-  it("preserves block metadata when updating without a fresh successful preflight", async () => {
-    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        blockedAt: new Date("2026-03-30T10:00:00.000Z"),
-        blockReason: "EVAL_MODEL_CONFIG_INVALID",
-        blockMessage: "Evaluator paused",
-      }),
-    );
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: projectTemplate,
-    });
-    mockedPrisma.jobConfiguration.update.mockImplementationOnce(
-      async ({ data }: any) =>
-        createEvaluationRuleRecord({
-          status: data.status,
-          sampling: data.sampling,
-          filter: data.filter,
-          variableMapping: data.variableMapping,
-          blockedAt: new Date("2026-03-30T10:00:00.000Z"),
-          blockReason: "EVAL_MODEL_CONFIG_INVALID",
-          blockMessage: "Evaluator paused",
-        }),
-    );
-
-    const result = await updatePublicEvaluationRule({
-      projectId: "project_123",
-      evaluationRuleId: "ceval_123",
-      input: {
-        enabled: false,
-      },
-    });
-
-    const updateArgs = mockedPrisma.jobConfiguration.update.mock.calls[0]?.[0];
-
-    expect(
-      mockAssertEvaluatorDefinitionCanRunForPublicApi,
-    ).not.toHaveBeenCalled();
-    expect(updateArgs?.data).not.toHaveProperty("blockedAt");
-    expect(updateArgs?.data).not.toHaveProperty("blockReason");
-    expect(updateArgs?.data).not.toHaveProperty("blockMessage");
-    expect(result).toMatchObject({
-      enabled: false,
-      status: "inactive",
-      pausedReason: "EVAL_MODEL_CONFIG_INVALID",
-    });
-  });
-
-  it("passes stored modelParams into update-time evaluator preflight", async () => {
-    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
-      createEvaluationRuleRecord(),
-    );
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: {
-        ...projectTemplate,
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        modelParams: { temperature: 0.4 },
-      },
-    });
-    mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(
-      createEvaluationRuleRecord(),
-    );
-
-    await updatePublicEvaluationRule({
-      projectId: "project_123",
-      evaluationRuleId: "ceval_123",
-      input: {
-        name: "renamed_answer_quality",
-      },
-    });
-
-    expect(
-      mockAssertEvaluatorDefinitionCanRunForPublicApi,
-    ).toHaveBeenCalledWith({
-      projectId: "project_123",
-      template: expect.objectContaining({
-        name: "Answer correctness",
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        modelParams: { temperature: 0.4 },
-      }),
-    });
-  });
-
-  it("rejects enabling a non-active evaluation rule when the active limit is reached", async () => {
-    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        status: JobConfigState.INACTIVE,
-      }),
-    );
-    mockCountActiveEvaluationRules.mockResolvedValueOnce(50);
 
     await expect(
-      updatePublicEvaluationRule({
-        projectId: "project_123",
-        evaluationRuleId: "ceval_123",
+      createPublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
         input: {
+          name: "One too many",
+          evaluator: {
+            name: "Quality",
+            type: "llm_as_judge",
+          },
+          target: "observation",
           enabled: true,
+          sampling: 1,
+          filter: [],
+          mapping: [{ variable: "output", source: "output" }],
         },
       }),
-    ).rejects.toThrow(
-      "This project already has the maximum number of active evaluation rules (50).",
-    );
-
-    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
+    ).rejects.toMatchObject({
+      httpCode: 409,
+      code: "conflict",
+      details: { limit: MAX_ACTIVE_EVALUATION_RULES },
+    });
+    expect(prisma.evaluationRule.create).not.toHaveBeenCalled();
   });
 
-  it("rejects experiment filter updates that reference unknown dataset ids", async () => {
-    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        targetObject: EvalTargetObject.EXPERIMENT,
-      }),
+  it("does not check the active limit for disabled evaluation rules", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(null);
+    (prisma.evaluationRule.create as Mock).mockImplementation(({ data }) =>
+      buildCreatedRule(data),
     );
-    mockedPrisma.dataset.findMany.mockResolvedValueOnce([]);
+
+    await createPublicEvaluationRule({
+      orgId: "org",
+      projectId: "project",
+      input: {
+        name: "Disabled rule",
+        evaluator: { name: "Quality", type: "llm_as_judge" },
+        target: "observation",
+        enabled: false,
+        sampling: 1,
+        filter: [],
+        mapping: [{ variable: "output", source: "output" }],
+      },
+    });
+
+    expect(prisma.evaluationRule.count).not.toHaveBeenCalled();
+  });
+
+  it("returns a name conflict when a rule with that name already exists", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue({
+      id: "existing-rule",
+    });
 
     await expect(
-      updatePublicEvaluationRule({
-        projectId: "project_123",
-        evaluationRuleId: "ceval_123",
+      createPublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
         input: {
-          target: "experiment",
+          name: "Quality rule",
+          evaluator: {
+            name: "Quality",
+            type: "llm_as_judge",
+          },
+          target: "observation",
+          enabled: false,
+          sampling: 1,
+          filter: [],
+          mapping: [{ variable: "output", source: "output" }],
+        },
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 409,
+      code: "name_conflict",
+      details: { field: "name" },
+    });
+    expect(prisma.evaluationRule.create).not.toHaveBeenCalled();
+  });
+
+  it("translates code-eval preflight failures into structured public API errors", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(null);
+    (findPublicV2EvaluatorInFamilyOrThrow as Mock).mockResolvedValue(
+      codeEvaluator,
+    );
+    (assertCodeEvalRuleCanRun as Mock).mockRejectedValue(
+      new CodeEvalJobConfigError("Sandbox run failed", "preflight_failed"),
+    );
+
+    await expect(
+      createPublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        input: {
+          name: "Code rule",
+          evaluator: { name: "Toxicity", type: "code" },
+          target: "observation",
+          enabled: true,
+          sampling: 1,
+          filter: [],
+        },
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 422,
+      code: "evaluator_preflight_failed",
+      message: "Sandbox run failed",
+      details: { evaluatorName: "Toxicity" },
+    });
+    expect(prisma.evaluationRule.create).not.toHaveBeenCalled();
+  });
+
+  it("translates code-eval invalid-target failures into a 400", async () => {
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(null);
+    (findPublicV2EvaluatorInFamilyOrThrow as Mock).mockResolvedValue(
+      codeEvaluator,
+    );
+    (assertCodeEvalRuleCanRun as Mock).mockRejectedValue(
+      new CodeEvalJobConfigError("Unsupported target", "invalid_target"),
+    );
+
+    await expect(
+      createPublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        input: {
+          name: "Code rule",
+          evaluator: { name: "Toxicity", type: "code" },
+          target: "observation",
+          enabled: true,
+          sampling: 1,
+          filter: [],
+        },
+      }),
+    ).rejects.toMatchObject({ httpCode: 400, code: "invalid_request" });
+  });
+
+  it("lists migrated rules with filters that do not match their current target", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    (listPublicEvaluationRulePage as Mock).mockResolvedValue({
+      records: [migratedRule],
+      totalItems: 1,
+    });
+
+    await expect(
+      listPublicEvaluationRules({ projectId: "project", page: 1, limit: 50 }),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: "rule",
           filter: [
             {
               type: "stringOptions",
               column: "datasetId",
               operator: "any of",
-              value: ["dataset_missing"],
+              value: ["legacy-value"],
             },
           ],
-          mapping: [{ variable: "input", source: "input" }],
-        },
-      }),
-    ).rejects.toThrow(
-      'Filter column "datasetId" contains dataset id(s) that do not exist in this project: dataset_missing',
-    );
-
-    expect(mockedPrisma.dataset.findMany).toHaveBeenCalledWith({
-      where: {
-        projectId: "project_123",
-        id: {
-          in: ["dataset_missing"],
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-    expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.update).not.toHaveBeenCalled();
-  });
-
-  it("allows unrelated experiment updates without revalidating stale stored dataset filters", async () => {
-    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        targetObject: EvalTargetObject.EXPERIMENT,
-        filter: [
-          {
-            type: "stringOptions",
-            column: "experimentDatasetId",
-            operator: "any of",
-            value: ["dataset_deleted"],
-          },
-        ],
-      }),
-    );
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: projectTemplate,
-    });
-    mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        targetObject: EvalTargetObject.EXPERIMENT,
-        scoreName: "renamed_experiment_answer_quality",
-        filter: [
-          {
-            type: "stringOptions",
-            column: "experimentDatasetId",
-            operator: "any of",
-            value: ["dataset_deleted"],
-          },
-        ],
-      }),
-    );
-
-    const result = await updatePublicEvaluationRule({
-      projectId: "project_123",
-      evaluationRuleId: "ceval_123",
-      input: {
-        name: "renamed_experiment_answer_quality",
-      },
-    });
-
-    expect(mockedPrisma.dataset.findMany).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.update).toHaveBeenCalled();
-    expect(result).toMatchObject({
-      name: "renamed_experiment_answer_quality",
-      target: "experiment",
-      filter: [
-        {
-          type: "stringOptions",
-          column: "datasetId",
-          operator: "any of",
-          value: ["dataset_deleted"],
         },
       ],
+      meta: { totalItems: 1 },
     });
   });
 
-  it("does not re-check the active limit for already-active evaluation rules", async () => {
-    mockFindPublicEvaluationRuleOrThrow.mockResolvedValueOnce(
-      createEvaluationRuleRecord(),
-    );
-    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
-      template: projectTemplate,
+  it("preserves migrated filters on patches that do not replace them", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.update as Mock).mockImplementation(({ data }) => {
+      migratedRule.name = data.name ?? migratedRule.name;
+      return migratedRule;
     });
-    mockedPrisma.jobConfiguration.update.mockResolvedValueOnce(
-      createEvaluationRuleRecord({
-        scoreName: "renamed_answer_quality",
+
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        evaluationRuleId: "rule",
+        input: { name: "Renamed rule" },
       }),
-    );
+    ).resolves.toMatchObject({
+      name: "Renamed rule",
+      filter: [{ column: "datasetId" }],
+    });
+    expect(prisma.evaluationRule.update).toHaveBeenCalledOnce();
+  });
 
-    await updatePublicEvaluationRule({
-      projectId: "project_123",
-      evaluationRuleId: "ceval_123",
-      input: {
-        name: "renamed_answer_quality",
+  it("repairs migrated rules with a V2-compatible replacement filter", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    const replacementFilter = [
+      {
+        type: "boolean" as const,
+        column: "isRootObservation",
+        operator: "=" as const,
+        value: true,
       },
+    ];
+    (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.update as Mock).mockImplementation(({ data }) => {
+      migratedRule.filter = data.filter;
+      migratedRule.status = data.status;
+      return migratedRule;
     });
 
-    expect(mockCountActiveEvaluationRules).not.toHaveBeenCalled();
-    expect(mockedPrisma.jobConfiguration.update).toHaveBeenCalled();
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        evaluationRuleId: "rule",
+        input: {
+          target: "observation",
+          filter: replacementFilter,
+          enabled: false,
+        },
+      }),
+    ).resolves.toMatchObject({ filter: replacementFilter, enabled: false });
+    expect(prisma.evaluationRule.update).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    {
+      operation: "disabled",
+      mutate: () =>
+        updatePublicEvaluationRule({
+          orgId: "org",
+          projectId: "project",
+          evaluationRuleId: "rule",
+          input: { enabled: false },
+        }),
+    },
+    {
+      operation: "deleted",
+      mutate: () =>
+        deletePublicEvaluationRule({
+          projectId: "project",
+          evaluationRuleId: "rule",
+        }),
+    },
+  ])(
+    "allows a migrated rule with an unsupported stored filter to be $operation",
+    async ({ mutate, operation }) => {
+      const migratedRule = buildMigratedRuleWithLegacyFilter();
+      (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+      (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+      (prisma.evaluationRule.update as Mock).mockImplementation(({ data }) => {
+        migratedRule.status = data.status ?? migratedRule.status;
+        return migratedRule;
+      });
+      (prisma.evaluationRule.deleteMany as Mock).mockResolvedValue({
+        count: 1,
+      });
+      (prisma.jobExecution.deleteMany as Mock).mockResolvedValue({ count: 0 });
+
+      const result = await mutate();
+      if (operation === "disabled") {
+        expect(result).toMatchObject({ enabled: false, status: "inactive" });
+        expect(prisma.evaluationRule.update).toHaveBeenCalledOnce();
+      } else {
+        expect(prisma.evaluationRule.deleteMany).toHaveBeenCalledOnce();
+      }
+    },
+  );
 });

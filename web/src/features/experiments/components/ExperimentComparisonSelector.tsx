@@ -3,6 +3,7 @@ import { Check, X } from "lucide-react";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
+import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 
 export type ExperimentOption = {
   experimentId: string;
@@ -13,16 +14,16 @@ type ExperimentComparisonSelectorProps = {
   projectId: string;
   baselineExperimentId?: string;
   selectedIds: string[];
+  selectedExperimentCount: number;
   onSelectedIdsChange: (ids: string[]) => void;
-  maxSelections?: number;
 };
 
 export function ExperimentComparisonSelector({
   projectId,
   baselineExperimentId,
   selectedIds,
+  selectedExperimentCount,
   onSelectedIdsChange,
-  maxSelections = 4,
 }: ExperimentComparisonSelectorProps) {
   const {
     searchResults,
@@ -58,15 +59,23 @@ export function ExperimentComparisonSelector({
   const handleItemsChange = (items: ExperimentOption[]) => {
     const newIds = items
       .map((item) => item.experimentId)
-      .slice(0, maxSelections);
+      .slice(
+        0,
+        Math.max(
+          0,
+          MAX_SELECTED_EXPERIMENTS -
+            (selectedExperimentCount - selectedIds.length),
+        ),
+      );
     onSelectedIdsChange(newIds);
   };
 
-  const isMaxReached = selectedIds.length >= maxSelections;
+  const isMaxReached = selectedExperimentCount >= MAX_SELECTED_EXPERIMENTS;
 
   return (
     <div className="space-y-2">
       <MultiSelectCombobox<ExperimentOption>
+        labelLeft="Experiment selection"
         selectedItems={selectedExperiments}
         onItemsChange={handleItemsChange}
         searchQuery={searchQuery}
@@ -75,23 +84,29 @@ export function ExperimentComparisonSelector({
         isLoading={isLoading}
         placeholder={
           isMaxReached
-            ? `Max ${maxSelections} comparisons`
+            ? `Max ${MAX_SELECTED_EXPERIMENTS} experiments`
             : "Search experiments..."
         }
-        disabled={isMaxReached}
+        disabled={isLoading}
+        showSearchIcon={false}
         getItemKey={(item) => item.experimentId}
         renderItem={(item, isSelected, onToggle) => (
           <button
             type="button"
             onClick={onToggle}
-            disabled={!isSelected && isMaxReached}
+            disabled={
+              !isSelected && selectedExperimentCount >= MAX_SELECTED_EXPERIMENTS
+            }
             className="hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
           >
             <div className="flex h-4 w-4 items-center justify-center">
               {isSelected && <Check className="text-primary h-4 w-4" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
+              <p
+                className="truncate text-sm font-bold"
+                title={item.experimentName}
+              >
                 {item.experimentName}
               </p>
             </div>
@@ -102,7 +117,10 @@ export function ExperimentComparisonSelector({
             variant="secondary"
             className="flex items-center gap-1 px-2 py-0.5"
           >
-            <span className="max-w-24 truncate text-xs">
+            <span
+              className="max-w-24 truncate text-xs"
+              title={item.experimentName}
+            >
               {item.experimentName}
             </span>
             <button
@@ -118,11 +136,6 @@ export function ExperimentComparisonSelector({
           </Badge>
         )}
       />
-      {selectedIds.length > 0 && (
-        <p className="text-muted-foreground text-xs">
-          {selectedIds.length} of {maxSelections} comparisons selected
-        </p>
-      )}
     </div>
   );
 }

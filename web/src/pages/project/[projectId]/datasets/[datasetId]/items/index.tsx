@@ -1,24 +1,24 @@
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
 import {
   getDatasetTabs,
   DATASET_TABS,
 } from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
 import { DeleteDatasetButton } from "@/src/components/deleteButton";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
-import { History, MoreVertical } from "lucide-react";
+import { Edit, History, LockIcon, MoreVertical } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemWithSecondaryAction,
 } from "@/src/components/ui/dropdown-menu";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
@@ -26,35 +26,50 @@ import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/D
 import { DatasetVersionWarningBanner } from "@/src/features/datasets/components/DatasetVersionWarningBanner";
 import { useState } from "react";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
-function DatasetItemsView() {
-  const router = useRouter();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
+export default function DatasetItemsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetItemsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
+  );
+}
 
+function DatasetItemsView({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
   const { selectedVersion, resetToLatest } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
 
   const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
 
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-  } = useExperimentAccess();
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
-
-  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery({
-    projectId,
-    datasetId,
-  });
+  const totalDatasetItemCount = api.datasets.countItemsByDatasetId.useQuery(
+    {
+      projectId,
+      datasetId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const showOnboarding =
     totalDatasetItemCount.isSuccess && totalDatasetItemCount.data === 0;
@@ -75,14 +90,11 @@ function DatasetItemsView() {
     setIsVersionPanelOpen(open);
   };
 
-  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
-
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={setExperimentsBetaEnabled}
-    />
-  ) : null;
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   return (
     <Page
@@ -94,7 +106,6 @@ function DatasetItemsView() {
           tabs: getDatasetTabs(projectId, datasetId),
           activeTab: DATASET_TABS.ITEMS,
         },
-        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             {!showOnboarding && (
@@ -116,49 +127,56 @@ function DatasetItemsView() {
               }
               listKey="datasets"
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                <DropdownMenuItem asChild>
-                  <DatasetActionButton
-                    mode="update"
-                    projectId={projectId}
-                    datasetId={datasetId}
-                    datasetName={dataset.data?.name ?? ""}
-                    datasetDescription={dataset.data?.description ?? undefined}
-                    datasetMetadata={dataset.data?.metadata}
-                    datasetInputSchema={dataset.data?.inputSchema ?? undefined}
-                    datasetExpectedOutputSchema={
-                      dataset.data?.expectedOutputSchema ?? undefined
-                    }
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <DuplicateDatasetButton
-                    datasetId={datasetId}
-                    projectId={projectId}
-                  />
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  asChild
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    return false;
-                  }}
-                >
-                  <DeleteDatasetButton
-                    itemId={datasetId}
-                    projectId={projectId}
-                    redirectUrl={`/project/${projectId}/datasets`}
-                    deleteConfirmation={dataset.data?.name}
-                  />
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <UpdateDatasetDialogController
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetName={dataset.data?.name ?? ""}
+              datasetDescription={dataset.data?.description ?? undefined}
+              datasetMetadata={dataset.data?.metadata}
+              datasetInputSchema={dataset.data?.inputSchema ?? undefined}
+              datasetExpectedOutputSchema={
+                dataset.data?.expectedOutputSchema ?? undefined
+              }
+              source="dataset"
+            >
+              {({ disabled, openDialog }) => (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
+                    <DropdownMenuItemWithSecondaryAction
+                      disabled={disabled}
+                      icon={disabled === undefined ? Edit : LockIcon}
+                      title="Edit"
+                      onClick={openDialog}
+                    />
+                    <DropdownMenuItem asChild>
+                      <DuplicateDatasetButton
+                        datasetId={datasetId}
+                        projectId={projectId}
+                      />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      asChild
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        return false;
+                      }}
+                    >
+                      <DeleteDatasetButton
+                        itemId={datasetId}
+                        projectId={projectId}
+                        redirectUrl={`/project/${projectId}/datasets`}
+                        deleteConfirmation={dataset.data?.name}
+                      />
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </UpdateDatasetDialogController>
             <Button
               variant="outline"
               size="icon"
@@ -205,5 +223,3 @@ function DatasetItemsView() {
     </Page>
   );
 }
-
-export default DatasetItemsView;

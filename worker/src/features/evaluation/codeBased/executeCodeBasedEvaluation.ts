@@ -6,17 +6,18 @@ import {
   logger,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  writeInternalTraceViaOtelIngestion,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { createW3CTraceId } from "../../utils";
-import { createInternalEventsWriter } from "../../internal-tracing/createInternalEventsWriter";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
 
 export async function executeCodeBasedEvaluation(params: {
   projectId: string;
   organizationId: string;
+  evaluatorId?: string;
   job: JobExecution;
   config: JobConfiguration;
   template: EvalTemplateCodeBased;
@@ -63,19 +64,19 @@ export async function executeCodeBasedEvaluation(params: {
         projectId: params.projectId,
         executionTraceId,
         jobExecutionId,
-        template: params.template,
+        evaluator: { id: params.evaluatorId ?? params.template.id },
+        version: params.template,
         extractedVariables: params.extractedVariables,
         hasExperimentContext: params.hasExperimentContext ?? false,
         traceName: `Execute evaluator: ${params.template.name}`,
         metadata: executionMetadata,
-        writeTrace: (trace) => createInternalEventsWriter().write(trace),
+        // Publish via the OTel ingestion pipeline (like LLM-as-a-judge) so the
+        // trace reaches the legacy tables too in dual write mode — a direct
+        // events-table write alone 404s in the trace detail view.
+        writeTrace: (trace) => writeInternalTraceViaOtelIngestion(trace),
       });
 
       if (!dispatchOutcome.success) {
-        if (dispatchOutcome.error.retryable === false) {
-          throw new UnrecoverableError(dispatchOutcome.error.message);
-        }
-
         throw new CodeEvalExecutionError(dispatchOutcome.error);
       }
 

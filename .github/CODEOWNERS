@@ -1,5 +1,6 @@
 # Currently inactive
 # * @langfuse/maintainers
 
-# Require maintainer review for GitHub configuration changes
-.github/ @langfuse/maintainers
+# Design system
+/web/src/components/design-system/ @bezbac
+/web/.storybook/ @bezbac

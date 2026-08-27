@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,
@@ -39,8 +40,8 @@ function operatorToText(operator: FilterCondition["operator"]): string {
 function formatFilterForPill(filter: FilterCondition) {
   const { operator, value } = filter;
 
-  // Handle score filters (numberObject and categoryOptions with key)
-  if (filter.type === "numberObject") {
+  // Handle score filters with key
+  if (filter.type === "numberObject" || filter.type === "booleanObject") {
     const valueStr = Array.isArray(value) ? value.join(", ") : String(value);
     return `${filter.key} ${operatorToText(operator)} ${valueStr}`;
   }

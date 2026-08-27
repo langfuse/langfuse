@@ -4,10 +4,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
 import { type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 export default async function handler(
   req: NextApiRequest,
@@ -49,6 +50,23 @@ export default async function handler(
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail:
         "Invalid API key. Organization-scoped API key required for this operation.",
+      status: 403,
+    });
+  }
+
+  // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
+  // sibling organization admin endpoints (memberships, projects, apiKeys).
+  // Without this, any org-scoped key could create users and assign roles on
+  // plans that do not include the feature.
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "admin-api",
+    })
+  ) {
+    return res.status(403).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "This feature is not available on your current plan.",
       status: 403,
     });
   }
@@ -154,7 +172,17 @@ export default async function handler(
         }
       }
 
-      const { userName, name, password, displayName, roles } = body;
+      // A `password` in the request body is accepted and ignored. Setting it
+      // created a usable login credential for an email address nobody had
+      // verified, so an org-scoped key could pre-register an account for
+      // someone else's address. Ignoring rather than rejecting is deliberate:
+      // RFC 7644 3.3 lets a service provider ignore POSTed content, the
+      // attribute is `returned: "never"` so no conformant client can observe
+      // the difference, and Okta sends a placeholder password on every create
+      // even when password sync is disabled — rejecting it would break those
+      // syncs. Users authenticate via SSO, or claim the account through the
+      // password-reset flow.
+      const { userName, name, displayName, roles } = body;
 
       if (!userName) {
         logger.warn("[SCIM] userName is required for user creation");
@@ -216,7 +244,6 @@ export default async function handler(
         create: {
           email: normalizedEmail,
           name: name?.formatted || displayName,
-          password: password ? await hashPassword(password) : undefined,
         },
         update: {},
       });
@@ -238,6 +265,21 @@ export default async function handler(
       logger.info(
         `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
       );
+
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+        // SCIM provisioning is org-admin-driven, never an organic signup.
+        leadSource: "Langfuse Cloud Invite",
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: authCheck.scope.orgId,
+        userId: user.id,
+        email: user.email,
+        role,
+      });
 
       // Return SCIM formatted user
       return res.status(201).json({

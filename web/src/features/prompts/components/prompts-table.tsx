@@ -445,7 +445,7 @@ export function PromptTable() {
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"prompts"}
+              tableName="prompts"
               columns={promptColumns}
               data={
                 prompts.isLoading

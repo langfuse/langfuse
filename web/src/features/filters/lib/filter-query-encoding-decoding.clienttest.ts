@@ -1,8 +1,10 @@
+// @vitest-environment node
+
 import {
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-} from "@/src/features/filters/lib/filter-query-encoding";
-import type { FilterState } from "@langfuse/shared";
+  type FilterState,
+} from "@langfuse/shared";
 
 // Wrapper functions for tests
 const encodeFilters = (filters: FilterState) => encodeFiltersGeneric(filters);
@@ -161,6 +163,21 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       ];
       expect(encodeFilters(filters)).toBe(
         "scoresNumeric;numberObject;accuracy;>=;0.8",
+      );
+    });
+
+    it("should encode booleanObject filter", () => {
+      const filters: FilterState = [
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          operator: "=",
+          key: "flag",
+          value: true,
+        },
+      ];
+      expect(encodeFilters(filters)).toBe(
+        "score_booleans;booleanObject;flag;=;true",
       );
     });
 
@@ -352,6 +369,20 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
           operator: ">=",
           key: "accuracy",
           value: 0.8,
+        },
+      ]);
+    });
+
+    it("should decode booleanObject filter", () => {
+      const query = "score_booleans;booleanObject;flag;=;true";
+      const decoded = decodeFilters(query);
+      expect(decoded).toEqual([
+        {
+          column: "score_booleans",
+          type: "booleanObject",
+          operator: "=",
+          key: "flag",
+          value: true,
         },
       ]);
     });

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -80,14 +81,17 @@ export function useDashboardFilterOptions({
     [absoluteTimeRange],
   );
 
+  // Gate on projectId: on a direct URL load the first render happens before
+  // the router query hydrates, and firing with projectId=undefined surfaces
+  // a "Bad Request" toast.
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     { projectId, timestampFilter: traceTimestampFilter },
-    { ...commonQueryOptions, enabled: !isBetaEnabled },
+    { ...commonQueryOptions, enabled: Boolean(projectId) && !isBetaEnabled },
   );
 
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     { projectId, startTimeFilter },
-    { ...commonQueryOptions, enabled: isBetaEnabled },
+    { ...commonQueryOptions, enabled: Boolean(projectId) && isBetaEnabled },
   );
 
   const nameOptions = useMemo(
@@ -102,9 +106,11 @@ export function useDashboardFilterOptions({
     ],
   );
 
-  const tagsOptions = isBetaEnabled
-    ? (eventsFilterOptions.data?.traceTags ?? [])
-    : (traceFilterOptions.data?.tags ?? []);
+  const tagsOptions = sortOptionValues(
+    isBetaEnabled
+      ? (eventsFilterOptions.data?.traceTags ?? [])
+      : (traceFilterOptions.data?.tags ?? []),
+  );
 
   return { nameOptions, tagsOptions };
 }

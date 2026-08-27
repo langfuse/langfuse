@@ -1,4 +1,3 @@
-import React from "react";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
@@ -11,6 +10,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function Traces() {
   const router = useRouter();
@@ -60,6 +60,7 @@ export default function Traces() {
     <Page
       headerProps={{
         title: "Tracing",
+        titleBadges: <V4MigrationDelayBadge page="traces" />,
         help: {
           description: (
             <>
@@ -96,9 +97,13 @@ export default function Traces() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+          enableAppRootDefault
+        />
       ) : (
-        <TracesTable projectId={projectId} />
+        <TracesTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

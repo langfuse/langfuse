@@ -1,7 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -22,6 +22,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 
 export default function RenameProject() {
   const { update: updateSession } = useSession();
+  const utils = api.useUtils();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
@@ -38,6 +39,9 @@ export default function RenameProject() {
   const renameProject = api.projects.update.useMutation({
     onSuccess: (_) => {
       updateSession();
+      // Admins resolve org/project context from these queries, not the session
+      utils.organizations.byId.invalidate();
+      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
@@ -53,9 +57,7 @@ export default function RenameProject() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
 
   return (

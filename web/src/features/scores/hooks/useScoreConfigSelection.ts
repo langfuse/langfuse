@@ -31,12 +31,14 @@ export function useScoreConfigSelection({
   isInputDisabled,
   insert,
   remove,
+  emptySelectedConfigIdsStorageKey,
 }: {
   configs: ScoreConfigDomain[];
   controlledFields: AnnotationScoreSchemaType[];
   isInputDisabled: (config: ScoreConfigDomain) => boolean;
   insert: UseFieldArrayInsert<AnnotateFormSchemaType, "scoreData">;
   remove: UseFieldArrayRemove;
+  emptySelectedConfigIdsStorageKey?: string;
 }): {
   selectionOptions: {
     key: string;
@@ -49,7 +51,7 @@ export function useScoreConfigSelection({
   ) => void;
 } {
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
-    useEmptyScoreConfigs();
+    useEmptyScoreConfigs(emptySelectedConfigIdsStorageKey);
 
   const selectionOptions = useMemo(() => {
     return configs
@@ -105,13 +107,12 @@ export function useScoreConfigSelection({
         if (field?.id) {
           toast.error("Cannot deselect a populated score");
           return;
-        } else {
-          // No score -> remove row from form and empty selected config ids
-          remove(fieldIndex);
-          setEmptySelectedConfigIds?.(
-            emptySelectedConfigIds.filter((id) => id !== changedValueId),
-          );
         }
+        // No score -> remove row from form and empty selected config ids
+        remove(fieldIndex);
+        setEmptySelectedConfigIds?.(
+          emptySelectedConfigIds.filter((id) => id !== changedValueId),
+        );
       }
     },
     [

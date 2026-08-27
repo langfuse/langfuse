@@ -1,12 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  __testing,
-  buildMailServerConfig,
-  createMailTransport,
-} from "@langfuse/shared/src/server";
+import { __testing, createMailTransport } from "@langfuse/shared/src/server";
 
 const { parseSesRegion } = __testing;
+
+// Replica of next-auth/utils/merge.js (v4.24.x), used to verify EmailProvider's
+// `server` value is safe to deep-merge — NextAuth runs this on every request.
+function nextAuthMerge(target: any, ...sources: any[]): any {
+  const isObject = (item: unknown) =>
+    item != null && typeof item === "object" && !Array.isArray(item);
+  if (!sources.length) return target;
+  const source = sources.shift();
+  if (isObject(target) && isObject(source)) {
+    for (const key in source) {
+      if (isObject(source[key])) {
+        if (!target[key]) Object.assign(target, { [key]: {} });
+        nextAuthMerge(target[key], source[key]);
+      } else {
+        Object.assign(target, { [key]: source[key] });
+      }
+    }
+  }
+  return nextAuthMerge(target, ...sources);
+}
 
 describe("mail transport dispatch", () => {
   describe("parseSesRegion", () => {
@@ -43,18 +59,13 @@ describe("mail transport dispatch", () => {
     });
   });
 
-  describe("buildMailServerConfig", () => {
-    it("returns the raw URL for SMTP connection strings", () => {
-      const url = "smtp://user:pass@host:25";
-      expect(buildMailServerConfig(url)).toBe(url);
-    });
-
-    it("returns a nodemailer SES options object for ses:// URLs", () => {
-      const config = buildMailServerConfig("ses://eu-west-1") as {
-        SES: { sesClient: unknown; SendEmailCommand: unknown };
-      };
-      expect(config).toHaveProperty("SES.sesClient");
-      expect(config).toHaveProperty("SES.SendEmailCommand");
+  describe("NextAuth EmailProvider.server must be merge-safe", () => {
+    it.each([
+      "smtp://user:pass@host:25",
+      "smtps://AKIAEXAMPLE:secret@email-smtp.us-east-1.amazonaws.com:465",
+      "ses://us-east-1",
+    ])("does not blow NextAuth's deep merge for %s", (server) => {
+      expect(() => nextAuthMerge({}, { server })).not.toThrow();
     });
   });
 });

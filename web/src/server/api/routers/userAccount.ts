@@ -5,10 +5,13 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
-import { Role, Prisma } from "@langfuse/shared/src/db";
-import type { PrismaClient } from "@langfuse/shared/src/db";
+import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -95,12 +98,51 @@ export const userAccountRouter = createTRPCRouter({
       };
     }),
 
+  setFeaturePreviewEnabled: authenticatedProcedure
+    .input(
+      z.object({
+        // Allowlist of user-toggleable Feature Preview flags (the Feature
+        // Preview modal). Keep in sync with the modal's preview registry.
+        flag: z.enum(featurePreviewFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+
+      const canEnableFeaturePreviews =
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
+
+      if (input.enabled && !canEnableFeaturePreviews) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Feature previews require ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
+        });
+      }
+
+      // The helper serializes and retries the read-modify-write so parallel
+      // toggles of different flags cannot silently drop one another.
+      await setUserFeaturePreview({
+        prisma: ctx.prisma,
+        userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
+
+      return {
+        success: true,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
+    }),
+
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
     // Wrap check and delete in a serializable transaction to prevent race conditions
     // when organization owners are removed concurrently
-    await ctx.prisma.$transaction(
+    const sfdcRemovals = await ctx.prisma.$transaction(
       async (tx) => {
         // Verify user can be deleted
         const { canDelete } = await checkUserCanBeDeleted(userId, tx);
@@ -113,14 +155,40 @@ export const userAccountRouter = createTRPCRouter({
           });
         }
 
+        // Capture org memberships before the cascade delete wipes them; they
+        // are synced to SFDC only after the transaction commits. NONE roles
+        // hold no SFDC org-member bridge, so there is nothing to remove.
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
+        });
+        const memberships = await tx.organizationMembership.findMany({
+          where: { userId, role: { not: Role.NONE } },
+          select: { orgId: true },
+        });
+
         // Delete the user (cascade will handle related records)
         await tx.user.delete({
           where: { id: userId },
         });
+
+        return memberships.map(({ orgId }) => ({
+          orgId,
+          email: user?.email,
+        }));
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
+    );
+
+    // SFDC: remove every org-member bridge the cascade just deleted. After
+    // commit so a rolled-back delete never desyncs SFDC; removeUser never
+    // throws, so per-org failures cannot fail the mutation.
+    await Promise.all(
+      sfdcRemovals.map(({ orgId, email }) =>
+        getSfdcService()?.removeUser({ orgId, userId, email }),
+      ),
     );
 
     return {
@@ -211,18 +279,21 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4 = canToggleV4({
-        userCreatedAt: userRolloutState.createdAt,
-        organizations: userRolloutState.organizationMemberships.map(
-          (membership) => ({
-            id: membership.organization.id,
-            createdAt: membership.organization.createdAt,
-          }),
-        ),
-        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-          : [],
-      });
+      const userCanToggleV4 = canToggleV4(
+        {
+          userCreatedAt: userRolloutState.createdAt,
+          organizations: userRolloutState.organizationMemberships.map(
+            (membership) => ({
+              id: membership.organization.id,
+              createdAt: membership.organization.createdAt,
+            }),
+          ),
+          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+            : [],
+        },
+        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
+      );
 
       if (!userCanToggleV4) {
         return {

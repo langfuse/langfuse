@@ -1,13 +1,8 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import {
-  GetScoresQueryV3,
-  GetScoresResponseV3,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+import { GetScoresQueryV3, GetScoresResponseV3 } from "@langfuse/shared";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
 import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
-import { env } from "@/src/env.mjs";
 
 const GetScoresV3Query = GetScoresQueryV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
@@ -107,14 +102,6 @@ export default withMiddlewares({
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {
-      if (env.LANGFUSE_ENABLE_SCORES_V3_API !== "true") {
-        // Returns 404 to authenticated callers when disabled. Note: auth and
-        // Zod parsing already ran, so an unauthenticated caller sees 401 here
-        // (signalling the endpoint exists). Cloud has the flag on by default;
-        // self-hosted instances see 404 until the API graduates from preview.
-        throw new LangfuseNotFoundError("Not Found");
-      }
-
       const result = await listScoresV3ForPublicApi({
         projectId: auth.scope.projectId,
         limit: query.limit,

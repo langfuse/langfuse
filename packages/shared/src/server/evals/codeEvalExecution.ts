@@ -9,7 +9,6 @@ import {
   type InternalTraceWriter,
 } from "../llm/types";
 import { logger } from "../logger";
-import type { EvalTemplateCodeBased } from "../../features/evals/types";
 import {
   CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES,
   CODE_EVAL_DISPATCH_RESULT_MAX_BYTES,
@@ -19,11 +18,14 @@ import {
   withCodeEvalDocs,
   type CodeEvalDispatcherErrorCode,
   type CodeEvalDispatcher,
+  type CodeEvalRuntimeLanguage,
   type CodeEvalPayload,
   type CodeEvalScoreWithName,
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
+import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
+import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
@@ -109,11 +111,28 @@ function buildCodeEvalPayload(params: {
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
   );
+  // Extraction zips tool calls into named objects (extractObservationVariables).
+  // Configs saved before "toolCalls" entered the code eval mapping extract
+  // nothing for it, so those evaluators see empty arrays. Parse rather than
+  // cast: a mapping row with a jsonSelector on toolCalls (or a corrupted row)
+  // would otherwise ship wrong-shaped elements into user evaluator code.
+  const rawToolCalls = byName.get("toolCalls");
+  const parsedToolCalls = z
+    .array(toolCallForEvalSchema)
+    .safeParse(rawToolCalls ?? []);
+  if (!parsedToolCalls.success) {
+    logger.warn(
+      "Extracted toolCalls variable is not ToolCallForEval[]; evaluator receives an empty array",
+      { error: parsedToolCalls.error.message },
+    );
+  }
+  const toolCalls = parsedToolCalls.success ? parsedToolCalls.data : [];
   const payload: CodeEvalPayload = {
     observation: {
       input: byName.get("input") ?? null,
       output: byName.get("output") ?? null,
       metadata: byName.get("metadata") ?? null,
+      toolCalls,
     },
   };
 
@@ -190,7 +209,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
   projectId: string;
   executionTraceId: string;
   jobExecutionId: string;
-  template: EvalTemplateCodeBased;
+  evaluator: { id: string };
+  version: {
+    sourceCode: string;
+    sourceCodeLanguage: CodeEvalRuntimeLanguage;
+  };
   extractedVariables: ExtractedVariable[];
   hasExperimentContext?: boolean;
   traceName: string;
@@ -209,11 +232,11 @@ export async function runCodeBasedEvaluationDispatch(params: {
       scope: {
         organizationId: params.organizationId,
         projectId: params.projectId,
-        evaluatorId: params.template.id,
+        evaluatorId: params.evaluator.id,
       },
-      runtime: { language: params.template.sourceCodeLanguage },
+      runtime: { language: params.version.sourceCodeLanguage },
       execution: { jobExecutionId: params.jobExecutionId },
-      code: { source: params.template.sourceCode },
+      code: { source: params.version.sourceCode },
       payload,
     });
 
@@ -227,7 +250,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
         payload,
         output: dispatchResult,
         metadata: params.metadata,
-        sourceCode: params.template.sourceCode,
+        sourceCode: params.version.sourceCode,
       }),
     });
 
@@ -274,7 +297,7 @@ export async function runCodeBasedEvaluationDispatch(params: {
             : {}),
           error_retryable: errorDetails.retryable,
         },
-        sourceCode: params.template.sourceCode,
+        sourceCode: params.version.sourceCode,
         level: "ERROR",
         statusMessage: `Code eval execution failed: ${visibleError.message}`,
       }),

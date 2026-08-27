@@ -16,6 +16,7 @@ export const _handleGetScoreById = async ({
   scoreScope,
   scoreDataTypes,
   preferredClickhouseService,
+  apiVersion,
 }: {
   projectId: string;
   scoreId: string;
@@ -23,6 +24,7 @@ export const _handleGetScoreById = async ({
   scoreScope: "traces_only" | "all";
   scoreDataTypes?: readonly ScoreDataTypeType[];
   preferredClickhouseService?: PreferredClickhouseService;
+  apiVersion?: "v1" | "v2";
 }): Promise<ScoreDomain | undefined> => {
   const query = `
   SELECT *
@@ -47,12 +49,7 @@ export const _handleGetScoreById = async ({
         ? { scoreDataTypes: scoreDataTypes.map((d) => d.toString()) }
         : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
+    tags: { projectId, ...(apiVersion ? { api_version: apiVersion } : {}) },
     preferredClickhouseService,
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
@@ -96,12 +93,7 @@ export const _handleGetScoresByIds = async ({
       ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
       ...(source !== undefined ? { source } : {}),
     },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
+    tags: { projectId },
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row));
 };

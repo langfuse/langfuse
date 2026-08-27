@@ -9,16 +9,11 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { ClipboardPen, Lock, MoreVertical } from "lucide-react";
+import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
@@ -61,57 +56,47 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   });
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData, RowData["key"]>({
       accessorKey: "key",
       header: "Name",
-      id: "key",
       size: 150,
       isPinnedLeft: true,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
-        return key && "id" in key && typeof key.id === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/annotation-queues/${key.id}`}
-            value={key.name}
-          />
-        ) : undefined;
+      getCell: (key) => {
+        if (key && "id" in key && typeof key.id === "string") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/annotation-queues/${key.id}`,
+              value: key.name,
+            },
+          };
+        }
+
+        return undefined;
       },
-    },
+    }),
     {
       accessorKey: "description",
       header: "Description",
       id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: RowData["description"] = row.getValue("description");
-        return (
-          <span
-            className={cn(
-              "grid h-full items-center overflow-auto",
-              rowHeight === "s" && "leading-3",
-            )}
-          >
-            {description}
-          </span>
-        );
-      },
     },
-    {
+    createNumberTableColumn<RowData>({
       accessorKey: "countCompletedItems",
       header: "Completed Items",
-      id: "countCompletedItems",
       enableHiding: true,
       size: 90,
-    },
-    {
+      formatter: String,
+    }),
+    createNumberTableColumn<RowData>({
       accessorKey: "countPendingItems",
       header: "Pending Items",
-      id: "countPendingItems",
       enableHiding: true,
       size: 90,
-    },
+      formatter: String,
+    }),
     {
       accessorKey: "scoreConfigs",
       header: "Score Configs",
@@ -179,28 +164,19 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <div className="flex flex-col space-y-0.5">
-                <CreateOrEditAnnotationQueueButton
-                  projectId={projectId}
-                  queueId={key.id}
-                  variant="ghost"
-                />
-                <DeleteAnnotationQueueButton
-                  projectId={projectId}
-                  queueId={key.id}
-                />
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <CreateOrEditAnnotationQueueButton
+              projectId={projectId}
+              queueId={key.id}
+              variant="ghost"
+              size="icon-xs"
+              isTableAction
+            />
+            <DeleteAnnotationQueueButton
+              projectId={projectId}
+              queueId={key.id}
+            />
+          </div>
         );
       },
     },
@@ -242,7 +218,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"annotationQueues"}
+        tableName="annotationQueues"
         columns={columns}
         data={
           queues.isLoading

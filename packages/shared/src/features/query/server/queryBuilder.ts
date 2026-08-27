@@ -1,9 +1,10 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
 import {
+  bindUtcDateTimeParam,
   FilterList,
+  filtersRequireEventsFull,
   type Filter,
 } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
@@ -18,11 +19,18 @@ import type {
 import {
   query as queryModel,
   getValidAggregationsForMeasureType,
+  SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
 import { env } from "../../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
+import {
+  getCompatibleFilterTypes,
+  isFilterColumnType,
+  type CompatibleFilterType,
+  type FilterColumnType,
+} from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 
 type AppliedDimensionType = {
   table: string;
@@ -37,6 +45,7 @@ type AppliedDimensionType = {
 type AppliedMetricType = {
   sql: string;
   aggregation: z.infer<typeof metricAggregations>;
+  queryAggregation?: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
   aggs?: Record<string, string>;
@@ -50,6 +59,51 @@ type MappedFilters = {
   whereFilters: Filter[];
   whereRawParts: RawSqlPart[];
 };
+
+const isQueryArrayDimensionType = (dimensionType: string | undefined) =>
+  dimensionType === "string[]" || dimensionType === "arrayString";
+
+const getFilterColumnTypeForQueryDimension = (
+  dimensionType: string | undefined,
+): FilterColumnType | null => {
+  if (isQueryArrayDimensionType(dimensionType)) {
+    return "arrayOptions";
+  }
+
+  if (dimensionType === "null" || dimensionType === "positionInTrace") {
+    return null;
+  }
+
+  return isFilterColumnType(dimensionType) ? dimensionType : null;
+};
+
+const getCompatibleFilterTypesForQueryDimension = (
+  dimensionType: string | undefined,
+): readonly CompatibleFilterType[] | null => {
+  const filterColumnType = getFilterColumnTypeForQueryDimension(dimensionType);
+
+  if (!filterColumnType) {
+    return null;
+  }
+
+  // Query array dimensions are ClickHouse Array(String) expressions. The shared
+  // table also allows stringOptions for legacy UI array columns, but metrics
+  // queries must use arrayOptions so QueryBuilder generates hasAny/hasAll in SQL.
+  if (isQueryArrayDimensionType(dimensionType)) {
+    return ["arrayOptions"];
+  }
+
+  return getCompatibleFilterTypes(filterColumnType);
+};
+
+const formatExpectedFilterTypes = (
+  filterTypes: readonly CompatibleFilterType[],
+) =>
+  filterTypes.length === 1
+    ? `'${filterTypes[0]}'`
+    : filterTypes
+        .map((filterType) => `'${filterType}'`)
+        .join(filterTypes.length === 2 ? " or " : ", ");
 
 type AppliedBucketingDimension =
   | { type: "none" }
@@ -84,7 +138,9 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
-    switch (metric.aggregation) {
+    const aggregation = metric.queryAggregation ?? metric.aggregation;
+
+    switch (aggregation) {
       case "sum":
         return `sum(${metric.alias || metric.sql})`;
       case "avg":
@@ -114,16 +170,16 @@ export class QueryBuilder {
         return `uniq(${metric.alias || metric.sql})`;
       default: {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
+        const exhaustiveCheck: never = aggregation;
         throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation satisfies never}`,
+          `Invalid aggregation: ${aggregation satisfies never}`,
         );
       }
     }
   }
 
   private getViewDeclaration(
-    viewName: z.infer<typeof views>,
+    viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   ): ViewDeclarationType {
     return getViewDeclaration(viewName, this.version);
   }
@@ -250,16 +306,23 @@ export class QueryBuilder {
         );
       }
       const measureDef = view.measures[metric.measure];
-      const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+      const aggregationOverride =
+        measureDef.aggregationOverrides?.[metric.aggregation];
+      const resolvedMeasureDef = aggregationOverride
+        ? { ...measureDef, ...aggregationOverride }
+        : measureDef;
+      const validAggs = getValidAggregationsForMeasureType(
+        resolvedMeasureDef.type,
+      );
       if (!validAggs.includes(metric.aggregation)) {
         throw new InvalidRequestError(
-          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
+          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${resolvedMeasureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
         );
       }
       return {
-        ...view.measures[metric.measure],
+        ...resolvedMeasureDef,
         aggregation: metric.aggregation,
-        aggs: view.measures[metric.measure].aggs,
+        aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
       };
     });
@@ -271,24 +334,56 @@ export class QueryBuilder {
   ) {
     for (const filter of filters) {
       // Validate filters on dimension fields
-      if (filter.column in view.dimensions) {
-        const dimension = view.dimensions[filter.column];
+      const dimension = this.resolveDimension(filter.column, view);
 
-        // Array fields (like tags) validation
-        if (dimension.type === "string[]") {
-          if (filter.type === "string") {
-            throw new InvalidRequestError(
-              `Invalid filter for field '${filter.column}': Array fields require type 'arrayOptions', not 'string'. ` +
-                `Use operators like 'any of', 'all of', or 'none of' with an array of values.`,
-            );
-          }
+      if (dimension) {
+        if (dimension.pairExpand) {
+          throw new InvalidRequestError(
+            `Field '${filter.column}' cannot be used as a filter.`,
+          );
+        }
 
-          // Additional validation: ensure value is array for arrayOptions
-          if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
-            throw new InvalidRequestError(
-              `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
-            );
-          }
+        const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
+          dimension.type,
+        );
+
+        if (!compatibleFilterTypes) {
+          throw new InvalidRequestError(
+            `Invalid query dimension '${filter.column}': Unsupported dimension type '${dimension.type ?? "undefined"}'.`,
+          );
+        }
+
+        if (filter.type === "null") {
+          continue;
+        }
+
+        if (!compatibleFilterTypes.includes(filter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for dimension type '${dimension.type ?? "string"}'. ` +
+              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
+          );
+        }
+
+        if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
+          );
+        }
+      }
+
+      // Special validation for time dimension filters
+      else if (filter.column === view.timeDimension) {
+        const compatibleFilterTypes: CompatibleFilterType[] = ["datetime"];
+
+        if (filter.type === "null") {
+          continue;
+        }
+
+        if (!compatibleFilterTypes.includes(filter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for time dimension '${view.timeDimension}'. ` +
+              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
+          );
         }
       }
 
@@ -454,7 +549,7 @@ export class QueryBuilder {
 
       // Normal dimension or special-case filter: build column mapping
       let clickhouseSelect: string;
-      let queryPrefix: string = "";
+      let queryPrefix = "";
       let clickhouseTableName: string = actualTableName;
       let type: string;
       let emptyEqualsNull: boolean | undefined;
@@ -806,15 +901,18 @@ export class QueryBuilder {
     // Choose appropriate granularity based on date range to get ~50 buckets
     if (diffHours < 2) {
       return "minute"; // Less than a 2h, use minutes
-    } else if (diffHours < 72) {
-      return "hour"; // Less than 3 days, use hours
-    } else if (diffHours < 1440) {
-      return "day"; // Less than 60 days, use days
-    } else if (diffHours < 8760) {
-      return "week"; // Less than a year, use weeks
-    } else {
-      return "month"; // Over a year, use months
     }
+    if (diffHours < 72) {
+      return "hour"; // Less than 3 days, use hours
+    }
+    if (diffHours < 1440) {
+      return "day"; // Less than 60 days, use days
+    }
+    if (diffHours < 8760) {
+      return "week"; // Less than a year, use weeks
+    }
+
+    return "month"; // Over a year, use months
   }
 
   private getTimeDimensionSql(
@@ -832,6 +930,26 @@ export class QueryBuilder {
         return `toMonday(${sql})`;
       case "month":
         return `toStartOfMonth(${sql})`;
+      case "5m":
+        return `toStartOfInterval(${sql}, INTERVAL 5 MINUTE)`;
+      case "10m":
+        return `toStartOfInterval(${sql}, INTERVAL 10 MINUTE)`;
+      case "15m":
+        return `toStartOfInterval(${sql}, INTERVAL 15 MINUTE)`;
+      case "30m":
+        return `toStartOfInterval(${sql}, INTERVAL 30 MINUTE)`;
+      case "1h":
+        return `toStartOfInterval(${sql}, INTERVAL 1 HOUR)`;
+      case "2h":
+        return `toStartOfInterval(${sql}, INTERVAL 2 HOUR)`;
+      case "4h":
+        return `toStartOfInterval(${sql}, INTERVAL 4 HOUR)`;
+      case "1d":
+        return `toStartOfInterval(${sql}, INTERVAL 1 DAY)`;
+      case "2d":
+        return `toStartOfInterval(${sql}, INTERVAL 2 DAY)`;
+      case "1w":
+        return `toStartOfInterval(${sql}, INTERVAL 7 DAY)`;
       case "auto":
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
@@ -862,12 +980,13 @@ export class QueryBuilder {
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
     // When the view has a rootEventCondition, prefer the root event's timestamp for
-    // time bucketing. Falls back to min(start_time) when no root event exists for a
-    // trace (e.g. parent_span_id is not populated).
+    // time bucketing. Falls back to min(start_time) when no semantic-root event
+    // exists for a trace.
     let wrappedSql: string;
     if (wrapInAgg && view.rootEventCondition) {
-      const alias = this.tableAlias(view);
-      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${alias}.${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
+      // The condition owns its qualification because prefixing a compound SQL
+      // expression here would produce invalid SQL such as `alias.(a OR b)`.
+      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
     } else if (wrapInAgg) {
       wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
     } else {
@@ -1102,18 +1221,52 @@ export class QueryBuilder {
       case "month":
         step = "INTERVAL 1 MONTH";
         break;
+      case "5m":
+        step = "INTERVAL 5 MINUTE";
+        break;
+      case "10m":
+        step = "INTERVAL 10 MINUTE";
+        break;
+      case "15m":
+        step = "INTERVAL 15 MINUTE";
+        break;
+      case "30m":
+        step = "INTERVAL 30 MINUTE";
+        break;
+      case "1h":
+        step = "INTERVAL 1 HOUR";
+        break;
+      case "2h":
+        step = "INTERVAL 2 HOUR";
+        break;
+      case "4h":
+        step = "INTERVAL 4 HOUR";
+        break;
+      case "1d":
+        step = "INTERVAL 1 DAY";
+        break;
+      case "2d":
+        step = "INTERVAL 2 DAY";
+        break;
+      case "1w":
+        step = "INTERVAL 7 DAY";
+        break;
       default:
         step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown
     }
 
-    parameters["fillFromDate"] = convertDateToClickhouseDateTime(
+    const fillFromDateParam = bindUtcDateTimeParam(
+      "fillFromDate",
       new Date(fromTimestamp),
     );
-    parameters["fillToDate"] = convertDateToClickhouseDateTime(
+    const fillToDateParam = bindUtcDateTimeParam(
+      "fillToDate",
       new Date(toTimestamp),
     );
+    parameters["fillFromDate"] = fillFromDateParam.value;
+    parameters["fillToDate"] = fillToDateParam.value;
 
-    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", appliedBucketingDimension.granularity)} STEP ${step}`;
+    return ` WITH FILL FROM ${this.getTimeDimensionSql(fillFromDateParam.placeholder, appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql(fillToDateParam.placeholder, appliedBucketingDimension.granularity)} STEP ${step}`;
   }
 
   /**
@@ -1387,7 +1540,7 @@ export class QueryBuilder {
   public async build(
     query: QueryType,
     projectId: string,
-    enableSingleLevelOptimization: boolean = false,
+    enableSingleLevelOptimization = false,
   ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);
@@ -1442,10 +1595,23 @@ export class QueryBuilder {
     }
 
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
-    const { whereFilters, whereRawParts } = this.mapFilters(
-      query.filters,
-      view,
-    );
+    let mappedFilters = this.mapFilters(query.filters, view);
+
+    // events_core stores metadata_values truncated to 200 chars (events_core_mv);
+    // truncation-sensitive filters must read events_full or matches beyond the
+    // truncation point are silently dropped. Re-map so filter prefixes follow.
+    if (
+      this.actualTableName(view) === "events_core" &&
+      filtersRequireEventsFull(new FilterList(mappedFilters.whereFilters))
+    ) {
+      view = {
+        ...view,
+        baseCte: view.baseCte.replace("events_core", "events_full"),
+      };
+      mappedFilters = this.mapFilters(query.filters, view);
+    }
+
+    const { whereFilters, whereRawParts } = mappedFilters;
     let filterList = new FilterList(whereFilters);
 
     // Add standard filters (project_id, timestamps)
@@ -1515,18 +1681,24 @@ export class QueryBuilder {
         const toP = `subTo${uid}`;
         const projP = `subProj${uid}`;
         const baseTable = this.actualTableName(view);
+        const tableAlias = this.tableAlias(view);
         const { column, condition } = view.rootEventCondition;
+        const fromParam = bindUtcDateTimeParam(
+          fromP,
+          new Date(query.fromTimestamp),
+        );
+        const toParam = bindUtcDateTimeParam(toP, new Date(query.toTimestamp));
         const subquery =
-          `SELECT ${column} FROM ${baseTable} ` +
-          `WHERE project_id = {${projP}: String} ` +
+          `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
+          `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
           `AND ${condition} ` +
-          `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-          `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+          `AND ${tableAlias}.${view.timeDimension} >= ${fromParam.placeholder} ` +
+          `AND ${tableAlias}.${view.timeDimension} <= ${toParam.placeholder}`;
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;
-        parameters[fromP] = new Date(query.fromTimestamp).getTime();
-        parameters[toP] = new Date(query.toTimestamp).getTime();
+        parameters[fromP] = fromParam.value;
+        parameters[toP] = toParam.value;
         parameters[projP] = projectId;
       }
     }

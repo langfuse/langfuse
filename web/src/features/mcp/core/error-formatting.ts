@@ -76,6 +76,17 @@ export function formatErrorForUser(error: unknown): McpError {
     return new McpError(ErrorCode.InvalidRequest, error.message);
   }
 
+  if (error instanceof BaseError && error.httpCode >= 500) {
+    logger.error("MCP BaseError (server-side)", {
+      name: error.name,
+      httpCode: error.httpCode,
+    });
+    return new McpError(
+      ErrorCode.InternalError,
+      "An internal server error occurred. Please try again later.",
+    );
+  }
+
   if (error instanceof BaseError) {
     logger.warn("MCP BaseError", error);
     return new McpError(ErrorCode.InvalidRequest, error.message);

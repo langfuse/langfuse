@@ -1,8 +1,10 @@
 import { listDatasetRunItemsByRunIdForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { GetDatasetRunItemsV1Response } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetRunUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";
+import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
 import { GetDatasetRunItemsMcpInput } from "../schema";
 
 export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
@@ -20,6 +22,7 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
         "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
+        rejectDatasetRunToolsInEventsOnlyMode();
         const result = await listDatasetRunItemsByRunIdForApi({
           datasetId: input.datasetId,
           datasetRunId: input.datasetRunId,
@@ -28,10 +31,22 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
           page: input.page,
         });
 
-        return GetDatasetRunItemsV1Response.parse({
+        const parsed = GetDatasetRunItemsV1Response.parse({
           data: result.data,
           meta: paginationMeta(result.meta),
         });
+
+        return {
+          ...parsed,
+          data: parsed.data.map((datasetRunItem) => ({
+            ...datasetRunItem,
+            url: buildDatasetRunUrl({
+              projectId: context.projectId,
+              datasetId: input.datasetId,
+              datasetRunId: datasetRunItem.datasetRunId,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,

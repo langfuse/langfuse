@@ -1,9 +1,11 @@
+/* eslint-disable @repo/no-style-props */
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
   Form,
   FormControl,
@@ -505,7 +507,7 @@ export function CommentList({
       )}
     >
       {cardView && (
-        <div className="shrink-0 border-b px-2 py-1 text-sm font-medium">
+        <div className="shrink-0 border-b px-2 py-1 text-sm font-bold">
           Comments ({comments.data?.length ?? 0})
         </div>
       )}
@@ -513,7 +515,7 @@ export function CommentList({
         {!cardView && (
           <div className="shrink-0 border-b">
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-              <div className="text-sm font-medium">Comments</div>
+              <div className="text-sm font-bold">Comments</div>
               <div className="relative max-w-xs flex-1">
                 <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
@@ -536,16 +538,15 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
-                    {typeof navigator !== "undefined" &&
-                    navigator.userAgent.includes("Macintosh") ? (
-                      <>
-                        <span className="text-xs">⌘</span>F
-                      </>
-                    ) : (
-                      <>Ctrl+F</>
-                    )}
-                  </kbd>
+                  <KeyboardShortcut
+                    className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50"
+                    keys={
+                      typeof navigator !== "undefined" &&
+                      navigator.userAgent.includes("Macintosh")
+                        ? ["⌘", "F"]
+                        : ["Ctrl", "F"]
+                    }
+                  />
                 )}
               </div>
             </div>
@@ -589,7 +590,7 @@ export function CommentList({
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
-                    <span className="text-foreground font-medium">
+                    <span className="text-foreground font-bold">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
                     </span>
                     <span className="text-muted-foreground/50">·</span>
@@ -601,7 +602,7 @@ export function CommentList({
                   {/* Comment content with CSS overrides for markdown */}
                   <MarkdownView
                     markdown={comment.content}
-                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
+                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-bold [&_h2]:text-[0.85rem] [&_h2]:font-bold [&_h3]:text-[0.8rem] [&_h3]:font-bold [&_h4]:text-xs [&_h4]:font-bold [&_h5]:text-xs [&_h5]:font-bold [&_h6]:text-xs [&_h6]:font-bold [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
 
                   {/* Inline comment position indicator */}
@@ -614,7 +615,7 @@ export function CommentList({
                         <TooltipTrigger asChild>
                           <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
                             <Badge
-                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-medium"
+                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-bold"
                               style={{
                                 backgroundColor:
                                   IO_FIELD_COLORS[
@@ -803,9 +804,7 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
-                            <span className="text-xs">⌘</span>Enter
-                          </kbd>
+                          <KeyboardShortcut keys={["⌘", "Enter"]} />
                         </div>
                       </HoverCardContent>
                     </HoverCard>

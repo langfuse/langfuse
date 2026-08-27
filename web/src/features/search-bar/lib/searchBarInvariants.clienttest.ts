@@ -1,0 +1,280 @@
+// @vitest-environment node
+
+import { describe, expect, it } from "vitest";
+
+import { EVENTS_FIELD_REGISTRY } from "./fields";
+import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { validateQuery } from "./validate";
+import { planCommit } from "./commit";
+import { planInputCompletions } from "./completions";
+import {
+  generateQueryCases,
+  runSearchBarInvariants,
+  type RegistryUnderTest,
+} from "./searchBarInvariants";
+
+// Per-view wiring of the property harness. A second filterable view adopts the
+// bar by adding its own block here with its registry — the harness is unchanged.
+// See README.md "Extending to other views (the universality contract)".
+const eventsView: RegistryUnderTest = {
+  name: "events v4",
+  registry: EVENTS_FIELD_REGISTRY,
+  // Grammar overlay: dot-path examples + pseudo-fields (README step 2).
+  extraKeys: [
+    "metadata.region",
+    "scores.accuracy",
+    "traceScores.nps",
+    // Quoted dot-path segments: score/metadata names with spaces + grammar
+    // chars must round-trip through the quoting just like bare keys.
+    'scores."Rouge Score"',
+    'traceScores."Hallucination Check"',
+    'metadata."my key"',
+    "has:endTime",
+    "has:latency",
+  ],
+  // Numeric vs categorical routing for scores.accuracy must not change which
+  // invariants hold — only how a score lowers.
+  scoreContexts: [
+    {
+      numericScoreNames: new Set(["accuracy"]),
+      categoricalScoreNames: new Set(),
+      traceNumericScoreNames: new Set(),
+      traceCategoricalScoreNames: new Set(["nps"]),
+    },
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(["accuracy"]),
+      traceNumericScoreNames: new Set(["nps"]),
+      traceCategoricalScoreNames: new Set(),
+    },
+    // Boolean-observed scores: boolean literals route to booleanObject while
+    // numeric shapes keep the legacy scores_avg lowering (old URLs/saved
+    // views), so both must hold the invariants under the same context.
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(),
+      booleanScoreNames: new Set(["accuracy"]),
+      traceNumericScoreNames: new Set(),
+      traceCategoricalScoreNames: new Set(),
+      traceBooleanScoreNames: new Set(["nps"]),
+    },
+  ],
+  fieldValues: ["x", "ERROR", "5", "0.8", "2026-06-01", "true", "a b", "gpt-4"],
+  // Adversarial free text — the tokens the parser reserves/quotes. The bare
+  // boolean keywords and `!`-prefix here are the exact #4 regression class;
+  // the bare field words (`type`, `level`) are the LFE-11017 class — a lone
+  // field-name free text must serialize QUOTED so it re-parses valid.
+  freeTextValues: [
+    "hello",
+    "refund policy",
+    "type",
+    "level",
+    "or",
+    "and",
+    "not",
+    "OR",
+    "AND",
+    "NOT",
+    "team or kitten",
+    "test not really",
+    "!important",
+    "!critical bug",
+    "-foo",
+    "a,b",
+    "gpt-4-turbo",
+    "key:value",
+    "(grouped)",
+    'has "quote"',
+  ],
+};
+
+const evaluationRulesView: RegistryUnderTest = {
+  name: "evaluation rules",
+  registry: RULE_FIELD_REGISTRY,
+  extraKeys: ["metadata.region", "has:version", "has:parentObservationId"],
+  scoreContexts: [],
+  fieldValues: ["x", "ERROR", "5", "true", "a b"],
+  freeTextValues: [],
+};
+
+describe("search bar invariants — events v4 registry", () => {
+  it("generates a broad field × operator × value matrix", () => {
+    // Sanity: the matrix actually exercises the registry (guards against a
+    // future refactor silently emptying the generator).
+    expect(generateQueryCases(eventsView).length).toBeGreaterThan(1000);
+  });
+
+  it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
+    const failures = runSearchBarInvariants(eventsView);
+    // Surface every failing case, not just the first, for a fast diagnosis.
+    expect(
+      failures,
+      failures.length === 0
+        ? "ok"
+        : `\n${failures
+            .slice(0, 25)
+            .map((f) => `  [${f.invariant}] ${f.case} — ${f.detail}`)
+            .join(
+              "\n",
+            )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
+    ).toEqual([]);
+  });
+
+  it("supports filtering to experiment item root spans", () => {
+    expect(
+      planCommit(
+        "isExperimentItemRootSpan:true",
+        undefined,
+        EVENTS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "isExperimentItemRootSpan",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+  });
+
+  it("supports the dataset alias used by sample observation filters", () => {
+    expect(
+      planCommit("dataset:dataset-id", undefined, EVENTS_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "experimentDatasetId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-id"],
+        },
+      ],
+    });
+  });
+});
+
+describe("search bar invariants — evaluation rules registry", () => {
+  it("isolates the rule language from events-only fields and free text", () => {
+    expect(
+      validateQuery("latency:>2", undefined, RULE_FIELD_REGISTRY).valid,
+    ).toBe(false);
+    expect(validateQuery("refund", undefined, RULE_FIELD_REGISTRY).valid).toBe(
+      false,
+    );
+
+    const completion = planInputCompletions(
+      {
+        input: "",
+        caret: 0,
+        observed: {},
+        recents: ["latency:>2"],
+        currentQueryText: "",
+      },
+      RULE_FIELD_REGISTRY,
+    );
+    expect(
+      completion?.sections
+        .flatMap((section) => section.options)
+        .some(
+          (option) => option.kind === "field" && option.fieldId === "latency",
+        ),
+    ).toBe(false);
+    expect(
+      completion?.sections
+        .flatMap((section) => section.options)
+        .some((option) => option.kind === "recent"),
+    ).toBe(false);
+
+    expect(
+      planCommit("tags:billing", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "tags", type: "arrayOptions" }],
+    });
+
+    expect(
+      planCommit("model:gpt-4o", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "providedModelName", type: "string" }],
+    });
+    expect(
+      planCommit("prompt:support-agent", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "promptName", type: "string" }],
+    });
+    expect(
+      planCommit("status:rate-limit", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "statusMessage", type: "string" }],
+    });
+    expect(
+      planCommit("experiment:checkout", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [{ column: "experimentName", type: "string" }],
+    });
+
+    expect(
+      planCommit("dataset:dataset-id", undefined, RULE_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "experimentDatasetId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["dataset-id"],
+        },
+      ],
+    });
+
+    const datasetCompletion = planInputCompletions(
+      {
+        input: "dataset:",
+        caret: 8,
+        observed: {
+          experimentDatasetId: [{ value: "dataset-id" }],
+        },
+        recents: [],
+        currentQueryText: "dataset:",
+      },
+      RULE_FIELD_REGISTRY,
+    );
+    expect(
+      datasetCompletion?.sections
+        .flatMap((section) => section.options)
+        .some(
+          (option) => option.kind === "value" && option.value === "dataset-id",
+        ),
+    ).toBe(true);
+
+    expect(
+      planCommit(
+        "isExperimentItemRootSpan:true",
+        undefined,
+        RULE_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "isExperimentItemRootSpan",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+  });
+
+  it("holds commit parity and FilterState round-trips", () => {
+    expect(runSearchBarInvariants(evaluationRulesView)).toEqual([]);
+  });
+});

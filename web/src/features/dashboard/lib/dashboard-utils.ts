@@ -14,9 +14,8 @@ export const createTracesTimeFilter = (
         ...f,
         column: columnName,
       };
-    } else {
-      return f;
     }
+    return f;
   });
 };
 

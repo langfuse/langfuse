@@ -1,4 +1,5 @@
 import {
+  deprecationResponseZod,
   InvalidRequestError,
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -13,6 +14,16 @@ import {
   views,
   viewsV2,
 } from "@langfuse/shared/query";
+
+/** publicGranularities is the base 6 granularities exposed on the public metrics API and MCP. */
+export const publicGranularities = granularities.extract([
+  "auto",
+  "minute",
+  "hour",
+  "day",
+  "week",
+  "month",
+]);
 
 /**
  * Query Object Structure
@@ -30,7 +41,7 @@ export const MetricsQueryObject = z
     filters: z.array(singleFilter).optional().default([]),
     timeDimension: z
       .object({
-        granularity: granularities,
+        granularity: publicGranularities,
       })
       .nullable()
       .optional()
@@ -98,7 +109,7 @@ export const MetricsQueryObjectV2 = z
     filters: z.array(singleFilter).optional().default([]),
     timeDimension: z
       .object({
-        granularity: granularities,
+        granularity: publicGranularities,
       })
       .nullable()
       .optional()
@@ -145,6 +156,7 @@ export const GetMetricsV2Query = z.object({
     .pipe(MetricsQueryObjectV2),
 });
 
+/** @alias */
 export const GetMetricsV2Response = GetMetricsV1Response;
 
 // Get /metrics/daily
@@ -183,5 +195,6 @@ export const GetMetricsDailyV1Response = z
         .strict(),
     ),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();

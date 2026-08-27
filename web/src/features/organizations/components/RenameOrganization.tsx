@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -22,6 +22,7 @@ import { useSession } from "next-auth/react";
 
 export default function RenameOrganization() {
   const { update: updateSession } = useSession();
+  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const hasAccess = useHasOrganizationAccess({
@@ -41,6 +42,9 @@ export default function RenameOrganization() {
   const renameOrganization = api.organizations.update.useMutation({
     onSuccess: () => {
       updateSession();
+      // Admins resolve org/project context from these queries, not the session
+      utils.organizations.byId.invalidate();
+      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
@@ -56,9 +60,7 @@ export default function RenameOrganization() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "organizations"));
   }
 
   return (

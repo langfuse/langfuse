@@ -9,7 +9,6 @@ import {
   parseDispatchResult,
 } from "../../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../../packages/shared/src/server/evals/codeEvalExecution";
-import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 
 const mocks = vi.hoisted(() => ({
   dispatcher: {
@@ -39,12 +38,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     createW3CTraceId: mocks.createW3CTraceId,
     runCodeBasedEvaluationDispatch,
     resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
+    writeInternalTraceViaOtelIngestion: mocks.writeInternalTrace,
   };
 });
-
-vi.mock("../../internal-tracing/createInternalEventsWriter", () => ({
-  createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
-}));
 
 import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 
@@ -70,6 +66,7 @@ describe("executeCodeBasedEvaluation", () => {
     const result = await executeCodeBasedEvaluation({
       projectId: "project-1",
       organizationId: "org-1",
+      evaluatorId: "evaluator-1",
       job: {
         id: "job-1",
         jobConfigurationId: "config-1",
@@ -95,6 +92,20 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "input", value: { question: "2+2" } },
         { var: "output", value: "4" },
         { var: "experimentItemExpectedOutput", value: "4" },
+        // Zipped shape produced by extractObservationVariables for the
+        // "toolCalls" entry of the code eval mapping.
+        {
+          var: "toolCalls",
+          value: [
+            {
+              id: "call_1",
+              name: "search",
+              arguments: { query: "weather" },
+              type: "function",
+              index: 0,
+            },
+          ],
+        },
       ],
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
@@ -115,6 +126,15 @@ describe("executeCodeBasedEvaluation", () => {
         input: { question: "2+2" },
         output: "4",
         metadata: null,
+        toolCalls: [
+          {
+            id: "call_1",
+            name: "search",
+            arguments: { query: "weather" },
+            type: "function",
+            index: 0,
+          },
+        ],
       },
       experiment: {
         itemExpectedOutput: "4",
@@ -123,7 +143,10 @@ describe("executeCodeBasedEvaluation", () => {
     });
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        scope: expect.objectContaining({ organizationId: "org-1" }),
+        scope: expect.objectContaining({
+          organizationId: "org-1",
+          evaluatorId: "evaluator-1",
+        }),
         payload: expectedPayload,
       }),
     );
@@ -187,8 +210,14 @@ describe("executeCodeBasedEvaluation", () => {
     ]);
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
+        scope: expect.objectContaining({ evaluatorId: "template-1" }),
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
         },
       }),
     );
@@ -227,7 +256,12 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
           experiment: {
             itemExpectedOutput: null,
             itemMetadata: null,
@@ -270,7 +304,12 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
         },
       }),
     );
@@ -317,6 +356,7 @@ describe("executeCodeBasedEvaluation", () => {
             input: null,
             output: "true",
             metadata: "42",
+            toolCalls: [],
           },
           experiment: {
             itemExpectedOutput: "null",
@@ -369,6 +409,7 @@ describe("executeCodeBasedEvaluation", () => {
             input: null,
             output: null,
             metadata: null,
+            toolCalls: [],
           },
           experiment: {
             itemExpectedOutput: null,
@@ -448,7 +489,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow("runner exploded");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);
@@ -464,7 +509,12 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage: "Code eval execution failed: runner exploded",
             input: JSON.stringify({
-              observation: { input: "prompt", output: null, metadata: null },
+              observation: {
+                input: "prompt",
+                output: null,
+                metadata: null,
+                toolCalls: [],
+              },
             }),
             output: expect.stringContaining("runner exploded"),
             metadata: expect.objectContaining({
@@ -513,7 +563,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: CodeEvalDispatcherErrorCodes.INVALID_RESULT,
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow(
       "The evaluator returned an invalid result.",
     );
@@ -622,7 +676,11 @@ describe("executeCodeBasedEvaluation", () => {
       executionMetadata: { job_execution_id: "job-1" },
     });
 
-    await expect(promise).rejects.toThrow(UnrecoverableError);
+    await expect(promise).rejects.toBeInstanceOf(CodeEvalExecutionError);
+    await expect(promise).rejects.toMatchObject({
+      code: "INTERNAL_ERROR",
+      retryable: false,
+    });
     await expect(promise).rejects.toThrow("An internal error occurred");
 
     expect(mocks.writeInternalTrace).toHaveBeenCalledTimes(1);

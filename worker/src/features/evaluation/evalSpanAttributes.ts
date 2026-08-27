@@ -6,6 +6,10 @@ import {
   singleFilter,
   variableMappingList,
 } from "@langfuse/shared";
+import {
+  EvaluatorBlockSource,
+  type EvaluatorLlmErrorClassification,
+} from "@langfuse/shared/src/server";
 
 const dedupeStrings = (values: string[]): string[] => [
   ...new Set(values.filter(Boolean)),
@@ -69,5 +73,45 @@ export const buildEvalExecutionSpanAttributes = ({
     "eval.job_configuration.filter.dimension_count": filterDimensions.length,
     "eval.variable.source_fields": variableSourceFields,
     "eval.variable.source_field_count": variableSourceFields.length,
+  };
+};
+
+/**
+ * Low-cardinality evaluator policy attributes derived from native AI SDK
+ * errors. Provider messages and response bodies intentionally stay out of
+ * span attributes; instrumentAsync records the propagated exception.
+ */
+export const buildEvaluatorLlmErrorSpanAttributes = (
+  classification: EvaluatorLlmErrorClassification | null,
+): Record<string, string | number | boolean> => {
+  if (!classification) {
+    return {
+      "eval.llm.error.kind": "unknown",
+      "eval.llm.blocked": false,
+    };
+  }
+
+  const retryError =
+    "retryError" in classification ? classification.retryError : undefined;
+
+  return {
+    "eval.llm.error.kind": classification.kind,
+    "eval.llm.error.retryable": classification.isRetryable,
+    ...(classification.statusCode !== undefined
+      ? { "eval.llm.error.status_code": classification.statusCode }
+      : {}),
+    ...(retryError
+      ? {
+          "eval.llm.retry.reason": retryError.reason,
+          "eval.llm.retry.attempt_count": retryError.errors.length,
+        }
+      : {}),
+    "eval.llm.blocked": classification.blockReason !== null,
+    ...(classification.blockReason
+      ? {
+          "eval.llm.block.reason": classification.blockReason,
+          "eval.llm.block.source": EvaluatorBlockSource.LLM_COMPLETION_ERROR,
+        }
+      : {}),
   };
 };

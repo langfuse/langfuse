@@ -4,19 +4,16 @@ types:
     docs: |
       The evaluator engine type.
 
-      The unstable public API currently supports only LLM-as-a-judge evaluators.
+      The unstable public API supports LLM-as-a-judge and code evaluators.
     enum:
       - llm_as_judge
+      - code
 
-  EvaluatorScope:
-    docs: |
-      Where an evaluator comes from.
-
-      - `project`: created in your project
-      - `managed`: provided by Langfuse
+  CodeEvaluatorSourceCodeLanguage:
+    docs: Code evaluator runtime language.
     enum:
-      - project
-      - managed
+      - PYTHON
+      - TYPESCRIPT
 
   EvaluationRuleTarget:
     docs: |
@@ -24,7 +21,7 @@ types:
 
       Choose the target first, because it changes both the valid filter columns and the valid variable-mapping sources:
       - `observation` evaluates live-ingested observations such as generations, spans, and events.
-        It supports mapping from `input`, `output`, and `metadata`.
+        It supports mapping from `input`, `output`, `metadata`, and `tool_calls`.
       - `experiment` evaluates live experiment executions and can additionally map `expected_output` and `experiment_item_metadata`.
         It currently supports filtering by `datasetId`.
         Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
@@ -51,19 +48,21 @@ types:
       Use these values when mapping evaluator prompt variables to live data.
 
       Target-specific rules:
-      - `target=observation` supports `input`, `output`, and `metadata`
-      - `target=experiment` supports `input`, `output`, `metadata`, `expected_output`, and `experiment_item_metadata`
+      - `target=observation` supports `input`, `output`, `metadata`, and `tool_calls`
+      - `target=experiment` supports `input`, `output`, `metadata`, `tool_calls`, `expected_output`, and `experiment_item_metadata`
 
       Source semantics:
       - `input`: the observation or experiment input payload
       - `output`: the observation or experiment output payload
       - `metadata`: the metadata object for the target. Combine with `jsonPath` when you need one nested field instead of the whole object.
+      - `tool_calls`: the tool calls recorded on the observation, as an array of `{id, name, arguments, type, index}` objects in the order the model emitted them. Combine with `jsonPath` (for example `$[*].name`) to select parts of each call.
       - `expected_output`: the experiment item's expected output. Only valid for `target=experiment`.
       - `experiment_item_metadata`: the experiment item's metadata object. Only valid for `target=experiment`.
     enum:
       - input
       - output
       - metadata
+      - tool_calls
       - expected_output
       - experiment_item_metadata
 
@@ -121,6 +120,7 @@ types:
       - `dataType` is required.
       - Do not send `version`; that is an internal storage detail and is not part of the public request contract.
       - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and `score.description`.
+      - For `NUMERIC`, `score.minValue` and `score.maxValue` optionally define inclusive bounds. If both are set, `minValue` must not exceed `maxValue`.
       - For `CATEGORICAL`, also provide `score.categories` and `score.shouldAllowMultipleMatches`.
     discriminant: dataType
     union:
@@ -138,6 +138,8 @@ types:
             description: Explain why the answer is correct or incorrect.
           score:
             description: Return a score between 0 and 1.
+            minValue: 0
+            maxValue: 1
       - name: Boolean
         value:
           dataType: BOOLEAN
@@ -158,6 +160,17 @@ types:
               - incorrect
             shouldAllowMultipleMatches: false
 
+  PublicNumericEvaluatorOutputScoreDefinition:
+    properties:
+      description:
+        type: string
+      minValue:
+        type: optional<double>
+        docs: Inclusive minimum value for numeric evaluator scores.
+      maxValue:
+        type: optional<double>
+        docs: Inclusive maximum value for numeric evaluator scores.
+
   PublicNumericEvaluatorOutputDefinition:
     properties:
       dataType:
@@ -166,7 +179,7 @@ types:
       reasoning:
         type: EvaluatorOutputFieldDefinition
       score:
-        type: EvaluatorOutputFieldDefinition
+        type: PublicNumericEvaluatorOutputScoreDefinition
 
   PublicBooleanEvaluatorOutputDefinition:
     properties:
@@ -224,6 +237,8 @@ types:
             description: Explain why the answer is correct or incorrect.
           score:
             description: Return a score between 0 and 1.
+            minValue: 0
+            maxValue: 1
       - name: PublicCategorical
         value:
           dataType: CATEGORICAL
@@ -409,7 +424,9 @@ types:
 
   EvaluationRuleMapping:
     docs: |
-      Maps one evaluator prompt variable to one source field from the target object.
+      Maps one evaluator variable to one source field from the target object.
+
+      Manual mappings are used for `llm_as_judge` evaluators. `code` evaluators use a fixed runtime mapping managed by Langfuse.
 
       How to build a valid mapping list:
       1. Create the evaluator or fetch it with `GET /evaluators/{id}`.
@@ -422,7 +439,7 @@ types:
 
       Recovery guidance:
       - `invalid_variable_mapping`: the variable name is unknown for this evaluator, or the selected `source` is not valid for the chosen `target`
-      - `missing_variable_mapping`: one or more evaluator variables are not mapped yet
+      - `missing_variable_mapping`: one or more LLM-as-judge evaluator variables are not mapped yet
       - `duplicate_variable_mapping`: the same evaluator variable appears more than once
       - `invalid_json_path`: the JSONPath expression is malformed. Remove it or correct it.
     properties:
@@ -438,8 +455,8 @@ types:
           Source field that should populate the prompt variable.
 
           Quick reference:
-          - `target=observation`: `input`, `output`, `metadata`
-          - `target=experiment`: `input`, `output`, `metadata`, `expected_output`, `experiment_item_metadata`
+          - `target=observation`: `input`, `output`, `metadata`, `tool_calls`
+          - `target=experiment`: `input`, `output`, `metadata`, `tool_calls`, `expected_output`, `experiment_item_metadata`
       jsonPath:
         type: optional<string>
         docs: |
@@ -464,6 +481,37 @@ types:
           variable: expected_output
           source: expected_output
 
+  EvaluationRuleReadMapping:
+    docs: |
+      Maps an evaluator variable to target data, as returned by read endpoints.
+
+      Reads are more permissive than writes in two ways, so that data configured before a
+      migration stays readable and repairable:
+      - `source` is `null` when a mapping was never fully configured. Set a concrete `source` to fix it.
+      - every `source` value is allowed regardless of the rule `target`, because an evaluator's
+        default mapping is stored independently of the rules that use it.
+
+      Requests always require a concrete `source` that is valid for the selected `target`.
+    properties:
+      variable:
+        type: string
+        docs: Prompt variable name without braces.
+      source:
+        type: nullable<EvaluationRuleMappingSource>
+        docs: Source field populating the variable, or `null` when the mapping is incomplete.
+      jsonPath:
+        type: optional<string>
+        docs: Optional JSONPath selector applied to the selected source.
+    examples:
+      - name: ConfiguredReadMapping
+        value:
+          variable: input
+          source: input
+      - name: IncompleteReadMapping
+        value:
+          variable: input
+          source: null
+
   EvaluationRuleFilter:
     docs: |
       One filter condition used to decide whether a live-ingested target should be evaluated.
@@ -483,6 +531,7 @@ types:
       - `stringOptions`: `any of`, `none of`
       - `arrayOptions`: `any of`, `none of`, `all of`
       - `stringObject`: same operators as `string`
+      - `boolean`: `"="`, `"<>"`
       - `null`: `is null`, `is not null`
 
       Supported columns by target:
@@ -497,6 +546,7 @@ types:
         - `sessionId`: `string`
         - `tags`: `arrayOptions`, operators `any of` / `none of` / `all of`
         - `metadata`: `stringObject` with `key`
+        - `isRootObservation`: `boolean`, operators `=` / `<>`; true when the observation has no parent or is explicitly marked as an application root
         - `parentObservationId`: `null`, operators `is null` / `is not null`
         - `calledToolNames`: `arrayOptions`, operators `any of` / `none of` / `all of`
         - `toolCalls`: `number`
@@ -550,6 +600,12 @@ types:
           type: "null"
           column: parentObservationId
           operator: is null
+      - name: ObservationLogicalRootFilter
+        value:
+          type: boolean
+          column: isRootObservation
+          operator: "="
+          value: true
       - name: ObservationTagsFilter
         value:
           type: arrayOptions

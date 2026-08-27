@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -7,7 +8,9 @@ import { cn } from "@/src/utils/tailwind";
 import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  // No font-* here: buttons follow the text-sm token weight (one weight per
+  // token; heavier text must be an explicit, deliberate exception).
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -17,15 +20,20 @@ const buttonVariants = cva(
         "destructive-secondary":
           "bg-secondary text-secondary-foreground border border-destructive disabled:hover:bg-secondary disabled:hover:text-secondary-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        "outline-solid":
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          // border-contrast, not border-input: on dark surfaces the filled
+          // primary reads optically larger than an outlined twin of the same
+          // geometry — a brighter border lets the shape assert itself.
+          "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border",
+        "outline-success":
+          "border border-accent-dark-green bg-background text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         tertiary:
-          "bg-tertiary text-tertiary-foreground hover:bg-tertiary/80 text-xs font-medium",
+          "bg-tertiary text-tertiary-foreground hover:bg-tertiary/80 text-xs",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        // Same color as real hyperlinks (--link pair), not text-primary —
+        // one link color across the app.
+        link: "text-link hover:text-link-hover underline-offset-4 hover:underline",
         errorNotification:
           "bg-destructive-foreground/90 text-destructive hover:bg-destructive-foreground/80",
       },
@@ -52,6 +60,7 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
+  loadingText?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -62,6 +71,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       loading = false,
+      loadingText,
       disabled,
       onClick,
       children,
@@ -72,14 +82,24 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          loading && loadingText && "gap-2",
+        )}
         ref={ref}
         disabled={disabled || loading}
         onClick={loading || disabled ? undefined : onClick}
         {...props}
         type={props.type || "button"}
       >
-        {loading ? <Spinner /> : children}
+        {loading ? (
+          <>
+            <Spinner />
+            {loadingText}
+          </>
+        ) : (
+          children
+        )}
       </Comp>
     );
   },

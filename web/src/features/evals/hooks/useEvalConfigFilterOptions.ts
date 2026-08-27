@@ -1,23 +1,68 @@
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { api } from "@/src/utils/api";
 import {
   type ExperimentEvalOptions,
   type ObservationEvalOptions,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useMemo } from "react";
 
+const EVAL_FILTER_OPTIONS_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+const evalFilterOptionsQueryOptions = {
+  trpc: { context: { skipBatch: true } },
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  staleTime: Infinity,
+} as const;
+
+const getBucketedEvalFilterOptionsFrom = () => {
+  const date = new Date(Date.now() - EVAL_FILTER_OPTIONS_LOOKBACK_MS);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const getLowerBoundTimeFilter = (
+  column: "timestamp" | "startTime",
+  value: Date,
+): TimeFilter[] => [{ column, type: "datetime", operator: ">=", value }];
+
 export function useEvalConfigFilterOptions({
   projectId,
+  useEventsTable,
+  includeLegacyTraceOptions,
 }: {
   projectId: string;
+  useEventsTable: boolean;
+  // Legacy trace-target evaluators stay editable on v4, and their options
+  // still come from the legacy traces table.
+  includeLegacyTraceOptions: boolean;
 }) {
+  const filterOptionsFrom = useMemo(
+    () => getBucketedEvalFilterOptionsFrom(),
+    [],
+  );
+
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
     {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
+      projectId,
+      timestampFilter: getLowerBoundTimeFilter("timestamp", filterOptionsFrom),
+    },
+    {
+      ...evalFilterOptionsQueryOptions,
+      enabled: !useEventsTable || includeLegacyTraceOptions,
+    },
+  );
+
+  const eventsFilterOptionsResponse = api.events.filterOptions.useQuery(
+    {
+      projectId,
+      startTimeFilter: getLowerBoundTimeFilter("startTime", filterOptionsFrom),
+      columns: ["traceName", "traceTags", "name", "calledToolNames"],
+    },
+    {
+      ...evalFilterOptionsQueryOptions,
+      enabled: useEventsTable,
     },
   );
 
@@ -25,21 +70,26 @@ export function useEvalConfigFilterOptions({
     api.projects.environmentFilterOptions.useQuery(
       {
         projectId,
+        fromTimestamp: filterOptionsFrom,
       },
-      {
-        trpc: { context: { skipBatch: true } },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
+      evalFilterOptionsQueryOptions,
     );
 
   const observationsFilterOptionsResponse =
-    api.generations.filterOptions.useQuery({
-      projectId,
-      observationType: "ALL",
-    });
+    api.generations.filterOptions.useQuery(
+      {
+        projectId,
+        observationType: "ALL",
+        startTimeFilter: getLowerBoundTimeFilter(
+          "startTime",
+          filterOptionsFrom,
+        ),
+      },
+      {
+        ...evalFilterOptionsQueryOptions,
+        enabled: !useEventsTable,
+      },
+    );
 
   const traceFilterOptions = useMemo(() => {
     // Normalize API response to match TraceOptions type (count should be number, not string)
@@ -51,9 +101,12 @@ export function useEvalConfigFilterOptions({
           })),
           scores_avg: traceFilterOptionsResponse.data.scores_avg,
           score_categories: traceFilterOptionsResponse.data.score_categories,
-          traceTags: traceFilterOptionsResponse.data.tags?.map((t) => ({
-            value: t.value,
-          })),
+          score_booleans: traceFilterOptionsResponse.data.score_booleans,
+          traceTags: sortOptionValues(
+            traceFilterOptionsResponse.data.tags?.map((t) => ({
+              value: t.value,
+            })),
+          ),
         }
       : {};
 
@@ -93,25 +146,41 @@ export function useEvalConfigFilterOptions({
   }, [datasets.data]);
 
   const observationEvalFilterOptions: ObservationEvalOptions = useMemo(() => {
+    const traceNames = useEventsTable
+      ? eventsFilterOptionsResponse.data?.traceName
+      : traceFilterOptionsResponse.data?.name;
+    const traceTags = useEventsTable
+      ? eventsFilterOptionsResponse.data?.traceTags
+      : traceFilterOptionsResponse.data?.tags;
+    const observationNames = useEventsTable
+      ? eventsFilterOptionsResponse.data?.name
+      : observationsFilterOptionsResponse.data?.name;
+    const calledToolNames = useEventsTable
+      ? eventsFilterOptionsResponse.data?.calledToolNames
+      : observationsFilterOptionsResponse.data?.calledToolNames;
+
     return {
       environment: environmentFilterOptionsResponse.data?.map((e) => ({
         value: e.environment,
       })),
-      tags: traceFilterOptionsResponse.data?.tags?.map((t) => ({
-        value: t.value,
-      })),
-      traceName: traceFilterOptionsResponse.data?.name?.map((n) => ({
-        value: n.value,
-      })),
-      name: observationsFilterOptionsResponse.data?.name?.map((n) => ({
-        value: n.value,
-      })),
-      calledToolNames:
-        observationsFilterOptionsResponse.data?.calledToolNames?.map((t) => ({
-          value: t.value,
+      tags: sortOptionValues(
+        traceTags?.map((tag) => ({
+          value: tag.value,
         })),
+      ),
+      traceName: traceNames?.map((name) => ({
+        value: name.value,
+      })),
+      name: observationNames?.map((name) => ({
+        value: name.value,
+      })),
+      calledToolNames: calledToolNames?.map((toolName) => ({
+        value: toolName.value,
+      })),
     };
   }, [
+    useEventsTable,
+    eventsFilterOptionsResponse.data,
     traceFilterOptionsResponse.data,
     environmentFilterOptionsResponse.data,
     observationsFilterOptionsResponse.data,

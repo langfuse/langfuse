@@ -13,6 +13,7 @@ export type ScoreOptions = {
   traceName: Array<SingleValueOption>;
   userId: Array<SingleValueOption>;
   stringValue: Array<SingleValueOption>;
+  booleanValue: Array<SingleValueOption>;
 };
 
 export function scoresTableColsWithOptions(
@@ -33,6 +34,9 @@ export function scoresTableColsWithOptions(
     }
     if (col.id === "stringValue") {
       return formatColumnOptions(col, options?.stringValue ?? []);
+    }
+    if (col.id === "booleanValue") {
+      return formatColumnOptions(col, options?.booleanValue ?? []);
     }
     return col;
   });

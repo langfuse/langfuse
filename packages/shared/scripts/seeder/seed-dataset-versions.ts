@@ -162,12 +162,12 @@ export async function seedDatasetVersions(
             validFrom: op.validFrom, // When this version became valid
             isDeleted: true, // Soft delete flag
           };
-        } else {
-          return {
-            ...baseRow,
-            validFrom: version.timestamp, // When this version became valid
-          };
         }
+
+        return {
+          ...baseRow,
+          validFrom: version.timestamp, // When this version became valid
+        };
       });
 
       // Insert in batches directly into dataset_items (versioned table)

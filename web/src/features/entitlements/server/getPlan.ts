@@ -1,7 +1,10 @@
 import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { env } from "@/src/env.mjs";
-import { type Plan } from "@langfuse/shared";
-import { type CloudConfigSchema } from "@langfuse/shared";
+import {
+  chbPlanCodeToPlan,
+  type Plan,
+  type CloudConfigSchema,
+} from "@langfuse/shared";
 
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.
@@ -33,6 +36,17 @@ export function getOrganizationPlanServerSide(
             throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
         }
       }
+      // ClickHouse Billing plan. Keyed on organizationId, not planCode, so a
+      // CHB org can never fall through to stale Stripe state — the same
+      // CHB-wins precedence getBillingProvider enforces. A missing plan code
+      // (drifted, so dropped by cloudConfigSchema) fails open to the free tier,
+      // never to a paid one; the paid gate for usage thresholds reads bundleId
+      // instead, so a drifted code does not get a paying org ingestion-blocked.
+      if (cloudConfig.clickhouse?.organizationId) {
+        const { planCode } = cloudConfig.clickhouse;
+        return planCode ? chbPlanCodeToPlan[planCode] : "cloud:hobby";
+      }
+
       // stripe plan via product id
       if (cloudConfig.stripe?.activeProductId) {
         const stripePlan = mapStripeProductIdToPlan(

@@ -13,13 +13,14 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { CreateProjectMemberButton } from "@/src/features/rbac/components/CreateProjectMemberButton";
+import { ActionButton } from "@/src/components/ActionButton";
+import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
-import { Trash } from "lucide-react";
+import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -30,14 +31,19 @@ import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
+  HoverCardPortal,
 } from "@/src/components/ui/hover-card";
-import { HoverCardPortal } from "@radix-ui/react-hover-card";
 import Link from "next/link";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
 import { useEffect } from "react";
+import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { env } from "@/src/env.mjs";
+import { Button } from "@/src/components/ui/button";
+import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 
 export type MembersTableRow = {
   user: {
@@ -49,6 +55,10 @@ export type MembersTableRow = {
   createdAt: Date;
   orgRole: Role;
   projectRole?: Role;
+  featurePreviews: Record<FeaturePreviewFlag, boolean> | null;
+  featurePreviewManagement:
+    | RouterOutput["members"]["allFromOrg"]["memberships"][number]["featurePreviewManagement"]
+    | null;
   meta: {
     userId: string;
     orgMembershipId: string;
@@ -289,6 +299,45 @@ export function MembersTable({
           },
         ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
+    ...(!project &&
+    hasCudAccessOrgLevel &&
+    orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
+      ? ([
+          {
+            accessorKey: "featurePreviews",
+            id: "featurePreviews",
+            header: "Feature Previews",
+            enableHiding: true,
+            cell: ({ row }) => {
+              const { featurePreviews, featurePreviewManagement, meta } =
+                row.original;
+              if (!featurePreviews || !featurePreviewManagement) return null;
+
+              return (
+                <Popover>
+                  <UserFeaturePreviewsControl
+                    orgId={orgId}
+                    userId={meta.userId}
+                    featurePreviews={featurePreviews}
+                    management={featurePreviewManagement}
+                  >
+                    {({ enabledCount, totalCount, content }) => (
+                      <>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            {enabledCount}/{totalCount} enabled
+                          </Button>
+                        </PopoverTrigger>
+                        {content}
+                      </>
+                    )}
+                  </UserFeaturePreviewsControl>
+                </Popover>
+              );
+            },
+          },
+        ] satisfies LangfuseColumnDef<MembersTableRow>[])
+      : []),
     {
       accessorKey: "createdAt",
       id: "createdAt",
@@ -345,7 +394,9 @@ export function MembersTable({
   );
 
   const convertToTableRow = (
-    orgMembership: RouterOutput["members"]["allFromOrg"]["memberships"][0], // type of both queries is the same
+    orgMembership:
+      | RouterOutput["members"]["allFromOrg"]["memberships"][number]
+      | RouterOutput["members"]["allFromProject"]["memberships"][number],
   ): MembersTableRow => {
     return {
       meta: {
@@ -361,6 +412,14 @@ export function MembersTable({
       createdAt: orgMembership.createdAt,
       orgRole: orgMembership.role,
       projectRole: orgMembership.projectRole,
+      featurePreviews:
+        "featurePreviews" in orgMembership
+          ? orgMembership.featurePreviews
+          : null,
+      featurePreviewManagement:
+        "featurePreviewManagement" in orgMembership
+          ? orgMembership.featurePreviewManagement
+          : null,
     };
   };
 
@@ -384,7 +443,29 @@ export function MembersTable({
         columnOrder={columnOrder}
         setColumnOrder={setColumnOrder}
         actionButtons={
-          <CreateProjectMemberButton orgId={orgId} project={project} />
+          <CreateProjectMemberDialogController orgId={orgId} project={project}>
+            {({
+              hasAccess,
+              hasOnlySingleProjectAccess,
+              isSubmitting,
+              usageLimit,
+              Trigger,
+            }) => (
+              <Trigger asChild>
+                <ActionButton
+                  variant="secondary"
+                  loading={isSubmitting}
+                  hasAccess={hasAccess}
+                  usageLimit={usageLimit}
+                  icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+                >
+                  {hasOnlySingleProjectAccess
+                    ? "Add project member"
+                    : "Add new member"}
+                </ActionButton>
+              </Trigger>
+            )}
+          </CreateProjectMemberDialogController>
         }
         searchConfig={{
           metadataSearchFields: ["Name", "Email"],

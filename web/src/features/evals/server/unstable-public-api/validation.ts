@@ -4,39 +4,23 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { JSONPath } from "jsonpath-plus";
-import type {
-  PublicEvaluationRuleFilterType,
-  PublicEvaluationRuleMappingType,
-  PublicEvaluationRuleTargetType,
+import {
+  EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS,
+  ExperimentEvaluationRuleMappingSource,
+  OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS,
+  ObservationEvaluationRuleMappingSource,
+  type PublicEvaluationRuleFilterType,
+  type PublicEvaluationRuleMappingType,
+  type PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
-const STATIC_FILTER_OPTIONS_BY_TARGET = {
-  observation: new Map(
-    observationEvalFilterColumns.flatMap((column) => {
-      if (!("options" in column) || !Array.isArray(column.options)) {
-        return [];
-      }
-
-      if (column.options.length === 0) {
-        return [];
-      }
-
-      return [
-        [
-          column.id,
-          new Set(
-            column.options.flatMap((option) =>
-              "value" in option ? [String(option.value)] : option.values,
-            ),
-          ),
-        ] as const,
-      ];
-    }),
-  ),
-  experiment: new Map(
-    experimentEvalFilterColumns.flatMap((column) => {
+// Derived from the same column lists as the request schemas, so this runtime
+// check cannot drift from the documented contract.
+const toStaticFilterOptions = (columns: typeof observationEvalFilterColumns) =>
+  new Map(
+    columns.flatMap((column) => {
       if (!("options" in column) || !Array.isArray(column.options)) {
         return [];
       }
@@ -56,30 +40,34 @@ const STATIC_FILTER_OPTIONS_BY_TARGET = {
         ] as const,
       ];
     }),
-  ),
+  );
+
+const STATIC_FILTER_OPTIONS_BY_TARGET = {
+  observation: toStaticFilterOptions(observationEvalFilterColumns),
+  experiment: toStaticFilterOptions([
+    ...observationEvalFilterColumns,
+    ...experimentEvalFilterColumns,
+  ]),
 } as const satisfies Record<
   PublicEvaluationRuleTargetType,
   Map<string, Set<string>>
 >;
 
 const SUPPORTED_FILTER_COLUMNS_BY_TARGET = {
-  observation: new Set(observationEvalFilterColumns.map((column) => column.id)),
+  observation: new Set(
+    OBSERVATION_EVALUATION_RULE_FILTER_COLUMNS.map((column) => column.id),
+  ),
   experiment: new Set(
-    experimentEvalFilterColumns.map((column) =>
-      column.id === "experimentDatasetId" ? "datasetId" : column.id,
-    ),
+    EXPERIMENT_EVALUATION_RULE_FILTER_COLUMNS.map((column) => column.id),
   ),
 } as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
+// Derived from the per-target request schemas so this runtime check (which
+// also guards paths that parse the target-agnostic mapping union) can never
+// drift from the documented contract.
 const SUPPORTED_MAPPING_SOURCES_BY_TARGET = {
-  observation: new Set(["input", "output", "metadata"]),
-  experiment: new Set([
-    "input",
-    "output",
-    "metadata",
-    "expected_output",
-    "experiment_item_metadata",
-  ]),
+  observation: new Set<string>(ObservationEvaluationRuleMappingSource.options),
+  experiment: new Set<string>(ExperimentEvaluationRuleMappingSource.options),
 } as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
 export function validateEvaluationRuleFilters(params: {

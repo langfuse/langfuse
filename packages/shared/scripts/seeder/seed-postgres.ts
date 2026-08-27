@@ -3,10 +3,12 @@ import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/in-app-agent/server/systemPrompt";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   type JobConfiguration,
+  JobConfigState,
   JobExecutionStatus,
   PrismaClient,
   type Project,
@@ -34,13 +36,14 @@ import {
 } from "./utils/seed-helpers";
 import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
-import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
 } as const;
 
 const prisma = new PrismaClient();
+const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
+const inAppAgentSystemPrompt = IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE;
 
 async function main() {
   const environment = parseArgs({
@@ -52,12 +55,15 @@ async function main() {
   const seedUserId1 = "user-1"; // Owner of org
   const seedUserId2 = "user-2"; // Member of org, admin of project
 
+  // Seeded identities skip Cloud signup auto-enable; pin v4 on so local dx
+  // and PR previews land on the events traces view.
   const user = await prisma.user.upsert({
     where: { id: seedUserId1 },
     update: {
       name: "Demo User",
       email: "demo@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
     create: {
       id: seedUserId1,
@@ -65,6 +71,7 @@ async function main() {
       email: "demo@langfuse.com",
       password: await hash("password", 12),
       image: "https://static.langfuse.com/langfuse-dev%2Fexample-avatar.png",
+      v4BetaEnabled: true,
     },
   });
   const user2 = await prisma.user.upsert({
@@ -73,12 +80,14 @@ async function main() {
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
     create: {
       id: seedUserId2,
       name: "Demo User 2",
       email: "member@langfuse.com",
       password: await hash("password", 12),
+      v4BetaEnabled: true,
     },
   });
 
@@ -86,6 +95,7 @@ async function main() {
     where: { id: seedOrgId },
     update: {
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -112,6 +122,9 @@ async function main() {
       orgId: seedOrgId,
     },
   });
+
+  await upsertInAppAgentSystemPrompt(project1.id);
+  await upsertNaturalLanguageFilterPrompt(project1.id);
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
@@ -252,6 +265,7 @@ async function main() {
       },
       update: {},
     });
+    await upsertInAppAgentSystemPrompt(project2.id);
 
     const secondKey = {
       id: "seed-api-key-2",
@@ -350,13 +364,79 @@ async function main() {
           evalTemplateId: evalConfig.evalTemplateId,
           projectId: project1.id,
           jobType: evalConfig.jobType as any,
-          status: evalConfig.status as any,
+          status: evalConfig.status as JobConfigState,
           scoreName: evalConfig.scoreName,
           filter: evalConfig.filter,
           variableMapping: evalConfig.variableMapping,
           targetObject: evalConfig.targetObject,
           sampling: evalConfig.sampling,
           delay: evalConfig.delay,
+        },
+        update: {},
+      });
+
+      const evalTemplate = SEED_EVALUATOR_TEMPLATES.find(
+        (template) => template.id === evalConfig.evalTemplateId,
+      );
+      if (!evalTemplate) {
+        throw new Error(
+          `Missing evaluator template ${evalConfig.evalTemplateId}`,
+        );
+      }
+
+      await prisma.evaluator.upsert({
+        where: { id: evalConfig.id },
+        create: {
+          id: evalConfig.id,
+          projectId: project1.id,
+          name: evalConfig.scoreName,
+          type: evalTemplate.type as EvalTemplateType,
+        },
+        update: {},
+      });
+      await prisma.evaluatorVersion.upsert({
+        where: { id: `${evalConfig.id}:${evalTemplate.id}` },
+        create: {
+          id: `${evalConfig.id}:${evalTemplate.id}`,
+          evaluatorId: evalConfig.id,
+          version: evalTemplate.version,
+          prompt: evalTemplate.prompt ?? null,
+          model: evalTemplate.model ?? null,
+          provider: evalTemplate.provider ?? null,
+          modelParams: evalTemplate.modelParams ?? undefined,
+          vars: evalTemplate.vars,
+          variableMapping: evalConfig.variableMapping,
+          outputDefinition: evalTemplate.outputDefinition ?? undefined,
+          sourceCode: evalTemplate.sourceCode ?? null,
+          sourceCodeLanguage:
+            (evalTemplate.sourceCodeLanguage as
+              | EvalTemplateSourceCodeLanguage
+              | undefined) ?? null,
+        },
+        update: {},
+      });
+      await prisma.evaluationRule.upsert({
+        where: { id: evalConfig.id },
+        create: {
+          id: evalConfig.id,
+          projectId: project1.id,
+          name: evalConfig.scoreName,
+          status: evalConfig.status as any,
+          filter: evalConfig.filter,
+          targetObject: evalConfig.targetObject,
+          sampling: evalConfig.sampling,
+          delay: evalConfig.delay,
+        },
+        update: {},
+      });
+      await prisma.evaluationRuleEvaluatorAssignment.upsert({
+        where: { id: `legacy:${evalConfig.id}` },
+        create: {
+          id: `legacy:${evalConfig.id}`,
+          projectId: project1.id,
+          evaluationRuleId: evalConfig.id,
+          evaluatorId: evalConfig.id,
+          variableMapping: evalConfig.variableMapping,
         },
         update: {},
       });
@@ -369,9 +449,6 @@ async function main() {
 
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
-
-    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
-    await seedMediaTraces(project1.id);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -784,6 +861,68 @@ async function generatePromptsForProject(projects: Project[]) {
   return promptIds;
 }
 
+async function upsertInAppAgentSystemPrompt(projectId: string) {
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+        version: 1,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: "user-1",
+      prompt: inAppAgentSystemPrompt,
+      name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+      type: "text",
+      version: 1,
+      labels: ["production", "latest"],
+    },
+    update: {
+      prompt: inAppAgentSystemPrompt,
+      type: "text",
+      labels: ["production", "latest"],
+    },
+  });
+}
+
+// The legacy natural-language filter feature fetches this prompt from the
+// AI-features project at runtime; on self-referential deployments (previews)
+// that project is llm-app, so it must exist on the default seed path too.
+const NATURAL_LANGUAGE_FILTER_PROMPT_NAME = "get-filter-conditions-from-query";
+
+async function upsertNaturalLanguageFilterPrompt(projectId: string) {
+  const seedPrompt = SEED_PROMPT_VERSIONS.find(
+    (p) => p.name === NATURAL_LANGUAGE_FILTER_PROMPT_NAME,
+  );
+  if (!seedPrompt) return;
+
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: seedPrompt.name,
+        version: seedPrompt.version,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: seedPrompt.createdBy,
+      prompt: seedPrompt.prompt,
+      name: seedPrompt.name,
+      type: seedPrompt.type ?? "text",
+      version: seedPrompt.version,
+      labels: seedPrompt.labels,
+    },
+    update: {
+      prompt: seedPrompt.prompt,
+      type: seedPrompt.type ?? "text",
+      labels: seedPrompt.labels,
+    },
+  });
+}
+
 export const PROMPT_IDS: string[] = [];
 
 async function generatePrompts(project: Project) {
@@ -792,14 +931,13 @@ async function generatePrompts(project: Project) {
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
       const promptId = `prompt-${v4()}`;
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
             version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -810,18 +948,16 @@ async function generatePrompts(project: Project) {
           version: i,
           labels: i === versions ? prompt.labels : [],
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const prompt of SEED_CHAT_ML_PROMPTS) {
-    const promptId = `prompt-${v4()}`;
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
+      const promptId = `prompt-${v4()}`;
       const versionAddition = [
         {
           role: "user",
@@ -829,14 +965,13 @@ async function generatePrompts(project: Project) {
         },
       ];
 
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
-            version: prompt.version,
+            version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -849,24 +984,21 @@ async function generatePrompts(project: Project) {
           labels: prompt.labels,
           tags: prompt.tags,
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const version of SEED_PROMPT_VERSIONS) {
     const id = `prompt-${v4()}`;
-    await prisma.prompt.upsert({
+    const seededPrompt = await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
           projectId: project.id,
           name: version.name,
           version: version.version,
         },
-        id: id,
       },
       create: {
         id: id,
@@ -879,11 +1011,9 @@ async function generatePrompts(project: Project) {
         version: version.version,
         labels: version.labels,
       },
-      update: {
-        id: id,
-      },
+      update: {},
     });
-    promptIds.push(id);
+    promptIds.push(seededPrompt.id);
   }
 
   return promptIds;

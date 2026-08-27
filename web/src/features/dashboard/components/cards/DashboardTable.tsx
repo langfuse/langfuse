@@ -1,6 +1,12 @@
 import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+
+// Approximate rendered height of one <tr> (py-2 + text-xs) and of the sticky
+// header row, used to decide how many rows fit in the tile. (LFE-11035)
+const TABLE_ROW_HEIGHT = 33;
+const TABLE_HEADER_HEIGHT = 45;
 
 type TableHeaders = ReactNode[];
 type TableRows = ReactNode[][];
@@ -28,12 +34,36 @@ export const DashboardTable = ({
   isLoading,
 }: DashboardTableProps) => {
   const [isExpanded, setExpanded] = useState(false);
+
+  // Fit the number of rows to the tile height: by default render exactly the
+  // rows that fill the measured area (no scrollbar), and let "Show all" reveal
+  // the rest (scrolling within the tile). Falls back to the old fixed count
+  // before the first measurement. (LFE-11035)
+  const { containerRef, rowCount } = useFitRowCount({
+    rowHeightPx: TABLE_ROW_HEIGHT,
+    reservedPx: TABLE_HEADER_HEIGHT,
+    min: 1,
+    fallback: collapse?.collapsed ?? rows.length,
+  });
+
+  const collapsedCount = collapse ? Math.min(rowCount, rows.length) : undefined;
+  const visibleRows = rows.slice(
+    0,
+    collapse ? (isExpanded ? collapse.expanded : collapsedCount) : undefined,
+  );
+
   return (
     <>
       {children}
       {rows.length > 0 ? (
-        <div className="mt-4">
-          <div className="overflow-x-auto">
+        // Fill the leftover card height so the table can size itself to the
+        // tile; the row area scrolls only once expanded past what fits, while
+        // the "Show all" button stays pinned below. (LFE-11035)
+        <div className="mt-4 flex min-h-0 flex-1 flex-col">
+          <div
+            ref={containerRef}
+            className="min-h-0 flex-1 overflow-x-auto overflow-y-auto"
+          >
             <div className="inline-block min-w-full align-middle">
               <table className="divide-border animate-in animate-out min-w-full divide-y">
                 <thead>
@@ -42,7 +72,7 @@ export const DashboardTable = ({
                       <th
                         key={i}
                         scope="col"
-                        className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap sm:pl-0"
+                        className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-bold whitespace-nowrap sm:pl-0"
                       >
                         {header}
                       </th>
@@ -50,28 +80,19 @@ export const DashboardTable = ({
                   </tr>
                 </thead>
 
-                <tbody className="divide-accent bg-background divide-y">
-                  {rows
-                    .slice(
-                      0,
-                      collapse
-                        ? isExpanded
-                          ? collapse.expanded
-                          : collapse.collapsed
-                        : undefined,
-                    )
-                    .map((row, i) => (
-                      <tr key={i}>
-                        {row.map((cell, j) => (
-                          <td
-                            key={j}
-                            className="text-muted-foreground py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
-                          >
-                            {cell}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
+                <tbody className="divide-accent divide-y">
+                  {visibleRows.map((row, i) => (
+                    <tr key={i}>
+                      {row.map((cell, j) => (
+                        <td
+                          key={j}
+                          className="text-muted-foreground py-2 pr-2 pl-3 text-xs whitespace-nowrap sm:pl-0"
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -81,7 +102,7 @@ export const DashboardTable = ({
               isExpanded={isExpanded}
               setExpanded={setExpanded}
               totalLength={rows.length}
-              maxLength={collapse.collapsed}
+              maxLength={collapsedCount ?? collapse.collapsed}
               expandText={
                 rows.length > collapse.expanded
                   ? `Show top ${collapse.expanded}`
@@ -91,7 +112,12 @@ export const DashboardTable = ({
           ) : null}
         </div>
       ) : (
-        <NoDataOrLoading isLoading={isLoading} {...noDataProps} />
+        // Fills leftover tile height inside the card's flex column. (LFE-10813)
+        <NoDataOrLoading
+          isLoading={isLoading}
+          {...noDataProps}
+          className="h-auto grow"
+        />
       )}
     </>
   );

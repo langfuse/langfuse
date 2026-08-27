@@ -3,7 +3,7 @@ import router from "next/router";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/button";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
   Form,
   FormControl,
@@ -21,7 +21,7 @@ import {
 } from "@/src/components/ui/tabs";
 import { Textarea } from "@/src/components/ui/textarea";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type CreatePromptTRPCType,
@@ -49,6 +49,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
+import { getPromptDetailHref } from "@/src/features/prompts/utils";
 import { useFormPersistence } from "@/src/hooks/useFormPersistence";
 
 type NewPromptFormProps = {
@@ -170,14 +171,10 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         onFormSuccess?.();
         form.reset();
         if ("name" in newPrompt) {
-          router.push(
-            `/project/${projectId}/prompts/${encodeURIComponent(newPrompt.name)}`,
-          );
+          router.push(getPromptDetailHref(projectId, newPrompt.name));
         }
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "prompts"));
   }
 
   const hasInitializedMessages = useRef(false);
@@ -258,13 +255,17 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     </FormControl>
                     {/* Custom form message to include a link to the already existing prompt */}
                     {form.getFieldState("name").error ? (
-                      <div className="text-destructive flex flex-row space-x-1 text-sm font-medium">
-                        <p className="text-destructive text-sm font-medium">
+                      <div className="text-destructive flex flex-row space-x-1 text-sm font-bold">
+                        <p className="text-destructive text-sm font-bold">
                           {errorMessage}
                         </p>
-                        {errorMessage?.includes("already exist") ? (
+                        {errorMessage?.includes("already exist") &&
+                        projectId ? (
                           <Link
-                            href={`/project/${projectId}/prompts/${currentName.trim()}`}
+                            href={getPromptDetailHref(
+                              projectId,
+                              currentName.trim(),
+                            )}
                             className="flex flex-row items-center"
                           >
                             Create a new version for it here.
@@ -288,9 +289,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               Define your prompt template. You can use{" "}
               <code className="text-xs">{"{{variable}}"}</code> to insert
               variables into your prompt.
-              <b className="font-semibold"> Note:</b> Variables must be
-              alphabetical characters or underscores. You can also link other
-              text prompts using the plus button.
+              <b className="font-bold"> Note:</b> Variables must be alphabetical
+              characters or underscores. You can also link other text prompts
+              using the plus button.
             </FormDescription>
             <Tabs
               value={form.watch("type")}
@@ -491,7 +492,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         )}
       </form>
       {formError && (
-        <p className="text-red text-center">
+        <p className="text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       )}

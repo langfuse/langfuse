@@ -35,7 +35,7 @@ test("Successfully sign up & able to go to homepage", async ({ page }) => {
   await page.fill('input[type="password"]', "Password2#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   // see get started page
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/onboarding");
 });
 
 test("Successfully sign up & able to go to homepage with uppercase email", async ({
@@ -47,7 +47,7 @@ test("Successfully sign up & able to go to homepage with uppercase email", async
   await page.fill('input[type="password"]', "Password3#!");
   await page.click('button[data-testid="submit-email-password-sign-up-form"]');
   // see get started page
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/onboarding");
 });
 
 test("Signup input validation", async ({ page }) => {

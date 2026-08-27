@@ -7,7 +7,7 @@ import {
   withDefault,
 } from "use-query-params";
 import type { z } from "zod";
-import { OpenAiMessageView } from "@/src/components/trace/components/IOPreview/components/ChatMessageList";
+import { ChatMessageList } from "@/src/features/traces";
 import {
   TabsBar,
   TabsBarList,
@@ -33,10 +33,19 @@ import {
 import { PromptHistoryNode } from "./prompt-history";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import Generations from "@/src/components/table/use-cases/observations";
-import { FlaskConical, MoreVertical, Plus } from "lucide-react";
+import LegacyGenerations from "@/src/components/table/use-cases/observations";
+import EventsTable from "@/src/features/events/components/EventsTable";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  FlaskConical,
+  MessageSquare,
+  MessageSquareOff,
+  MoreVertical,
+  Plus,
+} from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   Dialog,
@@ -57,7 +66,7 @@ import {
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
@@ -112,6 +121,7 @@ export const PromptDetail = ({
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const { isBetaEnabled } = useV4Beta();
 
   const promptName =
     promptNameProp ||
@@ -177,6 +187,7 @@ export const PromptDetail = ({
     },
     {
       enabled: Boolean(projectId) && Boolean(prompt?.id),
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -329,12 +340,12 @@ export const PromptDetail = ({
       }}
     >
       <div className="grid flex-1 grid-cols-3 gap-4 overflow-hidden px-3 md:grid-cols-4">
-        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
+        <Command className="flex flex-col gap-2 overflow-y-auto rounded-none border-r pr-3 font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
           <div className="mt-3 flex items-center justify-between">
             <CommandInput
               showBorder={false}
               placeholder="Search..."
-              className="text-muted-foreground h-fit border-none py-0 text-sm font-light focus:ring-0"
+              className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
             />
 
             <Button
@@ -381,7 +392,7 @@ export const PromptDetail = ({
                         >
                           # {prompt.version}
                         </Badge>
-                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-medium break-all md:break-normal md:wrap-break-word">
+                        <span className="mb-0 line-clamp-2 min-w-0 text-lg font-bold break-all md:break-normal md:wrap-break-word">
                           {prompt.commitMessage ?? prompt.name}
                         </span>
                       </div>
@@ -439,16 +450,41 @@ export const PromptDetail = ({
                     </DialogContent>
                   </Dialog>
                 )}
-                <CommentDrawerButton
+                <CommentDrawerController
                   projectId={projectId as string}
                   objectId={prompt.id}
                   objectType="PROMPT"
                   count={getNumberFromMap(commentCounts, prompt.id)}
-                  variant="outline"
                   onCommentChange={() =>
                     utils.prompts.allVersions.invalidate(promptHistoryInput)
                   }
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                      className="gap-1"
+                    >
+                      {disabled ? (
+                        <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                      ) : (
+                        <>
+                          <MessageSquare className="h-4 w-4" />
+                          <span>Add comment</span>
+                          {getNumberFromMap(commentCounts, prompt.id) ? (
+                            <ActionButtonCountBadge
+                              count={
+                                getNumberFromMap(commentCounts, prompt.id) ?? 0
+                              }
+                            />
+                          ) : null}
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </CommentDrawerController>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="icon">
@@ -489,12 +525,22 @@ export const PromptDetail = ({
               className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
-                <Generations
-                  projectId={prompt.projectId}
-                  promptName={prompt.name}
-                  promptVersion={prompt.version}
-                  omittedFilter={["promptName"]}
-                />
+                {isBetaEnabled ? (
+                  <EventsTable
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["promptName"]}
+                    isolateTableState
+                  />
+                ) : (
+                  <LegacyGenerations
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["promptName"]}
+                  />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent
@@ -530,8 +576,7 @@ export const PromptDetail = ({
                 <PromptReferenceProvider projectId={projectId}>
                   {prompt.type === PromptType.Chat && chatMessages ? (
                     <div className="w-full">
-                      {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- Internal backwards-compatible component alias. */}
-                      <OpenAiMessageView
+                      <ChatMessageList
                         messages={chatMessages}
                         shouldRenderMarkdown={true}
                         currentView="pretty"

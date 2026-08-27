@@ -5,10 +5,11 @@
 
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import type { Session, User } from "next-auth";
+import type { Session } from "next-auth";
 import { useEntitlements } from "@/src/features/entitlements/hooks";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
   RouteSection,
@@ -19,9 +20,13 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import { applyNavigationFilters } from "../utils/navigationFilters";
 import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
+import { resolveRoutePathname } from "../utils/routePathname";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
 /** Grouped navigation structure */
 type GroupedNavigation = {
@@ -83,9 +88,10 @@ export function useFilteredNavigation(
   const router = useRouter();
   const entitlements = useEntitlements();
   const uiCustomization = useUiCustomization();
-  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const routerProjectId = router.query.projectId as string | undefined;
+  const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
     | undefined;
@@ -98,9 +104,7 @@ export function useFilteredNavigation(
       session,
       enableExperimentalFeatures:
         session?.environment?.enableExperimentalFeatures ?? false,
-      cloudAdmin: Boolean(
-        session?.user?.admin && isLangfuseCloud && region !== "DEV",
-      ),
+      cloudAdmin: Boolean(session?.user?.admin && isLangfuseCloud),
       entitlements,
       uiCustomization,
       isLangfuseCloud,
@@ -114,7 +118,6 @@ export function useFilteredNavigation(
       uiCustomization,
       router.asPath,
       isLangfuseCloud,
-      region,
     ],
   );
 
@@ -127,7 +130,13 @@ export function useFilteredNavigation(
   // This is O(n) - we map directly over filteredRoutes instead of re-iterating ROUTES
   return useMemo(() => {
     const mapRouteToNavigationItem = (route: Route): NavigationItem => {
-      const url = route.pathname
+      const pathname = resolveRoutePathname({
+        pathname: route.pathname,
+        legacyPathname: route.legacyPathname,
+        v4Enabled: session?.user?.v4BetaEnabled === true,
+        forceV3Experience,
+      });
+      const url = pathname
         .replace("[projectId]", routerProjectId ?? "")
         .replace("[organizationId]", routerOrganizationId ?? "");
 
@@ -139,7 +148,12 @@ export function useFilteredNavigation(
       return {
         ...route,
         url,
-        isActive: isPathActive(route.pathname, router.pathname),
+        isActive:
+          isPathActive(route.pathname, router.pathname) ||
+          Boolean(
+            route.legacyPathname &&
+            isPathActive(route.legacyPathname, router.pathname),
+          ),
         items: items && items.length > 0 ? items : undefined,
       };
     };
@@ -166,5 +180,12 @@ export function useFilteredNavigation(
         ...secondaryNavigation.flattened,
       ],
     };
-  }, [filteredRoutes, routerProjectId, routerOrganizationId, router.pathname]);
+  }, [
+    filteredRoutes,
+    routerProjectId,
+    routerOrganizationId,
+    router.pathname,
+    session?.user?.v4BetaEnabled,
+    forceV3Experience,
+  ]);
 }

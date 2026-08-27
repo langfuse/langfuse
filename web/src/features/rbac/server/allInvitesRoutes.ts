@@ -29,7 +29,7 @@ async function getInvites(
   query:
     | z.infer<typeof orgLevelInviteQuery>
     | (z.infer<typeof projectLevelInviteQuery> & { orgId: string }),
-  showAllOrgMembers: boolean = true,
+  showAllOrgMembers = true,
 ) {
   const where: Prisma.MembershipInvitationWhereInput = {
     orgId: query.orgId,

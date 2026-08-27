@@ -3,12 +3,28 @@ import {
   SlackService,
   SLACK_BOT_SCOPES,
   parseSlackInstallationMetadata,
+  logger,
 } from "@langfuse/shared/src/server";
-import { logger } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { getProductBaseUrl } from "@/src/utils/base-url";
+
+// ErrorCode values from @slack/oauth for callbacks that fail because of the
+// client's request — no/invalid `code`/`state` (scanners, expired installs)
+// or the user cancelling on Slack's consent screen — rather than because
+// anything failed on our side. Within InstallProvider.handleCallback the
+// authorization-error code is thrown only for `error=access_denied`
+// (user cancel); token-exchange failures carry @slack/web-api codes instead.
+// Kept as literals since web does not depend on @slack/oauth directly;
+// unknown codes fall through to 500.
+const SLACK_OAUTH_CLIENT_INPUT_ERROR_CODES = new Set<string>([
+  "slack_oauth_missing_state",
+  "slack_oauth_invalid_state",
+  "slack_oauth_missing_code",
+  "slack_oauth_installer_authorization_error",
+]);
 
 /**
  * SlackOAuthHandlers
@@ -30,19 +46,18 @@ export async function handleInstallPath(
     // 1. Generate the OAuth URL with proper state parameter
     // 2. Set session cookies for state validation
     // 3. Render the installation page with "Add to Slack" button
+    // Build an absolute redirect URI that respects a custom base path.
+    // getProductBaseUrl derives the product origin (incl. base path) from
+    // NEXTAUTH_URL and strips the /api/auth suffix.
+    const redirectUri = getProductBaseUrl();
+    redirectUri.pathname = `${redirectUri.pathname.replace(/\/$/, "")}/api/public/slack/oauth`;
+
     const installOptions = {
       scopes: [...SLACK_BOT_SCOPES],
       metadata: JSON.stringify({ projectId: projectId }),
-      redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
+      redirectUri: redirectUri.toString(),
     };
 
-    // hack because nextjs dev server support for https is experimental
-    if (env.NODE_ENV === "development") {
-      installOptions.redirectUri = installOptions.redirectUri?.replace(
-        "http://",
-        "https://",
-      );
-    }
     return await SlackService.getInstance()
       .getInstaller()
       .handleInstallPath(req, res, undefined, installOptions);
@@ -115,11 +130,24 @@ export async function handleCallback(
 
           // Redirect to project-specific Slack settings page
           const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
-          res.redirect(redirectUrl);
+          res.redirect(getSafeRedirectPath(redirectUrl));
         },
 
         failure: async (error) => {
-          logger.error("OAuth callback failed", { error: error.message });
+          if (SLACK_OAUTH_CLIENT_INPUT_ERROR_CODES.has(error.code)) {
+            logger.warn("OAuth callback rejected", {
+              error: error.message,
+              code: error.code,
+            });
+            res
+              .status(400)
+              .json({ message: "Invalid OAuth callback parameters" });
+            return;
+          }
+          logger.error("OAuth callback failed", {
+            error: error.message,
+            code: error.code,
+          });
           res.status(500).json({ message: "Internal server error" });
         },
       });

@@ -21,10 +21,9 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
-import { type Prisma } from "@langfuse/shared";
 
 /**
  * Component for creating a new dataset item from an existing object.
@@ -46,7 +45,13 @@ export const NewDatasetItemFromExistingObject = (props: {
   isCopyItem?: boolean;
   buttonVariant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  /**
+   * "toolbar" (default) is the inline button; "menu" renders the same trigger
+   * as a full-width labeled row for the mobile header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
 }) => {
+  const isMenu = props.layout === "menu";
   const normalizePrefillValue = (
     value: Prisma.JsonValue | null,
   ): Prisma.JsonValue | null => {
@@ -109,12 +114,22 @@ export const NewDatasetItemFromExistingObject = (props: {
           <DropdownMenu open={hasAccess ? undefined : false}>
             <DropdownMenuTrigger asChild>
               <Button
-                variant="secondary"
-                size={buttonSize}
+                variant={isMenu ? "ghost" : "secondary"}
+                size={isMenu ? "sm" : buttonSize}
                 disabled={!hasAccess}
+                className={
+                  isMenu ? "w-full justify-start gap-2 font-normal" : undefined
+                }
               >
-                <span>{`In ${observationInDatasets.data.length} dataset(s)`}</span>
-                <ChevronDown className="ml-2 h-3 w-3" />
+                {isMenu ? (
+                  <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                ) : null}
+                <span className={isMenu ? "text-sm" : undefined}>
+                  {`In ${observationInDatasets.data.length} dataset(s)`}
+                </span>
+                <ChevronDown
+                  className={isMenu ? "ml-auto h-3 w-3" : "ml-2 h-3 w-3"}
+                />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -140,7 +155,7 @@ export const NewDatasetItemFromExistingObject = (props: {
                   setIsFormOpen(true);
                 }}
               >
-                <PlusIcon size={16} className={cn("mr-2")} aria-hidden="true" />
+                <PlusIcon size={16} className="mr-2" aria-hidden="true" />
                 Add to more datasets
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -154,22 +169,36 @@ export const NewDatasetItemFromExistingObject = (props: {
               object: props.observationId ? "observation" : "trace",
             });
           }}
-          variant={buttonVariant}
-          size={buttonSize}
+          variant={isMenu ? "ghost" : buttonVariant}
+          size={isMenu ? "sm" : buttonSize}
           disabled={!hasAccess}
+          className={
+            isMenu ? "w-full justify-start gap-2 font-normal" : undefined
+          }
         >
           {hasAccess ? (
             <PlusIcon
               className={cn(
-                "mr-1.5 -ml-0.5",
-                buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
+                isMenu
+                  ? "h-4 w-4"
+                  : cn(
+                      "mr-1.5 -ml-0.5",
+                      buttonSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
+                    ),
               )}
               aria-hidden="true"
             />
           ) : null}
-          Add to datasets
+          {isMenu ? (
+            <span className="text-sm">Add to datasets</span>
+          ) : (
+            "Add to datasets"
+          )}
           {!hasAccess ? (
-            <LockIcon className={cn("ml-1.5 h-3 w-3")} aria-hidden="true" />
+            <LockIcon
+              className={isMenu ? "ml-auto h-3 w-3" : "ml-1.5 h-3 w-3"}
+              aria-hidden="true"
+            />
           ) : null}
         </Button>
       )}

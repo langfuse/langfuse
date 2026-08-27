@@ -2,17 +2,60 @@ import { InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   dimension,
-  granularities,
   metric,
   validateQuery,
+  viewDeclarations,
   viewsV2,
 } from "@langfuse/shared/query";
-import { MetricsQueryObjectV2 } from "@/src/features/public-api/types/metrics";
+import {
+  MetricsQueryObjectV2,
+  publicGranularities,
+} from "@/src/features/public-api/types/metrics";
 import { defineTool } from "../../../core/define-tool";
+import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
 
 const DEFAULT_ROW_LIMIT = 100;
+
+const normalizeMetricFilters = (
+  input: z.infer<typeof MetricsQueryObjectV2>,
+): z.infer<typeof MetricsQueryObjectV2> => {
+  const tagsDimension = viewDeclarations.v2[input.view].dimensions.tags;
+  const tagsAreArray =
+    tagsDimension?.type === "string[]" || tagsDimension?.type === "arrayString";
+
+  if (!tagsAreArray) {
+    return input;
+  }
+
+  return {
+    ...input,
+    filters: input.filters.map((filter) => {
+      if (filter.column !== "tags") {
+        return filter;
+      }
+
+      if (filter.type === "string" && filter.operator === "=") {
+        return {
+          type: "arrayOptions",
+          column: filter.column,
+          operator: "any of",
+          value: [filter.value],
+        };
+      }
+
+      if (filter.type === "stringOptions") {
+        return {
+          ...filter,
+          type: "arrayOptions",
+        };
+      }
+
+      return filter;
+    }),
+  };
+};
 
 const normalizeMetricOrderByFields = (
   input: z.infer<typeof MetricsQueryObjectV2>,
@@ -24,6 +67,12 @@ const normalizeMetricOrderByFields = (
   const metricAliases = input.metrics.map(
     (metric) => `${metric.aggregation}_${metric.measure}`,
   );
+  const reversedMetricAliases = new Map(
+    input.metrics.map((metric) => [
+      `${metric.measure}_${metric.aggregation}`,
+      `${metric.aggregation}_${metric.measure}`,
+    ]),
+  );
   const allowedOrderByFields = new Set([
     ...input.dimensions.map((dimension) => dimension.field),
     ...metricAliases,
@@ -33,15 +82,17 @@ const normalizeMetricOrderByFields = (
   return {
     ...input,
     orderBy: input.orderBy.map((orderBy) => {
-      const matchingMetrics = input.dimensions.some(
+      const isDimensionField = input.dimensions.some(
         (dimension) => dimension.field === orderBy.field,
-      )
+      );
+      const matchingMetrics = isDimensionField
         ? []
         : input.metrics.filter((metric) => metric.measure === orderBy.field);
-      const normalizedField =
-        matchingMetrics.length === 1
+      const normalizedField = isDimensionField
+        ? orderBy.field
+        : matchingMetrics.length === 1
           ? `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`
-          : orderBy.field;
+          : (reversedMetricAliases.get(orderBy.field) ?? orderBy.field);
 
       if (!allowedOrderByFields.has(normalizedField)) {
         throw new InvalidRequestError(
@@ -57,22 +108,14 @@ const normalizeMetricOrderByFields = (
   };
 };
 
-const MetricsFilterBaseSchema = z.object({
-  column: z.string(),
-  operator: z.string(),
-  value: z.any(),
-  type: z.string(),
-  key: z.string().optional(),
-});
-
 const MetricsQueryObjectV2BaseSchema = z.object({
   view: viewsV2,
   dimensions: z.array(dimension).optional().default([]),
   metrics: z.array(metric),
-  filters: z.array(MetricsFilterBaseSchema).optional().default([]),
+  filters: z.array(McpAdvancedFilterBaseSchema).optional().default([]),
   timeDimension: z
     .object({
-      granularity: granularities,
+      granularity: publicGranularities,
     })
     .optional(),
   fromTimestamp: z.iso.datetime({ offset: true }),
@@ -107,7 +150,9 @@ export const [queryMetricsTool, handleQueryMetrics] = defineTool({
         "mcp.metrics_view": input.view,
       },
       fn: async () => {
-        const normalizedInput = normalizeMetricOrderByFields(input);
+        const normalizedInput = normalizeMetricOrderByFields(
+          normalizeMetricFilters(input),
+        );
         const validation = validateQuery(normalizedInput, "v2");
 
         if (!validation.valid) {

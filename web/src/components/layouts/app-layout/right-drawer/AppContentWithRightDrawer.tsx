@@ -1,8 +1,8 @@
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 
@@ -27,10 +27,10 @@ const DynamicSupportDrawer = dynamic(
   },
 );
 
-const DynamicControlledInAppAgentDrawer = dynamic(
+const DynamicV4MigrationPanel = dynamic(
   () =>
-    import("@/src/features/in-app-agent/components").then((mod) => ({
-      default: mod.ControlledInAppAgentDrawer,
+    import("@/src/features/v4-migration/V4MigrationPanel").then((mod) => ({
+      default: mod.V4MigrationPanel,
     })),
   {
     ssr: false,
@@ -47,47 +47,38 @@ function RightDrawerLoadingFallback() {
 }
 
 /**
- * App-shell content wrapper that attaches the support / AI assistant right drawer.
+ * App-shell content wrapper that attaches the support right drawer.
  *
  * Desktop keeps a stable split wrapper so routed page content does not remount
  * when a right drawer opens or closes. Mobile uses a bottom drawer.
  */
-export function AppContentWithRightDrawer({
-  aiAgentEnabled,
-  children,
-}: PropsWithChildren<{ aiAgentEnabled?: boolean }>) {
+export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const { open: supportOpen } = useSupportDrawer();
-  const { open: aiAgentOpen, setOpen: setAiAgentOpen } = useInAppAiAgent();
-  const showAiAgent = Boolean(aiAgentEnabled && aiAgentOpen);
-  const showRightDrawer = showAiAgent || supportOpen;
+  const { open: migrationOpen } = useV4MigrationPanel();
 
   if (!isDesktop) {
-    return (
-      <DynamicMobileRightDrawer aiAgentEnabled={aiAgentEnabled}>
-        {children}
-      </DynamicMobileRightDrawer>
-    );
+    return <DynamicMobileRightDrawer>{children}</DynamicMobileRightDrawer>;
   }
 
-  const rightDrawerContent = showAiAgent ? (
-    <DynamicControlledInAppAgentDrawer onClose={() => setAiAgentOpen(false)} />
-  ) : supportOpen ? (
+  const rightDrawerContent = supportOpen ? (
     <DynamicSupportDrawer />
+  ) : migrationOpen ? (
+    <DynamicV4MigrationPanel />
   ) : null;
 
   return (
     <ResizableSplitLayout
       primaryContent={children}
       secondaryContent={rightDrawerContent}
-      open={showRightDrawer}
-      showHandle={showAiAgent}
-      defaultPrimarySize={showAiAgent ? 72 : 70}
-      defaultSecondarySize={showAiAgent ? 28 : 30}
+      open={supportOpen || migrationOpen}
+      defaultPrimarySize={supportOpen ? 70 : 60}
+      // The migration panel carries denser content than the support drawer,
+      // so it opens wider by default.
+      defaultSecondarySize={supportOpen ? 30 : 40}
       minPrimarySize={30}
       maxSecondarySize={60}
       keepSecondaryMounted={false}
-      persistId={showAiAgent ? "assistant-sidebar" : undefined}
     />
   );
 }

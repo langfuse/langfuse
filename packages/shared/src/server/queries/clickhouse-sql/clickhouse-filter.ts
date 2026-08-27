@@ -3,11 +3,15 @@ import {
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
+  isFtsMetadataField,
+  isFtsTextField,
   isFtsTextTarget,
 } from "./fts";
 
@@ -22,10 +26,14 @@ export interface Filter {
   operator: ClickhouseOperator;
   field: string;
 }
-type ClickhouseFilter = {
+export type ClickhouseFilter = {
   query: string;
   params: { [x: string]: any } | {};
 };
+
+const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
+  (typeof filterOperators)["stringObject"][number]
+>(["contains", "starts with", "ends with"]);
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
@@ -165,6 +173,11 @@ export class NumberFilter implements Filter {
   }
 }
 
+export const bindUtcDateTimeParam = (name: string, value: Date) => ({
+  placeholder: `{${name}: DateTime64(3, 'UTC')}`,
+  value: convertDateToClickhouseDateTime(value),
+});
+
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -189,9 +202,17 @@ export class DateTimeFilter implements Filter {
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `dateTimeFilter${uid}`;
+    const dateTimeParam = bindUtcDateTimeParam(varName, new Date(this.value));
+    // Use ClickHouse DateTime string encoding rather than epoch millis.
+    // ClickHouse rejects query parameter value 0 for DateTime64(3), which is
+    // exactly what Date#getTime() returns for 1970-01-01T00:00:00.000Z. The
+    // converter emits UTC calendar time, so declare UTC explicitly rather than
+    // relying on the ClickHouse server or session timezone.
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
-      params: { [varName]: new Date(this.value).getTime() },
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} ${dateTimeParam.placeholder}`,
+      params: {
+        [varName]: dateTimeParam.value,
+      },
     };
   }
 }
@@ -355,6 +376,16 @@ export class StringObjectFilter implements Filter {
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
       const hasKey = `has(${namesColumn}, {${varKeyName}: String})`;
       const valueParam = `{${varValueName}: String}`;
+      const ngramPrefilterParamName = `stringObjectNgramFilter${clickhouseCompliantRandomCharacters()}`;
+      const shouldUseNgramPrefilter =
+        this.operator !== FTS_MATCH_OPERATOR &&
+        isFtsMetadataField(this.field) &&
+        NGRAM_ACCELERATED_METADATA_OPERATORS.has(this.operator) &&
+        this.value.length > 0;
+      const ngramPrefilter = shouldUseNgramPrefilter
+        ? `like(arrayStringConcat(${valuesColumn}), {${ngramPrefilterParamName}: String})`
+        : undefined;
+      const ngramConjunct = ngramPrefilter ? ` AND ${ngramPrefilter}` : "";
 
       switch (this.operator) {
         case "=":
@@ -366,16 +397,16 @@ export class StringObjectFilter implements Filter {
           });
           break;
         case "contains":
-          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+          query = `${hasKey}${ngramConjunct} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
           break;
         case "does not contain":
           query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
           break;
         case "starts with":
-          query = `${hasKey} AND (startsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey}${ngramConjunct} AND (startsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case "ends with":
-          query = `${hasKey} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey}${ngramConjunct} AND (endsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case FTS_MATCH_OPERATOR:
           assertValidFtsMatchFilter({
@@ -396,25 +427,43 @@ export class StringObjectFilter implements Filter {
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
       }
+
+      if (ngramPrefilter) {
+        return {
+          query,
+          params: {
+            [varKeyName]: this.key,
+            [varValueName]: this.value,
+            [ngramPrefilterParamName]: `%${escapeSqlLikePattern(this.value)}%`,
+          },
+        };
+      }
     } else {
       // For observations/traces tables, use Map access: metadata[key]
       const column = `${prefix}${this.field}`;
+      const valueAccessor = `${column}[{${varKeyName}: String}]`;
+      // A missing key resolves the Map access to the empty-string default,
+      // which would otherwise make `contains ""` (and every other operator's
+      // empty-value comparison) incorrectly match rows that never had the
+      // key. Require the key to exist first, mirroring the events-table fix
+      // in PR #13369.
+      const hasKey = `mapContains(${column}, {${varKeyName}: String})`;
 
       switch (this.operator) {
         case "=":
-          query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
           break;
         case "contains":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
           break;
         case "does not contain":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
           break;
         case "starts with":
-          query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         case "ends with":
-          query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
@@ -553,6 +602,54 @@ export class NumberObjectFilter implements Filter {
   }
 }
 
+/**
+ * Encodes one boolean-score entry the way the `score_booleans` ClickHouse
+ * aggregation stores it (`scoreBooleansAggregation` in query-fragments.ts:
+ * `concat(name, ':', lowerUTF8(string_value))`). BooleanObjectFilter and
+ * InMemoryFilterService must build lookup targets through this helper so the
+ * two filter paths and the SQL producer cannot drift apart.
+ */
+export const encodeBooleanScoreEntry = (key: string, value: boolean): string =>
+  `${key}:${value ? "true" : "false"}`;
+
+export class BooleanObjectFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public value: boolean;
+  public operator: (typeof filterOperators)["booleanObject"][number];
+  public tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["booleanObject"][number];
+    key: string;
+    value: boolean;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `booleanObjectFilter${uid}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const value = encodeBooleanScoreEntry(this.key, this.value);
+    const predicate = `has(${column}, {${varName}: String})`;
+
+    return {
+      query: this.operator === "<>" ? `NOT ${predicate}` : predicate,
+      params: { [varName]: value },
+    };
+  }
+}
+
 export class BooleanFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -641,3 +738,13 @@ export class FilterList {
     };
   }
 }
+
+// events_core stores input/output/metadata_values truncated to 200 chars
+// (events_core_mv); filters on these fields must run against events_full or
+// matches beyond the truncation point are silently dropped.
+export const filtersRequireEventsFull = (filters: FilterList): boolean =>
+  filters.some(
+    (f) =>
+      isFtsEventsTable(f.clickhouseTable) &&
+      (isFtsTextField(f.field) || isFtsMetadataField(f.field)),
+  );

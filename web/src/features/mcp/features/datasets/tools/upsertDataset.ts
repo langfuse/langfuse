@@ -4,7 +4,10 @@ import {
   PostDatasetsV2Body,
   PostDatasetsV2Response,
 } from "@/src/features/public-api/types/datasets";
-import { DatasetJSONSchema } from "@langfuse/shared/src/server";
+import {
+  DatasetJSONSchema,
+  buildDatasetUrl,
+} from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -62,7 +65,15 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
           auditScope: context,
         });
 
-        return PostDatasetsV2Response.parse(dataset);
+        const parsed = PostDatasetsV2Response.parse(dataset);
+
+        return {
+          ...parsed,
+          url: buildDatasetUrl({
+            projectId: context.projectId,
+            datasetId: parsed.id,
+          }),
+        };
       },
     }),
   destructiveHint: true,

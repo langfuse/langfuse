@@ -5,6 +5,7 @@ import {
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { renderLevelIcon } from "@/src/components/level-colors";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
@@ -75,7 +76,10 @@ export const migrateLegacyRootObservationFilters = (
   });
 };
 
-export type ObservationEventsOmittableFilterColumn = "sessionId" | "userId";
+export type ObservationEventsOmittableFilterColumn =
+  | "sessionId"
+  | "userId"
+  | "promptName";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",
@@ -84,20 +88,31 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   defaultExpanded: ["environment", "name", "isRootObservation", "type"],
 
+  // Top 15 facets by real usage — 60 days of PostHog `filters:applied` on
+  // this table: they cover ~98% of sidebar filter applies per project on
+  // average, ~95% at the 10th percentile. The rest folds behind
+  // "Show N more".
+  commonFacets: [
+    "isRootObservation",
+    "name",
+    "type",
+    "environment",
+    "traceName",
+    "metadata",
+    "traceTags",
+    "sessionId",
+    "userId",
+    "traceId",
+    "level",
+    "providedModelName",
+    "promptName",
+    "latency",
+    "scores_avg",
+  ],
+
   migrateFilterState: migrateLegacyRootObservationFilters,
 
   facets: [
-    {
-      type: "categorical" as const,
-      column: "environment",
-      label: getEventsColumnName("environment"),
-    },
-    {
-      type: "categorical" as const,
-      column: "type",
-      label: getEventsColumnName("type"),
-      renderIcon: renderFilterIcon,
-    },
     {
       type: "boolean" as const,
       column: "isRootObservation",
@@ -107,38 +122,29 @@ export const observationEventsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "traceName",
-      label: getEventsColumnName("traceName"),
-    },
-    {
-      type: "categorical" as const,
       column: "name",
       label: getEventsColumnName("name"),
     },
     {
       type: "categorical" as const,
-      column: "level",
-      label: getEventsColumnName("level"),
+      column: "type",
+      label: getEventsColumnName("type"),
+      help: {
+        description:
+          "Observation types classify the work captured within a trace, such as generations, spans, tools, chains, and agents.",
+        href: "https://langfuse.com/docs/observability/features/observation-types",
+      },
+      renderIcon: renderFilterIcon,
     },
     {
       type: "categorical" as const,
-      column: "providedModelName",
-      label: getEventsColumnName("providedModelName"),
+      column: "environment",
+      label: getEventsColumnName("environment"),
     },
     {
       type: "categorical" as const,
-      column: "modelId",
-      label: getEventsColumnName("modelId"),
-    },
-    {
-      type: "categorical" as const,
-      column: "promptName",
-      label: getEventsColumnName("promptName"),
-    },
-    {
-      type: "categorical" as const,
-      column: "traceTags",
-      label: getEventsColumnName("traceTags"),
+      column: "traceName",
+      label: getEventsColumnName("traceName"),
     },
     {
       type: "stringKeyValue" as const,
@@ -146,19 +152,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("metadata"),
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
       type: "categorical" as const,
-      column: "version",
-      label: getEventsColumnName("version"),
-    },
-    {
-      type: "string" as const,
-      column: "statusMessage",
-      label: getEventsColumnName("statusMessage"),
-    },
-    {
-      type: "string" as const,
-      column: "traceId",
-      label: getEventsColumnName("traceId"),
+      column: "traceTags",
+      label: getEventsColumnName("traceTags"),
     },
     {
       type: "categorical" as const,
@@ -169,6 +167,82 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "userId",
       label: getEventsColumnName("userId"),
+    },
+    {
+      type: "string" as const,
+      column: "traceId",
+      label: getEventsColumnName("traceId"),
+    },
+    {
+      // Display name comes from eventsTableCols so the sidebar and table
+      // column stay aligned. Column id stays `level`.
+      type: "categorical" as const,
+      column: "level",
+      label: getEventsColumnName("level"),
+      renderIcon: renderLevelIcon,
+    },
+    {
+      type: "categorical" as const,
+      column: "providedModelName",
+      label: getEventsColumnName("providedModelName"),
+    },
+    {
+      type: "categorical" as const,
+      column: "promptName",
+      label: getEventsColumnName("promptName"),
+    },
+    {
+      type: "numeric" as const,
+      column: "latency",
+      label: getEventsColumnName("latency"),
+      min: 0,
+      max: 60,
+      unit: "s",
+    },
+    {
+      type: "numericKeyValue" as const,
+      column: "scores_avg",
+      label: "Numeric Scores",
+    },
+    {
+      type: "categorical" as const,
+      column: "modelId",
+      label: getEventsColumnName("modelId"),
+    },
+    {
+      type: "categorical" as const,
+      column: "version",
+      label: getEventsColumnName("version"),
+    },
+    {
+      type: "categorical" as const,
+      column: "release",
+      label: getEventsColumnName("release"),
+    },
+    {
+      type: "string" as const,
+      column: "statusMessage",
+      label: getEventsColumnName("statusMessage"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionApiKey",
+      label: getEventsColumnName("ingestionApiKey"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSdkName",
+      label: getEventsColumnName("ingestionSdkName"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSdkVersion",
+      label: getEventsColumnName("ingestionSdkVersion"),
+    },
+    {
+      type: "categorical" as const,
+      column: "ingestionSource",
+      label: getEventsColumnName("ingestionSource"),
     },
     {
       type: "categorical" as const,
@@ -184,14 +258,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "experimentName",
       label: getEventsColumnName("experimentName"),
-    },
-    {
-      type: "numeric" as const,
-      column: "latency",
-      label: getEventsColumnName("latency"),
-      min: 0,
-      max: 60,
-      unit: "s",
     },
     {
       type: "numeric" as const,
@@ -276,19 +342,9 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Categorical Scores",
     },
     {
-      type: "numericKeyValue" as const,
-      column: "scores_avg",
-      label: "Numeric Scores",
-    },
-    {
-      type: "keyValue" as const,
-      column: "trace_score_categories",
-      label: "Trace Categorical Scores",
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "trace_scores_avg",
-      label: "Trace Numeric Scores",
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
     },
     {
       type: "numeric" as const,

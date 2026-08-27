@@ -47,6 +47,12 @@ export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "sa.score_categories",
   },
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "agg_score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "sa.score_booleans",
+  },
 ];
 
 export const mapDatasetRunItemFilterColumn = (

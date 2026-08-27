@@ -2,8 +2,6 @@ import { z } from "zod";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";
@@ -66,6 +64,7 @@ export const CreateAnnotationQueueBody = z
   })
   .strict();
 
+/** @alias */
 export const CreateAnnotationQueueResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId
@@ -75,6 +74,7 @@ export const GetAnnotationQueueByIdQuery = z
   })
   .strict();
 
+/** @alias */
 export const GetAnnotationQueueByIdResponse = AnnotationQueueSchema;
 
 // GET /annotation-queues/:queueId/items
@@ -101,6 +101,7 @@ export const GetAnnotationQueueItemByIdQuery = z
   })
   .strict();
 
+/** @alias */
 export const GetAnnotationQueueItemByIdResponse = AnnotationQueueItemSchema;
 
 // POST /annotation-queues/:queueId/items
@@ -115,6 +116,7 @@ export const CreateAnnotationQueueItemBody = z
   })
   .strict();
 
+/** @alias */
 export const CreateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 
 // PATCH /annotation-queues/:queueId/items/:itemId
@@ -124,6 +126,7 @@ export const UpdateAnnotationQueueItemBody = z
   })
   .strict();
 
+/** @alias */
 export const UpdateAnnotationQueueItemResponse = AnnotationQueueItemSchema;
 
 // DELETE /annotation-queues/:queueId/items/:itemId
@@ -163,6 +166,7 @@ export const CreateAnnotationQueueAssignmentBody = z
   })
   .strict();
 
+/** @alias */
 export const CreateAnnotationQueueAssignmentResponse =
   AnnotationQueueAssignmentSchema;
 

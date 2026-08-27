@@ -13,14 +13,27 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+  type Plan,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PRE_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
+// Integration-level cutoff applied to BlobStorageIntegration.createdAt.
+const INTEGRATION_PRE_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+);
+const INTEGRATION_POST_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+);
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -37,7 +50,13 @@ vi.mock("@langfuse/shared/src/server", async () => {
 
 const __orgIds: string[] = [];
 
-const prepare = async () => {
+const prepare = async ({
+  admin = true,
+  plan = "cloud:hobby",
+}: {
+  admin?: boolean;
+  plan?: Plan;
+} = {}) => {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -51,17 +70,21 @@ const prepare = async () => {
           id: org.id,
           name: org.name,
           role: "OWNER",
-          plan: "cloud:hobby",
+          plan,
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -69,12 +92,16 @@ const prepare = async () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
-      admin: true,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
-      selfHostedInstancePlan: "cloud:hobby",
+      selfHostedInstancePlan: plan,
     },
   };
 
@@ -89,9 +116,14 @@ const prepare = async () => {
 const createIntegration = async ({
   projectId,
   enabled = true,
+  exportSource,
 }: {
   projectId: string;
   enabled?: boolean;
+  exportSource?:
+    | "TRACES_OBSERVATIONS"
+    | "TRACES_OBSERVATIONS_EVENTS"
+    | "EVENTS";
 }) =>
   prisma.blobStorageIntegration.create({
     data: {
@@ -107,6 +139,7 @@ const createIntegration = async ({
       forcePathStyle: false,
       fileType: "JSONL",
       exportMode: "FULL_HISTORY",
+      ...(exportSource ? { exportSource } : {}),
     },
   });
 
@@ -163,6 +196,60 @@ describe("Blob Storage Integration tRPC Router", () => {
       where: {
         id: { in: __orgIds },
       },
+    });
+  });
+
+  describe("scheduled-blob-exports entitlement", () => {
+    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:hobby",
+      });
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.get({ projectId: project.id }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("scheduled-blob-exports"),
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.runNow({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.validate({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.delete({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      const stillThere = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stillThere).not.toBeNull();
+    });
+
+    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:team",
+      });
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.projectId).toBe(project.id);
     });
   });
 
@@ -360,24 +447,32 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
     });
 
-    it.each(["S3_COMPATIBLE", "AZURE_BLOB_STORAGE"] as const)(
-      "rejects %s endpoints that target blocked IP ranges when validation is enabled",
-      async (type) => {
-        sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+    it("rejects endpoints that target blocked IP ranges when validation is enabled", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
           "203.0.113.10",
         ];
-        const { caller, project } = await prepare();
 
         await expect(
-          caller.blobStorageIntegration.update({
-            projectId: project.id,
-            ...baseConfig,
-            type,
-            endpoint: "http://127.0.0.1:9000",
-          }),
-        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-      },
-    );
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
 
     it("allows endpoints when their IP is whitelisted", async () => {
       const { env: validationEnv } =
@@ -405,6 +500,48 @@ describe("Blob Storage Integration tRPC Router", () => {
           originalValidationAllowedIps;
       }
     });
+
+    it("allows HTTP endpoints when Cloud region is DEV", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+      }
+    });
+
+    it("rejects HTTP endpoints on Langfuse Cloud outside local development", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow(
+          "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
+        );
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+      }
+    });
   });
 
   describe("exportFieldGroups", () => {
@@ -420,7 +557,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
       });
-      expect(result?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(result?.config?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     it("defaults to all groups when exportFieldGroups is omitted", async () => {
@@ -468,11 +605,19 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toThrow();
     });
 
-    it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
         data: { createdAt: PRE_CUTOFF },
+      });
+      // Pre-cutoff integration row (legacy exporter) so the integration-cutoff
+      // gate allows the legacy source; this test only exercises field-group
+      // handling, not the cutoff.
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { createdAt: INTEGRATION_PRE_CUTOFF },
       });
 
       await expect(
@@ -482,7 +627,35 @@ describe("Blob Storage Integration tRPC Router", () => {
           exportSource: "TRACES_OBSERVATIONS" as const,
           exportFieldGroups: [],
         }),
-      ).resolves.not.toThrow();
+      ).rejects.toThrow();
+    });
+
+    it("accepts a custom subset including core when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      // Pre-cutoff integration row (legacy exporter) so the integration-cutoff
+      // gate allows the legacy source; this test only exercises field-group
+      // handling, not the cutoff.
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { createdAt: INTEGRATION_PRE_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportFieldGroups: ["core", "io"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.config?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     it("overwrites stored subset when a new subset is submitted", async () => {
@@ -503,7 +676,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
       });
-      expect(result?.exportFieldGroups).toStrictEqual([
+      expect(result?.config?.exportFieldGroups).toStrictEqual([
         "core",
         "io",
         "metrics",
@@ -516,7 +689,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       vi.restoreAllMocks();
     });
 
-    it("Cloud + pre-cutoff project + legacy source → allow", async () => {
+    it("Cloud + pre-cutoff project + pre-cutoff legacy row + legacy source → allow", async () => {
       const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       try {
@@ -524,6 +697,14 @@ describe("Blob Storage Integration tRPC Router", () => {
         await prisma.project.update({
           where: { id: project.id },
           data: { createdAt: PRE_CUTOFF },
+        });
+        // The project-level gate allows pre-cutoff projects, but the
+        // integration-cutoff gate also applies: a legacy source is only allowed
+        // when an existing pre-cutoff row classifies the exporter as legacy.
+        await createIntegration({ projectId: project.id });
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_PRE_CUTOFF },
         });
         await expect(
           caller.blobStorageIntegration.update({
@@ -598,6 +779,496 @@ describe("Blob Storage Integration tRPC Router", () => {
       } finally {
         (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
       }
+    });
+  });
+
+  // The write mode is server-only, so the settings page can only learn it
+  // from this response. This is the durable half of the contract — the
+  // derived booleans next to it go away once their consumers read writeMode.
+  describe("get: writeMode", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it.each(["legacy", "dual", "events_only"] as const)(
+      "returns the active write mode %s, independent of the preview opt-in",
+      async (writeMode) => {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+        (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+        const { caller, project } = await prepare();
+        const result = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.writeMode).toBe(writeMode);
+      },
+    );
+  });
+
+  describe("update: enriched export source guard", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("rejects EVENTS under the legacy write mode even with the preview opt-in enabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows EVENTS under the dual write mode even with the preview opt-in disabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("rejects EVENTS under the legacy write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects TRACES_OBSERVATIONS_EVENTS under the legacy write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects TRACES_OBSERVATIONS_EVENTS under the events_only write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows TRACES_OBSERVATIONS_EVENTS under the dual write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("allows EVENTS under the events_only write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("allows EVENTS on Cloud under the dual write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe("legacy blob exporter (integration createdAt) cutoff gate", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // All cases use a pre-cutoff project so the project-level delegate gate
+    // allows and the integration-level cutoff is isolated.
+
+    it("(a) Cloud + pre-cutoff project + no row + legacy → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+            exportFieldGroups: ["core"],
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("(b) Cloud + pre-cutoff project + row (createdAt < CUTOFF) + legacy → succeeds", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await createIntegration({ projectId: project.id });
+        // Backdate the row to before the integration cutoff (legacy exporter).
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+            exportFieldGroups: ["core"],
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("(c) Cloud + pre-cutoff project + no row + EVENTS → succeeds", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "EVENTS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("(d) Cloud + pre-cutoff project + row (createdAt >= CUTOFF, reset-recreated) + legacy → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await createIntegration({ projectId: project.id });
+        // Post-date the row to on/after the integration cutoff (not legacy).
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+            exportFieldGroups: ["core"],
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+  });
+
+  // An update that omits exportSource must preserve the persisted
+  // value (parity with the public REST handler) — never rewrite it to the
+  // legacy default — and must be rejected when preserving would keep a stale
+  // enriched source alive on a deployment without the enriched export path.
+  describe("update: omitted exportSource", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    const { exportSource: _ignored, ...configWithoutExportSource } = baseConfig;
+
+    it("preserves a persisted enriched source when enriched export is available", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("rejects an omitted exportSource over a stale enriched row on a legacy-write-mode deployment", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...configWithoutExportSource,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("preserves a persisted legacy source on a legacy-write-mode deployment", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "TRACES_OBSERVATIONS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted for a post-cutoff Cloud project", async () => {
+      // The legacy gate only checks explicit values, so an omitted
+      // exportSource on CREATE must not fall through to the Prisma column
+      // default (TRACES_OBSERVATIONS) — mirror of the REST handler's resolved
+      // create default.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: POST_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted on a self-hosted dual deployment", async () => {
+      // No Cloud cutoff applies here, so nothing forces enriched — the shared
+      // default does, because dual writes the enriched table. This is the case
+      // where the routers used to create TRACES_OBSERVATIONS while the settings
+      // page offered EVENTS.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("still allows an explicit downgrade to a legacy source on a legacy-write-mode deployment", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+  });
+
+  describe("parquet fileType", () => {
+    it("persists PARQUET for any project", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+    });
+
+    it("saves edits alongside a persisted PARQUET fileType", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("preserves persisted PARQUET when fileType is omitted from the update input", async () => {
+      // The router-level .optional() drops the base default so an omitted
+      // fileType preserves the persisted value instead of rewriting it.
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("defaults to PARQUET when fileType is omitted on CREATE", async () => {
+      const { caller, project } = await prepare();
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
     });
   });
 });

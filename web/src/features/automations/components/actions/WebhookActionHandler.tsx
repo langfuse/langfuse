@@ -4,8 +4,9 @@ import { type BaseActionHandler } from "./BaseActionHandler";
 import { WebhookActionForm, formatWebhookHeaders } from "./WebhookActionForm";
 import {
   type AutomationDomain,
-  AvailableWebhookApiSchema,
-  WebhookDefaultHeaders,
+  type AvailableWebhookApiSchema,
+  WebhookProtectedHeaders,
+  TriggerEventSource,
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
@@ -28,11 +29,29 @@ export const WebhookActionFormSchema = z.object({
         }),
       )
       .default([]),
-    apiVersion: AvailableWebhookApiSchema.default({ prompt: "v1" }),
   }),
 });
 
 type WebhookActionFormData = z.infer<typeof WebhookActionFormSchema>;
+
+/**
+ * apiVersionForEventSource derives the stored webhook payload version from the
+ * trigger's event source. There is only one version per source today, so this
+ * is not user-editable and is deliberately not part of the form state — keeping
+ * it derived is what stops it from drifting when the event source changes.
+ */
+const apiVersionForEventSource = (
+  eventSource?: TriggerEventSource,
+): z.infer<typeof AvailableWebhookApiSchema> => {
+  switch (eventSource) {
+    case TriggerEventSource.Monitor:
+      return { monitor: "v1" };
+    case TriggerEventSource.ProjectNotification:
+      return { "project-notification": "v1" };
+    default:
+      return { prompt: "v1" };
+  }
+};
 
 // Define a type for header pairs
 type HeaderPair = {
@@ -73,17 +92,6 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
   }
 
   getDefaultValues(automation?: AutomationDomain): WebhookActionFormData {
-    // Extract apiVersion from existing config
-    let apiVersion = { prompt: "v1" } as const;
-    if (
-      automation?.action?.type === "WEBHOOK" &&
-      automation?.action?.config &&
-      "apiVersion" in automation.action.config &&
-      automation.action.config.apiVersion
-    ) {
-      apiVersion = automation.action.config.apiVersion;
-    }
-
     return {
       webhook: {
         url:
@@ -93,7 +101,6 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
             automation.action.config.url) ||
           "",
         headers: this.parseHeaders(automation),
-        apiVersion,
       },
     };
   }
@@ -110,8 +117,6 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
 
     // Validate headers
     if (formData.webhook?.headers) {
-      const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
-
       formData.webhook.headers.forEach((header: HeaderPair, index: number) => {
         // Only validate non-empty headers
         if (header.name.trim() || header.value.trim()) {
@@ -127,10 +132,10 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
             );
           }
 
-          // Check if header name conflicts with default headers
+          // Check if header name conflicts with managed headers
           if (
             header.name.trim() &&
-            defaultHeaderKeys.includes(header.name.trim().toLowerCase())
+            WebhookProtectedHeaders.includes(header.name.trim().toLowerCase())
           ) {
             errors.push(
               `Header ${index + 1}: "${header.name}" is automatically added by Langfuse and cannot be customized`,
@@ -159,7 +164,10 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
     };
   }
 
-  buildActionConfig(formData: WebhookActionFormData): ActionCreate {
+  buildActionConfig(
+    formData: WebhookActionFormData,
+    eventSource?: TriggerEventSource,
+  ): ActionCreate {
     // Convert headers array to requestHeaders format
     let headersObject: Record<string, { secret: boolean; value: string }> = {};
 
@@ -171,7 +179,7 @@ export class WebhookActionHandler implements BaseActionHandler<WebhookActionForm
       type: "WEBHOOK",
       url: formData.webhook?.url || "",
       requestHeaders: headersObject,
-      apiVersion: formData.webhook?.apiVersion || { prompt: "v1" },
+      apiVersion: apiVersionForEventSource(eventSource),
     };
   }
 

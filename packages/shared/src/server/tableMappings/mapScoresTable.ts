@@ -1,89 +1,126 @@
 import { UiColumnMappings } from "../../tableDefinitions";
 
+// Lowercased boolean string_value ('true'/'false', '' for non-boolean rows) —
+// matches the lowercase options offered by the scores view's Boolean Value
+// facet. Shared with mapScoresColumnsTable so the two mappings cannot drift.
+export const SCORE_BOOLEAN_VALUE_SQL =
+  "if(s.data_type = 'BOOLEAN' AND notEmpty(s.string_value), lowerUTF8(s.string_value), '')";
+
 export const scoresTableUiColumnDefinitions: UiColumnMappings = [
   {
     uiTableName: "ID",
     uiTableId: "id",
     clickhouseTableName: "scores",
     clickhouseSelect: "id",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Timestamp",
     uiTableId: "timestamp",
     clickhouseTableName: "scores",
     clickhouseSelect: "timestamp",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Environment",
     uiTableId: "environment",
     clickhouseTableName: "scores",
     clickhouseSelect: "environment",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Trace ID",
     uiTableId: "traceId",
     clickhouseTableName: "scores",
     clickhouseSelect: "trace_id",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Observation ID",
     uiTableId: "observationId",
     clickhouseTableName: "scores",
     clickhouseSelect: "observation_id",
+    queryPrefix: "s",
+    // A score either has an observation id or it does not: the column is
+    // Nullable(String), so '' and NULL denote the same "trace-level" score.
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Session ID",
     uiTableId: "sessionId",
     clickhouseTableName: "scores",
     clickhouseSelect: "session_id",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "scores",
     clickhouseSelect: "name",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Evaluator ID",
+    uiTableId: "evaluatorId",
+    clickhouseTableName: "scores",
+    clickhouseSelect:
+      "coalesce(nullIf(s.metadata['evaluator_id'], ''), s.metadata['job_configuration_id'])",
   },
   {
     uiTableName: "Value",
     uiTableId: "value",
     clickhouseTableName: "scores",
     clickhouseSelect: "value",
+    queryPrefix: "s",
+  },
+  {
+    uiTableName: "Boolean Value",
+    uiTableId: "booleanValue",
+    clickhouseTableName: "scores",
+    clickhouseSelect: SCORE_BOOLEAN_VALUE_SQL,
+    emptyEqualsNull: true,
   },
   {
     uiTableName: "Source",
     uiTableId: "source",
     clickhouseTableName: "scores",
     clickhouseSelect: "source",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Comment",
     uiTableId: "comment",
     clickhouseTableName: "scores",
     clickhouseSelect: "comment",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Author User ID",
     uiTableId: "authorUserId",
     clickhouseTableName: "scores",
     clickhouseSelect: "author_user_id",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Data Type",
     uiTableId: "dataType",
     clickhouseTableName: "scores",
     clickhouseSelect: "data_type",
+    queryPrefix: "s",
   },
   {
     uiTableName: "String Value",
     uiTableId: "stringValue",
     clickhouseTableName: "scores",
     clickhouseSelect: "string_value",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Metadata",
     uiTableId: "metadata",
     clickhouseTableName: "scores",
     clickhouseSelect: "metadata",
+    queryPrefix: "s",
   },
   {
     uiTableName: "Trace Name",

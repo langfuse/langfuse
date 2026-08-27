@@ -1,11 +1,13 @@
 import { prisma } from "@langfuse/shared/src/db";
-import type {
-  CreatePromptSchema,
-  GetPromptByNameSchema,
-  GetPromptsMetaSchema,
-  Prompt,
+import {
+  type CreatePromptSchema,
+  type GetPromptByNameSchema,
+  type GetPromptsMetaSchema,
+  type Prompt,
+  InvalidRequestError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -50,6 +52,12 @@ export const createPromptForApi = async ({
     createdBy: "API",
     prisma,
   }).catch((err) => {
+    const promptVersionConflictMessage = `Failed to create prompt '${input.name}' due to unique constraint failure. This is likely due to too many concurrent prompt creations for this prompt name. Please add a delay.`;
+
+    if (err instanceof LangfuseConflictError) {
+      throw new InvalidRequestError(promptVersionConflictMessage);
+    }
+
     if (
       typeof err === "object" &&
       err?.constructor.name === "PrismaClientKnownRequestError" &&
@@ -57,9 +65,7 @@ export const createPromptForApi = async ({
       // Unique constraint failed: https://www.prisma.io/docs/orm/reference/error-reference#p2002
       err.code === "P2002"
     ) {
-      throw new InvalidRequestError(
-        `Failed to create prompt '${input.name}' due to unique constraint failure. This is likely due to too many concurrent prompt creations for this prompt name. Please add a delay.`,
-      );
+      throw new InvalidRequestError(promptVersionConflictMessage);
     }
 
     throw err;

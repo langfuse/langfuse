@@ -23,32 +23,36 @@ export type EvaluatorExecutionCountsByEvaluatorId = Record<
   EvaluatorExecutionStatusCount[]
 >;
 
-type BlockStateLike = {
+/**
+ * Run state of anything that decides whether an evaluation happens: an
+ * evaluation rule, or the legacy job configuration it replaced.
+ */
+type EvalRuleRunState = {
   status: JobConfigState;
   blockedAt?: Date | null;
 };
 
-export const JobConfigExecutionMode = z.enum(["LIVE", "MANUAL"]);
-export type JobConfigExecutionMode = z.infer<typeof JobConfigExecutionMode>;
+export const EvalExecutionMode = z.enum(["LIVE", "MANUAL"]);
+export type EvalExecutionMode = z.infer<typeof EvalExecutionMode>;
 
-export function isJobConfigBlocked(config: Pick<BlockStateLike, "blockedAt">) {
-  return config.blockedAt != null;
+export function isEvalRuleBlocked(rule: Pick<EvalRuleRunState, "blockedAt">) {
+  return rule.blockedAt != null;
 }
 
-export function isJobConfigExecutable(config: BlockStateLike) {
-  return config.status === JobConfigState.ACTIVE && !isJobConfigBlocked(config);
+export function isEvalRuleExecutable(rule: EvalRuleRunState) {
+  return rule.status === JobConfigState.ACTIVE && !isEvalRuleBlocked(rule);
 }
 
-export function isJobConfigExecutableForExecutionMode(
-  config: BlockStateLike,
-  executionMode?: JobConfigExecutionMode,
+export function canRunEvalRule(
+  rule: EvalRuleRunState,
+  executionMode?: EvalExecutionMode,
 ) {
   if (executionMode === "MANUAL") {
-    // Manual batch runs bypass only the live-traffic toggle, not blocked configs.
-    return !isJobConfigBlocked(config);
+    // Manual batch runs bypass only the live-traffic toggle, not blocked rules.
+    return !isEvalRuleBlocked(rule);
   }
 
-  return isJobConfigExecutable(config);
+  return isEvalRuleExecutable(rule);
 }
 
 type EvaluatorBlockMetadata = {
@@ -64,6 +68,16 @@ export const EVALUATOR_BLOCK_METADATA: Record<
     message:
       "Evaluator paused: LLM authentication failed. Update the LLM connection used by this evaluator and then reactivate it.",
     shortLabel: "Authentication failed",
+  },
+  LLM_CONNECTION_BILLING_EXHAUSTED: {
+    message:
+      "Evaluator paused: the LLM provider reported exhausted credits or an exceeded spend budget. Add credits or raise the limit in your provider account, then reactivate the evaluator.",
+    shortLabel: "Provider credits exhausted",
+  },
+  LLM_CONNECTION_ENDPOINT_UNREACHABLE: {
+    message:
+      "Evaluator paused: the LLM connection's endpoint hostname could not be resolved. Fix the base URL of the LLM connection used by this evaluator, then reactivate it.",
+    shortLabel: "Endpoint unreachable",
   },
   LLM_CONNECTION_MISSING: {
     message:
@@ -102,14 +116,22 @@ export function getEvaluatorBlockResolutionPath(params: {
   projectId: string;
   blockReason: EvaluatorBlockReason;
   templateId?: string | null;
+  /** Evaluator v2 identity; takes precedence over the legacy template link. */
+  evaluatorId?: string | null;
 }): string {
-  const { projectId, blockReason, templateId } = params;
+  const { projectId, blockReason, templateId, evaluatorId } = params;
 
   if (
     blockReason === EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID ||
+    blockReason === EvaluatorBlockReason.LLM_CONNECTION_BILLING_EXHAUSTED ||
+    blockReason === EvaluatorBlockReason.LLM_CONNECTION_ENDPOINT_UNREACHABLE ||
     blockReason === EvaluatorBlockReason.LLM_CONNECTION_MISSING
   ) {
     return `/project/${projectId}/settings/llm-connections`;
+  }
+
+  if (evaluatorId) {
+    return `/project/${projectId}/evals/v2/${evaluatorId}`;
   }
 
   if (templateId) {

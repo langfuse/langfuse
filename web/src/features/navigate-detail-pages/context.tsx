@@ -22,7 +22,10 @@ export type ListEntry<
   TParams extends Partial<Record<string, string>> = Record<string, string>,
 > = {
   id: string;
+  /** URL query params applied when navigating to this entry (see usePeekNavigation). */
   params?: TParams;
+  /** Arbitrary per-entry data for consumers; never serialized into URLs. */
+  meta?: Record<string, unknown>;
 };
 
 export type TraceDetailPageListEntry = ListEntry<{

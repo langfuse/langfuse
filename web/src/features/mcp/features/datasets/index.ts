@@ -36,7 +36,7 @@ import {
 } from "./tools/listDatasetRuns";
 import { handleListDatasets, listDatasetsTool } from "./tools/listDatasets";
 
-export const datasetsFeature: McpFeatureModule = {
+export const datasetsFeature = {
   name: "datasets",
   description:
     "Manage datasets, named collections of dataset items for experiments and evaluations, plus runs and run items",
@@ -45,23 +45,19 @@ export const datasetsFeature: McpFeatureModule = {
     {
       definition: listDatasetsTool,
       handler: handleListDatasets,
-      allowInAppAgentKey: true,
     },
     {
       definition: getDatasetTool,
       handler: handleGetDataset,
-      allowInAppAgentKey: true,
     },
     { definition: upsertDatasetItemTool, handler: handleUpsertDatasetItem },
     {
       definition: listDatasetItemsTool,
       handler: handleListDatasetItems,
-      allowInAppAgentKey: true,
     },
     {
       definition: getDatasetItemTool,
       handler: handleGetDatasetItem,
-      allowInAppAgentKey: true,
     },
     { definition: deleteDatasetItemTool, handler: handleDeleteDatasetItem },
     {
@@ -71,18 +67,15 @@ export const datasetsFeature: McpFeatureModule = {
     {
       definition: listDatasetRunItemsTool,
       handler: handleListDatasetRunItems,
-      allowInAppAgentKey: true,
     },
     {
       definition: listDatasetRunsTool,
       handler: handleListDatasetRuns,
-      allowInAppAgentKey: true,
     },
     {
       definition: getDatasetRunTool,
       handler: handleGetDatasetRun,
-      allowInAppAgentKey: true,
     },
     { definition: deleteDatasetRunTool, handler: handleDeleteDatasetRun },
   ],
-};
+} as const satisfies McpFeatureModule;

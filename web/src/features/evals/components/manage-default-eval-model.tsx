@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -43,18 +44,18 @@ export function ManageDefaultEvalModel({
       {defaultModel ? (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold text-nowrap",
             variant === "color-coded" && "text-dark-green",
             className,
           )}
         >
-          {"Current default model: "}
+          {"Default model: "}
           {defaultModel.provider} / {defaultModel.model}
         </span>
       ) : (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             variant === "color-coded" && "text-dark-yellow",
             className,
           )}

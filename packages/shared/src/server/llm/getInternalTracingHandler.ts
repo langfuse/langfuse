@@ -1,7 +1,8 @@
-import CallbackHandler from "langfuse-langchain";
+import { Langfuse } from "langfuse";
 import { ProcessedTraceEvent, TraceSinkParams } from "./types";
 import { buildInternalTraceEventInputs } from "./internalTraceEvents";
 import { processEventBatch } from "../ingestion/processEventBatch";
+import { createUnknownSdkIngestionAttribution } from "../ingestion/ingestionAttribution";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 
@@ -72,17 +73,20 @@ export function prepareInternalTraceEvents(params: {
 }
 
 export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
-  handler: CallbackHandler;
+  handler: { langfuse: Langfuse };
   processTracedEvents: () => Promise<void>;
 } {
-  const { prompt, targetProjectId, environment, userId, eventsWriter } =
+  const { prompt, targetProjectId, environment, eventsWriter } =
     traceSinkParams;
-  const handler = new CallbackHandler({
-    _projectId: targetProjectId,
-    _isLocalEventExportEnabled: true,
-    environment: environment,
-    userId: userId,
-  });
+  const handler = {
+    langfuse: new Langfuse({
+      _projectId: targetProjectId,
+      _isLocalEventExportEnabled: true,
+      environment,
+      persistence: "memory",
+      sdkIntegration: "LANGCHAIN",
+    }),
+  };
 
   const processTracedEvents = async () => {
     try {
@@ -97,18 +101,23 @@ export function getInternalTracingHandler(traceSinkParams: TraceSinkParams): {
 
       // Legacy write to traces/observations tables
       try {
+        const auth = {
+          validKey: true as const,
+          scope: {
+            projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
+            accessLevel: "project",
+          } as any,
+        };
+
         await processEventBatch(
           JSON.parse(JSON.stringify(processedEvents)), // stringify to emulate network event batch from network call
-          {
-            validKey: true as const,
-            scope: {
-              projectId: traceSinkParams.targetProjectId, // Important: this controls into what project traces are ingested.
-              accessLevel: "project",
-            } as any,
-          },
+          auth,
           {
             isLangfuseInternal: true,
             forwardToEventsTable: eventsWriter ? false : undefined, // Do not dual write when we already direct event write
+            attribution: createUnknownSdkIngestionAttribution({
+              authCheck: auth,
+            }),
           },
         );
       } catch (processingError) {

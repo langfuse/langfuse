@@ -4,6 +4,7 @@ import {
   BaseError,
   InvalidRequestError,
   InternalServerError,
+  ForbiddenError,
   LangfuseConflictError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
@@ -15,6 +16,10 @@ import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
 } from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+import {
+  getRateLimitUpgradeMessage,
+  type RateLimitUpgradePath,
+} from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const unstablePublicEvalsErrorContract = "unstable-public-evals";
 export type PublicApiErrorContract = typeof unstablePublicEvalsErrorContract;
@@ -115,15 +120,21 @@ export function createUnstablePublicApiAuthError(params: {
 
 export function createUnstablePublicApiRateLimitError(
   rateLimitRes: RateLimitResult,
+  options?: {
+    errorContract?: PublicApiErrorContract;
+    upgradePath?: RateLimitUpgradePath;
+  },
 ) {
   return createUnstablePublicApiError({
     httpCode: 429,
     code: "rate_limited",
-    message: "Rate limit exceeded",
+    message: options?.upgradePath
+      ? getRateLimitUpgradeMessage(options.upgradePath)
+      : "Rate limit exceeded",
     details: {
       retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1000),
       limit: rateLimitRes.points,
-      remaining: rateLimitRes.remainingPoints,
+      remaining: Math.max(0, rateLimitRes.remainingPoints),
       resetAt: new Date(Date.now() + rateLimitRes.msBeforeNext).toISOString(),
     },
   });
@@ -177,6 +188,14 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof UnauthorizedError) {
+    return createUnstablePublicApiError({
+      httpCode: 403,
+      code: "access_denied",
+      message: error.message,
+    });
+  }
+
+  if (error instanceof ForbiddenError) {
     return createUnstablePublicApiError({
       httpCode: 403,
       code: "access_denied",

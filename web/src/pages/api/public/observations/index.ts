@@ -19,15 +19,21 @@ import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observations",
       allowInAppAgentKey: true,
+      rateLimitResource: "public-api-legacy",
       querySchema: GetObservationsV1Query,
       responseSchema: GetObservationsV1Response,
+      rateLimitUpgradePath:
+        legacyPublicApiRateLimitUpgradePaths.observationsList,
       rejectInEventsOnlyMode: true,
+      deprecation: OBSERVATIONS_V1_DEPRECATION,
       fn: async ({ query, auth }) => {
         const filterProps = {
           projectId: auth.scope.projectId,
@@ -89,7 +95,9 @@ export default withMiddlewares(
                   ],
                 },
                 include: {
-                  Price: true,
+                  Price: {
+                    where: { pricingTier: { isDefault: true } },
+                  },
                 },
               })
             : [];

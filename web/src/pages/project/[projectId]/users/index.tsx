@@ -9,11 +9,9 @@ import {
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import TableLink from "@/src/components/table/table-link";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -27,12 +25,12 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import Page from "@/src/components/layouts/page";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import {
   useEnvironmentFilter,
   convertSelectedEnvironmentsToFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import { Badge } from "@/src/components/ui/badge";
 
 type RowData = {
   userId: string;
@@ -111,13 +109,19 @@ export default function UsersPage() {
       {showOnboarding ? (
         <UsersOnboarding />
       ) : (
-        <UsersTable isBetaEnabled={isBetaEnabled} />
+        <UsersTable isBetaEnabled={isBetaEnabled} showControlsInPageHeader />
       )}
     </Page>
   );
 }
 
-const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
+const UsersTable = ({
+  isBetaEnabled,
+  showControlsInPageHeader = false,
+}: {
+  isBetaEnabled: boolean;
+  showControlsInPageHeader?: boolean;
+}) => {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
@@ -134,6 +138,8 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
     pageSize: withDefault(NumberParam, 50),
   });
 
+  // The picker renders in the page header via the header controls slot; this
+  // reads the same shared per-project range to filter the table.
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
 
   // Convert timeRange to absolute date range for compatibility
@@ -284,7 +290,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
   }, [users.isSuccess, users.data]);
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData>({
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
@@ -294,37 +300,24 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
-      cell: ({ row }) => {
-        const value: RowData["userId"] = row.getValue("userId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createBadgeTableColumn<RowData>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value: RowData["environment"] = row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
+    }),
     {
       accessorKey: "firstEvent",
       header: "First Event",
@@ -414,13 +407,20 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
 
   return (
     <>
+      {showControlsInPageHeader && (
+        <TableHeaderControls
+          timeRange={timeRange}
+          setTimeRange={setTimeRange}
+        />
+      )}
       <DataTableToolbar
+        tableName="users"
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}
         columns={columns}
-        timeRange={timeRange}
-        setTimeRange={setTimeRange}
+        timeRange={showControlsInPageHeader ? undefined : timeRange}
+        setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
         searchConfig={{
           metadataSearchFields: ["User ID"],
           updateQuery: setSearchQuery,
@@ -436,7 +436,7 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
         }}
       />
       <DataTable
-        tableName={"users"}
+        tableName="users"
         columns={columns}
         data={
           users.isLoading

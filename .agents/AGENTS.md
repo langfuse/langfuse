@@ -7,12 +7,56 @@ evaluating, and debugging AI applications.
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
-- For bug fixes, write the failing test first, confirm it fails, then fix the
-  bug.
-- For user-visible frontend changes in `web/**`, review the affected flow in a
-  real browser before signoff.
+- For bug fixes, first write the smallest failing test that proves the reported
+  behavior and confirm it fails against the buggy behavior before changing
+  production code. Add another test only when it exercises a distinct adapter,
+  contract, or execution path. Extend the closest existing test suite; do not
+  create a standalone constant test when an existing feature suite owns the
+  behavior. If the bug depends on a data shape, pause and ask: can
+  `pnpm run seed` prefill that shape locally? If not, consider extending a
+  seeder scenario so the bug stays cheaply reproducible
+  (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
+  express it.
+- Prefill local test data with the seed CLI (`pnpm run seed -- list` shows
+  scenarios; runs print UI deep links) — never with ad-hoc scripts or raw
+  ClickHouse inserts.
+- Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
+  `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
+  skill to use or debug one, e.g. read a preview's web/worker error logs with
+  `kubectl`.
+- For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
+  tags; prefer Markdown images or width-only HTML so previews preserve aspect
+  ratio.
+- Do not add or widen ESLint disable comments or config overrides
+  without explicit user approval for the exact rule and scope.
+- Always quote file paths in shell commands, or use `noglob` for path-heavy
+  commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
+- Never invoke Node-installed binaries through `./node_modules/.bin/*`. Always run them through `pnpm`.
+- Never put internal ticket ids (`LFE-1234`, `LFINT-1234`, `CLI-Q226-12`) or
+  Linear URLs into anything this repo publishes: code comments, docs prose,
+  commit messages, PR titles and descriptions, or changelog entries. They mean
+  nothing to OSS readers. Describe the problem on its own terms; a
+  ticket-prefixed branch name is the one place the identifier belongs.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
+- Human handoff: assume the reader does not remember the ticket. Lead with
+  a one-sentence TL;DR. Prefer one or two human actions per message; if
+  you need more, keep every point simple and super readable. Do not dump
+  long agent-only reports by default.
+- For product or UI changes, give a preview URL
+  (`pr-<N>.preview.langfuse.com`) and exact click-path test steps, including
+  the seed command or sandbox URL (`http://localhost:3000`) to reproduce
+  the data. Attach proof of the fix (screenshot, short video, or
+  before/after). Humans can ask for more detail.
+- After opening a PR, leave a short last comment on what a reviewer should
+  doubt — the curious, questionable parts — not a changelog.
+- Open PRs as reviewable, not as drafts, unless a human asks for a draft.
+- When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
+  comments appear on a PR you own: do not reply. Keep each thread open
+  until you either apply the fix and resolve it, or skip it because you
+  are sure, tell the human in plain language (and invite them to doubt
+  that skip), then resolve it. Do not post `@claude review` again unless
+  a human asks for another pass.
 
 ## Project Structure
 
@@ -49,11 +93,46 @@ langfuse/
 - Dev worker only: `pnpm run dev:worker`
 - Lint all: `pnpm run lint`
 - Typecheck all: `pnpm run typecheck` / `pnpm tc`
+- Run a single test file (vitest filters on the filename argument):
+  - web server tests: `pnpm --filter web run test <file>`
+    (client tests: `pnpm --filter web run test-client <file>`)
+  - worker: `pnpm --filter worker run test <file>`
+  - shared: `pnpm --filter @langfuse/shared run test <file>`
 - Build check: `pnpm run build:check`
 - Full build: `pnpm run build`
-- Worktree bootstrap: `bash scripts/codex/setup.sh`
+- Shared agent/worktree bootstrap: `bash scripts/agents/setup.sh`
 - Worktree maintenance: `bash scripts/codex/maintenance.sh`
 - Install Playwright Chromium: `pnpm run playwright:install`
+
+### Cursor Cloud specific instructions
+
+- Cursor Cloud starts the complete source-built stack through
+  `scripts/agents/start-cursor-cloud.sh`; do not start a second web or worker
+  process on ports 3000 or 3030.
+- Use that script for the Cloud stack rather than invoking Compose directly:
+  the workspace `.env` contains host-facing `localhost` service URLs and must
+  not be used to interpolate container service configuration.
+- After changing web or worker production code, rerun
+  `bash scripts/agents/start-cursor-cloud.sh` before browser signoff.
+- Open a same-repo reviewable PR after local verification (not a draft) and
+  test the resulting `pr-<N>.preview.langfuse.com` deployment with synthetic
+  data. Previews normally run Mon-Fri 08:00-24:00 Europe/Berlin.
+- Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
+  `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
+  Repo guidance wins.
+
+## Local Data Inspection
+
+- For feature testing and debugging, inspect the local databases directly when
+  it helps you understand the existing test data. Prefer read-only queries, and
+  continue to use the seed CLI to create frontend test state rather than
+  ad-hoc inserts.
+- Dev Docker Compose exposes these clients on `${HOST_IP:-127.0.0.1}`:
+  - Postgres: `PGPASSWORD="${POSTGRES_PASSWORD:-postgres}" psql -h "${HOST_IP:-127.0.0.1}" -p "${POSTGRES_HOST_PORT:-5432}" -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-postgres}"`
+  - ClickHouse: `clickhouse client --host "${HOST_IP:-127.0.0.1}" --port "${CLICKHOUSE_NATIVE_PORT:-9000}" --user "${CLICKHOUSE_USER:-clickhouse}" --password "${CLICKHOUSE_PASSWORD:-clickhouse}" --database default`
+  - Redis: `REDISCLI_AUTH="${REDIS_AUTH:-myredissecret}" redis-cli -h "${HOST_IP:-127.0.0.1}" -p "${REDIS_HOST_PORT:-6379}"`
+- If any connection fails, check `docker-compose.dev.yml` for local override
+  variables and confirm the services are running.
 
 ## Verification
 
@@ -69,6 +148,17 @@ langfuse/
   targeted server API tests, and Fern update/regeneration.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
+- Client-bundle soundness: CI scans every prod web build
+  (`pnpm run scan:client-bundle`) for minifier-dropped bindings and Node-only
+  globals leaking into browser chunks — the SWC dropped-binding class ships
+  runtime-only `ReferenceError`s that dev builds and type checks cannot see
+  (LFE-10645). On failure, `scripts/scan-client-bundle.mjs`'s header explains
+  the canonical fix.
+
+End your turn with evidence, not claims: quote each check's summary line —
+e.g. `Tasks: 8 successful, 8 total` (turbo lint/typecheck) or
+`Tests  12 passed (12)` (vitest) — say which checks you skipped and why,
+never report unverified work as done, and never end with work pending.
 
 ## Generated Files
 
@@ -88,11 +178,16 @@ regenerated outputs. Never hand-edit `generated/**`.
 - `.agents/AGENTS.md` is the canonical root guide.
 - Root `AGENTS.md` is a symlink to `.agents/AGENTS.md`.
 - Root `CLAUDE.md` is a compatibility symlink to `AGENTS.md`.
+- After changing skills / AGENTS.md, run `pnpm run agents:sync` and
+  `pnpm run agents:check`.
+- **Write agent guidance only in `AGENTS.md`, never in a `CLAUDE.md`.** Every
+  `AGENTS.md` in the tree gets a generated sibling `CLAUDE.md` symlink when running
+  `pnpm run agents:sync`.
+- Put package-local guidance in the narrowest `AGENTS.md` that owns it so that it's only
+  loaded into context when needed.
 - When creating or editing `.agents/skills/**`, use
   `.agents/skills/skill-creator/SKILL.md`; keep skills concise with
   progressive disclosure.
-- After changing shared agent setup, run `pnpm run agents:sync` and
-  `pnpm run agents:check`.
 - Generated provider config and shim outputs under `.claude/`, `.cursor/`,
   `.codex/`, `.vscode/`, or `.mcp.json` are local artifacts, not source of
   truth files.

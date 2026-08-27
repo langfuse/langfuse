@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -77,6 +78,8 @@ export function TransferProjectButton() {
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
       session.update();
+      // Existing hard navigation is accepted during the Next.js 16.3 migration.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/";
     },
   });
@@ -107,7 +110,7 @@ export function TransferProjectButton() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
+          <DialogTitle className="text-lg font-bold">
             Transfer Project
           </DialogTitle>
           <Alert className="mt-2">

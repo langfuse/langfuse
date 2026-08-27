@@ -1,12 +1,13 @@
 import { useRouter } from "next/router";
 import { DatasetsTable } from "@/src/features/datasets/components/DatasetsTable";
 import Page from "@/src/components/layouts/page";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
+import { DialogTrigger } from "@/src/components/ui/dialog";
+import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { api } from "@/src/utils/api";
 import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboarding";
+import { LockIcon, PlusIcon } from "lucide-react";
 import { useQueryParam, StringParam } from "use-query-params";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 
 export default function Datasets() {
   const router = useRouter();
@@ -25,12 +26,6 @@ export default function Datasets() {
       },
     },
   );
-
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-  } = useExperimentAccess();
 
   const showOnboarding = !isLoading && !hasAnyDataset;
 
@@ -61,18 +56,28 @@ export default function Datasets() {
             "Datasets in Langfuse are a collection of inputs (and expected outputs) of an LLM application. They are used to benchmark new releases before deployment to production. See docs to learn more.",
           href: "https://langfuse.com/docs/evaluation/dataset-runs/datasets",
         },
-        actionButtonsLeft: canUseExperimentsBetaToggle ? (
-          <ExperimentsBetaSwitch
-            enabled={isExperimentsBetaEnabled}
-            onEnabledChange={setExperimentsBetaEnabled}
-          />
-        ) : undefined,
         actionButtonsRight: (
-          <DatasetActionButton
+          <CreateDatasetDialogController
             projectId={projectId}
-            mode="create"
-            folderPrefix={currentFolderPath || undefined}
-          />
+            target={
+              currentFolderPath
+                ? { type: "folder", prefix: currentFolderPath }
+                : { type: "root" }
+            }
+          >
+            {({ disabled, openDialog }) => (
+              <DialogTrigger asChild>
+                <ButtonWithIcon
+                  size="default"
+                  disabled={disabled !== undefined}
+                  onClick={openDialog}
+                  variant="default"
+                  icon={disabled === undefined ? PlusIcon : LockIcon}
+                  text="New dataset"
+                />
+              </DialogTrigger>
+            )}
+          </CreateDatasetDialogController>
         ),
       }}
     >

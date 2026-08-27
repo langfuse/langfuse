@@ -16,10 +16,9 @@ export function ScoreAnalyticsNoticeBanner() {
       }, 1500);
 
       return () => clearTimeout(timer);
-    } else {
-      // Reset when loading completes
-      setShowLoadingBanner(false);
     }
+    // Reset when loading completes
+    setShowLoadingBanner(false);
   }, [isEstimating, estimate, isLoading]);
 
   // Don't show anything if we haven't started
@@ -42,7 +41,7 @@ export function ScoreAnalyticsNoticeBanner() {
         <div className="flex items-start gap-3">
           <Clock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
           <div className="flex-1 space-y-1">
-            <div className="text-sm font-medium">
+            <div className="text-sm font-bold">
               {showLargeDataset
                 ? "Processing large dataset..."
                 : "Loading analytics..."}
@@ -71,7 +70,7 @@ export function ScoreAnalyticsNoticeBanner() {
         <div className="flex items-start gap-3">
           <Info className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
           <div className="flex-1 space-y-1">
-            <div className="flex items-center gap-2 text-sm font-medium">
+            <div className="flex items-center gap-2 text-sm font-bold">
               Sampled Data
               <SamplingDetailsHoverCard
                 samplingMetadata={data.samplingMetadata}

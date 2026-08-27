@@ -1,6 +1,30 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilter } from "../../../";
+import {
+  persistedWidgetViewToQueryView,
+  type views,
+} from "../../../features/query";
+
+/**
+ * Maps the persisted Prisma enum to the query model's public view id. The map
+ * itself is client-safe (`persistedWidgetViewToQueryView`); the `satisfies`
+ * here is what keeps it exhaustive against the Prisma enum.
+ */
+export const dashboardWidgetViewToQueryView =
+  persistedWidgetViewToQueryView satisfies Record<
+    DashboardWidgetViews,
+    z.infer<typeof views>
+  >;
+
+/** Maps the query model's public view id to the persisted Prisma enum. */
+export const queryViewToDashboardWidgetView = {
+  traces: DashboardWidgetViews.TRACES,
+  observations: DashboardWidgetViews.OBSERVATIONS,
+  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
+  "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
+  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+} as const satisfies Record<z.infer<typeof views>, DashboardWidgetViews>;
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
@@ -81,8 +105,22 @@ export const DashboardDefinitionWidgetWidgetSchema = z.object({
   y_size: z.number().int().positive(),
 });
 
+// A "preset" placement renders a registered curated component (looked up by
+// presetId in the web preset registry) instead of a DashboardWidget row —
+// presets carry no query configuration.
+export const DashboardDefinitionPresetWidgetSchema = z.object({
+  type: z.literal("preset"),
+  id: z.string(),
+  presetId: z.string(),
+  x: z.number().int().gte(0),
+  y: z.number().int().gte(0),
+  x_size: z.number().int().positive(),
+  y_size: z.number().int().positive(),
+});
+
 export const DashboardDefinitionWidgetSchema = z.discriminatedUnion("type", [
   DashboardDefinitionWidgetWidgetSchema,
+  DashboardDefinitionPresetWidgetSchema,
 ]);
 
 export const DashboardDefinitionSchema = z.object({
@@ -128,6 +166,7 @@ export const WidgetDomainSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  // Lowest query-engine version required by the persisted widget definition.
   minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });
@@ -142,7 +181,6 @@ export const CreateWidgetInputSchema = z.object({
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
-  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list response
@@ -152,6 +190,7 @@ export const WidgetListResponseSchema = z.object({
 });
 
 // Export types derived from schemas
+export type DashboardDefinition = z.infer<typeof DashboardDefinitionSchema>;
 export type DashboardDomain = z.infer<typeof DashboardDomainSchema>;
 export type DashboardListResponse = z.infer<typeof DashboardListResponseSchema>;
 export type WidgetDomain = z.infer<typeof WidgetDomainSchema>;

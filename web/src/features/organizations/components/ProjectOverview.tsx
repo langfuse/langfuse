@@ -4,6 +4,7 @@ import {
   MessageSquareText,
   Settings,
   Users,
+  PlusIcon,
 } from "lucide-react";
 import {
   Card,
@@ -16,7 +17,6 @@ import {
 import { Separator } from "@/src/components/ui/separator";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
@@ -31,48 +31,123 @@ import {
 } from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { type User } from "next-auth";
+import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
+import { V4MigrationBanner } from "@/src/features/v4-migration/V4MigrationBanner";
+import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
+import { api } from "@/src/utils/api";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 
 const OrganizationProjectTiles = ({
   org,
   search,
 }: {
-  org: User["organizations"][number];
+  org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
+    { orgId: org.id },
+    { enabled: v4UpgradeUiEnabled },
+  );
+  const migrationStatusByProjectId = useAccountV4MigrationData({
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        projects: org.projects
+          .filter((project) => !project.deletedAt)
+          .map((project) => ({ id: project.id, name: project.name })),
+      },
+    ],
+    enabled: v4UpgradeUiEnabled,
+  });
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {org.projects
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
         )
-        .map((project) => (
-          <Card key={project.id}>
-            <CardHeader>
-              <CardTitle className="truncate text-base">
-                {project.name}
-              </CardTitle>
-            </CardHeader>
-            {!project.deletedAt ? (
-              <CardFooter className="gap-2">
-                <Button asChild variant="secondary">
-                  <Link href={`/project/${project.id}`}>Go to project</Link>
-                </Button>
-                <Button asChild variant="ghost">
-                  <Link href={`/project/${project.id}/settings`}>
-                    <Settings size={16} />
-                  </Link>
-                </Button>
-              </CardFooter>
-            ) : (
-              <CardContent>
-                <CardDescription>Project is being deleted</CardDescription>
-              </CardContent>
-            )}
-          </Card>
-        ))}
+        .map((project) =>
+          v4UpgradeUiEnabled ? (
+            <Card
+              key={project.id}
+              className="group hover:bg-muted/50 relative transition-colors"
+            >
+              {!project.deletedAt && (
+                <Link
+                  href={`/project/${project.id}`}
+                  className="absolute inset-0"
+                  aria-label={`Go to project ${project.name}`}
+                />
+              )}
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle
+                    className="truncate text-base"
+                    title={project.name}
+                  >
+                    {project.name}
+                  </CardTitle>
+                  {!project.deletedAt && (
+                    <V4MigrationProjectChip
+                      project={{ id: project.id, name: project.name }}
+                      status={migrationStatusByProjectId.get(project.id)}
+                    />
+                  )}
+                </div>
+              </CardHeader>
+              {!project.deletedAt && (
+                <CardContent className="min-h-7 pb-3">
+                  <p className="text-muted-foreground text-xs">
+                    {lastTraceQuery.isSuccess
+                      ? (() => {
+                          const lastTraceAt = lastTraceQuery.data?.find(
+                            (t) => t.projectId === project.id,
+                          )?.lastTraceAt;
+                          return lastTraceAt
+                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
+                            : "No traces in the last 30d";
+                        })()
+                      : null}
+                  </p>
+                </CardContent>
+              )}
+              {project.deletedAt && (
+                <CardContent>
+                  <CardDescription>Project is being deleted</CardDescription>
+                </CardContent>
+              )}
+            </Card>
+          ) : (
+            <Card key={project.id}>
+              <CardHeader>
+                <CardTitle className="truncate text-base" title={project.name}>
+                  {project.name}
+                </CardTitle>
+              </CardHeader>
+              {!project.deletedAt ? (
+                <CardFooter className="gap-2">
+                  <Button asChild variant="secondary">
+                    <Link href={`/project/${project.id}`}>Go to project</Link>
+                  </Button>
+                  <Button asChild variant="ghost">
+                    <Link href={`/project/${project.id}/settings`}>
+                      <Settings size={16} />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              ) : (
+                <CardContent>
+                  <CardDescription>Project is being deleted</CardDescription>
+                </CardContent>
+              )}
+            </Card>
+          ),
+        )}
     </div>
   );
 };
@@ -223,11 +298,13 @@ const SingleOrganizationProjectOverviewTile = ({
   }
 
   return (
-    <div key={orgId} className="mb-10">
+    <div key={orgId}>
       <Header
         title={org.name}
         className="truncate"
-        status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
+        labelBadge={
+          orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined
+        }
         label={
           isCloudPlan(org.plan)
             ? {
@@ -252,6 +329,7 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
@@ -310,30 +388,31 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      <div className="mb-4">
-        <AgentToolsBanner />
-      </div>
+      {v4UpgradeUiEnabled ? <V4MigrationBanner /> : <AgentToolsBanner />}
       {showOnboarding && <Onboarding />}
       {organizations
-        .sort((a, b) => {
-          // sort demo org to the bottom
-          const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
-          const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
+        .map((org) => {
+          const isDemo = env.NEXT_PUBLIC_DEMO_ORG_ID === org.id;
+          return [org, isDemo] as const;
+        })
+        .sort(([, isDemoA], [, isDemoB]) => {
           if (isDemoA) return 1;
           if (isDemoB) return -1;
           return 0;
         })
-        .map((org) => (
-          <Fragment key={org.id}>
-            {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
-              <Separator className="my-4" />
-            )}
-            <SingleOrganizationProjectOverviewTile
-              orgId={org.id}
-              search={search ?? undefined}
-            />
-          </Fragment>
-        ))}
+        .map(([org, isDemo], index) => {
+          return (
+            <Fragment key={org.id}>
+              {!queryOrgId && isDemo && <Separator className="my-8" />}
+              <div key={org.id} className={index > 0 && !isDemo ? "mt-8" : ""}>
+                <SingleOrganizationProjectOverviewTile
+                  orgId={org.id}
+                  search={search ?? undefined}
+                />
+              </div>
+            </Fragment>
+          );
+        })}
     </ContainerPage>
   );
 };

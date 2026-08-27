@@ -11,6 +11,7 @@ import {
   type EvalTemplate,
   eventTargetEvalVariableColumns,
   experimentTargetEvalVariableColumns,
+  EvalTargetObject,
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -19,8 +20,8 @@ import { cn } from "@/src/utils/tailwind";
 import {
   type EvalFormType,
   fieldHasJsonSelectorOption,
+  getJsonPathCompatibilityWarning,
 } from "@/src/features/evals/utils/evaluator-form-utils";
-import { EvalTargetObject } from "@langfuse/shared";
 import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
 import {
   EvaluationPromptPreview,
@@ -31,8 +32,8 @@ import {
   isEventTarget,
   isExperimentTarget,
   isLegacyEvalTarget,
-  isTraceTarget,
   isTraceOrDatasetObject,
+  shouldShowLegacyTracePreview,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   FormControl,
@@ -40,10 +41,11 @@ import {
   FormField,
   FormItem,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
@@ -72,6 +74,7 @@ export const VariableMappingCard = ({
   hideAdvancedSettings = false,
   isNewCompatible = true,
   compatibilityCheckWasPerformed = false,
+  showPreviewTargetBadge = true,
 }: {
   projectId: string;
   availableVariables:
@@ -85,6 +88,7 @@ export const VariableMappingCard = ({
   hideAdvancedSettings?: boolean;
   isNewCompatible?: boolean;
   compatibilityCheckWasPerformed?: boolean;
+  showPreviewTargetBadge?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedPreviewPointer, setSelectedPreviewPointer] =
@@ -95,8 +99,10 @@ export const VariableMappingCard = ({
     typeof router.query.peek === "string" ? router.query.peek : undefined;
   const isPeekView = Boolean(peekId);
   const target = form.watch("target");
+  // The trace preview reads the legacy traces table, which is not the v4
+  // user's experience — never offer it there.
   const shouldShowPreviewForTarget =
-    isTraceTarget(target) ||
+    shouldShowLegacyTracePreview(target, isBetaEnabled) ||
     isEventTarget(target) ||
     (isExperimentTarget(target) && isBetaEnabled);
 
@@ -104,6 +110,9 @@ export const VariableMappingCard = ({
     control: form.control,
     name: "mapping",
   });
+  const hasMappingArrayError = hasArrayLevelFieldError(
+    form.formState.errors.mapping,
+  );
 
   const syncStatus = useVariableMappingSync({
     templateVars: evalTemplate?.vars,
@@ -157,7 +166,7 @@ export const VariableMappingCard = ({
   );
   const evalPreviewBasePath = hideAdvancedSettings
     ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
-    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
+    : `/project/${projectId}/evals/legacy/new?evaluator=${evalTemplate.id}`;
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
@@ -212,7 +221,7 @@ export const VariableMappingCard = ({
   return (
     <Card className="max-w-full min-w-0 p-4">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-lg font-medium">Variable mapping</span>
+        <span className="text-lg font-bold">Variable mapping</span>
         <div className="flex flex-wrap items-center justify-between gap-2">
           {evalTemplate.projectId ? (
             <Button asChild variant="outline" size="sm">
@@ -238,12 +247,13 @@ export const VariableMappingCard = ({
           )}
         </div>
       </div>
-      {isTraceTarget(form.watch("target")) && !disabled && (
-        <FormDescription>
-          Preview of the evaluation prompt with the variables replaced with the
-          first matched trace data subject to the filters.
-        </FormDescription>
-      )}
+      {shouldShowLegacyTracePreview(form.watch("target"), isBetaEnabled) &&
+        !disabled && (
+          <FormDescription>
+            Preview of the evaluation prompt with the variables replaced with
+            the first matched trace data subject to the filters.
+          </FormDescription>
+        )}
       <div className="flex max-w-full flex-col gap-4">
         <FormField
           control={form.control}
@@ -256,7 +266,10 @@ export const VariableMappingCard = ({
                   !shouldWrapVariables && "lg:flex-row",
                 )}
               >
-                {showPreview ? (
+                {/* Derive eligibility at render time: showPreview is state set
+                    by an effect and must never override target eligibility
+                    (e.g. trace targets on v4 have no preview data source). */}
+                {showPreview && shouldShowPreviewControls ? (
                   previewData ? (
                     <EvaluationPromptPreview
                       projectId={projectId}
@@ -269,10 +282,11 @@ export const VariableMappingCard = ({
                         !shouldWrapVariables && "lg:w-2/3",
                       )}
                       controlButtons={mappingControlButtons}
+                      showTargetBadge={showPreviewTargetBadge}
                     />
                   ) : (
                     <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
-                      <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
+                      <div className="flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
                         <div className="flex flex-row items-center gap-2">
                           Evaluation Prompt Preview
                           <Skeleton className="h-[25px] w-[63px]" />
@@ -291,7 +305,7 @@ export const VariableMappingCard = ({
                   )
                 ) : (
                   <JSONView
-                    title={"Evaluation Prompt"}
+                    title="Evaluation Prompt"
                     json={evalTemplate.prompt ?? null}
                     className={cn(
                       "bg-muted/50 min-h-48",
@@ -326,7 +340,7 @@ export const VariableMappingCard = ({
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div
                             className={cn(
-                              "text-sm font-semibold",
+                              "text-sm font-bold",
                               getVariableColor(index),
                             )}
                           >
@@ -334,12 +348,8 @@ export const VariableMappingCard = ({
                             {mappingField.templateVariable}
                             {"}}"}
                             <DocPopup
-                              description={
-                                "Variable in the template to be replaced with the mapped data."
-                              }
-                              href={
-                                "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                              }
+                              description="Variable in the template to be replaced with the mapped data."
+                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             />
                           </div>
                           <FormField
@@ -347,17 +357,13 @@ export const VariableMappingCard = ({
                             key={`${mappingField.id}-langfuseObject`}
                             name={`mapping.${index}.langfuseObject`}
                             render={({ field }) => (
-                              <div className="flex items-center gap-2">
+                              <div className="flex min-w-0 items-start gap-2">
                                 <VariableMappingDescription
                                   title="Object"
-                                  description={
-                                    "Langfuse object to retrieve the data from."
-                                  }
-                                  href={
-                                    "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                  }
+                                  description="Langfuse object to retrieve the data from."
+                                  href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 />
-                                <FormItem className="w-2/3">
+                                <FormItem className="min-w-0 flex-1">
                                   <FormControl>
                                     <Select
                                       disabled={disabled}
@@ -412,17 +418,13 @@ export const VariableMappingCard = ({
                                   (field.value &&
                                     !nameOptions.includes(field.value));
                                 return (
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex min-w-0 items-start gap-2">
                                     <VariableMappingDescription
-                                      title={"Object Name"}
-                                      description={
-                                        "Name of the Langfuse object to retrieve the data from."
-                                      }
-                                      href={
-                                        "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                      }
+                                      title="Object Name"
+                                      description="Name of the Langfuse object to retrieve the data from."
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                     />
-                                    <FormItem className="w-2/3">
+                                    <FormItem className="min-w-0 flex-1">
                                       <FormControl>
                                         {isCustomOption ? (
                                           <div className="flex flex-col gap-2">
@@ -512,17 +514,13 @@ export const VariableMappingCard = ({
                             key={`${mappingField.id}-selectedColumnId`}
                             name={`mapping.${index}.selectedColumnId`}
                             render={({ field }) => (
-                              <div className="flex items-center gap-2">
+                              <div className="flex min-w-0 items-start gap-2">
                                 <VariableMappingDescription
-                                  title={"Object Field"}
-                                  description={
-                                    "Field on the Langfuse object to insert into the template."
-                                  }
-                                  href={
-                                    "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                  }
+                                  title="Object Field"
+                                  description="Field on the Langfuse object to insert into the template."
+                                  href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                 />
-                                <FormItem className="w-2/3">
+                                <FormItem className="min-w-0 flex-1">
                                   <FormControl>
                                     <Select
                                       disabled={disabled}
@@ -579,30 +577,33 @@ export const VariableMappingCard = ({
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}
                               name={`mapping.${index}.jsonSelector`}
-                              render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                  <VariableMappingDescription
-                                    title={"JsonPath"}
-                                    description={
-                                      "Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
-                                  />
-                                  <FormItem className="w-2/3">
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        value={field.value ?? ""}
-                                        disabled={disabled}
-                                        placeholder="Optional"
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                </div>
-                              )}
+                              render={({ field }) => {
+                                const compatibilityWarning =
+                                  getJsonPathCompatibilityWarning(field.value);
+
+                                return (
+                                  <div className="flex min-w-0 items-start gap-2">
+                                    <VariableMappingDescription
+                                      title="JsonPath"
+                                      description="Optional selection: Use JsonPath syntax to select from a JSON object stored on a trace. If not selected, we will pass the entire object into the prompt."
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                                    />
+                                    <FormItem className="min-w-0 flex-1">
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          value={field.value ?? ""}
+                                          disabled={disabled}
+                                          placeholder="Optional"
+                                        />
+                                      </FormControl>
+                                      <FormMessage>
+                                        {compatibilityWarning}
+                                      </FormMessage>
+                                    </FormItem>
+                                  </div>
+                                );
+                              }}
                             />
                           ) : undefined}
                         </Card>
@@ -612,7 +613,7 @@ export const VariableMappingCard = ({
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div
                             className={cn(
-                              "text-sm font-semibold",
+                              "text-sm font-bold",
                               getVariableColor(index),
                             )}
                           >
@@ -620,22 +621,18 @@ export const VariableMappingCard = ({
                             {mappingField.templateVariable}
                             {"}}"}
                             <DocPopup
-                              description={
-                                "Variable in the template to be replaced with the mapped data."
-                              }
-                              href={
-                                "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                              }
+                              description="Variable in the template to be replaced with the mapped data."
+                              href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                             />
                           </div>
                           {hideAdvancedSettings && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 items-start gap-2">
                               <VariableMappingDescription
                                 title="Object"
                                 description="Type of object to retrieve the data from."
                                 href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                               />
-                              <div className="w-2/3">
+                              <div className="min-w-0 flex-1">
                                 <Input
                                   value={
                                     isEventTarget(form.watch("target"))
@@ -660,17 +657,13 @@ export const VariableMappingCard = ({
                                   : experimentTargetEvalVariableColumns;
 
                               return (
-                                <div className="flex items-center gap-2">
+                                <div className="flex min-w-0 items-start gap-2">
                                   <VariableMappingDescription
-                                    title={"Object Field"}
-                                    description={
-                                      "Observation field to insert into the template."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
+                                    title="Object Field"
+                                    description="Observation field to insert into the template."
+                                    href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
                                   />
-                                  <FormItem className="w-2/3">
+                                  <FormItem className="min-w-0 flex-1">
                                     <FormControl>
                                       <Select
                                         disabled={disabled}
@@ -705,37 +698,40 @@ export const VariableMappingCard = ({
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}
                               name={`mapping.${index}.jsonSelector`}
-                              render={({ field }) => (
-                                <div className="flex items-center gap-2">
-                                  <VariableMappingDescription
-                                    title={"JsonPath"}
-                                    description={
-                                      "Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
-                                    }
-                                    href={
-                                      "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
-                                    }
-                                  />
-                                  <FormItem className="w-2/3">
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        value={field.value ?? ""}
-                                        disabled={disabled}
-                                        placeholder="Optional"
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                </div>
-                              )}
+                              render={({ field }) => {
+                                const compatibilityWarning =
+                                  getJsonPathCompatibilityWarning(field.value);
+
+                                return (
+                                  <div className="flex min-w-0 items-start gap-2">
+                                    <VariableMappingDescription
+                                      title="JsonPath"
+                                      description="Optional selection: Use JsonPath syntax to select from a JSON object. If not selected, we will pass the entire object into the prompt."
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge"
+                                    />
+                                    <FormItem className="min-w-0 flex-1">
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          value={field.value ?? ""}
+                                          disabled={disabled}
+                                          placeholder="Optional"
+                                        />
+                                      </FormControl>
+                                      <FormMessage>
+                                        {compatibilityWarning}
+                                      </FormMessage>
+                                    </FormItem>
+                                  </div>
+                                );
+                              }}
                             />
                           )}
                         </Card>
                       ))}
                 </div>
               </div>
-              <FormMessage />
+              {hasMappingArrayError ? <FormMessage /> : null}
             </>
           )}
         />

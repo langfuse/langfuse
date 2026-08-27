@@ -1,5 +1,6 @@
 import { InputJsonValue } from "@prisma/client/runtime/library";
 import { z } from "zod";
+import { InvalidRequestError } from "../errors";
 
 // to be used for Prisma JSON type
 // @see: https://github.com/colinhacks/zod#json-type
@@ -39,27 +40,103 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   ]),
 );
 
+export const paginationLimitZod = z.preprocess(
+  (x) => (x === "" ? undefined : x),
+  z.coerce.number().int().gte(1).lte(100).default(50),
+);
+
+/** @alias */
+export const publicApiPaginationLimitZod = paginationLimitZod;
+
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
     z.coerce.number().nonnegative().default(1),
   ),
-  limit: z.preprocess(
-    (x) => (x === "" ? undefined : x),
-    z.coerce.number().gte(1).lte(100).default(50),
-  ),
+  limit: paginationLimitZod,
 };
 
 export const publicApiPaginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
-    z.coerce.number().gt(0).default(1),
+    z.coerce.number().int().gt(0).default(1),
   ),
-  limit: z.preprocess(
-    (x) => (x === "" ? undefined : x),
-    z.coerce.number().gte(1).lte(100).default(50),
-  ),
+  limit: publicApiPaginationLimitZod,
 };
+
+const splitCommaSeparatedQueryParam = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+export const optionalCommaSeparatedStringArray = z
+  .string()
+  .nullish()
+  .transform((value) => {
+    if (!value) return undefined;
+
+    const values = splitCommaSeparatedQueryParam(value);
+    return values.length > 0 ? values : undefined;
+  });
+
+export const optionalJsonParam = <T extends z.ZodType>(
+  schema: T,
+  paramName: string,
+) =>
+  z
+    .string()
+    .optional()
+    .transform((str) => {
+      if (!str) return undefined;
+      try {
+        return JSON.parse(str);
+      } catch {
+        throw new InvalidRequestError(`Invalid JSON in ${paramName} parameter`);
+      }
+    })
+    .pipe(schema.optional());
+
+type CommaSeparatedEnumArrayOptions = {
+  unknownValues?: "reject" | "filter";
+};
+
+type CommaSeparatedEnumArrayOutput<
+  TValues extends readonly [string, ...string[]],
+  TDefault extends Array<TValues[number]> | null,
+> = TDefault extends null
+  ? Array<TValues[number]> | null
+  : Array<TValues[number]>;
+
+export function commaSeparatedEnumArray<
+  const TValues extends readonly [string, ...string[]],
+  const TDefault extends Array<TValues[number]> | null,
+>(
+  values: TValues,
+  defaultValue: TDefault,
+  options?: CommaSeparatedEnumArrayOptions,
+): z.ZodType<CommaSeparatedEnumArrayOutput<TValues, TDefault>> {
+  const arraySchema = z.array(z.enum(values));
+  const schema =
+    defaultValue === null
+      ? arraySchema.nullable().default(null)
+      : arraySchema.default(defaultValue);
+
+  return z.preprocess((value) => {
+    if (value === null || value === undefined || value === "") return undefined;
+    if (typeof value !== "string") return value;
+
+    const items = splitCommaSeparatedQueryParam(value);
+
+    if (options?.unknownValues === "filter") {
+      return items.filter((item): item is TValues[number] =>
+        values.includes(item as TValues[number]),
+      );
+    }
+
+    return items;
+  }, schema) as z.ZodType<CommaSeparatedEnumArrayOutput<TValues, TDefault>>;
+}
 
 export const optionalPaginationZod = {
   page: z
@@ -81,21 +158,61 @@ export const paginationMetaResponseZod = z.object({
   totalPages: z.number().int().nonnegative(),
 });
 
+/**
+ * Top-level `_deprecation` metadata returned by legacy public API endpoints.
+ * Optional fields are omitted when empty (never null).
+ */
+export const deprecationResponseZod = z.object({
+  message: z.string(),
+  replacement: z.string().optional(),
+  docsUrl: z.string().optional(),
+  sunsetAt: z.string().optional(),
+});
+
+export type ApiDeprecationInfo = z.infer<typeof deprecationResponseZod>;
+
 export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
 export const noUrlCheck = (value: string) => !urlRegex.test(value);
 
 export const NonEmptyString = z.string().min(1);
 
-export const htmlRegex = /<[^>]*>/g;
+export const htmlRegex = /<[^<>]*>/g;
+const containsHtmlRegex = /<[^<>]*>/;
 
-export const StringNoHTML = z.string().refine((val) => !htmlRegex.test(val), {
-  message: "Text cannot contain HTML tags",
-});
+function removeHtmlTags(input: string): string {
+  const parts: string[] = [];
+  let cursor = 0;
+
+  while (cursor < input.length) {
+    const tagStart = input.indexOf("<", cursor);
+    if (tagStart === -1) {
+      parts.push(input.slice(cursor));
+      break;
+    }
+
+    const tagEnd = input.indexOf(">", tagStart + 1);
+    if (tagEnd === -1) {
+      parts.push(input.slice(cursor));
+      break;
+    }
+
+    parts.push(input.slice(cursor, tagStart));
+    cursor = tagEnd + 1;
+  }
+
+  return parts.join("");
+}
+
+export const StringNoHTML = z
+  .string()
+  .refine((val) => !containsHtmlRegex.test(val), {
+    message: "Text cannot contain HTML tags",
+  });
 
 export const StringNoHTMLNonEmpty = z
   .string()
   .min(1, "Text cannot be empty")
-  .refine((val) => !htmlRegex.test(val), {
+  .refine((val) => !containsHtmlRegex.test(val), {
     message: "Text cannot contain HTML tags",
   });
 
@@ -156,18 +273,14 @@ export type JSONArray = z.infer<typeof JSONArraySchema>;
  * sanitizeEmailSubject("Test<script>alert(1)</script>") // Returns "Testscriptalert(1)/script"
  */
 export function sanitizeEmailSubject(input: string): string {
-  return (
-    input
-      // Remove carriage return and line feed (CRLF injection prevention)
-      .replace(/[\r\n]/g, "")
-      // Remove all control characters (ASCII 0-31 and 127)
-      // eslint-disable-next-line no-control-regex
-      .replace(/[\x00-\x1F\x7F]/g, "")
-      // Remove HTML tags (defensive layer)
-      .replace(htmlRegex, "")
-      // Trim whitespace
-      .trim()
-  );
+  const withoutControlCharacters = input
+    // Remove carriage return and line feed (CRLF injection prevention)
+    .replace(/[\r\n]/g, "")
+    // Remove all control characters (ASCII 0-31 and 127)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F]/g, "");
+
+  return removeHtmlTags(withoutControlCharacters).trim();
 }
 
 /**

@@ -33,6 +33,14 @@ const LangGraphMessageSchema = z
   )
   .refine(
     (data) => {
+      const hasLangGraphMessageShape = data.every(
+        (msg) =>
+          typeof msg === "object" &&
+          msg !== null &&
+          ("role" in msg || "additional_kwargs" in msg),
+      );
+      if (!hasLangGraphMessageShape) return false;
+
       // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
       return !data.some(
         (msg) =>
@@ -202,10 +210,10 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -279,7 +287,11 @@ export const langgraphAdapter: ProviderAdapter = {
     // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, Semantic Kernel and Pydantic formats
     if (meta && typeof meta === "object") {
       // Check scope.name for AI SDK, OpenAI Agents, or Semantic Kernel
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
 
         // Reject AI SDK v5 (scope.name === "ai")

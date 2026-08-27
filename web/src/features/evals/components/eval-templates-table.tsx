@@ -6,7 +6,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, Pen } from "lucide-react";
+import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -19,16 +19,20 @@ import { useRouter } from "next/router";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/src/features/evals/types";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { type RouterInput } from "@/src/utils/types";
 import {
   type TemplateValidationInput,
   useSingleTemplateValidation,
@@ -51,6 +55,7 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -112,6 +117,115 @@ const templateTableRowHeights: CustomHeights = {
   l: "h-8",
 };
 
+// Owns the per-row actions dropdown plus the delete confirm dialog as its
+// sibling (see the overlay-lifecycle rule in web/AGENTS.md). The dialog's
+// open state is local so opening it re-renders only this cell, not the table.
+const EvalTemplateRowActionsMenu = ({
+  projectId,
+  templateId,
+  templateName,
+  usageCount,
+  hasAccess,
+  showClone,
+  showEditAndDelete,
+  onEdit,
+  onClone,
+}: {
+  projectId: string;
+  templateId: string;
+  templateName: string;
+  usageCount?: number;
+  hasAccess: boolean;
+  showClone: boolean;
+  showEditAndDelete: boolean;
+  onEdit: () => void;
+  onClone: () => void;
+}) => {
+  // undefined = never opened: keeps the dialog unmounted for untouched rows,
+  // while close (false) keeps it mounted so the exit animation can play.
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>();
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const hasTemplateWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-xs" aria-label="actions">
+            <span className="sr-only relative">Open menu</span>
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          {showClone ? (
+            <DropdownMenuItem
+              aria-label="clone"
+              disabled={!hasAccess}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClone();
+              }}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Clone
+            </DropdownMenuItem>
+          ) : null}
+          {showEditAndDelete ? (
+            <>
+              <DropdownMenuItem
+                aria-label="edit"
+                disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Pen className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                aria-label="delete"
+                disabled={!hasTemplateWriteAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  capture("eval_templates:delete_form_open", {
+                    source: "table-single-row",
+                  });
+                  setIsDeleteDialogOpen(true);
+                }}
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {isDeleteDialogOpen !== undefined ? (
+        <DeleteEvalTemplateDialog
+          projectId={projectId}
+          templateId={templateId}
+          templateName={templateName}
+          initialUsageCount={usageCount}
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          onSuccess={() => {
+            capture("eval_templates:delete_template_button_click", {
+              source: "table-single-row",
+            });
+            utils.evals.templateNames.invalidate();
+          }}
+        />
+      ) : null}
+    </>
+  );
+};
+
 export default function EvalsTemplateTable({
   projectId,
 }: {
@@ -132,11 +246,6 @@ export default function EvalsTemplateTable({
   );
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
   const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
-  const [showReferenceUpdateDialog, setShowReferenceUpdateDialog] =
-    useState(false);
-  const [pendingCloneSubmission, setPendingCloneSubmission] = useState<
-    RouterInput["evals"]["createTemplate"] | null
-  >(null);
 
   const utils = api.useUtils();
   const templates = api.evals.templateNames.useQuery({
@@ -191,23 +300,6 @@ export default function EvalsTemplateTable({
 
   const { isTemplateInvalid } = useSingleTemplateValidation({
     projectId,
-  });
-
-  const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
-    onSuccess: () => {
-      utils.evals.templateNames.invalidate();
-      setCloneTemplateId(null);
-      setPendingCloneSubmission(null);
-      setShowReferenceUpdateDialog(false);
-      showSuccessToast({
-        title: "Evaluator cloned successfully",
-        description:
-          "This evaluator is now available and maintained on project level.",
-      });
-    },
-    onError: (error) => {
-      showErrorToast("Error cloning evaluator", error.message);
-    },
   });
 
   useEffect(() => {
@@ -292,24 +384,22 @@ export default function EvalsTemplateTable({
         return row.getValue()?.toLocaleDateString();
       },
     }),
-    columnHelper.accessor("usageCount", {
+    createNumberTableColumn<EvalsTemplateRow>({
+      accessorKey: "usageCount",
       header: "Usage Count",
-      id: "usageCount",
       enableHiding: true,
       size: 80,
-      cell: (row) => {
-        const count = row.getValue();
-        return !!count ? count : null;
+      formatter: String,
+      getValue: (value) => {
+        return value || undefined;
       },
     }),
-    columnHelper.accessor("latestVersion", {
+    createNumberTableColumn<EvalsTemplateRow>({
+      accessorKey: "latestVersion",
       header: "Latest Version",
-      id: "latestVersion",
       enableHiding: true,
       size: 80,
-      cell: (row) => {
-        return row.getValue();
-      },
+      formatter: String,
     }),
     columnHelper.accessor("id", {
       header: "Id",
@@ -330,9 +420,10 @@ export default function EvalsTemplateTable({
         const isInvalid = isTemplateInvalid(row.original);
         const isCodeTemplate = row.original.type === EvalTemplateType.CODE;
         const isUserMaintained = row.original.maintainer.includes("User");
+        const hasMenuItems = isUserMaintained || !isCodeTemplate;
 
         return (
-          <div className="flex flex-row gap-2">
+          <div className="flex flex-row items-center gap-2">
             <ActionButton
               variant="outline"
               size="sm"
@@ -344,48 +435,37 @@ export default function EvalsTemplateTable({
                   : undefined
               }
               hasAccess={hasAccess}
-              limitValue={countsQuery.data?.configActiveCount ?? 0}
-              limit={evaluatorLimit}
+              usageLimit={
+                typeof evaluatorLimit === "number"
+                  ? {
+                      current: countsQuery.data?.configActiveCount ?? 0,
+                      max: evaluatorLimit,
+                    }
+                  : undefined
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {
                   router.push(
-                    `/project/${projectId}/evals/new?evaluator=${id}`,
+                    `/project/${projectId}/evals/legacy/new?evaluator=${id}`,
                   );
                 }
               }}
             >
               Use Evaluator
             </ActionButton>
-            {!isUserMaintained && !isCodeTemplate ? (
-              <Button
-                aria-label="clone"
-                variant="outline"
-                size="icon-xs"
-                title="Clone"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setCloneTemplateId(id);
-                }}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            ) : null}
-            {isUserMaintained ? (
-              <Button
-                aria-label="edit"
-                variant="outline"
-                size="icon-xs"
-                title="Edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditTemplateId(id);
-                }}
-              >
-                <Pen className="h-3 w-3" />
-              </Button>
+            {hasMenuItems && id ? (
+              <EvalTemplateRowActionsMenu
+                projectId={projectId}
+                templateId={id}
+                templateName={row.original.name}
+                usageCount={row.original.usageCount}
+                hasAccess={hasAccess}
+                showClone={!isUserMaintained && !isCodeTemplate}
+                showEditAndDelete={isUserMaintained}
+                onEdit={() => setEditTemplateId(id)}
+                onClone={() => setCloneTemplateId(id)}
+              />
             ) : null}
           </div>
         );
@@ -411,7 +491,7 @@ export default function EvalsTemplateTable({
       detailNavigationKey: "eval-templates",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
         ],
       },
       ...peekNavigationProps,
@@ -458,10 +538,12 @@ export default function EvalsTemplateTable({
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <DataTable
-            tableName={"evalTemplates"}
+            tableName="evalTemplates"
             columns={columns}
             peekView={peekConfig}
-            rowHeight="m"
+            // "s" vertically centers cell content; the custom heights keep the
+            // row at h-8 regardless
+            rowHeight="s"
             customRowHeights={templateTableRowHeights}
             data={
               templates.isLoading
@@ -538,7 +620,6 @@ export default function EvalsTemplateTable({
         onOpenChange={(open) => {
           if (!open) {
             setCloneTemplateId(null);
-            setPendingCloneSubmission(null);
           }
         }}
       >
@@ -576,25 +657,8 @@ export default function EvalsTemplateTable({
                 : undefined
             }
             cloneSourceId={cloneTemplateId}
-            onBeforeSubmit={(template) => {
-              // Only show reference dialog for Langfuse maintained templates
-              if (
-                cloneTemplateId &&
-                cloneTemplate.data &&
-                !cloneTemplate.data.projectId
-              ) {
-                setPendingCloneSubmission({
-                  ...template,
-                  cloneSourceId: cloneTemplateId,
-                });
-                setShowReferenceUpdateDialog(true);
-                return false; // Prevent immediate submission
-              }
-              return true; // Continue with submission
-            }}
             onFormSuccess={() => {
               setCloneTemplateId(null);
-              setPendingCloneSubmission(null);
               utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator cloned successfully",
@@ -603,60 +667,6 @@ export default function EvalsTemplateTable({
               });
             }}
           />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={showReferenceUpdateDialog}
-        onOpenChange={(open) => {
-          if (!open && pendingCloneSubmission) {
-            // If dialog is closed without a decision, default to not updating references
-            pendingCloneSubmission.referencedEvaluators =
-              EvalReferencedEvaluators.PERSIST;
-            createEvalTemplateMutation.mutate(pendingCloneSubmission);
-          }
-          setShowReferenceUpdateDialog(open);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update running evaluators?</DialogTitle>
-            <DialogDescription>
-              Do you want all running evaluators attached to the original
-              Langfuse evaluator to reference your new project-level version?
-              <br />
-              <br />
-              <strong>Warning:</strong> This might break workflows if you have
-              changed variables or other critical aspects of the template.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (pendingCloneSubmission) {
-                  // Submit with PERSIST option
-                  pendingCloneSubmission.referencedEvaluators =
-                    EvalReferencedEvaluators.PERSIST;
-                  createEvalTemplateMutation.mutate(pendingCloneSubmission);
-                }
-              }}
-            >
-              No, keep as is
-            </Button>
-            <Button
-              onClick={() => {
-                if (pendingCloneSubmission) {
-                  // Submit with UPDATE option
-                  pendingCloneSubmission.referencedEvaluators =
-                    EvalReferencedEvaluators.UPDATE;
-                  createEvalTemplateMutation.mutate(pendingCloneSubmission);
-                }
-              }}
-            >
-              Yes, update all references
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

@@ -1,0 +1,216 @@
+// Presentational rendering of a query draft as styled inline tokens.
+//
+// Pure and context-free: given the draft text, it projects it to segments
+// (deriveComposerSegments — a pure parser pass) and renders the same DOM the
+// contenteditable composer needs (token spans + word-joiner caret boundaries +
+// verbatim whitespace). Splitting it out separates the VISUAL layer from the
+// stateful contenteditable controller in SearchComposer, and makes the token
+// styling a Storybook-able, prop-driven unit. Token styling lives in a `cva`
+// variant; the composer passes the visible kind (invalid tokens render as
+// free text until diagnostics are revealed).
+
+import * as React from "react";
+import { cva } from "class-variance-authority";
+
+import type { ScoreTypeContext } from "@/src/features/search-bar/lib/adapter";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
+import {
+  deriveComposerSegments,
+  type FilterSegment,
+} from "@/src/features/search-bar/lib/composer-segments";
+import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
+import { deactivationReason } from "@/src/features/search-bar/components/presentation";
+import { FilterToken } from "@/src/features/filters/components/FilterToken";
+
+// Word joiner around pills: gives the DOM caret boundaries between tokens
+// without changing the query text. Stripped before the text reaches the model
+// or clipboard. Shared with SearchComposer's selection math.
+export const WORD_JOINER = "⁠";
+
+// Token spans must stay NON-positioned: `position: relative` would promote the
+// span's background above the editable root's in-flow paint phase (where
+// Chromium draws the text caret), hiding the caret inside the token.
+//
+// Keep the vertical padding small (py-0.5, not py-1): WebKit/Safari sizes the
+// text caret to the inline box of the pill it sits in/next to, so taller pills
+// produce a caret that towers over the text. py-0.5 keeps the chip readable
+// while holding the Safari caret close to the text height.
+export const composerTokenVariants = cva("max-w-full", {
+  variants: {
+    kind: {
+      filter: "",
+      freeText:
+        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+      operator: "font-bold uppercase text-qlang-keyword",
+      paren: "text-muted-foreground",
+      invalid:
+        "mr-1 inline rounded border border-dashed px-1.5 py-0.5 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
+    },
+    // A filter that the current surface can't apply (e.g. the chart view can't
+    // filter on this column). Dimmed + dashed so it reads as "shown but not
+    // applied"; the reason is in the explanation tooltip.
+    deactivated: { true: "opacity-50 line-through decoration-1", false: "" },
+    // The token whose explanation is showing. Mirrors the hover treatment, so
+    // the caret (keyboard) path highlights exactly like the pointer does.
+    highlighted: { true: "border-border bg-accent", false: "" },
+  },
+  defaultVariants: { kind: "freeText", deactivated: false, highlighted: false },
+});
+
+type TokenKind = "filter" | "freeText" | "operator" | "paren" | "invalid";
+
+function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
+  return text
+    .split(/(\s+)/)
+    .map((part, index) => (
+      <React.Fragment key={`${keyPrefix}:${index}`}>{part}</React.Fragment>
+    ));
+}
+
+function FilterTokenBody({ segment }: { segment: FilterSegment }) {
+  const raw = segment.raw;
+  const dash = segment.negated ? "-" : "";
+  const body = segment.negated ? raw.slice(1) : raw;
+  // Quote-aware split: a dot-path key may carry a quoted segment with an inner
+  // colon (`metadata."foo:bar":*x*`), so the field/value separator is the first
+  // colon OUTSIDE quotes — exactly where the parser splits. A bare indexOf(":")
+  // would cut inside the quoted key and mis-render the value.
+  const colon = indexOfOutsideQuotes(body, ":");
+  const value = colon === -1 ? "" : body.slice(colon + 1);
+  // Numeric values (latency:>2, totalTokens:100, totalCost:0.5) read as number
+  // literals, not strings — color them distinctly. Grouped/text/boolean values
+  // stay green.
+  const numeric =
+    segment.values.length > 0 &&
+    segment.values.every((v) => /^-?\d+(\.\d+)?$/.test(v.trim()));
+  return (
+    <>
+      {/* Keep the negation dash + field + colon on one line — the `-` is a
+          hyphen, so a line wrap would otherwise break it away from its field.
+          The value stays outside so long grouped values can still wrap. */}
+      <span className="whitespace-nowrap">
+        {dash && <span className="text-muted-foreground">-</span>}
+        <span data-part="field" className="text-qlang-field">
+          {segment.displayField}
+        </span>
+        <span data-part="operator" className="text-muted-foreground">
+          :
+        </span>
+      </span>
+      <span
+        data-part="value"
+        className={numeric ? "text-qlang-number" : "text-qlang-value"}
+      >
+        {value}
+      </span>
+    </>
+  );
+}
+
+/**
+ * Render `draft` as styled tokens. `showDiagnostics` controls whether invalid
+ * tokens render in the error style or fall back to plain free-text styling
+ * (the composer hides token errors until a commit is attempted).
+ */
+export function ComposerTokens({
+  draft,
+  showDiagnostics,
+  scoreTypes,
+  fieldReason,
+  freeTextReason,
+  highlightedSegmentId,
+  registry = EVENTS_FIELD_REGISTRY,
+}: {
+  draft: string;
+  showDiagnostics: boolean;
+  scoreTypes?: ScoreTypeContext;
+  /** Segment whose explanation tooltip is open — rendered highlighted. */
+  highlightedSegmentId?: string | null;
+  /**
+   * Given a filter token's field name, the reason it is NOT applied on the
+   * current surface, or `null` if it is. When it returns a reason the pill
+   * renders deactivated (dimmed + struck) with the reason on hover. Undefined
+   * (the default) leaves every filter active — nothing is deactivated.
+   */
+  fieldReason?: (field: string) => string | null;
+  /** Reason a free-text token is not applied (e.g. charts ignore full-text
+   *  search), or null/undefined to leave it active. */
+  freeTextReason?: string | null;
+  registry?: FieldRegistry;
+}): React.ReactNode {
+  const segments = deriveComposerSegments(draft, scoreTypes, registry);
+  const out: React.ReactNode[] = [];
+  let cursor = 0;
+  for (const segment of segments) {
+    if (segment.from > cursor) {
+      out.push(
+        ...renderPlainText(draft.slice(cursor, segment.from), `ws:${cursor}`),
+      );
+    }
+    const visibleKind: TokenKind =
+      segment.kind === "invalid" && !showDiagnostics
+        ? "freeText"
+        : segment.kind;
+    // "Not applied on this surface" — a filter column the chart can't honour,
+    // or free text a chart ignores.
+    const deactivated =
+      deactivationReason(segment, fieldReason, freeTextReason) !== null;
+    const highlighted = segment.id === highlightedSegmentId;
+    // No native `title`: hover copy is the styled per-token tooltip that
+    // SearchComposer positions (explanation, or the error once diagnostics are
+    // revealed). A second, slower browser tooltip on top of it just doubles up.
+    const content = (
+      <>
+        {segment.kind === "filter" ? (
+          <FilterTokenBody segment={segment} />
+        ) : (
+          segment.raw
+        )}
+        {/* Word-joiner INSIDE the pill. The caret at the token's trailing edge
+            lands on this joiner, which sits BEFORE the pill's right padding — so
+            WebKit/Safari paints the caret inside the pill at the glyph instead
+            of past the chrome. A sibling joiner (outside the span) made Safari
+            paint the caret past the padding + margin (the "caret renders outside
+            the block" bug). */}
+        {WORD_JOINER}
+      </>
+    );
+    out.push(
+      segment.kind === "filter" ? (
+        <FilterToken
+          key={segment.id}
+          data-testid="search-bar-token"
+          data-kind={visibleKind}
+          data-segment-id={segment.id}
+          deactivated={deactivated}
+          highlighted={highlighted}
+        >
+          {content}
+        </FilterToken>
+      ) : (
+        <span
+          key={segment.id}
+          data-testid="search-bar-token"
+          data-kind={visibleKind}
+          data-deactivated={deactivated || undefined}
+          data-segment-id={segment.id}
+          className={composerTokenVariants({
+            kind: visibleKind,
+            deactivated,
+            highlighted,
+          })}
+        >
+          {content}
+        </span>
+      ),
+    );
+    cursor = segment.to;
+  }
+  if (cursor < draft.length) {
+    out.push(...renderPlainText(draft.slice(cursor), `tail:${cursor}`));
+  }
+  return <>{out}</>;
+}

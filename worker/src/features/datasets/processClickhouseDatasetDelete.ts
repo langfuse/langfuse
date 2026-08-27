@@ -1,4 +1,5 @@
 import {
+  deleteDatasetMediaLinksByDatasetId,
   deleteDatasetRunItemsByDatasetRunIds,
   deleteDatasetRunItemsByDatasetId,
   logger,
@@ -20,6 +21,11 @@ export const processClickhouseDatasetDelete = async (
   try {
     switch (deletionType) {
       case "dataset":
+        // Always drop the dataset_item_media link rows; no FK cascades them.
+        await deleteDatasetMediaLinksByDatasetId({
+          projectId,
+          datasetId,
+        });
         await deleteDatasetRunItemsByDatasetId({ projectId, datasetId });
         break;
 

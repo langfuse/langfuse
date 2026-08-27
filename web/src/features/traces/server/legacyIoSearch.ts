@@ -2,7 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   hasLegacyTracingIoSearch,
   LEGACY_IO_SEARCH_TYPES,
-} from "@/src/features/traces/lib/legacyIoSearch";
+} from "@/src/features/traces/server/legacyIoSearchTypes";
 import { BatchTableNames, type TracingSearchType } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 
@@ -62,9 +62,18 @@ export const assertLegacyTracingIoSearchCanCreateBatchJob = ({
   searchQuery,
   searchType,
   tableName,
+  useEventsTable,
 }: LegacyTracingSearch & {
   tableName: BatchTableNames;
+  // Dispatch-time snapshot of the user's v4 beta flag. Callers must only set
+  // this for jobs whose worker path actually runs the stored query against
+  // the events table (currently only TraceDelete via config.source "events");
+  // such jobs are exempt from the legacy IO-search restriction just like
+  // tableName "events". Leave it unset for every other action — their worker
+  // paths ignore the flag and still run the legacy full-text IO scan.
+  useEventsTable?: boolean;
 }) => {
+  if (useEventsTable) return;
   if (!isLegacyTracingIoSearchDisabled()) return;
   if (!hasSearchQuery(searchQuery)) return;
   if (!hasLegacyTracingIoSearch(searchType)) return;

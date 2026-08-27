@@ -3,15 +3,15 @@ import {
   createObservation,
   createTrace,
   createTracesCh,
-} from "@langfuse/shared/src/server";
-import {
   createEventsCh,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
-import { GetObservationV1Response } from "@/src/features/public-api/types/observations";
+import {
+  GetObservationV1Response,
+  GetObservationsV1Response,
+} from "@/src/features/public-api/types/observations";
 import { v4 as uuidv4 } from "uuid";
-import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 
@@ -54,15 +54,14 @@ const createObservationData = (
       end_time: data.end_time ? data.end_time : undefined,
       event_ts: data.event_ts ? data.event_ts : undefined,
     });
-  } else {
-    // Observations table: use milliseconds, requires internal_model_id
-    const { model_id, ...rest } = data;
-    return createObservation({
-      ...rest,
-      internal_model_id: model_id || data.internal_model_id,
-      // Timestamps already in milliseconds
-    });
   }
+  // Observations table: use milliseconds, requires internal_model_id
+  const { model_id, ...rest } = data;
+  return createObservation({
+    ...rest,
+    internal_model_id: model_id || data.internal_model_id,
+    // Timestamps already in milliseconds
+  });
 };
 
 // Helper to insert observations into the correct table

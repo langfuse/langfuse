@@ -5,28 +5,30 @@ export const CloudPrivacyNotice = ({ action }: { action: string }) =>
     <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
       By {action} you are agreeing to our{" "}
       <a
-        href="https://langfuse.com/terms"
+        href="https://clickhouse.com/legal/clickhouse-general-terms-and-conditions"
         target="_blank"
         rel="noopener noreferrer"
         className="italic"
       >
-        Terms and Conditions
+        ClickHouse General Terms and Conditions
       </a>
       ,{" "}
       <a
-        href="https://langfuse.com/privacy"
+        href="https://clickhouse.com/legal/langfuse-cloud-addendum"
+        target="_blank"
         rel="noopener noreferrer"
         className="italic"
       >
-        Privacy Policy
+        Langfuse Cloud Addendum
       </a>
       , and{" "}
       <a
-        href="https://langfuse.com/cookie-policy"
+        href="https://langfuse.com/privacy"
+        target="_blank"
         rel="noopener noreferrer"
         className="italic"
       >
-        Cookie Policy
+        Langfuse Privacy Policy
       </a>
       . You also confirm that the entered data is accurate.
     </div>

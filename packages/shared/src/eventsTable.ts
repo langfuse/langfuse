@@ -1,8 +1,58 @@
 import { type ColumnDefinition } from "./tableDefinitions";
+import { EvalExecutionMetadataKey } from "./features/evals/evalExecutionMetadata";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
+  const prefix = alias ? `${alias}.` : "";
+  return `(${prefix}parent_span_id = '' OR ${prefix}is_app_root = true)`;
+};
 export const eventsTableIsRootObservationSql =
-  "(e.parent_span_id = '' OR e.is_app_root = true)";
+  eventsTableIsRootObservationSqlForAlias("e");
+export const eventsTableTraceNameSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
+export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+// Row-projection variant. The fallback above is Nullable(String), but
+// events_core.trace_name is a non-null String. Projecting the nullable
+// expression under the column's own name while a filter reads the physical
+// column puts two `trace_name` headers of different types into one pipeline,
+// and ClickHouse 25.x rejects that with AMBIGUOUS_COLUMN_NAME (code 352) as
+// soon as the query also sorts (LFE-14924). Matching the stored String type
+// keeps the alias — an export/stream wire name — stable. "no trace name" is
+// therefore '' on the wire; JS consumers map it back to null.
+export const eventsTableTraceNameSelectSqlForAlias = (alias: string) =>
+  `ifNull(${eventsTableTraceNameSqlForAlias(alias)}, '')`;
+export const eventsTableTraceNameSelectSql =
+  eventsTableTraceNameSelectSqlForAlias("e");
+/**
+ * Maps the wire form of `eventsTableTraceNameSelectSql` ('' == no trace name)
+ * back to the null every JS-facing surface uses - tRPC/UI, the public API, the
+ * eval stream, analytics integrations, and batch export.
+ *
+ * Blob storage export deliberately does NOT use this: its published contract
+ * types `trace_name` as a plain string
+ * (https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields),
+ * and its raw JSONL / Parquet paths never pass through JS, so normalizing only
+ * the enriched path would make the three export formats disagree.
+ */
+export const normalizeEventsTraceName = (
+  traceName: string | null | undefined,
+): string | null => traceName || null;
+export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+export const eventsTableTraceNameAggregationSql =
+  eventsTableTraceNameAggregationSqlForAlias("e");
+
+export const isRootObservation = ({
+  parentObservationId,
+  isAppRoot,
+}: {
+  parentObservationId: string | null | undefined;
+  isAppRoot: boolean | null | undefined;
+}): boolean => !parentObservationId || isAppRoot === true;
+// True when the observation carries input / output. NULL/'' both count as
+// absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
+export const eventsTableHasInputSql = "e.input != ''";
+export const eventsTableHasOutputSql = "e.output != ''";
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
@@ -63,10 +113,45 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "API Key",
+    id: "ingestionApiKey",
+    type: "stringOptions",
+    internal: "e.ingestion_api_key",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Name",
+    id: "ingestionSdkName",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_name",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Version",
+    id: "ingestionSdkVersion",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_version",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "Ingestion Source",
+    id: "ingestionSource",
+    type: "stringOptions",
+    internal: "e.source",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
     internal: "e.version",
+    nullable: true,
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "e.release",
     nullable: true,
   },
   {
@@ -87,16 +172,17 @@ const eventsTableColsDefinition = [
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
-    internal: "e.trace_name",
+    internal: eventsTableTraceNameSql,
     options: [], // to be added at runtime
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "e.level",
     options: [],
+    aliases: ["Level"],
   },
   {
     name: "Status Message",
@@ -228,6 +314,20 @@ const eventsTableColsDefinition = [
     internal: "e.metadata",
   },
   {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_ID}'))`,
+    options: [],
+  },
+  {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal: `if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}')))`,
+    options: [],
+  },
+  {
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
@@ -249,6 +349,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Trace Scores (numeric)",
     id: "trace_scores_avg",
     type: "numberObject",
@@ -260,6 +367,13 @@ const eventsTableColsDefinition = [
     type: "categoryOptions",
     internal: "trace_score_categories",
     options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
     nullable: true,
   },
   {
@@ -285,6 +399,18 @@ const eventsTableColsDefinition = [
     id: "isRootObservation",
     type: "boolean",
     internal: eventsTableIsRootObservationSql,
+  },
+  {
+    name: "Has Input",
+    id: "hasInput",
+    type: "boolean",
+    internal: eventsTableHasInputSql,
+  },
+  {
+    name: "Has Output",
+    id: "hasOutput",
+    type: "boolean",
+    internal: eventsTableHasOutputSql,
   },
   {
     name: "Experiment Dataset ID",
@@ -400,6 +526,7 @@ const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "output",
   "metadata",
   "traceTags",
+  "isRootObservation",
   "hasParentObservation",
 ] as const satisfies readonly EventsTableColumnId[];
 

@@ -141,6 +141,13 @@ This outputs your BasicAuth token (e.g., `cGstbGYt...`).
 **Self-Hosted:**
 
 - Use your domain with HTTPS: `https://your-domain.com`
+- If a reverse proxy forwards a different `Host` header than `NEXTAUTH_URL`,
+  either preserve the public host at the proxy or set
+  `LANGFUSE_MCP_ALLOWED_HOSTS` to a comma-separated list of exact additional
+  hostnames/origins accepted by the MCP endpoint. Wildcard host patterns and
+  paths are not supported. To disable Host and Origin validation completely, set
+  `LANGFUSE_MCP_ALLOWED_HOSTS=*`. This is not recommended because it disables
+  DNS rebinding protection for the MCP endpoint.
 
 **Local Development:**
 

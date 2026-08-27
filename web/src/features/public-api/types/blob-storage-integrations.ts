@@ -6,6 +6,8 @@ import {
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  exportStartDateNotInFuture,
+  EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
 
 /**
@@ -18,7 +20,21 @@ export const BlobStorageIntegrationType = z.enum([
   "AZURE_BLOB_STORAGE",
 ]);
 
-export const BlobStorageIntegrationFileType = z.enum(["JSON", "CSV", "JSONL"]);
+export const BlobStorageIntegrationFileType = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
+
+// Kept as a separate export for the response type. Now identical to the request
+// enum since Parquet is generally available and settable via the API.
+export const BlobStorageIntegrationFileTypeResponse = z.enum([
+  "JSON",
+  "CSV",
+  "JSONL",
+  "PARQUET",
+]);
 
 export const BlobStorageExportMode = z.enum([
   "FULL_HISTORY",
@@ -96,12 +112,18 @@ export const CreateBlobStorageIntegrationRequest = z
         (value) => value === "" || value.endsWith("/"),
         "Prefix must be empty or end with a forward slash",
       ),
-    exportFrequency: z.string(),
+    exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
-    exportStartDate: z.coerce.date().nullable().optional(),
+    exportStartDate: z.coerce
+      .date()
+      .refine(exportStartDateNotInFuture, {
+        message: EXPORT_START_DATE_FUTURE_ERROR,
+      })
+      .nullable()
+      .optional(),
     compressed: z.boolean().optional().default(true),
     exportSource: BlobStorageExportSource.nullable().optional(),
     exportFieldGroups: z
@@ -130,24 +152,9 @@ export const CreateBlobStorageIntegrationRequest = z
       });
       return;
     }
-    if (
-      data.exportSource === "LEGACY_TRACES_OBSERVATIONS" &&
-      data.exportFieldGroups != null
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "exportFieldGroups is not applicable when exportSource is LEGACY_TRACES_OBSERVATIONS",
-        path: ["exportFieldGroups"],
-      });
-      return;
-    }
     if (data.exportFieldGroups != null && data.exportSource != null) {
       validateExportFieldGroups(
-        {
-          exportSource: toInternalExportSource(data.exportSource),
-          exportFieldGroups: data.exportFieldGroups,
-        },
+        { exportFieldGroups: data.exportFieldGroups },
         ctx,
       );
     }
@@ -166,7 +173,7 @@ export const BlobStorageIntegrationResponse = z
     exportFrequency: z.string(),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
-    fileType: BlobStorageIntegrationFileType,
+    fileType: BlobStorageIntegrationFileTypeResponse,
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce.date().nullable(),
     compressed: z.boolean(),
@@ -187,6 +194,7 @@ export type BlobStorageIntegrationResponseType = z.infer<
 
 export const BlobStorageSyncStatus = z.enum([
   "idle",
+  "running",
   "queued",
   "up_to_date",
   "disabled",

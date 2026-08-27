@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -12,8 +13,9 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { TRPCError } from "@trpc/server";
+import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";
 import {
   logger,
@@ -26,7 +28,9 @@ import {
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
+  AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
+  BlobStorageIntegrationFileType,
   InvalidRequestError,
 } from "@langfuse/shared";
 
@@ -37,17 +41,58 @@ const getAuditLogErrorType = (error: unknown) =>
       ? error.name
       : "UnknownError";
 
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const formatRootCause = (err: Error): string => {
+  // SDK errors (e.g. S3, GCS) carry a descriptive name like
+  // "SignatureDoesNotMatch" while .message is often generic ("Invalid argument.").
+  const name = err.name && err.name !== "Error" ? err.name : "";
+  if (name && err.message) return `${name}: ${err.message}`;
+  return name || err.message;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (!(error instanceof Error)) return fallback;
+  // Walk the full cause chain to find the deepest (most specific) error.
+  // StorageService wraps SDK errors in multiple layers of handleStorageError.
+  let deepest: Error = error;
+  while (deepest.cause instanceof Error) {
+    deepest = deepest.cause;
+  }
+  if (deepest !== error) {
+    const rootCause = formatRootCause(deepest);
+    if (rootCause) return `${error.message}: ${rootCause}`.slice(0, 500);
+  }
+  return error.message;
+};
+
+const assertBlobStorageIntegrationAccess = ({
+  session,
+  projectId,
+}: {
+  session: Session;
+  projectId: string;
+}) => {
+  if (!session.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "integrations:CRUD",
+  });
+  throwIfNoEntitlement({
+    entitlement: "scheduled-blob-exports",
+    projectId,
+    sessionUser: session.user,
+  });
+};
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
+      assertBlobStorageIntegrationAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "integrations:CRUD",
       });
       try {
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
@@ -59,11 +104,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
-        if (!config) {
-          return null;
-        }
-
-        return config;
+        return {
+          config: config ?? null,
+          writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+        };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
         throw new TRPCError({
@@ -76,29 +120,40 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
   update: protectedProjectProcedure
     .input(
       blobStorageIntegrationFormSchemaBase
-        .extend({ projectId: z.string() })
+        .extend({
+          projectId: z.string(),
+          // Drop the base schema default so an omitted value preserves the
+          // persisted source instead of rewriting it to the legacy default.
+          exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
+          // Same for fileType: drop the base default so an omitted value
+          // preserves the persisted fileType instead of rewriting it.
+          fileType: z.enum(BlobStorageIntegrationFileType).optional(),
+        })
         .superRefine(validateAzureContainerName)
         .superRefine(validateExportFieldGroups),
     )
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
 
-        if (input.exportSource) {
-          const project = await ctx.prisma.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
+        const existingIntegration =
+          await ctx.prisma.blobStorageIntegration.findUnique({
+            where: { projectId: input.projectId },
+            select: { createdAt: true, exportSource: true },
           });
-          assertLegacyBlobExportSourceAllowed({
-            project,
-            nextInternalExportSource: input.exportSource,
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-          });
-        }
+
+        // Validates the requested source and resolves what a CREATE should
+        // carry. Shared with the PostHog and Mixpanel routers and the public
+        // REST handler, so every write path agrees. See export-source-policy.ts.
+        const createExportSource = await resolveExportSource({
+          db: ctx.prisma,
+          projectId: input.projectId,
+          requestedExportSource: input.exportSource,
+          existingIntegration,
+        });
 
         await auditLog({
           session: ctx.session,
@@ -112,6 +167,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          createExportSource,
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
@@ -152,10 +208,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
         await auditLog({
           session: ctx.session,
@@ -170,6 +225,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
       } catch (e) {
+        if (e instanceof TRPCError) {
+          throw e;
+        }
         logger.error(`Failed to delete blob storage integration`, e);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
@@ -182,10 +240,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
 
         // Check if integration exists and is enabled
@@ -290,10 +347,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(z.object({ projectId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        throwIfNoProjectAccess({
+        assertBlobStorageIntegrationAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "integrations:CRUD",
         });
 
         // Get persisted configuration
@@ -394,15 +450,14 @@ This file can be safely deleted.`;
           signedUrl: result.signedUrl,
         };
       } catch (e) {
-        logger.error(
-          `Blob storage validation failed for project ${input.projectId}`,
-          e,
-        );
-
-        // Extract meaningful error message
         const errorMessage = getErrorMessage(
           e,
           "Unknown error occurred during validation",
+        );
+
+        logger.error(
+          `Blob storage validation failed for project ${input.projectId}: ${errorMessage}`,
+          e,
         );
 
         await auditLog({

@@ -1,5 +1,9 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -17,9 +21,24 @@ import { ObservationsEventsTable } from "@/src/features/events/components";
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
 export default function UserPage() {
+  const route = useReadyRouteParams(["projectId", "userId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <UserDetailPage
+      projectId={route.params.projectId}
+      userId={route.params.userId}
+    />
+  );
+}
+
+function UserDetailPage({
+  projectId,
+  userId,
+}: {
+  projectId: string;
+  userId: string;
+}) {
   const router = useRouter();
-  const userId = router.query.userId as string;
-  const projectId = router.query.projectId as string;
   const { isBetaEnabled } = useV4Beta();
 
   const userV3 = api.users.byId.useQuery(
@@ -27,7 +46,7 @@ export default function UserPage() {
       projectId: projectId,
       userId,
     },
-    { enabled: !isBetaEnabled },
+    { enabled: Boolean(projectId) && Boolean(userId) && !isBetaEnabled },
   );
 
   const userV4 = api.users.byIdFromEvents.useQuery(
@@ -35,7 +54,7 @@ export default function UserPage() {
       projectId: projectId,
       userId,
     },
-    { enabled: isBetaEnabled },
+    { enabled: Boolean(projectId) && Boolean(userId) && isBetaEnabled },
   );
 
   const user = isBetaEnabled ? userV4 : userV3;
@@ -150,9 +169,9 @@ export default function UserPage() {
                     key={tab}
                     className={cn(
                       tab === currentTab
-                        ? "border-primary-accent text-primary-accent"
-                        : "text-muted-foreground hover:border-border hover:text-primary border-transparent",
-                      "border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap",
+                        ? "border-primary-accent text-foreground"
+                        : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
+                      "border-b-2 px-4 py-3 text-sm font-bold whitespace-nowrap",
                     )}
                     aria-current={tab === currentTab ? "page" : undefined}
                     onClick={() => handleTabChange(tab)}

@@ -1,5 +1,3 @@
-import "./initialize";
-
 import express from "express";
 import cors from "cors";
 import * as middlewares from "./middlewares";
@@ -22,6 +20,8 @@ import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
+import { monitorQueueProcessor } from "./queues/monitorQueue";
+import { inAppAgentRunQueueProcessor } from "./queues/inAppAgentRunQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -40,13 +40,17 @@ import {
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
   CloudUsageMeteringQueue,
+  V4LegacyApiUsageQueue,
   EventPropagationQueue,
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
+import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
+import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { env, v4WritesToEventsTable } from "./env";
+import { isInAppAgentWorkerSurfaceEnabled } from "./features/in-app-agent/enablement";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { prisma } from "@langfuse/shared/src/db";
@@ -58,6 +62,7 @@ import {
   postHogIntegrationProcessingProcessor,
   postHogIntegrationProcessor,
 } from "./queues/postHogIntegrationQueue";
+import { v4LegacyApiUsageProcessor } from "./queues/v4LegacyApiUsageQueue";
 import {
   mixpanelIntegrationProcessingProcessor,
   mixpanelIntegrationProcessor,
@@ -94,7 +99,11 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
+import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
+import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
+import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 
 const app = express();
 
@@ -409,6 +418,40 @@ if (
   );
 }
 
+if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.MonitorQueue, monitorQueueProcessor, {
+    concurrency: env.LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY,
+    // Scheduler is the only source of redelivery; disable BullMQ's stalled
+    // recovery so the unified TTL pacing is uncontested.
+    lockDuration: monitorProcessorTtl + 60_000,
+    maxStalledCount: 0,
+  });
+}
+
+export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED,
+  )
+) {
+  WorkerManager.register(
+    QueueName.InAppAgentRunQueue,
+    inAppAgentRunQueueProcessor,
+    {
+      concurrency: env.LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY,
+      // Postgres owns run correctness (claim CAS, heartbeat, reconcile);
+      // BullMQ must never redeliver on its own, so stalled recovery is off
+      // and the lock outlives the run-duration backstop.
+      lockDuration: IN_APP_AGENT_RUN_MAX_DURATION_MS + 60_000,
+      maxStalledCount: 0,
+    },
+  );
+
+  inAppAgentDlqRetryRunner = new InAppAgentDlqRetryRunner();
+  inAppAgentDlqRetryRunner.start();
+}
+
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
 if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
@@ -490,6 +533,25 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
         // Process at most one PostHog job globally per 10s.
         max: 1,
         duration: 10_000,
+      },
+    },
+  );
+}
+
+if (env.QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  V4LegacyApiUsageQueue.getInstance();
+
+  WorkerManager.register(
+    QueueName.V4LegacyApiUsageQueue,
+    v4LegacyApiUsageProcessor,
+    {
+      concurrency: 1,
+      limiter: {
+        // The job scans system.query_log across all ClickHouse services;
+        // never run it more than once per minute even if jobs pile up.
+        max: 1,
+        duration: 60_000,
       },
     },
   );
@@ -708,6 +770,27 @@ if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
   batchTraceDeletionCleaner.start();
 }
 
+// Durable trace-delete BatchAction runner
+export let traceDeleteBatchActionRunner: TraceDeleteBatchActionRunner | null =
+  null;
+
+if (env.LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED === "true") {
+  traceDeleteBatchActionRunner = new TraceDeleteBatchActionRunner();
+  traceDeleteBatchActionRunner.start();
+}
+
+// Reconciles stale in-app agent runs that nobody reopened, then reports remainders.
+export let inAppAgentIntegrityRunner: InAppAgentIntegrityRunner | null = null;
+
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED,
+  )
+) {
+  inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
+  inAppAgentIntegrityRunner.start();
+}
+
 // ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
 export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
 
@@ -722,6 +805,17 @@ export let queueMetricsRunner: QueueMetricsRunner | null = null;
 if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
   queueMetricsRunner = new QueueMetricsRunner();
   queueMetricsRunner.start();
+}
+
+// Monitor runners — one per shard
+export const monitorRunners: MonitorRunner[] = [];
+
+if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
+  for (let i = 0; i < env.LANGFUSE_MONITOR_SCHEDULERS; i++) {
+    const runner = new MonitorRunner(i, env.LANGFUSE_MONITOR_SCHEDULERS);
+    monitorRunners.push(runner);
+    runner.start();
+  }
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

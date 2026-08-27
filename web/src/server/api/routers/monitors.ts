@@ -1,23 +1,25 @@
+import { z } from "zod";
+
 import {
   createTRPCRouter,
   protectedProjectProcedure,
-  requireFeatureFlag,
+  requireV4Writes,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,
   GetMonitorByIdSchema,
+  GetMonitorFilterOptionsSchema,
   ListMonitorsSchema,
   MonitorService,
   type SessionContext,
   UpdateMonitorSchema,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/monitors/server";
 
-/** monitorsProcedure protects every monitors route behind the `monitors` flag. */
-const monitorsProcedure = protectedProjectProcedure.use(
-  requireFeatureFlag("monitors"),
-);
+/** monitorsProcedure protects monitor routes behind a v4Writes check. */
+const monitorsProcedure = protectedProjectProcedure.use(requireV4Writes);
 
 /** sessionContextFromCtx adapts a tRPC session into a MonitorService SessionContext. */
 const sessionContextFromCtx = (ctx: {
@@ -31,9 +33,21 @@ export const monitorsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "monitors:CUD",
+        scope: "alerts:CUD",
       });
-      return MonitorService.create(sessionContextFromCtx(ctx), input);
+
+      return createWithinEntitlementLimit({
+        prisma: ctx.prisma,
+        orgId: ctx.session.orgId,
+        entitlementLimit: "monitor-count",
+        sessionUser: ctx.session.user,
+        countCurrentUsage: (tx) =>
+          tx.monitor.count({
+            where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
+          }),
+        create: (tx) =>
+          MonitorService.create(sessionContextFromCtx(ctx), input, tx),
+      });
     }),
 
   update: monitorsProcedure
@@ -42,7 +56,7 @@ export const monitorsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "monitors:CUD",
+        scope: "alerts:CUD",
       });
       return MonitorService.update(sessionContextFromCtx(ctx), input);
     }),
@@ -53,7 +67,7 @@ export const monitorsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "monitors:CUD",
+        scope: "alerts:CUD",
       });
       await MonitorService.delete(sessionContextFromCtx(ctx), input);
       return { success: true as const };
@@ -65,7 +79,7 @@ export const monitorsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "monitors:read",
+        scope: "alerts:read",
       });
       return MonitorService.getById(sessionContextFromCtx(ctx), input);
     }),
@@ -76,8 +90,49 @@ export const monitorsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "monitors:read",
+        scope: "alerts:read",
       });
       return MonitorService.list(sessionContextFromCtx(ctx), input);
+    }),
+
+  count: monitorsProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "alerts:read",
+      });
+      const count = await ctx.prisma.monitor.count({
+        where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
+      });
+      return { count };
+    }),
+
+  /** hasAny reports whether the project owns at least one monitor; drives the list-page onboarding splash. */
+  hasAny: monitorsProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "alerts:read",
+      });
+      const monitor = await ctx.prisma.monitor.findFirst({
+        where: { projectId: input.projectId },
+        select: { id: true },
+      });
+      return monitor !== null;
+    }),
+
+  getFilterOptions: monitorsProcedure
+    .input(GetMonitorFilterOptionsSchema)
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "alerts:read",
+      });
+      return MonitorService.getFilterOptions(sessionContextFromCtx(ctx), input);
     }),
 });

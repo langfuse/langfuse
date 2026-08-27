@@ -94,7 +94,7 @@ export type ColumnDefinition =
   | {
       name: string;
       id: string;
-      type: "stringObject" | "numberObject";
+      type: "stringObject" | "numberObject" | "booleanObject";
       internal: string;
       keyOptions?: Array<string>;
       nullable?: boolean;
@@ -121,8 +121,8 @@ export const tableNames = [
   "sessions",
   "prompts",
   "users",
-  "job_configurations",
   "job_executions",
+  "evaluation_rules",
   "dataset_items",
   "annotation_queue_assignments",
   "dataset_item_events",

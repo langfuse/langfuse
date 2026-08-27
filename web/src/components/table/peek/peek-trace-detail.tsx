@@ -1,28 +1,17 @@
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
-import { Trace } from "@/src/components/trace/Trace";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { TablePeekView } from "@/src/components/table/peek";
-
-const PeekViewTraceDetail = ({
-  trace,
-}: {
-  trace: ReturnType<typeof usePeekData>;
-}) => {
-  return !trace.data ? (
-    <Skeleton className="h-full w-full rounded-none" />
-  ) : (
-    <Trace
-      key={trace.data.id}
-      trace={trace.data}
-      scores={trace.data.scores}
-      corrections={trace.data.corrections}
-      projectId={trace.data.projectId}
-      observations={trace.data.observations}
-      context="peek"
-    />
-  );
-};
+import { useRef } from "react";
+import {
+  TraceDetailActions,
+  TraceDetailBody,
+  traceDetailTitle,
+} from "@/src/features/traces";
+import {
+  TablePeekView,
+  shouldClosePeekAfterDelete,
+} from "@/src/components/table/peek";
+import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { buildTracePath } from "@langfuse/shared";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -35,33 +24,63 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
-  const peekId = router.query.peek as string | undefined;
-  const timestampParam = router.query.timestamp as string | undefined;
+  const { traceId, timestamp } = resolvePeekTraceParams({
+    reader: "trace",
+    peek: router.query.peek as string | undefined,
+    traceId: router.query.traceId as string | undefined,
+    timestamp: router.query.timestamp,
+  });
 
-  // Decode the timestamp parameter before parsing as Date
-  // This handles cases where the timestamp might be URL-encoded
-  const timestamp = timestampParam
-    ? new Date(decodeURIComponent(timestampParam))
-    : undefined;
+  // Live handle on the peeked trace id: an in-flight delete that resolves after
+  // K/J-navigation reads the CURRENT peek here (not the stale value captured
+  // when the delete was fired), so it only closes the peek it actually deleted.
+  const peekIdRef = useRef(traceId);
+  peekIdRef.current = traceId;
 
   const trace = usePeekData({
     projectId,
-    traceId: peekId,
+    traceId,
     timestamp,
   });
+
+  const actionProps = trace.data
+    ? {
+        traceId: trace.data.id,
+        projectId: trace.data.projectId,
+        isPublic: trace.data.public,
+        shareUrl: buildTracePath({
+          projectId: trace.data.projectId,
+          traceId: trace.data.id,
+          timestamp,
+        }),
+        name: trace.data.name,
+        timestamp,
+        onAfterDelete: (deletedTraceId: string) => {
+          if (shouldClosePeekAfterDelete(peekIdRef.current, deletedTraceId)) {
+            props.closePeek();
+          }
+        },
+      }
+    : null;
 
   return (
     <TablePeekView
       {...props}
-      title={
-        trace.data
-          ? trace.data.name
-            ? `${trace.data.name}: ${trace.data.id}`
-            : trace.data.id
-          : peekId
+      title={traceDetailTitle(trace.data, traceId)}
+      actions={
+        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+      }
+      actionsMenu={
+        actionProps ? (
+          <TraceDetailActions {...actionProps} layout="menu" />
+        ) : undefined
       }
     >
-      <PeekViewTraceDetail trace={trace} />
+      <TraceDetailBody
+        trace={trace.data}
+        context="peek"
+        truncatedAtObservations={trace.truncatedAtObservations}
+      />
     </TablePeekView>
   );
 };

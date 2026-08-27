@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
@@ -17,7 +17,7 @@ import {
   isCategoricalDataType,
   isNumericDataType,
 } from "@/src/features/scores/lib/helpers";
-import { Edit, MoreVertical } from "lucide-react";
+import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
@@ -28,8 +28,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigButton } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
-import { UpsertScoreConfigDialog } from "@/src/features/score-configs/components/UpsertScoreConfigDialog";
+import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
+import { UpsertScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -72,8 +72,6 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
-  const [editConfigId, setEditConfigId] = useState<string | null>(null);
-  const [createConfigOpen, setCreateConfigOpen] = useState(false);
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -96,11 +94,6 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       limit: paginationState.pageSize,
     },
     { enabled: hasAccess },
-  );
-
-  const configQuery = api.scoreConfigs.byId.useQuery(
-    { projectId, id: editConfigId as string },
-    { enabled: !!editConfigId && hasAccess },
   );
 
   const totalCount = configs.data?.totalCount ?? null;
@@ -181,31 +174,64 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         const { id: configId, isArchived, name } = row.original;
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                key={configId}
-                aria-label="edit"
-                onClick={() => setEditConfigId(configId)}
+          <UpsertScoreConfigDialogController
+            mode="edit"
+            projectId={projectId}
+            defaultValues={{
+              id: configId,
+              name,
+              dataType: row.original.dataType,
+              minValue: row.original.range.minValue ?? undefined,
+              maxValue: row.original.range.maxValue ?? undefined,
+              description: row.original.description ?? undefined,
+              categories: row.original.range.categories?.length
+                ? row.original.range.categories
+                : undefined,
+            }}
+          >
+            {({ disabled: editDisabled, Trigger }) => (
+              <ArchiveScoreConfigPopoverController
+                configId={configId}
+                projectId={projectId}
+                isArchived={isArchived}
+                name={name}
               >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild key="archive">
-                <ArchiveScoreConfigButton
-                  configId={configId}
-                  projectId={projectId}
-                  isArchived={isArchived}
-                  name={name}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {({ Anchor, disabled, openPopover }) => (
+                  <DropdownMenu>
+                    <Anchor asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </Anchor>
+                    <DropdownMenuContent>
+                      <Trigger asChild>
+                        <DropdownMenuItem
+                          aria-label="edit"
+                          disabled={editDisabled !== undefined}
+                          title={editDisabled?.reason}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                      </Trigger>
+                      <DropdownMenuItem
+                        key="archive"
+                        disabled={disabled !== undefined}
+                        title={disabled?.reason}
+                        onClick={(event) => event.stopPropagation()}
+                        onSelect={openPopover}
+                      >
+                        <Archive className="mr-2 h-4 w-4" />
+                        Archive
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </ArchiveScoreConfigPopoverController>
+            )}
+          </UpsertScoreConfigDialogController>
         );
       },
     },
@@ -233,18 +259,34 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
-          <UpsertScoreConfigDialog
+          <UpsertScoreConfigDialogController
             key="new-config-dialog"
+            mode="create"
             projectId={projectId}
-            open={createConfigOpen}
-            onOpenChange={setCreateConfigOpen}
-          />
+          >
+            {({ disabled, isSubmitting, Trigger }) => (
+              <Trigger asChild>
+                <Button
+                  variant="secondary"
+                  disabled={disabled !== undefined}
+                  loading={isSubmitting}
+                  title={disabled?.reason}
+                >
+                  <PlusIcon
+                    className="mr-1.5 -ml-0.5 h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  Add new score config
+                </Button>
+              </Trigger>
+            )}
+          </UpsertScoreConfigDialogController>
         }
         className="px-0"
       />
       <SettingsTableCard>
         <DataTable
-          tableName={"scoreConfigs"}
+          tableName="scoreConfigs"
           columns={columns}
           data={
             configs.isPending
@@ -288,33 +330,6 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
           className="gap-2"
         />
       </SettingsTableCard>
-
-      {!!editConfigId && configQuery.isSuccess && (
-        <UpsertScoreConfigDialog
-          key={editConfigId}
-          id={editConfigId}
-          projectId={projectId}
-          open={!!editConfigId && configQuery.isSuccess}
-          onOpenChange={(open) => {
-            if (!open) setEditConfigId(null);
-          }}
-          defaultValues={
-            configQuery.data
-              ? {
-                  id: editConfigId,
-                  name: configQuery.data.name,
-                  dataType: configQuery.data.dataType,
-                  minValue: configQuery.data.minValue ?? undefined,
-                  maxValue: configQuery.data.maxValue ?? undefined,
-                  description: configQuery.data.description ?? undefined,
-                  categories: configQuery.data.categories?.length
-                    ? configQuery.data.categories
-                    : undefined,
-                }
-              : undefined
-          }
-        />
-      )}
     </>
   );
 }

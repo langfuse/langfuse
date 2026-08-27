@@ -8,7 +8,8 @@ import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {
   type AutomationDomain,
   JobConfigState,
-  type TriggerEventSource,
+  TriggerEventSource,
+  type FilterState,
 } from "@langfuse/shared";
 import {
   TabsBar,
@@ -16,10 +17,9 @@ import {
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
-import { type FilterState } from "@langfuse/shared";
 import Header from "@/src/components/layouts/header";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 
 interface AutomationDetailsProps {
@@ -51,6 +51,9 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
       },
       {
         enabled: !!projectId && !!automationId,
+        // Suppress 404 toast: after deletion the invalidation can refetch this
+        // query before the component unmounts, producing a spurious error toast.
+        meta: { silentHttpCodes: [404] },
       },
     );
 
@@ -122,12 +125,23 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
-                <DeleteAutomationButton
+                <DeleteAutomationDialogController
                   projectId={projectId}
                   automationId={automationId}
-                  variant="button"
                   onSuccess={onDelete}
-                />
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-light-red flex items-center"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      <span className="text-dark-red">Delete</span>
+                    </Button>
+                  )}
+                </DeleteAutomationDialogController>
               </div>
             }
           />
@@ -137,37 +151,45 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
             automationId={automationId}
           />
 
-          <TabsBar
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <TabsBarList>
-              <TabsBarTrigger value="executions">
-                Execution History
-              </TabsBarTrigger>
-              <TabsBarTrigger value="configuration">
-                Configuration
-              </TabsBarTrigger>
-            </TabsBarList>
+          {automation.trigger.eventSource === TriggerEventSource.Monitor ? (
+            <AutomationForm
+              projectId={projectId}
+              automation={automationForForm}
+              isEditing={false}
+            />
+          ) : (
+            <TabsBar
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full"
+            >
+              <TabsBarList>
+                <TabsBarTrigger value="executions">
+                  Execution History
+                </TabsBarTrigger>
+                <TabsBarTrigger value="configuration">
+                  Configuration
+                </TabsBarTrigger>
+              </TabsBarList>
 
-            <TabsBarContent value="executions" className="mt-6">
-              <SettingsTableCard>
-                <AutomationExecutionsTable
+              <TabsBarContent value="executions" className="mt-6">
+                <SettingsTableCard>
+                  <AutomationExecutionsTable
+                    projectId={projectId}
+                    automationId={automationId}
+                  />
+                </SettingsTableCard>
+              </TabsBarContent>
+
+              <TabsBarContent value="configuration" className="mt-6">
+                <AutomationForm
                   projectId={projectId}
-                  automationId={automationId}
+                  automation={automationForForm}
+                  isEditing={false}
                 />
-              </SettingsTableCard>
-            </TabsBarContent>
-
-            <TabsBarContent value="configuration" className="mt-6">
-              <AutomationForm
-                projectId={projectId}
-                automation={automationForForm}
-                isEditing={false}
-              />
-            </TabsBarContent>
-          </TabsBar>
+              </TabsBarContent>
+            </TabsBar>
+          )}
         </>
       )}
     </div>

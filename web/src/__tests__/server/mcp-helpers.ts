@@ -42,6 +42,8 @@ export async function createMcpTestSetup(): Promise<{
     apiKeyId: apiKey.id,
     accessLevel: "project",
     publicKey: result.publicKey,
+    plan: "oss",
+    rateLimitOverrides: [],
   };
 
   return {
@@ -66,9 +68,17 @@ export function mockServerContext(
     apiKeyId: overrides?.apiKeyId ?? "test-api-key-id",
     accessLevel: "project",
     publicKey: overrides?.publicKey ?? "pk-lf-test",
+    plan: overrides?.plan ?? "oss",
+    rateLimitOverrides: overrides?.rateLimitOverrides ?? [],
     ...overrides,
   };
 }
+
+export const mcpEvalOutputDefinition = {
+  dataType: "NUMERIC" as const,
+  reasoning: { description: "Why the score was assigned" },
+  score: { description: "A score between 0 and 1" },
+};
 
 /**
  * Verifies that a response follows the MCP content block format.
@@ -261,8 +271,8 @@ export function verifyToolAnnotations(
  */
 export async function waitFor(
   condition: () => Promise<boolean>,
-  timeoutMs: number = 5000,
-  intervalMs: number = 100,
+  timeoutMs = 5000,
+  intervalMs = 100,
 ): Promise<void> {
   const startTime = Date.now();
 

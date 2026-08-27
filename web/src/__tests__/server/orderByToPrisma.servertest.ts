@@ -1,18 +1,22 @@
 import {
   dashboardColumnDefinitions,
+  createFilterFromFilterState,
+  FilterList,
   orderByToClickhouseSql,
   orderByToPrismaSql,
+  scoresTableUiColumnDefinitions,
   tracesTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import {
   InvalidRequestError,
   normalizeOrderByForTable,
+  scoresTableCols,
   tracesTableCols,
 } from "@langfuse/shared";
 
 // The test for the orderByToPrisma function
 describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
-  test("orderByToPrisma throws error for orderBy column not included in column defs", () => {
+  test("orderByToPrisma throws InvalidRequestError for orderBy column not included in column defs", () => {
     expect(() =>
       orderByToPrismaSql(
         {
@@ -21,7 +25,7 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         },
         tracesTableCols,
       ),
-    ).toThrow(/Invalid filter column: InvalidCol/);
+    ).toThrow(InvalidRequestError);
   });
 
   test("orderByToPrisma throws error for orderBy order that is not valid", () => {
@@ -68,5 +72,33 @@ describe("orderByToPrisma (Convert orderBy to Prisma.sql)", () => {
         dashboardColumnDefinitions,
       ),
     ).toBe("ORDER BY mapKeys(tool_definitions) ASC");
+  });
+
+  test("scores mappings qualify filters/orderBy with alias", () => {
+    expect(
+      orderByToClickhouseSql(
+        { column: "timestamp", order: "DESC" },
+        scoresTableUiColumnDefinitions,
+      ),
+    ).toBe("ORDER BY s.timestamp DESC");
+
+    const filterList = new FilterList(
+      createFilterFromFilterState(
+        [
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(0),
+          },
+        ],
+        scoresTableUiColumnDefinitions,
+        scoresTableCols,
+      ),
+    );
+
+    expect(filterList.apply().query).toMatch(
+      /^s\.timestamp >= \{dateTimeFilter[A-Za-z]{5}: DateTime64\(3, 'UTC'\)\}$/,
+    );
   });
 });

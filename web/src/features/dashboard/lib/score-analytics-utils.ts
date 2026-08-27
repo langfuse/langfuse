@@ -269,23 +269,22 @@ export function transformCategoricalScoresToChartData(
       chartData: [{ ...categoryCounts, binLabel: "Aggregation" }] as ChartBin[],
       chartLabels: uniqueAndSort(labels),
     };
-  } else {
-    const scoreDataByTimestamp = groupCategoricalScoreDataByTimestamp(
-      data,
-      scoreTimestampAccessor,
-    );
-
-    const chartData: ChartBin[] = [];
-    const chartLabels: string[] = [];
-
-    Object.entries(scoreDataByTimestamp).forEach(([timestamp, data]) => {
-      const { categoryCounts, labels } = aggregateCategoricalScoreData(data);
-      chartLabels.push(...labels);
-      chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
-    });
-
-    return { chartData, chartLabels };
   }
+  const scoreDataByTimestamp = groupCategoricalScoreDataByTimestamp(
+    data,
+    scoreTimestampAccessor,
+  );
+
+  const chartData: ChartBin[] = [];
+  const chartLabels: string[] = [];
+
+  Object.entries(scoreDataByTimestamp).forEach(([timestamp, data]) => {
+    const { categoryCounts, labels } = aggregateCategoricalScoreData(data);
+    chartLabels.push(...labels);
+    chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
+  });
+
+  return { chartData, chartLabels };
 }
 
 export function isEmptyChart({ data }: { data: ChartBin[] }) {

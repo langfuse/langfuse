@@ -1,17 +1,23 @@
 import type { z } from "zod";
-import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
+
+// 27h covers all real-world TZ offsets (UTC-12 to UTC+14 = 26h span + 1h margin).
+// The HTML date picker sends YYYY-MM-DD parsed as UTC midnight; on a UTC server,
+// an east-of-UTC user's local today can be up to 14h ahead of server UTC.
+export const MAX_EXPORT_START_DATE_FUTURE_MS = 27 * 60 * 60 * 1000;
+
+export function exportStartDateNotInFuture(d: Date | null | undefined) {
+  return !d || d.getTime() <= Date.now() + MAX_EXPORT_START_DATE_FUTURE_MS;
+}
+
+export const EXPORT_START_DATE_FUTURE_ERROR =
+  "Export start date must not be in the future (27 h tolerance for timezone differences)";
 
 export function validateExportFieldGroups(
-  data: { exportSource: string; exportFieldGroups: unknown[] },
+  data: { exportFieldGroups: unknown[] },
   ctx: z.RefinementCtx,
 ) {
-  const requiresFieldGroups =
-    data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
-    data.exportSource ===
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
-
-  if (!requiresFieldGroups) return;
-
+  // Field groups apply to all export sources (legacy observations honor them
+  // too), so core is required regardless of the selected source.
   if (!data.exportFieldGroups.includes("core")) {
     ctx.addIssue({
       code: "custom",

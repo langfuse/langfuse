@@ -2,11 +2,10 @@ import { useMemo, useState } from "react";
 import {
   type BatchActionQuery,
   type BatchEvalSourceTable,
-  EvalTargetObject,
   BatchEvalSourceTable as SourceTable,
-  getEvalTargetObjectFromSourceTable,
+  observationVariableMappingList,
 } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   Dialog,
   DialogBody,
@@ -20,11 +19,13 @@ import { Button } from "@/src/components/ui/button";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { ChevronLeft } from "lucide-react";
-import { EvaluatorSelectionStep } from "./EvaluatorSelectionStep";
+import {
+  EvaluatorSelectionStep,
+  type BatchEvaluator,
+} from "./EvaluatorSelectionStep";
 import { ConfirmationStep } from "./ConfirmationStep";
-import { CreateEvaluatorDialog } from "./CreateEvaluatorDialog";
-import { buildQueryWithSelectedIds } from "./utils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { buildQueryWithSelectedIds, getCreateEvaluatorHref } from "./utils";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 
 type RunEvaluationDialogProps = {
   projectId: string;
@@ -44,8 +45,10 @@ type RunEvaluationDialogProps = {
 
 type DialogStep = "select-evaluator" | "confirm";
 
+/** Matches the evaluator overview page size; the step filters client-side. */
+const BATCH_EVALUATOR_LIMIT = 100;
+
 export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
-  const { isBetaEnabled } = useV4Beta();
   const {
     projectId,
     selectedObservationIds,
@@ -56,18 +59,18 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   } = props;
 
   const [step, setStep] = useState<DialogStep>("select-evaluator");
-  const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
-    [],
-  );
+  const [selectedEvaluators, setSelectedEvaluators] = useState<
+    BatchEvaluator[]
+  >([]);
   const [evaluatorSearchQuery, setEvaluatorSearchQuery] = useState("");
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const forceV3Experience = useForceV3Experience(projectId);
 
-  // Derive targetObject from sourceTable
-  const targetObject = getEvalTargetObjectFromSourceTable(sourceTable);
-
-  const evaluatorsQuery = api.evals.jobConfigsByTarget.useQuery({
+  // Unsearched: `EvaluatorSelectionStep` filters the list client-side, the
+  // same way the overview does, so typing does not refetch.
+  const evaluatorsQuery = api.evalsV2.options.useQuery({
     projectId,
-    targetObject,
+    limit: BATCH_EVALUATOR_LIMIT,
+    excludeLegacyEvaluators: true,
   });
 
   const runEvaluationMutation =
@@ -82,30 +85,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
   const isExperimentsSource = sourceTable === SourceTable.EXPERIMENTS;
   const scopeLabel =
     sourceTable === SourceTable.EVENTS ? "observation" : "experiment item";
-  const evaluatorScopeLabel =
-    targetObject === EvalTargetObject.EVENT ? "observation" : "experiment";
   const experimentItemsExperimentCount =
     sourceTable === SourceTable.EXPERIMENT_ITEMS
       ? (props.experimentCount ?? 0)
       : 0;
 
-  const previewObservationQuery = api.observations.byId.useQuery(
-    {
-      projectId,
-      observationId: props.exampleObservation?.id as string,
-      traceId: props.exampleObservation?.traceId as string,
-      startTime: props.exampleObservation?.startTime ?? null,
-    },
-    {
-      enabled:
-        !isBetaEnabled &&
-        Boolean(
-          props.exampleObservation?.id && props.exampleObservation?.traceId,
-        ),
-    },
-  );
-
-  const previewEventQuery = api.events.batchIO.useQuery(
+  const previewQuery = api.events.batchIO.useQuery(
     {
       projectId,
       observations: [
@@ -117,38 +102,53 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       minStartTime: props.exampleObservation?.startTime as Date,
       maxStartTime: props.exampleObservation?.startTime as Date,
       truncated: false,
+      includeToolCalls: true,
     },
     {
-      enabled:
-        isBetaEnabled &&
-        Boolean(
-          props.exampleObservation?.id &&
-          props.exampleObservation?.traceId &&
-          props.exampleObservation?.startTime,
-        ),
+      ...sendAsPostOption,
+      enabled: Boolean(
+        props.exampleObservation?.id &&
+        props.exampleObservation?.traceId &&
+        props.exampleObservation?.startTime,
+      ),
     },
   );
 
-  const eligibleEvaluators = useMemo(() => {
-    return (evaluatorsQuery.data ?? []).filter(
-      (evaluator) => evaluator.targetObject === targetObject,
-    );
-  }, [evaluatorsQuery.data, targetObject]);
-
-  const selectedEvaluators = useMemo(
+  const eligibleEvaluators = useMemo(
     () =>
-      eligibleEvaluators.filter((evaluator) =>
-        selectedEvaluatorIds.includes(evaluator.id),
-      ),
-    [eligibleEvaluators, selectedEvaluatorIds],
+      // A blocked evaluator is skipped by the scheduler, so offering it would
+      // report a successful batch that produced no scores.
+      (evaluatorsQuery.data ?? [])
+        .filter((evaluator) => evaluator.blockedAt === null)
+        .map(
+          (evaluator): BatchEvaluator => ({
+            id: evaluator.id,
+            scoreName: evaluator.name,
+            variableMapping:
+              observationVariableMappingList.safeParse(
+                evaluator.latestVersion?.variableMapping,
+              ).data ?? [],
+            prompt: evaluator.latestVersion?.prompt ?? null,
+          }),
+        ),
+    [evaluatorsQuery.data],
+  );
+
+  const selectedEvaluatorIds = useMemo(
+    () => selectedEvaluators.map((evaluator) => evaluator.id),
+    [selectedEvaluators],
   );
 
   const toggleEvaluatorSelection = (evaluatorId: string) => {
-    setSelectedEvaluatorIds((previous) =>
-      previous.includes(evaluatorId)
-        ? previous.filter((id) => id !== evaluatorId)
-        : [...previous, evaluatorId],
-    );
+    setSelectedEvaluators((previous) => {
+      if (previous.some((evaluator) => evaluator.id === evaluatorId)) {
+        return previous.filter((evaluator) => evaluator.id !== evaluatorId);
+      }
+      const evaluator = eligibleEvaluators.find(
+        (candidate) => candidate.id === evaluatorId,
+      );
+      return evaluator ? [...previous, evaluator] : previous;
+    });
   };
 
   const onSubmit = async () => {
@@ -168,6 +168,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
         query: finalQuery,
         evaluatorIds: selectedEvaluators.map((evaluator) => evaluator.id),
         sourceTable,
+        evalVersion: "v2",
       });
     } catch {
       return;
@@ -204,7 +205,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
             <DialogDescription>
               {step === "confirm"
                 ? "Review your evaluation configuration before running."
-                : `Select one or more ${evaluatorScopeLabel}-scoped evaluators.`}
+                : "Select one or more evaluators."}
             </DialogDescription>
           </DialogHeader>
 
@@ -216,21 +217,16 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                 isQueryLoading={evaluatorsQuery.isLoading}
                 isQueryError={evaluatorsQuery.isError}
                 queryErrorMessage={evaluatorsQuery.error?.message}
-                previewObservation={
-                  isBetaEnabled
-                    ? previewEventQuery.data?.[0]
-                    : previewObservationQuery.data
-                }
-                isPreviewLoading={
-                  previewObservationQuery.isLoading ||
-                  previewEventQuery.isLoading
-                }
-                evaluatorScopeLabel={evaluatorScopeLabel}
+                previewObservation={previewQuery.data?.[0]}
+                isPreviewLoading={previewQuery.isLoading}
                 selectedEvaluatorIds={selectedEvaluatorIds}
                 evaluatorSearchQuery={evaluatorSearchQuery}
                 onSearchQueryChange={setEvaluatorSearchQuery}
                 onToggleEvaluator={toggleEvaluatorSelection}
-                onCreateEvaluator={() => setShowCreateDialog(true)}
+                createEvaluatorHref={getCreateEvaluatorHref({
+                  projectId,
+                  forceV3Experience,
+                })}
               />
             ) : (
               <ConfirmationStep
@@ -240,7 +236,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
                   id: e.id,
                   name: e.scoreName,
                 }))}
-                hideCount={targetObject === EvalTargetObject.EXPERIMENT}
+                hideCount={sourceTable !== SourceTable.EVENTS}
                 sourceTable={sourceTable}
                 experimentCount={experimentItemsExperimentCount}
               />
@@ -282,13 +278,6 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <CreateEvaluatorDialog
-        projectId={projectId}
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        targetObject={targetObject}
-      />
     </>
   );
 }

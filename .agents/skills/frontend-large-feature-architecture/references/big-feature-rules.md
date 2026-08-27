@@ -44,36 +44,32 @@ changing responsibilities and waking too much UI.
    pure data preparation, a store action, or an explicit event handler.
 9. Do not copy existing large Langfuse feature components as examples. Treat
    them as legacy unless they follow this skill.
-10. Prefer small reliable PRs over a large rewrite. Each PR should improve one
-    state boundary, action workflow, data-preparation seam, or render boundary,
-    then update the feature README or migration note with the next slice.
+10. Follow the golden example in `react-without-useeffect.md`: gate render on
+    loaded data, seed state from `initialValue` props, and derive values in
+    render instead of syncing them with effects. When a change improves a
+    feature boundary, update the feature README or migration note with what
+    changed and the next slice.
 
 ## Migration Reality
 
 Most large frontend features are not yet in the ideal shape. Traces,
 observations, experiments, prompts, evals, datasets, and session views all have
-some controller-heavy surfaces. Do not copy an existing large component just
-because it works today. Treat it as a migration candidate and move it one
-state/action/data-preparation boundary at a time.
+controller-heavy surfaces, and there are hundreds of cases still to fix —
+including hundreds of `useEffect` calls that derive or sync state. Do not copy
+an existing large component just because it works today; treat it as a
+migration candidate. Do not scale ambition down either: broad, coherent
+improvements are welcome as long as each changed boundary is deliberate.
 
-For the step-by-step path, read `controller-migration.md`.
-
-## Small PR Policy
-
-A good big-feature PR is intentionally incomplete. It should change one
-semantic interaction and keep behavior stable: one selection boundary, one
-action workflow, one pure data-preparation helper, or one render boundary.
-
-Do not bundle file reorganization, state extraction, visual changes, and
-behavior fixes in the same PR unless the user explicitly asks for that scope.
-When a reorganization is needed, prefer a rename-only PR first or a later
-follow-up PR.
+The golden example — gate render on loaded data, seed state from props, keep
+actions outside React — is in `react-without-useeffect.md`. For the
+step-by-step controller path, read `controller-migration.md`.
 
 ## Effects And Actions
 
-Effects are for subscriptions, observers, imperative third-party APIs,
-one-time initialization, and cleanup. Keep them in containers or feature hooks,
-not view components. If an effect writes state repeatedly, make the store action
+Effects are for named external-system integrations: subscriptions, observers,
+browser event listeners, timers, and imperative third-party APIs, plus their
+cleanup. Keep them in containers or feature hooks, not view
+components. If an effect writes state repeatedly, make the store action
 idempotent.
 
 Complex actions should be callable without rendering a component. Put workflows

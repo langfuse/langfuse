@@ -97,6 +97,13 @@ export const experimentsTableCols: ColumnDefinition[] = [
     options: [],
     nullable: true,
   },
+  {
+    name: "Scores (boolean)",
+    id: "obs_score_booleans",
+    type: "booleanObject",
+    internal: "obs_score_booleans",
+    nullable: true,
+  },
   // Trace-level scores (ets.* alias in backend)
   {
     name: "Trace Scores (numeric)",
@@ -110,6 +117,13 @@ export const experimentsTableCols: ColumnDefinition[] = [
     type: "categoryOptions",
     internal: "trace_score_categories",
     options: [],
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
     nullable: true,
   },
 ];
@@ -164,6 +178,11 @@ export const experimentsFilterConfig: FilterConfig = {
       column: "obs_scores_avg",
       label: getExperimentsColumnName("obs_scores_avg"),
     },
+    {
+      type: "booleanKeyValue" as const,
+      column: "obs_score_booleans",
+      label: getExperimentsColumnName("obs_score_booleans"),
+    },
     // Trace-level scores
     {
       type: "keyValue" as const,
@@ -174,6 +193,11 @@ export const experimentsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: getExperimentsColumnName("trace_scores_avg"),
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "trace_score_booleans",
+      label: getExperimentsColumnName("trace_score_booleans"),
     },
   ],
 };

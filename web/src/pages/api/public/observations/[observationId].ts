@@ -15,15 +15,20 @@ import {
   getObservationById,
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observation",
       allowInAppAgentKey: true,
+      rateLimitResource: "public-api-legacy",
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.observationGet,
       rejectInEventsOnlyMode: true,
+      deprecation: OBSERVATIONS_V1_DEPRECATION,
       fn: async ({ query, auth }) => {
         const clickhouseObservation = query.useEventsTable
           ? await getObservationByIdFromEventsTable({
@@ -65,7 +70,9 @@ export default withMiddlewares(
                 ],
               },
               include: {
-                Price: true,
+                Price: {
+                  where: { pricingTier: { isDefault: true } },
+                },
               },
               orderBy: {
                 projectId: {

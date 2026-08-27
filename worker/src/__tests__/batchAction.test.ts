@@ -110,6 +110,41 @@ const waitForCreateEvalQueueJobs = async ({
   return jobs;
 };
 
+const createHistoricalEvaluationRule = async ({
+  id,
+  projectId,
+  targetObject,
+  type = EvalTemplateType.LLM_AS_JUDGE,
+}: {
+  id: string;
+  projectId: string;
+  targetObject: EvalTargetObject;
+  type?: EvalTemplateType;
+}) => {
+  const evaluator = await prisma.evaluator.create({
+    data: {
+      projectId,
+      name: "score",
+      type,
+      versions: { create: { version: 1 } },
+    },
+  });
+  return prisma.evaluationRule.create({
+    data: {
+      id,
+      projectId,
+      name: "score",
+      filter: [],
+      sampling: new Decimal(1),
+      delay: 0,
+      targetObject,
+      assignments: {
+        create: { projectId, evaluatorId: evaluator.id },
+      },
+    },
+  });
+};
+
 describe("select all test suite", () => {
   it("should schedule trace deletions via pending_deletions table", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
@@ -244,6 +279,60 @@ describe("select all test suite", () => {
     expect(scores).toHaveLength(0);
   });
 
+  it("should delete only datasets matching path and search query", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    await prisma.dataset.createMany({
+      data: [
+        {
+          id: uuidv4(),
+          projectId,
+          name: "folder/match",
+          createdAt: new Date("2024-01-01"),
+        },
+        {
+          id: uuidv4(),
+          projectId,
+          name: "folder/other",
+          createdAt: new Date("2024-01-01"),
+        },
+        {
+          id: uuidv4(),
+          projectId,
+          name: "other/match",
+          createdAt: new Date("2024-01-01"),
+        },
+      ],
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "dataset-delete",
+        tableName: BatchExportTableName.Datasets,
+        cutoffCreatedAt: new Date("2024-01-02"),
+        query: {
+          filter: null,
+          orderBy: { column: "createdAt", order: "DESC" },
+          searchQuery: "match",
+          pathPrefix: "folder",
+        },
+        type: BatchActionType.Delete,
+      },
+    });
+
+    await expect(
+      prisma.dataset.findMany({
+        where: { projectId },
+        select: { name: true },
+        orderBy: { name: "asc" },
+      }),
+    ).resolves.toEqual([{ name: "folder/other" }, { name: "other/match" }]);
+  });
+
   it("should schedule only traces matching search query for deletion", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -320,46 +409,11 @@ describe("select all test suite", () => {
 
     await createTracesCh(traces);
 
-    const templateId = uuidv4();
-
-    await prisma.evalTemplate.create({
-      data: {
-        id: templateId,
-        projectId,
-        name: "test-template",
-        version: 1,
-        prompt: "Please evaluate toxicity {{input}} {{output}}",
-        model: "gpt-3.5-turbo",
-        provider: "openai",
-        modelParams: {},
-        outputDefinition: {
-          reasoning: "Please explain your reasoning",
-          score: "Please provide a score between 0 and 1",
-        },
-      },
-    });
-
     const configId = uuidv4();
-    await prisma.jobConfiguration.create({
-      data: {
-        id: configId,
-        projectId,
-        filter: [
-          {
-            type: "string",
-            value: "1",
-            column: "User ID",
-            operator: "contains",
-          },
-        ],
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: EvalTargetObject.TRACE,
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        evalTemplateId: templateId,
-      },
+    await createHistoricalEvaluationRule({
+      id: configId,
+      projectId,
+      targetObject: EvalTargetObject.TRACE,
     });
 
     const payload = {
@@ -517,46 +571,11 @@ describe("select all test suite", () => {
 
     await createDatasetRunItemsCh([datasetRunItem1, datasetRunItem2]);
 
-    const templateId = uuidv4();
-
-    await prisma.evalTemplate.create({
-      data: {
-        id: templateId,
-        projectId,
-        name: "test-template",
-        version: 1,
-        prompt: "Please evaluate toxicity {{input}} {{output}}",
-        model: "gpt-3.5-turbo",
-        provider: "openai",
-        modelParams: {},
-        outputDefinition: {
-          reasoning: "Please explain your reasoning",
-          score: "Please provide a score between 0 and 1",
-        },
-      },
-    });
-
     const configId = uuidv4();
-    await prisma.jobConfiguration.create({
-      data: {
-        id: configId,
-        projectId,
-        filter: [
-          {
-            type: "stringOptions" as const,
-            value: [dataset.id],
-            column: "Dataset",
-            operator: "any of" as const,
-          },
-        ],
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: EvalTargetObject.DATASET,
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        evalTemplateId: templateId,
-      },
+    await createHistoricalEvaluationRule({
+      id: configId,
+      projectId,
+      targetObject: EvalTargetObject.DATASET,
     });
 
     const payload = {
@@ -674,7 +693,69 @@ describe("select all test suite", () => {
     });
   });
 
-  it("should skip legacy eval-create for code eval templates", async () => {
+  it("should not schedule a legacy config after its migrated rule is gone", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const traceId = uuidv4();
+    await createTracesCh([
+      createTrace({
+        project_id: projectId,
+        id: traceId,
+        timestamp: new Date("2024-01-01").getTime(),
+      }),
+    ]);
+
+    const template = await prisma.evalTemplate.create({
+      data: {
+        projectId,
+        name: "legacy-template",
+        version: 1,
+        prompt: "{{input}}",
+        outputDefinition: { type: "numeric" },
+      },
+    });
+    const config = await prisma.jobConfiguration.create({
+      data: {
+        projectId,
+        filter: [],
+        jobType: "EVAL",
+        delay: 0,
+        sampling: new Decimal(1),
+        targetObject: EvalTargetObject.TRACE,
+        scoreName: "legacy-score",
+        variableMapping: [],
+        evalTemplateId: template.id,
+      },
+    });
+
+    const payload = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "eval-create" as const,
+        targetObject: EvalTargetObject.TRACE,
+        configId: config.id,
+        cutoffCreatedAt: new Date("2024-01-02"),
+        query: {
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+        },
+      },
+    };
+
+    await withIsolatedCreateEvalQueue(projectId, async (queue) => {
+      await handleBatchActionJob(payload, { evalCreatorQueue: queue });
+
+      const jobs = await waitForCreateEvalQueueJobs({
+        queue,
+        expectedLength: 0,
+      });
+      expect(jobs).toHaveLength(0);
+    });
+  });
+
+  it("should skip eval-create for code evaluators", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
     const traceId = uuidv4();
@@ -687,33 +768,12 @@ describe("select all test suite", () => {
       }),
     ]);
 
-    const templateId = uuidv4();
-    await prisma.evalTemplate.create({
-      data: {
-        id: templateId,
-        projectId,
-        name: "test-code-template",
-        version: 1,
-        type: EvalTemplateType.CODE,
-        sourceCode: "return { score: 1 };",
-        modelParams: {},
-      },
-    });
-
     const configId = uuidv4();
-    await prisma.jobConfiguration.create({
-      data: {
-        id: configId,
-        projectId,
-        filter: [],
-        jobType: "EVAL",
-        delay: 0,
-        sampling: new Decimal("1"),
-        targetObject: EvalTargetObject.TRACE,
-        scoreName: "score",
-        variableMapping: JSON.parse("[]"),
-        evalTemplateId: templateId,
-      },
+    await createHistoricalEvaluationRule({
+      id: configId,
+      projectId,
+      targetObject: EvalTargetObject.TRACE,
+      type: EvalTemplateType.CODE,
     });
 
     const payload = {
@@ -866,6 +926,85 @@ describe("select all test suite", () => {
 });
 
 maybeDescribe("events table batch actions", () => {
+  it("should add sessions to annotation queue from events table when useEventsTable is true", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const sessionId1 = uuidv4();
+    const sessionId2 = uuidv4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        { id: sessionId1, projectId },
+        { id: sessionId2, projectId },
+      ],
+    });
+
+    const now = Date.now() * 1000; // Events use microseconds
+
+    // Sessions exist only in the events table, so this fails if the
+    // useEventsTable flag is not passed through to the read stream.
+    const events = [
+      createEvent({
+        project_id: projectId,
+        trace_id: uuidv4(),
+        session_id: sessionId1,
+        type: "GENERATION",
+        start_time: now,
+        end_time: now + 1000000,
+      }),
+      createEvent({
+        project_id: projectId,
+        trace_id: uuidv4(),
+        session_id: sessionId2,
+        type: "GENERATION",
+        start_time: now,
+        end_time: now + 1000000,
+      }),
+    ];
+
+    await createEventsCh(events);
+
+    const queueId = uuidv4();
+    await prisma.annotationQueue.create({
+      data: {
+        id: queueId,
+        projectId,
+        name: "test-queue-events",
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "session-add-to-annotation-queue" as const,
+        tableName: BatchExportTableName.Sessions,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        targetId: queueId,
+        query: {
+          filter: [],
+          orderBy: { column: "createdAt", order: "DESC" },
+          useEventsTable: true,
+        },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const queueItems = await prisma.annotationQueueItem.findMany({
+      where: { queueId, projectId },
+    });
+
+    expect(queueItems).toHaveLength(2);
+    const objectIds = queueItems.map((item) => item.objectId);
+    expect(objectIds).toContain(sessionId1);
+    expect(objectIds).toContain(sessionId2);
+    expect(queueItems.every((item) => item.objectType === "SESSION")).toBe(
+      true,
+    );
+  });
+
   it("should add observations to dataset from events table with full mapping", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 

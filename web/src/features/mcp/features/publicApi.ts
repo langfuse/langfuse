@@ -41,7 +41,7 @@ export const getMcpPublicApiAuth = async (
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: [],
       isIngestionSuspended: false,
-      isInAppAgentKey: context.isInAppAgentKey === true,
+      isInAppAgentKey: context.inAppAgent !== undefined,
     },
   };
 };

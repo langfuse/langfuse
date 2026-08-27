@@ -1,13 +1,18 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
+  useEffect,
   type CSSProperties,
+  type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
   type RowHeight,
@@ -48,20 +53,58 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
+import {
+  type TableSelectionStoreLike,
+  useTableRowIsSelected,
+  useTableSelectAll,
+} from "@/src/components/table/table-selection-store";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
+  onScroll?: UIEventHandler<HTMLDivElement>;
   data: AsyncTableData<TData[]>;
+  /**
+   * A fetch is in flight while rows are already on screen (refresh, filter,
+   * page, sort). Renders a thin bar above the header instead of blanking the
+   * table: `data.isLoading` stays reserved for a genuine cold load.
+   */
+  isFetching?: boolean;
   pagination?: {
-    totalCount: number | null; // null if loading
+    totalCount: number | null; // null if loading or intentionally unknown
+    /**
+     * The exact count is still in flight while rows are already on screen (its
+     * query re-keys on a filter change one step behind the rows). Renders the
+     * page count as loading rather than as a result.
+     */
+    isTotalCountLoading?: boolean;
+    hasNextPage?: boolean;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
     hideTotalCount?: boolean;
     canJumpPages?: boolean;
+    /**
+     * Approximate row/entity count matching the active filters. Rendered near
+     * the pagination controls, but ONLY when the result set spans more than one
+     * page: a single (last) page shows the EXACT total derived from the loaded
+     * rows instead (no "≈"). Distinct from `totalCount` (which drives page-count
+     * math): a cheap estimate shown for context only. `null` while loading.
+     */
+    approxTotalCount?: number | null;
+    isApproxTotalCountLoading?: boolean;
+    /**
+     * True when the approximate count dropped non-native filters (score/comment/
+     * input-output/full-text search) and so over-counts vs the visible rows.
+     * The footer then marks the estimate partial-scope and drops the
+     * "within a few percent" tooltip.
+     */
+    approxTotalCountIsPartialScope?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
+  /** External selection store; row highlight/checkbox state reads from it instead of TanStack rowSelection */
+  selectionStore?: TableSelectionStoreLike;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
@@ -120,7 +163,7 @@ function isValidCssVariableName({
 const INTERACTIVE_ROW_CLICK_SELECTOR =
   "a, button, input, select, textarea, summary, [role='button'], [role='link']";
 
-export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
   if (!(target instanceof Element)) return false;
 
   return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
@@ -169,10 +212,13 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 export function DataTable<TData extends object, TValue>({
   columns,
+  onScroll,
   data,
+  isFetching = false,
   pagination,
   rowSelection,
   setRowSelection,
+  selectionStore,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
@@ -211,6 +257,45 @@ export function DataTable<TData extends object, TValue>({
 
   const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
+  // Releasing a column-resize drag fires a synthetic `click` on the underlying
+  // header (the resize handle is a child of <TableHead>), which would otherwise
+  // toggle the column sort. We stamp the resized column + time when a resize
+  // ends and ignore a header click only on that same column within a short
+  // window after it — so a deliberate sort click on a *different* header right
+  // after a resize is not dropped. The stamp is set from a document listener
+  // registered on resize start, so it fires before the click regardless of
+  // where the pointer is released.
+  const lastColumnResizeEndRef = useRef<{ columnId: string; at: number }>({
+    columnId: "",
+    at: 0,
+  });
+  // Removes the in-flight resize listener pair; cleared once it has run so we
+  // never leak listeners if the table unmounts mid-drag.
+  const activeResizeCleanupRef = useRef<(() => void) | null>(null);
+  const beginColumnResize = useCallback(
+    (columnId: string, handler: (event: unknown) => void) =>
+      (event: React.MouseEvent | React.TouchEvent) => {
+        handler(event);
+        // Drop any listener pair still attached from a prior resize.
+        activeResizeCleanupRef.current?.();
+        const onResizeEnd = () => {
+          lastColumnResizeEndRef.current = { columnId, at: Date.now() };
+          cleanup();
+        };
+        const cleanup = () => {
+          document.removeEventListener("mouseup", onResizeEnd);
+          document.removeEventListener("touchend", onResizeEnd);
+          activeResizeCleanupRef.current = null;
+        };
+        activeResizeCleanupRef.current = cleanup;
+        document.addEventListener("mouseup", onResizeEnd);
+        document.addEventListener("touchend", onResizeEnd);
+      },
+    [],
+  );
+  // Detach any in-flight resize listeners if the table unmounts mid-drag.
+  useEffect(() => () => activeResizeCleanupRef.current?.(), []);
+
   // Infer column pinning state from column properties
   const columnPinning = useMemo<ColumnPinningState>(
     () => ({
@@ -222,6 +307,34 @@ export function DataTable<TData extends object, TValue>({
     [columns],
   );
 
+  // Some high-volume tables intentionally skip an exact count query and only
+  // return whether the current page has a next page. TanStack still needs a
+  // synthetic pageCount to enable/disable navigation and to reuse its generic
+  // out-of-range page reset behavior.
+  const paginationPageCount = (() => {
+    if (!pagination || pagination.state.pageSize === undefined) {
+      return -1;
+    }
+    if (pagination.totalCount !== null) {
+      return Math.ceil(
+        Number(pagination.totalCount) / pagination.state.pageSize,
+      );
+    }
+    if (typeof pagination.hasNextPage !== "boolean") {
+      return -1;
+    }
+    if (
+      !data.isLoading &&
+      !data.isError &&
+      (data.data?.length ?? 0) === 0 &&
+      pagination.state.pageIndex > 0 &&
+      !pagination.hasNextPage
+    ) {
+      return pagination.state.pageIndex;
+    }
+    return pagination.state.pageIndex + (pagination.hasNextPage ? 2 : 1);
+  })();
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -230,22 +343,15 @@ export function DataTable<TData extends object, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
-    pageCount:
-      pagination?.totalCount === null ||
-      pagination?.state.pageSize === undefined
-        ? -1
-        : Math.ceil(
-            Number(pagination?.totalCount) / pagination?.state.pageSize,
-          ),
+    pageCount: paginationPageCount,
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: onColumnVisibilityChange,
     getRowId: (row, index) => {
       if ("id" in row && typeof row.id === "string") {
         return row.id;
-      } else {
-        return index.toString();
       }
+      return index.toString();
     },
     state: {
       columnFilters,
@@ -308,6 +414,11 @@ export function DataTable<TData extends object, TValue>({
     columnVisibility,
   ]);
 
+  // Held for whole sweeps of the bar's animation: a 200ms refetch would
+  // otherwise flash a single frame.
+  // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
+  const refetchBar = useAnimatedBusy(isFetching, REFETCH_SWEEP_MS);
+
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
@@ -321,9 +432,26 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className={cn("relative min-h-full w-full overflow-auto border-t")}
+          // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
+          // last column's resize handle is never flush against the scrollbar/edge and
+          // always has some cursor room. Partial mitigation for LFE-10460: a maximized
+          // browser still clamps the cursor at the screen edge, so this guarantees room
+          // to the right, not a complete fix.
+          className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
+          onScroll={onScroll}
         >
+          {/* Zero-height so an arriving refetch never shifts the table. Sticky on
+              BOTH axes: this box is only as wide as the visible area, so without
+              `left-0` it scrolls out of view on a table wider than the viewport.
+              Keyed per busy period, not per fetch: one sweep from the left per
+              refresh, and no restart between a refresh's stages. */}
+          <div className="sticky top-0 left-0 z-30 h-0">
+            <TableRefetchBar
+              key={refetchBar.epoch}
+              active={refetchBar.active && !data.isLoading}
+            />
+          </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
@@ -334,12 +462,14 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = isValidCssVariableName({
-                      name: header.id,
-                      includesHyphens: false,
-                    })
-                      ? `calc(var(--header-${header.id}-size) * 1px)`
-                      : 150;
+                    const width = columnDef.isFlexWidth
+                      ? "auto"
+                      : isValidCssVariableName({
+                            name: header.id,
+                            includesHyphens: false,
+                          })
+                        ? `calc(var(--header-${header.id}-size) * 1px)`
+                        : 150;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -350,11 +480,22 @@ export function DataTable<TData extends object, TValue>({
                           getPinningClasses(header.column),
                         )}
                         style={{
-                          width,
                           ...getCommonPinningStyles(header.column),
+                          width,
                         }}
                         onClick={(event) => {
                           event.preventDefault();
+
+                          // Ignore the click synthesized when this column's own
+                          // resize drag is released over its header (other
+                          // headers stay clickable during that window).
+                          const lastResize = lastColumnResizeEndRef.current;
+                          if (
+                            lastResize.columnId === header.column.id &&
+                            Date.now() - lastResize.at < 250
+                          ) {
+                            return;
+                          }
 
                           if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
@@ -391,7 +532,15 @@ export function DataTable<TData extends object, TValue>({
                       >
                         {header.isPlaceholder ? null : (
                           <div className="flex items-center select-none">
-                            <span className="truncate">
+                            <span
+                              className="truncate leading-normal"
+                              title={getPlainTextFromReactNode(
+                                flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                ),
+                              )}
+                            >
                               {flexRender(
                                 header.column.columnDef.header,
                                 header.getContext(),
@@ -405,7 +554,7 @@ export function DataTable<TData extends object, TValue>({
                                 href={columnDef.headerTooltip.href}
                               />
                             )}
-                            {orderBy?.column === columnDef.id
+                            {sortingEnabled && orderBy?.column === columnDef.id
                               ? renderOrderingIndicator(orderBy)
                               : null}
 
@@ -415,8 +564,14 @@ export function DataTable<TData extends object, TValue>({
                                 e.stopPropagation();
                               }}
                               onDoubleClick={() => header.column.resetSize()}
-                              onMouseDown={header.getResizeHandler()}
-                              onTouchStart={header.getResizeHandler()}
+                              onMouseDown={beginColumnResize(
+                                header.column.id,
+                                header.getResizeHandler(),
+                              )}
+                              onTouchStart={beginColumnResize(
+                                header.column.id,
+                                header.getResizeHandler(),
+                              )}
                               className={cn(
                                 "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
@@ -444,6 +599,7 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
+                selectionStore={selectionStore}
                 topAlignCells={topAlignCells}
                 cellPadding={cellPadding}
                 tableSnapshot={{
@@ -464,6 +620,7 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
+                selectionStore={selectionStore}
                 topAlignCells={topAlignCells}
                 cellPadding={cellPadding}
               />
@@ -472,17 +629,21 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div
-          className={cn(
-            "bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium",
-          )}
-        >
+        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
-            isLoading={data.isLoading}
+            isLoading={
+              data.isLoading || (pagination.isTotalCountLoading ?? false)
+            }
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}
+            approxTotalCount={pagination.approxTotalCount}
+            isApproxTotalCountLoading={pagination.isApproxTotalCountLoading}
+            approxTotalCountIsPartialScope={
+              pagination.approxTotalCountIsPartialScope
+            }
+            hasNextPage={pagination.hasNextPage}
           />
         </div>
       ) : null}
@@ -490,15 +651,77 @@ export function DataTable<TData extends object, TValue>({
   );
 }
 
+/**
+ * One sweep of the refetch bar. The single source of truth for the cycle: it is
+ * handed to the CSS animation as `--table-refetch-cycle` (see
+ * `--animate-table-refetch` in globals.css, which reads it with a fallback), and
+ * to `useAnimatedBusy` so the busy flag is only released on a whole sweep.
+ */
+const REFETCH_SWEEP_MS = 1400;
+
+/**
+ * The thin bar shown while a fetch runs over rows that are already on screen.
+ * Both edges are soft: the sweep is already running when the bar fades in (a
+ * one-shot fade rides on the sweep animation), and on the way out it fades
+ * first and only stops animating once that fade has finished. Mounted once per
+ * busy period — the caller keys it — so the sweep always starts from the left,
+ * and it never leaves an animation running behind an invisible bar.
+ */
+function TableRefetchBar({ active }: { active: boolean }) {
+  // The sweep runs only while the bar is on screen, plus the fade-out it has to
+  // survive. A bar that mounts idle — every table that passes no `isFetching`,
+  // and any table whose first render has nothing in flight — must never start it,
+  // and one that has faded out must stop. But `active` can also turn on within a
+  // single mount (a cold load holds it off until the skeletons go), so this
+  // cannot simply latch on the first render.
+  const [everActive, setEverActive] = useState(active);
+  const [fadedOut, setFadedOut] = useState(false);
+
+  if (active && !everActive) setEverActive(true);
+
+  const paused = !active && (!everActive || fadedOut);
+
+  return (
+    // Clipped track: the highlight sweeps out of view at both ends, and
+    // overflow-hidden keeps that from growing the table's scroll width. The fade
+    // uses an arbitrary transition, not `duration-*` — that utility sets
+    // --tw-duration, which `animate-*` reads as its animation-duration too, and
+    // turned the sweep into a strobe.
+    <div
+      aria-hidden="true"
+      onTransitionEnd={(event) => {
+        if (event.propertyName === "opacity" && !active) setFadedOut(true);
+      }}
+      className={cn(
+        "animate-table-refetch-in absolute inset-x-0 top-0 h-0.5 overflow-hidden [transition:opacity_200ms_ease-out]",
+        active ? "opacity-100" : "opacity-0",
+      )}
+    >
+      {/* Faint track, so the bar reads as one continuous element rather than a
+          highlight flashing in and out of nothing. Its own element: `cn` folds
+          two `bg-*` utilities into one and would drop it. */}
+      <div className="bg-primary-accent/20 absolute inset-0" />
+      <div
+        style={
+          { "--table-refetch-cycle": `${REFETCH_SWEEP_MS}ms` } as CSSProperties
+        }
+        className={cn(
+          "animate-table-refetch from-primary-accent/0 via-primary-accent to-primary-accent/0 absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r",
+          paused && "[animation-play-state:paused]",
+        )}
+      />
+    </div>
+  );
+}
+
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
-  else
-    return (
-      <span className="ml-1" title="Sort by this column">
-        ▼
-      </span>
-    );
+  return (
+    <span className="ml-1" title="Sort by this column">
+      ▼
+    </span>
+  );
 }
 
 interface TableBodyComponentProps<TData> {
@@ -512,6 +735,7 @@ interface TableBodyComponentProps<TData> {
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
+  selectionStore?: TableSelectionStoreLike;
   topAlignCells?: boolean;
   cellPadding?: DataTableCellPadding;
   /** Used for React.memo comparison only */
@@ -527,16 +751,27 @@ function TableRowComponent<TData>({
   onRowClick,
   getRowClassName,
   highlightAllRows = false,
+  selectionStore,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
+  selectionStore?: TableSelectionStoreLike;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+  const rowIsSelected = useTableRowIsSelected(
+    selectionStore,
+    row.id,
+    row.getIsSelected(),
+  );
+  const shouldHighlightAllRows = useTableSelectAll(
+    selectionStore,
+    highlightAllRows,
+  );
 
   return (
     <TableRow
@@ -554,7 +789,7 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (row.getIsSelected() || highlightAllRows) &&
+        (rowIsSelected || shouldHighlightAllRows) &&
           "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
           ? "bg-muted/40 dark:bg-muted"
@@ -578,14 +813,17 @@ function TableBodyComponent<TData>({
   onRowClick,
   getRowClassName,
   highlightAllRows,
+  selectionStore,
   topAlignCells = false,
   cellPadding = "compact",
   tableSnapshot: _tableSnapshot,
 }: TableBodyComponentProps<TData>) {
   const visibleColumns = table.getVisibleLeafColumns();
+  const rowModelRows = table.getRowModel().rows;
+  const tableState = table.getState();
   const skeletonRowCount = Math.max(
     1,
-    Math.min(table.getState().pagination?.pageSize ?? 8, 8),
+    Math.min(tableState.pagination?.pageSize ?? 8, 8),
   );
 
   return (
@@ -608,8 +846,10 @@ function TableBodyComponent<TData>({
                     getPinningClasses(column),
                   )}
                   style={{
-                    width: `calc(var(--col-${column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${column.id}-size) * 1px)`,
                   }}
                 >
                   <div
@@ -651,14 +891,15 @@ function TableBodyComponent<TData>({
             })}
           </TableRow>
         ))
-      ) : table.getRowModel().rows.length ? (
-        table.getRowModel().rows.map((row) => (
+      ) : rowModelRows.length ? (
+        rowModelRows.map((row) => (
           <TableRowComponent
             key={row.id}
             row={row}
             onRowClick={onRowClick}
             getRowClassName={getRowClassName}
             highlightAllRows={highlightAllRows}
+            selectionStore={selectionStore}
           >
             {row.getVisibleCells().map((cell) => {
               const cellValue = cell.getValue();
@@ -679,8 +920,10 @@ function TableBodyComponent<TData>({
                     getPinningClasses(cell.column),
                   )}
                   style={{
-                    width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(cell.column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
                   }}
                 >
                   <div
@@ -694,7 +937,15 @@ function TableBodyComponent<TData>({
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate leading-none">
+                      <div
+                        className="min-w-0 truncate leading-normal"
+                        title={getPlainTextFromReactNode(
+                          flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          ),
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -767,6 +1018,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
   if (prev.highlightAllRows !== next.highlightAllRows) return false;
+  if (prev.selectionStore !== next.selectionStore) return false;
   if (prev.cellPadding !== next.cellPadding) return false;
 
   // Then do more expensive deep equality checks

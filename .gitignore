@@ -92,7 +92,6 @@ web/test-results/*
 .claude/skills/
 .claude/launch.json
 .cursor/mcp.json
-.cursor/environment.json
 .vscode/mcp.json
 .codex/config.toml
 .codex/environments/environment.toml
@@ -102,6 +101,7 @@ web/test-results/*
 
 # claude meta files
 .claude/tsc-cache
+.claude/worktrees
 
 # Refactoring planning files (local only)
 **/.refactor/

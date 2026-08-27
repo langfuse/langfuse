@@ -3,9 +3,11 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
-import { RetryBackgroundMigration } from "@/src/features/background-migrations/components/retry-background-migration";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { RetryBackgroundMigrationPopoverController } from "@/src/features/background-migrations/components/retry-background-migration";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import Page from "@/src/components/layouts/page";
+import { Button } from "@/src/components/ui/button";
+import { RotateCcw } from "lucide-react";
 
 export default function BackgroundMigrationsTable() {
   const backgroundMigrations = api.backgroundMigrations.all.useQuery();
@@ -38,18 +40,18 @@ export default function BackgroundMigrationsTable() {
       cell: (row) => {
         const failedAt = row.row.original.failedAt;
         if (failedAt) {
-          return <StatusBadge type={"failed"} className="capitalize" />;
+          return <StatusBadge type="failed" />;
         }
         const finishedAt = row.row.original.finishedAt;
         if (finishedAt) {
-          return <StatusBadge type={"finished"} className="capitalize" />;
+          return <StatusBadge type="finished" />;
         }
         const workerId = row.row.original.workerId;
         if (workerId) {
-          return <StatusBadge type={"active"} className="capitalize" />;
+          return <StatusBadge type="active" />;
         }
 
-        return <StatusBadge type={"queued"} className="capitalize" />;
+        return <StatusBadge type="queued" />;
       },
     },
     {
@@ -73,10 +75,18 @@ export default function BackgroundMigrationsTable() {
         const name = row.row.original.name;
         const isRetryable = row.row.original.failedAt !== null;
         return (
-          <RetryBackgroundMigration
+          <RetryBackgroundMigrationPopoverController
             backgroundMigrationName={name}
             isRetryable={isRetryable}
-          />
+          >
+            {({ disabled, Trigger }) => (
+              <Trigger asChild>
+                <Button variant="ghost" size="xs" disabled={disabled}>
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </Trigger>
+            )}
+          </RetryBackgroundMigrationPopoverController>
         );
       },
     },
@@ -90,7 +100,7 @@ export default function BackgroundMigrationsTable() {
     >
       <DataTableToolbar columns={columns} />
       <DataTable
-        tableName={"backgroundMigrations"}
+        tableName="backgroundMigrations"
         columns={columns}
         data={
           backgroundMigrations.isPending

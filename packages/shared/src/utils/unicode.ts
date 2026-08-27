@@ -25,7 +25,7 @@ const LOW_SURROGATE_END = 0xdfff;
  */
 export function decodeUnicodeEscapesOnly(
   input: string,
-  greedy: boolean = false,
+  greedy = false,
 ): string {
   if (input.indexOf("\\") === -1) return input;
 
