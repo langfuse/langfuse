@@ -9,11 +9,6 @@ import { type AnnotationQueueStatus } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -37,6 +32,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItemIds,
@@ -320,40 +316,23 @@ export function AnnotationQueueItemsTable({
       enableHiding: true,
       size: 60,
     },
-    {
+    createUserTableColumn<QueueItemRowData, QueueItemRowData["annotatorUser"]>({
       accessorKey: "annotatorUser",
       header: "Completed by",
-      id: "annotatorUser",
       enableHiding: true,
       size: 80,
-      cell: ({ row }) => {
-        const annotatorUser: QueueItemRowData["annotatorUser"] =
-          row.getValue("annotatorUser");
-        if (!annotatorUser || !annotatorUser.userId) return null;
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (annotatorUser) => {
+        if (!annotatorUser || !annotatorUser.userId) return undefined;
 
         const { userId, userName, image } = annotatorUser;
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={userName ?? "User Avatar"}
-              />
-              <AvatarFallback>
-                {userName
-                  ? userName
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null}
-              </AvatarFallback>
-            </Avatar>
-            <span>{userName ?? userId}</span>
-          </div>
-        );
+        return {
+          type: "user",
+          user: { id: userId, name: userName, image },
+        };
       },
-    },
+    }),
   ];
 
   const convertToTableRow = (
