@@ -1209,6 +1209,8 @@ export default function ObservationsTable({
       "traceId",
       "startTime",
     ],
+    tableName: observationsFilterConfig.tableName,
+    isV4: false,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
       traceId: row.traceId || "",

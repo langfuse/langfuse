@@ -3,7 +3,7 @@ name: posthog-instrumentation
 description: |
   Product analytics with posthog.
   Use when adding a meaningful user action or feature in `web/**`, touching PostHog capture code,
-  or answering product-usage questions.
+  changing session replay or its privacy boundaries, or answering product-usage questions.
 ---
 
 # PostHog Instrumentation
@@ -118,6 +118,52 @@ should emit an event — do not skip the question silently.
    / search text / prompt / id appears.** A green typecheck ≠ correct
    analytics; the dimension-populated and privacy checks catch the real bugs.
 
+## Session replay privacy
+
+Treat session replay as a separate data-export surface from analytics events.
+Apply these rules when changing `posthog.init`, replay configuration, or a UI
+renderer that can display customer-controlled data:
+
+1. **Allowlist eligible deployments.** Keep replay disabled by default and
+   enable it only in explicitly approved hosted regions. A configured PostHog
+   key is not proof that a deployment is eligible. In Langfuse, replay remains
+   disabled when the cloud region is absent and in the HIPAA region; cover an
+   eligible region, HIPAA, and no cloud region in config tests.
+2. **Classify by data provenance, not HTML element.** Customer-controlled data
+   includes trace/observation payloads, dataset items, prompts, generated
+   output, evaluator/code input, identifiers, comments, names, tags, metadata,
+   schemas, provider options, media previews/URLs, and values copied into
+   `title`, `aria-*`, or other attributes. Ordinary rendered text can be as
+   sensitive as an `<input>` value.
+3. **Protect the shared render boundary.** Prefer `ph-no-capture` on the
+   smallest shared component or renderer that owns a sensitive value. Block
+   the complete subtree so text, attributes, nested media, and later view-mode
+   changes inherit the protection. Keep native input masking and a
+   `contenteditable` selector as backstops, not the primary policy.
+4. **Follow actual DOM topology.** Audit read-only, edit, history, diff,
+   loading, empty, virtualized, hover, and dialog variants. Portaled content is
+   outside a blocked trigger's subtree and needs its own protection. Custom
+   editors and syntax highlighters are not covered merely because they behave
+   like inputs.
+5. **Redact non-DOM channels.** Never record request/response bodies, console
+   payloads, or custom replay events containing customer content. Keep network
+   body redaction even when the visible DOM is blocked.
+6. **Prove the emitted replay, not only the JSX.** Add config contract tests
+   for deployment gating and focused component tests for blocking boundaries.
+   For meaningful masking changes, run the installed recorder in a browser
+   with unique sentinels in ordinary text, native inputs, custom editors,
+   blocked subtrees, attributes, and portals; inspect emitted replay events and
+   prove sensitive sentinels are absent while intended UI text remains.
+
+Before implementation, write a one-paragraph data-boundary plan: what remains
+visible, what must never leave the browser, which deployment classes are
+eligible, and which shared renderers enforce it. If that boundary includes
+customer-controlled content, get an explicit product/legal decision rather
+than inferring consent from existing analytics. Also run the
+[`security-review`](../security-review/SKILL.md) skill and its
+[`client-telemetry-privacy.md`](../security-review/references/client-telemetry-privacy.md)
+checklist.
+
 ## Workflow
 
 1. **Tracking plan first (tiny).** Write the question(s) → the events + props
@@ -130,6 +176,9 @@ should emit an event — do not skip the question silently.
 5. **PR** with the taxonomy table + an explicit "metadata-only, no raw values"
    note. Fix any pre-existing leaks you pass.
 
+For replay-only changes, use the session-replay data-boundary plan and recorder
+probe above instead of inventing an analytics event or taxonomy entry.
+
 ## Anti-patterns
 
 - Raw values / PII in props (Rule 1).
@@ -141,6 +190,9 @@ should emit an event — do not skip the question silently.
   spaces or rename existing events.
 - Raw `posthog.capture` in a component instead of the typed hook.
 - Trusting a typecheck as verification (Rule 6).
+- Assuming `maskAllInputs` covers rendered text, custom editors, attributes,
+  or portals.
+- Enabling replay wherever PostHog credentials happen to be configured.
 
 ## References
 

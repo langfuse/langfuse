@@ -49,6 +49,12 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
+export type ColumnGroupTogglePayload = {
+  groupId: string;
+  enabledCount: number;
+  totalCount: number;
+};
+
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
@@ -56,6 +62,9 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  tableName?: string;
+  isV4?: boolean;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -300,6 +309,9 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  tableName = "unknown",
+  isV4 = false,
+  onColumnGroupToggle,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -331,13 +343,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         );
         capture("table:column_visibility_changed", {
           selectedColumns: selectedColumns,
+          tableName,
+          isV4,
         });
         return newColumnVisibility;
       });
     },
     // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility, columnVisibility],
+    [setColumnVisibility, columnVisibility, tableName, isV4],
   );
 
   const toggleAllColumns = useCallback(
@@ -490,11 +504,18 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                               column.header &&
                               typeof column.header === "string"
                             ) {
+                              const enabling =
+                                groupVisibleCount !== groupTotalCount;
                               toggleAllColumns(
                                 groupVisibleCount,
                                 groupTotalCount,
                                 column.header,
                               );
+                              onColumnGroupToggle?.({
+                                groupId: column.accessorKey,
+                                enabledCount: enabling ? groupTotalCount : 0,
+                                totalCount: groupTotalCount,
+                              });
                             }
                           }}
                         >

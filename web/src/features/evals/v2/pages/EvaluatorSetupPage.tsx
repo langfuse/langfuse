@@ -234,6 +234,8 @@ export function EvaluatorSetupPage(
   );
   const sampleTracePeekNavigation = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evaluators-v2",
+    isV4: true,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       reader: "trace",

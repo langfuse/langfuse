@@ -21,6 +21,7 @@ describe("PromptVariableEditor", () => {
 
     const preview = container.querySelector("pre");
     expect(preview).toHaveClass(
+      "ph-no-capture",
       "bg-muted/50",
       "px-3",
       "py-2",

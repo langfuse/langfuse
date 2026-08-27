@@ -2,7 +2,11 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { api } from "@/src/utils/api";
 
 type UseExperimentNamesResponse = {
-  experimentNames: { experimentId: string; experimentName: string }[];
+  experimentNames: {
+    experimentId: string;
+    experimentName: string;
+    datasetId: string | null;
+  }[];
   isLoading: boolean;
 };
 
