@@ -72,7 +72,7 @@ export default function Dataset() {
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evaluationExecution:read",
+    scope: "evalJobExecution:read",
   });
 
   const hasExperimentWriteAccess = useHasProjectAccess({

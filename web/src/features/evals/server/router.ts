@@ -1177,7 +1177,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evaluationExecution:read",
+        scope: "evalJobExecution:read",
       });
 
       // Strip deprecated filters — these columns were removed from the UI
@@ -1308,7 +1308,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evaluationExecution:read",
+        scope: "evalJobExecution:read",
       });
 
       if (input.evaluatorIds.length === 0) {
@@ -1363,7 +1363,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evaluationExecution:read",
+        scope: "evalJobExecution:read",
       });
 
       const costs: Array<{ id: string; totalCost: number }> =
@@ -1399,7 +1399,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evaluationExecution:read",
+        scope: "evalJobExecution:read",
       });
 
       const costs =

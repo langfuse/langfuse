@@ -126,7 +126,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evaluationExecution:read",
+        scope: "evalJobExecution:read",
       });
       return serviceForContext(ctx).listRecent({
         ...input,
@@ -140,7 +140,7 @@ export const evaluatorRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: ctx.session.projectId,
-        scope: "evaluationExecution:read",
+        scope: "evalJobExecution:read",
       });
       return serviceForContext(ctx).getTotalCosts({
         ...input,

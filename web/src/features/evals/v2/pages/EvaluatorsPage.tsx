@@ -257,7 +257,7 @@ export default function EvaluatorsPage() {
     filterState.length === 0;
   const hasExecutionReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evaluationExecution:read",
+    scope: "evalJobExecution:read",
   });
   const defaultModelConnection = projectDefaultModel.connections.find(
     ({ provider }) => provider === projectDefaultModel.defaultModel?.provider,
