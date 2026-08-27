@@ -6,7 +6,10 @@ import {
 } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { normalizeClickHouseQueryTags } from "../clickhouse/queryTags";
+import {
+  CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
+  normalizeClickHouseQueryTags,
+} from "../clickhouse/queryTags";
 import { contextWithLangfuseProps } from "../headerPropagation";
 import { addUserToSpan, instrumentAsync, instrumentSync } from ".";
 
@@ -89,6 +92,45 @@ describe("instrumentation baggage propagation", () => {
       userAgent: "Codex CLI/1.2.3",
     });
     expect(tags).not.toHaveProperty("apiKeyId");
+  });
+
+  it("rejects public API caller attribution inherited from inbound baggage", () => {
+    const inboundContext = propagation.setBaggage(
+      ROOT_CONTEXT,
+      propagation.createBaggage({
+        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkName]: { value: "python" },
+        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkVersion]: {
+          value: "attacker-controlled-version",
+        },
+        [CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.userAgent]: {
+          value: "attacker-controlled-user-agent",
+        },
+      }),
+    );
+
+    const tags = context.with(inboundContext, () => {
+      const publicApiContext = contextWithLangfuseProps({
+        headers: {},
+        projectId: "project-1",
+        clickhouse: {
+          surface: "publicapi",
+          route: "GET /api/public/traces",
+        },
+      });
+
+      return context.with(publicApiContext, () =>
+        normalizeClickHouseQueryTags(),
+      );
+    });
+
+    expect(tags).toMatchObject({
+      surface: "publicapi",
+      route: "GET /api/public/traces",
+      projectId: "project-1",
+    });
+    expect(tags).not.toHaveProperty("sdkName");
+    expect(tags).not.toHaveProperty("sdkVersion");
+    expect(tags).not.toHaveProperty("userAgent");
   });
 
   it("does not add user emails to span attributes or baggage", () => {

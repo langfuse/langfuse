@@ -31,6 +31,16 @@ export const contextWithLangfuseProps = (
     opentelemetry.propagation.getBaggage(ctx) ??
     opentelemetry.propagation.createBaggage();
 
+  if (props.clickhouse?.surface === "publicapi") {
+    [
+      CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkName,
+      CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkVersion,
+      CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.userAgent,
+    ].forEach((key) => {
+      baggage = baggage.removeEntry(key);
+    });
+  }
+
   if (props.headers) {
     (env.LANGFUSE_LOG_PROPAGATED_HEADERS as string[]).forEach((name) => {
       const value = props.headers![name];
