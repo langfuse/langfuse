@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { IO_TABLE_CHAR_LIMIT } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 vi.mock("next/router", () => ({
@@ -191,5 +192,72 @@ describe("IOTableCell media chip rendering", () => {
     });
 
     expect(container.textContent).toContain("truncated");
+  });
+
+  // Regression: single-line cells previously rendered the full stringified
+  // JSON into the DOM and the native `title` tooltip with no length cap, so a
+  // grid of rows carrying a Gemini `thought_signature` or a base64 image URL
+  // in Input/Output stalled the page (issue #9933). The multi-line path was
+  // already capped at IO_TABLE_CHAR_LIMIT — the single-line path must match.
+  it("single-line: long content is truncated in the DOM", () => {
+    const { container } = renderCell({
+      data: "x".repeat(50_000),
+      singleLine: true,
+    });
+
+    // Pin the exact drop count so off-by-one drift in the slice/subtract
+    // arithmetic surfaces here, not silently under a loose upper bound.
+    expect(container.textContent).toContain("truncated 40000 characters");
+    expect(container.textContent?.length ?? 0).toBeLessThanOrEqual(
+      IO_TABLE_CHAR_LIMIT + 100,
+    );
+  });
+
+  it("single-line: long content is truncated in the title tooltip", () => {
+    const { container } = renderCell({
+      data: "x".repeat(50_000),
+      singleLine: true,
+    });
+
+    const title = container.querySelector("[title]")?.getAttribute("title");
+    expect(title).toContain("truncated 40000 characters");
+    expect((title ?? "").length).toBeLessThanOrEqual(IO_TABLE_CHAR_LIMIT + 100);
+  });
+
+  // Place a valid media ref so its opener sits inside the cap but its closer
+  // sits past it. The naive slice would leak "@@@langfuseMedia:…" as literal
+  // text where a chip is unreachable; the boundary snap drops the dangling
+  // opener so the preview never shows a half-reference.
+  it("single-line: truncation backs off before a dangling media reference", () => {
+    const prefixLen = IO_TABLE_CHAR_LIMIT - 30;
+    const data = "x".repeat(prefixLen) + MEDIA_REF + "y".repeat(200);
+    const { container } = renderCell({ data, singleLine: true });
+
+    expect(container.textContent ?? "").not.toContain("@@@langfuseMedia:");
+    expect(container.textContent).toContain("truncated");
+  });
+
+  // Slice cuts *inside* the 17-char "@@@langfuseMedia:" opener, so the full
+  // opener isn't even present in the naive slice — the partial-opener trim
+  // must still strip the trailing "@@@langfuseMed" so no "@@@" leaks.
+  it("single-line: truncation trims a partial media-ref opener suffix", () => {
+    const prefixLen = IO_TABLE_CHAR_LIMIT - 10;
+    const data = "x".repeat(prefixLen) + MEDIA_REF + "y".repeat(200);
+    const { container } = renderCell({ data, singleLine: true });
+
+    expect(container.textContent ?? "").not.toContain("@@@");
+    expect(container.textContent).toContain("truncated");
+  });
+
+  // Once the full-opener guard has trimmed to before a dangling ref, the
+  // partial-opener guard must not run — otherwise a stray `@` on adjacent
+  // safe content (e.g. "email@" preceding the ref) would also be dropped.
+  it("single-line: preserves trailing '@' on safe content next to a dangling ref", () => {
+    const prefix = "x".repeat(IO_TABLE_CHAR_LIMIT - 40) + "email@";
+    const data = prefix + MEDIA_REF + "y".repeat(200);
+    const { container } = renderCell({ data, singleLine: true });
+
+    expect(container.textContent ?? "").toContain("email@");
+    expect(container.textContent ?? "").not.toContain("@@@");
   });
 });
