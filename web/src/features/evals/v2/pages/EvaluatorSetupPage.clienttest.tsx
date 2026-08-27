@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+
+import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import {
   applyEvaluatorSuggestion,
   getEvaluatorVersionDefinition,
+  restoreEvaluatorVersion,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
 
@@ -56,6 +59,43 @@ describe("getEvaluatorVersionDefinition", () => {
       vars: ["output"],
       outputDefinition,
     });
+  });
+});
+
+describe("restoreEvaluatorVersion", () => {
+  it("clears stale test state after loading the saved definition", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const resetTestState = vi.fn();
+
+    restoreEvaluatorVersion({
+      store,
+      version: {
+        id: "version-1",
+        version: 1,
+        createdAt: new Date(),
+        createdByUser: null,
+        type: "CODE",
+        sourceCode: "return { score: 1 };",
+        sourceCodeLanguage: "TYPESCRIPT",
+        prompt: null,
+        provider: null,
+        model: null,
+        modelParams: null,
+        vars: [],
+        variableMapping: null,
+        outputDefinition: null,
+      },
+      resetTestState,
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "CODE",
+      sourceCode: "return { score: 1 };",
+    });
+    expect(resetTestState).toHaveBeenCalledOnce();
   });
 });
 

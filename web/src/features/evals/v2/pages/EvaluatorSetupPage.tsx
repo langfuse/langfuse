@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
@@ -35,7 +35,10 @@ import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import {
+  createEvaluatorSetupStore,
+  type EvaluatorSetupStore,
+} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorRuleRelationships } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
 import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
@@ -111,6 +114,21 @@ export function getEvaluatorVersionDefinition(
   };
 }
 
+export function restoreEvaluatorVersion({
+  store,
+  version,
+  resetTestState,
+}: {
+  store: EvaluatorSetupStore;
+  version: EvaluatorVersion;
+  resetTestState: () => void;
+}) {
+  store
+    .getState()
+    .actions.applyDefinition(getEvaluatorVersionDefinition(version));
+  resetTestState();
+}
+
 export function EvaluatorSetupPage(
   props:
     | {
@@ -145,14 +163,24 @@ export function EvaluatorSetupPage(
     projectId,
     scope: "evalTemplate:CUD",
   });
+  const projectDefaultModel = useProjectDefaultModel({
+    projectId,
+    source: "editor",
+  });
   const [evaluatorSetupStore] = useState(() =>
     createEvaluatorSetupStore({
       initialEvaluator: initialEvaluator ?? initialDraft,
       initialSampleFilter: initialEvaluator?.sampleFilter,
       initialType: props.mode === "create" ? props.initialType : undefined,
+      defaultModel: projectDefaultModel.defaultModel,
       mode: props.mode,
     }),
   );
+  useEffect(() => {
+    evaluatorSetupStore
+      .getState()
+      .actions.setDefaultModel(projectDefaultModel.defaultModel);
+  }, [evaluatorSetupStore, projectDefaultModel.defaultModel]);
   const codeDraft = useStore(
     evaluatorSetupStore,
     useShallow((state) => ({
@@ -176,14 +204,6 @@ export function EvaluatorSetupPage(
   const testPanelOpen = useStore(
     evaluatorSetupStore,
     (state) => state.testPanelOpen,
-  );
-  const judgeModelSelection = useStore(
-    evaluatorSetupStore,
-    useShallow((state) => ({
-      type: state.type,
-      mode: state.modelMode,
-      selectedModel: state.selectedModel,
-    })),
   );
   const [testResult, setTestResult] = useState<unknown>(null);
   const [hasCompletedTestCall, setHasCompletedTestCall] = useState(false);
@@ -253,18 +273,6 @@ export function EvaluatorSetupPage(
     outputDefinition: version.outputDefinition,
     createdByUser: version.createdByUser,
   }));
-
-  const projectDefaultModel = useProjectDefaultModel({
-    projectId,
-    source: "editor",
-  });
-  const hasValidModel =
-    judgeModelSelection.type !== "LLM_AS_JUDGE" ||
-    Boolean(
-      judgeModelSelection.mode === "custom"
-        ? judgeModelSelection.selectedModel
-        : projectDefaultModel.defaultModel,
-    );
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
@@ -615,7 +623,6 @@ export function EvaluatorSetupPage(
     <EvaluatorTestPanelContainer
       projectId={projectId}
       store={evaluatorSetupStore}
-      hasValidModel={hasValidModel}
       sampleSelector={
         <SampleObservationSelectorContainer
           store={evaluatorSetupStore}
@@ -771,9 +778,16 @@ export function EvaluatorSetupPage(
             });
           }}
           onRestoreVersion={(version) => {
-            evaluatorSetupStore
-              .getState()
-              .actions.applyDefinition(getEvaluatorVersionDefinition(version));
+            restoreEvaluatorVersion({
+              store: evaluatorSetupStore,
+              version,
+              resetTestState: () => {
+                setTestResult(null);
+                setHasCompletedTestCall(false);
+                setLastTestRunCostUsd(null);
+                setRawResultOpen(false);
+              },
+            });
             capture("evaluators:version_history_interaction", {
               action: "restore_version",
             });

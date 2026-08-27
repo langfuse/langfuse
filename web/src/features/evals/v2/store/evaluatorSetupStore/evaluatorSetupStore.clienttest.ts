@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
-import { createEvaluatorSetupStore } from "./evaluatorSetupStore";
+import {
+  createEvaluatorSetupStore,
+  selectHasValidModel,
+} from "./evaluatorSetupStore";
 
 describe("createEvaluatorSetupStore", () => {
   it("starts new evaluator descriptions empty", () => {
@@ -184,6 +187,29 @@ describe("createEvaluatorSetupStore", () => {
       },
       ...EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS,
     ]);
+  });
+
+  it("derives whether any usable model is available", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    expect(selectHasValidModel(store.getState())).toBe(false);
+
+    store
+      .getState()
+      .actions.setDefaultModel({ provider: "OpenAI", model: "gpt-4.1-mini" });
+    expect(selectHasValidModel(store.getState())).toBe(true);
+
+    store.getState().actions.setDefaultModel(null);
+    store
+      .getState()
+      .actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
+    expect(selectHasValidModel(store.getState())).toBe(true);
+
+    store.getState().actions.setType("CODE");
+    expect(selectHasValidModel(store.getState())).toBe(true);
   });
 
   it("keeps configured parameters for the selected model and resets them when the model changes", () => {
