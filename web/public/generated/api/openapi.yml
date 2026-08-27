@@ -10983,6 +10983,7 @@ components:
             - $ref: '#/components/schemas/NumericScoreV1'
           required:
             - dataType
+          title: NumericScoreV1
         - type: object
           allOf:
             - type: object
@@ -10994,6 +10995,7 @@ components:
             - $ref: '#/components/schemas/CategoricalScoreV1'
           required:
             - dataType
+          title: CategoricalScoreV1
         - type: object
           allOf:
             - type: object
@@ -11005,6 +11007,7 @@ components:
             - $ref: '#/components/schemas/BooleanScoreV1'
           required:
             - dataType
+          title: BooleanScoreV1
         - type: object
           allOf:
             - type: object
@@ -11016,6 +11019,7 @@ components:
             - $ref: '#/components/schemas/TextScoreV1'
           required:
             - dataType
+          title: TextScoreV1
     BaseScore:
       title: BaseScore
       type: object
@@ -11185,6 +11189,7 @@ components:
             - $ref: '#/components/schemas/NumericScore'
           required:
             - dataType
+          title: NumericScore
         - type: object
           allOf:
             - type: object
@@ -11196,6 +11201,7 @@ components:
             - $ref: '#/components/schemas/CategoricalScore'
           required:
             - dataType
+          title: CategoricalScore
         - type: object
           allOf:
             - type: object
@@ -11207,6 +11213,7 @@ components:
             - $ref: '#/components/schemas/BooleanScore'
           required:
             - dataType
+          title: BooleanScore
         - type: object
           allOf:
             - type: object
@@ -11218,6 +11225,7 @@ components:
             - $ref: '#/components/schemas/CorrectionScore'
           required:
             - dataType
+          title: CorrectionScore
         - type: object
           allOf:
             - type: object
@@ -11229,6 +11237,7 @@ components:
             - $ref: '#/components/schemas/TextScore'
           required:
             - dataType
+          title: TextScore
       properties:
         _deprecation:
           $ref: '#/components/schemas/Deprecation'
@@ -11238,7 +11247,9 @@ components:
       oneOf:
         - type: number
           format: double
+          title: DoubleNumber
         - type: string
+          title: String
       description: >-
         The value of the score. Must be passed as string for categorical and
         text scores, and numeric for boolean and numeric scores
@@ -12015,17 +12026,22 @@ components:
       oneOf:
         - type: string
           nullable: true
+          title: String
         - type: integer
           nullable: true
+          title: Integer
         - type: number
           format: float
           nullable: true
+          title: FloatNumber
         - type: boolean
           nullable: true
+          title: Boolean
         - type: array
           items:
             type: string
           nullable: true
+          title: Array
     CommentObjectType:
       title: CommentObjectType
       type: string
@@ -12328,6 +12344,7 @@ components:
             - $ref: '#/components/schemas/PublicEvaluatorNumericScore'
           required:
             - dataType
+          title: PublicEvaluatorNumericScore
         - type: object
           allOf:
             - type: object
@@ -12339,6 +12356,7 @@ components:
             - $ref: '#/components/schemas/PublicEvaluatorBooleanScore'
           required:
             - dataType
+          title: PublicEvaluatorBooleanScore
         - type: object
           allOf:
             - type: object
@@ -12350,6 +12368,7 @@ components:
             - $ref: '#/components/schemas/PublicEvaluatorCategoricalScore'
           required:
             - dataType
+          title: PublicEvaluatorCategoricalScore
       description: >-
         Flat structured output definition used when creating or updating an
         evaluator.
@@ -12451,6 +12470,7 @@ components:
             - $ref: '#/components/schemas/PublicEvaluatorNumericScore'
           required:
             - dataType
+          title: PublicEvaluatorNumericScore
         - type: object
           allOf:
             - type: object
@@ -12462,6 +12482,7 @@ components:
             - $ref: '#/components/schemas/PublicEvaluatorBooleanScore'
           required:
             - dataType
+          title: PublicEvaluatorBooleanScore
         - type: object
           allOf:
             - type: object
@@ -12473,6 +12494,7 @@ components:
             - $ref: '#/components/schemas/PublicEvaluatorCategoricalScore'
           required:
             - dataType
+          title: PublicEvaluatorCategoricalScore
       description: >-
         Flat evaluator output definition returned by the public API.
 
@@ -12876,6 +12898,7 @@ components:
             - $ref: '#/components/schemas/DateTimeEvaluationRuleFilter'
           required:
             - type
+          title: DateTimeEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12887,6 +12910,7 @@ components:
             - $ref: '#/components/schemas/StringEvaluationRuleFilter'
           required:
             - type
+          title: StringEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12898,6 +12922,7 @@ components:
             - $ref: '#/components/schemas/NumberEvaluationRuleFilter'
           required:
             - type
+          title: NumberEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12909,6 +12934,7 @@ components:
             - $ref: '#/components/schemas/StringOptionsEvaluationRuleFilter'
           required:
             - type
+          title: StringOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12920,6 +12946,7 @@ components:
             - $ref: '#/components/schemas/CategoryOptionsEvaluationRuleFilter'
           required:
             - type
+          title: CategoryOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12931,6 +12958,7 @@ components:
             - $ref: '#/components/schemas/ArrayOptionsEvaluationRuleFilter'
           required:
             - type
+          title: ArrayOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12942,6 +12970,7 @@ components:
             - $ref: '#/components/schemas/StringObjectEvaluationRuleFilter'
           required:
             - type
+          title: StringObjectEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12953,6 +12982,7 @@ components:
             - $ref: '#/components/schemas/NumberObjectEvaluationRuleFilter'
           required:
             - type
+          title: NumberObjectEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12964,6 +12994,7 @@ components:
             - $ref: '#/components/schemas/BooleanEvaluationRuleFilter'
           required:
             - type
+          title: BooleanEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -12975,6 +13006,7 @@ components:
             - $ref: '#/components/schemas/NullEvaluationRuleFilter'
           required:
             - type
+          title: NullEvaluationRuleFilter
       description: >-
         One filter condition used to decide whether a live-ingested observation
         should be evaluated.
@@ -13467,6 +13499,7 @@ components:
       title: EvaluatorChatPromptInput
       oneOf:
         - type: string
+          title: String
         - $ref: '#/components/schemas/EvaluatorChatPrompt'
       description: >-
         A user prompt string, or a list containing exactly one user chat message.
@@ -13582,6 +13615,7 @@ components:
             - $ref: '#/components/schemas/LlmAsJudgeEvaluatorVersion'
           required:
             - type
+          title: LlmAsJudgeEvaluatorVersion
         - type: object
           allOf:
             - type: object
@@ -13593,6 +13627,7 @@ components:
             - $ref: '#/components/schemas/CodeEvaluatorVersion'
           required:
             - type
+          title: CodeEvaluatorVersion
     EvaluationRuleAssignment:
       title: EvaluationRuleAssignment
       type: object
@@ -13778,6 +13813,7 @@ components:
             - $ref: '#/components/schemas/LlmAsJudgeEvaluator'
           required:
             - type
+          title: LlmAsJudgeEvaluator
         - type: object
           allOf:
             - type: object
@@ -13789,6 +13825,7 @@ components:
             - $ref: '#/components/schemas/CodeEvaluator'
           required:
             - type
+          title: CodeEvaluator
       description: >-
         One evaluator that can be used for scoring.
 
@@ -13897,6 +13934,7 @@ components:
             - $ref: '#/components/schemas/CreateLlmAsJudgeEvaluatorRequest'
           required:
             - type
+          title: CreateLlmAsJudgeEvaluatorRequest
         - type: object
           allOf:
             - type: object
@@ -13908,6 +13946,7 @@ components:
             - $ref: '#/components/schemas/CreateCodeEvaluatorRequest'
           required:
             - type
+          title: CreateCodeEvaluatorRequest
       description: >-
         Initial evaluator definition with metadata and definition fields at the
         same level. The returned evaluator starts at version `1`.
@@ -14301,6 +14340,7 @@ components:
             - $ref: '#/components/schemas/TraceEvent'
           required:
             - type
+          title: TraceEvent
         - type: object
           allOf:
             - type: object
@@ -14312,6 +14352,7 @@ components:
             - $ref: '#/components/schemas/ScoreEvent'
           required:
             - type
+          title: ScoreEvent
         - type: object
           allOf:
             - type: object
@@ -14323,6 +14364,7 @@ components:
             - $ref: '#/components/schemas/CreateSpanEvent'
           required:
             - type
+          title: CreateSpanEvent
         - type: object
           allOf:
             - type: object
@@ -14334,6 +14376,7 @@ components:
             - $ref: '#/components/schemas/UpdateSpanEvent'
           required:
             - type
+          title: UpdateSpanEvent
         - type: object
           allOf:
             - type: object
@@ -14345,6 +14388,7 @@ components:
             - $ref: '#/components/schemas/CreateGenerationEvent'
           required:
             - type
+          title: CreateGenerationEvent
         - type: object
           allOf:
             - type: object
@@ -14356,6 +14400,7 @@ components:
             - $ref: '#/components/schemas/UpdateGenerationEvent'
           required:
             - type
+          title: UpdateGenerationEvent
         - type: object
           allOf:
             - type: object
@@ -14367,6 +14412,7 @@ components:
             - $ref: '#/components/schemas/CreateEventEvent'
           required:
             - type
+          title: CreateEventEvent
         - type: object
           allOf:
             - type: object
@@ -14378,6 +14424,7 @@ components:
             - $ref: '#/components/schemas/SDKLogEvent'
           required:
             - type
+          title: SDKLogEvent
         - type: object
           allOf:
             - type: object
@@ -14389,6 +14436,7 @@ components:
             - $ref: '#/components/schemas/CreateObservationEvent'
           required:
             - type
+          title: CreateObservationEvent
         - type: object
           allOf:
             - type: object
@@ -14400,6 +14448,7 @@ components:
             - $ref: '#/components/schemas/UpdateObservationEvent'
           required:
             - type
+          title: UpdateObservationEvent
     ObservationType:
       title: ObservationType
       type: string
@@ -14976,6 +15025,7 @@ components:
         - type: object
           additionalProperties:
             type: integer
+          title: Object
         - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
         - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
     legacyMetricsResponse:
@@ -16072,6 +16122,7 @@ components:
             - $ref: '#/components/schemas/ChatPrompt'
           required:
             - type
+          title: ChatPrompt
         - type: object
           allOf:
             - type: object
@@ -16083,6 +16134,7 @@ components:
             - $ref: '#/components/schemas/TextPrompt'
           required:
             - type
+          title: TextPrompt
     PromptType:
       title: PromptType
       type: string
@@ -16649,6 +16701,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectTraceV3'
           required:
             - kind
+          title: ScoreSubjectTraceV3
         - type: object
           allOf:
             - type: object
@@ -16660,6 +16713,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectObservationV3'
           required:
             - kind
+          title: ScoreSubjectObservationV3
         - type: object
           allOf:
             - type: object
@@ -16671,6 +16725,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectSessionV3'
           required:
             - kind
+          title: ScoreSubjectSessionV3
         - type: object
           allOf:
             - type: object
@@ -16682,6 +16737,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectExperimentV3'
           required:
             - kind
+          title: ScoreSubjectExperimentV3
       description: >-
         A reference to the entity this score is attached to. Discriminated by
         "kind" — one of trace, observation, session, or experiment.
@@ -16826,6 +16882,7 @@ components:
             - $ref: '#/components/schemas/NumericScoreV3'
           required:
             - dataType
+          title: NumericScoreV3
         - type: object
           allOf:
             - type: object
@@ -16837,6 +16894,7 @@ components:
             - $ref: '#/components/schemas/BooleanScoreV3'
           required:
             - dataType
+          title: BooleanScoreV3
         - type: object
           allOf:
             - type: object
@@ -16848,6 +16906,7 @@ components:
             - $ref: '#/components/schemas/CategoricalScoreV3'
           required:
             - dataType
+          title: CategoricalScoreV3
         - type: object
           allOf:
             - type: object
@@ -16859,6 +16918,7 @@ components:
             - $ref: '#/components/schemas/TextScoreV3'
           required:
             - dataType
+          title: TextScoreV3
         - type: object
           allOf:
             - type: object
@@ -16870,6 +16930,7 @@ components:
             - $ref: '#/components/schemas/CorrectionScoreV3'
           required:
             - dataType
+          title: CorrectionScoreV3
     GetScoresV3Meta:
       title: GetScoresV3Meta
       type: object
@@ -17071,6 +17132,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataNumeric'
           required:
             - dataType
+          title: GetScoresResponseDataNumeric
         - type: object
           allOf:
             - type: object
@@ -17082,6 +17144,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataCategorical'
           required:
             - dataType
+          title: GetScoresResponseDataCategorical
         - type: object
           allOf:
             - type: object
@@ -17093,6 +17156,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataBoolean'
           required:
             - dataType
+          title: GetScoresResponseDataBoolean
         - type: object
           allOf:
             - type: object
@@ -17104,6 +17168,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataCorrection'
           required:
             - dataType
+          title: GetScoresResponseDataCorrection
         - type: object
           allOf:
             - type: object
@@ -17115,6 +17180,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataText'
           required:
             - dataType
+          title: GetScoresResponseDataText
     GetScoresResponse:
       title: GetScoresResponse
       type: object
@@ -17368,6 +17434,7 @@ components:
                 #/components/schemas/unstablePublicNumericEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicNumericEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -17380,6 +17447,7 @@ components:
                 #/components/schemas/unstablePublicBooleanEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicBooleanEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -17392,6 +17460,7 @@ components:
                 #/components/schemas/unstablePublicCategoricalEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicCategoricalEvaluatorOutputDefinition
       description: >-
         Structured output definition to send when creating an evaluator.
 
@@ -17508,6 +17577,7 @@ components:
                 #/components/schemas/unstablePublicNumericEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicNumericEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -17520,6 +17590,7 @@ components:
                 #/components/schemas/unstablePublicBooleanEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicBooleanEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -17532,6 +17603,7 @@ components:
                 #/components/schemas/unstablePublicCategoricalEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicCategoricalEvaluatorOutputDefinition
       description: >-
         Evaluator output definition returned by the public API.
 
@@ -17897,6 +17969,7 @@ components:
             - $ref: '#/components/schemas/unstableDateTimeEvaluationRuleFilter'
           required:
             - type
+          title: UnstableDateTimeEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17908,6 +17981,7 @@ components:
             - $ref: '#/components/schemas/unstableStringEvaluationRuleFilter'
           required:
             - type
+          title: UnstableStringEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17919,6 +17993,7 @@ components:
             - $ref: '#/components/schemas/unstableNumberEvaluationRuleFilter'
           required:
             - type
+          title: UnstableNumberEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17930,6 +18005,7 @@ components:
             - $ref: '#/components/schemas/unstableStringOptionsEvaluationRuleFilter'
           required:
             - type
+          title: UnstableStringOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17941,6 +18017,7 @@ components:
             - $ref: '#/components/schemas/unstableCategoryOptionsEvaluationRuleFilter'
           required:
             - type
+          title: UnstableCategoryOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17952,6 +18029,7 @@ components:
             - $ref: '#/components/schemas/unstableArrayOptionsEvaluationRuleFilter'
           required:
             - type
+          title: UnstableArrayOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17963,6 +18041,7 @@ components:
             - $ref: '#/components/schemas/unstableStringObjectEvaluationRuleFilter'
           required:
             - type
+          title: UnstableStringObjectEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17974,6 +18053,7 @@ components:
             - $ref: '#/components/schemas/unstableNumberObjectEvaluationRuleFilter'
           required:
             - type
+          title: UnstableNumberObjectEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17985,6 +18065,7 @@ components:
             - $ref: '#/components/schemas/unstableBooleanEvaluationRuleFilter'
           required:
             - type
+          title: UnstableBooleanEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -17996,6 +18077,7 @@ components:
             - $ref: '#/components/schemas/unstableNullEvaluationRuleFilter'
           required:
             - type
+          title: UnstableNullEvaluationRuleFilter
       description: >-
         One filter condition used to decide whether a live-ingested target
         should be evaluated.
@@ -18409,6 +18491,7 @@ components:
             - $ref: '#/components/schemas/unstableWidgetPlacement'
           required:
             - type
+          title: UnstableWidgetPlacement
         - type: object
           allOf:
             - type: object
@@ -18420,6 +18503,7 @@ components:
             - $ref: '#/components/schemas/unstablePresetPlacement'
           required:
             - type
+          title: UnstablePresetPlacement
       description: |-
         A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
         top-left cell (0-based; `y` grows downward), `width`/`height` its size
@@ -18486,6 +18570,7 @@ components:
             - $ref: '#/components/schemas/unstableCreateWidgetPlacement'
           required:
             - type
+          title: UnstableCreateWidgetPlacement
         - type: object
           allOf:
             - type: object
@@ -18497,6 +18582,7 @@ components:
             - $ref: '#/components/schemas/unstableCreatePresetPlacement'
           required:
             - type
+          title: UnstableCreatePresetPlacement
     unstableCreateWidgetPlacement:
       title: unstableCreateWidgetPlacement
       type: object
@@ -19598,6 +19684,7 @@ components:
             - $ref: '#/components/schemas/unstableLlmAsJudgeEvaluator'
           required:
             - type
+          title: UnstableLlmAsJudgeEvaluator
         - type: object
           allOf:
             - type: object
@@ -19609,6 +19696,7 @@ components:
             - $ref: '#/components/schemas/unstableCodeEvaluator'
           required:
             - type
+          title: UnstableCodeEvaluator
       description: >-
         One evaluator that can be used for scoring.
 
@@ -19776,6 +19864,7 @@ components:
             - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluatorRequest'
           required:
             - type
+          title: UnstableCreateLlmAsJudgeEvaluatorRequest
         - type: object
           allOf:
             - type: object
@@ -19787,6 +19876,7 @@ components:
             - $ref: '#/components/schemas/unstableCreateCodeEvaluatorRequest'
           required:
             - type
+          title: UnstableCreateCodeEvaluatorRequest
       description: >-
         Request body for creating an evaluator.
 

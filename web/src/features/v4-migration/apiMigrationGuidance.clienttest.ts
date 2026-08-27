@@ -75,8 +75,7 @@ describe("getApiMigrationGuidance", () => {
         undefined,
       ),
     ).toEqual({
-      replacement:
-        "GET /api/public/v2/metrics?query=<URL-encoded JSON with view, metrics, fromTimestamp, and toTimestamp>",
+      replacement: "GET /api/public/v2/metrics",
     });
   });
 
