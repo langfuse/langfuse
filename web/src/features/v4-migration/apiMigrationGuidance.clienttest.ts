@@ -32,6 +32,32 @@ describe("getApiMigrationGuidance", () => {
     });
   });
 
+  it("preserves the score ID when migrating the legacy score endpoint", () => {
+    expect(
+      getApiMigrationGuidance("GET /api/public/scores/{id}", "python", "4.8.1"),
+    ).toMatchObject({
+      currentMethod: "client.api.scores.get_by_id(...)",
+      replacementMethod: "client.api.scores_v3.get_many_v3(id=score_id)",
+      replacement: "GET /api/public/v3/scores?id=<score id>",
+    });
+  });
+
+  it("uses a bounded observation scan when migrating session listing", () => {
+    expect(
+      getApiMigrationGuidance(
+        "GET /api/public/sessions",
+        "javascript",
+        "5.5.0",
+      ),
+    ).toMatchObject({
+      currentMethod: "client.api.sessions.list(...)",
+      replacementMethod:
+        "client.api.observations.getMany({ fromStartTime, toStartTime }) // group by sessionId",
+      replacement:
+        "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>, then group rows by sessionId",
+    });
+  });
+
   it("recognizes a v-prefixed outdated SDK version", () => {
     expect(
       getApiMigrationGuidance(

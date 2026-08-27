@@ -114,8 +114,38 @@ const guidanceByEndpoint: Record<
       },
     },
   },
+  "GET /api/public/scores/{id}": {
+    replacement: "GET /api/public/v3/scores?id=<score id>",
+    methods: {
+      python: {
+        current: "client.api.scores.get_by_id(...)",
+        replacement: "client.api.scores_v3.get_many_v3(id=score_id)",
+        minimumVersion: "4.8.1",
+      },
+      javascript: {
+        current: "client.api.scores.getById(...)",
+        replacement: "client.api.scoresV3.getManyV3({ id: scoreId })",
+        minimumVersion: "5.5.0",
+      },
+    },
+  },
   "GET /api/public/sessions": {
-    replacement: "GET /api/public/v2/observations?filter=<sessionId filter>",
+    replacement:
+      "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>, then group rows by sessionId",
+    methods: observationsMethods({
+      python: {
+        current: "client.api.sessions.list(...)",
+        replacement:
+          "client.api.observations.get_many(from_start_time=..., to_start_time=...)  # group by session_id",
+        minimumVersion: "4.0.0",
+      },
+      javascript: {
+        current: "client.api.sessions.list(...)",
+        replacement:
+          "client.api.observations.getMany({ fromStartTime, toStartTime }) // group by sessionId",
+        minimumVersion: "4.0.0",
+      },
+    }),
   },
   "GET /api/public/sessions/{id}": {
     replacement: "GET /api/public/v2/observations?filter=<sessionId filter>",
@@ -202,7 +232,6 @@ const genericReplacements: Record<string, string> = {
   "GET /api/public/generations":
     "GET /api/public/v2/observations?type=GENERATION",
   "GET /api/public/scores": "GET /api/public/v3/scores",
-  "GET /api/public/scores/{id}": "GET /api/public/v3/scores",
   "GET /api/public/metrics/daily": "GET /api/public/v2/metrics",
 };
 
