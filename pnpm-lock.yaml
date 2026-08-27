@@ -243,6 +243,12 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.3.0)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.6.5(@types/node@24.3.0)(typescript@5.9.3))(vite@7.3.5(@types/node@24.3.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.20.5)(yaml@2.9.0))
 
+  packages/langfuse-skills:
+    devDependencies:
+      prettier:
+        specifier: ^3.8.3
+        version: 3.8.3
+
   packages/shared:
     dependencies:
       '@ag-ui/client':
@@ -1084,6 +1090,9 @@ importers:
       '@prisma/instrumentation':
         specifier: ^6.19.3
         version: 6.19.3(@opentelemetry/api@1.9.1)(supports-color@8.1.1)
+      '@repo/langfuse-skills':
+        specifier: workspace:*
+        version: link:../packages/langfuse-skills
       ai-sdk-amazon-bedrock-v4:
         specifier: npm:@ai-sdk/amazon-bedrock@4.0.81
         version: '@ai-sdk/amazon-bedrock@4.0.81(zod@4.3.6)'
@@ -1150,9 +1159,6 @@ importers:
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
       zod:
         specifier: 4.3.6
         version: 4.3.6
