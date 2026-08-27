@@ -54,11 +54,11 @@ export const getIdNavigationItem = (
   }
 
   if (idType === "observation_id") {
-    const filter = `id;stringOptions;;any of;${encodeURIComponent(id)}`;
+    const filter = `id;string;;contains;${encodeURIComponent(id)}`;
     return {
       type: "observation_id",
       title: "Find observation by ID",
-      url: `/project/${encodedProjectId}/observations?filter=${encodeURIComponent(filter)}`,
+      url: `/project/${encodedProjectId}/traces?filter=${encodeURIComponent(filter)}`,
     };
   }
 

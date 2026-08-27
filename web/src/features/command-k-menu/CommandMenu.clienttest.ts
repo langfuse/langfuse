@@ -11,11 +11,11 @@ describe("getIdNavigationItem", () => {
     });
   });
 
-  it("filters observations by an exact 16-character hex ID", () => {
+  it("filters the traces table by an exact 16-character observation ID", () => {
     expect(getIdNavigationItem("0123456789aBCDef", "project-1")).toEqual({
       type: "observation_id",
       title: "Find observation by ID",
-      url: "/project/project-1/observations?filter=id%3BstringOptions%3B%3Bany%20of%3B0123456789aBCDef",
+      url: "/project/project-1/traces?filter=id%3Bstring%3B%3Bcontains%3B0123456789aBCDef",
     });
   });
 
