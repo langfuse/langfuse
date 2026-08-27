@@ -30,6 +30,7 @@ const DESIGN_COMPONENT_STORIES = [
   "Table/columns/createIdTableColumn",
   "Table/columns/createItemBadgeTableColumn",
   "Table/columns/createNumberTableColumn",
+  "Table/columns/createStatusTableColumn",
   "Table/columns/createTagsTableColumn",
   "Table/columns/createTextTableColumn",
 ] as const;
