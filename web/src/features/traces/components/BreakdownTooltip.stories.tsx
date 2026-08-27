@@ -24,13 +24,14 @@ const cacheCostDetails = {
   cache_creation_input_tokens: 0.0034625,
   input: 0.00115,
   output: 0.0066,
-  total: 0.037828,
+  cached_tokens: 9e-8,
+  total: 0.03782809,
 };
 
 const longUsageTypeCostDetails = {
   ...cacheCostDetails,
   prompt_cache_creation_ephemeral_5m_input_tokens: 0.00042,
-  total: 0.038248,
+  total: 0.03824809,
 };
 
 const priceSource = {
@@ -80,7 +81,7 @@ export const AggregatedCost = meta.story({
 export const CostWithLongUsageTypes = meta.story({
   args: {
     details: longUsageTypeCostDetails,
-    children: <span>$0.038248</span>,
+    children: <span>$0.03824809</span>,
     isCost: true,
     priceSource: {
       ...priceSource,
@@ -136,16 +137,20 @@ export const TestCostFormattingAndTruncation = meta.story({
   name: "(Test) Formats costs without padded decimals",
   args: {
     details: cacheCostDetails,
-    children: <span>$0.037828</span>,
+    children: <span>$0.03782809</span>,
     isCost: true,
   },
   play: async ({ canvasElement }) => {
-    const { content } = await openBreakdownTooltip(canvasElement, "$0.037828");
+    const { content } = await openBreakdownTooltip(
+      canvasElement,
+      "$0.03782809",
+    );
 
     await expect(content.getAllByText("$0.0066")).not.toHaveLength(0);
     await expect(content.queryByText("$0.0066000")).not.toBeInTheDocument();
-    await expect(content.getByText("$0.037828")).toBeInTheDocument();
+    await expect(content.getByText("$0.03782809")).toBeInTheDocument();
     await expect(content.queryByText("$0.0378280")).not.toBeInTheDocument();
+    await expect(content.getAllByText("$0.00000009")).not.toHaveLength(0);
 
     const longLabel = content.getByText("cache_creation_input_tokens");
     await expect(longLabel).toHaveClass("truncate");

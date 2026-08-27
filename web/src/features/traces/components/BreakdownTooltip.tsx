@@ -50,7 +50,7 @@ export const BreakdownTooltip = ({
     : details;
 
   const formatValue = (value: number) =>
-    isCost ? usdFormatter(value) : value ? value.toLocaleString() : "0";
+    isCost ? usdFormatter(value, 2, 12) : value ? value.toLocaleString() : "0";
 
   return (
     <TooltipProvider>
