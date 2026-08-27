@@ -9,7 +9,7 @@ import {
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   type AnnotateDrawerProps,
   type ScoreTarget,

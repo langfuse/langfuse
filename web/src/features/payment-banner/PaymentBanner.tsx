@@ -4,7 +4,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useTopBannerRegistration } from "@/src/features/top-banner";
 import { env } from "@/src/env.mjs";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac";
 import { PaymentBannerView } from "./PaymentBannerView";
 
 const PAYMENT_BANNER_ID = "payment-banner";

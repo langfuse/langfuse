@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { BatchActionsTable } from "./BatchActionsTable";
 
 export function BatchActionsSettingsPage(props: { projectId: string }) {

@@ -3,7 +3,7 @@ import {
   type DeleteDatasetDialogDataProps,
 } from "@/src/features/datasets/components/DeleteDatasetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ReactNode, useState } from "react";
 
 export type DeleteDatasetDialogSource = "dataset" | "table-single-row";

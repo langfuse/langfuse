@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
