@@ -99,6 +99,19 @@ interface MetadataDropContext {
   dropScope: object;
 }
 
+const DANGEROUS_OTEL_PATH_SEGMENTS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+const CANONICAL_ARRAY_INDEX = /^(0|[1-9]\d*)$/;
+
+const getOtelArrayIndex = (segment: string): number | undefined => {
+  if (!CANONICAL_ARRAY_INDEX.test(segment)) return undefined;
+  const index = Number(segment);
+  return Number.isSafeInteger(index) ? index : undefined;
+};
+
 /**
  * Tracks the total number of array slots that dotted attribute paths would
  * materialize. A path is reserved transactionally: when it would exceed the
@@ -121,12 +134,13 @@ class ArraySlotBudget {
 
     for (let index = 0; index < pathParts.length; index++) {
       const segment = pathParts[index];
-      if (!/^\d+$/.test(segment)) continue;
+      const arrayIndex = getOtelArrayIndex(segment);
+      if (arrayIndex === undefined) continue;
 
       const arrayPath = pathParts.slice(0, index).join(".");
       const previousLength =
         pendingLengths.get(arrayPath) ?? this.lengthsByPath.get(arrayPath) ?? 0;
-      const requiredLength = Number(segment) + 1;
+      const requiredLength = arrayIndex + 1;
       if (requiredLength > previousLength) {
         additionalSlots += requiredLength - previousLength;
         pendingLengths.set(arrayPath, requiredLength);
@@ -244,9 +258,10 @@ export class OtelIngestionProcessor {
   private static readonly OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC =
     "langfuse.ingestion.otel.array_attribute_dropped";
 
-  // Flattened OTel message attributes name array slots directly, so cap the
-  // total logical array length before reconstructing the value.
+  // Flattened OTel message attributes can create deeply nested objects and
+  // sparse arrays, so bound both forms of structural expansion.
   private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
+  private static readonly MAX_OTEL_RECONSTRUCTED_PATH_DEPTH = 64;
 
   private static readonly METADATA_DROP_WARN_CAP = 10;
   private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
@@ -1530,9 +1545,9 @@ export class OtelIngestionProcessor {
    *
    * TraceLoop and OpenInference encode structured messages in attribute names;
    * for example, `gen_ai.prompt.0.content` becomes `[{ content: value }]`.
-   * Numeric path segments therefore become JavaScript array indices. The total
-   * logical slots across all nested arrays are bounded, since dimensions can
-   * otherwise multiply into a huge sparse structure during serialization.
+   * Paths retain the legacy insertion-order conflict policy. Generated objects
+   * have no prototype, arrays only accept bounded numeric indices, and the
+   * writer never descends into an object supplied as an attribute value.
    */
   private convertKeyPathToNestedObject(
     input: Record<string, unknown>,
@@ -1542,101 +1557,148 @@ export class OtelIngestionProcessor {
       return input[prefix];
     }
 
-    const keys: string[] = [];
-    const overBudgetKeys: string[] = [];
+    type ReconstructedContainer = Record<string, unknown> | unknown[];
+    let droppedAttributeCount = 0;
+    const parsePath = (
+      key: string,
+      recordLimitDrop: boolean,
+    ): string[] | undefined => {
+      const segments = key.split(".");
+      if (
+        segments.length >
+        OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_PATH_DEPTH
+      ) {
+        if (recordLimitDrop) droppedAttributeCount += 1;
+        return undefined;
+      }
+
+      for (const segment of segments) {
+        if (segment.length === 0 || DANGEROUS_OTEL_PATH_SEGMENTS.has(segment)) {
+          return undefined;
+        }
+
+        if (CANONICAL_ARRAY_INDEX.test(segment)) {
+          const index = getOtelArrayIndex(segment);
+          if (
+            index === undefined ||
+            index >= OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
+          ) {
+            if (recordLimitDrop) droppedAttributeCount += 1;
+            return undefined;
+          }
+        }
+      }
+      return segments;
+    };
+
+    const prefixWithDot = `${prefix}.`;
+    const createdContainers = new WeakSet<object>();
     const arraySlotBudget = new ArraySlotBudget(
       OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
     );
-    for (const inputKey of Object.keys(input)) {
-      const key = inputKey.replace(`${prefix}.`, "");
-      if (!arraySlotBudget.tryReserve(key.split("."))) {
-        overBudgetKeys.push(key);
-        continue;
-      }
 
-      keys.push(key);
-    }
-    this.recordArrayAttributesDropped(prefix, overBudgetKeys);
-    const useArray = keys.some((key) => key.match(/^\d+\./));
+    const inputKeys = Object.keys(input);
+    const useArray = inputKeys.some((inputKey) => {
+      if (!inputKey.startsWith(prefixWithDot)) return false;
+      const path = parsePath(inputKey.slice(prefixWithDot.length), false);
+      return (
+        path !== undefined &&
+        path.length > 1 &&
+        getOtelArrayIndex(path[0]) !== undefined
+      );
+    });
+    const result: ReconstructedContainer = useArray ? [] : Object.create(null);
+    createdContainers.add(result);
 
-    // Blocklist to prevent prototype pollution via crafted OTel attribute keys
-    const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-    const isArrayIndex = (key: string): boolean => /^(0|[1-9]\d*)$/.test(key);
-
-    // Helper function to set a value at a nested path
-    const setNestedValue = (obj: any, path: string[], value: unknown): void => {
-      let current = obj;
-      for (let i = 0; i < path.length - 1; i++) {
-        const key = path[i];
-        if (
-          DANGEROUS_KEYS.has(key) ||
-          (Array.isArray(current) && !isArrayIndex(key))
-        ) {
-          return;
-        }
-        if (!Object.hasOwn(current, key)) {
-          // Check if next key is a number to decide if we need an array or object
-          current[key] = /^\d+$/.test(path[i + 1]) ? [] : Object.create(null);
-        }
-        const next = current[key];
-        if (typeof next !== "object" || next === null) {
-          // Preserve an earlier leaf value when a later attribute conflicts.
-          return;
-        }
-        current = next;
-      }
-      const finalKey = path[path.length - 1];
-      if (
-        DANGEROUS_KEYS.has(finalKey) ||
-        (Array.isArray(current) && !isArrayIndex(finalKey))
-      ) {
-        return;
-      }
-      current[finalKey] = value;
+    const isWritableKey = (
+      container: ReconstructedContainer,
+      key: string,
+    ): boolean => {
+      if (!Array.isArray(container)) return true;
+      const index = getOtelArrayIndex(key);
+      return (
+        index !== undefined &&
+        index < OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
+      );
     };
 
-    if (useArray) {
-      const result: any[] = [];
-      for (const key of keys) {
-        const pathParts = key.split(".");
-        const indexSegment = pathParts[0];
-        const index = Number(indexSegment);
-        if (!result[index]) {
-          result[index] = Object.create(null);
-        }
-        if (pathParts.length === 2) {
-          // Simple case: 0.content -> result[0].content
-          result[index][pathParts[1]] = input[`${prefix}.${key}`];
-        } else {
-          // Nested case: 0.message.content -> result[0].message.content
-          setNestedValue(
-            result[index],
-            pathParts.slice(1),
-            input[`${prefix}.${key}`],
-          );
-        }
-      }
-      return result;
-    }
+    const defineOwn = (
+      container: ReconstructedContainer,
+      key: string,
+      value: unknown,
+    ): void => {
+      Object.defineProperty(container, key, {
+        configurable: true,
+        enumerable: true,
+        value,
+        writable: true,
+      });
+    };
 
-    const result: Record<string, unknown> = Object.create(null);
-    for (const key of keys) {
-      const pathParts = key.split(".");
-      if (pathParts.length === 1) {
-        result[key] = input[`${prefix}.${key}`];
-      } else {
-        setNestedValue(result, pathParts, input[`${prefix}.${key}`]);
+    const applyPath = (
+      root: ReconstructedContainer,
+      path: readonly string[],
+      value: unknown,
+      commit: boolean,
+    ): boolean => {
+      let current = root;
+      for (let index = 0; index < path.length - 1; index++) {
+        const key = path[index];
+        if (!isWritableKey(current, key)) return false;
+
+        if (!Object.hasOwn(current, key)) {
+          if (!commit) return true;
+          const child: ReconstructedContainer =
+            getOtelArrayIndex(path[index + 1]) !== undefined
+              ? []
+              : Object.create(null);
+          createdContainers.add(child);
+          defineOwn(current, key, child);
+          current = child;
+          continue;
+        }
+
+        const next = Reflect.get(current, key);
+        if (
+          typeof next !== "object" ||
+          next === null ||
+          !createdContainers.has(next)
+        ) {
+          return false;
+        }
+        current = next as ReconstructedContainer;
       }
+      const finalKey = path[path.length - 1];
+      if (!isWritableKey(current, finalKey)) return false;
+      if (commit) defineOwn(current, finalKey, value);
+      return true;
+    };
+
+    for (const inputKey of inputKeys) {
+      if (!inputKey.startsWith(prefixWithDot)) continue;
+      const path = parsePath(inputKey.slice(prefixWithDot.length), true);
+      if (!path) continue;
+      const value = input[inputKey];
+      if (!applyPath(result, path, value, false)) continue;
+      if (!arraySlotBudget.tryReserve(path)) {
+        droppedAttributeCount += 1;
+        continue;
+      }
+      applyPath(result, path, value, true);
     }
+    this.recordArrayAttributesDropped(prefix, droppedAttributeCount);
     return result;
   }
 
-  private recordArrayAttributesDropped(prefix: string, keys: string[]): void {
-    if (keys.length === 0) return;
+  private recordArrayAttributesDropped(
+    prefix: string,
+    droppedAttributeCount: number,
+  ): void {
+    if (droppedAttributeCount === 0) return;
 
     recordIncrement(
       OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
-      keys.length,
+      droppedAttributeCount,
       { reason: "reconstruction_budget_exceeded", prefix },
     );
     if (
@@ -1648,7 +1710,7 @@ export class OtelIngestionProcessor {
         projectId: this.projectId,
         prefix,
         reason: "reconstruction_budget_exceeded",
-        droppedAttributeCount: keys.length,
+        droppedAttributeCount,
       });
     }
   }

@@ -9693,6 +9693,61 @@ describe("OTel Resource Span Mapping", () => {
       }
     };
 
+    it.each([
+      [
+        "flat object",
+        [
+          ["role", "user"],
+          ["content", "hello"],
+        ],
+        { role: "user", content: "hello" },
+      ],
+      [
+        "root array with shared prefixes",
+        [
+          ["1.content", "world"],
+          ["0.role", "user"],
+          ["0.content", "hello"],
+          ["1.role", "assistant"],
+        ],
+        [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "world" },
+        ],
+      ],
+      [
+        "nested objects and scalar arrays",
+        [
+          ["request.model", "test-model"],
+          ["request.parts.1", "second"],
+          ["request.parts.0", "first"],
+          ["request.options.temperature", "0.5"],
+        ],
+        {
+          request: {
+            model: "test-model",
+            parts: ["first", "second"],
+            options: { temperature: "0.5" },
+          },
+        },
+      ],
+    ] as const)(
+      "should preserve legacy reconstruction for %s",
+      (_name, attributes, expected) => {
+        const events = createTestOtelProcessor({ publicKey }).processToEvent([
+          createResourceSpan(
+            attributes.map(([path, stringValue]) => ({
+              key: `gen_ai.prompt.${path}`,
+              value: { stringValue },
+            })),
+          ),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].input).toEqual(expected);
+      },
+    );
+
     it("should not traverse inherited properties in nested gen_ai.prompt attributes", async () => {
       const { events, observedCall, originalCall } =
         await convertAndObserveHasOwnPropertyCall([
@@ -9765,15 +9820,82 @@ describe("OTel Resource Span Mapping", () => {
       });
     });
 
-    it("should preserve an array and ignore a conflicting non-index attribute", () => {
-      const events = createTestOtelProcessor({ publicKey }).processToEvent([
-        createResourceSpan([
+    it.each([
+      {
+        name: "array first",
+        attributes: [
           {
             key: "gen_ai.prompt.a.0",
             value: { stringValue: "first" },
           },
           {
             key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+        ],
+        expected: ["first"],
+      },
+      {
+        name: "object first",
+        attributes: [
+          {
+            key: "gen_ai.prompt.a.length",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.a.0",
+            value: { stringValue: "first" },
+          },
+        ],
+        expected: { 0: "first", length: "pwned" },
+      },
+    ])(
+      "should safely preserve the first reconstructed container kind ($name)",
+      ({ attributes, expected }) => {
+        const events = createTestOtelProcessor({ publicKey }).processToEvent([
+          createResourceSpan([
+            ...attributes,
+            {
+              key: "gen_ai.prompt.safe",
+              value: { stringValue: "still-here" },
+            },
+          ]),
+        ]);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].input).toMatchObject({
+          a: expected,
+          safe: "still-here",
+        });
+      },
+    );
+
+    it("should not interpret noncanonical numeric syntax as an array index", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.content",
+            value: { stringValue: "safe" },
+          },
+          {
+            key: "gen_ai.prompt.1e6.content",
+            value: { stringValue: "pwned" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      const input = events[0].input as Array<{ content: string }>;
+      expect(input).toHaveLength(1);
+      expect(input[0]).toEqual({ content: "safe" });
+    });
+
+    it("should drop paths that exceed the reconstruction depth limit", () => {
+      const deepPath = Array.from({ length: 65 }, () => "nested").join(".");
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: `gen_ai.prompt.${deepPath}`,
             value: { stringValue: "pwned" },
           },
           {
@@ -9784,10 +9906,28 @@ describe("OTel Resource Span Mapping", () => {
       ]);
 
       expect(events).toHaveLength(1);
-      expect(events[0].input).toMatchObject({
-        a: ["first"],
-        safe: "still-here",
-      });
+      expect(events[0].input).toEqual({ safe: "still-here" });
+    });
+
+    it("should not let a rejected path consume the array-slot budget", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.message.__proto__.9999.content",
+            value: { stringValue: "pwned" },
+          },
+          {
+            key: "gen_ai.prompt.1.content",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      const input = events[0].input as Array<{ content?: string }>;
+      expect(input).toHaveLength(2);
+      expect(input[0]).toBeUndefined();
+      expect(input[1]).toEqual({ content: "still-here" });
     });
 
     it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
