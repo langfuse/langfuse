@@ -83,6 +83,7 @@ import {
   type ScoreColumnSummary,
 } from "@/src/features/experiments/fns/summariseScoreColumn";
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
+import { promoteScoreColumnsInOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -986,66 +987,76 @@ export default function ExperimentItemsTable({
       enableHiding: true,
     }),
     {
-      accessorKey: "observationId",
-      id: "observationId",
-      header: () => renderExperimentSpecificHeader("Observation ID"),
-      size: 180,
+      accessorKey: "input",
+      id: "input",
+      header: "Input",
+      size: 300,
       enableHiding: true,
       cell: ({ row }) => {
-        const experiments = row.original.experiments;
         return (
-          <StackedExperimentCell
-            experiments={experiments}
+          <MemoizedIOTableCell
+            isLoading={ioLoading}
+            data={row.original.input ?? null}
+            singleLine={ioSingleLine}
+          />
+        );
+      },
+    },
+    // The expected output moves inside the output cell in that diff mode, so it
+    // does not also hold a column of its own.
+    ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
+    {
+      accessorKey: "output",
+      id: "output",
+      header: "Output",
+      size: 300,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const outputs = row.original.outputs ?? [];
+        return (
+          <StackedOutputCell
+            outputs={outputs}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+            singleLine={ioSingleLine}
+            isLoading={ioLoading}
+            // Items with no expected output get no expected line and no
+            // verdict, rather than a diff against nothing.
+            expectedOutput={
+              isExpectedDiff
+                ? (row.original.expectedOutput ?? undefined)
+                : undefined
+            }
           />
         );
       },
     },
     {
-      accessorKey: "startTime",
-      id: "startTime",
-      header: () =>
-        renderExperimentSpecificHeader(
-          getExperimentItemsColumnName("startTime"),
-        ),
-      size: 180,
-      defaultHidden: true,
+      accessorKey: "observationScores",
+      header: "Observation Scores",
+      id: "observationScores",
       enableHiding: true,
-      enableSorting: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
-          />
-        );
+      cell: () => {
+        return isObservationScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
+      columns: observationExperimentScoreColumns,
     },
     {
-      accessorKey: "level",
-      id: "level",
-      header: () =>
-        renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
-      size: 120,
-      defaultHidden: true,
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
       enableHiding: true,
-      cell: ({ row }) => {
-        const experiments = row.original.experiments;
-        return (
-          <StackedExperimentCell
-            experiments={experiments}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => <span>{exp.level}</span>}
-          />
-        );
+      cell: () => {
+        return isTraceScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
       },
+      columns: traceExperimentScoreColumns,
     },
+    // Cost and latency read as measurements, the ids as lookups — both
+    // sit behind the score columns so the analysis is above the fold.
     {
       accessorKey: "totalCost",
       id: "totalCost",
@@ -1119,6 +1130,67 @@ export default function ExperimentItemsTable({
       },
     },
     {
+      accessorKey: "observationId",
+      id: "observationId",
+      header: () => renderExperimentSpecificHeader("Observation ID"),
+      size: 180,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
+            renderValue={(exp) => <TableIdOrName value={exp.observationId} />}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "startTime",
+      id: "startTime",
+      header: () =>
+        renderExperimentSpecificHeader(
+          getExperimentItemsColumnName("startTime"),
+        ),
+      size: 180,
+      defaultHidden: true,
+      enableHiding: true,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
+            renderValue={(exp) => <LocalIsoDate date={exp.startTime} />}
+          />
+        );
+      },
+    },
+    {
+      accessorKey: "level",
+      id: "level",
+      header: () =>
+        renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
+      size: 120,
+      defaultHidden: true,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const experiments = row.original.experiments;
+        return (
+          <StackedExperimentCell
+            experiments={experiments}
+            allExperimentIds={allExperimentIds}
+            colorExperimentIds={colorExperimentIds}
+            renderValue={(exp) => <span>{exp.level}</span>}
+          />
+        );
+      },
+    },
+    {
       accessorKey: "experimentId",
       id: "experimentId",
       header: () => renderExperimentSpecificHeader("Experiment"),
@@ -1147,75 +1219,6 @@ export default function ExperimentItemsTable({
           />
         );
       },
-    },
-    {
-      accessorKey: "input",
-      id: "input",
-      header: "Input",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.input ?? null}
-            singleLine={ioSingleLine}
-          />
-        );
-      },
-    },
-    // The expected output moves inside the output cell in that diff mode, so it
-    // does not also hold a column of its own.
-    ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
-    {
-      accessorKey: "output",
-      id: "output",
-      header: "Output",
-      size: 300,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const outputs = row.original.outputs ?? [];
-        return (
-          <StackedOutputCell
-            outputs={outputs}
-            allExperimentIds={allExperimentIds}
-            colorExperimentIds={colorExperimentIds}
-            singleLine={ioSingleLine}
-            isLoading={ioLoading}
-            // Items with no expected output get no expected line and no
-            // verdict, rather than a diff against nothing.
-            expectedOutput={
-              isExpectedDiff
-                ? (row.original.expectedOutput ?? undefined)
-                : undefined
-            }
-          />
-        );
-      },
-    },
-    {
-      accessorKey: "observationScores",
-      header: "Observation Scores",
-      id: "observationScores",
-      enableHiding: true,
-      cell: () => {
-        return isObservationScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: observationExperimentScoreColumns,
-    },
-    {
-      accessorKey: "traceScores",
-      header: "Trace Scores",
-      id: "traceScores",
-      enableHiding: true,
-      cell: () => {
-        return isTraceScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: traceExperimentScoreColumns,
     },
   ];
 
@@ -1249,9 +1252,24 @@ export default function ExperimentItemsTable({
       columnVisibilityMigrations,
     );
 
+  // LFE-15711: the score columns moved ahead of the metrics and ids so their
+  // headers' analysis needs no horizontal scroll. A returning user has the old
+  // order persisted, so the new default only reaches him through a migration —
+  // and only when that stored order is still a default, not one he arranged.
+  const columnOrderMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentItemsColumnOrder-scoresEarlier-v1-${projectId}`,
+        apply: promoteScoreColumnsInOrder,
+      },
+    ],
+    [projectId],
+  );
+
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentItemsTableRow>(
     `experimentItemsColumnOrder-${projectId}`,
     columns,
+    columnOrderMigrations,
   );
 
   const peekNavigationProps = usePeekNavigation({
