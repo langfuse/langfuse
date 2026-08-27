@@ -1,3 +1,4 @@
+import { type VisibilityState } from "@tanstack/react-table";
 import {
   type ScoreAggregate,
   type FilterCondition,
@@ -156,6 +157,28 @@ export const addPrefixToScoreKeys = (
     prefixed[`${prefix}-${key}`] = value;
   }
   return prefixed;
+};
+
+/**
+ * One-time transform that opts a returning user into score columns being
+ * visible by default. Their stored visibility state already holds `false` for
+ * every score column from the previous default, so changing `defaultHidden`
+ * alone would only ever reach new users. Only acts on that stale default: as
+ * soon as one score column is enabled the user has made their own choice and
+ * their layout is left untouched. Returns `null` while no score column is known
+ * yet (they arrive with the score-column query) so the migration is retried
+ * instead of being consumed against an empty column set.
+ */
+export const revealScoreColumns = (
+  visibility: VisibilityState,
+  scoreColumnIds: string[],
+): VisibilityState | null => {
+  if (scoreColumnIds.length === 0) return null;
+  if (scoreColumnIds.some((id) => visibility[id])) return visibility;
+  return {
+    ...visibility,
+    ...Object.fromEntries(scoreColumnIds.map((id) => [id, true])),
+  };
 };
 
 export const getScoreDataTypeIcon = (dataType: ScoreDataTypeType): string => {

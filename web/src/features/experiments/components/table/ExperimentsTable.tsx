@@ -37,6 +37,7 @@ import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
+import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import TableIdOrName from "@/src/components/table/table-id";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -45,7 +46,10 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import {
+  revealScoreColumns,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   IOTableCell,
@@ -391,7 +395,6 @@ export default function ExperimentsTable({
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
-    defaultHidden: true,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -603,7 +606,6 @@ export default function ExperimentsTable({
       header: "Trace Item Scores",
       id: "traceItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isTraceItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -616,7 +618,6 @@ export default function ExperimentsTable({
       header: "Observation Item Scores",
       id: "observationItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -629,7 +630,6 @@ export default function ExperimentsTable({
       header: "Experiment-Level Scores",
       id: "experimentScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isExperimentScoreColumnLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -639,10 +639,40 @@ export default function ExperimentsTable({
     },
   ];
 
+  const scoreColumnIds = useMemo(
+    () =>
+      [
+        ...traceItemScoreColumns,
+        ...observationItemScoreColumns,
+        ...experimentScoreColumns,
+      ].map((column) => column.accessorKey),
+    [
+      traceItemScoreColumns,
+      observationItemScoreColumns,
+      experimentScoreColumns,
+    ],
+  );
+
+  // LFE-15711: score columns are now visible by default. A returning user has
+  // `false` persisted for every one of them from the previous default, so this
+  // one-time migration reaches them too — see `revealScoreColumns` for how a
+  // user who picked their own score columns is left alone.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          revealScoreColumns(visibility, scoreColumnIds),
+      },
+    ],
+    [projectId, scoreColumnIds],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentsTableRow>(
       `experimentsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
 
   // One-time migration for LFE-10460 on the localStorage replay path:
