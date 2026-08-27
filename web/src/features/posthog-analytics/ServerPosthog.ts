@@ -7,15 +7,9 @@ const FALLBACK_POSTHOG_HOST = "https://eu.posthog.com";
 
 export class ServerPosthog {
   private posthog: PostHog | null;
+  private optOut: Promise<void> | undefined;
 
   constructor() {
-    // Regions that run no product analytics get no client at all, so every
-    // capture below is a no-op regardless of the configured key.
-    if (!isProductAnalyticsAvailable()) {
-      this.posthog = null;
-      return;
-    }
-
     const telemetryEnabled = env.TELEMETRY_ENABLED !== "false";
 
     const apiKey =
@@ -28,6 +22,13 @@ export class ServerPosthog {
     if (apiKey && host) {
       this.posthog = new PostHog(apiKey, { host });
       if (process.env.NODE_ENV === "development") this.posthog.debug();
+      // Unlike the browser SDK, posthog-node disable() is a local opt-out:
+      // capture becomes a no-op and nothing is sent. HIPAA uses this instead
+      // of skipping construction. The flag flips synchronously; the promise is
+      // kept so the constructor does not float it.
+      if (!isProductAnalyticsAvailable()) {
+        this.optOut = this.posthog.disable();
+      }
     } else {
       this.posthog = null;
     }
@@ -38,6 +39,7 @@ export class ServerPosthog {
   }
 
   async shutdown() {
+    await this.optOut;
     await this.posthog?.shutdown();
   }
 

@@ -59,11 +59,14 @@ should emit an event — do not skip the question silently.
   name across client and server double-counts.
 - **The HIPAA region runs NO product analytics.** Both entry points gate on
   [`productAnalyticsAvailability.ts`](../../../web/src/features/posthog-analytics/productAnalyticsAvailability.ts):
-  the browser SDK is only initialized when `getPostHogClientConfig()` returns a
-  config, and `ServerPosthog` builds no client when
-  `isProductAnalyticsAvailable()` is false. Missing env vars are NOT a gate —
-  `ServerPosthog` falls back to Langfuse's telemetry key. Never add a per-call-site
-  region list, and never construct a PostHog client that bypasses that module.
+  the browser SDK (`posthog-js`) is only initialized when
+  `getPostHogClientConfig()` returns a config — `init()` itself fetches remote
+  config, so skip it rather than opting out after. The server SDK
+  (`posthog-node`, via `ServerPosthog`) is constructed as usual, then
+  `disable()`d when `isProductAnalyticsAvailable()` is false. Missing env vars
+  are NOT a gate — `ServerPosthog` falls back to Langfuse's telemetry key.
+  Never add a per-call-site region list, and never construct a PostHog client
+  that bypasses that module.
 
 ## The 6 rules (each earned the hard way on LFE-10781 / PR #14929)
 

@@ -1,12 +1,13 @@
 /**
  * The one gate for Langfuse's own PostHog product analytics.
  *
- * PostHog is disabled altogether in the HIPAA cloud region: the browser SDK is
- * never initialized and the server client is never constructed, so no pageview,
- * identify, capture, signup conversion event or backend-activity event can
- * leave that deployment. Because `ServerPosthog` falls back to Langfuse's own
- * telemetry key when no key is configured, "just don't set the env vars" is not
- * a sufficient gate — the region check has to live in code.
+ * PostHog is disabled altogether in the HIPAA cloud region. The browser SDK is
+ * never initialized (init itself phones home). The server SDK is constructed
+ * as usual, then opted out with `disable()`, which is a local no-op on
+ * `posthog-node` and does not contact PostHog. Because `ServerPosthog` falls
+ * back to Langfuse's own telemetry key when no key is configured, "just don't
+ * set the env vars" is not a sufficient gate — the region check has to live
+ * in code.
  *
  * Every PostHog call site routes through here instead of carrying its own
  * region list, so the rule stays in one place and cannot drift per surface.
