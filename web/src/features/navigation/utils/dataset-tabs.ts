@@ -3,8 +3,6 @@ export const DATASET_TABS = {
   EXPERIMENTS: "experiments",
 } as const;
 
-type DatasetTab = (typeof DATASET_TABS)[keyof typeof DATASET_TABS];
-
 export const getDatasetTabs = (projectId: string, datasetId: string) => {
   return [
     {

@@ -38,9 +38,6 @@ export const datasetRunTableMetricsSchema = z.object({
   filter: z.array(singleFilter),
 });
 
-type DatasetRunsTableInput = z.infer<typeof datasetRunsTableSchema>;
-type DatasetRunTableMetricsInput = z.infer<typeof datasetRunTableMetricsSchema>;
-
 export type DatasetRunItemsTableInput = {
   projectId: string;
   datasetId: string;

@@ -3,7 +3,6 @@
  */
 
 import type { Session } from "next-auth";
-import type { Route } from "@/src/components/layouts/routes";
 import type { Entitlement } from "@/src/features/entitlements/constants/entitlements";
 
 /**
@@ -30,12 +29,3 @@ export type NavigationFilterContext = {
   /** Current router path for active state detection */
   currentPath: string;
 };
-
-/**
- * Filter function that processes a route and returns it (if visible) or null (if hidden)
- * Filters are composable and should be pure functions
- */
-type NavigationFilter = (
-  route: Route,
-  context: NavigationFilterContext,
-) => Route | null;

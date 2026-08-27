@@ -84,21 +84,6 @@ export interface WidgetContentProps {
   hideXAxisLabels?: boolean;
 }
 
-interface WidgetHeaderProps {
-  title: string;
-  description?: string;
-  /**
-   * Action buttons to render on the right side of the header
-   */
-  actions?: React.ReactNode;
-  className?: string;
-}
-
-interface WidgetWrapperProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
 // ============================================================================
 // Components
 // ============================================================================

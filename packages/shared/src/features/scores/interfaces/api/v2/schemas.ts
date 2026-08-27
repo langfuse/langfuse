@@ -44,5 +44,3 @@ export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [
   // a numeric value does not make sense for TEXT scores, so we omit the property
   ScoreFoundationSchemaV2.omit({ value: true }).extend(TextData.shape),
 ]);
-
-type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;

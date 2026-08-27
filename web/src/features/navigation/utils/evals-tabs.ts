@@ -3,8 +3,6 @@ export const EVALS_TABS = {
   TEMPLATES: "templates",
 } as const;
 
-type EvalsTab = (typeof EVALS_TABS)[keyof typeof EVALS_TABS];
-
 export const getEvalsTabs = (projectId: string) => [
   {
     value: EVALS_TABS.CONFIGS,

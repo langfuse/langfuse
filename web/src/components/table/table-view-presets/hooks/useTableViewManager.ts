@@ -38,11 +38,6 @@ export type SavedViewApplyMeta = {
   viewId?: string | null;
 };
 
-type ApplyViewStateFn = (
-  viewData: TableViewPresetState,
-  meta?: SavedViewApplyMeta,
-) => void;
-
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;

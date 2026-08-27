@@ -12,7 +12,6 @@ import {
   publicApiPaginationZod,
   singleFilter,
   InvalidRequestError,
-  type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
 import {
   reduceUsageOrCostDetails,

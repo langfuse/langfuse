@@ -3,9 +3,6 @@ export const EXPERIMENT_RUN_TABS = {
   ANALYTICS: "analytics",
 } as const;
 
-type ExperimentRunTab =
-  (typeof EXPERIMENT_RUN_TABS)[keyof typeof EXPERIMENT_RUN_TABS];
-
 export const getExperimentRunTabs = (
   projectId: string,
   onResultsClick?: () => void,

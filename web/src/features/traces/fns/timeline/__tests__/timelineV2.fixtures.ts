@@ -315,8 +315,6 @@ export const TIMELINE_SHAPES = {
   huge: () => manySpans(10_000),
 } satisfies Record<string, () => LayoutNode[]>;
 
-type TimelineShapeKey = keyof typeof TIMELINE_SHAPES;
-
 /**
  * One streaming model call: a quarter of its time waiting for the first token,
  * the rest producing. The wide timeline splits such a bar into two shades; this

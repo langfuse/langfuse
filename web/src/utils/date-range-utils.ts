@@ -62,8 +62,6 @@ export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
-type TableDateRangeOptions = TableDateRangeAggregationOption | "custom";
-
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   TimeRangeDefinition

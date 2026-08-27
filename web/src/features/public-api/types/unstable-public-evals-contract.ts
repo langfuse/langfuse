@@ -17,10 +17,6 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 export { StructuredPublicApiErrorResponse } from "./structuredPublicApiErrorSchema";
-import type {
-  StructuredPublicApiErrorCodeType,
-  StructuredPublicApiErrorDetailsType,
-} from "./structuredPublicApiErrorSchema";
 
 const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
 export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
@@ -302,9 +298,6 @@ export type PromptVariableMappingInputType = z.infer<
 >;
 export type PromptVariableMappingReadType = z.infer<
   typeof PromptVariableMappingRead
->;
-type ObservationPromptVariableMappingInputType = z.infer<
-  typeof ObservationPromptVariableMappingInput
 >;
 export type LegacyPromptVariableMappingType = z.infer<
   typeof LegacyPromptVariableMapping

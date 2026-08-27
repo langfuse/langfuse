@@ -9,9 +9,6 @@ import { PATH_CONSTANTS } from "../utils/pathClassification";
 import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import type { SessionContextValue } from "next-auth/react";
 
-/** Actions the auth guard can request */
-type AuthGuardAction = "allow" | "loading" | "redirect" | "sign-out";
-
 /** Result of auth guard evaluation */
 export type AuthGuardResult =
   | { action: "allow" }

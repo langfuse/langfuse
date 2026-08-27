@@ -30,5 +30,3 @@ const ChatCompletionBodySchema = z.object({
 export const validateChatCompletionBody = (input: unknown) => {
   return ChatCompletionBodySchema.parse(input);
 };
-
-type ValidatedChatCompletionBody = z.infer<typeof ChatCompletionBodySchema>;

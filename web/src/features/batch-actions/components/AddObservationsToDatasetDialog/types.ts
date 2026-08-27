@@ -124,14 +124,6 @@ export type FinalPreviewStepProps = {
   onEditStep: (step: DialogStep) => void;
 };
 
-type StatusStepProps = {
-  projectId: string;
-  batchActionId: string;
-  dataset: { id: string; name: string };
-  expectedCount: number;
-  onClose: () => void;
-};
-
 // Dataset info for selection/creation
 export type DatasetInfo = {
   id: string;

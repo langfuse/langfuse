@@ -775,9 +775,6 @@ type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 export type AuthedSession = NonNullable<TRPCContext["session"]> & {
   user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
 };
-type AuthedContext = Omit<TRPCContext, "session"> & {
-  session: AuthedSession;
-};
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
   session: AuthedSession & {

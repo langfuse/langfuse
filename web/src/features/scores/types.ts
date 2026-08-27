@@ -14,18 +14,8 @@ import {
 } from "@langfuse/shared";
 import { type z } from "zod";
 
-type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
 export type ChartBin = { binLabel: string } & CategoryCounts;
-
-type TimeseriesChartProps = {
-  chartData: ChartBin[];
-  chartLabels: string[];
-  title: string;
-  type: "numeric" | "categorical";
-  index?: string;
-  maxFractionDigits?: number;
-};
 
 export type ChartData = {
   chartData: ChartBin[];

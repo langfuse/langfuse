@@ -57,5 +57,3 @@ export const SafeLlmApiKeySchema = LLMApiKeySchema.extend({
   extraHeaders: z.undefined(),
   authMethod: BedrockAuthMethodSchema.optional(),
 });
-
-type SafeLlmApiKey = z.infer<typeof SafeLlmApiKeySchema>;
