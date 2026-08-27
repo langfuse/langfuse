@@ -1,19 +1,8 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
-import { Terminal, ChevronDown } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { Button, type ButtonProps } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -41,14 +30,17 @@ import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import {
   type MetadataDomainClient,
   type WithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import {
+  JumpToPlaygroundMenu,
+  type JumpToPlaygroundAction,
+} from "./JumpToPlaygroundMenu";
 
-type JumpToPlaygroundButtonProps = (
+type JumpToPlaygroundDropdownMenuControllerProps = (
   | {
       source: "prompt";
       prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
@@ -66,37 +58,32 @@ type JumpToPlaygroundButtonProps = (
       analyticsEventName: "trace_detail:test_in_playground_button_click";
     }
 ) & {
-  variant?: ButtonProps["variant"];
-  className?: string;
-  size?: ButtonProps["size"];
-  /**
-   * "toolbar" (default) is the inline button; "menu" renders the same dropdown
-   * trigger as a full-width labeled row ("Test in playground") for the mobile
-   * header overflow popover.
-   */
-  layout?: "toolbar" | "menu";
+  children: (control: {
+    disabled: boolean;
+    title: string;
+    Trigger: Parameters<
+      NonNullable<
+        React.ComponentProps<typeof DropdownMenuController>["children"]
+      >
+    >[0]["Trigger"];
+  }) => React.ReactNode;
 };
 
-export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
-  props,
+export const JumpToPlaygroundDropdownMenuController = (
+  props: JumpToPlaygroundDropdownMenuControllerProps,
 ) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
-  const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
-  const [isAvailable, setIsAvailable] = useState<boolean>(false);
-  const [includeOutput, setIncludeOutput] = useState<boolean>(false);
+  const [includeOutput, setIncludeOutput] = useState(false);
 
   // Generate a stable window ID based on the source data
+  const sourceId =
+    props.source === "prompt" ? props.prompt.id : props.generation.id;
   const stableWindowId = useMemo(() => {
-    if (props.source === "prompt") {
-      return `playground-prompt-${props.prompt.id}`;
-    } else if (props.source === "generation") {
-      return `playground-generation-${props.generation.id}`;
-    }
-    return `playground-${uuidv4()}`;
-  }, [props]);
+    return `playground-${props.source}-${sourceId}`;
+  }, [props.source, sourceId]);
   const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
 
   const apiKeys = api.llmApiKey.all.useQuery(
@@ -126,29 +113,20 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     return modelProviderMap;
   }, [apiKeys.data]);
 
-  const promptData = props.source === "prompt" ? props.prompt : null;
-  const generationData =
-    props.source === "generation" ? props.generation : null;
-
-  useEffect(() => {
-    if (promptData) {
-      setCapturedState(parsePrompt(promptData));
-    } else if (generationData) {
-      setCapturedState(
-        parseGeneration(generationData, modelToProviderMap, includeOutput),
-      );
+  const prompt = props.source === "prompt" ? props.prompt : undefined;
+  const generation =
+    props.source === "generation" ? props.generation : undefined;
+  const capturedState = useMemo(() => {
+    if (prompt) return parsePrompt(prompt);
+    if (generation) {
+      return parseGeneration(generation, modelToProviderMap, includeOutput);
     }
-  }, [promptData, generationData, modelToProviderMap, includeOutput]);
+    return null;
+  }, [prompt, generation, modelToProviderMap, includeOutput]);
+  const isAvailable = capturedState !== null;
 
-  useEffect(() => {
-    if (capturedState) {
-      setIsAvailable(true);
-    } else {
-      setIsAvailable(false);
-    }
-  }, [capturedState, setIsAvailable]);
-
-  const handlePlaygroundAction = (useFreshPlayground: boolean) => {
+  const handlePlaygroundAction = (action: JumpToPlaygroundAction) => {
+    const useFreshPlayground = action === "fresh";
     capture(props.analyticsEventName, {
       playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
     });
@@ -196,67 +174,33 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
-  const isMenu = props.layout === "menu";
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant={isMenu ? "ghost" : (props.variant ?? "secondary")}
-          size={isMenu ? "sm" : (props.size ?? "default")}
-          disabled={!isAvailable}
-          title={tooltipMessage}
-          className={cn(
-            isMenu
-              ? "w-full justify-start gap-2 font-normal"
-              : "flex items-center gap-1",
-            !isAvailable ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-          )}
-        >
-          <Terminal
-            className={
-              isMenu
-                ? "h-4 w-4"
-                : props.size === "sm"
-                  ? "h-3.5 w-3.5"
-                  : "h-4 w-4"
-            }
+    <DropdownMenuController
+      align="end"
+      renderMenu={() =>
+        props.source === "prompt" ? (
+          <JumpToPlaygroundMenu
+            source="prompt"
+            onPlaygroundAction={handlePlaygroundAction}
           />
-          {isMenu ? (
-            <span className="text-sm">Test in playground</span>
-          ) : (
-            <>
-              <span className={cn("hidden md:inline", props.className)}>
-                Playground
-              </span>
-              <ChevronDown className="h-3 w-3" />
-            </>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => handlePlaygroundAction(true)}>
-          <Terminal className="mr-2 h-4 w-4" />
-          Fresh playground
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlePlaygroundAction(false)}>
-          <Terminal className="mr-2 h-4 w-4" />
-          Add to existing
-        </DropdownMenuItem>
-        {props.source === "generation" && (
-          <>
-            <DropdownMenuSeparator />
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <span className="text-sm">Include output</span>
-              <Switch
-                checked={includeOutput}
-                onCheckedChange={setIncludeOutput}
-              />
-            </div>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        ) : (
+          <JumpToPlaygroundMenu
+            source="generation"
+            includeOutput={includeOutput}
+            onIncludeOutputChange={setIncludeOutput}
+            onPlaygroundAction={handlePlaygroundAction}
+          />
+        )
+      }
+    >
+      {({ Trigger }) =>
+        props.children({
+          Trigger,
+          disabled: !isAvailable,
+          title: tooltipMessage,
+        })
+      }
+    </DropdownMenuController>
   );
 };
 
