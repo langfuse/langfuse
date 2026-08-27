@@ -41,6 +41,7 @@ import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -569,10 +570,10 @@ export const ExperimentGridCell = ({
             cell: ({ data }) => (
               <MetadataItem label="Total Cost">
                 <span className="inline-flex items-center gap-1 text-xs">
-                  {data.totalCost != null ? (
+                  {data.totalCost ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <NotRecordedMetric metric="cost" />
                   )}
                   {data.totalCostDiff && (
                     <DiffLabel
@@ -593,7 +594,7 @@ export const ExperimentGridCell = ({
                   {data.latencyMs != null ? (
                     latencyFormatter(data.latencyMs)
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <NotRecordedMetric metric="latency" />
                   )}
                   {data.latencyDiff && (
                     <DiffLabel

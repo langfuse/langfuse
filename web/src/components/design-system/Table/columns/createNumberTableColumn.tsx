@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
@@ -9,11 +10,14 @@ import {
 
 export function createNumberTableColumn<TData extends RowData>({
   emptyValue,
+  emptyCell,
   formatter = numberFormatter,
   getValue,
   ...options
 }: TableColumnOptions<TData, number> & {
   emptyValue?: string;
+  /** Rendered when there is no value; takes precedence over `emptyValue`. */
+  emptyCell?: ReactNode;
   formatter?: (value: number) => string;
   getValue?: (
     value: number | null | undefined,
@@ -24,14 +28,16 @@ export function createNumberTableColumn<TData extends RowData>({
     ...options,
     loadingCell: <TableTextLoadingCell />,
     renderCell: (value, context) => {
+      const empty = emptyCell ?? emptyValue ?? null;
+
       if (!getValue) {
-        if (value === null || value === undefined) return emptyValue ?? null;
+        if (value === null || value === undefined) return empty;
         return <span>{formatter(value)}</span>;
       }
 
       const resolvedValue = getValue(value, context);
 
-      if (resolvedValue === undefined) return emptyValue ?? null;
+      if (resolvedValue === undefined) return empty;
       if (typeof resolvedValue !== "number") return <TableTextLoadingCell />;
 
       return <span>{formatter(resolvedValue)}</span>;

@@ -74,6 +74,7 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -622,6 +623,9 @@ export default function ExperimentsTable({
         description: "Average duration of the root span per experiment item.",
       },
       formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      emptyCell: <NotRecordedMetric metric="latency" />,
+      getValue: (value) =>
+        metricsLoading ? { type: "loading" } : (value ?? undefined),
     }),
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "totalCost",
@@ -629,6 +633,11 @@ export default function ExperimentsTable({
       size: 100,
       enableHiding: true,
       formatter: (value) => `$${numberFormatter(value, 6)}`,
+      emptyCell: <NotRecordedMetric metric="cost" />,
+      // A run whose calls reported no usage or pricing sums to 0, which reads as
+      // free rather than as missing.
+      getValue: (value) =>
+        metricsLoading ? { type: "loading" } : value || undefined,
     }),
     {
       accessorKey: "traceItemScores",

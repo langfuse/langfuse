@@ -74,6 +74,7 @@ import {
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -822,15 +823,13 @@ export default function ExperimentItemsTable({
             experiments={experiments}
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
-            renderValue={(exp) => (
-              <span>
-                {exp.totalCost != null ? (
-                  usdFormatter(exp.totalCost, 2, 6)
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )}
-              </span>
-            )}
+            renderValue={(exp) =>
+              exp.totalCost ? (
+                <span>{usdFormatter(exp.totalCost, 2, 6)}</span>
+              ) : (
+                <NotRecordedMetric metric="cost" />
+              )
+            }
           />
         );
       },
@@ -854,7 +853,9 @@ export default function ExperimentItemsTable({
             renderValue={(exp) =>
               exp.latencyMs != null ? (
                 <span>{latencyFormatter(exp.latencyMs)}</span>
-              ) : undefined
+              ) : (
+                <NotRecordedMetric metric="latency" />
+              )
             }
           />
         );
