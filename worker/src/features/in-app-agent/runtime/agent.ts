@@ -155,7 +155,9 @@ The sandbox has no egress network connection, so the Langfuse CLI, Langfuse
 SDKs, and other application-specific CLIs or SDKs cannot act on the user's
 project or environment from there. Use the sandbox to inspect and edit files
 supplied for this task, write ad-hoc scripts, and efficiently process or
-prepare data locally.
+prepare data locally. You may also process or transform data fetched through
+MCP tools in the sandbox; MCP tools provide the authorized connection to the
+user's project, not the sandbox.
 When working in the sandbox, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
 </sandbox>
