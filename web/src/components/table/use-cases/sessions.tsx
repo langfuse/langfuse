@@ -64,7 +64,6 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
@@ -303,10 +302,10 @@ export default function SessionsTable({
   // each other with no explicit sync. Off on the user-detail mount, which is
   // page-scoped by a userId filter the bar must not fight (same embedded
   // opt-out as EventsTable).
-  const sessionsSearchBarEnabled =
-    useIsFeatureEnabled("sessionsSearchBar", { enableForAdmins: false }) &&
-    isBetaEnabled &&
-    !userId;
+  // Generally available on the v4 sessions table. Still off on the user-detail
+  // mount, which is page-scoped by a userId filter the bar must not fight (the
+  // same embedded opt-out EventsTable applies).
+  const sessionsSearchBarEnabled = isBetaEnabled && !userId;
   const observedOptions = useMemo(
     () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
     [newFilterOptions, isSidebarFilterLoading],

@@ -38,14 +38,20 @@ describe("parseFlags", () => {
   });
 
   it("honors a Langfuse team member's explicit opt-out", () => {
-    const flags = parseFlags([getFeaturePreviewOptOutFlag("modernSession")], {
-      email: "team.member@langfuse.com",
-      v4BetaEnabled: true,
-    });
+    const flags = parseFlags(
+      [getFeaturePreviewOptOutFlag("modernSession"), "templateFlag"],
+      {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      },
+    );
 
     expect(flags.modernSession).toBe(false);
-    // Opting out of one preview leaves the others alone.
-    expect(flags.sessionsSearchBar).toBe(true);
+    // Scoped to its own flag: the opt-out is a STRING match, so a matcher that
+    // is too loose would take neighbouring flags down with it. A non-preview
+    // flag stands in for that here, which keeps the guard alive no matter how
+    // many previews the registry happens to hold.
+    expect(flags.templateFlag).toBe(true);
   });
 
   it("honors an explicit opt-out for every user", () => {

@@ -123,7 +123,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        sessionsSearchBar: false,
       },
       management: {
         allowed: false,
@@ -150,7 +149,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -186,7 +184,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -196,13 +193,11 @@ describe("UserFeaturePreviewsControl", () => {
     });
     fireEvent.click(sessions);
 
+    // Its own row only. The counterpart assertion — that every OTHER row stays
+    // interactive — needs a second registered preview, which the registry does
+    // not have between one preview reaching GA and the next one landing. Add it
+    // back with the next preview; `isToggling` is per-flag, not per-list.
     expect(sessions).toBeDisabled();
-    // Only its own row: a pending toggle must not lock the whole list.
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Toggle Sessions Search Bar for user",
-      }),
-    ).toBeEnabled();
   });
 
   it("refetches without capturing analytics when the mutation fails", async () => {
@@ -215,7 +210,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });

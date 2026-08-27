@@ -1,9 +1,6 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = [
-  "modernSession",
-  "sessionsSearchBar",
-] as const;
+export const featurePreviewFlags = ["modernSession"] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
@@ -18,7 +15,6 @@ export const filterFeaturePreviewFlags = (
 
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
-  sessionsSearchBar: "Sessions Search Bar",
 } satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -30,13 +26,6 @@ export const isFeaturePreviewAvailable = (
   context: FeaturePreviewAvailabilityContext,
 ) => {
   if (flag === "modernSession") {
-    return context.v4BetaEnabled;
-  }
-
-  if (flag === "sessionsSearchBar") {
-    // Reads the events-backed sessions table, so it depends on v4 exactly as
-    // modernSession does — without this, staff who get previews by default
-    // would see the tile checked but disabled.
     return context.v4BetaEnabled;
   }
 

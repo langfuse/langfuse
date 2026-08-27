@@ -172,7 +172,7 @@ describe("organization feature preview defaults", () => {
     await prisma.organization.update({
       where: { id: org.id },
       data: {
-        featureFlagOrgDefaults: ["modernSession", "sessionsSearchBar"],
+        featureFlagOrgDefaults: ["modernSession", "futurePreview"],
       },
     });
     const member = await createUser({
@@ -203,11 +203,12 @@ describe("organization feature preview defaults", () => {
       members.memberships.find((membership) => membership.userId === member.id)
         ?.featurePreviews,
     ).toEqual({
-      // Two defaults, resolving differently: the member's opt-out beats one,
-      // the other is inherited from the organization — and neither was copied
-      // onto the user, which the assertion above this one checks.
+      // The member's opt-out beats the organization default, and neither
+      // default was copied onto the user (asserted above). `futurePreview` is
+      // not a registered preview, so it is filtered out rather than surfacing
+      // here. Asserting that two REGISTERED defaults resolve differently needs
+      // a second preview; add that half back with the next one.
       modernSession: false,
-      sessionsSearchBar: true,
     });
   });
 
@@ -438,10 +439,7 @@ describe("organization member feature preview overrides", () => {
 
     // The state map surfaces every preview; the raw `featureFlags` array stays
     // hidden, which is what this guards.
-    expect(row?.featurePreviews).toEqual({
-      modernSession: true,
-      sessionsSearchBar: false,
-    });
+    expect(row?.featurePreviews).toEqual({ modernSession: true });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");
   });

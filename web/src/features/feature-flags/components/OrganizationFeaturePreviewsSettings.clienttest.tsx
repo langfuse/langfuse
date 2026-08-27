@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   experimentalFeaturesEnabled: false,
   userFeatureFlags: {
     modernSession: false,
-    sessionsSearchBar: false,
   } as Record<string, boolean>,
   /**
    * Which previews are already organization defaults. Per-test, because a test
@@ -145,7 +144,6 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.experimentalFeaturesEnabled = false;
     mocks.userFeatureFlags = {
       modernSession: false,
-      sessionsSearchBar: false,
     };
     mocks.orgDefaults = ["modernSession"];
     mocks.mutate.mockImplementation((variables) => {
@@ -182,21 +180,16 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     // Not a default yet: an admin can always turn one OFF, so the lock only
     // shows on a row they would be turning ON.
     mocks.orgDefaults = [];
-    // The contrast row: enabled personally, so its default switch stays live.
-    // The lock is about the admin's own state, not about being a default.
-    mocks.userFeatureFlags.sessionsSearchBar = true;
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
+    // The contrast half — a row the admin HAS enabled personally stays live —
+    // needs a second registered preview, and there is one between one preview
+    // reaching GA and the next landing. Add it back with the next preview.
     expect(
       screen.getByRole("checkbox", {
         name: "Toggle Compact Session View organization default",
       }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Toggle Sessions Search Bar organization default",
-      }),
-    ).not.toBeDisabled();
     const personalEnablementRequirements = screen.getAllByText(
       /enable this preview in your personal feature preview settings/i,
     );

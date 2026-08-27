@@ -62,21 +62,6 @@ export function ControlledFeaturePreviewModal({
       onToggle: onToggle("modernSession"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    sessionsSearchBar: {
-      enabled:
-        authSession.data?.user?.featureFlags.sessionsSearchBar === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      disabled:
-        !isBetaEnabled ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isBetaEnabled
-        ? `The sessions search bar reads the events-backed sessions table. Turn on ${V4_PREVIEW_LABEL} to enable it.`
-        : authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("sessionsSearchBar"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
   };
 
   return (
