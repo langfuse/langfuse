@@ -24,11 +24,15 @@ export function MobileFullTextSearch({
   updateQuery,
   tableAllowsFullTextSearch,
   metadataSearchFields,
+  tableName = "observations-events",
+  isV4 = true,
 }: {
   currentQuery?: string;
   updateQuery: (query: string) => void;
   tableAllowsFullTextSearch?: boolean;
   metadataSearchFields?: string[];
+  tableName?: string;
+  isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const committed = currentQuery ?? "";
@@ -45,7 +49,10 @@ export function MobileFullTextSearch({
   }
 
   const submit = (query: string) => {
-    capture("table:search_submit");
+    capture("table:search_submit", {
+      tableName,
+      isV4,
+    });
     updateQuery(query);
   };
 

@@ -44,11 +44,8 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(false);
-    // NOTE: this used to also assert that opting out of one preview leaves the
-    // others alone, against `compactTimeline`. That flag went away when the
-    // Compact Timeline reached GA, and `modernSession` is the only preview left
-    // — so the isolation case is untestable through the registry until a second
-    // preview exists. Restore the assertion with it.
+    // Opting out of one preview leaves the others alone.
+    expect(flags.sessionsSearchBar).toBe(true);
   });
 
   it("honors an explicit opt-out for every user", () => {

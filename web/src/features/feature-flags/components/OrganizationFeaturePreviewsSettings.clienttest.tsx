@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { OrganizationFeaturePreviewsSettings } from "./OrganizationFeaturePreviewsSettings";
+import { featurePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -20,11 +21,12 @@ const mocks = vi.hoisted(() => ({
   experimentalFeaturesEnabled: false,
   userFeatureFlags: {
     modernSession: false,
-  },
+    sessionsSearchBar: false,
+  } as Record<string, boolean>,
   /**
-   * Which previews are already organization defaults. Per-test since the
-   * Compact Timeline reached GA: with a single preview in the registry, a test
-   * that needs one which is NOT yet a default can no longer just pick the other.
+   * Which previews are already organization defaults. Per-test, because a test
+   * that needs a preview which is NOT yet a default cannot rely on the registry
+   * happening to hold one — both surviving previews are defaults by fixture.
    */
   orgDefaults: ["modernSession"] as string[],
   updateSession: vi.fn().mockResolvedValue(undefined),
@@ -143,6 +145,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.experimentalFeaturesEnabled = false;
     mocks.userFeatureFlags = {
       modernSession: false,
+      sessionsSearchBar: false,
     };
     mocks.orgDefaults = ["modernSession"];
     mocks.mutate.mockImplementation((variables) => {
@@ -166,9 +169,9 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     const switches = screen.getAllByRole("checkbox", {
       name: /organization default/i,
     });
-    // One row per preview, and there is one preview since the Compact Timeline
-    // reached GA and left the registry.
-    expect(switches).toHaveLength(1);
+    // Derived, not hardcoded: the page renders one switch per registered
+    // preview, so a new preview must not fail this test.
+    expect(switches).toHaveLength(featurePreviewFlags.length);
     switches.forEach((featureSwitch) => {
       expect(featureSwitch).toBeChecked();
       expect(featureSwitch).toBeDisabled();
@@ -179,16 +182,21 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     // Not a default yet: an admin can always turn one OFF, so the lock only
     // shows on a row they would be turning ON.
     mocks.orgDefaults = [];
+    // The contrast row: enabled personally, so its default switch stays live.
+    // The lock is about the admin's own state, not about being a default.
+    mocks.userFeatureFlags.sessionsSearchBar = true;
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    // NOTE: this also compared against a SECOND preview the admin had enabled
-    // personally, whose row stayed interactive. That was `compactTimeline`, gone
-    // at GA — the contrast half returns with the next preview.
     expect(
       screen.getByRole("checkbox", {
         name: "Toggle Compact Session View organization default",
       }),
     ).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle Sessions Search Bar organization default",
+      }),
+    ).not.toBeDisabled();
     const personalEnablementRequirements = screen.getAllByText(
       /enable this preview in your personal feature preview settings/i,
     );

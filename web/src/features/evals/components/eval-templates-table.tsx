@@ -480,6 +480,8 @@ export default function EvalsTemplateTable({
     );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "evalTemplates",
+    isV4: false,
     expandConfig: {
       basePath: `/project/${projectId}/evals/templates`,
     },

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
+import { featurePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -122,6 +123,7 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
+        sessionsSearchBar: false,
       },
       management: {
         allowed: false,
@@ -134,7 +136,11 @@ describe("UserFeaturePreviewsControl", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /0\/1 enabled/i }),
+      screen.getByRole("button", {
+        // Derived: the counter's denominator is the number of registered
+        // previews, so a new preview must not fail this test.
+        name: new RegExp(`0/${featurePreviewFlags.length} enabled`, "i"),
+      }),
     ).toBeDisabled();
   });
 
@@ -144,6 +150,7 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
+        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -179,6 +186,7 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
+        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });
@@ -188,11 +196,13 @@ describe("UserFeaturePreviewsControl", () => {
     });
     fireEvent.click(sessions);
 
-    // NOTE: this also asserted that the OTHER preview's row stayed enabled, so
-    // that a pending toggle disables only its own row. `compactTimeline` was the
-    // other row, and it went away at GA — there is one preview left, so the
-    // isolation half returns with the next one.
     expect(sessions).toBeDisabled();
+    // Only its own row: a pending toggle must not lock the whole list.
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Toggle Sessions Search Bar for user",
+      }),
+    ).toBeEnabled();
   });
 
   it("refetches without capturing analytics when the mutation fails", async () => {
@@ -205,6 +215,7 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
+        sessionsSearchBar: false,
       },
       management: { allowed: true },
     });

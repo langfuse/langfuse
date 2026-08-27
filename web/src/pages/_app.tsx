@@ -93,6 +93,10 @@ import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheCon
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
+const isPostHogSessionRecordingEnabled =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "HIPAA";
+
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
   typeof window !== "undefined" &&
@@ -106,9 +110,17 @@ if (
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    // Session replay is a Langfuse Cloud feature and must stay disabled in the
+    // HIPAA region. Other PostHog analytics remain independently configured.
+    disable_session_recording: !isPostHogSessionRecordingEnabled,
     session_recording: {
       maskAllInputs: true,
-      maskTextSelector: "*",
+      // Custom editors and the trace search composer render customer text in
+      // contenteditable elements, which maskAllInputs does not cover.
+      maskTextSelector: '[contenteditable="true"]',
+      // Trace/observation payload renderers use this class so recordings show
+      // the surrounding UI without capturing customer input/output values.
+      blockClass: "ph-no-capture",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
