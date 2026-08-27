@@ -23,6 +23,9 @@ function db() {
  * Catalog of reference query shapes, one entry per complexity tier.
  * Reference SQL is the intended ClickHouse shape, not a dump of Kysely's
  * first draft — `compile(AST) ≡ referenceSQL` after `clickhouse format`.
+ *
+ * No entry filters `project_id`: the reference SQL shows the `project_id`
+ * predicate the mandatory tenancy pass injects, so these also prove injection.
  */
 export const CATALOG: CatalogEntry[] = [
   {
@@ -34,11 +37,7 @@ export const CATALOG: CatalogEntry[] = [
       WHERE project_id = {p1:String}
     `,
     build: () =>
-      db()
-        .selectFrom("events_core")
-        .select("environment")
-        .distinct()
-        .where("project_id", "=", PROJECT_ID),
+      db().selectFrom("events_core").select("environment").distinct(),
   },
   {
     id: "environments_legacy_union",
@@ -57,13 +56,8 @@ export const CATALOG: CatalogEntry[] = [
         .selectFrom("traces")
         .select("environment")
         .distinct()
-        .where("project_id", "=", PROJECT_ID)
         .unionAll(
-          db()
-            .selectFrom("observations")
-            .select("environment")
-            .distinct()
-            .where("project_id", "=", PROJECT_ID),
+          db().selectFrom("observations").select("environment").distinct(),
         ),
   },
   {
@@ -79,7 +73,6 @@ export const CATALOG: CatalogEntry[] = [
         .selectFrom("scores")
         .select("environment")
         .distinct()
-        .where("project_id", "=", PROJECT_ID)
         .where("data_type", "in", [
           "NUMERIC",
           "BOOLEAN",
@@ -100,7 +93,6 @@ export const CATALOG: CatalogEntry[] = [
         .selectFrom("events_core")
         .select("environment")
         .distinct()
-        .where("project_id", "=", PROJECT_ID)
         .where("start_time", ">=", FROM_TS),
   },
   {
@@ -116,7 +108,6 @@ export const CATALOG: CatalogEntry[] = [
       db()
         .selectFrom("events_core")
         .select((eb) => ["environment", eb.fn.countAll().as("n")])
-        .where("project_id", "=", PROJECT_ID)
         .groupBy("environment"),
   },
   {
@@ -136,8 +127,7 @@ export const CATALOG: CatalogEntry[] = [
             .onRef("o.trace_id", "=", "t.id")
             .onRef("o.project_id", "=", "t.project_id"),
         )
-        .select("o.environment")
-        .where("o.project_id", "=", PROJECT_ID),
+        .select("o.environment"),
   },
   {
     id: "cte_trace_ids",
@@ -157,15 +147,9 @@ export const CATALOG: CatalogEntry[] = [
     `,
     build: () =>
       db()
-        .with("traces_cte", (qb) =>
-          qb
-            .selectFrom("traces")
-            .select("id")
-            .where("project_id", "=", PROJECT_ID),
-        )
+        .with("traces_cte", (qb) => qb.selectFrom("traces").select("id"))
         .selectFrom("observations as o")
         .select("o.environment")
-        .where("o.project_id", "=", PROJECT_ID)
         .where("o.trace_id", "in", (eb) =>
           eb.selectFrom("traces_cte").select("id"),
         ),
@@ -180,16 +164,10 @@ export const CATALOG: CatalogEntry[] = [
       WHERE project_id = {p1:String}
     `,
     build: () =>
-      withArrayJoin(
-        db()
-          .selectFrom("observations")
-          .select("environment")
-          .where("project_id", "=", PROJECT_ID),
-        [
-          { expression: mapKeys("cost_details"), as: "cost_key" },
-          { expression: mapValues("cost_details"), as: "cost" },
-        ],
-      ),
+      withArrayJoin(db().selectFrom("observations").select("environment"), [
+        { expression: mapKeys("cost_details"), as: "cost_key" },
+        { expression: mapValues("cost_details"), as: "cost" },
+      ]),
   },
   {
     id: "limit_by_dedup",
@@ -206,7 +184,6 @@ export const CATALOG: CatalogEntry[] = [
         db()
           .selectFrom("events_core")
           .select(["span_id", "project_id"])
-          .where("project_id", "=", PROJECT_ID)
           .orderBy("event_ts", "desc"),
         { count: 1, columns: ["span_id", "project_id"] },
       ),
@@ -230,8 +207,7 @@ export const CATALOG: CatalogEntry[] = [
               ob.partitionBy("trace_id").orderBy("start_time", "desc"),
             )
             .as("rk"),
-        ])
-        .where("project_id", "=", PROJECT_ID),
+        ]),
   },
 ];
 

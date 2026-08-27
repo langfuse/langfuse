@@ -10,37 +10,68 @@ export type EnvironmentFilterProps = {
   fromTimestamp?: Date;
 };
 
-type EnvironmentsQueryInput = {
-  projectId: string;
-  fromTimestamp?: Date;
-  writeMode: "legacy" | "events_only" | "dual";
-};
-
 export const getEnvironmentsForProject = async (
   props: EnvironmentFilterProps,
 ): Promise<{ environment: string }[]> => {
   const { projectId, fromTimestamp } = props;
+  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const db = getClickhouseKysely();
+  // project_id is intentionally not filtered in the query bodies below: the
+  // compile step's mandatory tenancy pass injects `project_id = {projectId}`
+  // into every tenanted relation from this context, and refuses to compile a
+  // query that has no scope.
+  const ctx: ExecutionContext = { projectId };
 
-  // In dual and events_only write modes all tracing data lands in the events
-  // tables: a single events_core scan covers traces and observations and is
-  // the only populated source under events_only. Scores keep their own table
-  // in every write mode. The events read may be routed to a dedicated
-  // ClickHouse service (CLICKHOUSE_EVENTS_READ_ONLY_URL), so it cannot share
-  // a query with the scores read.
-  const { tracing, scores } = compileEnvironmentsQueries({
-    projectId,
-    fromTimestamp,
-    writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-  });
+  // In dual/events_only write modes all tracing data lands in events_core (the
+  // only populated source under events_only), so one scan covers traces and
+  // observations. Legacy still reads the two separate tables and unions them.
+  const tracingQuery =
+    writeMode === "legacy"
+      ? db
+          .selectFrom("traces")
+          .select("environment")
+          .distinct()
+          .$if(fromTimestamp != null, (qb) =>
+            qb.where("timestamp", ">=", fromTimestamp!),
+          )
+          .unionAll(
+            db
+              .selectFrom("observations")
+              .select("environment")
+              .distinct()
+              .$if(fromTimestamp != null, (qb) =>
+                qb.where("start_time", ">=", fromTimestamp!),
+              ),
+          )
+      : db
+          .selectFrom("events_core")
+          .select("environment")
+          .distinct()
+          .$if(fromTimestamp != null, (qb) =>
+            qb.where("start_time", ">=", fromTimestamp!),
+          );
 
+  const scoresQuery = db
+    .selectFrom("scores")
+    .select("environment")
+    .distinct()
+    .where("data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .$if(fromTimestamp != null, (qb) =>
+      qb.where("timestamp", ">=", fromTimestamp!),
+    );
+
+  const tracing = compileClickhouseQuery(tracingQuery, ctx);
+  const scores = compileClickhouseQuery(scoresQuery, ctx);
+
+  // The events read may route to a dedicated ClickHouse service
+  // (CLICKHOUSE_EVENTS_READ_ONLY_URL) while scores always read the primary, so
+  // the two cannot share one query.
   const tracingEnvironmentsPromise = queryClickhouse<{ environment: string }>({
     query: tracing.sql,
     params: tracing.params,
     tags: { projectId, route: "environments.getEnvironmentsForProject" },
     preferredClickhouseService:
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
-        ? "ReadOnly"
-        : "EventsReadOnly",
+      writeMode === "legacy" ? "ReadOnly" : "EventsReadOnly",
   });
 
   const scoreEnvironmentsPromise = queryClickhouse<{ environment: string }>({
@@ -54,8 +85,8 @@ export const getEnvironmentsForProject = async (
     await Promise.all([tracingEnvironmentsPromise, scoreEnvironmentsPromise])
   ).flat();
 
-  // "default" always exists as a selectable environment even when no rows
-  // have been written under it, so it is not guaranteed to appear in the scan.
+  // "default" always exists as a selectable environment even when no rows have
+  // been written under it, so it is not guaranteed to appear in the scan.
   results.push({ environment: "default" });
 
   return Array.from(new Set(results.map((e) => e.environment))).map(
@@ -64,70 +95,3 @@ export const getEnvironmentsForProject = async (
     }),
   );
 };
-
-/**
- * `getEnvironmentsForProject` as traced Kysely nodes, compiled to SQL.
- * Two statements (tracing read + scores read) matching the exec split above:
- * events may route to a dedicated ClickHouse service.
- */
-function compileEnvironmentsQueries(input: EnvironmentsQueryInput): {
-  tracing: { sql: string; params: Record<string, unknown> };
-  scores: { sql: string; params: Record<string, unknown> };
-} {
-  const ctx: ExecutionContext = { projectId: input.projectId };
-  return {
-    tracing: compileClickhouseQuery(buildTracingQuery(input), ctx),
-    scores: compileClickhouseQuery(buildScoresQuery(input), ctx),
-  };
-}
-
-function buildTracingQuery(input: EnvironmentsQueryInput) {
-  const db = getClickhouseKysely();
-  const { projectId, fromTimestamp } = input;
-
-  if (input.writeMode === "legacy") {
-    const traces = db
-      .selectFrom("traces")
-      .select("environment")
-      .distinct()
-      .where("project_id", "=", projectId)
-      .$if(fromTimestamp != null, (qb) =>
-        qb.where("timestamp", ">=", fromTimestamp!),
-      );
-
-    const observations = db
-      .selectFrom("observations")
-      .select("environment")
-      .distinct()
-      .where("project_id", "=", projectId)
-      .$if(fromTimestamp != null, (qb) =>
-        qb.where("start_time", ">=", fromTimestamp!),
-      );
-
-    return traces.unionAll(observations);
-  }
-
-  return db
-    .selectFrom("events_core")
-    .select("environment")
-    .distinct()
-    .where("project_id", "=", projectId)
-    .$if(fromTimestamp != null, (qb) =>
-      qb.where("start_time", ">=", fromTimestamp!),
-    );
-}
-
-function buildScoresQuery(input: EnvironmentsQueryInput) {
-  const db = getClickhouseKysely();
-  const { projectId, fromTimestamp } = input;
-
-  return db
-    .selectFrom("scores")
-    .select("environment")
-    .distinct()
-    .where("project_id", "=", projectId)
-    .where("data_type", "in", [...LISTABLE_SCORE_TYPES])
-    .$if(fromTimestamp != null, (qb) =>
-      qb.where("timestamp", ">=", fromTimestamp!),
-    );
-}

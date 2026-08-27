@@ -143,8 +143,11 @@ function injectSelect(
       !predicateCovers(where?.where, table, ctx.projectId, requireQualified)
     ) {
       const predicate = projectIdPredicate(table, ctx.projectId);
+      // Prepend: the tenancy scope is the leading WHERE predicate, so its bound
+      // value keeps a stable (first) parameter position regardless of the other
+      // predicates a caller wrote.
       where = where
-        ? WhereNode.cloneWithOperation(where, "And", predicate)
+        ? WhereNode.create(AndNode.create(predicate, where.where))
         : WhereNode.create(predicate);
     }
   }
