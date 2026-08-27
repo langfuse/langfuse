@@ -10,21 +10,21 @@ import {
 } from "@langfuse/shared";
 
 const USAGE_TYPE_PATTERN = /^[a-zA-Z0-9_-]+$/;
-export const UsageTypeSchema = z.string().regex(USAGE_TYPE_PATTERN);
-export const PriceSchema = z.number().nonnegative();
-export const TokenizerSchema = z.enum(["openai", "claude"]).nullish();
+const UsageTypeSchema = z.string().regex(USAGE_TYPE_PATTERN);
+const PriceSchema = z.number().nonnegative();
+const TokenizerSchema = z.enum(["openai", "claude"]).nullish();
 // Input version: allows optional prices for form
 const PriceMapInputSchema = z.record(UsageTypeSchema, PriceSchema.optional());
 
 // Output version: filtered to only defined prices. A price of 0 is a real,
 // deliberate price — dropping it deleted the usage type on the next save.
-export const PriceMapSchema = PriceMapInputSchema.transform((obj) => {
+const PriceMapSchema = PriceMapInputSchema.transform((obj) => {
   return Object.fromEntries(
     Object.entries(obj).filter(([_, value]) => value != null),
   ) as Record<string, number>;
 }).pipe(z.record(UsageTypeSchema, PriceSchema));
 
-export const PricingTierSchema = z.object({
+const PricingTierSchema = z.object({
   id: z.string(),
   name: z.string(),
   isDefault: z.boolean(),
@@ -58,7 +58,7 @@ export type FormUsageType = z.infer<typeof FormUsageTypeSchema>;
 
 // Form-level tier schema. Prices are keyed by usage type row key and held as
 // strings, so a half-typed "0." or "0.0000025" survives every keystroke.
-export const FormPricingTierSchema = z.object({
+const FormPricingTierSchema = z.object({
   name: z.string().trim().min(1, "Tier name is required"),
   isDefault: z.boolean(),
   conditions: z.array(PricingTierConditionSchema),

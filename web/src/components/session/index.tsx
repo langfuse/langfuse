@@ -119,7 +119,7 @@ import {
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
 
-export function SessionUsers({
+function SessionUsers({
   projectId,
   users,
 }: {

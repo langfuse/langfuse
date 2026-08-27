@@ -18,8 +18,6 @@
  */
 
 export { JSONTableView } from "./JSONTableView";
-export { JSONTableViewHeader } from "./JSONTableViewHeader";
-export { JSONTableViewRow } from "./JSONTableViewRow";
 export type {
   JSONTableViewProps,
   JSONTableViewColumn,

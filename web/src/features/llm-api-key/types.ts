@@ -7,7 +7,7 @@ import {
   LLMApiKeySchema,
 } from "@langfuse/shared";
 
-export const LlmApiKeySchema = z.object({
+const LlmApiKeySchema = z.object({
   projectId: z.string(),
   provider: z
     .string()

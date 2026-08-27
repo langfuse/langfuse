@@ -67,6 +67,7 @@ import {
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
 import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -359,24 +360,14 @@ export function RulesTable({
         enableSorting: true,
         cell: ({ row }) => `${Math.round(row.original.sampling * 100)}%`,
       },
-      {
+      createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
-        id: "createdByUser",
         header: "Created by",
         size: 180,
         enableHiding: true,
-        cell: ({ row }) => {
-          const creator =
-            row.original.createdByUser?.name ??
-            row.original.createdByUser?.email ??
-            "API";
-          return (
-            <span className="block truncate" title={creator}>
-              {creator}
-            </span>
-          );
-        },
-      },
+        variant: "text",
+        emptyValue: "API",
+      }),
       {
         accessorKey: "createdAt",
         id: "createdAt",
