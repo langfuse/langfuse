@@ -3,7 +3,6 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
   traceException,
-  redis,
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
@@ -14,19 +13,15 @@ import {
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import {
-  jsonSchema,
-  MethodNotAllowedError,
-  BaseError,
-  UnauthorizedError,
-  ForbiddenError,
-} from "@langfuse/shared";
+import { jsonSchema, MethodNotAllowedError, BaseError } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
-import { prisma } from "@langfuse/shared/src/db";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
+import {
+  authorizeIngestionEvents,
+  verifyIngestionAuth,
+} from "@/src/features/auth/policy/shadow.ingestion";
 
 export const config = {
   api: {
@@ -80,27 +75,15 @@ export default async function handler(
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
     // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
+    const authResult = await verifyIngestionAuth({ req });
+    if (!authResult.ok) {
+      if (authResult.projectId)
+        projectIdForIngestFailure = authResult.projectId;
+      throw authResult.error;
     }
-    if (!authCheck.scope.projectId) {
-      throw new UnauthorizedError(
-        "Missing projectId in scope. Are you using an organization key?",
-      );
-    }
-    const projectId = authCheck.scope.projectId;
+    const authCheck = authResult.authCheck;
+    const projectId = authResult.projectId;
     projectIdForIngestFailure = projectId;
-
-    if (authCheck.scope.isIngestionSuspended) {
-      throw new ForbiddenError(
-        "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
-      );
-    }
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -173,12 +156,26 @@ export default async function handler(
           );
         }
 
-        const result = await processEventBatch(batchForProcessing, authCheck, {
-          attribution,
-        });
-        if (rejectedErrors.length > 0) {
-          result.errors = [...result.errors, ...rejectedErrors];
-        }
+        const authorized =
+          env.PUBLIC_API_AUTHZ_MIGRATION !== "legacy" && authResult.context
+            ? authorizeIngestionEvents({
+                batch: batchForProcessing,
+                accessLevel: authCheck.scope.accessLevel,
+                context: authResult.context,
+                projectId,
+              })
+            : { batchForProcessing, rejectedErrors: [] };
+
+        const result = await processEventBatch(
+          authorized.batchForProcessing,
+          authCheck,
+          { attribution },
+        );
+        result.errors = [
+          ...result.errors,
+          ...rejectedErrors,
+          ...authorized.rejectedErrors,
+        ];
         return res.status(207).json(result);
       } catch (error) {
         if (!(error instanceof BaseError && error.isUserError())) {
