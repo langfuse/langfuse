@@ -22,6 +22,7 @@ import {
   GetDatasetV2Response,
   GetDatasetsV1Response,
   GetDatasetsV2Response,
+  PatchDatasetV2Response,
   PostDatasetItemsV1Response,
   PostDatasetRunItemsV1Response,
   PostDatasetsV1Response,
@@ -1869,6 +1870,233 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
 
     expect(deleteRes.status).toBe(200);
   }, 90000);
+
+  describe("PATCH /api/public/v2/datasets/{datasetName}", () => {
+    it("should rename a dataset and make it addressable under the new name", async () => {
+      const oldName = `patch-rename-old-${v4()}`;
+      const newName = `patch-rename-new-${v4()}`;
+
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        { name: oldName },
+        auth,
+      );
+
+      const patchRes = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(oldName)}`,
+        { name: newName },
+        auth,
+      );
+      expect(patchRes.body.name).toBe(newName);
+
+      const oldNameRes = await makeAPICall(
+        "GET",
+        `/api/public/v2/datasets/${encodeURIComponent(oldName)}`,
+        undefined,
+        auth,
+      );
+      expect(oldNameRes.status).toBe(404);
+
+      const newNameRes = await makeZodVerifiedAPICall(
+        GetDatasetV2Response,
+        "GET",
+        `/api/public/v2/datasets/${encodeURIComponent(newName)}`,
+        undefined,
+        auth,
+      );
+      expect(newNameRes.body.name).toBe(newName);
+    });
+
+    it("should rename datasets across folder paths", async () => {
+      const flatName = `patch-flat-${v4()}`;
+      const nestedName = `folder/patch-nested-${v4()}`;
+      const otherNestedName = `folder/patch-other-nested-${v4()}`;
+
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        { name: flatName },
+        auth,
+      );
+
+      // flat name -> nested folder path
+      const toNested = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(flatName)}`,
+        { name: nestedName },
+        auth,
+      );
+      expect(toNested.body.name).toBe(nestedName);
+
+      // nested folder path -> another nested folder path
+      const toOtherNested = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(nestedName)}`,
+        { name: otherNestedName },
+        auth,
+      );
+      expect(toOtherNested.body.name).toBe(otherNestedName);
+
+      const finalRes = await makeZodVerifiedAPICall(
+        GetDatasetV2Response,
+        "GET",
+        `/api/public/v2/datasets/${encodeURIComponent(otherNestedName)}`,
+        undefined,
+        auth,
+      );
+      expect(finalRes.body.name).toBe(otherNestedName);
+    });
+
+    it("should leave omitted fields unchanged and only update what is provided", async () => {
+      const datasetName = `patch-partial-${v4()}`;
+
+      const created = await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        {
+          name: datasetName,
+          description: "original description",
+          metadata: { original: true },
+        },
+        auth,
+      );
+      expect(created.body.description).toBe("original description");
+
+      const patchRes = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+        { metadata: { updated: true } },
+        auth,
+      );
+
+      expect(patchRes.body.description).toBe("original description");
+      expect(patchRes.body.metadata).toEqual({ updated: true });
+      expect(patchRes.body.name).toBe(datasetName);
+    });
+
+    it("should clear description and metadata when explicitly set to null", async () => {
+      const datasetName = `patch-clear-${v4()}`;
+
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        {
+          name: datasetName,
+          description: "to be cleared",
+          metadata: { toBeCleared: true },
+        },
+        auth,
+      );
+
+      const patchRes = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+        { description: null, metadata: null },
+        auth,
+      );
+
+      expect(patchRes.body.description).toBeNull();
+      expect(patchRes.body.metadata).toBeNull();
+    });
+
+    it("should return a structured 404 for an unknown dataset", async () => {
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(`does-not-exist-${v4()}`)}`,
+        { description: "irrelevant" },
+        auth,
+      );
+
+      expect(res.status).toBe(404);
+      expect((res.body as any).code).toBe("resource_not_found");
+    });
+
+    it("should return a structured 409 when renaming onto an existing dataset name", async () => {
+      const nameA = `patch-conflict-a-${v4()}`;
+      const nameB = `patch-conflict-b-${v4()}`;
+
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        { name: nameA },
+        auth,
+      );
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        { name: nameB },
+        auth,
+      );
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(nameA)}`,
+        { name: nameB },
+        auth,
+      );
+
+      expect(res.status).toBe(409);
+      expect((res.body as any).code).toBe("name_conflict");
+    });
+
+    it("should return a structured 400 for an invalid new name", async () => {
+      const datasetName = `patch-invalid-name-${v4()}`;
+
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        { name: datasetName },
+        auth,
+      );
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+        { name: "/leading-slash-not-allowed" },
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      expect((res.body as any).code).toBe("invalid_request");
+    });
+
+    it("should return a structured 400 for a malformed request body", async () => {
+      const datasetName = `patch-malformed-body-${v4()}`;
+
+      await makeZodVerifiedAPICall(
+        PostDatasetsV2Response,
+        "POST",
+        "/api/public/v2/datasets",
+        { name: datasetName },
+        auth,
+      );
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+        { name: 123 },
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      expect((res.body as any).code).toBe("invalid_body");
+      expect((res.body as any).details?.issues).toBeDefined();
+    });
+  });
 
   it("should support dataset versioning via version query parameter", async () => {
     const datasetName = `versioned-dataset-${v4()}`;

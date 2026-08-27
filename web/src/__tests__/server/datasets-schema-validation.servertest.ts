@@ -7,6 +7,7 @@ import {
 import {
   PostDatasetsV2Response,
   PostDatasetItemsV1Response,
+  PatchDatasetV2Response,
 } from "@/src/features/public-api/types/datasets";
 import {
   createOrgProjectAndApiKey,
@@ -598,6 +599,105 @@ describe("Public API - Dataset Schema Enforcement", () => {
 
       expect(res.status).toBe(400);
       expect((res.body as any).message).toContain("validation failed");
+    });
+  });
+
+  describe("PATCH /api/public/v2/datasets/{datasetName} - Schema Validation", () => {
+    it("should block setting a schema that existing items fail with a structured error", async () => {
+      const patchFailDatasetName = uniqueDatasetName("patch-fail");
+      await makeAPICall(
+        "POST",
+        "/api/public/v2/datasets",
+        { name: patchFailDatasetName },
+        auth,
+      );
+
+      const item = await makeAPICall(
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName: patchFailDatasetName,
+          input: { text: 123 }, // Invalid for simpleText schema
+        },
+        auth,
+      );
+
+      const res = await makeAPICall(
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(patchFailDatasetName)}`,
+        { inputSchema: TEST_SCHEMAS.simpleText },
+        auth,
+      );
+
+      expect(res.status).toBe(400);
+      const body = res.body as any;
+      expect(body.code).toBe("schema_validation_failed");
+      expect(body.message).toContain("validation failed");
+      expect(body.details.validationErrors).toEqual([
+        expect.objectContaining({
+          datasetItemId: (item.body as any).id,
+          field: "input",
+          errors: [
+            expect.objectContaining({
+              path: expect.any(String),
+              message: expect.any(String),
+            }),
+          ],
+        }),
+      ]);
+    });
+
+    it("should persist a schema that all existing items satisfy", async () => {
+      const patchPassDatasetName = uniqueDatasetName("patch-pass");
+      await makeAPICall(
+        "POST",
+        "/api/public/v2/datasets",
+        { name: patchPassDatasetName },
+        auth,
+      );
+
+      await makeAPICall(
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName: patchPassDatasetName,
+          input: { text: "valid" },
+        },
+        auth,
+      );
+
+      const res = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(patchPassDatasetName)}`,
+        { inputSchema: TEST_SCHEMAS.simpleText },
+        auth,
+      );
+
+      expect(res.body.inputSchema).toEqual(TEST_SCHEMAS.simpleText);
+    });
+
+    it("should clear an existing schema when set to null", async () => {
+      const patchClearDatasetName = uniqueDatasetName("patch-clear-schema");
+      await makeAPICall(
+        "POST",
+        "/api/public/v2/datasets",
+        {
+          name: patchClearDatasetName,
+          inputSchema: TEST_SCHEMAS.simpleText,
+        },
+        auth,
+      );
+
+      const res = await makeZodVerifiedAPICall(
+        PatchDatasetV2Response,
+        "PATCH",
+        `/api/public/v2/datasets/${encodeURIComponent(patchClearDatasetName)}`,
+        { inputSchema: null },
+        auth,
+      );
+
+      expect(res.body.inputSchema).toBeNull();
     });
   });
 

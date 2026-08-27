@@ -178,6 +178,19 @@ export const GetDatasetV2Query = z.object({
 });
 export const GetDatasetV2Response = APIDataset.strict();
 
+// PATCH /v2/datasets/{datasetName}
+export const PatchDatasetV2Query = z.object({
+  datasetName: queryStringZod,
+});
+export const PatchDatasetV2Body = z.object({
+  name: z.string().optional(),
+  description: z.string().nullish(),
+  metadata: jsonSchema.nullish(),
+  inputSchema: DatasetJSONSchema.nullish(),
+  expectedOutputSchema: DatasetJSONSchema.nullish(),
+});
+export const PatchDatasetV2Response = APIDataset.strict();
+
 // GET /datasets/{name}/runs
 export const GetDatasetRunsV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1

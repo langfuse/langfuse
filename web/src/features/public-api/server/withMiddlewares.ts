@@ -20,6 +20,7 @@ import {
   sendUnstablePublicApiErrorResponse,
   toUnstablePublicApiError,
   unstablePublicEvalsErrorContract,
+  UnstablePublicApiError,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
@@ -137,6 +138,19 @@ export function withMiddlewares(
             message: errorMessage,
             error: "Request timed out",
           });
+        }
+
+        // Errors that already carry the structured {message, code, details}
+        // contract render that way even on routes whose file-level default is
+        // the legacy {message, error} shape - this lets a single route adopt
+        // the structured contract without changing sibling routes in the same
+        // file.
+        if (error instanceof UnstablePublicApiError) {
+          logBaseError(error);
+          if (error.httpCode >= 500 && error.httpCode < 600) {
+            traceException(error);
+          }
+          return sendUnstablePublicApiErrorResponse(res, error);
         }
 
         if (options?.errorContract === unstablePublicEvalsErrorContract) {

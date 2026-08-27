@@ -2,6 +2,7 @@
 imports:
   commons: ./commons.yml
   pagination: ./utils/pagination.yml
+  unstableErrors: ./unstable/errors.yml
 service:
   auth: true
   base-path: /api/public
@@ -33,6 +34,38 @@ service:
       path: /v2/datasets
       request: CreateDatasetRequest
       response: commons.Dataset
+    update:
+      method: PATCH
+      docs: |
+        Partially update a dataset. Omitted fields are left unchanged; pass
+        `null` for `description`, `metadata`, `inputSchema`, or
+        `expectedOutputSchema` to clear them.
+
+        Renaming a dataset (`name`) changes the URL used to address it, since
+        this API is keyed by name.
+
+        Setting `inputSchema` or `expectedOutputSchema` to a non-null value
+        validates all existing dataset items against it; the request fails
+        with `schema_validation_failed` if any item does not conform.
+
+        This endpoint returns the structured error contract documented on
+        `unstableErrors.PublicApiError` (`message`, `code`, optional
+        `details`) instead of the `message`/`error` shape used by other
+        dataset endpoints.
+      path: /v2/datasets/{datasetName}
+      path-parameters:
+        datasetName: string
+      request: UpdateDatasetRequest
+      response: commons.Dataset
+      errors:
+        - unstableErrors.BadRequestError
+        - unstableErrors.UnauthorizedError
+        - unstableErrors.AccessDeniedError
+        - unstableErrors.NotFoundError
+        - unstableErrors.MethodNotAllowedError
+        - unstableErrors.ConflictError
+        - unstableErrors.TooManyRequestsError
+        - unstableErrors.InternalServerError
     getRun:
       availability:
         status: deprecated
@@ -91,6 +124,23 @@ types:
       expectedOutputSchema:
         type: optional<unknown>
         docs: JSON Schema for validating dataset item expected outputs. When set, all new and existing dataset items will be validated against this schema.
+  UpdateDatasetRequest:
+    properties:
+      name:
+        type: optional<string>
+        docs: New name for the dataset. Renaming changes the URL used to address this dataset, since this API is keyed by name.
+      description:
+        type: optional<nullable<string>>
+        docs: Pass `null` to clear the existing description.
+      metadata:
+        type: optional<nullable<unknown>>
+        docs: Replaces the existing metadata. Pass `null` to clear it.
+      inputSchema:
+        type: optional<nullable<unknown>>
+        docs: JSON Schema for validating dataset item inputs. A non-null value is validated against all existing dataset items. Pass `null` to remove the schema.
+      expectedOutputSchema:
+        type: optional<nullable<unknown>>
+        docs: JSON Schema for validating dataset item expected outputs. A non-null value is validated against all existing dataset items. Pass `null` to remove the schema.
   PaginatedDatasetRuns:
     properties:
       data: list<commons.DatasetRun>
