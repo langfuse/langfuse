@@ -1274,6 +1274,8 @@ export default function TracesTable({
     // URLs (LFE-11041); listing it clears it on open/navigate/close so it
     // cannot pin the peek to the originally shared trace.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: tracesFilterConfig.tableName,
+    isV4: false,
     extractParamsValuesFromRow: (row: TracesTableRow) => ({
       timestamp: row.timestamp?.toISOString() || "",
     }),
@@ -1406,6 +1408,8 @@ export default function TracesTable({
             columns={columns}
             filterWithAI
             filterState={queryFilter.explicitFilterState}
+            tableName={tracesFilterConfig.tableName}
+            isV4={false}
             viewConfig={{
               tableName: TableViewPresetTableName.Traces,
               projectId,

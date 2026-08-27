@@ -64,6 +64,12 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 
 export type SessionTableRow = {
   id: string;
@@ -291,6 +297,40 @@ export default function SessionsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+
+  // Grammar search bar (Feature Preview): an ADDITIONAL editor over the same
+  // FilterState the facet sidebar edits — the sidebar stays and the two reflect
+  // each other with no explicit sync. Off on the user-detail mount, which is
+  // page-scoped by a userId filter the bar must not fight (same embedded
+  // opt-out as EventsTable).
+  const sessionsSearchBarEnabled =
+    useIsFeatureEnabled("sessionsSearchBar", { enableForAdmins: false }) &&
+    isBetaEnabled &&
+    !userId;
+  const observedOptions = useMemo(
+    () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
+    [newFilterOptions, isSidebarFilterLoading],
+  );
+  // Sessions has no full-text lane (`sessions.all*` takes no searchQuery), so
+  // the registry rejects free text and these stay inert.
+  const noSearchLane = useCallback(() => {}, []);
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    tableName: sessionsFilterConfig.tableName,
+    enabled: sessionsSearchBarEnabled,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery: null,
+    searchType: DEFAULT_SEARCH_TYPE,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery: noSearchLane,
+    setSearchType: noSearchLane,
+    registry: SESSIONS_FIELD_REGISTRY,
+  });
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
@@ -757,57 +797,80 @@ export default function SessionsTable({
             setTimeRange={setTimeRange}
           />
         )}
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          filterState={queryFilter.explicitFilterState}
-          actionButtons={[
-            selectedSessionIds.length > 0 || selectAll ? (
-              <TableActionMenu
-                key="sessions-multi-select-actions"
-                projectId={projectId}
-                actions={tableActions}
-                tableName={BatchExportTableName.Sessions}
-                selectedCount={selectedSessionCount}
-                onClearSelection={() => {
-                  setSelectedRows({});
-                  setSelectAll(false);
+        {/* In bar mode the composer and the toolbar stick together as one band
+            (matching EventsTable) so the toolbar cannot scroll under the
+            composer and render half-clipped; pb-1.5 gives the band the same
+            breathing room above the table that the events tables have. */}
+        <div
+          className={cn(
+            sessionsSearchBarEnabled &&
+              "bg-background sticky top-0 z-30 pb-1.5",
+          )}
+        >
+          {sessionsSearchBarEnabled && (
+            <EventsSearchBarRow
+              projectId={projectId}
+              tableName={sessionsFilterConfig.tableName}
+              store={searchBarStore}
+              commit={searchBarCommit}
+              observed={observedOptions}
+              onApplyFilters={searchBarApplyFilters}
+              registry={SESSIONS_FIELD_REGISTRY}
+            />
+          )}
+          {/* Toolbar spanning full width */}
+          <DataTableToolbar
+            rowClassName={sessionsSearchBarEnabled ? "my-1" : undefined}
+            filterState={queryFilter.explicitFilterState}
+            actionButtons={[
+              selectedSessionIds.length > 0 || selectAll ? (
+                <TableActionMenu
+                  key="sessions-multi-select-actions"
+                  projectId={projectId}
+                  actions={tableActions}
+                  tableName={BatchExportTableName.Sessions}
+                  selectedCount={selectedSessionCount}
+                  onClearSelection={() => {
+                    setSelectedRows({});
+                    setSelectAll(false);
+                  }}
+                />
+              ) : null,
+              <BatchExportTableButton
+                {...{
+                  projectId,
+                  filterState: backendFilterState,
+                  orderByState,
                 }}
-              />
-            ) : null,
-            <BatchExportTableButton
-              {...{
-                projectId,
-                filterState: backendFilterState,
-                orderByState,
-              }}
-              tableName={BatchExportTableName.Sessions}
-              key="batchExport"
-            />,
-          ]}
-          columns={columns}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Sessions,
-            projectId,
-            controllers: viewControllers,
-          }}
-          timeRange={showControlsInPageHeader ? undefined : timeRange}
-          setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-          columnsWithCustomSelect={["userIds"]}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds: selectedSessionIds,
-            setRowSelection: setSelectedRows,
-            totalCount,
-            ...paginationState,
-          }}
-        />
+                tableName={BatchExportTableName.Sessions}
+                key="batchExport"
+              />,
+            ]}
+            columns={columns}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
+            columnOrder={columnOrder}
+            setColumnOrder={setColumnOrder}
+            viewConfig={{
+              tableName: TableViewPresetTableName.Sessions,
+              projectId,
+              controllers: viewControllers,
+            }}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+            columnsWithCustomSelect={["userIds"]}
+            rowHeight={rowHeight}
+            setRowHeight={setRowHeight}
+            multiSelect={{
+              selectAll,
+              setSelectAll,
+              selectedRowIds: selectedSessionIds,
+              setRowSelection: setSelectedRows,
+              totalCount,
+              ...paginationState,
+            }}
+          />
+        </div>
 
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>

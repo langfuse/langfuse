@@ -63,3 +63,7 @@ export const getInAppAgentLlmCallObservationId = (
   runId: string,
   stepNumber: number,
 ) => `${runId}-llm-${stepNumber}`;
+
+// Product traces and feedback scores for the in-app agent. Must match so
+// scores attach to the same traces evaluators in the AI-features project see.
+export const IN_APP_AGENT_PRODUCT_ENVIRONMENT = "production";

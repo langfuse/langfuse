@@ -18,6 +18,8 @@ import {
 } from "@/src/features/feature-flags/available-flags";
 
 import compactTimelineDarkIllustration from "../assets/compact-timeline-dark.svg";
+import sessionsSearchBarDarkIllustration from "../assets/sessions-search-bar-dark.svg";
+import sessionsSearchBarLightIllustration from "../assets/sessions-search-bar-light.svg";
 import compactTimelineLightIllustration from "../assets/compact-timeline-light.svg";
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
@@ -79,6 +81,19 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       light: compactTimelineLightIllustration,
       dark: compactTimelineDarkIllustration,
       alt: "A whole trace as dense coloured lines, one per observation, cascading across a time axis.",
+    },
+  },
+  {
+    flag: "sessionsSearchBar",
+    description:
+      "Filter sessions by typing instead of clicking — the same query bar the observations table uses, now over the sessions table.",
+    details:
+      "One keyboard-driven bar over the sessions table: type `userIds:alice`, `tags:(billing AND urgent)`, `duration:>30`, `metadata.region:eu`, or `scores.helpfulness:>0.8` and press Enter. Autocomplete suggests fields and the values your project has actually recorded. The facet sidebar stays and stays in sync — the bar is an additional editor over the same filters, so saved views keep working from either side.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: sessionsSearchBarLightIllustration,
+      dark: sessionsSearchBarDarkIllustration,
+      alt: "A query bar above the sessions table with typed filter pills and an autocomplete list.",
     },
   },
 ];

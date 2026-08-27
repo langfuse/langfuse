@@ -415,7 +415,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    tableName: evaluatorFilterConfig.tableName,
+    isV4: false,
+  });
 
   const peekConfig = useMemo(
     () => ({
