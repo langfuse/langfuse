@@ -1,11 +1,9 @@
 import { type IncomingHttpHeaders } from "http";
-
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
+import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -18,6 +16,10 @@ import {
   recordCoverage,
   type NewResult,
 } from "@/src/features/auth/policy/shadow";
+
+/** orgKeyRequired is the 403 body when a non-organization key hits an organization endpoint. */
+const orgKeyRequired =
+  "Invalid API key. Organization-scoped API key required for this operation.";
 
 export default async function handler(
   req: NextApiRequest,
@@ -35,27 +37,18 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+  const authCheck = await verifyOrgAuth({
+    req,
+    name: "Get Organization Projects",
+    action: "projects:read",
+    scopeDeniedMessage: orgKeyRequired,
+  });
   if (!authCheck.validKey) {
-    return res.status(401).json({
+    return res.status(authCheck.status).json({
       error: authCheck.error,
     });
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      error:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-    });
-  }
 
   if (
     !hasEntitlementBasedOnPlan({

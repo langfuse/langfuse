@@ -1,9 +1,12 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
+import { verifyOrgAuth } from "@/src/features/auth/policy/shadow.direct";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
+
+/** orgKeyRequired is the 403 detail when a non-organization key hits a SCIM endpoint. */
+const orgKeyRequired =
+  "Invalid API key. Organization-scoped API key required for this operation.";
 
 export default async function handler(
   req: NextApiRequest,
@@ -23,31 +26,20 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+  const authCheck = await verifyOrgAuth({
+    req,
+    name: "SCIM ServiceProviderConfig",
+    action: "projects:read",
+    scopeDeniedMessage: orgKeyRequired,
+  });
   if (!authCheck.validKey) {
-    return res.status(401).json({
+    return res.status(authCheck.status).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail: authCheck.error,
-      status: 401,
+      status: authCheck.status,
     });
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-      status: 403,
-    });
-  }
 
   // Return the service provider configuration
   return res.status(200).json({
