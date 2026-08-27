@@ -480,6 +480,8 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
+      // Off by default: 300px of mostly boilerplate ahead of the score columns.
+      defaultHidden: true,
       cell: ({ row }) => {
         const value: string | undefined = row.getValue("description");
         return value ? (
@@ -501,6 +503,7 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
+      defaultHidden: true,
       cell: ({ row }) => {
         const value: Record<string, string> = row.getValue("metadata");
         return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
