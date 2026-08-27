@@ -17,6 +17,11 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  describeStripMetric,
+  EXPERIMENT_ANALYTICS_DIMENSIONS,
+} from "@/src/features/experiments/constants/analytics";
 
 const AXIS_EXPLANATION =
   "One point per experiment in view, oldest on the left and newest on the right, so a metric that improved over time rises. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
@@ -114,6 +119,20 @@ export function ExperimentMetricStrip({
 
   const { metricId, setMetricId, availableMetricOptions, isLoading } =
     useExperimentStripMetric({ projectId, experimentIds });
+  const capture = usePostHogClientCapture();
+
+  // Do people move the strip off its score-first default, and onto which score
+  // LEVEL? Trace-level is where an LLM-as-judge on a dataset run writes, so the
+  // level is the interesting half. The score's NAME is user content and is
+  // never sent. (LFE-15720)
+  const handleMetricChange = (newMetricId: string) => {
+    if (newMetricId === metricId) return;
+    capture("experiment:strip_metric_changed", {
+      ...describeStripMetric(newMetricId),
+      ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+    });
+    setMetricId(newMetricId);
+  };
 
   const { selectedMetricOption, widgetConfig } = useMemo(
     () => ({
@@ -205,7 +224,7 @@ export function ExperimentMetricStrip({
     // toolbar and the table header.
     <div className="shrink-0 border-y px-3 pt-2 pb-1">
       <div className="flex items-baseline gap-1.5">
-        <Select value={metricId} onValueChange={setMetricId}>
+        <Select value={metricId} onValueChange={handleMetricChange}>
           <SelectTrigger
             aria-label={`Chart metric: ${selectedLabel}`}
             className="text-foreground hover:text-muted-foreground h-auto w-auto gap-0.5 border-0 bg-transparent p-0 text-[13px] leading-none font-bold shadow-none focus:ring-0 focus:ring-offset-0"

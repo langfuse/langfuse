@@ -7,7 +7,10 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Separator } from "@/src/components/ui/separator";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import {
+  DataTableColumnVisibilityFilter,
+  type ColumnGroupToggleHandler,
+} from "@/src/components/table/data-table-column-visibility-filter";
 import {
   ROW_HEIGHT_OPTIONS,
   type RowHeight,
@@ -35,6 +38,7 @@ export function DataTableSettingsPopover<TData, TValue>({
   setRowHeight,
   tableName,
   isV4,
+  onColumnGroupToggle,
 }: {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
@@ -47,6 +51,7 @@ export function DataTableSettingsPopover<TData, TValue>({
    *  popover — the row-height buttons here and the column drawer's toggles. */
   tableName: string;
   isV4: boolean;
+  onColumnGroupToggle?: ColumnGroupToggleHandler;
 }) {
   const capture = usePostHogClientCapture();
 
@@ -69,6 +74,7 @@ export function DataTableSettingsPopover<TData, TValue>({
               triggerLabel="Show / hide"
               tableName={tableName}
               isV4={isV4}
+              onColumnGroupToggle={onColumnGroupToggle}
             />
           </div>
           <Separator />

@@ -8,13 +8,19 @@ import {
   OverviewPanelToggle,
 } from "@/src/components/layouts/overview-panel";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { ExperimentDisplaySettings } from "@/src/features/experiments/components/ExperimentDisplaySettings";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { ExperimentSelectionControls } from "@/src/features/experiments/components/ExperimentSelectionControls";
 import { useIoRenderModeLocalStorage } from "@/src/components/table/data-table-io-render-mode-switch";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { EXPERIMENT_ANALYTICS_DIMENSIONS } from "@/src/features/experiments/constants/analytics";
+import {
+  useExperimentResultsState,
+  type ExperimentDiffMode,
+  type ExperimentResultsLayout,
+} from "@/src/features/experiments/hooks/useExperimentResultsState";
 
 export default function ExperimentResults() {
   const router = useRouter();
@@ -43,6 +49,40 @@ export default function ExperimentResults() {
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
     "overview-panel-experiment-detail",
     false,
+  );
+
+  const capture = usePostHogClientCapture();
+
+  // Is the new score-matrix layout adopted, and diff mode — Expected → Output
+  // in particular — used at all? Captured on the menu pick rather than on the
+  // URL state, which also changes on navigation, on a restored view, and (for
+  // the layout) as a side effect of choosing Expected → Output. (LFE-15720)
+  const handleLayoutChange = useCallback(
+    (newLayout: ExperimentResultsLayout) => {
+      if (newLayout !== layout) {
+        capture("experiment:layout_changed", {
+          layout: newLayout,
+          comparisonCount: comparisonIds.length,
+          ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+        });
+      }
+      setLayout(newLayout);
+    },
+    [capture, layout, comparisonIds.length, setLayout],
+  );
+
+  const handleDiffModeChange = useCallback(
+    (newDiffMode: ExperimentDiffMode) => {
+      if (newDiffMode !== diffMode) {
+        capture("experiment:diff_mode_changed", {
+          mode: newDiffMode,
+          comparisonCount: comparisonIds.length,
+          ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+        });
+      }
+      setDiffMode(newDiffMode);
+    },
+    [capture, diffMode, comparisonIds.length, setDiffMode],
   );
 
   const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
@@ -99,9 +139,9 @@ export default function ExperimentResults() {
           <>
             <ExperimentDisplaySettings
               layout={layout}
-              onLayoutChange={setLayout}
+              onLayoutChange={handleLayoutChange}
               diffMode={diffMode}
-              onDiffModeChange={setDiffMode}
+              onDiffModeChange={handleDiffModeChange}
               itemVisibility={itemVisibility}
               onItemVisibilityChange={setItemVisibility}
               hasComparisons={comparisonIds.length > 0}

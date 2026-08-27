@@ -49,6 +49,23 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
+/**
+ * A whole column GROUP was shown or hidden at once (its "Select All" /
+ * "Deselect All"). Surfaces that care which family a group is — the experiments
+ * tables and their score levels — hook in here rather than having this generic
+ * picker know about them. (LFE-15720)
+ */
+export type ColumnGroupToggleHandler = (params: {
+  /** The group column's accessorKey. */
+  groupId: string;
+  /** Columns in the group. */
+  columnCount: number;
+  /** How many were visible before the toggle. */
+  visibleCount: number;
+  /** What the toggle does: show all, or hide all. */
+  willBeVisible: boolean;
+}) => void;
+
 interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
@@ -66,6 +83,7 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   tableName: string;
   /** Whether this table reads the v4 (fast-mode) data path. */
   isV4: boolean;
+  onColumnGroupToggle?: ColumnGroupToggleHandler;
 }
 
 /**
@@ -319,6 +337,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   triggerLabel = "Columns",
   tableName,
   isV4,
+  onColumnGroupToggle,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -511,6 +530,13 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                               column.header &&
                               typeof column.header === "string"
                             ) {
+                              onColumnGroupToggle?.({
+                                groupId: column.accessorKey,
+                                columnCount: groupTotalCount,
+                                visibleCount: groupVisibleCount,
+                                willBeVisible:
+                                  groupVisibleCount !== groupTotalCount,
+                              });
                               toggleAllColumns(
                                 groupVisibleCount,
                                 groupTotalCount,

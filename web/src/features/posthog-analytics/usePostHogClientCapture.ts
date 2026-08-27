@@ -386,6 +386,30 @@ const events = {
     "evals_manual_upgrade_clicked",
     "walkthrough_video_clicked",
   ],
+  // Experiments-workflow analytics (LFE-15720), so the rebuilt comparison
+  // surfaces have a before/after. Every event carries `isV4` (experiments are
+  // a v4-only surface) and, where a table is involved, `tableName`.
+  // METADATA ONLY — counts, enums, booleans, ids and a query LENGTH. Never a
+  // score value, an experiment/dataset name, a score name or item content:
+  // names here are user content.
+  // `experiment:analytics_tab_opened` and `experiment:charts_section_toggled`
+  // from the original tracking plan are deliberately absent — that route (S1)
+  // and that accordion (S2) no longer exist.
+  experiment: [
+    // `source` separates a user's own pick from the auto-selected default and
+    // from a shared URL, so the new auto-comparison cannot make it look as
+    // though everyone suddenly started comparing.
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "auto_comparison_preference_changed",
+    "strip_metric_changed",
+    "layout_changed",
+    "diff_mode_changed",
+    // The regression filter — the one behaviour the whole rebuild exists for.
+    "score_comparison_filter_applied",
+    "score_column_scope_toggled",
+  ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.

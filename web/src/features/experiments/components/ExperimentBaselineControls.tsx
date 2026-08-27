@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { EXPERIMENT_ANALYTICS_DIMENSIONS } from "@/src/features/experiments/constants/analytics";
 import { Button } from "@/src/components/ui/button";
 import {
   Combobox,
@@ -32,6 +34,18 @@ export function ExperimentBaselineControls({
   const { experimentNames, isLoading } = useExperimentNames({
     projectId,
   });
+  const capture = usePostHogClientCapture();
+
+  // Is the baseline control used, or ignored? Two paths, both from the control
+  // itself: picking a run and clearing it. Arriving on the page with a baseline
+  // already set (a row click on the experiments list, a shared link) is
+  // navigation rather than use of this control, and is deliberately not counted
+  // here — the results pageview is that denominator. (LFE-15720)
+  const captureBaselineChanged = (source: "picker" | "cleared") =>
+    capture("experiment:baseline_changed", {
+      source,
+      ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+    });
 
   // Grouped by dataset and dated, so two runs sharing a name are two readable
   // options rather than the same label twice.
@@ -64,7 +78,12 @@ export function ExperimentBaselineControls({
         <Combobox
           options={baselineOptionGroups}
           value={baselineId}
-          onValueChange={onBaselineChange}
+          onValueChange={(value) => {
+            // The combobox can re-announce the current value; only a different
+            // run is a change.
+            if (value !== baselineId) captureBaselineChanged("picker");
+            onBaselineChange(value);
+          }}
           placeholder={baselineName ?? baselineId ?? "Select baseline..."}
           emptyText="No experiments found"
           searchPlaceholder="Search experiments..."
@@ -81,7 +100,10 @@ export function ExperimentBaselineControls({
           variant="outline"
           size="icon"
           className="-ml-px shrink-0 rounded-l-none"
-          onClick={onBaselineClear}
+          onClick={() => {
+            captureBaselineChanged("cleared");
+            onBaselineClear();
+          }}
           disabled={isLoading}
           title="Clear baseline"
           aria-label="Clear baseline"

@@ -63,6 +63,11 @@ import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptio
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
+import { useExperimentComparisonAnalytics } from "@/src/features/experiments/hooks/useExperimentComparisonAnalytics";
+import {
+  useScoreColumnScopeAnalytics,
+  type ScoreColumnGroupScopes,
+} from "@/src/features/experiments/hooks/useScoreColumnScopeAnalytics";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
@@ -96,6 +101,13 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
   return next;
 };
 
+/** The table's score column groups, by the score level each one holds. */
+const SCORE_COLUMN_GROUP_SCOPES: ScoreColumnGroupScopes = {
+  traceItemScores: "trace",
+  observationItemScores: "observation",
+  experimentScores: "experiment",
+};
+
 /**
  * Owns every consumer of the selection state (action menu, compare navigation,
  * run-evaluator dialog) so checkbox clicks re-render only this menu and the
@@ -110,6 +122,9 @@ function ExperimentsMultiSelectActionMenu({
 }) {
   const router = useRouter();
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
+  const { captureComparisonChanged } = useExperimentComparisonAnalytics({
+    projectId,
+  });
   // Page-scoped and in table order, so the first id is the topmost selected
   // row — the compare baseline.
   const selectedExperimentIds = useStore(
@@ -157,6 +172,13 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
+    // The list's own way into a comparison — the same event the picker emits,
+    // told apart by its source. (LFE-15720)
+    captureComparisonChanged({
+      baselineId: baseline,
+      comparisonIds: comparisons,
+      source: "table_selection",
+    });
     const params = new URLSearchParams();
     params.set("baseline", baseline);
     comparisons.forEach((id) => {
@@ -801,6 +823,13 @@ export default function ExperimentsTable({
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
   // the compare baseline relies on).
   const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
+  // Which score family do people actually want visible? The column drawer's
+  // per-family Select All / Deselect All is the family-level intent; the
+  // individual checkboxes stay on `table:column_visibility_changed`.
+  const handleScoreColumnGroupToggle = useScoreColumnScopeAnalytics(
+    SCORE_COLUMN_GROUP_SCOPES,
+  );
   useExperimentsTableSelectionSync({
     store: experimentsTableStore,
     pageRowIds,
@@ -843,6 +872,7 @@ export default function ExperimentsTable({
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
             mergeSettingsIntoPopover
+            onColumnGroupToggle={handleScoreColumnGroupToggle}
             timeRange={showControlsInPageHeader ? undefined : timeRange}
             setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
             actionButtons={[

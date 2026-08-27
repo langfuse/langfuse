@@ -1,7 +1,10 @@
 /* eslint-disable @repo/no-style-props */
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import {
+  DataTableColumnVisibilityFilter,
+  type ColumnGroupToggleHandler,
+} from "@/src/components/table/data-table-column-visibility-filter";
 import { DataTableSettingsPopover } from "@/src/components/table/data-table-settings-popover";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -166,6 +169,9 @@ interface DataTableToolbarProps<TData, TValue> {
    *  shape is validated on the experiments list; needs both controls, so a
    *  table that passes only one keeps its single button. */
   mergeSettingsIntoPopover?: boolean;
+  /** Notified when a whole column group is shown or hidden at once, for surfaces
+   *  that report their own event for it (the experiments score families). */
+  onColumnGroupToggle?: ColumnGroupToggleHandler;
 }
 
 /**
@@ -247,6 +253,7 @@ export function DataTableToolbar<TData, TValue>({
   viewModeToggle,
   leadingControls,
   mergeSettingsIntoPopover = false,
+  onColumnGroupToggle,
 }: DataTableToolbarProps<TData, TValue> & ToolbarTableIdentity) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -503,6 +510,7 @@ export function DataTableToolbar<TData, TValue>({
               setRowHeight={setRowHeight}
               tableName={analyticsTableName}
               isV4={isV4Surface}
+              onColumnGroupToggle={onColumnGroupToggle}
             />
           ) : (
             <>
@@ -515,6 +523,7 @@ export function DataTableToolbar<TData, TValue>({
                   setColumnOrder={setColumnOrder}
                   tableName={analyticsTableName}
                   isV4={isV4Surface}
+                  onColumnGroupToggle={onColumnGroupToggle}
                 />
               )}
               {!!rowHeight && !!setRowHeight && (

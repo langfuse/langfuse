@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronRight, X } from "lucide-react";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
@@ -10,6 +10,8 @@ import {
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { EXPERIMENT_ANALYTICS_DIMENSIONS } from "@/src/features/experiments/constants/analytics";
 import {
   MAX_SELECTED_EXPERIMENTS,
   MAX_VISIBLE_COMPARISON_CHIPS,
@@ -96,6 +98,36 @@ export function ExperimentComparisonSelector({
   const [expandedOverrides, setExpandedOverrides] = useState<
     Record<string, boolean>
   >({});
+  const capture = usePostHogClientCapture();
+
+  // How long is the list people choose from, and how many datasets are mixed
+  // into it? Counted over the whole available list, not the filtered rows, so
+  // it describes the picker rather than the current search. (LFE-15720)
+  const isPickerOpenRef = useRef(false);
+  const handleOpenChange = useCallback(
+    (isOpen: boolean) => {
+      // The combobox re-announces "open" on every input focus, including the
+      // refocus after picking a row; only the closed-to-open edge is an open.
+      if (!isOpen) {
+        isPickerOpenRef.current = false;
+        return;
+      }
+      if (isPickerOpenRef.current) return;
+      isPickerOpenRef.current = true;
+
+      capture("experiment:comparison_picker_opened", {
+        optionCount: availableExperimentNames.length,
+        datasetCount: new Set(availableExperimentNames.map(datasetKeyOf)).size,
+        // The query the picker opens with: empty on a fresh open, non-empty
+        // when it is reopened with a query still in the box. The text itself is
+        // never sent — only whether there is one and how long it is.
+        hasSearchQuery: searchQuery.length > 0,
+        queryLength: searchQuery.length,
+        ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+      });
+    },
+    [capture, availableExperimentNames, searchQuery],
+  );
 
   const baselineDatasetKey = useMemo(() => {
     const baseline = availableExperimentNames.find(
@@ -247,6 +279,7 @@ export function ExperimentComparisonSelector({
         onSearchChange={setSearchQuery}
         searchResults={rows}
         isLoading={isLoading}
+        onOpenChange={handleOpenChange}
         placeholder={
           isMaxReached
             ? `Max ${MAX_SELECTED_EXPERIMENTS} experiments`
@@ -261,7 +294,13 @@ export function ExperimentComparisonSelector({
             return (
               <button
                 type="button"
-                onClick={() => onAutoSelectEnabledChange(!isAutoSelectEnabled)}
+                onClick={() => {
+                  capture("experiment:auto_comparison_preference_changed", {
+                    isEnabled: !isAutoSelectEnabled,
+                    ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+                  });
+                  onAutoSelectEnabledChange(!isAutoSelectEnabled);
+                }}
                 className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"
               >
                 <div className="border-input flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border">

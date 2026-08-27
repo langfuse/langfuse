@@ -98,6 +98,21 @@ import {
   type ScoreLevel,
 } from "@/src/features/experiments/fns/scoreComparisonFilter";
 import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  COMPARISON_OPERATOR_PROPERTY,
+  EXPERIMENT_ANALYTICS_DIMENSIONS,
+} from "@/src/features/experiments/constants/analytics";
+import {
+  useScoreColumnScopeAnalytics,
+  type ScoreColumnGroupScopes,
+} from "@/src/features/experiments/hooks/useScoreColumnScopeAnalytics";
+
+/** The table's score column groups, by the score level each one holds. */
+const SCORE_COLUMN_GROUP_SCOPES: ScoreColumnGroupScopes = {
+  observationScores: "observation",
+  traceScores: "trace",
+};
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -412,6 +427,12 @@ export default function ExperimentItemsTable({
   hideControls = false,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
+  const capture = usePostHogClientCapture();
+  // The column drawer's per-family Select All / Deselect All — the family-level
+  // intent behind "which score family do people want visible".
+  const handleScoreColumnGroupToggle = useScoreColumnScopeAnalytics(
+    SCORE_COLUMN_GROUP_SCOPES,
+  );
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const hasEvalAccess = useHasProjectAccess({
@@ -757,6 +778,56 @@ export default function ExperimentItemsTable({
     removeFilter: removeScoreComparisonFilter,
   } = useScoreComparisonFilters();
 
+  // Is the regression filter used once it exists? The question the whole
+  // rebuild is for, so it carries the score's level and type, which comparison
+  // it reads against, and whether the user picked it or arrived with it in a
+  // shared URL. No score name and no score value — those are user content.
+  // (LFE-15720)
+  const captureScoreComparisonFilter = useCallback(
+    ({
+      filter,
+      dataType,
+      source,
+    }: {
+      filter: ScoreComparisonFilter;
+      dataType: ScoreColumnDataType | undefined;
+      source: "header_menu" | "url";
+    }) =>
+      capture("experiment:score_comparison_filter_applied", {
+        scoreLevel: filter.level,
+        dataType: dataType ?? "unknown",
+        operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
+        comparisonIndex: comparisonIds.indexOf(filter.comparisonExperimentId),
+        source,
+        ...EXPERIMENT_ANALYTICS_DIMENSIONS,
+      }),
+    [capture, comparisonIds],
+  );
+
+  // A results page can arrive with the filter already in the URL. Reported once
+  // per page, after the score column definitions land (they carry the data
+  // type), and never again — it is a shared view, not an action.
+  const hasReportedUrlScoreFilters = useRef(false);
+  useEffect(() => {
+    if (hasReportedUrlScoreFilters.current) return;
+    if (isFilterOptionsLoading) return;
+    hasReportedUrlScoreFilters.current = true;
+    for (const filter of scoreComparisonFilters) {
+      captureScoreComparisonFilter({
+        filter,
+        dataType: scoreDataTypesByKey[scoreFieldForLevel(filter.level)].get(
+          filter.scoreKey,
+        ),
+        source: "url",
+      });
+    }
+  }, [
+    isFilterOptionsLoading,
+    scoreComparisonFilters,
+    scoreDataTypesByKey,
+    captureScoreComparisonFilter,
+  ]);
+
   // The runs a score can be read against, the auto-selected comparison first so
   // the menu's default is the one the column header already reports.
   const comparisonTargets = useMemo(() => {
@@ -850,15 +921,21 @@ export default function ExperimentItemsTable({
                         targets={comparisonTargets}
                         hasOrder={dataType !== "CATEGORICAL"}
                         active={activeComparisonFilter}
-                        onSelect={(operator, comparisonExperimentId) =>
-                          key &&
-                          setScoreComparisonFilter({
+                        onSelect={(operator, comparisonExperimentId) => {
+                          if (!key) return;
+                          const nextFilter = {
                             level,
                             scoreKey: key,
                             operator,
                             comparisonExperimentId,
-                          })
-                        }
+                          };
+                          captureScoreComparisonFilter({
+                            filter: nextFilter,
+                            dataType,
+                            source: "header_menu",
+                          });
+                          setScoreComparisonFilter(nextFilter);
+                        }}
                         onClear={() =>
                           activeComparisonFilter &&
                           removeScoreComparisonFilter(activeComparisonFilter)
@@ -946,6 +1023,7 @@ export default function ExperimentItemsTable({
       scoreComparisonFilters,
       setScoreComparisonFilter,
       removeScoreComparisonFilter,
+      captureScoreComparisonFilter,
     ],
   );
 
@@ -1622,6 +1700,7 @@ export default function ExperimentItemsTable({
           <DataTableToolbar
             // v4-only surface (LFE-15720).
             isV4
+            onColumnGroupToggle={handleScoreColumnGroupToggle}
             columns={columns}
             filterState={queryFilter.filterState}
             viewConfig={{
