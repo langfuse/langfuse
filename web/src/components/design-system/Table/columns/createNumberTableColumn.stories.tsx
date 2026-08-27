@@ -4,18 +4,22 @@ import {
   DataTable,
   type AsyncTableData,
 } from "@/src/components/table/data-table";
+import { numberFormatter } from "@/src/utils/numbers";
 import { createNumberTableColumn } from "./createNumberTableColumn";
 
 type Row = {
+  isNumberLoading?: boolean;
   outputTokens: number;
   latency: number | null;
 };
 
 function NumberTableColumnStory({
   data,
+  emptyValue,
   fractionDigits,
 }: {
   data: AsyncTableData<Row[]>;
+  emptyValue?: string;
   fractionDigits: number;
 }) {
   const columns = [
@@ -24,8 +28,15 @@ function NumberTableColumnStory({
       accessorFn: (row) =>
         row.latency ? row.outputTokens / row.latency : null,
       header: "Number",
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
+      emptyValue,
+      formatter: (value) =>
+        numberFormatter(value, fractionDigits, fractionDigits),
+      getValue: (value, { row }) => {
+        if (row.original.isNumberLoading) return { type: "loading" };
+        if (value === null || value === undefined) return undefined;
+
+        return value;
+      },
     }),
   ];
 
@@ -88,6 +99,31 @@ export const EmptyValue = meta.story({
       isLoading: false,
       isError: false,
       data: [{ outputTokens: 2469, latency: null }],
+    },
+  },
+});
+
+export const EmptyPlaceholder = meta.story({
+  name: "Empty Placeholder",
+  args: {
+    emptyValue: "—",
+    fractionDigits: 1,
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ outputTokens: 2469, latency: null }],
+    },
+  },
+});
+
+export const CellLoading = meta.story({
+  name: "Cell Loading",
+  args: {
+    fractionDigits: 1,
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ isNumberLoading: true, outputTokens: 2469, latency: null }],
     },
   },
 });
