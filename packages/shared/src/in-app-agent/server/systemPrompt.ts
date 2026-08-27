@@ -73,5 +73,5 @@ The current date is {{currentDate}}.
 
 {{userContext}}
 
-{{sandbox_filesystem}}
+{{sandboxFilesystem}}
 `;

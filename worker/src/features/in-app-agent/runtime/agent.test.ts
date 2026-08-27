@@ -1194,7 +1194,7 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-        sandbox_filesystem: expect.stringContaining("<sandbox_filesystem>"),
+        sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",
         userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1203,7 +1203,7 @@ describe("createAgUiStream", () => {
       }),
     );
     expect(
-      promptMocks.compile.mock.calls[0]?.[0].sandbox_filesystem,
+      promptMocks.compile.mock.calls[0]?.[0].sandboxFilesystem,
     ).not.toContain("tool_calls");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1450,7 +1450,7 @@ describe("createAgUiStream", () => {
     );
     expect(runInstruction).not.toContain("/workspace/tool_calls");
     expect(
-      promptMocks.compile.mock.calls.at(-1)?.[0]?.sandbox_filesystem,
+      promptMocks.compile.mock.calls.at(-1)?.[0]?.sandboxFilesystem,
     ).not.toContain("has been replaced with an empty one");
   });
 
@@ -2552,7 +2552,7 @@ describe("createAgUiStream", () => {
     expect(agentConfig?.tools).not.toHaveProperty("bash");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
-        sandbox_filesystem: "",
+        sandboxFilesystem: "",
       }),
     );
   });

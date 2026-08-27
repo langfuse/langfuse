@@ -325,7 +325,7 @@ export async function createAgUiStream(params: {
     variables: {
       currentDate: "",
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-      sandbox_filesystem: formatSandboxContext(params.options.sandbox),
+      sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       screenContext: "",
       userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1537,7 +1537,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
-    sandbox_filesystem: string;
+    sandboxFilesystem: string;
     screenContext: string;
     userContext: string;
     sidebarHiddenEnvironments: string;
