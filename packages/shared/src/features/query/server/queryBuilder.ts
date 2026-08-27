@@ -1076,19 +1076,10 @@ export class QueryBuilder {
     return dimensions;
   }
 
-  private buildInnerMetricsPart(
-    appliedMetrics: AppliedMetricType[],
-    appliedDimensions: AppliedDimensionType[],
-  ) {
+  private buildInnerMetricsPart(appliedMetrics: AppliedMetricType[]) {
     if (appliedMetrics.length === 0) {
       return "count(*) as count";
     }
-
-    // Exploded array dimensions group the inner query by (entity, exploded
-    // value). Observation-grain sums would then add the same row once per
-    // array entry. any() keeps one value per entity so the outer aggregation
-    // is not multiplied. Existing single-level explode queries are unchanged.
-    const hasExplodeArray = appliedDimensions.some((d) => d.explodeArray);
 
     return appliedMetrics
       .map((metric) => {
@@ -1096,12 +1087,7 @@ export class QueryBuilder {
 
         // For two-level queries, substitute @@AGGN@@ with actual agg function from template
         if (metric.aggs) {
-          const aggs = hasExplodeArray
-            ? Object.fromEntries(
-                Object.keys(metric.aggs).map((key) => [key, "any"]),
-              )
-            : metric.aggs;
-          sql = this.substituteAggTemplates(sql, aggs);
+          sql = this.substituteAggTemplates(sql, metric.aggs);
         }
 
         // pairExpand value-alias measures (e.g. costByType, usageByType) reference a raw
@@ -1789,10 +1775,7 @@ export class QueryBuilder {
         view,
         appliedBucketingDimension,
       );
-      const innerMetricsPart = this.buildInnerMetricsPart(
-        appliedMetrics,
-        appliedDimensions,
-      );
+      const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
       // Build inner SELECT
       const innerQuery = this.buildInnerSelect(

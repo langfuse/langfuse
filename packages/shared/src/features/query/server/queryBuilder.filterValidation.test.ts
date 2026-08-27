@@ -462,24 +462,4 @@ describe("toolCallInvocations measure", () => {
     expect(compiledQuery).toContain("sum(toolCallInvocations)");
     expect(compiledQuery).toContain("arrayJoin(observations.tool_call_names)");
   });
-
-  it("does not sum exploded sibling metrics in the inner query", async () => {
-    const { query: compiledQuery } = await new QueryBuilder(
-      undefined,
-      "v1",
-    ).build(
-      {
-        ...baseQuery,
-        dimensions: [{ field: "calledToolNames" }],
-        metrics: [
-          { measure: "toolCallInvocations", aggregation: "sum" },
-          { measure: "totalCost", aggregation: "sum" },
-        ],
-      },
-      "test-project",
-    );
-
-    expect(compiledQuery).toContain("any(total_cost)");
-    expect(compiledQuery).not.toMatch(/sum\(total_cost\)/);
-  });
 });
