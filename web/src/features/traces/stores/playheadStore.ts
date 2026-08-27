@@ -41,7 +41,7 @@ const END_EPSILON_SECONDS = 0.05;
 // span × the playback rate).
 const MIN_GLOW_WALL_SECONDS = 0.2;
 
-export interface PlayheadState {
+interface PlayheadState {
   /** Total trace span in seconds (0 = no timeline to play). */
   traceDuration: number;
   /** Padded activation windows for every node in the tree. */

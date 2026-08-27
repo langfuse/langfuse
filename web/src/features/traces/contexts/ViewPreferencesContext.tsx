@@ -30,7 +30,7 @@ export type LogViewTreeStyle = "flat" | "indented";
 export type JsonViewPreference = "pretty" | "json" | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
-export type TraceRenderContext = "fullscreen" | "peek" | "annotation";
+type TraceRenderContext = "fullscreen" | "peek" | "annotation";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;

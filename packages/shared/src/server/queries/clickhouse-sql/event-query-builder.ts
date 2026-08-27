@@ -57,7 +57,7 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
-export type OrderByColumnsOptions = {
+type OrderByColumnsOptions = {
   eventTableAlias?: string;
   /**
    * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the

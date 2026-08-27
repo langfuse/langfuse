@@ -37,6 +37,7 @@ import {
 const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
   getRecentEvaluatorExecutionTraces: vi.fn(),
+  invalidateProjectEvalConfigCaches: vi.fn(),
   assertEvaluatorConfigurationValid: vi.fn(),
   getEvaluatorDefinitionPreflightError: vi.fn(),
   testEvaluator: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   generateLangfuseAIText: mocks.generateLangfuseAIText,
   getRecentEvaluatorExecutionTraces: mocks.getRecentEvaluatorExecutionTraces,
+  invalidateProjectEvalConfigCaches: mocks.invalidateProjectEvalConfigCaches,
 }));
 
 vi.mock("@/src/env.mjs", async (importOriginal) => {
@@ -114,7 +116,6 @@ const llmInput = (
       { templateVariable: "output", selectedColumnId: "output" },
     ],
     outputDefinition: {
-      version: 2,
       dataType: "NUMERIC",
       score: { description: "Quality" },
       reasoning: { description: "Reasoning" },
@@ -163,6 +164,7 @@ beforeAll(async () => {
 beforeEach(() => {
   mocks.generateLangfuseAIText.mockReset();
   mocks.getRecentEvaluatorExecutionTraces.mockReset();
+  mocks.invalidateProjectEvalConfigCaches.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockResolvedValue(undefined);
   mocks.getEvaluatorDefinitionPreflightError.mockReset();
@@ -489,6 +491,84 @@ describe("EvaluatorService", () => {
       blockMessage:
         "Evaluator paused: no valid evaluation model is configured. Update the evaluator template or default evaluation model, then reactivate it.",
       versions: [expect.objectContaining({ version: 2 })],
+    });
+
+    mocks.invalidateProjectEvalConfigCaches.mockClear();
+    const recovered = await service.patch(
+      {
+        projectId,
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          provider: "openai",
+          model: "available-model",
+        },
+      },
+      null,
+    );
+    expect(recovered).toMatchObject({
+      id: evaluator.id,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+      versions: [expect.objectContaining({ version: 3 })],
+    });
+    expect(mocks.invalidateProjectEvalConfigCaches).toHaveBeenCalledWith(
+      projectId,
+    );
+
+    await prisma.evaluator.update({
+      where: { id: evaluator.id },
+      data: {
+        blockedAt: new Date(),
+        blockReason: "LLM_CONNECTION_AUTH_INVALID",
+        blockMessage: "Authentication failed",
+      },
+    });
+    const stillBlocked = await service.patch(
+      {
+        projectId,
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          prompt: "Updated prompt: {{output}}",
+          provider: "openai",
+          model: "available-model",
+        },
+      },
+      null,
+    );
+    expect(stillBlocked).toMatchObject({
+      blockedAt: expect.any(Date),
+      blockReason: "LLM_CONNECTION_AUTH_INVALID",
+      blockMessage: "Authentication failed",
+    });
+
+    await prisma.evaluator.update({
+      where: { id: evaluator.id },
+      data: {
+        blockedAt: new Date(),
+        blockReason: null,
+        blockMessage: "Legacy pause without a reason",
+      },
+    });
+    const legacyPause = await service.patch(
+      {
+        projectId,
+        evaluatorId: evaluator.id,
+        definition: {
+          ...llmInput("Invalid model").definition,
+          prompt: "Another updated prompt: {{output}}",
+          provider: "openai",
+          model: "available-model",
+        },
+      },
+      null,
+    );
+    expect(legacyPause).toMatchObject({
+      blockedAt: expect.any(Date),
+      blockReason: null,
+      blockMessage: "Legacy pause without a reason",
     });
   });
 

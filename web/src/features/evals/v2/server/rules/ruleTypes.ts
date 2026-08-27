@@ -70,7 +70,10 @@ export const CreateRuleSchema = RuleMetadataSchema.extend({
   projectId: z.string(),
   targetObject: z
     .enum([EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT])
-    .default(EvalTargetObject.EVENT),
+    .default(EvalTargetObject.EVENT)
+    .describe(
+      "Deprecated: modern rules are event rules and experiment scope is expressed through filters.",
+    ),
   enabled: z.boolean(),
   evaluatorAssignments: z.array(RuleAssignmentInputSchema).max(100),
 });
@@ -115,7 +118,6 @@ const FilteredRuleSelectionSchema = z.object({
   projectId: z.string(),
   isBatchAction: z.literal(true),
   search: z.string().trim().max(200).optional(),
-  enabled: z.boolean().optional(),
   filter: ListRulesSchema.shape.filter,
 });
 

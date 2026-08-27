@@ -20,6 +20,7 @@ import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/Table/columns/createFolderKeyTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
@@ -35,7 +36,6 @@ import {
 } from "@/src/components/level-counts-display";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   TableBadgeLoadingCell,
@@ -51,6 +51,7 @@ import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
+  Folder,
   InfoIcon,
   ListTree,
   MoreVertical,
@@ -85,7 +86,7 @@ import {
 //   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
 //                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
 // Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, FolderBreadcrumbLink, Skeleton, the
+// TokenUsageBadge, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -1133,8 +1134,8 @@ export const WithGroupedHeaders = meta.story({
 // -----------------------------------------------------------------------------
 // Reproduces features/prompts/components/prompts-table.tsx cell-for-cell:
 //   - cellPadding="comfortable" (the Prompts one-off override at prompts-table.tsx:482)
-//   - Name column: folder rows use the real FolderBreadcrumbLink (TableLink +
-//     Folder icon); prompt rows use TableLink to the prompt.
+//   - Name column: folder rows use the folder key column (TableLink + Folder
+//     icon); prompt rows use TableLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
 //   - "Latest Version Created At": LocalIsoDate, null on folder rows.
@@ -1212,27 +1213,28 @@ const PROMPT_ROWS: PromptRow[] = [
 ];
 
 const promptColumns: LangfuseColumnDef<PromptRow>[] = [
-  {
+  createFolderKeyTableColumn<PromptRow>({
     accessorKey: "name",
     header: "Name",
-    id: "name",
     enableSorting: true,
     size: 250,
-    cell: ({ row }) => {
-      const { name, type, fullPath } = row.original;
+    getCell: (name, { row }) => {
+      if (!name) return undefined;
+      const { type, fullPath } = row.original;
       if (type === "folder") {
-        // Real folder cell: FolderBreadcrumbLink (TableLink + Folder icon).
-        return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+        return { type: "folder", name, onClick: () => undefined };
       }
-      return name ? (
-        <TableLink
-          path={`/prompts/${encodeURIComponent(fullPath)}`}
-          value={name}
-          title={fullPath}
-        />
-      ) : undefined;
+
+      return {
+        type: "link",
+        props: {
+          path: `/prompts/${encodeURIComponent(fullPath)}`,
+          value: name,
+          title: fullPath,
+        },
+      };
     },
-  },
+  }),
   {
     accessorKey: "version",
     header: "Versions",
@@ -1372,7 +1374,7 @@ export const WithFolderRows = meta.story({
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
 //   - TableLink with a leading icon (ListTree)
-//   - FolderBreadcrumbLink (Folder icon)
+//   - Folder link (Folder icon)
 // A second plain-text column shows the row stays aligned across the table.
 
 type IconCellRow = {
@@ -1442,7 +1444,19 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
             />
           );
         case "folder":
-          return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+          return (
+            <TableLink
+              path=""
+              value={name}
+              icon={
+                <span className="flex flex-row items-center gap-1">
+                  <Folder className="h-3.5 w-3.5 shrink-0" />
+                  {name}
+                </span>
+              }
+              onClick={() => undefined}
+            />
+          );
         case "plain":
         default:
           return (

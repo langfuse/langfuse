@@ -26,5 +26,3 @@ export const NOTIFICATION_THRESHOLDS = [
 export const BLOCKING_THRESHOLD = MAX_EVENTS_FREE_PLAN * 5; // 250,000
 
 export type NotificationThreshold = (typeof NOTIFICATION_THRESHOLDS)[number];
-export type BlockingThreshold = typeof BLOCKING_THRESHOLD;
-export type Threshold = NotificationThreshold | BlockingThreshold;

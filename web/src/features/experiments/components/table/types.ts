@@ -173,7 +173,7 @@ export type ExperimentItemsTableRow = {
 /**
  * Available experiment option for filter targeting.
  */
-export type ExperimentOption = {
+type ExperimentOption = {
   id: string;
   name: string;
 };

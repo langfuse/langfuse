@@ -182,5 +182,3 @@ export const SCENARIOS = {
   sparse: generateEvents({ seed: 3, count: 28, windowHours: 6 }),
   empty: [] as PrototypeEvent[],
 } satisfies Record<string, PrototypeEvent[]>;
-
-export type ScenarioKey = keyof typeof SCENARIOS;

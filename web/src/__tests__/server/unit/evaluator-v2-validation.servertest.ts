@@ -41,13 +41,9 @@ describe("evaluator configuration validation", () => {
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
           prompt: "Judge {{output}}",
-          provider: null,
-          model: null,
-          modelParams: null,
-          vars: ["output"],
+          modelConfig: null,
           variableMapping: null,
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -111,7 +107,6 @@ describe("evaluator configuration validation", () => {
           vars: ["output"],
           variableMapping: null,
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -161,7 +156,6 @@ describe("evaluator configuration validation", () => {
           vars: ["output"],
           variableMapping: null,
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -191,7 +185,6 @@ describe("evaluator configuration validation", () => {
             },
           ],
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -219,7 +212,6 @@ describe("evaluator configuration validation", () => {
             { templateVariable: "output", selectedColumnId: "output" },
           ],
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -249,7 +241,6 @@ describe("evaluator configuration validation", () => {
             },
           ],
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
