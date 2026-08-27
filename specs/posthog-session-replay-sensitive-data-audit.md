@@ -15,7 +15,9 @@ returning to blanket page-text obfuscation:
 - generic `contenteditable` text is selectively masked;
 - the shared `CodeMirrorEditor` blocks its complete subtree;
 - the portaled `MediaTag` preview blocks its complete subtree; and
-- generated playground output blocks its value body.
+- generated playground output blocks its value body; and
+- trace session, user, and target-trace identifier badges block their complete
+  subtrees.
 
 This covers the trace corrected-output path, dataset item and schema editors,
 playground messages/configuration, prompt/evaluator/experiment editors, media
