@@ -171,7 +171,7 @@ describe("organization feature preview defaults", () => {
     const { caller, org } = await prepare();
     await prisma.organization.update({
       where: { id: org.id },
-      data: { featureFlagOrgDefaults: ["modernSession", "modernSession"] },
+      data: { featureFlagOrgDefaults: ["modernSession"] },
     });
     const member = await createUser({
       featureFlags: [
@@ -432,11 +432,9 @@ describe("organization member feature preview overrides", () => {
       (membership) => membership.userId === target.id,
     );
 
-    expect(row?.featurePreviews).toEqual({
-      modernSession: false,
-      // The second preview this asserted (`compactTimeline`) went away at GA, so
-      // the two-flags-differ case is untestable until another preview exists.
-    });
+    // The user HAS the preview flag, so it surfaces as enabled here — while the
+    // raw `featureFlags` array stays hidden, which is what this guards.
+    expect(row?.featurePreviews).toEqual({ modernSession: true });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");
   });

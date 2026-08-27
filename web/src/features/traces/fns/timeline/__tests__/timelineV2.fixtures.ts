@@ -194,7 +194,7 @@ export const longTailTrace = (): LayoutNode[] =>
     },
   ]);
 
-export const allInstantaneous = (): LayoutNode[] =>
+const allInstantaneous = (): LayoutNode[] =>
   build([
     {
       name: "fanout",
@@ -208,7 +208,7 @@ export const allInstantaneous = (): LayoutNode[] =>
     },
   ]);
 
-export const missingEndTimes = (): LayoutNode[] =>
+const missingEndTimes = (): LayoutNode[] =>
   build([
     {
       name: "in-flight-run",
@@ -227,7 +227,7 @@ export const missingEndTimes = (): LayoutNode[] =>
   ]);
 
 /** Single instantaneous span: the fully collapsed trace. */
-export const zeroDurationTrace = (): LayoutNode[] =>
+const zeroDurationTrace = (): LayoutNode[] =>
   build([{ name: "ping", startMs: 0, durationMs: 0 }]);
 
 /**
