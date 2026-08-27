@@ -13,7 +13,7 @@ import {
 export type ExperimentOption = {
   experimentId: string;
   experimentName: string;
-  datasetId?: string | null;
+  datasetId: string | null;
 };
 
 type ExperimentComparisonSelectorProps = {
@@ -51,16 +51,14 @@ export function ExperimentComparisonSelector({
 
   // Map selected IDs to full experiment objects
   const selectedExperiments = useMemo(() => {
-    return selectedIds
-      .map((id) => {
-        const found = availableExperimentNames.find(
-          (exp) => exp.experimentId === id,
-        );
-        if (found) return found;
-        // If not in current results, create placeholder with ID as name
-        return { experimentId: id, experimentName: id, datasetId: null };
-      })
-      .filter((exp): exp is ExperimentOption => exp !== undefined);
+    return selectedIds.map((id) => {
+      const found = availableExperimentNames.find(
+        (exp) => exp.experimentId === id,
+      );
+      if (found) return found;
+      // If not in current results, create placeholder with ID as name
+      return { experimentId: id, experimentName: id, datasetId: null };
+    });
   }, [selectedIds, availableExperimentNames]);
 
   const handleItemsChange = (items: ExperimentOption[]) => {
