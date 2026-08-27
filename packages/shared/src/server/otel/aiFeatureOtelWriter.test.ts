@@ -41,6 +41,12 @@ const processedEvents = [
       userId: "user-1",
       sessionId: "conversation-1",
       startTime: START_ISO,
+      endTime: END_ISO,
+      input: { messages: [{ role: "user", content: "hello" }] },
+      output: {
+        messages: [{ role: "assistant", content: "hi" }],
+        text: "hi",
+      },
     },
   },
   {
@@ -131,24 +137,34 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     );
 
     const events = await processPublishedSpans();
-    expect(events).toHaveLength(3);
+    expect(events).toHaveLength(4);
 
-    const root = events.find((event) => event.spanId === RUN_ID);
+    const wrappingRoot = events.find((event) => event.spanId === TRACE_ID);
+    const agent = events.find((event) => event.spanId === RUN_ID);
     const tool = events.find((event) => event.spanId === "tool-call-1");
     const generation = events.find(
       (event) => event.spanId === `${RUN_ID}-llm-0`,
     );
 
-    expect(root).toMatchObject({
+    expect(wrappingRoot).toMatchObject({
       traceId: TRACE_ID,
       parentSpanId: null,
       name: "agent-turn",
-      type: "AGENT",
+      type: "SPAN",
       environment: "production",
       userId: "user-1",
       sessionId: "conversation-1",
     });
-    expect(root?.tags).toEqual(["in-app-agent"]);
+    expect(wrappingRoot?.output).toContain('"role":"assistant"');
+    expect(wrappingRoot?.output).toContain('"content":"hi"');
+    expect(wrappingRoot?.tags).toEqual(["in-app-agent"]);
+    expect(agent).toMatchObject({
+      traceId: TRACE_ID,
+      parentSpanId: TRACE_ID,
+      name: "agent-turn",
+      type: "AGENT",
+      environment: "production",
+    });
     expect(generation).toMatchObject({
       traceId: TRACE_ID,
       parentSpanId: RUN_ID,

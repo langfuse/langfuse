@@ -1309,6 +1309,73 @@ describe("createAgUiStream", () => {
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
   });
 
+  it("does not wait for tracing flush before closing the agent stream", async () => {
+    const { createAgUiStream } = await import("./agent");
+    instrumentationMocks.instrumentation.flush.mockReturnValue(
+      new Promise(() => {
+        // Hang forever — the stream must still complete.
+      }),
+    );
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-flush-async",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+    const onComplete = vi.fn();
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onComplete,
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
+      },
+    });
+
+    await readStream(stream);
+
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
   it("does not enable Bedrock reasoning for non-Claude models", async () => {
     const { createAgUiStream } = await import("./agent");
     const input = {

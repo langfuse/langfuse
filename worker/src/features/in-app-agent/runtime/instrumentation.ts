@@ -501,12 +501,10 @@ export class InAppAgentInstrumentation {
     this.ended = true;
   }
 
-  flush(): Promise<void> {
+  flush() {
     this.flushPromise ??= this.processTracedEvents().catch((error) => {
       logger.warn("Failed to flush in-app agent Langfuse tracing", error);
     });
-
-    return this.flushPromise;
   }
 
   private recordEvent(event: AgUiEvent) {
