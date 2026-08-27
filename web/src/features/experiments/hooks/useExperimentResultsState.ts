@@ -8,14 +8,20 @@ import {
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-/** How the selected experiments are laid out against each other. */
-export type ExperimentResultsLayout = "grid" | "list";
+/**
+ * How the selected experiments are laid out against each other: one row per item
+ * ("list"), one column per experiment ("grid"), or the transpose — scores as
+ * rows and experiments as columns ("matrix").
+ */
+export type ExperimentResultsLayout = "grid" | "list" | "matrix";
 
 /** What a diff cell's extra line is measured against. */
 export type ExperimentDiffMode = "comparison" | "expected" | "off";
 
 const asLayout = (value: unknown): ExperimentResultsLayout | undefined =>
-  value === "grid" || value === "list" ? value : undefined;
+  value === "grid" || value === "list" || value === "matrix"
+    ? value
+    : undefined;
 
 const asDiffMode = (value: unknown): ExperimentDiffMode | undefined =>
   value === "comparison" || value === "expected" || value === "off"

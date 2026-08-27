@@ -86,6 +86,12 @@ export function ExperimentDisplaySettings({
         >
           Side by side — a column per experiment
         </OptionItem>
+        <OptionItem
+          selected={layout === "matrix"}
+          onSelect={() => onLayoutChange("matrix")}
+        >
+          Score matrix — scores as rows, runs as columns
+        </OptionItem>
 
         <DropdownMenuSeparator />
 

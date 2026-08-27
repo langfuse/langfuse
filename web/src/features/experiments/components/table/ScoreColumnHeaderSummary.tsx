@@ -14,24 +14,13 @@ import {
   splitScoreDataTypeIcon,
 } from "@/src/features/scores/lib/scoreColumns";
 import {
-  type ScoreColumnAggregate,
   type ScoreColumnDataType,
   type ScoreColumnSummary,
 } from "@/src/features/experiments/fns/summariseScoreColumn";
-
-const formatScoreValue = (value: number) => value.toFixed(2);
-
-/** How the column's aggregate reads, which depends on the score's type. */
-const formatAggregate = (aggregate: ScoreColumnAggregate) => {
-  if (aggregate.kind === "average")
-    return `Ø ${formatScoreValue(aggregate.value)}`;
-  if (aggregate.kind === "trueRate")
-    return `${Math.round(aggregate.value * 100)}% true`;
-  const modalCount =
-    aggregate.distribution.find((entry) => entry.value === aggregate.modalValue)
-      ?.count ?? 0;
-  return `${aggregate.modalValue} ${modalCount}/${aggregate.count}`;
-};
+import {
+  formatScoreColumnAggregate,
+  formatScoreValue,
+} from "@/src/features/experiments/fns/formatScoreColumnAggregate";
 
 const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
   NUMERIC: "average",
@@ -114,7 +103,7 @@ export const ScoreColumnHeaderSummary = ({
               {baseline ? (
                 <>
                   <span className="text-foreground font-bold">
-                    {formatAggregate(baseline)}
+                    {formatScoreColumnAggregate(baseline)}
                   </span>
                   {baseline.kind !== "distribution" && (
                     <span>· {baseline.count}</span>
@@ -126,7 +115,9 @@ export const ScoreColumnHeaderSummary = ({
             </span>
             {movement && (
               <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
-                {comparison && <span>vs {formatAggregate(comparison)}</span>}
+                {comparison && (
+                  <span>vs {formatScoreColumnAggregate(comparison)}</span>
+                )}
                 {delta !== null && delta !== 0 && (
                   <DiffLabel
                     diff={{
@@ -167,14 +158,20 @@ export const ScoreColumnHeaderSummary = ({
           </span>
           <SummaryRow
             label={`This experiment (${DIFF_LABEL_TITLES[dataType]})`}
-            value={baseline ? formatAggregate(baseline) : "no values"}
+            value={
+              baseline ? formatScoreColumnAggregate(baseline) : "no values"
+            }
           />
           <SummaryRow label="Items scored" value={baseline?.count ?? 0} />
           {movement && (
             <>
               <SummaryRow
                 label={comparisonName ? `vs ${comparisonName}` : "Comparison"}
-                value={comparison ? formatAggregate(comparison) : "no values"}
+                value={
+                  comparison
+                    ? formatScoreColumnAggregate(comparison)
+                    : "no values"
+                }
               />
               {delta !== null && (
                 <SummaryRow
