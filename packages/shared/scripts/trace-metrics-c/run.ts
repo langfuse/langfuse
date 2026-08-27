@@ -140,6 +140,7 @@ const main = async (): Promise<void> => {
     window: string,
     source: QueryMetrics["source"],
     params: Record<string, string | number> = baseParams,
+    recordRows = true,
   ): Promise<QueryRow[]> => {
     const startedAt = performance.now();
     const response = await client.query({
@@ -160,7 +161,7 @@ const main = async (): Promise<void> => {
       readRows: summary.readRows,
       readBytes: summary.readBytes,
       resultRows: summary.resultRows || rows.length,
-      rows,
+      rows: recordRows ? rows : [],
     });
     return rows;
   };
@@ -175,12 +176,16 @@ const main = async (): Promise<void> => {
     "gold-traces.sql",
     "all",
     "gold",
+    baseParams,
+    false,
   );
   const rollupTraces = await runQuery(
     "rollup-traces",
     "rollup-traces.sql",
     "all",
     "rollup",
+    baseParams,
+    false,
   );
   const correctness = compareTraces(goldTraces, rollupTraces);
 
