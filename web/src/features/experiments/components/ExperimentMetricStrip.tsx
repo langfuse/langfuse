@@ -19,7 +19,7 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
 
 const AXIS_EXPLANATION =
-  "One point per experiment, left to right in the order of the table below — sorting or filtering the table re-orders the chart. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
+  "One point per experiment in view, oldest on the left and newest on the right, so a metric that improved over time rises. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
 
 /**
  * Which columns carry the experiment, keyed by the chart's entity dimension.
@@ -75,8 +75,8 @@ const buildExperimentScopeFilters = ({
 
 type ExperimentMetricStripProps = {
   projectId: string;
-  /** In table order — the strip's x-axis is that order. */
-  experiments: Array<{ id: string; name: string }>;
+  /** The experiments in view, in any order; the strip re-orders by start time. */
+  experiments: Array<{ id: string; name: string; startTime: Date }>;
   fromTimestamp: Date;
   toTimestamp: Date;
   isExternalLoading?: boolean;
@@ -86,9 +86,9 @@ type ExperimentMetricStripProps = {
  * The compact metric strip above the experiments table — one chart in the band
  * the 4×224px chart grid used to occupy, modelled on the events table's
  * outlier strip. It plots one metric across the experiments in view, defaulting
- * to a score rather than cost, with the x-axis meaning "position in the table"
- * so a point maps back to a row without rendering long experiment names on the
- * axis. (LFE-15711)
+ * to a score rather than cost, on a chronological x-axis (oldest left) so an
+ * improving metric reads as a rising line. Long experiment names stay off the
+ * axis; the hover tooltip carries identity. (LFE-15711)
  */
 export function ExperimentMetricStrip({
   projectId,
@@ -97,9 +97,19 @@ export function ExperimentMetricStrip({
   toTimestamp,
   isExternalLoading = false,
 }: ExperimentMetricStripProps) {
-  const experimentIds = useMemo(
-    () => experiments.map((experiment) => experiment.id),
+  // Chronological, oldest first: a rising metric has to draw as a rising line.
+  // The table stays newest-first, so this is deliberately not the table order.
+  const orderedExperiments = useMemo(
+    () =>
+      [...experiments].sort(
+        (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+      ),
     [experiments],
+  );
+
+  const experimentIds = useMemo(
+    () => orderedExperiments.map((experiment) => experiment.id),
+    [orderedExperiments],
   );
 
   const { metricId, setMetricId, availableMetricOptions, isLoading } =
@@ -116,13 +126,16 @@ export function ExperimentMetricStrip({
   );
 
   // Presentation-only names for the entity axis; their insertion order is what
-  // InlineWidget orders the x-axis by, so it carries the table's order too.
+  // InlineWidget orders the x-axis by, so it carries the chronological order.
   const entityDimensionLabelMap = useMemo(
     () =>
       Object.fromEntries(
-        experiments.map((experiment) => [experiment.id, experiment.name]),
+        orderedExperiments.map((experiment) => [
+          experiment.id,
+          experiment.name,
+        ]),
       ),
-    [experiments],
+    [orderedExperiments],
   );
 
   const query: QueryType | null = useMemo(() => {
@@ -130,7 +143,7 @@ export function ExperimentMetricStrip({
 
     const experimentNames = Array.from(
       new Set(
-        experiments
+        orderedExperiments
           .map((experiment) => experiment.name)
           .filter((name) => name.length > 0),
       ),
@@ -158,7 +171,13 @@ export function ExperimentMetricStrip({
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
     };
-  }, [widgetConfig, experiments, experimentIds, fromTimestamp, toTimestamp]);
+  }, [
+    widgetConfig,
+    orderedExperiments,
+    experimentIds,
+    fromTimestamp,
+    toTimestamp,
+  ]);
 
   const groupedOptions = useMemo(() => {
     const groups = new Map<MetricOption["group"], MetricOption[]>();
@@ -178,7 +197,7 @@ export function ExperimentMetricStrip({
     selectedMetricOption?.label ?? metricId.split(":").pop() ?? metricId;
 
   const isChartEnabled =
-    Boolean(selectedMetricOption) && experiments.length > 0;
+    Boolean(selectedMetricOption) && orderedExperiments.length > 0;
   const isStripLoading = isExternalLoading || isLoading;
 
   return (
@@ -211,7 +230,7 @@ export function ExperimentMetricStrip({
           </SelectContent>
         </Select>
         <span className="text-muted-foreground flex items-baseline text-xs leading-none">
-          in table order
+          oldest to newest
           <DocPopup description={AXIS_EXPLANATION} />
         </span>
       </div>

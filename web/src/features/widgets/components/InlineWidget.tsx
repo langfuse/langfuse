@@ -265,10 +265,9 @@ export function WidgetContent({
 
     // Entity-dimension charts have no meaningful query-side order (the server
     // falls back to first-metric DESC, which differs per chart). Order the
-    // x-axis by the caller's entityDimensionLabelMap insertion order, which is
-    // the experiments table's row order: read left to right, the axis IS that
-    // table, so a point maps to the row at the same position. Entities the map
-    // doesn't know (a name the table no longer shows) sort last. (LFE-15711)
+    // x-axis by the caller's entityDimensionLabelMap insertion order, so the
+    // caller decides what left-to-right means (the experiments strip makes it
+    // chronological). Entities the map doesn't know sort last. (LFE-15711)
     if (
       chartType !== "PIVOT_TABLE" &&
       entityDimensionLabelMap &&

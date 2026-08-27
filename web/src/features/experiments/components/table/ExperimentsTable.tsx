@@ -787,9 +787,14 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
-  // The strip's series, in table order — which is also its x-axis order.
+  // The strip's series. The strip orders its own x-axis chronologically, which
+  // is deliberately not this table's newest-first order.
   const chartExperiments = useMemo(() => {
-    return rows.map((row) => ({ id: row.id, name: row.name }));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      startTime: row.startTime,
+    }));
   }, [rows]);
 
   // Mirror the visible page's rows into the store (in table order, so
