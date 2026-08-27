@@ -916,16 +916,14 @@ export function V4MigrationApisSection({
       ) : usage.length > 0 ? (
         <>
           <p className="text-muted-foreground mb-2 text-sm">
-            You&apos;ve called these deprecated endpoints in the last{" "}
-            {V4_MIGRATION_LOOKBACK_DAYS} days. Counts refresh about every 15
-            minutes and can lag live traffic. They stop working soon; the{" "}
+            You&apos;ve recently called deprecated endpoints that will stop
+            working after the migration deadline. Please check the{" "}
             <ExternalLink
               href={DEPRECATED_API_MIGRATION_URL}
               analytics={{ section: "apis", link: "deprecated_api_docs" }}
             >
               migration guide
-            </ExternalLink>{" "}
-            maps each endpoint to its replacement.
+            </ExternalLink>
           </p>
           <div className="flex flex-col gap-3">
             {usage.map((row) => {
