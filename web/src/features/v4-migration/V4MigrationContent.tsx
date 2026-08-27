@@ -975,28 +975,21 @@ export function V4MigrationApisSection({
                           key={`${callerName}-${index}`}
                           className="bg-muted/50 border-border rounded-md border-l-4 p-2 text-sm"
                         >
-                          <div className="text-muted-foreground flex items-center gap-1.5">
-                            <span aria-hidden="true">⚠️</span>
-                            <MonoValue>{callerName}</MonoValue>
-                          </div>
-                          <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5">
-                            <span>
-                              {numberFormatter(callerCount, 0)}{" "}
-                              {callerCount === 1 ? "call" : "calls"} · last seen{" "}
-                              {formatCompactRelativeTime(
-                                new Date(caller.lastSeen),
-                              )}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <ExternalLink
-                              href={DEPRECATED_API_MIGRATION_URL}
-                              analytics={{
-                                section: "apis",
-                                link: "deprecated_api_caller_docs",
-                              }}
-                            >
-                              See docs.
-                            </ExternalLink>
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                            <div className="text-muted-foreground flex items-center gap-1.5">
+                              <span aria-hidden="true">⚠️</span>
+                              <MonoValue>{callerName}</MonoValue>
+                            </div>
+                            <div className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 pl-5 sm:pl-0">
+                              <span>
+                                {numberFormatter(callerCount, 0)}{" "}
+                                {callerCount === 1 ? "call" : "calls"} · last
+                                seen{" "}
+                                {formatCompactRelativeTime(
+                                  new Date(caller.lastSeen),
+                                )}
+                              </span>
+                            </div>
                           </div>
                           {caller.sdkName && caller.userAgent ? (
                             <p className="text-muted-foreground mt-1 pl-5 text-xs break-all">
@@ -1009,7 +1002,16 @@ export function V4MigrationApisSection({
                               This looks like traffic from a coding agent. If
                               the call was only exploratory and is not part of a
                               running service, you may not need to migrate
-                              application code.
+                              application code.{" "}
+                              <ExternalLink
+                                href={DEPRECATED_API_MIGRATION_URL}
+                                analytics={{
+                                  section: "apis",
+                                  link: "deprecated_api_caller_docs",
+                                }}
+                              >
+                                See docs.
+                              </ExternalLink>
                             </p>
                           ) : guidance.currentMethod &&
                             guidance.replacementMethod ? (
@@ -1029,12 +1031,30 @@ export function V4MigrationApisSection({
                                   </MonoValue>
                                 </>
                               ) : null}
-                              .
+                              .{" "}
+                              <ExternalLink
+                                href={DEPRECATED_API_MIGRATION_URL}
+                                analytics={{
+                                  section: "apis",
+                                  link: "deprecated_api_caller_docs",
+                                }}
+                              >
+                                See docs.
+                              </ExternalLink>
                             </p>
                           ) : (
                             <p className="text-muted-foreground mt-1 pl-5 text-xs">
                               Migrate this caller to{" "}
-                              <MonoValue>{guidance.replacement}</MonoValue>.
+                              <MonoValue>{guidance.replacement}</MonoValue>.{" "}
+                              <ExternalLink
+                                href={DEPRECATED_API_MIGRATION_URL}
+                                analytics={{
+                                  section: "apis",
+                                  link: "deprecated_api_caller_docs",
+                                }}
+                              >
+                                See docs.
+                              </ExternalLink>
                             </p>
                           )}
                         </li>

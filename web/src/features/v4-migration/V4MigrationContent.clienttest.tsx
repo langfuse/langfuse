@@ -344,10 +344,9 @@ describe("V4MigrationDetailsContent", () => {
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
-    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
-      "title",
-      "Last seen at 2026-07-23T10:37:00Z",
-    );
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/42 calls · last seen/);
 
     const expectedIntegrationGuides = {
       PostHog:
@@ -393,9 +392,15 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/57 calls · last seen/);
+    expect(
+      screen.getByTitle("Last seen at 2026-07-22T10:37:00Z"),
+    ).toHaveTextContent(/5 calls · last seen/);
+    expect(
+      screen.getByTitle("Last seen at 2026-07-21T10:37:00Z"),
+    ).toHaveTextContent(/1 call · last seen/);
   });
 
   it("shows the caller and exact SDK migration action", () => {
@@ -435,12 +440,19 @@ describe("V4MigrationDetailsContent", () => {
     for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
       const caller = screen.getByText(callerName).closest("li");
       expect(caller).toHaveClass("bg-muted/50", "border-l-4", "p-2");
+      expect(caller?.firstElementChild).toHaveTextContent(callerName);
+      expect(caller?.firstElementChild).toHaveTextContent(/calls? · last seen/);
       expect(
-        within(caller!).getByRole("link", { name: "See docs." }),
-      ).toHaveAttribute(
+        within(caller?.firstElementChild as HTMLElement).queryByRole("link"),
+      ).not.toBeInTheDocument();
+      const docsLink = within(caller!).getByRole("link", {
+        name: "See docs.",
+      });
+      expect(docsLink).toHaveAttribute(
         "href",
         "https://langfuse.com/faq/all/deprecated-api-migration",
       );
+      expect(docsLink.parentElement).toHaveTextContent(/See docs\.$/);
     }
 
     fireEvent.click(screen.getAllByRole("link", { name: "See docs." })[0]!);
