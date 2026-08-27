@@ -6,7 +6,7 @@ CREATE TABLE trace_metrics_5m_benchmark
     sum_cost SimpleAggregateFunction(sum, Float64),
     sum_tokens SimpleAggregateFunction(sum, UInt64),
     min_start SimpleAggregateFunction(min, DateTime64(6)),
-    max_end AggregateFunction(max, Nullable(DateTime64(6))),
+    max_end SimpleAggregateFunction(max, Nullable(DateTime64(6))),
     span_count SimpleAggregateFunction(sum, UInt64)
 )
 ENGINE = AggregatingMergeTree

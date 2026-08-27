@@ -2,8 +2,8 @@ SELECT
     trace_id,
     sum(sum_cost) AS cost,
     min(min_start) AS min_start,
-    maxMerge(max_end) AS max_end,
-    dateDiff('millisecond', min(min_start), maxMerge(max_end)) AS latency_ms,
+    max(max_end) AS max_end,
+    dateDiff('millisecond', min(min_start), max(max_end)) AS latency_ms,
     sum(span_count) AS span_count
 FROM trace_metrics_5m_benchmark
 WHERE project_id = {projectId: String}

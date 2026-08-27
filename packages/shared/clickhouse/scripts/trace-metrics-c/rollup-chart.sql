@@ -9,7 +9,7 @@ FROM
         trace_id,
         sum(sum_cost) AS cost,
         min(min_start) AS min_start,
-        dateDiff('millisecond', min(min_start), maxMerge(max_end)) AS latency_ms
+        dateDiff('millisecond', min(min_start), max(max_end)) AS latency_ms
     FROM trace_metrics_5m_benchmark
     WHERE project_id = {projectId: String}
       AND bucket >= toStartOfFiveMinutes({from: DateTime64(6)})

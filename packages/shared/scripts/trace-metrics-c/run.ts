@@ -3,7 +3,7 @@ import path from "node:path";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
-} from "../../src/server";
+} from "../../src/server/clickhouse/client";
 import {
   QueryMetrics,
   renderTraceMetricsReport,

@@ -6,7 +6,7 @@ SELECT
     sum(toFloat64(cost_details['total'])) AS sum_cost,
     sum(usage_details['total']) AS sum_tokens,
     min(start_time) AS min_start,
-    maxState(toNullable(end_time)) AS max_end,
+    max(end_time) AS max_end,
     toUInt64(count()) AS span_count
 FROM
 (
