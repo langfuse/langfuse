@@ -7,7 +7,6 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { ActionButton } from "@/src/components/ActionButton";
 import { DownloadIcon, InfoIcon } from "lucide-react";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
@@ -27,6 +26,7 @@ import {
 } from "@/src/components/ui/alert-dialog";
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 type BatchExportRow = RouterOutputs["batchExport"]["all"]["exports"][number];
 
@@ -243,29 +243,13 @@ export function BatchExportsTable(props: { projectId: string }) {
       header: "Format",
       size: 70,
     },
-    {
+    createUserTableColumn<BatchExportRow>({
       accessorKey: "user",
-      id: "user",
       header: "Created By",
       size: 150,
-      cell: ({ row }) => {
-        const user = row.getValue("user") as {
-          name: string | null;
-          image: string | null;
-        } | null;
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={user?.image ?? undefined}
-                alt={user?.name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{user?.name ?? "Unknown"}</span>
-          </div>
-        );
-      },
-    },
+      variant: "avatar",
+      emptyValue: "Unknown",
+    }),
   ] as LangfuseColumnDef<BatchExportRow>[];
 
   return (

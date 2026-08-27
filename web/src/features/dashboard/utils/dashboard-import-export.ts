@@ -21,7 +21,7 @@ import {
  */
 export const DASHBOARD_FILE_FORMAT_VERSION = 1;
 
-export function isLangfuseDashboardPayload(parsed: unknown): boolean {
+function isLangfuseDashboardPayload(parsed: unknown): boolean {
   return (
     typeof parsed === "object" &&
     parsed !== null &&

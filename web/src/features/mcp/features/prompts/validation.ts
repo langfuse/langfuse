@@ -11,7 +11,6 @@ import {
   PROMPT_LABEL_MAX_LENGTH,
   PROMPT_LABEL_REGEX,
   PROMPT_LABEL_REGEX_ERROR,
-  COMMIT_MESSAGE_MAX_LENGTH,
   LATEST_PROMPT_LABEL,
   PRODUCTION_LABEL,
   PromptLabelSchema,
@@ -60,16 +59,6 @@ export const ParamPromptTag = z
   .string()
   .optional()
   .describe("Tag to filter prompts (e.g., 'v1', 'experimental')");
-
-/**
- * Commit message parameter (optional)
- * Used when creating new prompt versions
- */
-export const ParamCommitMessage = z
-  .string()
-  .max(COMMIT_MESSAGE_MAX_LENGTH)
-  .optional()
-  .describe("Optional commit message describing the changes");
 
 /**
  * Labels allowed while creating a new prompt version.

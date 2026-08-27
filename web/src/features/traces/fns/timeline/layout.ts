@@ -173,7 +173,7 @@ const MAX_TICKS = 64;
 const MIN_TICK_GAP_PX = 56;
 const TICK_LABEL_PADDING_PX = 16;
 /** The tick line itself — a `border-l`, which the label is positioned inside of. */
-export const TICK_LINE_PX = 1;
+const TICK_LINE_PX = 1;
 /** The gap between that line and its label. */
 export const TICK_LABEL_GAP_PX = 4;
 /**

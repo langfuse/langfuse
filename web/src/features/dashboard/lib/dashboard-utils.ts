@@ -20,7 +20,7 @@ export const createTracesTimeFilter = (
 };
 
 /** Filter to exclude events with empty trace_name (observations view only). */
-export const TRACE_NAME_NOT_NULL_FILTER: z.infer<typeof singleFilter> = {
+const TRACE_NAME_NOT_NULL_FILTER: z.infer<typeof singleFilter> = {
   type: "null",
   column: "traceName",
   operator: "is not null",

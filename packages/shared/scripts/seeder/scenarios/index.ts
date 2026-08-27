@@ -10,6 +10,7 @@ import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
 import { sessionVarietyScenario } from "./session-variety";
 import { supportAgentScenario } from "./support-agent";
+import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
@@ -31,6 +32,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "annotation-queue": annotationQueueScenario,
   "custom-models": customModelsScenario,
   "support-agent": supportAgentScenario,
+  "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
 };
 

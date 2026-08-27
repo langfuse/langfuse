@@ -24,7 +24,7 @@ import {
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -397,15 +397,9 @@ export function CodeEvalTemplateFormBody({
     >
       {isFormatting && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
       Format
-      <KeyboardShortcut
-        className="ml-2 h-4"
-        keys={
-          typeof navigator !== "undefined" &&
-          navigator.userAgent.includes("Macintosh")
-            ? ["⇧", "⌥", "F"]
-            : ["Shift", "Alt", "F"]
-        }
-      />
+      <span className="ml-2 hidden md:inline-flex">
+        <KeyboardShortcut size="sm" keys={["Shift", "Alt", "F"]} />
+      </span>
     </Button>
   );
 

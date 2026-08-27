@@ -1,22 +1,9 @@
 import { z } from "zod";
-import { type JSONValue } from "@langfuse/shared";
 import { publicApiIdSchema } from "@/src/features/public-api/types/datasets";
 
 const paginationSchema = {
   page: z.number().int().positive().default(1),
   limit: z.number().int().positive().max(100).default(50),
-};
-
-export const resolveMetadata = (
-  metadata: JSONValue,
-): Record<string, unknown> => {
-  if (Array.isArray(metadata)) {
-    return { metadata };
-  }
-  if (typeof metadata === "object" && metadata !== null) {
-    return metadata as Record<string, unknown>;
-  }
-  return { metadata };
 };
 
 export const GetDatasetsMcpInput = z.object({

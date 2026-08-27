@@ -121,18 +121,18 @@ export type CompletionPlan = {
   autoHighlight?: boolean;
 };
 
-export const SECTION_SUGGESTIONS = "Suggestions";
+const SECTION_SUGGESTIONS = "Suggestions";
 export const SECTION_FIELDS = "Fields";
 export const SECTION_MATCHING_FILTERS = "Matching filters";
 export const SECTION_VALUES = "Observed values";
-export const SECTION_OPERATORS = "Operators";
-export const SECTION_PATTERNS = "Patterns";
+const SECTION_OPERATORS = "Operators";
+const SECTION_PATTERNS = "Patterns";
 export const SECTION_RECENT = "Recent searches";
 export const SECTION_MATCH_OPS = "Match operators";
 export const SECTION_COMPARE_OPS = "Comparisons";
-export const SECTION_KEYS = "Observed keys";
-export const SECTION_SCORE_NAMES = "Score names";
-export const SECTION_SEARCH_IN = "Full-text search";
+const SECTION_KEYS = "Observed keys";
+const SECTION_SCORE_NAMES = "Score names";
+const SECTION_SEARCH_IN = "Full-text search";
 
 const MAX_RECENTS_SHOWN = 5;
 const MAX_PRESETS_SHOWN = 10;

@@ -1,10 +1,11 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { Button } from "@/src/components/ui/button";
 import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { api } from "@/src/utils/api";
-import { usdFormatter } from "@/src/utils/numbers";
+import { costFormatter } from "@/src/utils/numbers";
 import { Download, ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -31,9 +32,15 @@ type InvoiceRow = {
 export function BillingInvoiceTable() {
   const { organization } = useBillingInformation();
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
-  const shouldShowTable =
-    isCloudBillingAvailable &&
-    Boolean(organization?.cloudConfig?.stripe?.customerId);
+  // Provider-agnostic: getInvoices dispatches to whichever provider bills the
+  // org, so the gate is "does this org have a billing identity at all", not
+  // "does it have a Stripe customer". A CHB org never populates
+  // stripe.customerId and would otherwise never see its invoice history.
+  const hasBillingIdentity = Boolean(
+    organization?.cloudConfig?.stripe?.customerId ??
+    organization?.cloudConfig?.clickhouse?.organizationId,
+  );
+  const shouldShowTable = isCloudBillingAvailable && hasBillingIdentity;
 
   const [virtualTotal, setVirtualTotal] = useState(9999);
   const [paginationState, setPaginationState] = useState<{
@@ -142,56 +149,41 @@ export function BillingInvoiceTable() {
         return <Badge variant={variant}>{status}</Badge>;
       },
     },
-    {
-      accessorKey: "breakdown.subscriptionCents",
+    createNumberTableColumn<InvoiceRow>({
+      accessorFn: (row) => (row.breakdown?.subscriptionCents ?? 0) / 100,
       id: "subscription",
       header: "Subscription",
       size: 100,
-      cell: ({ row }) => {
-        const cents = row.original.breakdown?.subscriptionCents ?? 0;
-        return usdFormatter(cents / 100, 2, 2);
-      },
-    },
-    {
-      accessorKey: "breakdown.usageCents",
+      formatter: costFormatter,
+    }),
+    createNumberTableColumn<InvoiceRow>({
+      accessorFn: (row) => (row.breakdown?.usageCents ?? 0) / 100,
       id: "usage",
       header: "Usage",
       size: 90,
-      cell: ({ row }) => {
-        const cents = row.original.breakdown?.usageCents ?? 0;
-        return usdFormatter(cents / 100, 2, 2);
-      },
-    },
-    {
-      accessorKey: "breakdown.discountCents",
+      formatter: costFormatter,
+    }),
+    createNumberTableColumn<InvoiceRow>({
+      accessorFn: (row) => (row.breakdown?.discountCents ?? 0) / 100,
       id: "discounts",
       header: "Discounts",
       size: 90,
-      cell: ({ row }) => {
-        const cents = row.original.breakdown?.discountCents ?? 0;
-        return usdFormatter(cents / 100, 2, 2);
-      },
-    },
-    {
-      accessorKey: "breakdown.taxCents",
+      formatter: costFormatter,
+    }),
+    createNumberTableColumn<InvoiceRow>({
+      accessorFn: (row) => (row.breakdown?.taxCents ?? 0) / 100,
       id: "tax",
       header: "Tax",
       size: 90,
-      cell: ({ row }) => {
-        const cents = row.original.breakdown?.taxCents ?? 0;
-        return usdFormatter(cents / 100, 2, 2);
-      },
-    },
-    {
-      accessorKey: "breakdown.totalCents",
+      formatter: costFormatter,
+    }),
+    createNumberTableColumn<InvoiceRow>({
+      accessorFn: (row) => (row.breakdown?.totalCents ?? 0) / 100,
       id: "total",
       header: "Total",
       size: 90,
-      cell: ({ row }) => {
-        const cents = row.original.breakdown?.totalCents ?? 0;
-        return usdFormatter(cents / 100, 2, 2);
-      },
-    },
+      formatter: costFormatter,
+    }),
     {
       accessorKey: "actions",
       id: "actions",

@@ -86,7 +86,7 @@ import {
   buildBlobExportDeprecationNoticeKey,
 } from "./deprecationNotice";
 
-export const BlobExportFormat = {
+const BlobExportFormat = {
   JSON_RAW: "json-raw",
   JSON_GZIP: "json-gzip",
   CSV_RAW: "csv-raw",
@@ -97,7 +97,7 @@ export const BlobExportFormat = {
   // Parquet, so there is no separate raw/gzip split.
   PARQUET: "parquet",
 } as const;
-export type BlobExportFormat =
+type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
 
 // Text formats only; PARQUET is absent because callers branch on parquetEligible first.
@@ -133,6 +133,17 @@ function resolveBlobExportFormat(
 }
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
+
+// When a catch-up run lands within this distance of the frontier, treat it as
+// caught up rather than emitting a tiny trailing chunk. Object keys are truncated
+// to whole-second precision (formatBlobExportTimestamp), so a sub-second remainder
+// chunk can share a wall-clock second with the full-interval chunk it follows and
+// silently overwrite that window's files and manifest. Suppressing the remainder
+// removes the collision at its source; the deferred tail is picked up by the next
+// scheduled run (its minTimestamp = lastSyncAt already covers it). Must be >= 1000ms
+// (the key granularity) and well below any frequencyInterval so no meaningful data
+// is deferred.
+export const BLOB_STORAGE_REMAINDER_COALESCE_MS = 1000;
 
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
@@ -1451,8 +1462,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
       }
     }
 
-    // Determine if we've caught up with present-day data
-    const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+    // Determine if we've caught up with present-day data. A remainder below
+    // BLOB_STORAGE_REMAINDER_COALESCE_MS is treated as caught up so we never emit
+    // a sub-second trailing chunk that would collide with the full-interval chunk
+    // on the same second-precision object key (see the constant's doc comment).
+    const remainderMs = uncappedMaxTimestamp.getTime() - maxTimestamp.getTime();
+    const caughtUp =
+      maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime() ||
+      remainderMs < BLOB_STORAGE_REMAINDER_COALESCE_MS;
 
     let nextSyncAt: Date;
     if (caughtUp) {
