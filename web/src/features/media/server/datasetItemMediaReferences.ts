@@ -37,16 +37,24 @@ export async function resolveDatasetItemMediaReferences(props: {
   }
   if (props.items.length === 0) return referencesByItem;
 
-  const referenceRows = await prisma.datasetItemMedia.findMany({
-    where: {
-      projectId: props.projectId,
-      OR: props.items.map((item) => ({
-        datasetItemId: item.id,
-        datasetItemValidFrom: item.validFrom,
-      })),
-    },
-    orderBy: [{ field: "asc" }, { jsonPath: "asc" }],
-  });
+  // Chunk queries to stay well within PostgreSQL's 32,767 bind variable limit
+  // (each item adds 2 bind parameters + 1 for projectId).
+  const CHUNK_SIZE = 5000;
+  const referenceRows = [];
+  for (let i = 0; i < props.items.length; i += CHUNK_SIZE) {
+    const chunk = props.items.slice(i, i + CHUNK_SIZE);
+    const chunkRows = await prisma.datasetItemMedia.findMany({
+      where: {
+        projectId: props.projectId,
+        OR: chunk.map((item) => ({
+          datasetItemId: item.id,
+          datasetItemValidFrom: item.validFrom,
+        })),
+      },
+      orderBy: [{ field: "asc" }, { jsonPath: "asc" }],
+    });
+    referenceRows.push(...chunkRows);
+  }
   // The exact-version query never returns pending rows, so claimed rows always
   // have validFrom/jsonPath/referenceString set; this narrows their types.
   const claimedRows = referenceRows.filter(
