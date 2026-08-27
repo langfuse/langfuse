@@ -26,7 +26,9 @@ export function useExperimentStripMetric({
 }) {
   const scoreOptions = api.experiments.scoreOptions.useQuery(
     { projectId, experimentIds },
-    { enabled: experimentIds.length > 0 },
+    // `projectId` arrives with `router.query` after hydration; without it in
+    // the guard the query can fire with `undefined` and zod rejects it.
+    { enabled: Boolean(projectId) && experimentIds.length > 0 },
   );
 
   const [selectedMetricId, setSelectedMetricId] = useSessionStorage<
