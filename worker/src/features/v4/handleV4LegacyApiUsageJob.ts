@@ -282,8 +282,8 @@ SETTINGS skip_unavailable_shards = 1
 
 /**
  * Merges per-service results. Services pointing at overlapping replicas can
- * return identical result sets; those are deduplicated wholesale before
- * counts are summed, mirroring the request-path fallback behavior.
+ * return identical per-endpoint totals with different tied topK caller
+ * partitions. Deduplicate those service results before counts are summed.
  */
 const mergeServiceRows = (
   serviceRowSets: HourUsageRow[][],
@@ -300,7 +300,39 @@ const mergeServiceRows = (
         left.userAgent.localeCompare(right.userAgent) ||
         left.isOther - right.isOther,
     );
-    uniqueServiceResultSets.set(JSON.stringify(sortedRows), sortedRows);
+    const endpointTotals = new Map<
+      string,
+      {
+        hourStart: string;
+        projectId: string;
+        route: string;
+        count: number;
+        lastSeen: string;
+      }
+    >();
+    for (const row of sortedRows) {
+      const key = [row.hourStart, row.projectId, row.route].join("\u0000");
+      const existing = endpointTotals.get(key);
+      endpointTotals.set(key, {
+        hourStart: row.hourStart,
+        projectId: row.projectId,
+        route: row.route,
+        count: (existing?.count ?? 0) + Number(row.count),
+        lastSeen:
+          existing && existing.lastSeen > row.lastSeen
+            ? existing.lastSeen
+            : row.lastSeen,
+      });
+    }
+    const resultSetKey = JSON.stringify(
+      Array.from(endpointTotals.values()).sort(
+        (left, right) =>
+          left.hourStart.localeCompare(right.hourStart) ||
+          left.projectId.localeCompare(right.projectId) ||
+          left.route.localeCompare(right.route),
+      ),
+    );
+    uniqueServiceResultSets.set(resultSetKey, sortedRows);
   }
 
   const merged = new Map<string, MergedHourUsageRow>();

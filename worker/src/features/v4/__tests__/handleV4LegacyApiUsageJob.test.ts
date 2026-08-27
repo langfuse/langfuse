@@ -578,6 +578,38 @@ describe("handleV4LegacyApiUsageJob", () => {
     });
   });
 
+  it("deduplicates overlapping services with different tied caller partitions", async () => {
+    mocks.queryClickhouse
+      .mockResolvedValueOnce([
+        usageRow({ userAgent: "caller-a", count: 1 }),
+        usageRow({ isOther: 1, count: 99 }),
+      ])
+      .mockResolvedValueOnce([
+        usageRow({ userAgent: "caller-b", count: 1 }),
+        usageRow({ isOther: 1, count: 99 }),
+      ]);
+
+    await handleV4LegacyApiUsageJob();
+
+    expect(
+      readJson(v4LegacyApiHourBucketKey(Date.parse("2026-06-25T09:00:00Z"))),
+    ).toMatchObject({
+      apiRows: [
+        {
+          projectId: "project-a",
+          entrypoint: "publicapi: GET /api/public/traces",
+          count: 100,
+        },
+      ],
+    });
+    expect(
+      loggedInfo("v4 legacy API usage: merged query_log rows"),
+    ).toMatchObject({
+      inputServiceCount: 2,
+      uniqueResultSetCount: 1,
+    });
+  });
+
   it("skips the run when another worker holds the lock", async () => {
     redisState.store.set(V4_LEGACY_API_USAGE_LOCK_KEY, "someone-else");
 
