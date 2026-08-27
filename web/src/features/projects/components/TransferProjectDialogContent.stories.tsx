@@ -2,9 +2,9 @@ import { type ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
+import { Dialog } from "@/src/components/ui/dialog";
 
-import { TransferProjectDialog } from "./TransferProjectDialog";
+import { TransferProjectDialogContent } from "./TransferProjectDialog";
 
 const defaultArgs = {
   projectName: "Support assistant",
@@ -12,19 +12,17 @@ const defaultArgs = {
   organizations: [{ id: "organization-2", name: "Example" }],
   isPending: false,
   onConfirm: fn(),
-} satisfies ComponentProps<typeof TransferProjectDialog>;
+} satisfies ComponentProps<typeof TransferProjectDialogContent>;
 
 const meta = preview.meta({
-  component: TransferProjectDialog,
+  component: TransferProjectDialogContent,
   parameters: {
     layout: "fullscreen",
   },
   decorators: [
     (Story) => (
       <Dialog open onOpenChange={fn()}>
-        <DialogContent className="sm:max-w-[425px]">
-          <Story />
-        </DialogContent>
+        <Story />
       </Dialog>
     ),
   ],

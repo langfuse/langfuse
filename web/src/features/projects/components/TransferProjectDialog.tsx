@@ -3,6 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -33,7 +34,7 @@ export type TransferProjectDialogOrganization = {
   name: string;
 };
 
-export interface TransferProjectDialogProps {
+export interface TransferProjectDialogContentProps {
   projectName: string;
   organizationName: string;
   organizations: TransferProjectDialogOrganization[];
@@ -41,13 +42,13 @@ export interface TransferProjectDialogProps {
   onConfirm: (organizationId: string) => void;
 }
 
-export function TransferProjectDialog({
+export function TransferProjectDialogContent({
   projectName,
   organizationName,
   organizations,
   isPending,
   onConfirm,
-}: TransferProjectDialogProps) {
+}: TransferProjectDialogContentProps) {
   const confirmMessage = `${organizationName}/${projectName}`
     .replaceAll(" ", "-")
     .toLowerCase();
@@ -66,7 +67,7 @@ export function TransferProjectDialog({
   });
 
   return (
-    <>
+    <DialogContent className="sm:max-w-[425px]">
       <DialogHeader>
         <DialogTitle>Transfer Project</DialogTitle>
         <Alert className="mt-2">
@@ -160,6 +161,6 @@ export function TransferProjectDialog({
           </DialogFooter>
         </form>
       </Form>
-    </>
+    </DialogContent>
   );
 }

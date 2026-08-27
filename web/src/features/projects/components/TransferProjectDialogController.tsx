@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 
-import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import { TransferProjectDialog } from "@/src/features/projects/components/TransferProjectDialog";
+import { Dialog } from "@/src/components/ui/dialog";
+import { TransferProjectDialogContent } from "@/src/features/projects/components/TransferProjectDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   hasOrganizationAccess,
@@ -85,15 +85,13 @@ export function TransferProjectDialogController({
     <>
       {children({ disabled, openDialog })}
       <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <TransferProjectDialog
-            projectName={project.name}
-            organizationName={organization.name}
-            organizations={organizationsToTransferTo}
-            isPending={transferProject.isPending}
-            onConfirm={onConfirm}
-          />
-        </DialogContent>
+        <TransferProjectDialogContent
+          projectName={project.name}
+          organizationName={organization.name}
+          organizations={organizationsToTransferTo}
+          isPending={transferProject.isPending}
+          onConfirm={onConfirm}
+        />
       </Dialog>
     </>
   );
