@@ -3,7 +3,16 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import {
+  getScoreDataTypeExplanation,
+  splitScoreDataTypeIcon,
+} from "@/src/features/scores/lib/scoreColumns";
 import {
   type ScoreColumnAggregate,
   type ScoreColumnDataType,
@@ -29,6 +38,26 @@ const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
   BOOLEAN: "true-rate",
   CATEGORICAL: "modal value",
 };
+
+/** The type, quietly: the marker the column already had, now explained. */
+const ScoreDataTypeMarker = ({
+  icon,
+  dataType,
+}: {
+  icon: string;
+  dataType: ScoreColumnDataType;
+}) => (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span className="text-muted-foreground shrink-0 cursor-default">
+        {icon}
+      </span>
+    </TooltipTrigger>
+    <TooltipContent className="max-w-[280px]">
+      {getScoreDataTypeExplanation(dataType)}
+    </TooltipContent>
+  </Tooltip>
+);
 
 const SummaryRow = ({
   label,
@@ -63,13 +92,17 @@ export const ScoreColumnHeaderSummary = ({
 }) => {
   const { baseline, comparison, delta, movement } = summary;
   const notComparable = movement?.notComparable ?? 0;
+  const { icon, label: nameLabel } = splitScoreDataTypeIcon(label);
 
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
         <div className="flex min-w-0 cursor-default flex-col gap-0.5 py-0.5">
-          <span className="truncate" title={label}>
-            {label}
+          <span className="flex min-w-0 items-baseline gap-1">
+            {icon && <ScoreDataTypeMarker icon={icon} dataType={dataType} />}
+            <span className="truncate" title={label}>
+              {nameLabel}
+            </span>
           </span>
           <span className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-[10px] leading-tight font-normal tabular-nums">
             {baseline ? (
@@ -123,6 +156,9 @@ export const ScoreColumnHeaderSummary = ({
         className="flex w-64 flex-col gap-1 p-3 font-normal"
       >
         <span className="text-xs font-bold break-all">{label}</span>
+        <span className="text-muted-foreground text-[10px]">
+          {getScoreDataTypeExplanation(dataType)}
+        </span>
         <SummaryRow
           label={`This experiment (${DIFF_LABEL_TITLES[dataType]})`}
           value={baseline ? formatAggregate(baseline) : "no values"}
