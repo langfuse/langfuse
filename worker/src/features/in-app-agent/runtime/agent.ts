@@ -151,9 +151,11 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
   return `
 <sandbox>
 The sandbox provides read, write, edit, and bash tools for the current task.
-Use it to inspect and edit files supplied for this task. Do not use the
-Langfuse CLI, Langfuse SDKs, or other application-specific CLIs or SDKs from
-the sandbox to act on a user's environment or project.
+The sandbox has no egress network connection, so the Langfuse CLI, Langfuse
+SDKs, and other application-specific CLIs or SDKs cannot act on the user's
+project or environment from there. Use the sandbox to inspect and edit files
+supplied for this task, write ad-hoc scripts, and efficiently process or
+prepare data locally.
 When working in the sandbox, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
 </sandbox>
