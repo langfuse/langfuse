@@ -25,7 +25,7 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -60,6 +60,7 @@ import {
   MessageSquareOff,
   MoreHorizontal,
   SquarePen,
+  Terminal,
 } from "lucide-react";
 import {
   Drawer,
@@ -292,12 +293,33 @@ export const ObservationDetailViewHeader = memo(
                   )}
                   {observationWithIO &&
                     isGenerationLike(observationWithIO.type) && (
-                      <JumpToPlaygroundButton
+                      <JumpToPlaygroundDropdownMenuController
                         source="generation"
                         generation={observationWithIO}
                         analyticsEventName="trace_detail:test_in_playground_button_click"
-                        layout="menu"
-                      />
+                      >
+                        {({ Trigger, disabled, title }) => (
+                          <Trigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={disabled}
+                              title={title}
+                              className={cn(
+                                "w-full justify-start gap-2 font-normal",
+                                disabled
+                                  ? "cursor-not-allowed opacity-50"
+                                  : "cursor-pointer",
+                              )}
+                            >
+                              <Terminal className="h-4 w-4" />
+                              <span className="text-sm">
+                                Test in playground
+                              </span>
+                            </Button>
+                          </Trigger>
+                        )}
+                      </JumpToPlaygroundDropdownMenuController>
                     )}
                   <CommentDrawerController
                     projectId={projectId}
@@ -424,12 +446,32 @@ export const ObservationDetailViewHeader = memo(
               )}
               {observationWithIO &&
                 isGenerationLike(observationWithIO.type) && (
-                  <JumpToPlaygroundButton
+                  <JumpToPlaygroundDropdownMenuController
                     source="generation"
                     generation={observationWithIO}
                     analyticsEventName="trace_detail:test_in_playground_button_click"
-                    size="sm"
-                  />
+                  >
+                    {({ Trigger, disabled, title }) => (
+                      <Trigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={disabled}
+                          title={title}
+                          className={cn(
+                            "flex items-center gap-1",
+                            disabled
+                              ? "cursor-not-allowed opacity-50"
+                              : "cursor-pointer",
+                          )}
+                        >
+                          <Terminal className="h-3.5 w-3.5" />
+                          <span className="hidden md:inline">Playground</span>
+                          <ChevronDown className="h-3 w-3" />
+                        </Button>
+                      </Trigger>
+                    )}
+                  </JumpToPlaygroundDropdownMenuController>
                 )}
               <CommentDrawerController
                 projectId={projectId}
