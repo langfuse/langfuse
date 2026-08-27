@@ -36,7 +36,7 @@ import {
 /** keyStoreCachePrefix namespaces the Verifier cache (`fast hash → ApiKey record`) in redis. */
 const keyStoreCachePrefix = "authz:apikey:";
 
-/** authenticate resolves a request's credential into an `AuthorizationContext`, returning a typed failure rather than throwing. */
+/** authenticate resolves a request's credential into an `AuthorizationContext` and the credential it came from, returning a typed failure rather than throwing. */
 export async function authenticate(
   params: AuthenticateParams,
 ): Promise<
@@ -49,7 +49,22 @@ export async function authenticate(
   const gate = gateKeyKind(verified, params);
   if (gate) return gate;
 
-  return buildResolver().resolveContext(verified);
+  const resolved = await buildResolver().resolveContext(verified);
+  if (!resolved.success) return resolved;
+  return {
+    success: true,
+    context: resolved.context,
+    credential: toCredential(verified),
+  };
+}
+
+/** toCredential narrows a verified result to the credential the scope builder consumes. */
+function toCredential(
+  verified: Extract<Awaited<ReturnType<Verifier["verify"]>>, { success: true }>,
+): AuthenticatedCredential {
+  return verified.authorization === "adminKey"
+    ? { authorization: "adminKey" }
+    : { authorization: verified.authorization, apiKey: verified.apiKey };
 }
 
 /** gateKeyKind rejects key kinds a route does not opt into: in-app-agent and admin. */
@@ -103,14 +118,20 @@ function prismaKeyStore(
     findByFastHash: async (hash) => {
       const cached = await readCachedKey(redis, hash);
       if (cached) return cached;
-      const row = await prisma.apiKey.findUnique({
-        where: { fastHashedSecretKey: hash },
-      });
+      const row = await hydrateOrgId(
+        prisma,
+        await prisma.apiKey.findUnique({
+          where: { fastHashedSecretKey: hash },
+        }),
+      );
       if (row?.fastHashedSecretKey) await writeCachedKey(redis, hash, row);
       return row;
     },
-    findByPublicKey: (publicKey) =>
-      prisma.apiKey.findUnique({ where: { publicKey } }),
+    findByPublicKey: async (publicKey) =>
+      hydrateOrgId(
+        prisma,
+        await prisma.apiKey.findUnique({ where: { publicKey } }),
+      ),
     verifySlow: (secretKey, apiKey) =>
       verifySecretKey(secretKey, apiKey.hashedSecretKey),
     backfillFastHash: async (apiKey, hash) => {
@@ -148,6 +169,19 @@ function prismaOrgRepo(prisma: PrismaClient): OrgRepo {
       } satisfies OrgEnrichment;
     },
   };
+}
+
+/** hydrateOrgId backfills a project-scoped key's owning org id from its project, matching the legacy path that derived the org at auth time. */
+async function hydrateOrgId(
+  prisma: PrismaClient,
+  apiKey: ApiKey | null,
+): Promise<ApiKey | null> {
+  if (!apiKey || apiKey.orgId || !apiKey.projectId) return apiKey;
+  const project = await prisma.project.findUnique({
+    where: { id: apiKey.projectId },
+    select: { orgId: true },
+  });
+  return project ? { ...apiKey, orgId: project.orgId } : apiKey;
 }
 
 /** readCachedKey reads a cached `ApiKey` row by fast hash, failing open on any redis error. */
@@ -201,5 +235,13 @@ export type AuthenticateParams = {
   isAdminApiKeyAuthAllowed?: boolean;
 };
 
-/** Authenticated is the resolver's success outcome: the resolved authorization context. */
-export type Authenticated = Success & { context: AuthorizationContext };
+/** Authenticated is the resolver's success outcome: the resolved authorization context and the credential it came from. */
+export type Authenticated = Success & {
+  context: AuthorizationContext;
+  credential: AuthenticatedCredential;
+};
+
+/** AuthenticatedCredential is the verified credential the scope builder reads: the admin key, or an api key with how it was presented. */
+export type AuthenticatedCredential =
+  | { authorization: "adminKey" }
+  | { authorization: "publicKey" | "privateKey"; apiKey: ApiKey };

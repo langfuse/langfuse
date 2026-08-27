@@ -1,131 +1,68 @@
 import { type NextApiRequest } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForbiddenError } from "@langfuse/shared";
+import { ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 
-const {
-  env,
-  mockLegacyVerifyAuth,
-  mockEnforceProjectAuth,
-  mockDiffResults,
-  mockRecordCoverage,
-} = vi.hoisted(() => ({
-  env: { PUBLIC_API_AUTHZ_MIGRATION: "legacy" as string },
-  mockLegacyVerifyAuth: vi.fn(),
+const { env, mockEnforceProjectAuth } = vi.hoisted(() => ({
+  env: {
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
+    ADMIN_API_KEY: undefined as string | undefined,
+  },
   mockEnforceProjectAuth: vi.fn(),
-  mockDiffResults: vi.fn(),
-  mockRecordCoverage: vi.fn(),
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env }));
 
-vi.mock("@/src/features/public-api/server/createAuthedProjectAPIRoute", () => ({
-  verifyAuth: mockLegacyVerifyAuth,
-}));
+vi.mock("@langfuse/shared/src/db", () => ({ prisma: {} }));
 
 vi.mock("@/src/features/auth/policy/enforcement.projects", () => ({
   enforceProjectAuth: mockEnforceProjectAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  diffResults: mockDiffResults,
-  recordCoverage: mockRecordCoverage,
-}));
-
 import { verifyAuth } from "@/src/features/auth/policy/shadow.projects";
 
-describe("project seam verifyAuth", () => {
-  const legacyScope = { scope: { projectId: "p1", accessLevel: "project" } };
+describe("project route factory seam verifyAuth", () => {
+  const scope = { projectId: "p1", accessLevel: "project" };
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
   const call = () =>
     verifyAuth({ req, name: "Get Traces", action: "traces:read" });
 
-  const legacyAllows = () =>
-    mockLegacyVerifyAuth.mockResolvedValue(legacyScope);
-  const legacyDenies = (status: number) =>
-    mockLegacyVerifyAuth.mockRejectedValue({ status, message: "legacy" });
-  const authzAllows = () =>
-    mockEnforceProjectAuth.mockResolvedValue({ success: true });
-  const authzDenies = () =>
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the resolved scope when the pipeline allows", async () => {
+    mockEnforceProjectAuth.mockResolvedValue({ success: true, scope });
+    expect(await call()).toEqual({ validKey: true, scope });
+  });
+
+  it("throws the pipeline's forbidden as a status and message", async () => {
     mockEnforceProjectAuth.mockResolvedValue({
       success: false,
       error: new ForbiddenError("nope"),
     });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    env.PUBLIC_API_AUTHZ_MIGRATION = "legacy";
+    await expect(call()).rejects.toEqual({ status: 403, message: "nope" });
   });
 
-  describe("legacy mode never runs the new pipeline", () => {
-    it("returns the legacy scope and skips enforceProjectAuth", async () => {
-      legacyAllows();
-      expect(await call()).toBe(legacyScope);
-      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+  it("throws the pipeline's 401 as a status and message", async () => {
+    mockEnforceProjectAuth.mockResolvedValue({
+      success: false,
+      error: new UnauthorizedError("bad key"),
     });
-
-    it("rethrows the legacy error unchanged", async () => {
-      legacyDenies(403);
-      await expect(call()).rejects.toEqual({ status: 403, message: "legacy" });
-      expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
-    });
+    await expect(call()).rejects.toEqual({ status: 401, message: "bad key" });
   });
 
-  describe("shadow mode keeps responses byte-identical to legacy", () => {
-    beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "shadow";
+  it("does not run the admin sidecar without admin headers", async () => {
+    mockEnforceProjectAuth.mockResolvedValue({ success: true, scope });
+    await verifyAuth({
+      req,
+      name: "Get Traces",
+      action: "traces:read",
+      isAdminApiKeyAuthAllowed: true,
     });
-
-    it("returns the legacy scope even when the new pipeline denies", async () => {
-      legacyAllows();
-      authzDenies();
-      expect(await call()).toBe(legacyScope);
-    });
-
-    it("rethrows the legacy denial even when the new pipeline allows", async () => {
-      legacyDenies(401);
-      authzAllows();
-      await expect(call()).rejects.toEqual({ status: 401, message: "legacy" });
-    });
-
-    it("records the parity cell and coverage counter", async () => {
-      legacyAllows();
-      authzDenies();
-      await call();
-      expect(mockRecordCoverage).toHaveBeenCalledWith("Get Traces");
-      expect(mockDiffResults).toHaveBeenCalledWith(
-        { success: false, error: expect.any(ForbiddenError) },
-        { ok: true },
-        { seam: "project_route", action: "traces:read" },
-      );
-    });
-  });
-
-  describe("enforce mode gates on the new decision", () => {
-    beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "enforce";
-    });
-
-    it("returns the legacy scope when the new pipeline allows", async () => {
-      legacyAllows();
-      authzAllows();
-      expect(await call()).toBe(legacyScope);
-    });
-
-    it("throws the new pipeline's 403 when it denies", async () => {
-      legacyAllows();
-      authzDenies();
-      await expect(call()).rejects.toEqual({ status: 403, message: "nope" });
-    });
-
-    it("does not record parity telemetry", async () => {
-      legacyAllows();
-      authzAllows();
-      await call();
-      expect(mockDiffResults).not.toHaveBeenCalled();
-      expect(mockRecordCoverage).not.toHaveBeenCalled();
-    });
+    expect(mockEnforceProjectAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ isAdminApiKeyAuthAllowed: false }),
+    );
   });
 });

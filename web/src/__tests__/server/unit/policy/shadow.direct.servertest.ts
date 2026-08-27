@@ -1,30 +1,15 @@
 import { type NextApiRequest } from "next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  UnauthorizedError,
+} from "@langfuse/shared";
 
-const {
-  env,
-  mockVerifyScope,
-  mockEnforceOrgAuth,
-  mockEnforceProjectAuth,
-  mockDiffResults,
-  mockRecordCoverage,
-} = vi.hoisted(() => ({
-  env: { PUBLIC_API_AUTHZ_MIGRATION: "legacy" as string },
-  mockVerifyScope: vi.fn(),
+const { mockEnforceOrgAuth, mockEnforceProjectAuth } = vi.hoisted(() => ({
   mockEnforceOrgAuth: vi.fn(),
   mockEnforceProjectAuth: vi.fn(),
-  mockDiffResults: vi.fn(),
-  mockRecordCoverage: vi.fn(),
-}));
-
-vi.mock("@/src/env.mjs", () => ({ env }));
-
-vi.mock("@/src/features/public-api/server/apiAuth", () => ({
-  ApiAuthService: class {
-    verifyAuthHeaderAndReturnScope = mockVerifyScope;
-  },
 }));
 
 vi.mock("@/src/features/auth/policy/enforcement.org", () => ({
@@ -35,20 +20,13 @@ vi.mock("@/src/features/auth/policy/enforcement.projects", () => ({
   enforceProjectAuth: mockEnforceProjectAuth,
 }));
 
-vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  diffResults: mockDiffResults,
-  recordCoverage: mockRecordCoverage,
-}));
-
 import {
   verifyOrgAuth,
   verifyProjectAuthDirect,
 } from "@/src/features/auth/policy/shadow.direct";
 
 describe("org direct seam verifyOrgAuth", () => {
-  const orgScope = { accessLevel: "organization", orgId: "org_1" };
-  const projectScope = { accessLevel: "project", projectId: "prj_1" };
+  const scope = { orgId: "org_1", accessLevel: "organization" };
   const orgDenied = "org key required";
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
@@ -60,124 +38,54 @@ describe("org direct seam verifyOrgAuth", () => {
       scopeDeniedMessage: orgDenied,
     });
 
-  const legacyOrgKey = () =>
-    mockVerifyScope.mockResolvedValue({ validKey: true, scope: orgScope });
-  const legacyProjectKey = () =>
-    mockVerifyScope.mockResolvedValue({ validKey: true, scope: projectScope });
-  const legacyInvalid = () =>
-    mockVerifyScope.mockResolvedValue({ validKey: false, error: "bad key" });
-  const authzAllows = () =>
-    mockEnforceOrgAuth.mockResolvedValue({ success: true });
-  const authzDenies = () =>
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the resolved scope when the pipeline allows", async () => {
+    mockEnforceOrgAuth.mockResolvedValue({ success: true, scope });
+    expect(await call()).toEqual({ validKey: true, scope });
+  });
+
+  it("renders a 403 as the route's own scope-denied message", async () => {
     mockEnforceOrgAuth.mockResolvedValue({
       success: false,
       error: new ForbiddenError("nope"),
     });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    env.PUBLIC_API_AUTHZ_MIGRATION = "legacy";
-  });
-
-  describe("legacy mode never runs the new pipeline", () => {
-    it("returns the legacy scope and skips enforceOrgAuth", async () => {
-      legacyOrgKey();
-      expect(await call()).toEqual({ validKey: true, scope: orgScope });
-      expect(mockEnforceOrgAuth).not.toHaveBeenCalled();
-    });
-
-    it("returns the legacy 401 with the auth message", async () => {
-      legacyInvalid();
-      expect(await call()).toEqual({
-        validKey: false,
-        status: 401,
-        error: "bad key",
-      });
-    });
-
-    it("returns the route's own 403 for a non-org key", async () => {
-      legacyProjectKey();
-      expect(await call()).toEqual({
-        validKey: false,
-        status: 403,
-        error: orgDenied,
-      });
+    expect(await call()).toEqual({
+      validKey: false,
+      status: 403,
+      error: orgDenied,
     });
   });
 
-  describe("shadow mode keeps responses byte-identical to legacy", () => {
-    beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "shadow";
+  it("renders a 401 with the pipeline's own message", async () => {
+    mockEnforceOrgAuth.mockResolvedValue({
+      success: false,
+      error: new UnauthorizedError("bad key"),
     });
-
-    it("returns the legacy scope even when the new pipeline denies", async () => {
-      legacyOrgKey();
-      authzDenies();
-      expect(await call()).toEqual({ validKey: true, scope: orgScope });
-    });
-
-    it("records the parity cell and coverage counter", async () => {
-      legacyOrgKey();
-      authzDenies();
-      await call();
-      expect(mockRecordCoverage).toHaveBeenCalledWith(
-        "Get Organization Projects",
-      );
-      expect(mockDiffResults).toHaveBeenCalledWith(
-        { success: false, error: expect.any(ForbiddenError) },
-        { ok: true },
-        { seam: "org_route", action: "projects:read" },
-      );
+    expect(await call()).toEqual({
+      validKey: false,
+      status: 401,
+      error: "bad key",
     });
   });
 
-  describe("enforce mode gates on the new decision", () => {
-    beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "enforce";
+  it("renders a non-403 denial with its own message", async () => {
+    mockEnforceOrgAuth.mockResolvedValue({
+      success: false,
+      error: new InvalidRequestError("no target"),
     });
-
-    it("returns the legacy scope when the new pipeline allows", async () => {
-      legacyOrgKey();
-      authzAllows();
-      expect(await call()).toEqual({ validKey: true, scope: orgScope });
-    });
-
-    it("returns the route's own 403 when the new pipeline denies", async () => {
-      legacyOrgKey();
-      authzDenies();
-      expect(await call()).toEqual({
-        validKey: false,
-        status: 403,
-        error: orgDenied,
-      });
-    });
-
-    it("surfaces a non-403 new denial with its own message", async () => {
-      legacyOrgKey();
-      mockEnforceOrgAuth.mockResolvedValue({
-        success: false,
-        error: new InvalidRequestError("no target"),
-      });
-      expect(await call()).toEqual({
-        validKey: false,
-        status: 400,
-        error: "no target",
-      });
-    });
-
-    it("does not record parity telemetry", async () => {
-      legacyOrgKey();
-      authzAllows();
-      await call();
-      expect(mockDiffResults).not.toHaveBeenCalled();
-      expect(mockRecordCoverage).not.toHaveBeenCalled();
+    expect(await call()).toEqual({
+      validKey: false,
+      status: 400,
+      error: "no target",
     });
   });
 });
 
 describe("project direct seam verifyProjectAuthDirect", () => {
-  const projectScope = { accessLevel: "project", projectId: "prj_1" };
-  const orgScope = { accessLevel: "organization", orgId: "org_1" };
+  const scope = { projectId: "prj_1", accessLevel: "project" };
   const projectDenied = "project key required";
   const req = { headers: {}, method: "GET" } as unknown as NextApiRequest;
 
@@ -191,18 +99,17 @@ describe("project direct seam verifyProjectAuthDirect", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    env.PUBLIC_API_AUTHZ_MIGRATION = "legacy";
   });
 
-  it("returns the legacy project scope in legacy mode", async () => {
-    mockVerifyScope.mockResolvedValue({ validKey: true, scope: projectScope });
-    expect(await call()).toEqual({ validKey: true, scope: projectScope });
-    expect(mockEnforceProjectAuth).not.toHaveBeenCalled();
+  it("returns the resolved project scope when the pipeline allows", async () => {
+    mockEnforceProjectAuth.mockResolvedValue({ success: true, scope });
+    expect(await call()).toEqual({ validKey: true, scope });
+    expect(mockEnforceProjectAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedAccessLevels: ["project"] }),
+    );
   });
 
-  it("rejects a non-project key on the project endpoint in enforce mode", async () => {
-    env.PUBLIC_API_AUTHZ_MIGRATION = "enforce";
-    mockVerifyScope.mockResolvedValue({ validKey: true, scope: orgScope });
+  it("renders a non-project key denial as the route's own message", async () => {
     mockEnforceProjectAuth.mockResolvedValue({
       success: false,
       error: new ForbiddenError("nope"),

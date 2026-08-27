@@ -1,86 +1,119 @@
+import crypto from "node:crypto";
 import { type NextApiRequest } from "next";
 
-import { env } from "@/src/env.mjs";
-import { verifyAuth as legacyVerifyAuth } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { prisma } from "@langfuse/shared/src/db";
 import {
-  enforceProjectAuth,
-  type EnforceProjectAuthDecision,
-} from "./enforcement.projects";
-import { diffResults, legacyFromStatus, recordCoverage } from "./shadow";
+  type ApiAccessLevel,
+  type AuthHeaderValidVerificationResult,
+} from "@langfuse/shared/src/server";
+
+import { env } from "@/src/env.mjs";
+import { enforceProjectAuth } from "./enforcement.projects";
 import { type ProjectAction } from "./types";
 
-/** verifyAuth is the project seam: legacy decides in legacy/shadow (byte-identical), and the new PDP gates the legacy scope in enforce. */
+/** verifyAuth is the project route factory seam: the admin key short-circuits self-host, otherwise the new PDP authenticates, gates the action, and returns the resolved scope, throwing a `{ status, message }` on any denial. */
 export async function verifyAuth(
   params: VerifyAuthParams,
-): Promise<LegacyResult> {
-  const legacy = await runLegacyAuth(params);
-
-  // legacy mode skips the new pipeline entirely so self-host does no extra auth work
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "legacy") {
-    if (!legacy.ok) throw legacy.error;
-    return legacy.auth;
+): Promise<AuthHeaderValidVerificationResult> {
+  if (params.isAdminApiKeyAuthAllowed) {
+    const admin = await verifyAdminApiKeyAuth(params.req);
+    if (admin) return admin;
   }
 
   const authz = await enforceProjectAuth({
     headers: params.req.headers,
     action: params.action ?? undefined,
+    allowedAccessLevels: params.allowedAccessLevels,
     allowInAppAgentKey: params.allowInAppAgentKey,
-    isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
+    isAdminApiKeyAuthAllowed: false,
   });
-
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "shadow") {
-    recordCoverage(params.name);
-    diffResults(authz, legacyFromStatus(legacy.status), {
-      seam: "project_route",
-      action: params.action ?? "none",
-    });
-  }
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "enforce" && !authz.success) {
+  if (!authz.success) {
     throw { status: authz.error.httpCode, message: authz.error.message };
   }
-  if (!legacy.ok) throw legacy.error;
-  return legacy.auth;
+  return { validKey: true, scope: authz.scope };
 }
 
-/** runLegacyAuth runs the legacy verify and captures its throw as a value with the status it reported. */
-async function runLegacyAuth(
-  params: VerifyAuthParams,
-): Promise<LegacyDecision> {
-  try {
-    const auth = await legacyVerifyAuth(
-      params.req,
-      params.isAdminApiKeyAuthAllowed ?? false,
-      params.allowedAccessLevels ?? ["project"],
-      params.allowInAppAgentKey ?? false,
-    );
-    return { ok: true, status: 200, auth };
-  } catch (error) {
-    const status = (error as { status?: unknown }).status;
-    return {
-      ok: false,
-      status: typeof status === "number" ? status : 500,
-      error,
+/** verifyAdminApiKeyAuth authorizes a self-hosted admin key against a target project, returning null when the request is not an admin-key attempt. */
+export async function verifyAdminApiKeyAuth(
+  req: NextApiRequest,
+): Promise<AuthHeaderValidVerificationResult | null> {
+  const authHeader = req.headers.authorization;
+  const adminApiKeyHeader = req.headers["x-langfuse-admin-api-key"];
+  const projectIdHeader = req.headers["x-langfuse-project-id"];
+
+  if (!authHeader?.startsWith("Bearer ") || !adminApiKeyHeader) return null;
+
+  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+    throw {
+      status: 403,
+      message: "Admin API key auth is not available on Langfuse Cloud",
     };
   }
+
+  const adminApiKey = env.ADMIN_API_KEY;
+  if (!adminApiKey) {
+    throw {
+      status: 500,
+      message: "Admin API key is not configured on this instance",
+    };
+  }
+
+  const bearerToken = authHeader.replace("Bearer ", "");
+
+  // Keep this comparison in sync with the admin-key check in
+  // web/src/ee/features/admin-api/server/adminApiAuth.ts.
+  try {
+    const bearerTokenEqual = crypto.timingSafeEqual(
+      Buffer.from(bearerToken),
+      Buffer.from(adminApiKey),
+    );
+    const headerEqual = crypto.timingSafeEqual(
+      Buffer.from(String(adminApiKeyHeader)),
+      Buffer.from(adminApiKey),
+    );
+    if (!(bearerTokenEqual && headerEqual)) throw Error();
+  } catch {
+    throw { status: 401, message: "Invalid admin API key" };
+  }
+
+  if (!projectIdHeader || typeof projectIdHeader !== "string") {
+    throw {
+      status: 400,
+      message:
+        "x-langfuse-project-id header is required for admin API key authentication",
+    };
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectIdHeader, deletedAt: null },
+    select: { id: true, orgId: true },
+  });
+  if (!project) {
+    throw { status: 404, message: "Project not found" };
+  }
+
+  return {
+    validKey: true,
+    scope: {
+      projectId: project.id,
+      accessLevel: "project",
+      orgId: project.orgId,
+      plan: "oss",
+      rateLimitOverrides: [],
+      apiKeyId: "ADMIN_API_KEY",
+      publicKey: "ADMIN_API_KEY",
+      isIngestionSuspended: false,
+      isInAppAgentKey: false,
+    },
+  };
 }
 
-/** VerifyAuthParams is the request plus the route's action and legacy auth options. */
+/** VerifyAuthParams is the request plus the route's action, accepted access levels, and key-kind opt-ins. */
 export type VerifyAuthParams = {
   req: NextApiRequest;
   name: string;
   action: ProjectAction | null;
   isAdminApiKeyAuthAllowed?: boolean;
-  allowedAccessLevels?: Parameters<typeof legacyVerifyAuth>[2];
+  allowedAccessLevels?: ApiAccessLevel[];
   allowInAppAgentKey?: boolean;
 };
-
-/** LegacyResult is the legacy verify's verified scope. */
-type LegacyResult = Awaited<ReturnType<typeof legacyVerifyAuth>>;
-
-/** LegacyDecision is the legacy verify captured as a value: the verified scope, or the status + error to re-throw. */
-type LegacyDecision =
-  | { ok: true; status: 200; auth: LegacyResult }
-  | { ok: false; status: number; error: unknown };
-
-/** EnforceDecision re-exports the new pipeline's outcome type for the seam. */
-export type EnforceDecision = EnforceProjectAuthDecision;

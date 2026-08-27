@@ -3,7 +3,7 @@ import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 
 const {
-  mockVerifyAuthHeaderAndReturnScope,
+  mockVerifyAuth,
   mockIsPrismaException,
   mockRateLimitRequest,
   mockTraceException,
@@ -11,7 +11,7 @@ const {
   mockCreateUnstablePublicApiAuthError,
   mockSendUnstablePublicApiErrorResponse,
 } = vi.hoisted(() => ({
-  mockVerifyAuthHeaderAndReturnScope: vi.fn(),
+  mockVerifyAuth: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
   mockTraceException: vi.fn(),
@@ -20,14 +20,8 @@ const {
   mockSendUnstablePublicApiErrorResponse: vi.fn(),
 }));
 
-vi.mock("@/src/features/public-api/server/apiAuth", () => ({
-  ApiAuthService: class {
-    verifyAuthHeaderAndReturnScope = mockVerifyAuthHeaderAndReturnScope;
-  },
-}));
-
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {},
+vi.mock("@/src/features/auth/policy/shadow.projects", () => ({
+  verifyAuth: mockVerifyAuth,
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
@@ -155,9 +149,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   }
 
   it("returns 401 for invalid credentials", async () => {
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
-      validKey: false,
-      error:
+    mockVerifyAuth.mockRejectedValueOnce({
+      status: 401,
+      message:
         "Invalid credentials. Confirm that you've configured the correct host.",
     });
 
@@ -172,7 +166,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   it("returns 503 when auth fails with a prisma exception", async () => {
     const prismaLikeError = new Error("Can't reach database server");
-    mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
+    mockVerifyAuth.mockRejectedValueOnce(prismaLikeError);
     mockIsPrismaException.mockReturnValue(true);
 
     const res = await callRoute();
@@ -186,7 +180,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   it("returns unstable auth errors and traces prisma auth failures", async () => {
     const prismaLikeError = new Error("Can't reach database server");
-    mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
+    mockVerifyAuth.mockRejectedValueOnce(prismaLikeError);
     mockIsPrismaException.mockReturnValue(true);
 
     await callRoute({ useUnstableErrorContract: true });
@@ -204,7 +198,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       res.status(429).json({ message: "rate limited" });
     });
 
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockVerifyAuth.mockResolvedValueOnce(validAuth);
     mockRateLimitRequest.mockResolvedValueOnce({
       isRateLimited: () => true,
       sendRestResponseIfLimited,
@@ -231,7 +225,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
     };
 
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockVerifyAuth.mockResolvedValueOnce(validAuth);
     mockRateLimitRequest.mockResolvedValueOnce({
       isRateLimited: () => true,
       sendRestResponseIfLimited,
@@ -249,7 +243,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   it("does not include request query or body data in debug logs", async () => {
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockVerifyAuth.mockResolvedValueOnce(validAuth);
 
     const handler = createAuthedProjectAPIRoute({
       name: "Sensitive Route",
@@ -287,7 +281,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   });
 
   it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockVerifyAuth.mockResolvedValueOnce(validAuth);
 
     await expect(
       callRoute({ mockResponseSerializationError: true }),
