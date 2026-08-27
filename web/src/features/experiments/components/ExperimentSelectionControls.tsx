@@ -38,7 +38,7 @@ export function ExperimentSelectionControls({
     });
 
   return (
-    <div className="flex w-[50dvw] min-w-0 flex-row gap-3">
+    <div className="flex w-[56dvw] min-w-0 flex-row gap-3">
       <div className="flex min-w-0 items-center">
         <div className="border-input bg-muted/30 flex h-8 w-auto shrink-0 items-center rounded-l-md border px-3 text-xs">
           Baseline

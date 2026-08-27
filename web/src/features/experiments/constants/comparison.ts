@@ -14,5 +14,9 @@ export const UNNAMED_DATASET_LABEL = "Deleted dataset";
 export const AUTO_SELECT_COMPARISON_STORAGE_KEY =
   "experiments-auto-select-comparison";
 
-/** Comparison chips rendered before the tail folds into a "+N" badge. */
-export const MAX_VISIBLE_COMPARISON_CHIPS = 3;
+/**
+ * Comparison chips rendered before the tail folds into a "+N" badge. Two full
+ * names are what the header's width fits; beyond that the row would only be
+ * reachable by horizontal scrolling, which nobody does.
+ */
+export const MAX_VISIBLE_COMPARISON_CHIPS = 2;

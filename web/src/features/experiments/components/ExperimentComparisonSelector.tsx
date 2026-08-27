@@ -240,7 +240,7 @@ export function ExperimentComparisonSelector({
   return (
     <div className="space-y-2">
       <MultiSelectCombobox<ComparisonRow>
-        labelLeft="Experiment selection"
+        labelLeft="Compare"
         selectedItems={selectedRows}
         onItemsChange={handleItemsChange}
         searchQuery={searchQuery}
@@ -402,7 +402,7 @@ export function ExperimentComparisonSelector({
               variant="secondary"
               className="flex shrink-0 items-center gap-1 px-2 py-0.5"
             >
-              <span className="max-w-48 truncate text-xs" title={chipTitle}>
+              <span className="max-w-40 truncate text-xs" title={chipTitle}>
                 {option.experimentName}
               </span>
               {isOtherDataset && (
