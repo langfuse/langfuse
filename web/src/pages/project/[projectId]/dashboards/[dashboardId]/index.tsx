@@ -129,6 +129,19 @@ export default function DashboardDetail() {
   // route through the clone-first flow instead of mutating.
   const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
 
+  // PostHog is the external system: report one view per dashboard once the
+  // owner is known ("do the Langfuse-maintained templates get used?"). The
+  // id ref dedupes Strict Mode double-mounts while still re-reporting on
+  // client-side navigation between dashboards (same pattern as
+  // dashboard:home_dashboard_viewed).
+  const dashboardOwner = dashboard.data?.owner;
+  const viewedDashboardRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!dashboardOwner || viewedDashboardRef.current === dashboardId) return;
+    viewedDashboardRef.current = dashboardId;
+    capture("dashboard:view", { dashboardId, owner: dashboardOwner });
+  }, [capture, dashboardId, dashboardOwner]);
+
   // Access for cloning (independent of dashboard owner)
   const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
 
@@ -421,7 +434,7 @@ export default function DashboardDetail() {
   const handlePastedPreset = useCallback(
     (
       presetId: HomeDashboardPresetId,
-      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       capture("dashboard:widget_pasted", {
@@ -476,7 +489,7 @@ export default function DashboardDetail() {
   const handleParsedWidgetPaste = useCallback(
     async (
       parsed: Exclude<PastedWidgetParseResult, { status: "not-widget" }>,
-      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       if (parsed.status === "invalid") {
@@ -535,10 +548,7 @@ export default function DashboardDetail() {
   // Menu-driven paste ("Paste widget" / "Paste to the right"): read the
   // clipboard and reject non-widget payloads visibly.
   const pasteWidgetFromClipboard = useCallback(
-    async (
-      source: "dashboard_menu" | "paste_right",
-      anchor?: DashboardPlacement,
-    ) => {
+    async (source: "dashboard_menu", anchor?: DashboardPlacement) => {
       const text = await readTextFromClipboard();
       if (text === null) {
         showErrorToast(
@@ -1398,13 +1408,6 @@ export default function DashboardDetail() {
               }
               onDuplicatePreset={
                 hasCUDAccess ? handleDuplicatePreset : undefined
-              }
-              onPasteWidget={
-                hasCUDAccess
-                  ? (anchor) => {
-                      pasteWidgetFromClipboard("paste_right", anchor);
-                    }
-                  : undefined
               }
             />
           </div>

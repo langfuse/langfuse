@@ -604,6 +604,85 @@ describe("v4TransitionRouter", () => {
     await expect(readRedisJson(legacyApiUsageCacheKey)).resolves.toBeNull();
   });
 
+  it("returns the complete project migration data for agent consumers", async () => {
+    await seedRedisCache({
+      [legacyApiUsageCacheKey]: legacyApiBlob([
+        {
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: 2,
+          lastSeen: "2026-06-24T15:00:00.000000Z",
+        },
+      ]),
+    });
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      mockSdkUsageRow({
+        projectId,
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        actionLevel: "required",
+      }),
+    ]);
+    const caller = createCaller({
+      posthogIntegration: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            projectId,
+            enabled: true,
+            exportSource: "TRACES_OBSERVATIONS",
+          },
+        ]),
+      },
+      mixpanelIntegration: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      blobStorageIntegration: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      evaluationRule: {
+        groupBy: vi
+          .fn()
+          .mockResolvedValue([{ projectId, _count: { _all: 2 } }]),
+      },
+    });
+
+    const result = await caller.migrationData({ projectId });
+
+    expect(result).toMatchObject({
+      projectId,
+      forceV3Experience: false,
+      sdkUsage: {
+        projectId,
+        sdkUsageSeries: expect.arrayContaining([
+          expect.objectContaining({
+            sdkName: "python",
+            sdkVersion: "3.9.0",
+            actionLevel: "required",
+          }),
+        ]),
+      },
+      legacyIntegrations: {
+        projectId,
+        legacyIntegrationCount: 1,
+        legacyIntegrations: {
+          posthog: true,
+          mixpanel: false,
+          blobStorage: false,
+        },
+      },
+      legacyApiUsage: [
+        {
+          projectId,
+          entrypoint: "publicapi: GET /api/public/traces/{id}",
+          count: 2,
+        },
+      ],
+      traceLevelEvals: {
+        projectId,
+        traceLevelEvalCount: 2,
+      },
+    });
+  });
+
   it("queries SDK usage for only the authorized project", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
       mockSdkUsageRow({
@@ -655,6 +734,11 @@ describe("v4TransitionRouter", () => {
       caller.legacyApiUsageSummary({
         projectId: outsideProjectId,
         ...range,
+      }),
+    ).rejects.toThrow("User is not a member of this project");
+    await expect(
+      caller.migrationData({
+        projectId: outsideProjectId,
       }),
     ).rejects.toThrow("User is not a member of this project");
     expect(mockedQueryClickhouse).not.toHaveBeenCalled();
