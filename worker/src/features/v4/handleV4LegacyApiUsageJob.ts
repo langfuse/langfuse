@@ -57,8 +57,8 @@ const HOUR_MS = 60 * 60 * 1000;
  * ClickHouse client request timeout (and derived max_execution_time) above
  * the shared 30s default.
  */
-export const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
-export const V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT = 20;
+const V4_LEGACY_API_USAGE_QUERY_TIMEOUT_MS = 10 * 60 * 1000;
+const V4_LEGACY_API_MAX_QUERY_CALLERS_PER_ENDPOINT = 20;
 
 const EXPERIMENT_POST_ROUTE = "POST /api/public/dataset-run-items";
 
