@@ -226,7 +226,7 @@ export function toEvaluatorServiceDefinition(
         }
       : {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: definition.prompt[0]!.content,
+          promptMessages: definition.prompt,
           modelConfig: definition.modelConfig ?? null,
           variableMapping:
             definition.variableMapping == null
