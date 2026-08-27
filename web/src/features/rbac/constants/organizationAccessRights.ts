@@ -1,6 +1,7 @@
 import { type Role } from "@langfuse/shared/src/db";
 
 export const organizationScopes = [
+  "projects:read",
   "projects:create",
   "projects:transfer_org",
   "organization:CRUD_apiKeys",
