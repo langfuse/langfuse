@@ -67,7 +67,7 @@ describe("getApiMigrationGuidance", () => {
     });
   });
 
-  it("includes the required v2 query when migrating daily metrics", () => {
+  it("points daily metrics at the v2 metrics endpoint", () => {
     expect(
       getApiMigrationGuidance(
         "GET /api/public/metrics/daily",
