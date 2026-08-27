@@ -20,7 +20,7 @@ function db() {
 }
 
 /**
- * Frozen catalog sample for the library-evaluation spike.
+ * Catalog of reference query shapes, one entry per complexity tier.
  * Reference SQL is the intended ClickHouse shape, not a dump of Kysely's
  * first draft — `compile(AST) ≡ referenceSQL` after `clickhouse format`.
  */

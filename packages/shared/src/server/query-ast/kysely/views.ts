@@ -28,9 +28,8 @@ export type ClickHouseView<N extends string, O> = {
 /**
  * Name a compilable query as a black-box relation. The outer query can only
  * see `O` (the view's selected columns), never the inner physical schema.
- *
- * Record: **plugin** (rewrites `selectFrom(viewName)` into a WITH CTE). No
- * transformer extra, no fork. Tenancy injection still walks the CTE body.
+ * Implemented as a plugin that rewrites `selectFrom(viewName)` into a WITH CTE;
+ * tenancy injection still walks the CTE body.
  */
 export function defineView<N extends string>(name: N) {
   return <O>(build: () => ClickhouseCompilable): ClickHouseView<N, O> => ({

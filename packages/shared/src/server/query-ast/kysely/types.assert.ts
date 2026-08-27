@@ -5,7 +5,7 @@ import { defineView, fromView } from "./views";
  * Compile-time assertions for condition 7 / 8. Never called at runtime;
  * `tsc` is the test. `@ts-expect-error` must stay unused-error-free.
  *
- * Layer record:
+ * Which layer catches what:
  * - DateTime vs Int comparison: TS types (Kysely OperandValueExpression)
  * - unknown column name: TS types
  * - view exposing only declared columns: TS types

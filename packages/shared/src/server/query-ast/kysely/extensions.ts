@@ -41,10 +41,7 @@ export type ArrayJoinItem = {
   as: string;
 };
 
-/**
- * Plugin that attaches an {@link ArrayJoinNode} onto the select node.
- * Record for the evaluation: ARRAY JOIN = plugin + transformer (no fork).
- */
+/** Plugin that attaches an {@link ArrayJoinNode} onto the select node. */
 class ArrayJoinPlugin implements KyselyPlugin {
   constructor(
     private readonly items: ReadonlyArray<ArrayJoinItem>,
@@ -80,10 +77,7 @@ export type LimitBySpec = {
   columns: ReadonlyArray<string>;
 };
 
-/**
- * Plugin that attaches a {@link LimitByNode} onto the select node.
- * Record for the evaluation: LIMIT BY = plugin + transformer (no fork).
- */
+/** Plugin that attaches a {@link LimitByNode} onto the select node. */
 class LimitByPlugin implements KyselyPlugin {
   constructor(private readonly spec: LimitBySpec) {}
 
@@ -128,8 +122,7 @@ export function mapValues(column: string): OperationNode {
 
 /**
  * Lower `metadata[key]` to a traced array-subscript + `indexOf` node.
- * The key is a bound `ValueNode`, not a SQL literal. Record: helper builds
- * an {@link ArrayIndexNode} (transformer + compiler, no plugin, no fork).
+ * The key is a bound `ValueNode`, not a SQL literal.
  */
 export function metadataValue(
   tableAlias: string,
