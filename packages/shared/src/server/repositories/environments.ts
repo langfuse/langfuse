@@ -1,10 +1,19 @@
+import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { env } from "../../env";
-import { compileEnvironmentsQueries } from "../query-ast/kysely/environmentsQuery";
+import type { ExecutionContext } from "../query-ast/executionContext";
+import { compileClickhouseQuery } from "../query-ast/kysely/compile";
+import { getClickhouseKysely } from "../query-ast/kysely/dialect";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
   projectId: string;
   fromTimestamp?: Date;
+};
+
+type EnvironmentsQueryInput = {
+  projectId: string;
+  fromTimestamp?: Date;
+  writeMode: "legacy" | "events_only" | "dual";
 };
 
 export const getEnvironmentsForProject = async (
@@ -45,7 +54,8 @@ export const getEnvironmentsForProject = async (
     await Promise.all([tracingEnvironmentsPromise, scoreEnvironmentsPromise])
   ).flat();
 
-  // Always add default environment to list
+  // "default" always exists as a selectable environment even when no rows
+  // have been written under it, so it is not guaranteed to appear in the scan.
   results.push({ environment: "default" });
 
   return Array.from(new Set(results.map((e) => e.environment))).map(
@@ -54,3 +64,70 @@ export const getEnvironmentsForProject = async (
     }),
   );
 };
+
+/**
+ * `getEnvironmentsForProject` as traced Kysely nodes, compiled to SQL.
+ * Two statements (tracing read + scores read) matching the exec split above:
+ * events may route to a dedicated ClickHouse service.
+ */
+function compileEnvironmentsQueries(input: EnvironmentsQueryInput): {
+  tracing: { sql: string; params: Record<string, unknown> };
+  scores: { sql: string; params: Record<string, unknown> };
+} {
+  const ctx: ExecutionContext = { projectId: input.projectId };
+  return {
+    tracing: compileClickhouseQuery(buildTracingQuery(input), ctx),
+    scores: compileClickhouseQuery(buildScoresQuery(input), ctx),
+  };
+}
+
+function buildTracingQuery(input: EnvironmentsQueryInput) {
+  const db = getClickhouseKysely();
+  const { projectId, fromTimestamp } = input;
+
+  if (input.writeMode === "legacy") {
+    const traces = db
+      .selectFrom("traces")
+      .select("environment")
+      .distinct()
+      .where("project_id", "=", projectId)
+      .$if(fromTimestamp != null, (qb) =>
+        qb.where("timestamp", ">=", fromTimestamp!),
+      );
+
+    const observations = db
+      .selectFrom("observations")
+      .select("environment")
+      .distinct()
+      .where("project_id", "=", projectId)
+      .$if(fromTimestamp != null, (qb) =>
+        qb.where("start_time", ">=", fromTimestamp!),
+      );
+
+    return traces.unionAll(observations);
+  }
+
+  return db
+    .selectFrom("events_core")
+    .select("environment")
+    .distinct()
+    .where("project_id", "=", projectId)
+    .$if(fromTimestamp != null, (qb) =>
+      qb.where("start_time", ">=", fromTimestamp!),
+    );
+}
+
+function buildScoresQuery(input: EnvironmentsQueryInput) {
+  const db = getClickhouseKysely();
+  const { projectId, fromTimestamp } = input;
+
+  return db
+    .selectFrom("scores")
+    .select("environment")
+    .distinct()
+    .where("project_id", "=", projectId)
+    .where("data_type", "in", [...LISTABLE_SCORE_TYPES])
+    .$if(fromTimestamp != null, (qb) =>
+      qb.where("timestamp", ">=", fromTimestamp!),
+    );
+}
