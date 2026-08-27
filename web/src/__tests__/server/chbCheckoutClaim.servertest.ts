@@ -27,7 +27,7 @@ import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBilli
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { type OrgAuthedContext } from "@/src/server/api/trpc";
 
-const CORE_PRODUCT_ID = mapChbPlanCodeToStripeProductId("core")!;
+const CORE_PRODUCT_ID = mapChbPlanCodeToStripeProductId("LANGFUSE_CORE")!;
 
 let orgId: string;
 let chOrganizationId: string;
@@ -125,12 +125,17 @@ describe("chbBillingService checkout claim (postgres)", () => {
   it("merges into an existing clickhouse sub-object instead of replacing it", async () => {
     // A webhook may have written plan state before checkout returns; the claim
     // rebuilds the sub-object from the row, so that state must survive.
-    await setCloudConfig(JSON.stringify({ clickhouse: { planCode: "core" } }));
+    await setCloudConfig(
+      JSON.stringify({ clickhouse: { planCode: "LANGFUSE_CORE" } }),
+    );
 
     await service().createCheckoutSession(orgId, CORE_PRODUCT_ID);
 
     expect(await parsedCloudConfig()).toMatchObject({
-      clickhouse: { organizationId: chOrganizationId, planCode: "core" },
+      clickhouse: {
+        organizationId: chOrganizationId,
+        planCode: "LANGFUSE_CORE",
+      },
     });
   });
 
