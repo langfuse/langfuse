@@ -46,13 +46,23 @@ function useColumnOrder<TData>(
     });
 
     // Apply any opt-in one-time migrations (e.g. repositioning a column whose
-    // default slot changed). Each runs at most once, guarded by its versionKey.
+    // default slot changed).
+    //
+    // The flag is only set once the transform has nothing left to change: it is
+    // written synchronously while `setColumnOrder` lands a render later, so
+    // marking it as soon as the transform ran would let a repeated effect run
+    // (React re-invokes mount effects in development) read the pre-migration
+    // order back out of local storage and overwrite the result with it. Waiting
+    // for a no-op pass costs one extra application of an idempotent transform
+    // and converges instead.
     migrations?.forEach((migration) => {
       if (hasRunMigration(migration.versionKey)) return;
       const migrated = migration.apply(finalColumnOrder);
       if (migrated === null) return; // deferred, retry on a later render
+      const settled =
+        JSON.stringify(migrated) === JSON.stringify(finalColumnOrder);
       finalColumnOrder = migrated;
-      markMigrationRun(migration.versionKey);
+      if (settled) markMigrationRun(migration.versionKey);
     });
 
     // Compare the new order with the current order to avoid unnecessary updates

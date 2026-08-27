@@ -97,7 +97,7 @@ import {
   type ScoreComparisonFilter,
   type ScoreLevel,
 } from "@/src/features/experiments/fns/scoreComparisonFilter";
-import { promoteScoreColumnsInOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
+import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -1048,6 +1048,33 @@ export default function ExperimentItemsTable({
         );
       },
     },
+    // The scores sit between the item's input and its outputs: the input says
+    // which item this is, the score headers carry the judgement, and the outputs
+    // are the drill-down a regression sends you to (peek carries it too).
+    {
+      accessorKey: "observationScores",
+      header: "Observation Scores",
+      id: "observationScores",
+      enableHiding: true,
+      cell: () => {
+        return isObservationScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: observationExperimentScoreColumns,
+    },
+    {
+      accessorKey: "traceScores",
+      header: "Trace Scores",
+      id: "traceScores",
+      enableHiding: true,
+      cell: () => {
+        return isTraceScoreColumnsLoading ? (
+          <Skeleton className="h-3 w-1/2" />
+        ) : null;
+      },
+      columns: traceExperimentScoreColumns,
+    },
     // The expected output moves inside the output cell in that diff mode, so it
     // does not also hold a column of its own.
     ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
@@ -1076,30 +1103,6 @@ export default function ExperimentItemsTable({
           />
         );
       },
-    },
-    {
-      accessorKey: "observationScores",
-      header: "Observation Scores",
-      id: "observationScores",
-      enableHiding: true,
-      cell: () => {
-        return isObservationScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: observationExperimentScoreColumns,
-    },
-    {
-      accessorKey: "traceScores",
-      header: "Trace Scores",
-      id: "traceScores",
-      enableHiding: true,
-      cell: () => {
-        return isTraceScoreColumnsLoading ? (
-          <Skeleton className="h-3 w-1/2" />
-        ) : null;
-      },
-      columns: traceExperimentScoreColumns,
     },
     // Cost and latency read as measurements, the ids as lookups — both
     // sit behind the score columns so the analysis is above the fold.
@@ -1305,8 +1308,8 @@ export default function ExperimentItemsTable({
   const columnOrderMigrations = useMemo(
     () => [
       {
-        versionKey: `experimentItemsColumnOrder-scoresEarlier-v1-${projectId}`,
-        apply: promoteScoreColumnsInOrder,
+        versionKey: `experimentItemsColumnOrder-scoresEarlier-v2-${projectId}`,
+        apply: resetStaleDefaultColumnOrder,
       },
     ],
     [projectId],
