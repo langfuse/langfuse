@@ -343,7 +343,12 @@ export default function ExperimentItemsTable({
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
-    { stateLocation: "url", loading: isFilterOptionsLoading },
+    {
+      stateLocation: "url",
+      loading: isFilterOptionsLoading,
+      // v4-only surface — drives `isV4` on filters:* analytics (LFE-10781).
+      isV4: true,
+    },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
