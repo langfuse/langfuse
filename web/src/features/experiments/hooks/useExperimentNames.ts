@@ -1,8 +1,17 @@
+import { useMemo } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
+export type ExperimentNameOption = {
+  experimentId: string;
+  experimentName: string;
+  datasetId: string | null;
+  datasetName: string | null;
+  startTime: Date;
+};
+
 type UseExperimentNamesResponse = {
-  experimentNames: { experimentId: string; experimentName: string }[];
+  experimentNames: ExperimentNameOption[];
   isLoading: boolean;
 };
 
@@ -23,9 +32,16 @@ export function useExperimentNames({
     { enabled: hasExperimentsReadAccess },
   );
 
-  const sortedExperimentNames = data?.experimentNames.sort((a, b) =>
-    a.experimentName.localeCompare(b.experimentName),
+  // Newest first: the run worth comparing against is a recent one, not the one
+  // the alphabet happens to put on top. Copied before sorting so the query
+  // cache is not mutated in place.
+  const experimentNames = useMemo(
+    () =>
+      [...(data?.experimentNames ?? [])].sort(
+        (a, b) => b.startTime.getTime() - a.startTime.getTime(),
+      ),
+    [data?.experimentNames],
   );
 
-  return { experimentNames: sortedExperimentNames ?? [], isLoading };
+  return { experimentNames, isLoading };
 }
