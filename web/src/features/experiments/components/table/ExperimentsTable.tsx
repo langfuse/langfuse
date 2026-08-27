@@ -44,6 +44,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
+import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
@@ -269,6 +270,29 @@ export default function ExperimentsTable({
     "s",
   );
 
+  const [searchQuery, setSearchQuery] = useQueryParam(
+    "search",
+    withDefault(StringParam, null),
+  );
+
+  // A match on the experiment's name, expressed as a filter because the
+  // experiments query takes a FilterState and has no search input of its own.
+  const searchFilter: FilterState = useMemo(() => {
+    const query = searchQuery?.trim();
+    return query
+      ? [{ column: "name", type: "string", operator: "contains", value: query }]
+      : [];
+  }, [searchQuery]);
+
+  const submitSearch = useCallback(
+    (query: string) => {
+      setSearchQuery(query.trim() || null);
+      // A narrower result set can leave the current page out of range.
+      setPaginationState({ page: 1, limit: paginationState.limit });
+    },
+    [setSearchQuery, setPaginationState, paginationState.limit],
+  );
+
   const [inputFilterState] = useQueryFilterState([], "experiments", projectId);
 
   const [orderByState, setOrderByState] = useOrderByState({
@@ -348,6 +372,7 @@ export default function ExperimentsTable({
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
     fixedFilter,
+    searchFilter,
   );
 
   const filterState = combinedFilterState;
@@ -740,6 +765,7 @@ export default function ExperimentsTable({
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
+      setSearchQuery,
     },
     validationContext: {
       columns,
@@ -796,6 +822,12 @@ export default function ExperimentsTable({
               controllers: viewControllers,
             }}
             columnsWithCustomSelect={["name", "datasetId"]}
+            searchConfig={{
+              metadataSearchFields: ["Name"],
+              updateQuery: submitSearch,
+              currentQuery: searchQuery ?? undefined,
+              tableAllowsFullTextSearch: false,
+            }}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}
             columnOrder={columnOrder}
