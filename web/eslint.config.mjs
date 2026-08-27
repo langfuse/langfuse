@@ -157,9 +157,10 @@ export default [
     },
   },
 
-  // Component APIs should expose explicit variants instead of className or style
-  // escape hatches. New file-level overrides are only acceptable for headless
-  // components that do not apply any internal styling themselves.
+  // Component APIs should expose explicit variants instead of className, style,
+  // or prefixed variants such as badgeClassName. New file-level overrides are
+  // only acceptable for headless components that do not apply any internal
+  // styling themselves.
   {
     name: "langfuse/web/no-style-props",
     files: ["src/**/*.{ts,tsx}"],

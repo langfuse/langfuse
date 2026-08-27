@@ -116,12 +116,12 @@ export type IngestionAPIResponse = {
   successes: SuccessfulIngestion[];
 };
 
-export type SuccessfulIngestion = {
+type SuccessfulIngestion = {
   id: string;
   status: number;
 };
 
-export type ErrorIngestion = {
+type ErrorIngestion = {
   id: string;
   status: number;
   message: string;

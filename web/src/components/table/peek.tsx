@@ -33,7 +33,7 @@ type PeekViewItemType = Extract<
  * Options to control peek event behavior.
  * Ignore close events from certain clickable elements to ensure integrity of table row actions.
  */
-export type PeekEventControlOptions = {
+type PeekEventControlOptions = {
   ignoredSelectors?: string[];
 };
 

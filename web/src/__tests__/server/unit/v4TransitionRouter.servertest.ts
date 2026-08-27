@@ -2297,6 +2297,105 @@ describe("v4TransitionRouter", () => {
         });
       });
 
+      it.each(["Claude Code/1.0", "codex-cli/1.2.3", "curl/8.7.1"])(
+        "does not require an API action for deprecated calls made only by %s",
+        async (userAgent) => {
+          await seedRedisCache({
+            [sdkUsageCacheKey]: sdkUsageBlob([]),
+            [experimentPostUsageCacheKey]: experimentPostBlob(false),
+            [legacyApiUsageCacheKey]: legacyApiBlob([
+              {
+                entrypoint: "publicapi: GET /api/public/traces",
+                count: 2,
+                lastSeen: "2026-06-24T12:00:00.000000Z",
+                callers: [
+                  {
+                    userAgent,
+                    count: 2,
+                    lastSeen: "2026-06-24T12:00:00.000000Z",
+                  },
+                ],
+              },
+            ]),
+          });
+          mockedQueryClickhouse.mockResolvedValue([]);
+          const caller = createCaller(mockPrismaForActions());
+
+          await expect(
+            caller.migrationActions({ projectId }),
+          ).resolves.toMatchObject({
+            sdkActionNeeded: false,
+            experimentsActionNeeded: false,
+            apisActionNeeded: false,
+            evalsActionNeeded: false,
+            exportsActionNeeded: false,
+          });
+        },
+      );
+
+      it("keeps the API action when any caller is not an agent or curl", async () => {
+        await seedRedisCache({
+          [sdkUsageCacheKey]: sdkUsageBlob([]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(false),
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 3,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+              callers: [
+                {
+                  userAgent: "codex-cli/1.2.3",
+                  count: 2,
+                  lastSeen: "2026-06-24T12:00:00.000000Z",
+                },
+                {
+                  userAgent: "langfuse-python/3.9.0",
+                  count: 1,
+                  lastSeen: "2026-06-24T11:00:00.000000Z",
+                },
+              ],
+            },
+          ]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller(mockPrismaForActions());
+
+        await expect(
+          caller.migrationActions({ projectId }),
+        ).resolves.toMatchObject({
+          apisActionNeeded: true,
+        });
+      });
+
+      it("keeps the API action for an aggregated unknown caller", async () => {
+        await seedRedisCache({
+          [sdkUsageCacheKey]: sdkUsageBlob([]),
+          [experimentPostUsageCacheKey]: experimentPostBlob(false),
+          [legacyApiUsageCacheKey]: legacyApiBlob([
+            {
+              entrypoint: "publicapi: GET /api/public/traces",
+              count: 2,
+              lastSeen: "2026-06-24T12:00:00.000000Z",
+              callers: [
+                {
+                  isOther: true,
+                  count: 2,
+                  lastSeen: "2026-06-24T12:00:00.000000Z",
+                },
+              ],
+            },
+          ]),
+        });
+        mockedQueryClickhouse.mockResolvedValue([]);
+        const caller = createCaller(mockPrismaForActions());
+
+        await expect(
+          caller.migrationActions({ projectId }),
+        ).resolves.toMatchObject({
+          apisActionNeeded: true,
+        });
+      });
+
       it("short-circuits partner-managed (forced v3) projects without any I/O", async () => {
         await seedRedisCache();
         sharedServerMock.isForceV3ExperienceProject.mockReturnValueOnce(true);

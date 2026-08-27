@@ -8,7 +8,6 @@ export type MessageType = z.infer<typeof MessageTypeSchema>;
 /** ── Form Sections (for your stepper/wizard) ─────────────────────────────── */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const FormSectionSchema = z.enum(["intro", "form", "success"]);
-export type FormSection = z.infer<typeof FormSectionSchema>;
 
 /** ── Topics (grouped + flattened) ────────────────────────────────────────── */
 export const TopicGroups = {
@@ -30,8 +29,6 @@ export const TopicGroups = {
   ],
 } as const;
 
-export type TopicGroup = keyof typeof TopicGroups;
-
 const ALL_TOPICS = [
   ...TopicGroups.Operations,
   ...TopicGroups["Product Features"],
@@ -50,8 +47,6 @@ export const SeveritySchema = z.enum([
   "Severity 2 (Major Business Impact)",
   "Severity 3 (Minor Business Impact or General Questions)",
 ]);
-export type Severity = z.infer<typeof SeveritySchema>;
-
 export const SEVERITY_1 = SeveritySchema.options[0];
 export const SEVERITY_2 = SeveritySchema.options[1];
 export const SEVERITY_3 = SeveritySchema.options[2];
@@ -110,8 +105,6 @@ const IntegrationTypeSchema = z.enum([
   "3rd Party (Dify / LangFlow / Flowise)",
   "Other (please specify)",
 ]);
-export type IntegrationType = z.infer<typeof IntegrationTypeSchema>;
-
 export const SupportFormSchema = z.object({
   messageType: MessageTypeSchema.default("Question"),
   severity: SeveritySchema,
@@ -125,8 +118,6 @@ export const SupportFormSchema = z.object({
     .trim()
     .min(1, "Please provide a description of your issue."),
 });
-export type SupportFormValues = z.infer<typeof SupportFormSchema>;
-
 export const MESSAGE_TYPES = MessageTypeSchema.options;
 export const SEVERITIES = SeveritySchema.options;
 export const INTEGRATION_TYPES = IntegrationTypeSchema.options;

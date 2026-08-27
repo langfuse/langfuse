@@ -84,13 +84,6 @@ export function getCurrentMatchIndexInRow(
 /**
  * Get search statistics
  */
-export interface SearchStats {
-  totalMatches: number;
-  matchedRows: number;
-  keyMatches: number;
-  valueMatches: number;
-}
-
 /**
  * Highlight text with search match positions
  * Returns array of segments with highlight info
