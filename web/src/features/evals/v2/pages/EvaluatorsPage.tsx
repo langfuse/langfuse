@@ -152,6 +152,7 @@ function EvaluatorsTableToolbar({
 
   return (
     <DataTableToolbar
+      tableName="evaluators-v2"
       {...toolbarProps}
       multiSelect={{
         selectAll,

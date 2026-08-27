@@ -45,7 +45,12 @@ export function MobileFullTextSearch({
   }
 
   const submit = (query: string) => {
-    capture("table:search_submit");
+    // The mobile search sheet is the v4 events table's second search entry
+    // point; it reports the same identity as the toolbar's (LFE-15720).
+    capture("table:search_submit", {
+      tableName: "observations-events",
+      isV4: true,
+    });
     updateQuery(query);
   };
 

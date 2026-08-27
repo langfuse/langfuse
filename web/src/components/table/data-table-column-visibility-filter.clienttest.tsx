@@ -33,6 +33,8 @@ function ColumnVisibilityFilterHarness() {
       columns={columns}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
+      tableName="test-table"
+      isV4={false}
     />
   );
 }

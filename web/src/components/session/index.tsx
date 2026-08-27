@@ -431,6 +431,7 @@ export const SessionPage: React.FC<{
 
   const peekNavigationConfig = React.useMemo(
     () => ({
+      tableName: "session-detail",
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
         pathParam: "traceId",
@@ -1005,6 +1006,7 @@ const LoadedSessionEventsPage: React.FC<{
 
   const peekNavigationConfig = React.useMemo(
     () => ({
+      tableName: "session-detail",
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
         pathParam: "traceId",

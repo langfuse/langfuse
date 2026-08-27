@@ -1270,6 +1270,7 @@ export default function TracesTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "traces",
     // traceId is not written by this table but arrives on v4-dialect shared
     // URLs (LFE-11041); listing it clears it on open/navigate/close so it
     // cannot pin the peek to the originally shared trace.

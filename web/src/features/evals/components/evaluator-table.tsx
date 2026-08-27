@@ -415,7 +415,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    tableName: "evaluators",
+  });
 
   const peekConfig = useMemo(
     () => ({
@@ -439,6 +441,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       <div className="flex h-full w-full flex-col">
         {/* Toolbar spanning full width */}
         <DataTableToolbar
+          tableName="evaluators"
           columns={columns}
           filterState={queryFilter.filterState}
           columnVisibility={columnVisibility}

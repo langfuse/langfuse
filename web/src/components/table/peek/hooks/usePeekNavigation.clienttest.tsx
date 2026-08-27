@@ -23,6 +23,7 @@ vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
 // v4 URLs put the trace id in `traceId`, v3 URLs put it in `peek`.
 describe("usePeekNavigation expandPeek", () => {
   const config = {
+    tableName: "traces",
     queryParams: ["observation", "display", "timestamp", "traceId"],
     expandConfig: {
       basePath: "/project/p1/traces",

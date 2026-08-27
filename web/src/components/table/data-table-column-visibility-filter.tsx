@@ -59,6 +59,13 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   /** Defaults to "Columns"; overridden where the surrounding surface already
    *  says "Columns" (the merged table-settings popover). */
   triggerLabel?: string;
+  /** Analytics identity (LFE-15720) for `table:column_visibility_changed`, which
+   *  otherwise has to be attributed to a surface by `$pathname`. Required rather
+   *  than defaulted to "unknown": a dimension a call site can forget to forward
+   *  is a dimension you cannot trust. */
+  tableName: string;
+  /** Whether this table reads the v4 (fast-mode) data path. */
+  isV4: boolean;
 }
 
 /**
@@ -310,6 +317,8 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnOrder,
   triggerSize,
   triggerLabel = "Columns",
+  tableName,
+  isV4,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -341,13 +350,15 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
         );
         capture("table:column_visibility_changed", {
           selectedColumns: selectedColumns,
+          tableName,
+          isV4,
         });
         return newColumnVisibility;
       });
     },
     // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setColumnVisibility, columnVisibility],
+    [setColumnVisibility, columnVisibility, tableName, isV4],
   );
 
   const toggleAllColumns = useCallback(

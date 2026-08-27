@@ -1375,6 +1375,7 @@ export default function ExperimentItemsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "experiment-items",
     queryParams: [
       "observation",
       "display",
@@ -1619,6 +1620,8 @@ export default function ExperimentItemsTable({
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
+            // v4-only surface (LFE-15720).
+            isV4
             columns={columns}
             filterState={queryFilter.filterState}
             viewConfig={{

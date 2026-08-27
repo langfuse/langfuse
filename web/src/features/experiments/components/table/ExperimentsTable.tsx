@@ -819,6 +819,8 @@ export default function ExperimentsTable({
           )}
           {/* Toolbar spanning full width */}
           <DataTableToolbar
+            // v4-only surface (LFE-15720).
+            isV4
             columns={columns}
             filterState={queryFilter.filterState}
             viewConfig={{

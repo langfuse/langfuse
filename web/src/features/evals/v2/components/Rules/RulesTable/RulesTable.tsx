@@ -177,7 +177,9 @@ export function RulesTable({
     "rule",
     withDefault(StringParam, null),
   );
-  const legacyPeekNavigation = usePeekNavigation();
+  const legacyPeekNavigation = usePeekNavigation({
+    tableName: "evaluation-rules-v2",
+  });
   const legacyPeekConfig = useMemo(
     () => ({
       itemType: "RUNNING_EVALUATOR" as const,

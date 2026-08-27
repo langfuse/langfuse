@@ -233,6 +233,7 @@ export default function ScoresTable({
     closePeek: closeScorePeek,
     expandPeek: expandScorePeek,
   } = usePeekNavigation({
+    tableName: "scores",
     // A stale `traceId` can already be in the URL (e.g. a v4-dialect shared
     // link); listing it clears it on open/navigate/close so it can't pin
     // the peek to that trace instead of the one just clicked — matches the

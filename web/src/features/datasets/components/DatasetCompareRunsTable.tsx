@@ -107,6 +107,7 @@ function DatasetCompareRunsTableInternal(props: {
   }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
   const { closePeek, expandPeek } = usePeekNavigation({
+    tableName: "dataset-compare-runs",
     // traceId: not written here, but cleared (and preferred by the trace
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
@@ -225,6 +226,7 @@ function DatasetCompareRunsTableInternal(props: {
   return (
     <>
       <DataTableToolbar
+        tableName="dataset-compare-runs"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

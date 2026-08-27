@@ -33,6 +33,8 @@ export function DataTableSettingsPopover<TData, TValue>({
   setColumnOrder,
   rowHeight,
   setRowHeight,
+  tableName,
+  isV4,
 }: {
   columns: LangfuseColumnDef<TData, TValue>[];
   columnVisibility: VisibilityState;
@@ -41,6 +43,10 @@ export function DataTableSettingsPopover<TData, TValue>({
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   rowHeight: RowHeight;
   setRowHeight: (rowHeight: RowHeight) => void;
+  /** Analytics identity (LFE-15720) for the events fired from inside the
+   *  popover — the row-height buttons here and the column drawer's toggles. */
+  tableName: string;
+  isV4: boolean;
 }) {
   const capture = usePostHogClientCapture();
 
@@ -61,6 +67,8 @@ export function DataTableSettingsPopover<TData, TValue>({
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
               triggerLabel="Show / hide"
+              tableName={tableName}
+              isV4={isV4}
             />
           </div>
           <Separator />
@@ -78,6 +86,8 @@ export function DataTableSettingsPopover<TData, TValue>({
                   onClick={() => {
                     capture("table:row_height_switch_select", {
                       rowHeight: id,
+                      tableName,
+                      isV4,
                     });
                     setRowHeight(id);
                   }}

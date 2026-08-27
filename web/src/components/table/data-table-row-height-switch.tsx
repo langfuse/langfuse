@@ -64,9 +64,17 @@ export function useRowHeightLocalStorage(
 export const DataTableRowHeightSwitch = ({
   rowHeight,
   setRowHeight,
+  tableName,
+  isV4,
 }: {
   rowHeight: RowHeight;
   setRowHeight: (e: RowHeight) => void;
+  /** Analytics identity (LFE-15720), so `table:row_height_switch_select` does
+   *  not have to be attributed by `$pathname`. Required, not defaulted: a
+   *  dimension a caller can forget is worthless. */
+  tableName: string;
+  /** Whether this table reads the v4 (fast-mode) data path. */
+  isV4: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   return (
@@ -89,6 +97,8 @@ export const DataTableRowHeightSwitch = ({
                 e.preventDefault();
                 capture("table:row_height_switch_select", {
                   rowHeight: id,
+                  tableName,
+                  isV4,
                 });
                 setRowHeight(id);
               }}

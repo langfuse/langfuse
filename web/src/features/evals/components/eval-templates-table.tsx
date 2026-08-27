@@ -480,6 +480,7 @@ export default function EvalsTemplateTable({
     );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "eval-templates",
     expandConfig: {
       basePath: `/project/${projectId}/evals/templates`,
     },
@@ -524,6 +525,7 @@ export default function EvalsTemplateTable({
     <>
       <div className="flex h-full w-full flex-col">
         <DataTableToolbar
+          tableName="eval-templates"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

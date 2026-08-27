@@ -233,6 +233,7 @@ export function DatasetRunItemsByItemTable(props: {
   return (
     <>
       <DataTableToolbar
+        tableName="dataset-run-items-by-item"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

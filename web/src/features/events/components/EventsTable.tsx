@@ -1654,6 +1654,7 @@ export default function ObservationsEventsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "observations-events",
     queryParams: ["observation", "display", "timestamp", "traceId"],
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: EventsTableRow) => ({
@@ -1984,6 +1985,8 @@ export default function ObservationsEventsTable({
             )}
             {/* Toolbar spanning full width */}
             <DataTableToolbar
+              tableName="observations-events"
+              isV4
               columns={columns}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}

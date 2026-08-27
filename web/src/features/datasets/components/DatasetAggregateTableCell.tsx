@@ -114,6 +114,9 @@ const DatasetAggregateCellContent = ({
       capture("peek:opened", {
         routePattern: router.pathname,
         wasOpen: router.query.peek !== undefined,
+        // Matches the table this cell belongs to, so the open counts line up
+        // with the ones usePeekNavigation emits (LFE-15720).
+        tableName: "dataset-compare-runs",
         isV4,
       });
     }

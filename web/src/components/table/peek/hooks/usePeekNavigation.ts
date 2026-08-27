@@ -12,6 +12,14 @@ const PEEK_PARAM = "peek";
 const PEEK_VIEW_PARAM = "peekView";
 
 interface BasePeekConfig {
+  /**
+   * Which table this peek belongs to, for the `peek:*` analytics (LFE-15720).
+   * `routePattern` alone cannot separate two tables on one route (the dataset
+   * run items by-run / by-item views, the experiments results layouts), so the
+   * table names itself. Required on purpose: an optional dimension is one a new
+   * table forgets to pass.
+   */
+  tableName: string;
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
   queryParams?: string[];
   /**
@@ -73,16 +81,18 @@ interface PeekNavigationWithExpand extends BasePeekNavigation {
 export function usePeekNavigation(
   config: PeekConfigWithExpand,
 ): PeekNavigationWithExpand;
-export function usePeekNavigation(config?: PeekConfig): PeekNavigation;
-export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
+export function usePeekNavigation(config: PeekConfig): PeekNavigation;
+export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const { isBetaEnabled: isV4 } = useV4Beta();
   // Every peek is opened/closed through this hook, so open/close/new-tab
   // analytics live here once instead of in each consuming table. Props are
   // metadata-only: `routePattern` is the Next.js route PATTERN
-  // (`/project/[projectId]/traces`), never a concrete URL with ids.
+  // (`/project/[projectId]/traces`), never a concrete URL with ids, and
+  // `tableName` is the table's own analytics identity (LFE-15720).
   const routePattern = router.pathname;
+  const tableName = config.tableName;
 
   const openPeek = useCallback(
     (id?: string, row?: any) => {
@@ -94,7 +104,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       if (!id) {
         // Close peek view - clear all peek-related params
         if (currentPeekId !== null) {
-          capture("peek:closed", { routePattern, isV4 });
+          capture("peek:closed", { routePattern, tableName, isV4 });
         }
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
@@ -105,6 +115,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
           capture("peek:opened", {
             routePattern,
             wasOpen: currentPeekId !== null,
+            tableName,
             isV4,
           });
         }
@@ -137,7 +148,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
         { shallow: true },
       );
     },
-    [router, config, capture, routePattern, isV4],
+    [router, config, capture, routePattern, tableName, isV4],
   );
 
   const closePeek = useCallback(() => {
@@ -147,7 +158,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
 
     // Guarded so programmatic cleanup with no peek open emits nothing.
     if (params.get(PEEK_PARAM) !== null) {
-      capture("peek:closed", { routePattern, isV4 });
+      capture("peek:closed", { routePattern, tableName, isV4 });
     }
 
     // Close peek view - clear all peek-related params
@@ -163,7 +174,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       undefined,
       { shallow: true },
     );
-  }, [router, config, capture, routePattern, isV4]);
+  }, [router, config, capture, routePattern, tableName, isV4]);
 
   const resolveDetailNavigationPath = useCallback(
     (entry: ListEntry) => {
@@ -242,14 +253,14 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       const pathnameWithQuery = `${pathname}?${queryParams}`;
 
       if (openInNewTab) {
-        capture("peek:open_in_new_tab", { routePattern, isV4 });
+        capture("peek:open_in_new_tab", { routePattern, tableName, isV4 });
         const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathnameWithQuery}`;
         window.open(pathnameWithBasePath, "_blank");
       } else {
         router.push(pathnameWithQuery);
       }
     },
-    [router, config, capture, routePattern, isV4],
+    [router, config, capture, routePattern, tableName, isV4],
   );
 
   const baseNavigation = {

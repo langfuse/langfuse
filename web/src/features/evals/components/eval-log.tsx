@@ -286,6 +286,7 @@ export default function EvalLogTable({
     >
       <div className="flex h-full w-full flex-col">
         <DataTableToolbar
+          tableName="evalLogs"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}

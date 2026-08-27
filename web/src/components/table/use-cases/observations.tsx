@@ -1202,6 +1202,7 @@ export default function ObservationsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "observations",
     queryParams: [
       "observation",
       "display",
@@ -1516,6 +1517,7 @@ function ObservationsDataTableToolbar({
 
   return (
     <DataTableToolbar
+      tableName="observations"
       {...toolbarProps}
       orderByState={orderByState}
       actionButtons={[

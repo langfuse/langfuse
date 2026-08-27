@@ -74,6 +74,7 @@ export function CodeEvalTestRunCard({
     useEventsTable: isBetaEnabled,
   });
   const peekNavigationProps = usePeekNavigation({
+    tableName: "code-eval-test-run",
     // traceId: not written here, but cleared (and preferred by the trace
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).

@@ -299,6 +299,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
   return (
     <>
       <DataTableToolbar
+        tableName="models"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
