@@ -53,6 +53,14 @@ describe("ingestion attribution", () => {
     ).toEqual({ sdkName: "python" });
   });
 
+  it("does not split a Unicode code point at the attribution length bound", () => {
+    expect(
+      extractPublicApiCallerAttribution({
+        "user-agent": `${"x".repeat(255)}😀truncated`,
+      }),
+    ).toEqual({ userAgent: `${"x".repeat(255)}😀` });
+  });
+
   it("reads SDK attribution from Langfuse request headers", () => {
     expect(
       createIngestionAttribution({

@@ -204,9 +204,9 @@ const sanitizeCallerAttributionValue = (
       return codePoint > 31 && codePoint !== 127;
     })
     .join("")
-    .trim()
-    .slice(0, maxLength);
-  return sanitized || undefined;
+    .trim();
+  const bounded = Array.from(sanitized).slice(0, maxLength).join("");
+  return bounded || undefined;
 };
 
 /**
