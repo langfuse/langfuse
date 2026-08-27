@@ -75,6 +75,12 @@ import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
 import { NotRecordedMetric } from "./NotRecordedMetric";
+import {
+  summariseScoreColumn,
+  type ScoreColumnDataType,
+  type ScoreColumnSummary,
+} from "@/src/features/experiments/fns/summariseScoreColumn";
+import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
 
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -100,6 +106,53 @@ function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
     source,
     dataType,
   }));
+}
+
+/**
+ * One summary per score column: the primary experiment's aggregate over the
+ * items in view, and the same for the comparison it is read against. Built once
+ * per fetch rather than per header render.
+ */
+function buildScoreColumnSummaries({
+  rows,
+  scoreField,
+  dataTypeByKey,
+  primaryExperimentId,
+  comparisonExperimentId,
+}: {
+  rows: ExperimentItemsTableRow[];
+  scoreField: "observationScores" | "traceScores";
+  dataTypeByKey: Map<string, ScoreColumnDataType>;
+  primaryExperimentId?: string;
+  comparisonExperimentId?: string;
+}): Map<string, ScoreColumnSummary> {
+  const summaries = new Map<string, ScoreColumnSummary>();
+  if (!primaryExperimentId) return summaries;
+
+  const scoresFor = (row: ExperimentItemsTableRow, experimentId?: string) =>
+    experimentId
+      ? row.experiments.find((exp) => exp.experimentId === experimentId)?.[
+          scoreField
+        ]
+      : undefined;
+
+  for (const [key, dataType] of dataTypeByKey) {
+    summaries.set(
+      key,
+      summariseScoreColumn({
+        // Every item in view is a pair, including the ones only one of the two
+        // experiments scored — those are counted as not comparable.
+        pairs: rows.map((row) => ({
+          baseline: scoresFor(row, primaryExperimentId)?.[key] ?? null,
+          comparison: scoresFor(row, comparisonExperimentId)?.[key] ?? null,
+        })),
+        dataType,
+        hasComparison: Boolean(comparisonExperimentId),
+      }),
+    );
+  }
+
+  return summaries;
 }
 
 const getDefaultExperimentFilterTarget = (props: {
@@ -615,76 +668,169 @@ export default function ExperimentItemsTable({
   const isObservationScoreColumnsLoading = isFilterOptionsLoading;
   const isTraceScoreColumnsLoading = isFilterOptionsLoading;
 
+  // The experiment a score column's header reads as "this experiment", and the
+  // one it is compared against. Without an explicit baseline the first selected
+  // run stands in, matching how the cells pick their reference.
+  const primaryExperimentId = baselineId ?? allExperimentIds[0];
+  const primaryComparisonId = allExperimentIds.find(
+    (id) => id !== primaryExperimentId,
+  );
+  const primaryComparisonName = useMemo(
+    () =>
+      selectedExperimentNames.find(
+        (exp) => exp.experimentId === primaryComparisonId,
+      )?.experimentName,
+    [selectedExperimentNames, primaryComparisonId],
+  );
+
+  const scoreDataTypesByKey = useMemo(() => {
+    const build = (columns: ScoreColumnDef[]) =>
+      new Map(
+        toScoreColumnInput(columns).map(({ key, dataType }) => [key, dataType]),
+      );
+    return {
+      observationScores: build(scoreColumnDefs.observationScoreColumns),
+      traceScores: build(scoreColumnDefs.traceScoreColumns),
+    };
+  }, [
+    scoreColumnDefs.observationScoreColumns,
+    scoreColumnDefs.traceScoreColumns,
+  ]);
+
+  const scoreColumnSummaries = useMemo(() => {
+    const rowsInView = items.rows ?? [];
+    return {
+      observationScores: buildScoreColumnSummaries({
+        rows: rowsInView,
+        scoreField: "observationScores",
+        dataTypeByKey: scoreDataTypesByKey.observationScores,
+        primaryExperimentId,
+        comparisonExperimentId: primaryComparisonId,
+      }),
+      traceScores: buildScoreColumnSummaries({
+        rows: rowsInView,
+        scoreField: "traceScores",
+        dataTypeByKey: scoreDataTypesByKey.traceScores,
+        primaryExperimentId,
+        comparisonExperimentId: primaryComparisonId,
+      }),
+    };
+  }, [
+    items.rows,
+    scoreDataTypesByKey,
+    primaryExperimentId,
+    primaryComparisonId,
+  ]);
+
   const buildExperimentScoreColumns = useCallback(
     (
       scoreColumns: LangfuseColumnDef<ExperimentItemData>[],
       scoreField: "observationScores" | "traceScores",
     ): LangfuseColumnDef<ExperimentItemsTableRow>[] =>
-      scoreColumns.map((scoreCol) => ({
-        ...scoreCol,
-        // Override the cell renderer to show stacked scores for each experiment
-        cell: ({ row }) => {
-          const experiments = row.original.experiments;
-          const baselineExperiment = hasBaseline
-            ? experiments.find((exp) => exp.experimentId === baselineId)
-            : undefined;
-          const baselineScoresData = baselineExperiment?.[scoreField] ?? null;
-          // todo: fix properly
-          const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
-          return (
-            <StackedExperimentCell
-              experiments={experiments}
-              allExperimentIds={allExperimentIds}
-              colorExperimentIds={colorExperimentIds}
-              renderValue={(exp) => {
-                const scoresData = exp[scoreField] ?? {};
-                const value = scoresData[scoreKey];
+      scoreColumns.map((scoreCol) => {
+        const key = scoreCol.accessorKey?.replace(`Trace-`, "");
+        const summary = key
+          ? scoreColumnSummaries[scoreField].get(key)
+          : undefined;
+        const dataType = key
+          ? scoreDataTypesByKey[scoreField].get(key)
+          : undefined;
+        const label =
+          typeof scoreCol.header === "string"
+            ? scoreCol.header
+            : (scoreCol.accessorKey ?? "");
 
-                if (!value)
-                  return <span className="text-muted-foreground">-</span>;
+        return {
+          ...scoreCol,
+          // The header carries the column's aggregate over the items in view, and
+          // the movement against the comparison. Keeps the plain name for the
+          // column picker.
+          ...(summary && dataType
+            ? {
+                headerBlock: true,
+                headerLabel: label,
+                header: () => (
+                  <ScoreColumnHeaderSummary
+                    label={label}
+                    dataType={dataType}
+                    summary={summary}
+                    comparisonName={primaryComparisonName}
+                  />
+                ),
+              }
+            : {}),
+          // Override the cell renderer to show stacked scores for each experiment
+          cell: ({ row }) => {
+            const experiments = row.original.experiments;
+            const baselineExperiment = hasBaseline
+              ? experiments.find((exp) => exp.experimentId === baselineId)
+              : undefined;
+            const baselineScoresData = baselineExperiment?.[scoreField] ?? null;
+            // todo: fix properly
+            const scoreKey = scoreCol.accessorKey?.replace(`Trace-`, "");
+            return (
+              <StackedExperimentCell
+                experiments={experiments}
+                allExperimentIds={allExperimentIds}
+                colorExperimentIds={colorExperimentIds}
+                renderValue={(exp) => {
+                  const scoresData = exp[scoreField] ?? {};
+                  const value = scoresData[scoreKey];
 
-                const mockRow = {
-                  getValue: (key: string) =>
-                    key === scoreField ? scoresData : undefined,
-                  original: exp,
-                } as any;
-                const scoreCell = scoreCol.cell;
-                const diff =
-                  hasBaseline &&
-                  baselineId &&
-                  exp.experimentId !== baselineId &&
-                  scoreKey &&
-                  baselineScoresData
-                    ? computeScoreDiffs(scoresData, baselineScoresData)[
-                        scoreKey
-                      ]
-                    : null;
+                  if (!value)
+                    return <span className="text-muted-foreground">-</span>;
 
-                const renderedScore =
-                  typeof scoreCell === "function"
-                    ? scoreCell({
-                        row: mockRow,
-                        getValue: mockRow.getValue,
-                      } as any)
-                    : null;
+                  const mockRow = {
+                    getValue: (key: string) =>
+                      key === scoreField ? scoresData : undefined,
+                    original: exp,
+                  } as any;
+                  const scoreCell = scoreCol.cell;
+                  const diff =
+                    hasBaseline &&
+                    baselineId &&
+                    exp.experimentId !== baselineId &&
+                    scoreKey &&
+                    baselineScoresData
+                      ? computeScoreDiffs(scoresData, baselineScoresData)[
+                          scoreKey
+                        ]
+                      : null;
 
-                return (
-                  <div className="flex items-center gap-1">
-                    {renderedScore}
-                    {diff && (
-                      <DiffLabel
-                        diff={diff}
-                        formatValue={(v) => v.toFixed(2)}
-                      />
-                    )}
-                  </div>
-                );
-              }}
-            />
-          );
-        },
-      })) as LangfuseColumnDef<ExperimentItemsTableRow>[],
-    [allExperimentIds, baselineId, colorExperimentIds, hasBaseline],
+                  const renderedScore =
+                    typeof scoreCell === "function"
+                      ? scoreCell({
+                          row: mockRow,
+                          getValue: mockRow.getValue,
+                        } as any)
+                      : null;
+
+                  return (
+                    <div className="flex items-center gap-1">
+                      {renderedScore}
+                      {diff && (
+                        <DiffLabel
+                          diff={diff}
+                          formatValue={(v) => v.toFixed(2)}
+                        />
+                      )}
+                    </div>
+                  );
+                }}
+              />
+            );
+          },
+        };
+      }) as LangfuseColumnDef<ExperimentItemsTableRow>[],
+    [
+      allExperimentIds,
+      baselineId,
+      colorExperimentIds,
+      hasBaseline,
+      primaryComparisonName,
+      scoreColumnSummaries,
+      scoreDataTypesByKey,
+    ],
   );
 
   const observationExperimentScoreColumns = useMemo(
