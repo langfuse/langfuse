@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
