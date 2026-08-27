@@ -1655,6 +1655,8 @@ export default function ObservationsEventsTable({
 
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: eventsFilterConfig.tableName,
+    isV4: true,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: EventsTableRow) => ({
       traceId: row.traceId || "",
@@ -1870,6 +1872,8 @@ export default function ObservationsEventsTable({
                     updateQuery={setSearchQuery}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4
                   />
                 )
               }
@@ -1987,6 +1991,8 @@ export default function ObservationsEventsTable({
               columns={columns}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
+              tableName={eventsFilterConfig.tableName}
+              isV4={true}
               searchConfig={
                 // In search-bar mode full-text search (bare text +
                 // content:/input:/output:) lives inline in the bar, so the
