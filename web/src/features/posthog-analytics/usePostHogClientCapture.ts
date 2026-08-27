@@ -212,6 +212,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -395,6 +397,7 @@ export const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
+    "facet_fold_toggled",
     "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",

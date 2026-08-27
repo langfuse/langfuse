@@ -499,7 +499,7 @@ export const observationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "observations.tool_call_names",
+      sql: "arrayDistinct(observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -650,6 +650,16 @@ export const observationsView: ViewDeclarationType = {
         "Number of tool calls made by the observation, including parallel calls. Use the Sum aggregation to get the total number of tool calls.",
       unit: "calls",
       defaultAggregation: "sum",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+      unit: "calls",
     },
   },
   tableRelations: {
@@ -1342,7 +1352,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "events_observations.tool_call_names",
+      sql: "arrayDistinct(events_observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -1559,6 +1569,16 @@ export const eventsObservationsView: ViewDeclarationType = {
         "Number of tool calls made by the observation, including parallel calls. Use the Sum aggregation to get the total number of tool calls.",
       unit: "calls",
       defaultAggregation: "sum",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+      unit: "calls",
     },
     costByType: {
       sql: "cost_value",

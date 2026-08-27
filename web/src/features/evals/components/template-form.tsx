@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -319,13 +320,9 @@ const InnerEvalTemplateForm = (props: {
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
-  const categoriesError = form.formState.errors.categories;
-  const categoriesErrorMessage =
-    typeof categoriesError?.message === "string"
-      ? categoriesError.message
-      : typeof categoriesError?.root?.message === "string"
-        ? categoriesError.root.message
-        : undefined;
+  const hasCategoriesArrayError = hasArrayLevelFieldError(
+    form.formState.errors.categories,
+  );
 
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
@@ -916,11 +913,7 @@ const InnerEvalTemplateForm = (props: {
                           </FormItem>
                         )}
                       />
-                      {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-bold">
-                          {categoriesErrorMessage}
-                        </p>
-                      ) : null}
+                      {hasCategoriesArrayError ? <FormMessage /> : null}
                     </FormItem>
                   )}
                 />

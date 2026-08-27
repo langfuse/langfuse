@@ -747,6 +747,7 @@ export function deriveSaveReason(
   const chartTypeError: string | undefined = errors.chart?.type?.message;
   const metricsError: string | undefined =
     errors.metrics?.message ??
+    errors.metrics?.root?.message ??
     errors.metrics?.[0]?.measure?.message ??
     errors.metrics?.[0]?.aggregation?.message;
   const dimensionsError: string | undefined = errors.dimensions?.message;

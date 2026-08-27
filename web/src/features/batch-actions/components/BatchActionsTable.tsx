@@ -5,7 +5,6 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
@@ -14,6 +13,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 type BatchActionRow = {
   id: string;
@@ -125,29 +125,13 @@ export function BatchActionsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createUserTableColumn<BatchActionRow>({
       accessorKey: "user",
-      id: "user",
       header: "Created By",
       size: 150,
-      cell: ({ row }) => {
-        const user = row.getValue("user") as {
-          name: string | null;
-          image: string | null;
-        } | null;
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={user?.image ?? undefined}
-                alt={user?.name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{user?.name ?? "Unknown"}</span>
-          </div>
-        );
-      },
-    },
+      variant: "avatar",
+      emptyValue: "Unknown",
+    }),
     {
       accessorKey: "log",
       id: "log",
