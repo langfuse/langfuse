@@ -251,6 +251,22 @@ export const AddMessageWhilePreviewing = meta.story({
   },
 });
 
+export const MediaInPreview = meta.story({
+  name: "Media tag in preview",
+  render: () => (
+    <PromptEditorStory
+      previewEnabled
+      messages={[
+        {
+          role: "user",
+          content:
+            'Which color is the image? {"attachments": [{"filename": "cache-hit-ratio.png", "content_type": "image/png", "media": "@@@langfuseMedia:type=image/png|id=cc48838a-3da8-4ca4-a007-2cf8df930e69|source=bytes@@@"}]}',
+        },
+      ]}
+    />
+  ),
+});
+
 export const CompactMixedStates = meta.story({
   name: "(Test) Compact, expanded and collapsed",
   render: () => (

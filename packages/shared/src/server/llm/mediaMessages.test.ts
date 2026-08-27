@@ -298,7 +298,7 @@ describe("compileLangfuseMediaMessages", () => {
 describe("resolveEvaluatorMediaTransport", () => {
   it.each([
     [undefined, undefined, "inline"],
-    [undefined, "DEV", "inline"],
+    [undefined, "DEV", "url"],
     [undefined, "EU", "url"],
     ["disabled", "EU", "disabled"],
     ["inline", "EU", "inline"],

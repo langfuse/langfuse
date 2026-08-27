@@ -123,7 +123,7 @@ export function resolveEvaluatorMediaTransport(params: {
   cloudRegion: string | undefined;
 }): EvaluatorMediaTransport {
   if (params.configured) return params.configured;
-  return params.cloudRegion && params.cloudRegion !== "DEV" ? "url" : "inline";
+  return params.cloudRegion ? "url" : "inline";
 }
 
 async function fetchMediaBytes(

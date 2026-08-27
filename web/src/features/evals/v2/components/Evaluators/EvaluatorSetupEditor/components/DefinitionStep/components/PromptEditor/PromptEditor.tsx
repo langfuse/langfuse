@@ -374,10 +374,12 @@ function SortablePromptMessage({
 function renderMediaAwareText(value: string) {
   return splitStringByMediaReferences(value).map((segment, index) =>
     segment.type === "media" ? (
-      <MediaReferenceTag
+      <span
         key={`${segment.value}-${index}`}
-        descriptor={segment.descriptor}
-      />
+        className="relative -top-px inline-flex"
+      >
+        <MediaReferenceTag descriptor={segment.descriptor} />
+      </span>
     ) : (
       <Fragment key={index}>{segment.value}</Fragment>
     ),
