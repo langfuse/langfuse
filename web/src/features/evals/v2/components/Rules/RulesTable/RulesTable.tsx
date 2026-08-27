@@ -44,7 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { api } from "@/src/utils/api";
+import { api, type RouterInputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
@@ -188,7 +188,7 @@ export function RulesTable({
   const rules = api.evalsV2.rules.list.useQuery({
     projectId,
     ...pagination,
-    orderBy,
+    orderBy: orderBy as RouterInputs["evalsV2"]["rules"]["list"]["orderBy"],
     search: searchQuery ?? undefined,
     filter: filterState,
   });
