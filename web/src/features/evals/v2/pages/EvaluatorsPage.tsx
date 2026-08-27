@@ -175,7 +175,7 @@ export default function EvaluatorsPage() {
   });
   const [pagination, setPagination] = usePaginationState(1, 50);
   const [orderBy, setOrderBy] = useOrderByState({
-    column: "createdAt",
+    column: "updatedAt",
     order: "DESC",
   });
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
