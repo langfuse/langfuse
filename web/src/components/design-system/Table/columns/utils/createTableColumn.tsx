@@ -4,7 +4,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 
 type NullableTableColumnValue<TValue> = TValue | null | undefined;
 
-export type TableColumnAccessorKey<TData, TValue> = {
+type TableColumnAccessorKey<TData, TValue> = {
   [TKey in keyof TData]-?: [NonNullable<TData[TKey]>] extends [never]
     ? never
     : NonNullable<TData[TKey]> extends TValue
@@ -13,7 +13,7 @@ export type TableColumnAccessorKey<TData, TValue> = {
 }[keyof TData] &
   string;
 
-export type TableColumnAccessor<TData, TValue> =
+type TableColumnAccessor<TData, TValue> =
   | {
       accessorKey: TableColumnAccessorKey<TData, TValue>;
       accessorFn?: never;

@@ -3,16 +3,25 @@ import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { ActionExecutionStatus } from "@langfuse/shared";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+
+const actionExecutionStatusToStatus = {
+  [ActionExecutionStatus.COMPLETED]: "completed",
+  [ActionExecutionStatus.ERROR]: "error",
+  [ActionExecutionStatus.PENDING]: "pending",
+  [ActionExecutionStatus.CANCELLED]: "cancelled",
+} satisfies Record<ActionExecutionStatus, Status>;
 
 type ActionExecutionRow = {
   id: string;
-  status: string;
+  status: ActionExecutionStatus;
   sourceId: string;
   input: any;
   output: any;
@@ -54,15 +63,12 @@ export const AutomationExecutionsTable: React.FC<
     );
 
   const columns: LangfuseColumnDef<ActionExecutionRow>[] = [
-    {
+    createStatusTableColumn<ActionExecutionRow, ActionExecutionStatus>({
       accessorKey: "status",
       header: "Status",
-      id: "status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return <StatusBadge type={status.toLowerCase()} />;
-      },
-    },
+      getStatus: (status) =>
+        status ? actionExecutionStatusToStatus[status] : undefined,
+    }),
     {
       accessorKey: "startedAt",
       header: "Started",

@@ -29,12 +29,12 @@ import { cn } from "@/src/utils/tailwind";
 // Types
 // ============================================================================
 
-export interface WidgetMetricConfig {
+interface WidgetMetricConfig {
   measure: string;
   agg: string;
 }
 
-export interface WidgetDimensionConfig {
+interface WidgetDimensionConfig {
   field: string;
 }
 
@@ -82,21 +82,6 @@ export interface WidgetContentProps {
    * charts (experiments) whose long names clutter the axis.
    */
   hideXAxisLabels?: boolean;
-}
-
-export interface WidgetHeaderProps {
-  title: string;
-  description?: string;
-  /**
-   * Action buttons to render on the right side of the header
-   */
-  actions?: React.ReactNode;
-  className?: string;
-}
-
-export interface WidgetWrapperProps {
-  children: React.ReactNode;
-  className?: string;
 }
 
 // ============================================================================
