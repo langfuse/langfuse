@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import {
+  DataTableColumnVisibilityFilter,
+  type ColumnGroupToggleHandler,
+} from "@/src/components/table/data-table-column-visibility-filter";
 import { LAYER_ORDER } from "@/src/components/ui/layer";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
+const capture = vi.fn();
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => capture,
 }));
 
 const columns: LangfuseColumnDef<{ id: string }>[] = [
@@ -20,12 +24,25 @@ const columns: LangfuseColumnDef<{ id: string }>[] = [
     header: "Input",
     enableHiding: true,
   },
+  {
+    accessorKey: "traceScores",
+    header: "Trace Scores",
+    enableHiding: true,
+    columns: [
+      { accessorKey: "score-a", header: "Score A", enableHiding: true },
+    ],
+  },
 ];
 
-function ColumnVisibilityFilterHarness() {
+function ColumnVisibilityFilterHarness({
+  onColumnGroupToggle,
+}: {
+  onColumnGroupToggle?: ColumnGroupToggleHandler;
+} = {}) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     startTime: true,
     input: true,
+    "score-a": true,
   });
 
   return (
@@ -35,6 +52,7 @@ function ColumnVisibilityFilterHarness() {
       setColumnVisibility={setColumnVisibility}
       tableName="test-table"
       isV4={false}
+      onColumnGroupToggle={onColumnGroupToggle}
     />
   );
 }
@@ -78,6 +96,7 @@ describe("DataTableColumnVisibilityFilter", () => {
   });
 
   beforeEach(() => {
+    capture.mockClear();
     installOverlayLayers();
   });
 
@@ -96,5 +115,44 @@ describe("DataTableColumnVisibilityFilter", () => {
     fireEvent.click(screen.getByText("Input"));
 
     expect(screen.getByRole("checkbox", { name: "Input" })).not.toBeChecked();
+  });
+
+  // The capture used to sit inside the setState updater, which React invokes
+  // twice under StrictMode — every toggle was counted twice (LFE-15720).
+  it("reports one column_visibility_changed per toggle, with the table's identity", () => {
+    render(<ColumnVisibilityFilterHarness />);
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+
+    fireEvent.click(screen.getByText("Input"));
+
+    const events = capture.mock.calls.filter(
+      ([name]) => name === "table:column_visibility_changed",
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0][1]).toMatchObject({
+      tableName: "test-table",
+      isV4: false,
+    });
+    expect(events[0][1].selectedColumns).not.toContain("input");
+  });
+
+  it("reports a whole group toggled once, with its counts", () => {
+    const onColumnGroupToggle = vi.fn();
+    render(
+      <ColumnVisibilityFilterHarness
+        onColumnGroupToggle={onColumnGroupToggle}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /columns/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Deselect All" }));
+
+    expect(onColumnGroupToggle).toHaveBeenCalledTimes(1);
+    expect(onColumnGroupToggle).toHaveBeenCalledWith({
+      groupId: "traceScores",
+      columnCount: 1,
+      visibleCount: 1,
+      willBeVisible: false,
+    });
   });
 });
