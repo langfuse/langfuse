@@ -5,14 +5,7 @@
  * Uses approximate character widths for monospace fonts.
  */
 
-import type { FlatJSONRow, JSONTheme } from "../types";
 import type { TreeNode } from "./treeStructure";
-
-/**
- * Approximate character width in pixels for monospace font
- * Based on common monospace fonts at typical sizes
- */
-const CHAR_WIDTH_PX = 7.2; // Approximate width for 0.7rem monospace
 
 /**
  * Calculate the full display length of a value (for width estimation)
@@ -38,62 +31,6 @@ function getValueDisplayLength(value: unknown): number {
     return `{${keys.length} keys}`.length;
   }
   return 0;
-}
-
-/**
- * Calculate minimum width needed for a single row (scrollable column only)
- *
- * Note: Line numbers and expand buttons are now in a separate fixed column,
- * so we only calculate width for: indentation + key + colon + value + badges + copy button
- */
-function calculateRowWidth(row: FlatJSONRow, theme: JSONTheme): number {
-  // Components in scrollable column:
-  // 1. Indentation (depth * indentSize)
-  const indentWidth = row.depth * theme.indentSize;
-
-  // 2. Key name (string or number)
-  const keyLength = String(row.key).length;
-
-  // 3. Colon + space (": ")
-  const colonWidth = 2 * CHAR_WIDTH_PX;
-
-  // 4. Value (full untruncated length)
-  const valueLength = getValueDisplayLength(row.value);
-
-  // 5. Padding (right side only, left is indent)
-  const paddingWidth = 4;
-
-  // Total character-based width
-  const charCount = keyLength + valueLength;
-  const charWidth = charCount * CHAR_WIDTH_PX;
-
-  // Total width
-  return (
-    indentWidth + colonWidth + charWidth + paddingWidth + 50 // Extra buffer for buttons, badges, etc.
-  );
-}
-
-/**
- * Calculate minimum container width for scrollable column
- *
- * Returns the width needed to display the longest row without wrapping.
- * This is only for the scrollable column (excludes fixed column with line numbers/buttons).
- * Always calculates FULL untruncated width (data layer).
- */
-function calculateMinimumWidth(rows: FlatJSONRow[], theme: JSONTheme): number {
-  if (rows.length === 0) return 0;
-
-  let maxWidth = 0;
-
-  for (const row of rows) {
-    const rowWidth = calculateRowWidth(row, theme);
-    if (rowWidth > maxWidth) {
-      maxWidth = rowWidth;
-    }
-  }
-
-  // Add some buffer for safety
-  return Math.ceil(maxWidth * 1.1); // 10% buffer
 }
 
 /**

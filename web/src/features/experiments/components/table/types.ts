@@ -73,17 +73,6 @@ const EXPERIMENT_COLOR_STYLES = [
 
 export type ExperimentColorStyle = (typeof EXPERIMENT_COLOR_STYLES)[number];
 
-/**
- * Get the text color class for an experiment based on its index.
- */
-const getExperimentColor = (
-  experimentId: string,
-  allExperimentIds: string[],
-): string => {
-  const styles = getExperimentColorStyles(experimentId, allExperimentIds);
-  return styles.textClass;
-};
-
 export const getExperimentColorStyles = (
   experimentId: string,
   allExperimentIds: string[],

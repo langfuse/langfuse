@@ -382,13 +382,6 @@ export function isDanglingDotPrefix(
   return registry.isDanglingDotPrefix(value);
 }
 
-/** Fields that can be unset — the value domain of `has:` / `-has:`. */
-function nullableFields(
-  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
-): readonly FieldDef[] {
-  return registry.nullableFields();
-}
-
 // ---- operator validity ----
 //
 // One table consulted by the parser (span diagnostics), the validator (commit

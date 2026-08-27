@@ -263,16 +263,6 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
 };
 
 /**
- * Utility function to get the current playground window registry
- * Useful for debugging and testing purposes
- *
- * @returns Map of windowId to PlaygroundHandle
- */
-const getPlaygroundWindowRegistry = (): Map<string, PlaygroundHandle> => {
-  return playgroundWindowRegistry;
-};
-
-/**
  * Utility function to get the playground event bus
  * Useful for advanced coordination scenarios and testing
  *
@@ -280,14 +270,4 @@ const getPlaygroundWindowRegistry = (): Map<string, PlaygroundHandle> => {
  */
 export const getPlaygroundEventBus = (): EventTarget => {
   return playgroundEventBus;
-};
-
-/**
- * Utility function to get the current window count
- * Useful for UI components that need to display window statistics
- *
- * @returns Number of currently registered windows
- */
-const getWindowCount = (): number => {
-  return playgroundWindowRegistry.size;
 };

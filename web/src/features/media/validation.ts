@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-import {
-  datasetItemMediaFields,
-  MediaContentType,
-  MediaFileExtension,
-} from "@langfuse/shared";
+import { datasetItemMediaFields, MediaContentType } from "@langfuse/shared";
 
 export { MediaContentType };
 
@@ -103,6 +99,7 @@ export const GetMediaResponseSchema = z.object({
 
 export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const MediaReturnSchema = z.object({
   mediaId: z.string(),
   contentType: z.enum(MediaContentType),

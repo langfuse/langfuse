@@ -36,15 +36,6 @@ export function getParentPath(path: string): string | null {
 }
 
 /**
- * Get the key (last part) of a path
- * @example getPathKey("root.users.0.name") => "name"
- */
-function getPathKey(path: string): string | number {
-  const parts = splitPath(path);
-  return parts[parts.length - 1]!;
-}
-
-/**
  * Check if one path is an ancestor of another
  * @example isAncestorPath("root.users", "root.users.0.name") => true
  */
@@ -60,24 +51,6 @@ export function isAncestorPath(
 }
 
 /**
- * Check if one path is a direct child of another
- * @example isDirectChild("root.users", "root.users.0") => true
- * @example isDirectChild("root.users", "root.users.0.name") => false
- */
-function isDirectChild(parentPath: string, childPath: string): boolean {
-  const parentParts = splitPath(parentPath);
-  const childParts = splitPath(childPath);
-
-  if (childParts.length !== parentParts.length + 1) return false;
-
-  for (let i = 0; i < parentParts.length; i++) {
-    if (parentParts[i] !== childParts[i]) return false;
-  }
-
-  return true;
-}
-
-/**
  * Get all ancestor paths of a given path (excluding the path itself)
  * @example getAncestorPaths("root.users.0.name") => ["root", "root.users", "root.users.0"]
  */
@@ -90,113 +63,6 @@ export function getAncestorPaths(path: string): string[] {
   }
 
   return ancestors;
-}
-
-/**
- * Get the depth of a path (0 = root)
- * @example getPathDepth("root") => 0
- * @example getPathDepth("root.users.0.name") => 3
- */
-function getPathDepth(path: string): number {
-  return splitPath(path).length - 1;
-}
-
-/**
- * Check if a path is the root
- */
-function isRootPath(path: string): boolean {
-  return splitPath(path).length === 1;
-}
-
-/**
- * Normalize a path (ensure consistent format)
- * Handles trailing dots, double dots, etc.
- */
-function normalizePath(path: string): string {
-  const parts = path
-    .split(".")
-    .filter((part) => part.length > 0)
-    .map((part) => {
-      const num = Number(part);
-      return isNaN(num) ? part : num;
-    });
-
-  return joinPath(parts);
-}
-
-/**
- * Compare two paths for sorting
- * Returns: -1 if a < b, 0 if a === b, 1 if a > b
- */
-function comparePaths(a: string, b: string): number {
-  const partsA = splitPath(a);
-  const partsB = splitPath(b);
-
-  const minLength = Math.min(partsA.length, partsB.length);
-
-  for (let i = 0; i < minLength; i++) {
-    const partA = partsA[i]!;
-    const partB = partsB[i]!;
-
-    // Compare numbers numerically
-    if (typeof partA === "number" && typeof partB === "number") {
-      if (partA !== partB) return partA - partB;
-      continue;
-    }
-
-    // Compare strings lexicographically
-    if (String(partA) < String(partB)) return -1;
-    if (String(partA) > String(partB)) return 1;
-  }
-
-  // If all parts are equal, shorter path comes first
-  return partsA.length - partsB.length;
-}
-
-/**
- * Get child paths of a parent path from a list of paths
- * Only returns direct children, not descendants
- */
-function getChildPaths(parentPath: string, allPaths: string[]): string[] {
-  return allPaths.filter((path) => isDirectChild(parentPath, path));
-}
-
-/**
- * Get descendant paths of an ancestor path from a list of paths
- * Returns all descendants, not just direct children
- */
-function getDescendantPaths(
-  ancestorPath: string,
-  allPaths: string[],
-): string[] {
-  return allPaths.filter((path) => isAncestorPath(ancestorPath, path));
-}
-
-/**
- * Build a path from a parent path and a key
- * @example buildPath("root.users", 0) => "root.users.0"
- */
-function buildPath(parentPath: string, key: string | number): string {
-  return `${parentPath}.${key}`;
-}
-
-/**
- * Check if any ancestor of a path is collapsed
- * Used to determine if a row should be visible
- */
-function hasCollapsedAncestor(
-  path: string,
-  collapsedPaths: Set<string>,
-): boolean {
-  const ancestors = getAncestorPaths(path);
-
-  for (const ancestor of ancestors) {
-    if (collapsedPaths.has(ancestor)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 /**

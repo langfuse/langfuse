@@ -27,17 +27,3 @@ export const debugTime = (label: string) => {
 export const debugTimeEnd = (label: string) => {
   if (DEBUG) console.timeEnd(label);
 };
-
-/**
- * Log warning in development only
- */
-const debugWarn = (...args: unknown[]) => {
-  if (DEBUG) console.warn(...args);
-};
-
-/**
- * Log error (always logs, even in production)
- */
-const debugError = (...args: unknown[]) => {
-  console.error(...args);
-};

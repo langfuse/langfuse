@@ -5,8 +5,7 @@ import { useCallback } from "react";
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 // resource:action, only use snake_case
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
   table: [
     "filter_builder_open",

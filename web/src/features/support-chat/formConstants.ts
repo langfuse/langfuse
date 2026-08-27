@@ -6,6 +6,7 @@ export const MessageTypeSchema = z.enum(["Question", "Feedback", "Bug"]);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
 /** ── Form Sections (for your stepper/wizard) ─────────────────────────────── */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const FormSectionSchema = z.enum(["intro", "form", "success"]);
 export type FormSection = z.infer<typeof FormSectionSchema>;
 
@@ -127,6 +128,5 @@ export const SupportFormSchema = z.object({
 export type SupportFormValues = z.infer<typeof SupportFormSchema>;
 
 export const MESSAGE_TYPES = MessageTypeSchema.options;
-const FORM_SECTIONS = FormSectionSchema.options;
 export const SEVERITIES = SeveritySchema.options;
 export const INTEGRATION_TYPES = IntegrationTypeSchema.options;

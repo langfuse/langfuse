@@ -135,10 +135,3 @@ export const GitHubDispatchActionForm: React.FC<
     </div>
   );
 };
-
-// Schema exported for use in automationForm.tsx
-const githubDispatchSchema = {
-  url: "",
-  eventType: "",
-  githubToken: "",
-};

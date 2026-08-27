@@ -85,6 +85,8 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
 
 export const PublicEvaluationRuleTarget = z.enum(["observation", "experiment"]);
 export const PublicEvaluationRuleLegacyTarget = z.enum(["trace", "dataset"]);
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const PublicEvaluationRuleReadTarget = z.union([
   PublicEvaluationRuleTarget,
   PublicEvaluationRuleLegacyTarget,
@@ -159,6 +161,7 @@ export const ExperimentEvaluationRuleMapping = createMappingSchema(
   ExperimentEvaluationRuleMappingSource,
 );
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const PublicEvaluationRuleMapping = z.union([
   ObservationEvaluationRuleMapping,
   ExperimentEvaluationRuleMapping,

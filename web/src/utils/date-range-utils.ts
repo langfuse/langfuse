@@ -30,7 +30,6 @@ const ABBREVIATION_TO_KEY = new Map(
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
-const TABLE_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -65,19 +64,12 @@ export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
-export type TableDateRangeOptions =
-  | TableDateRangeAggregationOption
-  | typeof TABLE_AGGREGATION_PLACEHOLDER;
+export type TableDateRangeOptions = TableDateRangeAggregationOption | "custom";
 
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   TimeRangeDefinition
 >;
-
-const dateTimeAggregationOptions = [
-  ...TABLE_AGGREGATION_OPTIONS,
-  ...DASHBOARD_AGGREGATION_OPTIONS,
-] as const;
 
 export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregationSettings =
   Object.fromEntries(
@@ -126,21 +118,6 @@ const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
   ]),
 );
 
-const isTableDataRangeOptionAvailable = ({
-  option,
-  limitDays,
-}: {
-  option: TableDateRangeAggregationOption;
-  limitDays: number | false;
-}) => {
-  if (limitDays === false) return true;
-
-  const durationMinutes = TABLE_DATE_RANGE_AGGREGATION_SETTINGS.get(option);
-  if (!durationMinutes) return false;
-
-  return limitDays >= durationMinutes / (24 * 60);
-};
-
 export const getDateFromOption = (
   selectedTimeOption: SelectedTimeOption,
 ): Date | undefined => {
@@ -163,20 +140,6 @@ export const getDateFromOption = (
   }
   return undefined;
 };
-
-function isValidDashboardDateRangeAggregationOption(
-  value?: string,
-): value is DashboardDateRangeAggregationOption {
-  if (!value) return false;
-  return (DASHBOARD_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
-
-function isValidTableDateRangeAggregationOption(
-  value?: string,
-): value is TableDateRangeAggregationOption {
-  if (!value) return false;
-  return (TABLE_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
 
 function getFullTimeRangeFromAbbreviated(
   abbreviated: string,
@@ -418,69 +381,6 @@ export function getOptimalInterval(
   }
 
   return bestInterval;
-}
-
-/**
- * Determines the optimal interval for score analytics based on time range.
- * Maps time ranges to appropriate intervals for ClickHouse aggregation.
- *
- * Target: 20-50 data points for optimal visualization
- *
- * @param timeRange - The time range (relative or absolute)
- * @returns Interval suitable for score analytics API ("hour" | "day" | "week" | "month")
- */
-function getScoreAnalyticsInterval(
-  timeRange: TimeRange,
-): "hour" | "day" | "week" | "month" {
-  // Handle preset ranges
-  if ("range" in timeRange) {
-    const preset = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
-
-    if (!preset) {
-      return "day"; // Fallback
-    }
-
-    // Map dateTrunc to interval (note: API doesn't support "minute")
-    switch (preset.dateTrunc) {
-      case "minute":
-      case "hour":
-        return "hour";
-      case "day":
-        return "day";
-      case "week":
-        return "week";
-      case "month":
-        return "month";
-      default:
-        return "day"; // Fallback
-    }
-  }
-
-  // Handle custom ranges
-  const absoluteRange = toAbsoluteTimeRange(timeRange);
-  if (!absoluteRange) {
-    return "day"; // Fallback
-  }
-
-  const durationMs = absoluteRange.to.getTime() - absoluteRange.from.getTime();
-  const durationMinutes = durationMs / (1000 * 60);
-
-  // Calculate based on duration to get ~20-50 data points
-  // < 7 days → hour (yields 1-168 points)
-  if (durationMinutes < 7 * 24 * 60) {
-    return "hour";
-  }
-  // 7-90 days → day (yields 7-90 points)
-  else if (durationMinutes < 90 * 24 * 60) {
-    return "day";
-  }
-  // 90 days - 1 year → week (yields 13-52 points)
-  else if (durationMinutes < 365 * 24 * 60) {
-    return "week";
-  }
-  // > 1 year → month (yields 12+ points)
-
-  return "month";
 }
 
 /**

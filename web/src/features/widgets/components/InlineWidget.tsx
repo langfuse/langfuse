@@ -103,51 +103,6 @@ export interface WidgetWrapperProps {
 // Components
 // ============================================================================
 
-/**
- * Simple wrapper providing consistent widget styling (border, padding, background).
- */
-function WidgetWrapper({ children, className }: WidgetWrapperProps) {
-  return (
-    <div
-      className={cn(
-        "bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * Widget header with title, description, and optional action buttons.
- */
-function WidgetHeader({
-  title,
-  description,
-  actions,
-  className,
-}: WidgetHeaderProps) {
-  return (
-    <div className={cn("mb-4", className)}>
-      <div className="flex items-center justify-between">
-        <span className="truncate font-bold" title={title}>
-          {title}
-        </span>
-        {actions && <div className="flex space-x-2">{actions}</div>}
-      </div>
-      {description && (
-        <div
-          className="text-muted-foreground truncate text-sm"
-          title={description}
-        >
-          {description}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const getXAxisValue = (
   item: Record<string, unknown>,
   entityDimensionLabelMap?: Record<string, string>,

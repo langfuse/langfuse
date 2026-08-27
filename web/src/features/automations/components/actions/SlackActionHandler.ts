@@ -11,8 +11,7 @@ import {
 import { z } from "zod";
 
 // Define the form schema for Slack actions
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via z.infer<typeof>, which is a legitimate pattern)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const SlackActionFormSchema = z.object({
   slack: z.object({
     channelId: z.string().min(1, "Channel is required"),

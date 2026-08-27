@@ -98,6 +98,3 @@ export function resolveBarTones(
   cache.set(key, tones);
   return tones;
 }
-
-/** Test seam: the cache is keyed on the theme, which a test changes by hand. */
-const clearBarToneCache = () => cache.clear();

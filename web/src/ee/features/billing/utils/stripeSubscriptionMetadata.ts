@@ -17,6 +17,7 @@ import { z } from "zod";
  * @property orgId - Links the subscription to a specific organization
  * @property cloudRegion - Identifies which cloud region (e.g., EU, US) handles this subscription
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const StripeSubscriptionMetadataSchema = z.object({
   orgId: z.string().optional(),
   cloudRegion: z.string().optional(),

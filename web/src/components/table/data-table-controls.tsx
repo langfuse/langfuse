@@ -2805,18 +2805,3 @@ function FilterValueCheckbox({
     </div>
   );
 }
-
-function DataTableControlsSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-3">
-      <h3 className="text-foreground text-sm font-bold">{title}</h3>
-      <div>{children}</div>
-    </div>
-  );
-}

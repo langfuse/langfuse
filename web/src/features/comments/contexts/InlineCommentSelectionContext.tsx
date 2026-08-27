@@ -52,16 +52,6 @@ export function InlineCommentSelectionProvider({
   );
 }
 
-function useInlineCommentSelection() {
-  const context = useContext(InlineCommentSelectionContext);
-  if (!context) {
-    throw new Error(
-      "useInlineCommentSelection must be used within InlineCommentSelectionProvider",
-    );
-  }
-  return context;
-}
-
 /**
  * Optional hook that doesn't throw if context is missing.
  * Useful for components that may or may not be inside the provider.

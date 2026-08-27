@@ -17,7 +17,6 @@ import {
   type GetDatasetRunV1Query,
   type GetDatasetRunsV1Query,
   type GetDatasetsV2Query,
-  type GetDatasetV2Query,
   type PostDatasetRunItemsV1Body,
   type PostDatasetsV1Body,
   type PostDatasetsV2Body,
@@ -71,10 +70,6 @@ type ListDatasetsInput = z.infer<typeof GetDatasetsV2Query> & {
 };
 
 type ListDatasetsV1Input = z.infer<typeof GetDatasetsV1Query> & {
-  projectId: string;
-};
-
-type GetDatasetInput = z.infer<typeof GetDatasetV2Query> & {
   projectId: string;
 };
 
@@ -366,14 +361,6 @@ export const listDatasetsForApi = async ({
       totalPages: Math.ceil(totalItems / limit),
     },
   };
-};
-
-const getDatasetForApi = async ({
-  projectId,
-  datasetName,
-}: GetDatasetInput) => {
-  const dataset = await getDatasetByNameOrThrow({ projectId, datasetName });
-  return transformDbDatasetToAPIDataset(dataset);
 };
 
 export const getDatasetByIdForApi = async ({

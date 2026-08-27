@@ -71,45 +71,6 @@ export const useJsonExpansion = () => {
   return useContext(JsonExpansionContext);
 };
 
-/**
- * Read formatted expansion state directly from sessionStorage
- */
-function readFormattedExpansion(field: string): Record<string, boolean> {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const stored = sessionStorage.getItem(STORAGE_KEYS.formatted);
-    if (!stored) return {};
-
-    const parsed = JSON.parse(stored) as FormattedExpansionState;
-    return parsed[field] ?? {};
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Write formatted expansion state directly to sessionStorage
- */
-function writeFormattedExpansion(
-  field: string,
-  state: Record<string, boolean>,
-): void {
-  if (typeof window === "undefined") return;
-
-  try {
-    const stored = sessionStorage.getItem(STORAGE_KEYS.formatted);
-    const parsed: FormattedExpansionState = stored
-      ? (JSON.parse(stored) as FormattedExpansionState)
-      : { input: {}, output: {}, metadata: {} };
-
-    parsed[field] = state;
-    sessionStorage.setItem(STORAGE_KEYS.formatted, JSON.stringify(parsed));
-  } catch {
-    // Silently fail
-  }
-}
-
 export function JsonExpansionProvider({ children }: { children: ReactNode }) {
   // Formatted view state (per-field, path-based)
   const [formattedExpansion, setFormattedExpansion] =

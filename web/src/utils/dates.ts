@@ -1,25 +1,3 @@
-const utcDateOffsetByDays = (days: number) => {
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date;
-};
-
-const localtimeDateOffsetByDays = (days: number) => {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + days);
-  return date;
-};
-const utcDate = (localDateTime: Date) =>
-  new Date(
-    Date.UTC(
-      localDateTime.getFullYear(),
-      localDateTime.getMonth(),
-      localDateTime.getDate(),
-    ),
-  );
-
 export const setBeginningOfDay = (date: Date) => {
   const newDate = new Date(date);
   newDate.setHours(0, 0, 0, 0);
@@ -31,9 +9,6 @@ export const setEndOfDay = (date: Date) => {
   newDate.setHours(23, 59, 59, 999);
   return newDate;
 };
-
-const intervalInSeconds = (start: Date, end: Date | null) =>
-  end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
 export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);

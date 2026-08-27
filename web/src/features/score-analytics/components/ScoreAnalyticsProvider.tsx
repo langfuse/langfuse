@@ -249,21 +249,3 @@ export function useScoreAnalytics(): ScoreAnalyticsContextValue {
 
   return context;
 }
-
-// ============================================================================
-// Type Guards
-// ============================================================================
-
-/**
- * Type guard to check if colors are for two scores
- */
-function isTwoScoreColors(colors: ScoreColors): colors is TwoScoreColors {
-  return "score1" in colors && "score2" in colors;
-}
-
-/**
- * Type guard to check if colors are for single score
- */
-function isSingleScoreColors(colors: ScoreColors): colors is SingleScoreColors {
-  return "score" in colors && !("score1" in colors);
-}
