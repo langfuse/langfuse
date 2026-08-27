@@ -87,9 +87,7 @@ export const toPublicExportSource = (
 ): z.infer<typeof BlobStorageExportSource> =>
   INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
-const BlobStorageExportFieldGroup = z.enum(
-  OBSERVATION_FIELD_GROUPS_FULL,
-);
+const BlobStorageExportFieldGroup = z.enum(OBSERVATION_FIELD_GROUPS_FULL);
 
 /**
  * Request/Response Types

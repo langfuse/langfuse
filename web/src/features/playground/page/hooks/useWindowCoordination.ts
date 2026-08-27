@@ -268,10 +268,7 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
  *
  * @returns Map of windowId to PlaygroundHandle
  */
-const getPlaygroundWindowRegistry = (): Map<
-  string,
-  PlaygroundHandle
-> => {
+const getPlaygroundWindowRegistry = (): Map<string, PlaygroundHandle> => {
   return playgroundWindowRegistry;
 };
 

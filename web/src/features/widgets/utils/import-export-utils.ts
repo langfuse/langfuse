@@ -55,27 +55,25 @@ const widgetImportBaseSchema = z
   })
   .loose();
 
-const widgetImportSchema = widgetImportBaseSchema.superRefine(
-  (widget, ctx) => {
-    if (widget.chartConfig.type !== widget.chartType) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["chartConfig", "type"],
-        message: "chartConfig.type must match chartType",
-      });
-    }
-    if (
-      widget.$langfuseWidget === true &&
-      (widget.version ?? 1) > WIDGET_FILE_FORMAT_VERSION
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["version"],
-        message: `Unsupported widget format version ${widget.version}`,
-      });
-    }
-  },
-);
+const widgetImportSchema = widgetImportBaseSchema.superRefine((widget, ctx) => {
+  if (widget.chartConfig.type !== widget.chartType) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["chartConfig", "type"],
+      message: "chartConfig.type must match chartType",
+    });
+  }
+  if (
+    widget.$langfuseWidget === true &&
+    (widget.version ?? 1) > WIDGET_FILE_FORMAT_VERSION
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["version"],
+      message: `Unsupported widget format version ${widget.version}`,
+    });
+  }
+});
 
 export type WidgetImport = z.infer<typeof widgetImportSchema>;
 

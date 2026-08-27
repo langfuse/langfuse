@@ -211,13 +211,4 @@ const OverviewPanelSection = React.forwardRef<
 ));
 OverviewPanelSection.displayName = "OverviewPanelSection";
 
-export {
-  OverviewPanelToggle,
-  OverviewPanelLayout,
-  
-  
-  
-  
-  
-  
-};
+export { OverviewPanelToggle, OverviewPanelLayout };

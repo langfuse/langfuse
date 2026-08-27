@@ -673,4 +673,3 @@ export function getChartTooltipFormat(
 }
 
 // Re-export fillTimeSeriesGaps from its own module
-;

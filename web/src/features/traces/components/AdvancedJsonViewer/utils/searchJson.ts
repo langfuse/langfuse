@@ -145,10 +145,7 @@ function findMatchesInString(
  * @param rows - All flattened rows
  * @returns Array of path strings to expand
  */
-function getPathsToExpand(
-  match: SearchMatch,
-  rows: FlatJSONRow[],
-): string[] {
+function getPathsToExpand(match: SearchMatch, rows: FlatJSONRow[]): string[] {
   const row = rows[match.rowIndex];
   if (!row) return [];
 
@@ -214,10 +211,7 @@ function expandToMatch(
 /**
  * Get the next match index (circular)
  */
-function getNextMatchIndex(
-  currentIndex: number,
-  totalMatches: number,
-): number {
+function getNextMatchIndex(currentIndex: number, totalMatches: number): number {
   if (totalMatches === 0) return 0;
   return (currentIndex + 1) % totalMatches;
 }
@@ -248,9 +242,7 @@ function filterVisibleMatches(
  * Group matches by row
  * Useful for showing "3 matches in this row" indicators
  */
-function groupMatchesByRow(
-  matches: SearchMatch[],
-): Map<string, SearchMatch[]> {
+function groupMatchesByRow(matches: SearchMatch[]): Map<string, SearchMatch[]> {
   const grouped = new Map<string, SearchMatch[]>();
 
   matches.forEach((match) => {
@@ -500,10 +492,7 @@ export function searchInTree(
  * @param match - Search match to reveal
  * @returns Updated tree state
  */
-function expandToMatch_Tree(
-  tree: TreeState,
-  match: SearchMatch,
-): TreeState {
+function expandToMatch_Tree(tree: TreeState, match: SearchMatch): TreeState {
   // Get node from match
   const node = tree.nodeMap.get(match.rowId);
   if (!node) return tree;

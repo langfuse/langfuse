@@ -12,8 +12,7 @@ type StringOperator = (typeof filterOperators)["string"][number];
 export type FtsStringOperator = StringOperator | FtsMatchOperator;
 export type FtsAcceleratedStringOperator = "=" | FtsMatchOperator;
 
-const FTS_MATCH_TOKEN_ERROR =
-  "`matches` requires at least one search token.";
+const FTS_MATCH_TOKEN_ERROR = "`matches` requires at least one search token.";
 const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
@@ -95,10 +94,7 @@ const ftsTokenPrefilterPredicate = (
 ): string =>
   `hasAllTokens(${fieldExpr}, ${ftsSearchTokenPrefilterExpr(valueParam, normalizeValue)})`;
 
-const ftsTextTokenPredicate = (
-  fieldExpr: string,
-  valueParam: string,
-): string =>
+const ftsTextTokenPredicate = (fieldExpr: string, valueParam: string): string =>
   ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
 
 export const ftsTextTokenConjunct = (
@@ -113,10 +109,8 @@ const ftsTextIndexedSubstringCondition = (
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-const ftsMetadataArrayHas = (
-  arrayExpr: string,
-  valueParam: string,
-): string => `has(${arrayExpr}, ${valueParam})`;
+const ftsMetadataArrayHas = (arrayExpr: string, valueParam: string): string =>
+  `has(${arrayExpr}, ${valueParam})`;
 
 const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,

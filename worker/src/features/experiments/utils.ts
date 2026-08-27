@@ -51,10 +51,7 @@ export const parseDatasetItemInput = (
   }
 };
 
-const fetchDatasetRun = async (
-  datasetRunId: string,
-  projectId: string,
-) => {
+const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
   return await prisma.datasetRuns.findFirst({
     where: {
       id: datasetRunId,

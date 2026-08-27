@@ -236,4 +236,3 @@ export function useChatMLParser(
 }
 
 // Re-export for use in ChatMessage
-;

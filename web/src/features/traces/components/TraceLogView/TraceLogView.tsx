@@ -66,8 +66,6 @@ const {
 } = TRACE_VIEW_CONFIG.logView;
 
 // Re-export thresholds for use in parent components
-;
-
 export const TraceLogView = ({
   traceId,
   projectId,

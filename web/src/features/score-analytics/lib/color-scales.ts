@@ -103,10 +103,7 @@ export function getContrastColor(oklchColor: string): "black" | "white" {
  * @param chromaMultiplier - How much to multiply chroma by (default: 2.5)
  * @returns OKLCH color string with increased chroma
  */
-function getHoverColor(
-  oklchColor: string,
-  chromaMultiplier = 2.5,
-): string {
+function getHoverColor(oklchColor: string, chromaMultiplier = 2.5): string {
   // Parse OKLCH color
   const match = oklchColor.match(
     /oklch\((\d+\.?\d*)%\s+(\d+\.?\d*)\s+(\d+\.?\d*)\)/,

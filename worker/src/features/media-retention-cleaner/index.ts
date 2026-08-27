@@ -14,8 +14,7 @@ import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.media_retention_cleaner";
 
-const MEDIA_RETENTION_CLEANER_LOCK_KEY =
-  "langfuse:media-retention-cleaner";
+const MEDIA_RETENTION_CLEANER_LOCK_KEY = "langfuse:media-retention-cleaner";
 
 /**
  * MediaRetentionCleaner handles periodic deletion of media files and blob storage

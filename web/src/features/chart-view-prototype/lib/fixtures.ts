@@ -114,9 +114,7 @@ export interface GenerateOptions {
   errorSpike?: boolean;
 }
 
-function generateEvents(
-  options: GenerateOptions = {},
-): PrototypeEvent[] {
+function generateEvents(options: GenerateOptions = {}): PrototypeEvent[] {
   const {
     seed = 42,
     count = 640,

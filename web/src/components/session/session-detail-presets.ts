@@ -91,10 +91,10 @@ export const SESSION_DETAIL_SYSTEM_PRESETS: SessionDetailSystemPreset[] = [
   },
 ];
 
-const SESSION_DETAIL_LLM_CALL_PRESETS =
-  SESSION_DETAIL_SYSTEM_PRESETS.filter((preset) =>
+const SESSION_DETAIL_LLM_CALL_PRESETS = SESSION_DETAIL_SYSTEM_PRESETS.filter(
+  (preset) =>
     preset.filters.some((filter) => filter.type === "positionInTrace"),
-  );
+);
 
 /**
  * The default view: "All observations with I/O". Shows the real session out of
@@ -102,8 +102,7 @@ const SESSION_DETAIL_LLM_CALL_PRESETS =
  * old "first generation" default that rendered empty cards for agentic sessions
  * with no GENERATION (LFE-10520).
  */
-const getSessionDetailDefaultPreset = () =>
-  SESSION_DETAIL_SYSTEM_PRESETS[0];
+const getSessionDetailDefaultPreset = () => SESSION_DETAIL_SYSTEM_PRESETS[0];
 
 /**
  * Which system preset to auto-apply on load. A selected system preset (deep

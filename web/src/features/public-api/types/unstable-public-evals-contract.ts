@@ -16,11 +16,7 @@ import {
 } from "@langfuse/shared";
 import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
-export {
-  
-  
-  UnstablePublicApiErrorResponse,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+export { UnstablePublicApiErrorResponse } from "@/src/features/public-api/shared/unstable-public-api-error-schema";
 import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
@@ -31,10 +27,7 @@ export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
   PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
-const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
-  "PYTHON",
-  "TYPESCRIPT",
-]);
+const PublicCodeEvaluatorSourceCodeLanguage = z.enum(["PYTHON", "TYPESCRIPT"]);
 
 export const PublicEvaluatorModelConfig = z.object({
   provider: z.string().min(1),

@@ -28,8 +28,6 @@ import { NEEDS_QUOTES, quote, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
 // dependency-free `quoting.ts` (so `fields.ts` can use them too).
-;
-
 export type Diagnostic = {
   from: number;
   to: number;

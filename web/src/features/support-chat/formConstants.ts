@@ -74,10 +74,7 @@ export const isEnterpriseSupportPlan = (plan?: string): boolean =>
  * field is omitted from the issue instead of defaulting to Sev-3. See
  * `mapToPylonCaseSeverity`.
  */
-const NO_CASE_SEVERITY_SUPPORT_PLANS = [
-  "cloud:hobby",
-  "cloud:core",
-] as const;
+const NO_CASE_SEVERITY_SUPPORT_PLANS = ["cloud:hobby", "cloud:core"] as const;
 
 /** Whether support requests from the given plan carry no case severity. */
 export const isPlanWithoutCaseSeverity = (plan?: string): boolean =>

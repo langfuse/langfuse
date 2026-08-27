@@ -6,7 +6,7 @@ import {
   MediaFileExtension,
 } from "@langfuse/shared";
 
-export { MediaContentType,  };
+export { MediaContentType };
 
 export enum MediaEnabledFields {
   Input = "input",

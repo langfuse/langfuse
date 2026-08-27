@@ -14,8 +14,7 @@ const LEGACY_TRACING_TABLE_NAMES = new Set<BatchTableNames>([
 const isLegacyTracingIoSearchDisabled = () =>
   env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH === "true";
 
-const hasSearchQuery = (searchQuery?: string | null) =>
-  Boolean(searchQuery);
+const hasSearchQuery = (searchQuery?: string | null) => Boolean(searchQuery);
 
 const isLegacyTracingTableName = (tableName: BatchTableNames) =>
   LEGACY_TRACING_TABLE_NAMES.has(tableName);

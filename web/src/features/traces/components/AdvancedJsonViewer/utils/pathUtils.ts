@@ -157,10 +157,7 @@ function comparePaths(a: string, b: string): number {
  * Get child paths of a parent path from a list of paths
  * Only returns direct children, not descendants
  */
-function getChildPaths(
-  parentPath: string,
-  allPaths: string[],
-): string[] {
+function getChildPaths(parentPath: string, allPaths: string[]): string[] {
   return allPaths.filter((path) => isDirectChild(parentPath, path));
 }
 

@@ -84,9 +84,7 @@ export const mcpEvalOutputDefinition = {
  * Verifies that a response follows the MCP content block format.
  * MCP tools return { content: [{ type: "text", text: "..." }] }
  */
-function verifyMcpResponseFormat(
-  response: unknown,
-): asserts response is {
+function verifyMcpResponseFormat(response: unknown): asserts response is {
   content: Array<{ type: "text"; text: string }>;
 } {
   if (!response || typeof response !== "object") {

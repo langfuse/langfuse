@@ -110,9 +110,8 @@ export const getV4MigrationSdkState = (params: {
 
 // Recognized Langfuse SDK traffic stays in the SDK bucket even when it uses
 // OTLP; raw/third-party OTel is classified separately by SQL.
-const isOtelExporterSeries = (
-  series: V4MigrationSdkUsageSeries,
-): boolean => series.remediationType === "update_otel_instrumentation";
+const isOtelExporterSeries = (series: V4MigrationSdkUsageSeries): boolean =>
+  series.remediationType === "update_otel_instrumentation";
 
 // Action sections contain only SQL-classified required rows. Successful rows
 // are shown separately in the detected-instrumentation section.

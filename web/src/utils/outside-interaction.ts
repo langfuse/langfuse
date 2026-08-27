@@ -1,5 +1,4 @@
-const IGNORE_OUTSIDE_INTERACTION_ATTRIBUTE =
-  "data-ignore-outside-interaction";
+const IGNORE_OUTSIDE_INTERACTION_ATTRIBUTE = "data-ignore-outside-interaction";
 
 const IGNORE_OUTSIDE_INTERACTION_SELECTOR = `[${IGNORE_OUTSIDE_INTERACTION_ATTRIBUTE}]`;
 
