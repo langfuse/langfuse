@@ -234,6 +234,11 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  // Optional opt-out for split-role workers. Unset follows
+  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips this surface.
+  QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .optional(),
   // The ambient host profile takes precedence over the agent-specific default
   // so local developer credentials win when both are configured.
   AWS_PROFILE: z.string().optional(),
@@ -646,6 +651,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  // Optional opt-out for split-role workers. Unset follows
+  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips this surface.
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .optional(),
   // Default 15 minutes. Do not go below the heartbeat-stale window (60s) or a
   // live worker can lose the race. Faster also adds no resolution: every
   // deadline this runner reports against is 5 minutes or longer.

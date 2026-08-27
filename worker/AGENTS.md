@@ -70,9 +70,12 @@
   sandbox providers.
 - Worker env owns queue concurrency, sandbox configuration, and the
   development-only in-app-agent AWS profile. Enablement is
-  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()` (queue
-  consumer, DLQ retry, and integrity runner). Shared lifecycle policy values
-  are fixed constants, so web and worker cannot diverge.
+  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+  `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
+  `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
+  worker out of the queue consumer (and nested DLQ retry) or integrity runner.
+  Shared lifecycle policy values are fixed constants, so web and worker cannot
+  diverge.
 - Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
   handling, and the seeded system prompt remain explicit shared subpaths.
 
