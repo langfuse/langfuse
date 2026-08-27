@@ -5,9 +5,8 @@ import { useCallback } from "react";
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 // resource:action, only use snake_case
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const events = {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -212,6 +211,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -395,6 +396,7 @@ export const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
+    "facet_fold_toggled",
     "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",

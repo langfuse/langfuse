@@ -61,7 +61,7 @@ export interface ChunkedBackfillState<T extends BaseChunkTodo> {
 // Helpers
 // ============================================================================
 
-export function generateQueryId(chunkId: string): string {
+function generateQueryId(chunkId: string): string {
   return `backfill-${chunkId}-${randomUUID().slice(0, 8)}`;
 }
 
@@ -244,7 +244,7 @@ export interface FireQueryOptions {
  * system.processes, then aborts the HTTP connection so the query continues
  * server-side and we poll for completion via pollQueryStatus.
  */
-export async function fireQuery({
+async function fireQuery({
   query,
   queryId,
   params,
@@ -357,7 +357,7 @@ export async function fireQuery({
  * Returns the subset that ClickHouse still reports as running so the caller
  * can keep tracking them.
  */
-export async function recoverInProgressTodos<T extends BaseChunkTodo>(
+async function recoverInProgressTodos<T extends BaseChunkTodo>(
   todos: T[],
   logPrefix = "[Backfill]",
 ): Promise<T[]> {

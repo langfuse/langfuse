@@ -71,6 +71,5 @@ export {
   McpScoreConfigNameSchema,
   McpScoreConfigNumericMaxValueSchema,
   McpScoreConfigNumericMinValueSchema,
-  normalizeMcpScoreConfigInput,
   preprocessMcpScoreConfigInput,
 };

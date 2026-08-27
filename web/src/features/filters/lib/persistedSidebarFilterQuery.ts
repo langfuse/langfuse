@@ -35,7 +35,7 @@ export function createPersistedSidebarFilterQueryState(
   return { contextId, query };
 }
 
-export function parsePersistedSidebarFilterQueryState(
+function parsePersistedSidebarFilterQueryState(
   rawState: string | null,
 ): PersistedSidebarFilterQueryState | null {
   if (!rawState) return null;

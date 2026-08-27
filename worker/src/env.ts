@@ -234,16 +234,14 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Opt-in because only workers provisioned for agent execution should consume
-  // durable runs; ingestion-only workers must leave this disabled.
+  // Optional opt-outs for split-role workers. Unset follows
+  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
-  // Reconciles stale runs that nobody reopened. Off by default: one elected
-  // worker per region is enough.
+    .optional(),
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .optional(),
   // The ambient host profile takes precedence over the agent-specific default
   // so local developer credentials win when both are configured.
   AWS_PROFILE: z.string().optional(),
@@ -688,7 +686,7 @@ export const v4WritesToLegacyTables = (envValue: ParsedEnv): boolean =>
 export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR === "direct";
 
-export const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
+const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
 const validateV4Flags = (parsed: ParsedEnv): void => {

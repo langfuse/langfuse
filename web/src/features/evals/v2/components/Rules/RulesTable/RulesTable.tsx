@@ -65,6 +65,8 @@ import {
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
+import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -274,18 +276,21 @@ export function RulesTable({
           />
         ),
       },
-      {
-        accessorKey: "totalCost",
+      createNumberTableColumn<RuleTableRow>({
+        accessorFn: (row) => costs.data?.[row.id],
         id: "totalCost",
         header: "Total cost (7d)",
         size: 140,
         enableHiding: true,
-        cell: ({ row }) => {
-          if (costs.isPending) return <Skeleton className="h-4 w-16" />;
-          const cost = costs.data?.[row.original.id];
-          return cost == null ? "—" : usdFormatter(cost, 2, 4);
+        emptyValue: "—",
+        formatter: (value) => usdFormatter(value, 2, 4),
+        getValue: (value) => {
+          if (costs.isPending) return { type: "loading" };
+          if (value === null || value === undefined) return undefined;
+
+          return value;
         },
-      },
+      }),
       {
         accessorKey: "executionTraces",
         id: "executionTraces",
@@ -344,24 +349,14 @@ export function RulesTable({
         enableHiding: true,
         cell: ({ row }) => `${Math.round(row.original.sampling * 100)}%`,
       },
-      {
+      createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
-        id: "createdByUser",
         header: "Created by",
         size: 180,
         enableHiding: true,
-        cell: ({ row }) => {
-          const creator =
-            row.original.createdByUser?.name ??
-            row.original.createdByUser?.email ??
-            "API";
-          return (
-            <span className="block truncate" title={creator}>
-              {creator}
-            </span>
-          );
-        },
-      },
+        variant: "text",
+        emptyValue: "API",
+      }),
       {
         accessorKey: "createdAt",
         id: "createdAt",

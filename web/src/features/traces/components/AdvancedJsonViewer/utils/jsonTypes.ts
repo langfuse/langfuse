@@ -39,23 +39,6 @@ export function isExpandable(value: unknown): boolean {
 }
 
 /**
- * Get the number of children for expandable values
- */
-export function getChildCount(value: unknown): number {
-  const type = getJSONType(value);
-
-  if (type === "array") {
-    return (value as unknown[]).length;
-  }
-
-  if (type === "object") {
-    return Object.keys(value as Record<string, unknown>).length;
-  }
-
-  return 0;
-}
-
-/**
  * Format a value as a preview string (for collapsed rows)
  */
 export function formatValuePreview(value: unknown, maxLength = 50): string {
@@ -104,44 +87,6 @@ export function formatValuePreview(value: unknown, maxLength = 50): string {
 }
 
 /**
- * Get a short type label for display
- */
-export function getTypeLabel(type: JSONType): string {
-  switch (type) {
-    case "array":
-      return "[]";
-    case "object":
-      return "{}";
-    case "string":
-      return "str";
-    case "number":
-      return "num";
-    case "boolean":
-      return "bool";
-    case "null":
-      return "null";
-    case "undefined":
-      return "undef";
-    default:
-      return type;
-  }
-}
-
-/**
- * Check if a value is a primitive (not object or array)
- */
-export function isPrimitive(value: unknown): boolean {
-  const type = getJSONType(value);
-  return (
-    type === "string" ||
-    type === "number" ||
-    type === "boolean" ||
-    type === "null" ||
-    type === "undefined"
-  );
-}
-
-/**
  * Get children of an expandable value as [key, value] pairs
  */
 export function getChildren(value: unknown): [string | number, unknown][] {
@@ -169,21 +114,6 @@ export function isArrayIndex(key: string | number): boolean {
   return (
     !isNaN(num) && num >= 0 && Number.isInteger(num) && String(num) === key
   );
-}
-
-/**
- * Format a string value for display (handle escaping, newlines, etc.)
- */
-export function formatStringValue(value: string, truncate?: number): string {
-  let formatted = value;
-
-  // Truncate if needed
-  if (truncate && formatted.length > truncate) {
-    formatted = formatted.slice(0, truncate) + "...";
-  }
-
-  // Don't escape - let the browser handle display
-  return formatted;
 }
 
 /**

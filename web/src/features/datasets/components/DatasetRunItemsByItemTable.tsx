@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
@@ -144,30 +144,35 @@ export function DatasetRunItemsByItemTable(props: {
         />
       ),
     },
-    {
+    createLinkTableColumn<
+      DatasetRunItemByItemRowData,
+      DatasetRunItemByItemRowData["trace"]
+    >({
       accessorKey: "trace",
       header: "Trace",
-      id: "trace",
       size: 60,
-      cell: ({ row }) => {
-        const trace: DatasetRunItemByItemRowData["trace"] =
-          row.getValue("trace");
-        if (!trace) return null;
-        return trace.observationId ? (
-          <TableLink
-            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`}
-            value={`Trace: ${trace.traceId}, Observation: ${trace.observationId}`}
-            icon={<ListTree className="h-4 w-4" />}
-          />
-        ) : (
-          <TableLink
-            path={`/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}`}
-            value={`Trace: ${trace.traceId}`}
-            icon={<ListTree className="h-4 w-4" />}
-          />
-        );
+      getCell: (trace) => {
+        if (!trace) return undefined;
+        if (trace.observationId) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}?observation=${encodeURIComponent(trace.observationId)}`,
+              value: `Trace: ${trace.traceId}, Observation: ${trace.observationId}`,
+              icon: ListTree,
+            },
+          };
+        }
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/traces/${encodeURIComponent(trace.traceId)}`,
+            value: `Trace: ${trace.traceId}`,
+            icon: ListTree,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "latency",
       header: "Latency",

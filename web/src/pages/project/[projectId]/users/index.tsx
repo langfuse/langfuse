@@ -11,7 +11,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -290,7 +290,7 @@ const UsersTable = ({
   }, [users.isSuccess, users.data]);
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData>({
       accessorKey: "userId",
       enableColumnFilter: true,
       header: "User ID",
@@ -300,18 +300,18 @@ const UsersTable = ({
         href: "https://langfuse.com/docs/observability/features/users",
       },
       size: 150,
-      cell: ({ row }) => {
-        const value: RowData["userId"] = row.getValue("userId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
+    }),
     createBadgeTableColumn<RowData>({
       accessorKey: "environment",
       header: "Environment",
