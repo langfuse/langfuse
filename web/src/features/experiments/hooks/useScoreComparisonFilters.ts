@@ -24,17 +24,29 @@ import {
  * One filter per score column: picking an operator on a column replaces that
  * column's filter instead of stacking a second one.
  */
+const NO_FILTERS: string[] = [];
+
 export const useScoreComparisonFilters = () => {
   const [state, setState] = useQueryParams({
-    scoreCompare: withDefault(ArrayParam, []),
+    scoreCompare: withDefault(ArrayParam, NO_FILTERS),
   });
+
+  // Keyed on the encoded filters rather than the array `use-query-params` hands
+  // back, whose identity changes on every render and would make every consumer
+  // of `filters` — the filtered rows above all — churn with it.
+  const encoded = (
+    (state.scoreCompare as (string | null)[] | undefined) ?? NO_FILTERS
+  )
+    .filter(Boolean)
+    .join("|");
 
   const filters = useMemo(
     () =>
-      ((state.scoreCompare as (string | null)[] | undefined) ?? [])
+      encoded
+        .split("|")
         .map(decodeScoreComparisonFilter)
         .filter(Boolean) as ScoreComparisonFilter[],
-    [state.scoreCompare],
+    [encoded],
   );
 
   const write = useCallback(
