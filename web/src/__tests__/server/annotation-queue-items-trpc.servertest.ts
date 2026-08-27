@@ -1,6 +1,9 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { AnnotationQueueObjectType } from "@langfuse/shared";
+import {
+  AnnotationQueueObjectType,
+  AnnotationQueueStatus,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
@@ -121,6 +124,72 @@ describe("annotationQueueItems trpc", () => {
           itemId: item.id,
         }),
       ).rejects.toThrow("User does not have access to this resource or action");
+    });
+  });
+
+  describe("navigationById", () => {
+    it("returns adjacent completed queue items in queue order", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+
+      const { caller } = createCallerForProjectRole(setup);
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Completed Queue",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+      const [firstItem, secondItem] = await Promise.all([
+        prisma.annotationQueueItem.create({
+          data: {
+            queueId: queue.id,
+            objectId: uuidv4(),
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId: setup.project.id,
+            status: AnnotationQueueStatus.COMPLETED,
+            completedAt: new Date(),
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          },
+        }),
+        prisma.annotationQueueItem.create({
+          data: {
+            queueId: queue.id,
+            objectId: uuidv4(),
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId: setup.project.id,
+            status: AnnotationQueueStatus.COMPLETED,
+            completedAt: new Date(),
+            createdAt: new Date("2026-01-02T00:00:00.000Z"),
+          },
+        }),
+      ]);
+
+      await expect(
+        caller.annotationQueueItems.navigationById({
+          projectId: setup.project.id,
+          queueId: queue.id,
+          itemId: firstItem.id,
+        }),
+      ).resolves.toEqual({
+        previousItemId: null,
+        nextItemId: secondItem.id,
+        position: 1,
+        totalItems: 2,
+      });
+
+      await expect(
+        caller.annotationQueueItems.navigationById({
+          projectId: setup.project.id,
+          queueId: queue.id,
+          itemId: secondItem.id,
+        }),
+      ).resolves.toEqual({
+        previousItemId: firstItem.id,
+        nextItemId: null,
+        position: 2,
+        totalItems: 2,
+      });
     });
   });
 });
