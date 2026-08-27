@@ -60,6 +60,7 @@ import { Job } from "bullmq";
 import {
   handleBlobStorageIntegrationProjectJob,
   BLOB_STORAGE_LAG_BUFFER_MS,
+  BLOB_STORAGE_REMAINDER_COALESCE_MS,
 } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
@@ -1602,6 +1603,86 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         updatedIntegration.nextSyncAt.getTime() - now.getTime(),
       );
       expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
+    });
+
+    it("should coalesce a sub-second remainder instead of emitting a colliding chunk", async () => {
+      // Regression for the silent object-key collision: a caught-up run whose
+      // full-interval chunk ends only a sub-second before the frontier used to
+      // re-enqueue a tiny remainder chunk. Both keys truncate to the same
+      // wall-clock second, so the remainder overwrote the full window. Position
+      // lastSyncAt so the interval-capped maxTimestamp lands just below the
+      // frontier (remainder < BLOB_STORAGE_REMAINDER_COALESCE_MS): the run must
+      // be treated as caught up (schedule one interval out), not re-enqueued.
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const frequencyIntervalMs = 60 * 60 * 1000; // hourly
+      // gap = frontier - (minTimestamp + interval). Kept tiny (well under the
+      // coalesce threshold) so it stays below threshold even after the handler's
+      // own `now` advances a few ms past the test's.
+      const gapMs = 50;
+      const lastSyncAt = new Date(
+        now.getTime() -
+          BLOB_STORAGE_LAG_BUFFER_MS -
+          frequencyIntervalMs -
+          gapMs,
+      );
+
+      // A trace inside the full window so a real chunk is exported.
+      const trace = createTrace({
+        project_id: projectId,
+        timestamp: lastSyncAt.getTime() + frequencyIntervalMs / 2,
+        name: "Windowed Trace",
+      });
+      await createTracesCh([trace]);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          lastSyncAt,
+          compressed: false,
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.nextSyncAt || !updatedIntegration?.lastSyncAt) {
+        expect.fail("nextSyncAt and lastSyncAt should be set");
+      }
+
+      // Caught up: nextSyncAt is one interval past the exported boundary, far in
+      // the future — not the near-`now` value a catch-up re-enqueue would set.
+      expect(
+        updatedIntegration.nextSyncAt.getTime() - now.getTime(),
+      ).toBeGreaterThan(frequencyIntervalMs / 2);
+
+      // lastSyncAt advances only to the interval-capped boundary; the sub-second
+      // tail up to the frontier is deferred to the next scheduled run.
+      const frontier = now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS;
+      expect(updatedIntegration.lastSyncAt.getTime()).toBeLessThan(frontier);
+      expect(frontier - updatedIntegration.lastSyncAt.getTime()).toBeLessThan(
+        BLOB_STORAGE_REMAINDER_COALESCE_MS + 2000, // + handler-clock drift tolerance
+      );
     });
 
     it("should schedule normally when caught up", async () => {
