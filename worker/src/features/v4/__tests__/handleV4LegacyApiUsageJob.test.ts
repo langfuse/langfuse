@@ -113,8 +113,8 @@ const loggedError = (message: string) =>
 // 10:30 UTC: a regular run (the deep re-scan happens at 03:xx UTC only).
 const TEST_NOW = new Date("2026-06-25T10:30:00Z");
 const CURRENT_HOUR_ISO = "2026-06-25T10:00:00Z";
-// floor(now - 14d) to the hour.
-const COVERAGE_START_CLICKHOUSE = "2026-06-11 10:00:00.000";
+// floor(now - 3d) to the hour.
+const COVERAGE_START_CLICKHOUSE = "2026-06-22 10:00:00.000";
 
 const usageRow = (overrides: {
   hourStart?: string;
@@ -155,7 +155,7 @@ const emptyBucket = () =>
 const seedCoverageBuckets = (skipHourIsos: string[] = []) => {
   const skip = new Set(skipHourIsos.map((iso) => Date.parse(iso)));
   for (const hourStartMs of listV4LegacyApiHourStarts(
-    Date.parse("2026-06-11T10:00:00Z"),
+    Date.parse("2026-06-22T10:00:00Z"),
     Date.parse(CURRENT_HOUR_ISO),
   )) {
     if (skip.has(hourStartMs)) continue;
@@ -189,7 +189,7 @@ describe("handleV4LegacyApiUsageJob", () => {
     vi.clearAllMocks();
   });
 
-  it("cold start: scans the full 14-day window once and materializes buckets, rollups, cursor, and heartbeat", async () => {
+  it("cold start: scans the full 3-day window once and materializes buckets, rollups, cursor, and heartbeat", async () => {
     const rows = [
       usageRow({}),
       usageRow({
@@ -219,8 +219,8 @@ describe("handleV4LegacyApiUsageJob", () => {
       "toStartOfHour(event_time, 'UTC')",
     );
 
-    // One bucket per hour in the window, empty ones included: 14*24 + 1.
-    expect(bucketKeyCount()).toBe(337);
+    // One bucket per hour in the window, empty ones included: 3*24 + 1.
+    expect(bucketKeyCount()).toBe(73);
     expect(
       readJson(v4LegacyApiHourBucketKey(Date.parse("2026-06-25T09:00:00Z"))),
     ).toMatchObject({
@@ -278,11 +278,11 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(redisState.store.has(V4_LEGACY_API_USAGE_LOCK_KEY)).toBe(false);
 
     expect(loggedInfo("Running v4 legacy API usage job")).toMatchObject({
-      scanStart: "2026-06-11T10:00:00Z",
-      hours: 337,
+      scanStart: "2026-06-22T10:00:00Z",
+      hours: 73,
       coldStart: true,
       repairedHole: false,
-      missingBucketCount: 337,
+      missingBucketCount: 73,
       clickhouseServices: ["ReadWrite", "ReadOnly"],
     });
     expect(
@@ -296,7 +296,7 @@ describe("handleV4LegacyApiUsageJob", () => {
       experimentPostRowCount: 1,
     });
     expect(loggedInfo("Completed v4 legacy API usage job")).toMatchObject({
-      scannedHours: 337,
+      scannedHours: 73,
       nonEmptyBuckets: 2,
       projectsWithLegacyApiUsage: 1,
       projectsWithExperimentPostUsage: 1,

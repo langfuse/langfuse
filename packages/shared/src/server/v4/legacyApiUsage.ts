@@ -36,15 +36,15 @@ import { z } from "zod/v4";
 const HOUR_MS = 60 * 60 * 1000;
 
 /** Detection window served to the UI; must match the web-side window. */
-export const V4_LEGACY_API_USAGE_WINDOW_MS = 14 * 24 * HOUR_MS;
+export const V4_LEGACY_API_USAGE_WINDOW_MS = 3 * 24 * HOUR_MS;
 
 /** GC horizon for hour buckets: window plus one day of slack. */
-export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 15 * 24 * 60 * 60;
+export const V4_LEGACY_API_HOUR_BUCKET_TTL_SECONDS = 4 * 24 * 60 * 60;
 
 /**
  * Redis TTL for an hour bucket keyed by that hour's start, not by write time.
- * A hole-repaired bucket from 10 days ago must expire in ~5 days (horizon
- * minus age), not live another full 15 days from the repair write.
+ * A hole-repaired bucket from two days ago must expire in ~2 days (horizon
+ * minus age), not live another full 4 days from the repair write.
  */
 export const v4LegacyApiHourBucketTtlSeconds = (
   hourStartMs: number,
