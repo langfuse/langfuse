@@ -1,7 +1,7 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { type SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
-export type V4MigrationSdkStatus =
+type V4MigrationSdkStatus =
   | "checking"
   | "error"
   | "no_data"

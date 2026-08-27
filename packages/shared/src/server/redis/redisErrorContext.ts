@@ -5,7 +5,7 @@
  * tried, on `lastNodeError`.
  */
 
-export type RedisFailureMode =
+type RedisFailureMode =
   | "timeout"
   | "connection-refused"
   | "connection-reset"

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { type ParsedUrlQuery } from "querystring";
 
-export type TabDefinition = {
+type TabDefinition = {
   value: string;
   label: string;
   href?: string;

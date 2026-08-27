@@ -62,7 +62,7 @@ export type LayoutNode = {
   children: LayoutNode[];
 };
 
-export type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
+type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
   node: TNode;
   depth: number;
   treeLines: boolean[];
@@ -71,7 +71,7 @@ export type TimelineRow<TNode extends LayoutNode = LayoutNode> = {
   isCollapsed: boolean;
 };
 
-export type LabelPlacement = "inside" | "after" | "before" | "hidden";
+type LabelPlacement = "inside" | "after" | "before" | "hidden";
 
 export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
   /** The input node, carried through so callers keep their own richer type. */
@@ -110,7 +110,7 @@ export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
 
 export type Tick = { realMs: number; x: number; label: string };
 
-export type GapMarker = {
+type GapMarker = {
   x: number;
   width: number;
   durationMs: number;

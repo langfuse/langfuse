@@ -147,7 +147,7 @@ function computeNumericRange(
   return [minValue, maxValue];
 }
 
-export interface BaseUIFilter {
+interface BaseUIFilter {
   column: string;
   label: string;
   tooltip?: string;
@@ -259,7 +259,7 @@ export type {
   StringKeyValueFilterEntry,
 } from "../lib/sidebar-filter-actions";
 
-export interface KeyValueUIFilter extends BaseUIFilter {
+interface KeyValueUIFilter extends BaseUIFilter {
   type: "keyValue";
   value: KeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
@@ -268,7 +268,7 @@ export interface KeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: KeyValueFilterEntry[]) => void;
 }
 
-export interface NumericKeyValueUIFilter extends BaseUIFilter {
+interface NumericKeyValueUIFilter extends BaseUIFilter {
   type: "numericKeyValue";
   value: NumericKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
@@ -276,7 +276,7 @@ export interface NumericKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
 }
 
-export interface BooleanKeyValueUIFilter extends BaseUIFilter {
+interface BooleanKeyValueUIFilter extends BaseUIFilter {
   type: "booleanKeyValue";
   value: BooleanKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];

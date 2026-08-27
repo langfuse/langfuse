@@ -770,13 +770,10 @@ export const adminProcedure = withOtelTracingProcedure
 
 // Export context types for easier reuse
 // Base context from createTRPCContext
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 // After `enforceUserIsAuthed`: session & user are non-null
 export type AuthedSession = NonNullable<TRPCContext["session"]> & {
   user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
-};
-export type AuthedContext = Omit<TRPCContext, "session"> & {
-  session: AuthedSession;
 };
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {
