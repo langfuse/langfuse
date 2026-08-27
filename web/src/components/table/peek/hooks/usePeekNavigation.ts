@@ -5,7 +5,6 @@ import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const PEEK_PARAM = "peek";
 // View-mode param shared with the peek component (cleared whenever the peek closes).
@@ -13,9 +12,9 @@ const PEEK_VIEW_PARAM = "peekView";
 
 interface BasePeekConfig {
   /** Analytics table identity for peek:* events. Forward from the owning table. */
-  tableName?: string;
-  /** Surface dimension at the moment of the action. Prefer this over the global v4 flag. */
-  isV4?: boolean;
+  tableName: string;
+  /** Surface dimension at the moment of the action. Do not derive from the global v4 flag. */
+  isV4: boolean;
   /** Additional URL parameters to clear when closing peek view and persist when expanding peek view */
   queryParams?: string[];
   /**
@@ -60,6 +59,9 @@ interface BasePeekNavigation {
   closePeek: () => void;
   /** Resolve the navigation path for a detail entry */
   resolveDetailNavigationPath: (entry: ListEntry) => string;
+  /** Analytics dimensions forwarded onto TablePeekView expand/resize events. */
+  tableName: string;
+  isV4: boolean;
 }
 
 interface PeekNavigation extends BasePeekNavigation {}
@@ -77,18 +79,16 @@ interface PeekNavigationWithExpand extends BasePeekNavigation {
 export function usePeekNavigation(
   config: PeekConfigWithExpand,
 ): PeekNavigationWithExpand;
-export function usePeekNavigation(config?: PeekConfig): PeekNavigation;
-export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
+export function usePeekNavigation(config: PeekConfig): PeekNavigation;
+export function usePeekNavigation(config: PeekConfig | PeekConfigWithExpand) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4Beta } = useV4Beta();
   // Every peek is opened/closed through this hook, so open/close/new-tab
   // analytics live here once instead of in each consuming table. Props are
   // metadata-only: `routePattern` is the Next.js route PATTERN
   // (`/project/[projectId]/traces`), never a concrete URL with ids.
   const routePattern = router.pathname;
-  const isV4 = config?.isV4 ?? isV4Beta;
-  const tableName = config?.tableName ?? "unknown";
+  const { isV4, tableName } = config;
 
   const openPeek = useCallback(
     (id?: string, row?: any) => {
@@ -263,6 +263,8 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
     openPeek,
     closePeek,
     resolveDetailNavigationPath,
+    tableName,
+    isV4,
   };
 
   if (config?.expandConfig) {

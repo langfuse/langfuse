@@ -439,6 +439,8 @@ export const SessionPage: React.FC<{
       // traceId: not written here, but cleared so a v4-dialect shared URL
       // cannot pin the trace peek (LFE-11041).
       queryParams: ["observation", "display", "timestamp", "traceId"],
+      tableName: "sessions",
+      isV4: false,
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
@@ -825,6 +827,8 @@ export const SessionPage: React.FC<{
           closePeek={closePeek}
           expandPeek={expandPeek}
           resolveDetailNavigationPath={resolveDetailNavigationPath}
+          tableName="sessions"
+          isV4={false}
           projectId={projectId}
         />
       </Page>
@@ -1013,6 +1017,8 @@ const LoadedSessionEventsPage: React.FC<{
       // traceId: not written here, but cleared so a v4-dialect shared URL
       // cannot pin the trace peek (LFE-11041).
       queryParams: ["observation", "display", "timestamp", "traceId"],
+      tableName: "session-events",
+      isV4: true,
       // observationId: set by a card's "Open in trace view" on a truncated
       // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
@@ -1939,6 +1945,8 @@ const LoadedSessionEventsPage: React.FC<{
           closePeek={closePeek}
           expandPeek={expandPeek}
           resolveDetailNavigationPath={resolveDetailNavigationPath}
+          tableName="session-events"
+          isV4={true}
           projectId={projectId}
         />
       </Page>
