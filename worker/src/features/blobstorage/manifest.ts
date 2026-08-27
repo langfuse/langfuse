@@ -24,8 +24,9 @@ export type BlobExportManifest = {
   projectId: string;
   exportSource: string;
   /**
-   * Export window, both bounds inclusive — a row at exactly maxTimestamp also
-   * falls into the next run's window.
+   * Export window, half-open `[minTimestamp, maxTimestamp)` — the lower bound is
+   * inclusive and the upper bound is exclusive, so a row at exactly maxTimestamp
+   * belongs to the next run's window only (exported exactly once at the seam).
    */
   window: { minTimestamp: string; maxTimestamp: string };
   /** Equals window.maxTimestamp; also the manifest key stem. */
