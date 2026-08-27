@@ -13,7 +13,7 @@ describe("Gemini normalized I/O", () => {
     geminiSystemInstructionWithGenericMessagesFixture,
     geminiMediaAndCodeExecutionFixture,
   ])("$name", ({ spanIO, expected }) => {
-      expect(normalizeSpanIO(spanIO)).toEqual({
+    expect(normalizeSpanIO(spanIO)).toEqual({
       ...expected,
       span: spanIO,
     });
