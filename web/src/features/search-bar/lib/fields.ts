@@ -21,8 +21,8 @@ import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
 
-export type FieldKind = "text" | "number" | "datetime" | "boolean";
-export type SyncMode = "exactOption" | "arrayOption" | "textSearch";
+type FieldKind = "text" | "number" | "datetime" | "boolean";
+type SyncMode = "exactOption" | "arrayOption" | "textSearch";
 
 export type FieldDef = {
   /** Canonical field id; also the filter `column` sent to the API. */

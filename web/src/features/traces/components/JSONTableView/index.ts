@@ -18,9 +18,4 @@
  */
 
 export { JSONTableView } from "./JSONTableView";
-export type {
-  JSONTableViewProps,
-  JSONTableViewColumn,
-  JSONTableViewRowProps,
-  JSONTableViewHeaderProps,
-} from "./json-table-view-types";
+export type { JSONTableViewColumn } from "./json-table-view-types";

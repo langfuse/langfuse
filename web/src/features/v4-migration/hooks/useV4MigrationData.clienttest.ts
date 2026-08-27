@@ -3,6 +3,7 @@ import { vi } from "vitest";
 
 import {
   useAccountV4MigrationData,
+  useProjectV4MigrationData,
   useProjectV4MigrationActions,
 } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 
@@ -11,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   traceLevelEvalSummaryByProject: vi.fn(),
   legacyApiUsageSummaryByProject: vi.fn(),
   sdkUsageSummaryByProject: vi.fn(),
+  summaryUseQuery: vi.fn(),
+  traceLevelEvalSummaryUseQuery: vi.fn(),
+  legacyApiUsageSummaryUseQuery: vi.fn(),
+  sdkUsageSummaryUseQuery: vi.fn(),
   migrationActionsUseQuery: vi.fn(),
   queryResultSets: [] as unknown[][],
 }));
@@ -38,12 +43,31 @@ vi.mock("@/src/utils/api", () => ({
       return mocks.queryResultSets.shift() ?? [];
     },
     v4Transition: {
+      summary: {
+        useQuery: (...args: unknown[]) => mocks.summaryUseQuery(...args),
+      },
+      traceLevelEvalSummary: {
+        useQuery: (...args: unknown[]) =>
+          mocks.traceLevelEvalSummaryUseQuery(...args),
+      },
+      legacyApiUsageSummary: {
+        useQuery: (...args: unknown[]) =>
+          mocks.legacyApiUsageSummaryUseQuery(...args),
+      },
+      sdkUsageSummary: {
+        useQuery: (...args: unknown[]) =>
+          mocks.sdkUsageSummaryUseQuery(...args),
+      },
       migrationActions: {
         useQuery: (...args: unknown[]) =>
           mocks.migrationActionsUseQuery(...args),
       },
     },
   },
+}));
+
+vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
+  useForceV3Experience: () => false,
 }));
 
 const loadedQuery = <T>(data: T) => ({
@@ -200,6 +224,97 @@ describe("account v4 migration data", () => {
     expect(result.current.get("project-1")).toMatchObject({
       forceV3Experience: true,
     });
+  });
+
+  it("excludes agent-only deprecated API usage from organization readiness", () => {
+    const apiResultSet = mocks.queryResultSets[3] as [
+      { data: Array<Record<string, unknown>> },
+    ];
+    apiResultSet[0].data = [
+      {
+        projectId: "project-1",
+        entrypoint: "publicapi: GET /api/public/traces",
+        count: 4,
+        lastSeen: "2026-07-23T10:00:00Z",
+        callers: [
+          {
+            userAgent: "codex-cli/1.2.3",
+            count: 4,
+            lastSeen: "2026-07-23T10:00:00Z",
+          },
+        ],
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useAccountV4MigrationData({
+        organizations: [
+          {
+            id: "org-1",
+            name: "Organization",
+            projects: [{ id: "project-1", name: "Project" }],
+          },
+        ],
+        enabled: true,
+      }),
+    );
+
+    expect(result.current.get("project-1")?.apis).toEqual({
+      status: "loaded",
+      count: 0,
+    });
+  });
+});
+
+describe("project v4 migration data", () => {
+  beforeEach(() => {
+    mocks.sdkUsageSummaryUseQuery.mockReturnValue(
+      loadedQuery({
+        experimentInstrumentationMigration: {
+          status: "not_required" as const,
+          upgradePath: null,
+        },
+        sdkUsageSeries: [currentSdkSeries],
+      }),
+    );
+    mocks.traceLevelEvalSummaryUseQuery.mockReturnValue(
+      loadedQuery({ traceLevelEvalCount: 0 }),
+    );
+    mocks.legacyApiUsageSummaryUseQuery.mockReturnValue(
+      loadedQuery([
+        {
+          entrypoint: "publicapi: GET /api/public/traces",
+          count: 4,
+          lastSeen: "2026-07-23T10:00:00Z",
+          callers: [
+            {
+              userAgent: "Claude Code/1.0",
+              count: 4,
+              lastSeen: "2026-07-23T10:00:00Z",
+            },
+          ],
+        },
+      ]),
+    );
+    mocks.summaryUseQuery.mockReturnValue(
+      loadedQuery({
+        legacyIntegrationCount: 0,
+        legacyIntegrations: {
+          posthog: false,
+          mixpanel: false,
+          blobStorage: false,
+        },
+      }),
+    );
+  });
+
+  it("excludes agent-only API usage from readiness but preserves its evidence", () => {
+    const { result } = renderHook(() =>
+      useProjectV4MigrationData({ projectId: "project-1", enabled: true }),
+    );
+
+    expect(result.current.apis).toEqual({ status: "loaded", count: 0 });
+    expect(result.current.apiUsage).toHaveLength(1);
   });
 });
 

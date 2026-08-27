@@ -159,7 +159,7 @@ export type InAppAgentPendingToolApproval = {
   runId?: string;
 };
 
-export type InAppAiAgentConversation = {
+type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;

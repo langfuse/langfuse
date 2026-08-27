@@ -60,8 +60,6 @@ export const webhookSchema = z.object({
   ),
 });
 
-export type WebhookFormValues = z.infer<typeof webhookSchema>;
-
 interface WebhookActionFormProps {
   form: UseFormReturn<any>;
   disabled: boolean;

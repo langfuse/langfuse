@@ -315,30 +315,8 @@ export const StableEvaluationRuleFilter = createTargetFilterSchema(
   STABLE_EVALUATION_RULE_FILTER_COLUMNS,
 );
 
-export type PublicEvaluatorModelConfigType = z.infer<
-  typeof _PublicEvaluatorModelConfig
->;
 export type PublicEvaluatorOutputDefinitionType = z.infer<
   typeof PublicEvaluatorOutputDefinition
->;
-export type PublicEvaluatorTypeType = z.infer<typeof PublicEvaluatorType>;
-export type PublicEvaluationRuleTargetType = z.infer<
-  typeof PublicEvaluationRuleTarget
->;
-export type PublicEvaluationRuleLegacyTargetType = z.infer<
-  typeof PublicEvaluationRuleLegacyTarget
->;
-export type PublicEvaluationRuleReadTargetType = z.infer<
-  typeof _PublicEvaluationRuleReadTarget
->;
-export type PublicEvaluationRuleStatusType = z.infer<
-  typeof _PublicEvaluationRuleStatus
->;
-export type PublicEvaluationRuleEvaluatorReferenceType = z.infer<
-  typeof PublicEvaluationRuleEvaluatorReference
->;
-export type PublicEvaluationRuleEvaluatorType = z.infer<
-  typeof _PublicEvaluationRuleEvaluator
 >;
 export type PromptVariableMappingInputType = z.infer<
   typeof PromptVariableMappingInput
@@ -346,15 +324,6 @@ export type PromptVariableMappingInputType = z.infer<
 export type PromptVariableMappingReadType = z.infer<
   typeof PromptVariableMappingRead
 >;
-export type ObservationPromptVariableMappingInputType = z.infer<
-  typeof ObservationPromptVariableMappingInput
->;
 export type LegacyPromptVariableMappingType = z.infer<
   typeof LegacyPromptVariableMapping
->;
-export type PublicEvaluationRuleFilterType = z.infer<
-  typeof _PublicEvaluationRuleFilter
->;
-export type PublicCodeEvaluatorSourceCodeLanguageType = z.infer<
-  typeof PublicCodeEvaluatorSourceCodeLanguage
 >;
