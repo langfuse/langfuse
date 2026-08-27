@@ -2,25 +2,28 @@ import { describe, expect, it } from "vitest";
 
 import { compileClickhouseQuery } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { mapKeys, mapValues, withArrayJoin, withLimitBy } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
 import { defineView, fromView } from "./views";
 
 // Raw compiler output (no `clickhouse format` binary needed), so these run
 // unconditionally in CI. The raw SQL is lowercase; match case-insensitively.
 const ctx = { projectId: "p" };
 
-const arrayJoinItems = [
-  { expression: mapKeys("cost_details"), as: "cost_key" },
-  { expression: mapValues("cost_details"), as: "cost" },
-];
+const costArrayJoin = () =>
+  arrayJoin({
+    cost_key: mapKeys("cost_details"),
+    cost: mapValues("cost_details"),
+  });
+
+const dedup = () => limitBy({ count: 1, columns: ["span_id", "project_id"] });
 
 describe("ARRAY JOIN composition across nesting positions", () => {
   it("emits ARRAY JOIN at the top level (baseline)", () => {
     const db = getClickhouseKysely();
-    const qb = withArrayJoin(
-      db.selectFrom("observations").select("environment"),
-      arrayJoinItems,
-    );
+    const qb = db
+      .selectFrom("observations")
+      .select("environment")
+      .$call(costArrayJoin());
 
     const { sql } = compileClickhouseQuery(qb, ctx);
     expect(sql).toMatch(/array join/i);
@@ -32,10 +35,10 @@ describe("ARRAY JOIN composition across nesting positions", () => {
     const db = getClickhouseKysely();
     const qb = db
       .with("aj", (qb) =>
-        withArrayJoin(
-          qb.selectFrom("observations").select("environment"),
-          arrayJoinItems,
-        ),
+        qb
+          .selectFrom("observations")
+          .select("environment")
+          .$call(costArrayJoin()),
       )
       .selectFrom("aj")
       .select("environment");
@@ -51,10 +54,11 @@ describe("ARRAY JOIN composition across nesting positions", () => {
     const db = getClickhouseKysely();
     const qb = db
       .selectFrom(
-        withArrayJoin(
-          db.selectFrom("observations").select("environment"),
-          arrayJoinItems,
-        ).as("sub"),
+        db
+          .selectFrom("observations")
+          .select("environment")
+          .$call(costArrayJoin())
+          .as("sub"),
       )
       .select("environment");
 
@@ -66,10 +70,10 @@ describe("ARRAY JOIN composition across nesting positions", () => {
   it("keeps ARRAY JOIN when applied inside a virtual-view body", () => {
     const db = getClickhouseKysely();
     const view = defineView("aj_view")<{ environment: string }>(() =>
-      withArrayJoin(
-        db.selectFrom("observations").select("environment"),
-        arrayJoinItems,
-      ),
+      db
+        .selectFrom("observations")
+        .select("environment")
+        .$call(costArrayJoin()),
     );
 
     const qb = fromView(view).select("environment");
@@ -85,13 +89,11 @@ describe("ARRAY JOIN composition across nesting positions", () => {
 describe("LIMIT BY composition across nesting positions", () => {
   it("emits LIMIT BY at the top level (baseline)", () => {
     const db = getClickhouseKysely();
-    const qb = withLimitBy(
-      db
-        .selectFrom("events_core")
-        .select(["span_id", "project_id"])
-        .orderBy("event_ts", "desc"),
-      { count: 1, columns: ["span_id", "project_id"] },
-    );
+    const qb = db
+      .selectFrom("events_core")
+      .select(["span_id", "project_id"])
+      .orderBy("event_ts", "desc")
+      .$call(dedup());
 
     const { sql } = compileClickhouseQuery(qb, ctx);
     expect(sql).toMatch(/limit 1 by/i);
@@ -101,13 +103,11 @@ describe("LIMIT BY composition across nesting positions", () => {
     const db = getClickhouseKysely();
     const qb = db
       .with("lb", (qb) =>
-        withLimitBy(
-          qb
-            .selectFrom("events_core")
-            .select(["span_id", "project_id"])
-            .orderBy("event_ts", "desc"),
-          { count: 1, columns: ["span_id", "project_id"] },
-        ),
+        qb
+          .selectFrom("events_core")
+          .select(["span_id", "project_id"])
+          .orderBy("event_ts", "desc")
+          .$call(dedup()),
       )
       .selectFrom("lb")
       .select("span_id");

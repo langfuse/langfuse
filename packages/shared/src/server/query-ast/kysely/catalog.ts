@@ -1,6 +1,6 @@
 import type { ClickhouseCompilable } from "./compile";
 import { getClickhouseKysely } from "./dialect";
-import { mapKeys, mapValues, withArrayJoin, withLimitBy } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
 
 export type CatalogTier = 0 | 1 | 2 | 3 | 4;
 
@@ -164,10 +164,15 @@ export const CATALOG: CatalogEntry[] = [
       WHERE project_id = {p1:String}
     `,
     build: () =>
-      withArrayJoin(db().selectFrom("observations").select("environment"), [
-        { expression: mapKeys("cost_details"), as: "cost_key" },
-        { expression: mapValues("cost_details"), as: "cost" },
-      ]),
+      db()
+        .selectFrom("observations")
+        .select("environment")
+        .$call(
+          arrayJoin({
+            cost_key: mapKeys("cost_details"),
+            cost: mapValues("cost_details"),
+          }),
+        ),
   },
   {
     id: "limit_by_dedup",
@@ -180,13 +185,11 @@ export const CATALOG: CatalogEntry[] = [
       LIMIT 1 BY span_id, project_id
     `,
     build: () =>
-      withLimitBy(
-        db()
-          .selectFrom("events_core")
-          .select(["span_id", "project_id"])
-          .orderBy("event_ts", "desc"),
-        { count: 1, columns: ["span_id", "project_id"] },
-      ),
+      db()
+        .selectFrom("events_core")
+        .select(["span_id", "project_id"])
+        .orderBy("event_ts", "desc")
+        .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] })),
   },
   {
     id: "window_rank",

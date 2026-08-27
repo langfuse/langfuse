@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { COLUMN_DATA_TYPES, TENANTED_TABLES } from "./schema";
-import { condition7TypeAssertions } from "./types.assert";
+import {
+  condition7TypeAssertions,
+  extensionTypeAssertions,
+} from "./types.assert";
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
@@ -28,5 +31,6 @@ describe("table registry derivation", () => {
   // anchors the file so its `@ts-expect-error` checks stay in the build graph.
   it("keeps the compile-time type assertions in the build graph", () => {
     expect(typeof condition7TypeAssertions).toBe("function");
+    expect(typeof extensionTypeAssertions).toBe("function");
   });
 });

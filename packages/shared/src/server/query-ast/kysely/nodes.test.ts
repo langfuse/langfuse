@@ -5,7 +5,7 @@ import { compileClickhouseQuery } from "./compile";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { getClickhouseKysely } from "./dialect";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { mapKeys, mapValues, withArrayJoin, withLimitBy } from "./extensions";
+import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
 import {
   ArrayJoinNode,
   LimitByNode,
@@ -178,16 +178,16 @@ describe("tenancy injection", () => {
 
 describe("ARRAY JOIN and LIMIT BY nodes", () => {
   it("attaches a real ArrayJoinNode, not a RawNode", () => {
-    const qb = withArrayJoin(
-      getClickhouseKysely()
-        .selectFrom("observations")
-        .select("environment")
-        .where("project_id", "=", "proj-1"),
-      [
-        { expression: mapKeys("cost_details"), as: "cost_key" },
-        { expression: mapValues("cost_details"), as: "cost" },
-      ],
-    );
+    const qb = getClickhouseKysely()
+      .selectFrom("observations")
+      .select("environment")
+      .where("project_id", "=", "proj-1")
+      .$call(
+        arrayJoin({
+          cost_key: mapKeys("cost_details"),
+          cost: mapValues("cost_details"),
+        }),
+      );
 
     const node = qb
       .withPlugin(new TenancyInjectionPlugin(ctx))
@@ -195,22 +195,20 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
     expect(isClickHouseSelectQueryNode(node)).toBe(true);
     if (!isClickHouseSelectQueryNode(node)) return;
     expect(node.arrayJoins).toHaveLength(1);
-    const arrayJoin = node.arrayJoins![0];
-    expect(ArrayJoinNode.is(arrayJoin)).toBe(true);
-    expect(arrayJoin.items).toHaveLength(2);
-    expect(arrayJoin.items[0].expression.kind).toBe("FunctionNode");
-    expect(arrayJoin.items[0].alias.kind).toBe("IdentifierNode");
+    const arrayJoinNode = node.arrayJoins![0];
+    expect(ArrayJoinNode.is(arrayJoinNode)).toBe(true);
+    expect(arrayJoinNode.items).toHaveLength(2);
+    expect(arrayJoinNode.items[0].expression.kind).toBe("FunctionNode");
+    expect(arrayJoinNode.items[0].alias.kind).toBe("IdentifierNode");
     expect(JSON.stringify(node)).not.toMatch(/"kind":"RawNode"/);
   });
 
   it("emits ARRAY JOIN from the node, not a string splice", () => {
-    const qb = withArrayJoin(
-      getClickhouseKysely()
-        .selectFrom("observations")
-        .select("environment")
-        .where("project_id", "=", "proj-1"),
-      [{ expression: mapKeys("cost_details"), as: "cost_key" }],
-    );
+    const qb = getClickhouseKysely()
+      .selectFrom("observations")
+      .select("environment")
+      .where("project_id", "=", "proj-1")
+      .$call(arrayJoin({ cost_key: mapKeys("cost_details") }));
 
     const { sql: compiled } = compileClickhouseQuery(qb, ctx);
     expect(compiled.toLowerCase()).toContain("array join");
@@ -220,13 +218,11 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   });
 
   it("attaches a real LimitByNode", () => {
-    const qb = withLimitBy(
-      getClickhouseKysely()
-        .selectFrom("events_core")
-        .select("span_id")
-        .where("project_id", "=", "proj-1"),
-      { count: 1, columns: ["span_id", "project_id"] },
-    );
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("span_id")
+      .where("project_id", "=", "proj-1")
+      .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
 
     const node = qb
       .withPlugin(new TenancyInjectionPlugin(ctx))
@@ -240,14 +236,12 @@ describe("ARRAY JOIN and LIMIT BY nodes", () => {
   });
 
   it("emits LIMIT BY before a plain LIMIT", () => {
-    const qb = withLimitBy(
-      getClickhouseKysely()
-        .selectFrom("events_core")
-        .select("span_id")
-        .where("project_id", "=", "proj-1")
-        .limit(50),
-      { count: 1, columns: ["span_id"] },
-    );
+    const qb = getClickhouseKysely()
+      .selectFrom("events_core")
+      .select("span_id")
+      .where("project_id", "=", "proj-1")
+      .limit(50)
+      .$call(limitBy({ count: 1, columns: ["span_id"] }));
 
     const { sql: compiled } = compileClickhouseQuery(qb, ctx);
     const lower = compiled.toLowerCase();

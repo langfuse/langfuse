@@ -6,6 +6,7 @@ import {
   ReferenceNode,
   TableNode,
   ValueNode,
+  type Expression,
   type KyselyPlugin,
   type OperationNode,
   type PluginTransformQueryArgs,
@@ -36,7 +37,7 @@ function toNode(source: OperationNodeSource): OperationNode {
   return source as OperationNode;
 }
 
-export type ArrayJoinItem = {
+type ArrayJoinItem = {
   expression: OperationNodeSource;
   as: string;
 };
@@ -54,7 +55,7 @@ class ArrayJoinPlugin implements KyselyPlugin {
     const node = transformer.transformNode(
       args.node,
     ) as ClickHouseSelectQueryNode;
-    const arrayJoin = ArrayJoinNode.create(
+    const arrayJoinNode = ArrayJoinNode.create(
       this.items.map((item) => ({
         expression: toNode(item.expression),
         alias: IdentifierNode.create(item.as),
@@ -63,7 +64,7 @@ class ArrayJoinPlugin implements KyselyPlugin {
     );
     return {
       ...node,
-      arrayJoins: [...(node.arrayJoins ?? []), arrayJoin],
+      arrayJoins: [...(node.arrayJoins ?? []), arrayJoinNode],
     } as RootOperationNode;
   }
 
@@ -72,7 +73,7 @@ class ArrayJoinPlugin implements KyselyPlugin {
   }
 }
 
-export type LimitBySpec = {
+type LimitBySpec = {
   count: number;
   columns: ReadonlyArray<string>;
 };
@@ -112,12 +113,22 @@ function columnRef(name: string): OperationNode {
   return ColumnNode.create(name);
 }
 
-export function mapKeys(column: string): OperationNode {
-  return FunctionNode.create("mapKeys", [columnRef(column)]);
+function arrayFunction<T>(fn: string, column: string): Expression<T[]> {
+  return new ExpressionWrapper<
+    ClickHouseDatabase,
+    keyof ClickHouseDatabase,
+    T[]
+  >(FunctionNode.create(fn, [columnRef(column)]) as unknown as OperationNode);
 }
 
-export function mapValues(column: string): OperationNode {
-  return FunctionNode.create("mapValues", [columnRef(column)]);
+/** `mapKeys(map)` as a typed array expression (element type defaults to string). */
+export function mapKeys<K = string>(column: string): Expression<K[]> {
+  return arrayFunction<K>("mapKeys", column);
+}
+
+/** `mapValues(map)` as a typed array expression (element type defaults to string). */
+export function mapValues<V = string>(column: string): Expression<V[]> {
+  return arrayFunction<V>("mapValues", column);
 }
 
 /**
@@ -139,17 +150,50 @@ export function metadataValue(
   );
 }
 
-export function withArrayJoin<DB, TB extends keyof DB, O>(
-  qb: SelectQueryBuilder<DB, TB, O>,
-  items: ReadonlyArray<ArrayJoinItem>,
-  variant: ArrayJoinVariant = "default",
-): SelectQueryBuilder<DB, TB, O> {
-  return qb.withPlugin(new ArrayJoinPlugin(items, variant));
+type ElementOf<E> =
+  E extends Expression<infer A>
+    ? A extends ReadonlyArray<infer T>
+      ? T
+      : never
+    : never;
+
+/**
+ * ARRAY JOIN clause as a `$call` step: `qb.$call(arrayJoin({ alias: expr }))`.
+ * Each entry's alias is added to the builder's output row type, so consumers of
+ * the result (e.g. an outer query selecting from a CTE body) can reference the
+ * produced columns and typos on the alias name are compile errors. The element
+ * value type is opaque (Kysely's Expression hides its type arg), so aliases
+ * surface as `unknown`. The alias must still be projected in a `select` to
+ * appear in the emitted SQL. Distinct from the `arrayJoin()` SELECT function.
+ */
+export function arrayJoin<
+  Items extends { [K in keyof Items]: Expression<ReadonlyArray<unknown>> },
+>(items: Items, variant: ArrayJoinVariant = "default") {
+  const list: ArrayJoinItem[] = Object.entries(items).map(
+    ([as, expression]) => ({
+      expression: expression as OperationNodeSource,
+      as,
+    }),
+  );
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<
+    DB,
+    TB,
+    O & { [K in keyof Items]: ElementOf<Items[K]> }
+  > =>
+    qb.withPlugin(
+      new ArrayJoinPlugin(list, variant),
+    ) as unknown as SelectQueryBuilder<
+      DB,
+      TB,
+      O & { [K in keyof Items]: ElementOf<Items[K]> }
+    >;
 }
 
-export function withLimitBy<DB, TB extends keyof DB, O>(
-  qb: SelectQueryBuilder<DB, TB, O>,
-  spec: LimitBySpec,
-): SelectQueryBuilder<DB, TB, O> {
-  return qb.withPlugin(new LimitByPlugin(spec));
+/** LIMIT BY clause as a `$call` step: `qb.$call(limitBy({ count, columns }))`. */
+export function limitBy(spec: LimitBySpec) {
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new LimitByPlugin(spec));
 }

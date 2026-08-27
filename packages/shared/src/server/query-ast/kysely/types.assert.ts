@@ -1,4 +1,7 @@
+import { type InferResult } from "kysely";
+
 import { getClickhouseKysely } from "./dialect";
+import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
 import { defineView, fromView } from "./views";
 
 /**
@@ -42,4 +45,43 @@ export function condition7TypeAssertions(): void {
   fromView(view)
     // @ts-expect-error view is a black box: inner columns are not exposed
     .select("span_id");
+}
+
+/**
+ * Compile-time assertions that the `$call` extension helpers infer correctly:
+ * `arrayJoin` widens the output row type with each declared alias, and `limitBy`
+ * preserves it. `tsc` is the test.
+ */
+export function extensionTypeAssertions(): void {
+  const db = getClickhouseKysely();
+
+  const _widened = db
+    .selectFrom("observations")
+    .select("environment")
+    .$call(
+      arrayJoin({
+        cost_key: mapKeys("cost_details"),
+        cost: mapValues("cost_details"),
+      }),
+    );
+  type Widened = InferResult<typeof _widened>[number];
+  // Each arrayJoin alias is added to the output row, so it is referenceable
+  // downstream (e.g. an outer query over a CTE body) and a typo on the alias
+  // name is a compile error (indexing an absent key fails). The element value
+  // type is opaque — Kysely's Expression hides its type arg from inference —
+  // so it surfaces as unknown.
+  type _Key = Widened["cost_key"];
+  type _Cost = Widened["cost"];
+  // @ts-expect-error an alias the arrayJoin did not declare is absent
+  type _Missing = Widened["not_joined"];
+
+  // limitBy preserves the row type: it declares no new columns.
+  const _limited = db
+    .selectFrom("events_core")
+    .select("span_id")
+    .$call(limitBy({ count: 1, columns: ["span_id"] }));
+  type Limited = InferResult<typeof _limited>[number];
+  type _Span = Limited["span_id"];
+  // @ts-expect-error limitBy adds no columns
+  type _NoExtra = Limited["cost_key"];
 }
