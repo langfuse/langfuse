@@ -337,16 +337,16 @@ export const aggregateV4LegacyApiHourBuckets = (
                 existing.lastSeen > row.lastSeen
                   ? existing.lastSeen
                   : row.lastSeen,
-              callers: mergeV4LegacyApiCallers([
-                ...(existing.callers ?? []),
-                ...callers,
-              ]),
+              callers: mergeV4LegacyApiCallers(
+                [...(existing.callers ?? []), ...callers],
+                { maxCallers: null },
+              ),
             }
           : {
               entrypoint: row.entrypoint,
               count: row.count,
               lastSeen: row.lastSeen,
-              callers: mergeV4LegacyApiCallers(callers),
+              callers: mergeV4LegacyApiCallers(callers, { maxCallers: null }),
             },
       );
       rowsByProjectAndEntrypoint.set(row.projectId, rowsByEntrypoint);
@@ -375,9 +375,12 @@ export const aggregateV4LegacyApiHourBuckets = (
   for (const [projectId, rowsByEntrypoint] of rowsByProjectAndEntrypoint) {
     apiRowsByProjectId.set(
       projectId,
-      Array.from(rowsByEntrypoint.values()).sort((left, right) =>
-        left.entrypoint.localeCompare(right.entrypoint),
-      ),
+      Array.from(rowsByEntrypoint.values())
+        .map((row) => ({
+          ...row,
+          callers: mergeV4LegacyApiCallers(row.callers ?? []),
+        }))
+        .sort((left, right) => left.entrypoint.localeCompare(right.entrypoint)),
     );
   }
 

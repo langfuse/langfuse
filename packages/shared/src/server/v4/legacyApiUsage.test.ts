@@ -90,6 +90,44 @@ describe("v4LegacyApiHourBucketTtlSeconds", () => {
 });
 
 describe("aggregateV4LegacyApiHourBuckets", () => {
+  it("applies the caller cap only after all hour buckets are merged", () => {
+    const rollup = aggregateV4LegacyApiHourBuckets(
+      Array.from({ length: 3 }, (_, hour) => ({
+        version: 1 as const,
+        computedAt: `2026-06-24T0${hour}:30:00.000Z`,
+        apiRows: [
+          {
+            projectId: "project-1",
+            entrypoint: "publicapi: GET /api/public/traces",
+            count: 209,
+            lastSeen: `2026-06-24T0${hour}:15:00.000Z`,
+            callers: [
+              ...Array.from({ length: 20 }, (_, index) => ({
+                userAgent: `hour-${hour}-caller-${index}`,
+                count: 10,
+                lastSeen: `2026-06-24T0${hour}:10:00.000Z`,
+              })),
+              {
+                userAgent: "steady-caller",
+                count: 9,
+                lastSeen: `2026-06-24T0${hour}:15:00.000Z`,
+              },
+            ],
+          },
+        ],
+        experimentPostRows: [],
+      })),
+    );
+
+    const callers = rollup.apiRowsByProjectId.get("project-1")?.[0]?.callers;
+    expect(callers).toHaveLength(MAX_V4_LEGACY_API_CALLERS_PER_ENDPOINT);
+    expect(callers).toContainEqual(
+      expect.objectContaining({ userAgent: "steady-caller", count: 27 }),
+    );
+    expect(callers?.filter((caller) => caller.isOther)).toHaveLength(1);
+    expect(callers?.reduce((sum, caller) => sum + caller.count, 0)).toBe(627);
+  });
+
   it("keeps one endpoint total while preserving attributed and historical callers", () => {
     const rollup = aggregateV4LegacyApiHourBuckets([
       {
