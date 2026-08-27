@@ -28,6 +28,16 @@
       "url": "https://mcp.linear.app/mcp"
     }
   },
+  "hooks": {
+    "preFileWrite": [
+      {
+        "name": "structure-path-guard",
+        "description": "Refuse a new file under web/src whose path would add a project-structure violation. Creation only, fails open, disabled by LANGFUSE_SKIP_STRUCTURE_HOOK.",
+        "script": "scripts/agents/hooks/structure-path-guard.mjs",
+        "timeoutSeconds": 10
+      }
+    ]
+  },
   "claude": {
     "settings": {
       "permissions": {
