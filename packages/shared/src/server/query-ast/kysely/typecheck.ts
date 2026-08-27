@@ -6,29 +6,11 @@ import {
 } from "kysely";
 
 import { TypeCompatibilityError } from "./errors";
+import { COLUMN_DATA_TYPES } from "./schema";
 
-/**
- * Physical column data types the runtime validation pass knows about.
- * Kysely already type-checks comparisons against the schema; `sum()` /
- * `avg()` do not constrain the argument column, so this pass catches those.
- */
-export type ColumnDataType = "string" | "number" | "date" | "array";
-
-export const COLUMN_DATA_TYPES: Record<string, ColumnDataType> = {
-  environment: "string",
-  project_id: "string",
-  timestamp: "date",
-  start_time: "date",
-  event_ts: "date",
-  id: "string",
-  trace_id: "string",
-  span_id: "string",
-  type: "string",
-  data_type: "string",
-  total_cost: "number",
-  metadata_names: "array",
-  metadata_values: "array",
-};
+// Kysely already type-checks comparisons against the schema; `sum()` / `avg()`
+// do not constrain the argument column, so this pass catches those. Column data
+// types come from the table registry in `schema.ts`.
 
 const NUMERIC_AGGREGATES = new Set(["sum", "avg"]);
 

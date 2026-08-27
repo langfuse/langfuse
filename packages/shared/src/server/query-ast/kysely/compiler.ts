@@ -67,6 +67,11 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   constructor() {
     super();
+    // FRAGILE: `ArrayIndexNode` is not one of Kysely's closed `OperationNode`
+    // kinds, so the default visitor dispatch cannot reach it. We wrap the
+    // private `visitNode` and push/pop the private `nodeStack` to route it to
+    // `visitArrayIndex`. This couples to Kysely internals and must be
+    // re-verified on any Kysely upgrade (pinned at 0.28.17).
     const parentVisit = this.visitNode.bind(this);
     (
       this as unknown as { visitNode: (node: OperationNode) => void }
