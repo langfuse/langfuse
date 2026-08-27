@@ -7,6 +7,7 @@ import {
 import type {
   CreateEvaluatorInput,
   EvaluatorDefinitionForPersistence,
+  EvaluatorListOrderBy,
 } from "./evaluatorTypes";
 import { EvaluatorVersionConflictError } from "./evaluatorErrors";
 import { setRuleStatus } from "../rules/ruleRepository";
@@ -249,14 +250,17 @@ export async function listEvaluators(params: {
   projectId: string;
   page: number;
   limit: number;
+  orderBy?: EvaluatorListOrderBy;
   search?: string;
   filter?: FilterState;
 }) {
   const where = await evaluatorWhere(params);
+  const orderColumn = params.orderBy?.column ?? "updatedAt";
+  const orderDirection = params.orderBy?.order.toLowerCase() ?? "desc";
   const [evaluators, totalItems, defaultModel] = await Promise.all([
     params.prisma.evaluator.findMany({
       where,
-      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      orderBy: [{ [orderColumn]: orderDirection }, { id: "desc" }],
       skip: (params.page - 1) * params.limit,
       take: params.limit,
       include: {

@@ -31,6 +31,12 @@ export const ListRulesSchema = z.object({
   projectId: z.string(),
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
+  orderBy: z
+    .object({
+      column: z.enum(["name", "enabled", "sampling", "createdAt", "updatedAt"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
   search: z.string().trim().max(200).optional(),
   enabled: z.boolean().optional(),
   targetObjects: z

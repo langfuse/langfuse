@@ -154,6 +154,12 @@ export const ListEvaluatorsSchema = z.object({
   projectId: z.string(),
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
+  orderBy: z
+    .object({
+      column: z.enum(["name", "type", "createdAt", "updatedAt"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
   search: z.string().trim().max(200).optional(),
   filter: EvaluatorListFilterSchema,
 });
@@ -189,3 +195,6 @@ export type EvaluatorDefinitionForPersistence =
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
 export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;
+export type EvaluatorListOrderBy = z.infer<
+  typeof ListEvaluatorsSchema
+>["orderBy"];
