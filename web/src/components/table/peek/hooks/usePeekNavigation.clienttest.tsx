@@ -3,19 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 
-const { mockPush, mockPathname } = vi.hoisted(() => ({
+const { mockPush, mockPathname, capture, isBetaEnabled } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockPathname: { value: "/project/[projectId]/traces" },
+  capture: vi.fn(),
+  isBetaEnabled: { value: false },
 }));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ push: mockPush, pathname: mockPathname.value }),
 }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => capture,
 }));
 vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => ({ isBetaEnabled: false }),
+  useV4Beta: () => ({ isBetaEnabled: isBetaEnabled.value }),
 }));
 
 // expandPeek builds the standalone-page path from `expandConfig.pathParam`.
@@ -33,6 +35,8 @@ describe("usePeekNavigation expandPeek", () => {
 
   beforeEach(() => {
     mockPush.mockReset();
+    capture.mockReset();
+    mockPathname.value = "/project/[projectId]/traces";
   });
 
   it("v4-dialect URL: expands to the traceId param, not the observation id in peek", () => {
@@ -106,5 +110,74 @@ describe("usePeekNavigation expandPeek", () => {
     const target = mockPush.mock.calls[0][0] as string;
     expect(target.startsWith("/project/p1/traces/trace-1?")).toBe(true);
     expect(target).toContain("timestamp=");
+  });
+});
+
+describe("usePeekNavigation analytics", () => {
+  beforeEach(() => {
+    mockPush.mockReset();
+    capture.mockReset();
+    isBetaEnabled.value = true;
+  });
+
+  it("captures peek:opened once with tableName and surface isV4", () => {
+    window.history.replaceState({}, "", "/project/p1/experiments/results");
+    mockPathname.value = "/project/[projectId]/experiments/results";
+
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        tableName: "experiment-items",
+        isV4: true,
+      }),
+    );
+    result.current.openPeek("item-1");
+
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith("peek:opened", {
+      routePattern: "/project/[projectId]/experiments/results",
+      wasOpen: false,
+      isV4: true,
+      tableName: "experiment-items",
+    });
+    expect(JSON.stringify(capture.mock.calls[0][1])).not.toMatch(/item-1/);
+  });
+
+  it("uses the config isV4 even when the global v4 flag is true (v3 traces)", () => {
+    window.history.replaceState({}, "", "/project/p1/traces");
+    mockPathname.value = "/project/[projectId]/traces";
+
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        tableName: "traces",
+        isV4: false,
+      }),
+    );
+    result.current.openPeek("trace-1");
+
+    expect(capture).toHaveBeenCalledWith("peek:opened", {
+      routePattern: "/project/[projectId]/traces",
+      wasOpen: false,
+      isV4: false,
+      tableName: "traces",
+    });
+  });
+
+  it("does not recapture when re-opening the same peeked row", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/experiments/results?peek=item-1",
+    );
+    mockPathname.value = "/project/[projectId]/experiments/results";
+
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        tableName: "experiment-items",
+        isV4: true,
+      }),
+    );
+    result.current.openPeek("item-1");
+
+    expect(capture).not.toHaveBeenCalled();
   });
 });

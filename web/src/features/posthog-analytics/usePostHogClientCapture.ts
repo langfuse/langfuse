@@ -283,6 +283,20 @@ const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
+  // never experiment or dataset names, score values, or item content.
+  // `isV4` + `tableName` on every event. `source` on comparison/baseline
+  // distinguishes picker vs table-selection vs url (deep link / redirect).
+  experiment: [
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "chart_metric_changed",
+    "charts_section_toggled",
+    "analytics_tab_opened",
+    "score_column_scope_toggled",
+    "item_regression_filter_applied",
+  ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No
   // props carry user content.

@@ -63,9 +63,13 @@ export function useRowHeightLocalStorage(
 export const DataTableRowHeightSwitch = ({
   rowHeight,
   setRowHeight,
+  tableName = "unknown",
+  isV4 = false,
 }: {
   rowHeight: RowHeight;
   setRowHeight: (e: RowHeight) => void;
+  tableName?: string;
+  isV4?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   return (
@@ -88,6 +92,8 @@ export const DataTableRowHeightSwitch = ({
                 e.preventDefault();
                 capture("table:row_height_switch_select", {
                   rowHeight: id,
+                  tableName,
+                  isV4,
                 });
                 setRowHeight(id);
               }}

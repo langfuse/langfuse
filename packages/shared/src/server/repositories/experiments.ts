@@ -1284,7 +1284,7 @@ export const getExperimentNamesFromEvents = async (props: {
     projectId: props.projectId,
     groupByColumn: "e.experiment_name",
     selectExpression:
-      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId",
+      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
     .limit(1000, 0);
@@ -1294,6 +1294,7 @@ export const getExperimentNamesFromEvents = async (props: {
   const res = await queryClickhouse<{
     experimentName: string;
     experimentId: string;
+    datasetId: string | null;
   }>({
     query,
     params,
