@@ -49,7 +49,7 @@ function normalizeOtelGenaiToolResult(
   );
 }
 
-export const OTEL_GENAI_FINISH_REASON_TYPE_BY_RAW: Record<
+const OTEL_GENAI_FINISH_REASON_TYPE_BY_RAW: Record<
   string,
   FinishReason["type"]
 > = {

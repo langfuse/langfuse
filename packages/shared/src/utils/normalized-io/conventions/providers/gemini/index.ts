@@ -39,10 +39,7 @@ import type {
 
 // Gemini `finishReason` vocabulary (reported uppercase; lookups are
 // lowercased) -> the canonical FinishReason set.
-export const GEMINI_FINISH_REASON_TYPE_BY_RAW: Record<
-  string,
-  FinishReason["type"]
-> = {
+const GEMINI_FINISH_REASON_TYPE_BY_RAW: Record<string, FinishReason["type"]> = {
   stop: "stop",
   max_tokens: "length",
   safety: "content-filter",
@@ -58,7 +55,7 @@ export const GEMINI_FINISH_REASON_TYPE_BY_RAW: Record<
  * Keyed-union parts without a `type` discriminator: Gemini's keyed parts in
  * both SDK casings, plus the legacy function_call/function_response wrappers.
  */
-export function normalizeGeminiPart(
+function normalizeGeminiPart(
   value: Record<string, unknown>,
   _context: PartHandlerContext,
 ): ConventionResult<NormalizedMessagePart> {

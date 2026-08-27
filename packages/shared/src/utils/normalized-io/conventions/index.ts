@@ -9,19 +9,7 @@ import { otelGenaiProvider } from "./providers/otel-genai";
 import { pydanticAiProvider } from "./providers/pydantic-ai";
 import { semanticKernelProvider } from "./providers/semantic-kernel";
 
-export type {
-  ConventionResult,
-  IOConvention,
-  MessageEnvelopeContext,
-  PartHandlerContext,
-  PartHandler,
-  MessageSource,
-  SiblingPartContribution,
-  SiblingPartSlot,
-  ToolDefinitionCarrier,
-  ToolDefinitionOptions,
-  ToolDefinitionSource,
-} from "./io-convention";
+export type { IOConvention } from "./io-convention";
 export { claimed, dropped, unmatched } from "./io-convention";
 
 /**

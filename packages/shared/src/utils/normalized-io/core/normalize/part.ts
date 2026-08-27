@@ -28,13 +28,12 @@ const rawToolCallKeys = new WeakMap<object, string>();
 // `image` and `file` are contested type names: Anthropic/AI-SDK and
 // OpenAI/AI-SDK register guarded handlers for them in their own conventions;
 // a handler returning `unmatched` falls through to the next provider.
-export const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> =
-  {
-    text: (value) => claimed(normalizeTextPart(value)),
-    input_text: (value) => claimed(normalizeTextPart(value)),
-    output_text: (value) => claimed(normalizeTextPart(value)),
-    reasoning: (value) => claimed(normalizeReasoningTextPart(value)),
-  };
+const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> = {
+  text: (value) => claimed(normalizeTextPart(value)),
+  input_text: (value) => claimed(normalizeTextPart(value)),
+  output_text: (value) => claimed(normalizeTextPart(value)),
+  reasoning: (value) => claimed(normalizeReasoningTextPart(value)),
+};
 
 function createPartContext(parserContext?: ParserContext): PartHandlerContext {
   return {

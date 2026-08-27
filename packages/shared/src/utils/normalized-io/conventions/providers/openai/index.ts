@@ -49,10 +49,7 @@ import type {
 
 // OpenAI Chat Completions `finish_reason` vocabulary -> the canonical
 // FinishReason set.
-export const OPENAI_FINISH_REASON_TYPE_BY_RAW: Record<
-  string,
-  FinishReason["type"]
-> = {
+const OPENAI_FINISH_REASON_TYPE_BY_RAW: Record<string, FinishReason["type"]> = {
   stop: "stop",
   length: "length",
   tool_calls: "tool-calls",

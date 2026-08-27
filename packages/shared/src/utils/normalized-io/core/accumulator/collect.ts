@@ -18,7 +18,7 @@ export type ParsedIOValue = {
   messages?: unknown[];
 };
 
-export type CollectContext =
+type CollectContext =
   | { kind: "io"; parserContext: ParserContext }
   | { kind: "metadata" };
 

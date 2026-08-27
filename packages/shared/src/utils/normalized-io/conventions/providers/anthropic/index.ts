@@ -35,7 +35,7 @@ import type {
  */
 
 // Anthropic `stop_reason` vocabulary -> the canonical FinishReason set.
-export const ANTHROPIC_FINISH_REASON_TYPE_BY_RAW: Record<
+const ANTHROPIC_FINISH_REASON_TYPE_BY_RAW: Record<
   string,
   FinishReason["type"]
 > = {

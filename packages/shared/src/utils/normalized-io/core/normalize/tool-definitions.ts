@@ -133,7 +133,7 @@ export function normalizeToolDefinitionValue(
 }
 
 /** Normalizes every located source and flattens the results in order. */
-export function normalizeToolDefinitionSources(
+function normalizeToolDefinitionSources(
   sources: ToolDefinitionSource[],
 ): ToolDefinition[] {
   return sources.flatMap((source) =>
