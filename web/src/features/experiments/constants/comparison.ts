@@ -13,3 +13,6 @@ export const UNNAMED_DATASET_LABEL = "Deleted dataset";
  */
 export const AUTO_SELECT_COMPARISON_STORAGE_KEY =
   "experiments-auto-select-comparison";
+
+/** Comparison chips rendered before the tail folds into a "+N" badge. */
+export const MAX_VISIBLE_COMPARISON_CHIPS = 3;

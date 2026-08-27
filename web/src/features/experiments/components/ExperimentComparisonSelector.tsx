@@ -2,11 +2,17 @@ import { useMemo, useState } from "react";
 import { Check, ChevronDown, ChevronRight, X } from "lucide-react";
 import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useExperimentNames";
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import {
   MAX_SELECTED_EXPERIMENTS,
+  MAX_VISIBLE_COMPARISON_CHIPS,
   NO_DATASET_KEY,
   NO_DATASET_LABEL,
   UNNAMED_DATASET_LABEL,
@@ -203,6 +209,16 @@ export function ExperimentComparisonSelector({
     [selectedIds, availableExperimentNames],
   );
 
+  // Past a few chips the row turns into a horizontal scroll nobody scrolls, so
+  // the tail collapses into one "+N" badge that names what it hides.
+  const hiddenSelectedOptions = useMemo(
+    () =>
+      selectedRows
+        .flatMap((row) => (row.kind === "option" ? [row.option] : []))
+        .slice(MAX_VISIBLE_COMPARISON_CHIPS),
+    [selectedRows],
+  );
+
   const handleItemsChange = (items: ComparisonRow[]) => {
     const newIds = items
       .flatMap((item) =>
@@ -332,18 +348,71 @@ export function ExperimentComparisonSelector({
             </button>
           );
         }}
-        renderSelectedItem={(row, onRemove) =>
-          row.kind === "option" ? (
+        renderSelectedItem={(row, onRemove) => {
+          if (row.kind !== "option") return null;
+
+          const { option } = row;
+          const position = selectedIds.indexOf(option.experimentId);
+
+          if (position >= MAX_VISIBLE_COMPARISON_CHIPS) {
+            // One badge stands in for the whole tail; the rest render nothing.
+            return position === MAX_VISIBLE_COMPARISON_CHIPS ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="secondary"
+                    className="shrink-0 px-2 py-0.5 text-xs"
+                  >
+                    +{hiddenSelectedOptions.length}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[280px]">
+                  {hiddenSelectedOptions.map((hidden) => (
+                    <p key={hidden.experimentId}>
+                      {hidden.experimentName}
+                      {hidden.startTime
+                        ? ` · ${formatRunRecency(hidden.startTime)}`
+                        : ""}
+                    </p>
+                  ))}
+                </TooltipContent>
+              </Tooltip>
+            ) : null;
+          }
+
+          // A comparison should never be on another dataset, but the URL can say
+          // anything, so name the dataset rather than leaving it unexplained.
+          const isOtherDataset =
+            baselineDatasetKey !== null &&
+            option.startTime !== null &&
+            datasetKeyOf(option) !== baselineDatasetKey;
+
+          const chipTitle = [
+            option.experimentName,
+            option.startTime
+              ? `Started ${option.startTime.toLocaleString()}`
+              : "This experiment is no longer available",
+            isOtherDataset ? `Dataset: ${datasetLabelOf(option)}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n");
+
+          return (
             <Badge
               variant="secondary"
-              className="flex items-center gap-1 px-2 py-0.5"
+              className="flex shrink-0 items-center gap-1 px-2 py-0.5"
             >
-              <span
-                className="max-w-24 truncate text-xs"
-                title={row.option.experimentName}
-              >
-                {row.option.experimentName}
+              <span className="max-w-48 truncate text-xs" title={chipTitle}>
+                {option.experimentName}
               </span>
+              {isOtherDataset && (
+                <span
+                  className="text-muted-foreground max-w-24 truncate text-[10px]"
+                  title={`Dataset: ${datasetLabelOf(option)}`}
+                >
+                  {datasetLabelOf(option)}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={(e) => {
@@ -351,12 +420,13 @@ export function ExperimentComparisonSelector({
                   onRemove();
                 }}
                 className="hover:bg-muted ml-0.5 rounded-full"
+                aria-label={`Remove ${option.experimentName}`}
               >
                 <X className="h-3 w-3" />
               </button>
             </Badge>
-          ) : null
-        }
+          );
+        }}
       />
     </div>
   );
