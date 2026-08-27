@@ -108,7 +108,7 @@ export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
   endMs: number;
 };
 
-export type Tick = { realMs: number; x: number; label: string };
+type Tick = { realMs: number; x: number; label: string };
 
 type GapMarker = {
   x: number;
