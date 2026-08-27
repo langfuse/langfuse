@@ -835,6 +835,7 @@ export default function ExperimentsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
+            mergeSettingsIntoPopover
             timeRange={showControlsInPageHeader ? undefined : timeRange}
             setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
             actionButtons={[

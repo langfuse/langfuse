@@ -2,6 +2,7 @@
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import { DataTableSettingsPopover } from "@/src/components/table/data-table-settings-popover";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
@@ -154,6 +155,11 @@ interface DataTableToolbarProps<TData, TValue> {
    *  the filter toggle — e.g. the v4 events category-preset chips, so they
    *  share the row with the right-aligned Columns/Export controls. */
   leadingControls?: React.ReactNode;
+  /** Opt in to one "Table settings" popover for Columns + row height instead of
+   *  a button per control (LFE-15711). Off everywhere else while the merged
+   *  shape is validated on the experiments list; needs both controls, so a
+   *  table that passes only one keeps its single button. */
+  mergeSettingsIntoPopover?: boolean;
 }
 
 // Helper function to get the description for DocPopup
@@ -222,6 +228,7 @@ export function DataTableToolbar<TData, TValue>({
   filterWithAI = false,
   viewModeToggle,
   leadingControls,
+  mergeSettingsIntoPopover = false,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -263,6 +270,12 @@ export function DataTableToolbar<TData, TValue>({
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
+  const showMergedSettings =
+    mergeSettingsIntoPopover &&
+    !!columnVisibility &&
+    !!setColumnVisibility &&
+    !!rowHeight &&
+    !!setRowHeight;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div
@@ -456,20 +469,34 @@ export function DataTableToolbar<TData, TValue>({
         )}
 
         <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
-          {!!columnVisibility && !!setColumnVisibility && (
-            <DataTableColumnVisibilityFilter
+          {showMergedSettings ? (
+            <DataTableSettingsPopover
               columns={columns}
               columnVisibility={columnVisibility}
               setColumnVisibility={setColumnVisibility}
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
-            />
-          )}
-          {!!rowHeight && !!setRowHeight && (
-            <DataTableRowHeightSwitch
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
             />
+          ) : (
+            <>
+              {!!columnVisibility && !!setColumnVisibility && (
+                <DataTableColumnVisibilityFilter
+                  columns={columns}
+                  columnVisibility={columnVisibility}
+                  setColumnVisibility={setColumnVisibility}
+                  columnOrder={columnOrder}
+                  setColumnOrder={setColumnOrder}
+                />
+              )}
+              {!!rowHeight && !!setRowHeight && (
+                <DataTableRowHeightSwitch
+                  rowHeight={rowHeight}
+                  setRowHeight={setRowHeight}
+                />
+              )}
+            </>
           )}
           {actionButtons}
         </div>

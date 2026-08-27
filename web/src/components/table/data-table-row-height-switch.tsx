@@ -13,7 +13,8 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 
-const heightOptions = [
+/** Exported so the merged "Table settings" popover offers the same options. */
+export const ROW_HEIGHT_OPTIONS = [
   { id: "s", label: "Small", icon: <Rows4 /> },
   { id: "m", label: "Medium", icon: <Rows3 /> },
   { id: "l", label: "Large", icon: <Rows2 /> },
@@ -25,7 +26,7 @@ const defaultHeights: Record<RowHeight, string> = {
   l: "h-64",
 };
 
-export type RowHeight = (typeof heightOptions)[number]["id"];
+export type RowHeight = (typeof ROW_HEIGHT_OPTIONS)[number]["id"];
 export type CustomHeights = Record<RowHeight, string>;
 
 /**
@@ -79,7 +80,7 @@ export const DataTableRowHeightSwitch = ({
         <DropdownMenuContent>
           <DropdownMenuLabel>Row height</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {heightOptions.map(({ id, label }) => (
+          {ROW_HEIGHT_OPTIONS.map(({ id, label }) => (
             <DropdownMenuCheckboxItem
               key={id}
               checked={rowHeight === id}

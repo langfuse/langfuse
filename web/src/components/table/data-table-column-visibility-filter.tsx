@@ -56,6 +56,9 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  /** Defaults to "Columns"; overridden where the surrounding surface already
+   *  says "Columns" (the merged table-settings popover). */
+  triggerLabel?: string;
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -300,6 +303,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  triggerLabel = "Columns",
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -404,7 +408,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             size={triggerSize}
             title="Show/hide columns"
           >
-            <span>Columns</span>
+            <span>{triggerLabel}</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>
