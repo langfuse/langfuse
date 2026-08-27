@@ -12,6 +12,7 @@ import { listExperimentItemsForPublicApi } from "@/src/features/experiments/serv
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiment Items",
+    action: "experiments:read",
     querySchema: GetExperimentItemsV1Query,
     responseSchema: GetExperimentItemsV1Response,
     allowInAppAgentKey: true,

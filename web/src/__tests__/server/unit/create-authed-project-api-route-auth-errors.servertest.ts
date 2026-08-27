@@ -122,6 +122,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
   }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
+      action: null,
       querySchema: z.object({}),
       responseSchema: z.object({ ok: z.literal(true) }),
       errorContract: options?.useUnstableErrorContract
@@ -252,6 +253,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     const handler = createAuthedProjectAPIRoute({
       name: "Sensitive Route",
+      action: null,
       querySchema: z.object({ token: z.string() }),
       bodySchema: z.object({
         secretKey: z.string(),

@@ -12,6 +12,7 @@ import { createDatasetForApi } from "@/src/features/datasets/server/publicDatase
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Dataset",
+    action: "datasets:CUD",
     bodySchema: PostDatasetsV2Body,
     responseSchema: PostDatasetsV2Response,
     rateLimitResource: "datasets",
@@ -27,6 +28,7 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "Get Datasets",
+    action: "datasets:read",
     querySchema: GetDatasetsV2Query,
     responseSchema: GetDatasetsV2Response,
     rateLimitResource: "datasets",

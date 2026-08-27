@@ -17,6 +17,7 @@ import {
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get model definitions",
+    action: "models:read",
     isAdminApiKeyAuthAllowed: true,
     querySchema: GetModelV1Query,
     responseSchema: GetModelV1Response,
@@ -30,6 +31,7 @@ export default withMiddlewares({
 
   PUT: createAuthedProjectAPIRoute({
     name: "Upsert custom model definition",
+    action: "models:CUD",
     isAdminApiKeyAuthAllowed: true,
     querySchema: GetModelV1Query,
     bodySchema: PostModelsV1Body,
@@ -46,6 +48,7 @@ export default withMiddlewares({
 
   DELETE: createAuthedProjectAPIRoute({
     name: "Delete model",
+    action: "models:CUD",
     isAdminApiKeyAuthAllowed: true,
     querySchema: DeleteModelV1Query,
     responseSchema: DeleteModelV1Response,

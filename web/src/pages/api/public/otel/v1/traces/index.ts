@@ -33,6 +33,7 @@ const OTEL_REQUEST_BODY_WARNING_BYTES = 16 * 1024 * 1024;
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "OTel Traces",
+    action: "traces:create",
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",

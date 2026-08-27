@@ -16,6 +16,7 @@ const UpdatePromptBodySchema = z.object({
 export const promptVersionHandler = withMiddlewares({
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Prompt",
+    action: "prompts:CUD",
     bodySchema: UpdatePromptBodySchema,
     responseSchema: z.any(),
     fn: async ({ body, req, auth }) => {

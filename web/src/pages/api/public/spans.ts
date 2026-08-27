@@ -17,6 +17,7 @@ import { v4 } from "uuid";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Span (Legacy)",
+    action: "traces:create",
     bodySchema: PostSpansV1Body,
     responseSchema: PostSpansV1Response,
     // Writes an observation-create event that lands in the legacy observations
@@ -57,6 +58,7 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Span (Legacy)",
+    action: "traces:create",
     bodySchema: PatchSpansV1Body,
     responseSchema: PatchSpansV1Response,
     rejectInEventsOnlyMode: true,

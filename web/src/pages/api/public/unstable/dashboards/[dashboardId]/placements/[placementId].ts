@@ -16,6 +16,7 @@ import {
 export default withUnstablePublicApiMiddlewares({
   PATCH: createUnstablePublicApiRoute({
     name: "Update Unstable Dashboard Placement",
+    action: null,
     querySchema: DashboardPlacementQuery,
     bodySchema: PatchDashboardPlacementBody,
     responseSchema: PatchDashboardPlacementResponse,
@@ -29,6 +30,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Dashboard Placement",
+    action: null,
     querySchema: DashboardPlacementQuery,
     responseSchema: DeleteDashboardPlacementResponse,
     fn: ({ query, auth }) =>
