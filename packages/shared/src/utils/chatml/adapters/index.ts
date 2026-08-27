@@ -1,4 +1,5 @@
 import type { NormalizerContext, ProviderAdapter } from "../types";
+import { ag2Adapter } from "./ag2";
 import { langgraphAdapter } from "./langgraph";
 import { aisdkAdapter } from "./aisdk";
 import { openAIAdapter } from "./openai";
@@ -9,6 +10,7 @@ import { pydanticAIAdapter } from "./pydantic-ai";
 import { genericAdapter } from "./generic";
 
 const adapters: ProviderAdapter[] = [
+  ag2Adapter, // AG2 (formerly AutoGen) - detects by scope.name or ag2.span.type
   langgraphAdapter, // Must be before openAI (both use langfuse-sdk scope)
   aisdkAdapter, // Vercel AI SDK v5 (for all LLM providers like OpenAI, Bedrock, Anthropic, etc.)
   openAIAdapter, // OpenAI (Chat Completions & Responses API)
@@ -40,6 +42,7 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
 // Export selectAdapter and individual adapters for direct use
 export { selectAdapter };
 export type { NormalizerContext, ProviderAdapter } from "../types";
+export { ag2Adapter } from "./ag2";
 export { langgraphAdapter } from "./langgraph";
 export { aisdkAdapter } from "./aisdk";
 export { openAIAdapter } from "./openai";
