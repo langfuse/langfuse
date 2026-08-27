@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-style-props */
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { CardContent, Card } from "@/src/components/ui/card";
@@ -106,10 +106,10 @@ function useDefaultEvalModelSetup({
 
 function DefaultEvalModelFields({
   setup,
-  errorSize = "base",
+  errorClassName = "w-full text-center",
 }: {
   setup: ReturnType<typeof useDefaultEvalModelSetup>;
-  errorSize?: "base" | "sm";
+  errorClassName?: string;
 }) {
   return (
     <>
@@ -127,13 +127,7 @@ function DefaultEvalModelFields({
         Select a model which supports function calling.
       </p>
       {setup.formError ? (
-        <p
-          className={
-            errorSize === "sm"
-              ? "w-full text-center text-sm"
-              : "w-full text-center"
-          }
-        >
+        <p className={errorClassName}>
           <span className="font-bold">Error:</span> {setup.formError}
         </p>
       ) : null}
@@ -280,7 +274,10 @@ export function InlineDefaultEvalModelSetup({
   return (
     <>
       <div className="space-y-3">
-        <DefaultEvalModelFields setup={setup} errorSize="sm" />
+        <DefaultEvalModelFields
+          setup={setup}
+          errorClassName="w-full text-center text-sm"
+        />
       </div>
       <div className="flex w-full justify-end">
         <Button

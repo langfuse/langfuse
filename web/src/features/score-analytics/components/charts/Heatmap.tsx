@@ -25,6 +25,7 @@ export interface HeatmapProps {
   yAxisLabel?: string;
 
   // Styling
+  cellClassName?: string;
   cellHeight?: number; // Dynamic cell height in pixels
   width?: number | string;
   height?: number | string;
@@ -55,6 +56,7 @@ export function Heatmap({
   colLabels,
   xAxisLabel,
   yAxisLabel,
+  cellClassName,
   cellHeight: cellHeightProp,
   width = "100%",
   height,
@@ -246,6 +248,7 @@ export function Heatmap({
                   onHover={onCellHover}
                   onClick={onCellClick}
                   renderTooltip={renderTooltip}
+                  cellClassName={cellClassName}
                   showValues={showValues}
                 />
               );

@@ -176,7 +176,7 @@ export const ExperimentGridView = ({
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
               columnVisibility={columnVisibility}
-              marker={colorStyles}
+              markerClassName={colorStyles?.markerClass}
             />
           );
         },

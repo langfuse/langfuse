@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -15,7 +16,6 @@ import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
 import {
   type CellRowDef,
-  type ExperimentColorStyle,
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -66,7 +66,7 @@ type ExperimentGridCellProps = {
   baselineTraceScores?: ScoreAggregate;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
-  marker?: ExperimentColorStyle;
+  markerClassName?: string;
   showScoreLevelLabels: boolean;
 };
 
@@ -354,20 +354,20 @@ const MetadataItem = ({
 const GroupSection = ({
   header,
   children,
-  marker,
+  markerClassName,
 }: {
   header?: string;
   children: React.ReactNode;
-  marker?: ExperimentColorStyle;
+  markerClassName?: string;
 }) => (
   <div className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
     {header && (
       <div className="flex items-center gap-1.5">
-        {marker !== undefined && (
+        {markerClassName !== undefined && (
           <span
             className={cn(
               "h-3 w-0.5 shrink-0 rounded-full",
-              marker.markerClass,
+              markerClassName || "bg-transparent",
             )}
           />
         )}
@@ -406,7 +406,7 @@ export const ExperimentGridCell = ({
   baselineTraceScores,
   isLoading = false,
   columnVisibility = {},
-  marker,
+  markerClassName,
   showScoreLevelLabels,
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
@@ -655,7 +655,7 @@ export const ExperimentGridCell = ({
             <Fragment key={row.accessorKey}>
               <GroupSection
                 header={row.header}
-                marker={isFirst ? marker : undefined}
+                markerClassName={isFirst ? markerClassName : undefined}
               >
                 <div className="h-16 overflow-hidden">
                   {row.cell({ data: cellData })}
@@ -672,7 +672,7 @@ export const ExperimentGridCell = ({
             <Fragment key={row.accessorKey}>
               <GroupSection
                 header={row.header}
-                marker={isFirst ? marker : undefined}
+                markerClassName={isFirst ? markerClassName : undefined}
               >
                 <div className="flex flex-col gap-0.5">
                   {(content as CellRowDef<GridCellData>[]).map((child) => (

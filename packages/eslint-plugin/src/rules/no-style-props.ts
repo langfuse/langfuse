@@ -26,8 +26,7 @@ const rule = createRule({
   meta: {
     type: "problem",
     docs: {
-      description:
-        "Disallow className, style, and prefixed variants such as badgeClassName.",
+      description: "Disallow className and style props.",
     },
     schema: [],
     messages: {

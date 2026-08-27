@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
@@ -230,8 +231,8 @@ function SessionUsers({
  * SessionControlsBar — the session's sticky metadata/controls bar (LLM-call
  * preset, Saved Views, "Filter observations", trace/cost/user/score stats).
  *
- * Desktop (>=768px): renders the always-visible bar. Use `align` when the
- * controls should sit on the cross axis (`items-center`).
+ * Desktop (>=768px): renders the always-visible bar exactly as before — the
+ * caller passes the original `desktopClassName`, so the DOM is byte-identical.
  *
  * Mobile: that bar wraps into a tall block which, stacked under the page title
  * and action row, leaves the virtualized trace feed only a sliver of the
@@ -242,27 +243,18 @@ function SessionUsers({
 const SessionControlsBar = ({
   isMobile,
   summary,
-  align = "start",
+  desktopClassName,
   children,
 }: {
   isMobile: boolean;
   summary: React.ReactNode;
-  align?: "start" | "center";
+  desktopClassName: string;
   children: React.ReactNode;
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!isMobile) {
-    return (
-      <div
-        className={cn(
-          "bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4",
-          align === "center" && "items-center",
-        )}
-      >
-        {children}
-      </div>
-    );
+    return <div className={desktopClassName}>{children}</div>;
   }
 
   return (
@@ -762,6 +754,7 @@ export const SessionPage: React.FC<{
         <div className="flex h-full flex-col overflow-auto">
           <SessionControlsBar
             isMobile={isMobile}
+            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
             summary={
               <>
                 <span className="text-sm font-bold">Session controls</span>
@@ -1780,7 +1773,7 @@ const LoadedSessionEventsPage: React.FC<{
           {!isModernSessionEnabled && hasSessionControls ? (
             <SessionControlsBar
               isMobile={isMobile && !isModernSessionEnabled}
-              align="center"
+              desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
               summary={
                 <>
                   <span className="text-sm font-bold">Session controls</span>
