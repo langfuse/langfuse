@@ -20,11 +20,13 @@
  * HIPAA bundle ships with the gate already closed.
  */
 
-/** Cloud regions that must never run Langfuse product analytics. */
-export const PRODUCT_ANALYTICS_DISABLED_CLOUD_REGIONS = ["HIPAA"] as const;
+/**
+ * Cloud regions that must never run Langfuse product analytics. This list is the
+ * single place to change when a region joins or leaves the ban.
+ */
+const PRODUCT_ANALYTICS_DISABLED_CLOUD_REGIONS = ["HIPAA"] as const;
 
-/** Whether product analytics may run in the given deployment region. */
-export const isProductAnalyticsAllowedInRegion = (
+const isProductAnalyticsAllowedInRegion = (
   region: string | undefined | null,
 ): boolean =>
   region == null ||
