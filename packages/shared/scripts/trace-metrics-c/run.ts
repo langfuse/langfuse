@@ -11,6 +11,7 @@ import {
 } from "./report";
 
 type QueryRow = Record<string, unknown>;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 type CliOptions = {
   projectId: string;
@@ -117,7 +118,11 @@ const main = async (): Promise<void> => {
       http_headers_progress_interval_ms: "100",
     },
   });
-  const toDate = new Date();
+  // Compare identical cohorts: only complete five-minute buckets are eligible.
+  // A production query would UNION raw edge windows around this rollup middle.
+  const toDate = new Date(
+    Math.floor(Date.now() / FIVE_MINUTES_MS) * FIVE_MINUTES_MS,
+  );
   const fromDate = new Date(toDate.getTime() - options.days * 86_400_000);
   const baseParams = {
     projectId: options.projectId,

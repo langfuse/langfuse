@@ -12,8 +12,8 @@ FROM
         dateDiff('millisecond', min(tm.min_start), max(tm.max_end)) AS latency_ms
     FROM trace_metrics_5m_benchmark AS tm
     WHERE project_id = {projectId: String}
-      AND bucket >= toStartOfFiveMinutes({from: DateTime64(6)})
-      AND bucket < toStartOfFiveMinutes({to: DateTime64(6)}) + INTERVAL 5 MINUTE
+      AND bucket >= {from: DateTime64(6)}
+      AND bucket < {to: DateTime64(6)}
       AND trace_id LIKE {tracePrefix: String}
     GROUP BY trace_id
 )

@@ -8,8 +8,8 @@ FROM
     SELECT trace_id, count() AS bucket_count
     FROM trace_metrics_5m_benchmark
     WHERE project_id = {projectId: String}
-      AND bucket >= toStartOfFiveMinutes({from: DateTime64(6)})
-      AND bucket < toStartOfFiveMinutes({to: DateTime64(6)}) + INTERVAL 5 MINUTE
+      AND bucket >= {from: DateTime64(6)}
+      AND bucket < {to: DateTime64(6)}
       AND trace_id LIKE {tracePrefix: String}
     GROUP BY trace_id
 )

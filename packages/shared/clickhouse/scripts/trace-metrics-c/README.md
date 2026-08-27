@@ -31,7 +31,8 @@ sorting strategy under test.
 The runner:
 
 1. Recreates `trace_metrics_5m_benchmark`.
-2. Backfills it from deduplicated `events_core` rows.
+2. Aligns the requested range to complete five-minute buckets and backfills it
+   from deduplicated `events_core` rows.
 3. Compares per-trace values with the raw-table gold query.
 4. Runs Top-N, chart, bucket-count, bounded event Top-K, and global event-sort
    queries over 1-day, 7-day, and full windows.
@@ -41,6 +42,9 @@ The runner:
 ## Interpretation
 
 - Any correctness mismatch fails the runner.
+- The benchmark deliberately excludes the current partial five-minute bucket so
+  raw and rollup queries measure the same cohort. Production routing must UNION
+  raw left/right edges around the complete-bucket rollup middle.
 - `p95 buckets / trace = 1` means another hourly or daily trace rollup is
   unlikely to reduce cardinality.
 - Compare `events-top-k` with `events-global-sort`; a large gap supports a
