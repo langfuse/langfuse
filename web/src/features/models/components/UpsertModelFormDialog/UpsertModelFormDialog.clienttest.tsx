@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 
@@ -45,6 +46,7 @@ vi.mock("@/src/components/editor", () => ({
 }));
 
 import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 
 const defaultTier = {
   id: "tier-default",
@@ -164,6 +166,24 @@ describe("UpsertModelFormDialog price editor", () => {
 
   beforeEach(() => {
     upsertMutateAsync.mockClear();
+  });
+
+  it("keeps an unlinked model badge intact as the dialog trigger", () => {
+    render(
+      <ModelBadge
+        model="claude-sonnet-4-5"
+        internalModelId={null}
+        projectId="p1"
+        usageDetails={undefined}
+      />,
+    );
+
+    const trigger = screen.getByTitle("Create model definition");
+    const label = within(trigger).getByText("claude-sonnet-4-5");
+
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(label.parentElement).toHaveClass("bg-tertiary");
+    expect(label.parentElement?.querySelector("svg")).not.toBeNull();
   });
 
   it("keeps every keystroke of a usage type that extends an existing one", () => {
