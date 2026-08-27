@@ -149,10 +149,14 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
   }
 
   return `
-<sandbox_filesystem>
-When working in the sandbox filesystem, assume this layout:
+<sandbox>
+The sandbox provides read, write, edit, and bash tools for the current task.
+Use it to inspect and edit files supplied for this task. Do not use the
+Langfuse CLI, Langfuse SDKs, or other application-specific CLIs or SDKs from
+the sandbox to act on a user's environment or project.
+When working in the sandbox, assume this layout:
 - "/workspace" is the current working directory for normal file operations and shell commands.
-</sandbox_filesystem>
+</sandbox>
 `;
 }
 
@@ -319,7 +323,7 @@ export async function createAgUiStream(params: {
     variables: {
       currentDate: "",
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-      sandboxFilesystem: formatSandboxContext(params.options.sandbox),
+      sandbox: formatSandboxContext(params.options.sandbox),
       screenContext: "",
       userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -1531,7 +1535,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
-    sandboxFilesystem: string;
+    sandbox: string;
     screenContext: string;
     userContext: string;
     sidebarHiddenEnvironments: string;
