@@ -2852,7 +2852,7 @@ describe("queryBuilder", () => {
 
         const query: QueryType = {
           view: "observations",
-          dimensions: [{ field: "calledToolNames" }],
+          dimensions: [],
           metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
           filters: [],
           timeDimension: null,
@@ -2874,6 +2874,7 @@ describe("queryBuilder", () => {
           projectId,
           {
             ...query,
+            dimensions: [{ field: "calledToolNames" }],
             metrics: [{ measure: "count", aggregation: "count" }],
           },
           "v1",
@@ -2884,9 +2885,8 @@ describe("queryBuilder", () => {
         );
         expect(Number(fetchCountRow!.count_count)).toBe(2);
 
-        // The measure is an array count at observation grain; single-level
-        // optimization must not change the result (it is bypassed because
-        // the sql has no aggs template).
+        // The v1 path normally uses the two-level query, but the declaration
+        // also supports the single-level optimization without changing results.
         const resultOptimized = await executeQuery(
           projectId,
           query,
@@ -2894,29 +2894,6 @@ describe("queryBuilder", () => {
           true,
         );
         expect(resultOptimized).toEqual(result);
-      });
-
-      it("rejects toolCallInvocations without the calledToolNames dimension", async () => {
-        const projectId = randomUUID();
-        await expect(
-          executeQuery(
-            projectId,
-            {
-              view: "observations",
-              dimensions: [],
-              metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
-              filters: [],
-              timeDimension: null,
-              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
-              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-              orderBy: null,
-            },
-            "v1",
-            false,
-          ),
-        ).rejects.toThrow(
-          "Measure toolCallInvocations requires the calledToolNames dimension",
-        );
       });
 
       it("counts per-tool invocations on the v2 events view (toolCallInvocations)", async () => {
@@ -2943,8 +2920,11 @@ describe("queryBuilder", () => {
           projectId,
           {
             view: "observations",
-            dimensions: [{ field: "calledToolNames" }],
-            metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+            dimensions: [],
+            metrics: [
+              { measure: "toolCallInvocations", aggregation: "sum" },
+              { measure: "count", aggregation: "count" },
+            ],
             filters: [],
             timeDimension: null,
             fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
@@ -2952,11 +2932,12 @@ describe("queryBuilder", () => {
             orderBy: null,
           },
           "v2",
-          false,
+          true,
         );
         expect(result).toHaveLength(1);
         expect(result[0].calledToolNames).toBe("fetch");
         expect(Number(result[0].sum_toolCallInvocations)).toBe(4);
+        expect(Number(result[0].count_count)).toBe(2);
       });
 
       it("should calculate p95 timeToFirstToken for each trace name using observations view", async () => {

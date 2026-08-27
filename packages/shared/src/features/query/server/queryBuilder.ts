@@ -51,7 +51,6 @@ type AppliedMetricType = {
   aggs?: Record<string, string>;
   measureName: string; // Original measure name for lookups
   requiresDimension?: string;
-  requiresExplicitDimension?: string;
 };
 
 type RawSqlPart = { query: string; params: Record<string, unknown> };
@@ -325,8 +324,6 @@ export class QueryBuilder {
         aggregation: metric.aggregation,
         aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
-        requiresDimension: resolvedMeasureDef.requiresDimension,
-        requiresExplicitDimension: resolvedMeasureDef.requiresExplicitDimension,
       };
     });
   }
@@ -761,12 +758,11 @@ export class QueryBuilder {
     // 1. All metrics are single-level compatible, which means either:
     //    a. They have aggs configuration (@@AGGN@@ templates that resolve to function
     //       calls), OR
-    //    b. They are pairExpand value-alias measures (requiresDimension is set).
-    //       These reference a plain column brought into scope by the ARRAY JOIN
-    //       clause and work correctly with a direct sum()/avg() in a single SELECT.
+    //    b. They are pairExpand value-alias measures (requiresDimension is set). These
+    //       reference a plain column brought into scope by the ARRAY JOIN clause and
+    //       work correctly with a direct sum()/avg() in a single SELECT.
     // 2. No custom aggregation functions on dimensions
-    // Measures without either (like uniq(scores.id) or countEqual(...) over an
-    // exploded name) must use the two-level approach.
+    // Measures without either (like uniq(scores.id)) must use the two-level approach.
     const allMetricsHaveAggs =
       appliedMetrics.length === 0 ||
       appliedMetrics.every(
@@ -1579,9 +1575,12 @@ export class QueryBuilder {
     const appliedMetrics = this.mapMetrics(query.metrics, view);
     const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 
-    // Auto-include dimensions required by pairExpand-dependent measures.
+    // Auto-include dimensions required to evaluate a measure, whether the
+    // dimension uses pairExpand or explodeArray.
     // e.g. costByType.requiresDimension = "costType": without that dimension the
     // ARRAY JOIN is never emitted and ClickHouse errors with "unknown column cost_value".
+    // toolCallInvocations similarly needs calledToolNames so arrayJoin is emitted
+    // and its per-tool result alias is in scope.
     for (const metric of appliedMetrics) {
       if (
         metric.requiresDimension &&
@@ -1592,19 +1591,10 @@ export class QueryBuilder {
           appliedDimensions.push({
             ...requiredDimDef,
             table: requiredDimDef.relationTable || view.name,
+            explodeArray: requiredDimDef.explodeArray,
             pairExpand: requiredDimDef.pairExpand,
           });
         }
-      }
-      if (
-        metric.requiresExplicitDimension &&
-        !appliedDimensions.some(
-          (d) => d.alias === metric.requiresExplicitDimension,
-        )
-      ) {
-        throw new InvalidRequestError(
-          `Measure ${metric.measureName} requires the ${metric.requiresExplicitDimension} dimension.`,
-        );
       }
     }
 

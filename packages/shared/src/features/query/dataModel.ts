@@ -489,7 +489,7 @@ export const observationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "observations.tool_call_names",
+      sql: "arrayDistinct(observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -627,15 +627,13 @@ export const observationsView: ViewDeclarationType = {
       unit: "calls",
     },
     toolCallInvocations: {
-      // countEqual against the exploded calledToolNames value counts repeats
-      // of that name in the original array. any() is required because the
-      // inner GROUP BY is (observation, exploded name).
-      sql: "countEqual(any(observations.tool_call_names), calledToolNames)",
+      sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
       alias: "toolCallInvocations",
       type: "integer",
-      requiresExplicitDimension: "calledToolNames",
+      requiresDimension: "calledToolNames",
       description:
-        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Requires the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
   },
@@ -1327,7 +1325,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "events_observations.tool_call_names",
+      sql: "arrayDistinct(events_observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -1531,14 +1529,13 @@ export const eventsObservationsView: ViewDeclarationType = {
       unit: "calls",
     },
     toolCallInvocations: {
-      // See observationsView.toolCallInvocations: countEqual on the original
-      // array vs the exploded calledToolNames value.
-      sql: "countEqual(any(events_observations.tool_call_names), calledToolNames)",
+      sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
       alias: "toolCallInvocations",
       type: "integer",
-      requiresExplicitDimension: "calledToolNames",
+      requiresDimension: "calledToolNames",
       description:
-        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Requires the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
     costByType: {

@@ -46,7 +46,13 @@ export const viewDeclaration = z.object({
         .optional(),
       highCardinality: z.boolean().optional(),
       uiHidden: z.boolean().optional(),
+      // Expands dimension.sql independently with arrayJoin(), producing one row
+      // per array element. Duplicate elements duplicate the source row; use
+      // arrayDistinct(...) in sql when the intended grain is entity + distinct value.
       explodeArray: z.boolean().optional(),
+      // Expands dimension.sql and valuesSql together in one ARRAY JOIN, pairing
+      // elements by position and exposing valueAlias to a dependent measure.
+      // Only one pairExpand dimension is supported per query, and it cannot be filtered.
       pairExpand: z
         .object({
           valuesSql: z.string(),
@@ -78,14 +84,9 @@ export const viewDeclaration = z.object({
           }),
         )
         .optional(),
-      // When set, the query builder will auto-include this dimension if it is absent.
-      // Used for pairExpand value-alias measures (e.g. costByType requires costType so
-      // the ARRAY JOIN is emitted and "cost_value" is in scope).
+      // Auto-includes a dimension needed to evaluate the measure, including its
+      // explodeArray or pairExpand behavior and resulting aliases.
       requiresDimension: z.string().optional(),
-      // When set, the caller must request this dimension. Unlike
-      // requiresDimension, it is never auto-included — exploding an array
-      // dimension silently reshapes the rest of the query.
-      requiresExplicitDimension: z.string().optional(),
     }),
   ),
   tableRelations: z.record(

@@ -81,19 +81,6 @@ describe("isValidQuery", () => {
     }
   });
 
-  it("rejects toolCallInvocations because monitors have no dimension", () => {
-    const result = isValidQuery({
-      view: "observations",
-      metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
-      filters: [],
-    });
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.reason).toContain("calledToolNames");
-      expect(result.reason).toContain("not supported for monitors");
-    }
-  });
-
   it.each([
     {
       type: "stringOptions" as const,

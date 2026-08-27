@@ -429,37 +429,49 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
 });
 
 describe("toolCallInvocations measure", () => {
-  it("requires the calledToolNames dimension", async () => {
-    await expect(
-      new QueryBuilder(undefined, "v1").build(
-        {
-          ...baseQuery,
-          metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
-        },
-        "test-project",
-      ),
-    ).rejects.toThrow(
-      "Measure toolCallInvocations requires the calledToolNames dimension",
-    );
-  });
-
-  it("emits countEqual against the original tool_call_names array", async () => {
+  it("auto-includes distinct calledToolNames in a two-level query", async () => {
     const { query: compiledQuery } = await new QueryBuilder(
       undefined,
       "v1",
     ).build(
       {
         ...baseQuery,
-        dimensions: [{ field: "calledToolNames" }],
         metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
       },
       "test-project",
     );
 
     expect(compiledQuery).toContain(
+      "arrayJoin(arrayDistinct(observations.tool_call_names)) as calledToolNames",
+    );
+    expect(compiledQuery).toContain(
       "countEqual(any(observations.tool_call_names), calledToolNames)",
     );
     expect(compiledQuery).toContain("sum(toolCallInvocations)");
-    expect(compiledQuery).toContain("arrayJoin(observations.tool_call_names)");
+  });
+
+  it("stays single-level for the events view", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v2",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+      },
+      "test-project",
+      true,
+    );
+
+    expect(compiledQuery).toContain(
+      "arrayJoin(arrayDistinct(events_observations.tool_call_names)) as calledToolNames",
+    );
+    expect(compiledQuery).toContain(
+      "sum(countEqual((events_observations.tool_call_names), calledToolNames))",
+    );
+    expect(compiledQuery).not.toContain(
+      "any(events_observations.tool_call_names)",
+    );
+    expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
   });
 });
