@@ -245,24 +245,9 @@ importers:
 
   packages/langfuse-skills:
     devDependencies:
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../config-eslint
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../config-typescript
-      '@types/node':
-        specifier: ^24.3.0
-        version: 24.3.0
-      eslint:
-        specifier: 'catalog:'
-        version: 10.8.0(jiti@2.7.0)(supports-color@8.1.1)
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
-      typescript:
-        specifier: 'catalog:'
-        version: '@typescript/typescript6@6.0.2'
       yaml:
         specifier: ^2.9.0
         version: 2.9.0

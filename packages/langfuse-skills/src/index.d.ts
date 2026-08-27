@@ -4,4 +4,4 @@ export type LangfuseSkill = {
   instructions: string;
 };
 
-export { LANGFUSE_SKILLS } from "./generated/skills.js";
+export declare const LANGFUSE_SKILLS: readonly LangfuseSkill[];
