@@ -328,7 +328,7 @@ describe("handleV4LegacyApiUsageJob", () => {
     expect(query).toContain("JSONExtractString(log_comment, 'sdkVersion')");
     expect(query).toContain("JSONExtractString(log_comment, 'userAgent')");
     expect(query).toContain(
-      "topK(100)(tuple(sdk_name, sdk_version, user_agent))",
+      "topK(20)(tuple(sdk_name, sdk_version, user_agent))",
     );
     expect(query).toContain("ANY INNER JOIN caller_candidates");
     expect(query).toContain(
