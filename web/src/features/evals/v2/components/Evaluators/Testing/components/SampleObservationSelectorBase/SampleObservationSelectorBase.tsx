@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 import {
