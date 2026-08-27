@@ -9,14 +9,11 @@
  *  - `TENANTED_TABLES` — the relations the tenancy pass must scope
  *    (`tenancy.ts`).
  *
- * This is the Kysely-arm port of the experimental branch's semantic model: a
- * spec that a DB engineer authors once, from which the type-level and
- * runtime-level facts are derived instead of hand-maintained in parallel.
+ * Deriving all three from one declaration keeps them from drifting apart.
  *
- * Column sets are the ones the catalog / environments queries actually
- * reference, not a full schema dump. Physical tuning metadata (partition /
- * sort / dedup keys) is deliberately out of scope for the spike; when dedup
- * lowering lands it extends this same declaration.
+ * Column sets cover the relations the compiler targets, not a full schema
+ * dump. Physical tuning metadata (partition / sort / dedup keys) is not
+ * modeled here; dedup lowering will extend this same declaration.
  */
 
 /**
