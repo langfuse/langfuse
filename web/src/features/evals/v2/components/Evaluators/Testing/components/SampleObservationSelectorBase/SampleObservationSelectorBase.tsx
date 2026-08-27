@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 import {
@@ -134,7 +135,7 @@ export type SampleObservationSelectorBaseProps = {
     observations: SampleObservation[],
     selectedObservationId: string | null,
   ) => SampleObservation | null | undefined;
-  highlightSelectedRow?: boolean;
+  getRowClassName: ((observation: SampleObservation) => string) | undefined;
   filterDescription: string;
   filterTooltip: string;
   matchingDescription: string;
@@ -161,7 +162,7 @@ export function SampleObservationSelectorBase(
     onOpenTrace,
     leadingColumns,
     resolveSelection,
-    highlightSelectedRow = false,
+    getRowClassName,
     filterDescription,
     filterTooltip,
     matchingDescription,
@@ -576,14 +577,7 @@ export function SampleObservationSelectorBase(
             onColumnOrderChange={setColumnOrder}
             rowHeight={rowHeight}
             onRowClick={onOpenTrace}
-            getRowClassName={
-              highlightSelectedRow
-                ? (observation) =>
-                    observation.id === selectedObservationId
-                      ? "bg-muted/50"
-                      : ""
-                : undefined
-            }
+            getRowClassName={getRowClassName}
             noResultsMessage="No observations match the current filters and time range."
           />
         </div>
