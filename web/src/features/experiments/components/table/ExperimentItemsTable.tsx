@@ -326,9 +326,12 @@ export default function ExperimentItemsTable({
     limit: "pageSize",
   });
 
+  // Medium by default: with the ids out of the cell a row no longer needs the
+  // tallest option to show its output, and two rows per screen was the
+  // complaint. Large stays one click away for reading long outputs.
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "experiment-items",
-    "l",
+    "m",
   );
   const ioSingleLine = ioRenderMode === "text";
 
