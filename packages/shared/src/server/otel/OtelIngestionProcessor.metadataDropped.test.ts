@@ -661,25 +661,44 @@ describe("OTel reconstructed array drop telemetry", () => {
       ([stat]) => stat === ARRAY_ATTRIBUTE_DROPPED_METRIC,
     );
 
-  it("reports an out-of-range array attribute", async () => {
+  it("reports validation drops with their own reasons", async () => {
     const processor = createProcessor();
     const batch = buildBatch([
       {
         key: "llm.input_messages.10001.content",
         value: { stringValue: "dropped" },
       },
+      {
+        key: `llm.input_messages.${Array.from(
+          { length: 65 },
+          () => "nested",
+        ).join(".")}`,
+        value: { stringValue: "dropped" },
+      },
     ]);
 
     await processor.processToIngestionEvents(batch);
 
-    expect(arrayDropCalls()).toContainEqual([
-      ARRAY_ATTRIBUTE_DROPPED_METRIC,
-      1,
-      {
-        reason: "reconstruction_budget_exceeded",
-        prefix: "llm.input_messages",
-      },
-    ]);
+    expect(arrayDropCalls()).toEqual(
+      expect.arrayContaining([
+        [
+          ARRAY_ATTRIBUTE_DROPPED_METRIC,
+          1,
+          {
+            reason: "reconstruction_array_index_exceeded",
+            prefix: "llm.input_messages",
+          },
+        ],
+        [
+          ARRAY_ATTRIBUTE_DROPPED_METRIC,
+          1,
+          {
+            reason: "reconstruction_path_depth_exceeded",
+            prefix: "llm.input_messages",
+          },
+        ],
+      ]),
+    );
   });
 
   it("caps warnings without logging rejected attribute keys or values", async () => {
@@ -693,7 +712,7 @@ describe("OTel reconstructed array drop telemetry", () => {
         (_, index) =>
           buildBatch([
             {
-              key: `llm.input_messages.${10_001 + index}.secret-content`,
+              key: "llm.input_messages.5000.messages.5000.secret-content",
               value: { stringValue: `customer-secret-${index}` },
             },
           ])[0],
@@ -719,6 +738,48 @@ describe("OTel reconstructed array drop telemetry", () => {
         expect(JSON.stringify(warning)).not.toContain("customer-secret");
         expect(JSON.stringify(warning)).not.toContain("secret-content");
       }
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("does not let validation drops consume the array-budget warning cap", async () => {
+    const warnSpy = vi
+      .spyOn(serverBarrel.logger, "warn")
+      .mockImplementation(() => serverBarrel.logger);
+
+    try {
+      const deepPath = Array.from({ length: 65 }, () => "nested").join(".");
+      const processor = createProcessor();
+      const validationBatches = Array.from(
+        { length: 12 },
+        () =>
+          buildBatch([
+            {
+              key: `llm.input_messages.${deepPath}`,
+              value: { stringValue: "dropped" },
+            },
+          ])[0],
+      );
+
+      await processor.processToIngestionEvents(validationBatches);
+      warnSpy.mockClear();
+
+      await processor.processToIngestionEvents(
+        buildBatch([
+          {
+            key: "llm.input_messages.5000.messages.5000.content",
+            value: { stringValue: "dropped" },
+          },
+        ]),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith("OTEL array attribute dropped", {
+        projectId: PROJECT_ID,
+        prefix: "llm.input_messages",
+        reason: "reconstruction_budget_exceeded",
+        droppedAttributeCount: 1,
+      });
     } finally {
       warnSpy.mockRestore();
     }

@@ -9820,6 +9820,24 @@ describe("OTel Resource Span Mapping", () => {
       });
     });
 
+    it("should preserve a reconstructed container and ignore a conflicting leaf", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.0.content",
+            value: { stringValue: "nested" },
+          },
+          {
+            key: "gen_ai.prompt.0",
+            value: { stringValue: "leaf" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual([{ content: "nested" }]);
+    });
+
     it.each([
       {
         name: "array first",
@@ -9928,6 +9946,24 @@ describe("OTel Resource Span Mapping", () => {
       expect(input).toHaveLength(2);
       expect(input[0]).toBeUndefined();
       expect(input[1]).toEqual({ content: "still-here" });
+    });
+
+    it("should not let an over-budget array path change the root container type", () => {
+      const events = createTestOtelProcessor({ publicKey }).processToEvent([
+        createResourceSpan([
+          {
+            key: "gen_ai.prompt.5000.notes.5000.content",
+            value: { stringValue: "dropped" },
+          },
+          {
+            key: "gen_ai.prompt.name",
+            value: { stringValue: "still-here" },
+          },
+        ]),
+      ]);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].input).toEqual({ name: "still-here" });
     });
 
     it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {

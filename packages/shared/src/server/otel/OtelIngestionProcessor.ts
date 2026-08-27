@@ -105,6 +105,10 @@ const DANGEROUS_OTEL_PATH_SEGMENTS = new Set([
   "prototype",
 ]);
 const CANONICAL_ARRAY_INDEX = /^(0|[1-9]\d*)$/;
+type ReconstructedAttributeDropReason =
+  | "reconstruction_array_index_exceeded"
+  | "reconstruction_budget_exceeded"
+  | "reconstruction_path_depth_exceeded";
 
 const getOtelArrayIndex = (segment: string): number | undefined => {
   if (!CANONICAL_ARRAY_INDEX.test(segment)) return undefined;
@@ -269,7 +273,10 @@ export class OtelIngestionProcessor {
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
   private metadataDropWarnCount = 0;
-  private arrayAttributeDropWarnCount = 0;
+  private arrayAttributeDropWarnCounts = new Map<
+    ReconstructedAttributeDropReason,
+    number
+  >();
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -1558,7 +1565,16 @@ export class OtelIngestionProcessor {
     }
 
     type ReconstructedContainer = Record<string, unknown> | unknown[];
-    let droppedAttributeCount = 0;
+    const droppedAttributeCounts = new Map<
+      ReconstructedAttributeDropReason,
+      number
+    >();
+    const recordDrop = (reason: ReconstructedAttributeDropReason): void => {
+      droppedAttributeCounts.set(
+        reason,
+        (droppedAttributeCounts.get(reason) ?? 0) + 1,
+      );
+    };
     const parsePath = (
       key: string,
       recordLimitDrop: boolean,
@@ -1568,7 +1584,7 @@ export class OtelIngestionProcessor {
         segments.length >
         OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_PATH_DEPTH
       ) {
-        if (recordLimitDrop) droppedAttributeCount += 1;
+        if (recordLimitDrop) recordDrop("reconstruction_path_depth_exceeded");
         return undefined;
       }
 
@@ -1583,7 +1599,9 @@ export class OtelIngestionProcessor {
             index === undefined ||
             index >= OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS
           ) {
-            if (recordLimitDrop) droppedAttributeCount += 1;
+            if (recordLimitDrop) {
+              recordDrop("reconstruction_array_index_exceeded");
+            }
             return undefined;
           }
         }
@@ -1596,16 +1614,18 @@ export class OtelIngestionProcessor {
     const arraySlotBudget = new ArraySlotBudget(
       OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
     );
+    const rootArraySlotBudget = new ArraySlotBudget(
+      OtelIngestionProcessor.MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS,
+    );
 
     const inputKeys = Object.keys(input);
     const useArray = inputKeys.some((inputKey) => {
       if (!inputKey.startsWith(prefixWithDot)) return false;
       const path = parsePath(inputKey.slice(prefixWithDot.length), false);
-      return (
-        path !== undefined &&
-        path.length > 1 &&
-        getOtelArrayIndex(path[0]) !== undefined
-      );
+      if (path === undefined || !rootArraySlotBudget.tryReserve(path)) {
+        return false;
+      }
+      return path.length > 1 && getOtelArrayIndex(path[0]) !== undefined;
     });
     const result: ReconstructedContainer = useArray ? [] : Object.create(null);
     createdContainers.add(result);
@@ -1670,6 +1690,16 @@ export class OtelIngestionProcessor {
       }
       const finalKey = path[path.length - 1];
       if (!isWritableKey(current, finalKey)) return false;
+      if (Object.hasOwn(current, finalKey)) {
+        const existing = Reflect.get(current, finalKey);
+        if (
+          typeof existing === "object" &&
+          existing !== null &&
+          createdContainers.has(existing)
+        ) {
+          return false;
+        }
+      }
       if (commit) defineOwn(current, finalKey, value);
       return true;
     };
@@ -1681,17 +1711,20 @@ export class OtelIngestionProcessor {
       const value = input[inputKey];
       if (!applyPath(result, path, value, false)) continue;
       if (!arraySlotBudget.tryReserve(path)) {
-        droppedAttributeCount += 1;
+        recordDrop("reconstruction_budget_exceeded");
         continue;
       }
       applyPath(result, path, value, true);
     }
-    this.recordArrayAttributesDropped(prefix, droppedAttributeCount);
+    for (const [reason, droppedAttributeCount] of droppedAttributeCounts) {
+      this.recordArrayAttributesDropped(prefix, reason, droppedAttributeCount);
+    }
     return result;
   }
 
   private recordArrayAttributesDropped(
     prefix: string,
+    reason: ReconstructedAttributeDropReason,
     droppedAttributeCount: number,
   ): void {
     if (droppedAttributeCount === 0) return;
@@ -1699,17 +1732,15 @@ export class OtelIngestionProcessor {
     recordIncrement(
       OtelIngestionProcessor.OTEL_ARRAY_ATTRIBUTE_DROPPED_METRIC,
       droppedAttributeCount,
-      { reason: "reconstruction_budget_exceeded", prefix },
+      { reason, prefix },
     );
-    if (
-      this.arrayAttributeDropWarnCount <
-      OtelIngestionProcessor.ARRAY_ATTRIBUTE_DROP_WARN_CAP
-    ) {
-      this.arrayAttributeDropWarnCount += 1;
+    const warningCount = this.arrayAttributeDropWarnCounts.get(reason) ?? 0;
+    if (warningCount < OtelIngestionProcessor.ARRAY_ATTRIBUTE_DROP_WARN_CAP) {
+      this.arrayAttributeDropWarnCounts.set(reason, warningCount + 1);
       logger.warn("OTEL array attribute dropped", {
         projectId: this.projectId,
         prefix,
-        reason: "reconstruction_budget_exceeded",
+        reason,
         droppedAttributeCount,
       });
     }
