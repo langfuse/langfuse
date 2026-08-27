@@ -257,4 +257,52 @@ describe("prepareTimeAxis", () => {
     );
     expect(parseChartTimestamp("not a date")).toBeNull();
   });
+
+  describe("UTC calendar labels when the browser is west of UTC", () => {
+    const previousTz = process.env.TZ;
+
+    beforeEach(() => {
+      process.env.TZ = "America/Los_Angeles";
+    });
+
+    afterEach(() => {
+      if (previousTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTz;
+      }
+    });
+
+    it("date ticks and tooltips use the UTC calendar day, not the local previous evening", () => {
+      // UTC midnight Jun 28 is still Jun 27 evening in PT. Formatting in local
+      // time made the axis read one day early.
+      const values = Array.from({ length: 14 }, (_, d) =>
+        iso(Date.UTC(2026, 5, 28) + d * DAY),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("date");
+      expect(axis.formatTick(values[0])).toBe("Jun 28");
+      expect(axis.formatTooltip(values[0])).toBe("Jun 28, 2026");
+      expect(axis.formatTick("2026-06-28")).toBe("Jun 28");
+    });
+
+    it("month ticks use the UTC month (UTC midnight Jun 1 is still May locally)", () => {
+      const values = Array.from({ length: 200 }, (_, d) =>
+        iso(Date.UTC(2026, 5, 1) + d * DAY),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("month");
+      expect(axis.formatTick(values[0])).toBe("Jun 2026");
+    });
+
+    it("intraday time ticks stay in local time", () => {
+      const start = Date.UTC(2026, 5, 28, 18); // 11 AM PT
+      const values = Array.from({ length: 12 }, (_, h) =>
+        iso(start + h * HOUR),
+      );
+      const axis = prepareTimeAxis(values, 6);
+      expect(axis.mode).toBe("time");
+      expect(axis.formatTick(values[0])).toMatch(/11\s?AM/i);
+    });
+  });
 });
