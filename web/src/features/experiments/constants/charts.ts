@@ -11,8 +11,6 @@ export const BASE_CHART_IDS = {
   LATENCY: "base:latency",
 } as const;
 
-export const MAX_CHARTS = 4;
-
 export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
   "obs:numeric": {
     level: "obs",

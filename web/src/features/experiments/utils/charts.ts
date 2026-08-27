@@ -3,7 +3,6 @@ import {
   CATEGORICAL_SCORE_CHART_CONFIG,
   EXPERIMENT_COST_WIDGET_CONFIG,
   EXPERIMENT_LATENCY_WIDGET_CONFIG,
-  MAX_CHARTS,
   NUMERIC_SCORE_CHART_CONFIG,
   SCORE_LEVEL_ENTITY_DIMENSIONS,
   SCORE_LEVEL_FILTERS,
@@ -103,14 +102,6 @@ export function buildWidgetConfigFromId(chartId: string) {
 }
 
 /**
- * Get smart default charts based on available scores.
- * Starts with Cost and Latency.
- */
-export function getDefaultCharts(): string[] {
-  return [BASE_CHART_IDS.COST, BASE_CHART_IDS.LATENCY];
-}
-
-/**
  * Build all available metric options from score filter options for the dropdown.
  */
 export function buildMetricOptions(
@@ -144,13 +135,4 @@ export function buildMetricOptions(
     },
     ...scoreOptions,
   ];
-}
-
-/**
- * Validate that stored data is a valid ChartSelection (array of strings, max 4).
- */
-export function isValidChartSelection(data: unknown): data is string[] {
-  if (!Array.isArray(data)) return false;
-  if (data.length > MAX_CHARTS) return false;
-  return data.every((item) => typeof item === "string" && item.length > 0);
 }

@@ -265,8 +265,10 @@ export function WidgetContent({
 
     // Entity-dimension charts have no meaningful query-side order (the server
     // falls back to first-metric DESC, which differs per chart). Order the
-    // x-axis to match the experiments table order provided via
-    // entityDimensionLabelMap so the same entity lines up across chart slots.
+    // x-axis by the caller's entityDimensionLabelMap insertion order, which is
+    // the experiments table's row order: read left to right, the axis IS that
+    // table, so a point maps to the row at the same position. Entities the map
+    // doesn't know (a name the table no longer shows) sort last. (LFE-15711)
     if (
       chartType !== "PIVOT_TABLE" &&
       entityDimensionLabelMap &&
@@ -281,8 +283,8 @@ export function WidgetContent({
         .slice()
         .sort(
           (a, b) =>
-            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
-            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
+            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
+            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
         );
     }
 

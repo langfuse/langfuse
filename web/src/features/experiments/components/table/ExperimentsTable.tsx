@@ -61,14 +61,7 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/src/components/ui/accordion";
-import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
-import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
+import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
   createExperimentsTableStore,
   type ExperimentsTableStore,
@@ -768,14 +761,10 @@ export default function ExperimentsTable({
       : [];
   }, [experiments]);
 
-  // Get experiments from the current query result (for charts)
+  // The strip's series, in table order — which is also its x-axis order.
   const chartExperiments = useMemo(() => {
     return rows.map((row) => ({ id: row.id, name: row.name }));
   }, [rows]);
-
-  // Charts accordion collapsed state (persisted in session storage)
-  const { accordionValue, setAccordionValue } =
-    useExperimentChartsAccordion(projectId);
 
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
@@ -825,31 +814,14 @@ export default function ExperimentsTable({
             ]}
           />
 
-          {/* Charts section - Collapsible Accordion */}
           {tableDateRange && (
-            <Accordion
-              type="single"
-              collapsible
-              value={accordionValue}
-              onValueChange={setAccordionValue}
-            >
-              <AccordionItem value="charts" className="border-t">
-                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Charts</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
-                  <ExperimentChartsGrid
-                    projectId={projectId}
-                    experiments={chartExperiments}
-                    fromTimestamp={tableDateRange.from}
-                    toTimestamp={tableDateRange.to}
-                    isExternalLoading={experiments.status === "loading"}
-                  />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <ExperimentMetricStrip
+              projectId={projectId}
+              experiments={chartExperiments}
+              fromTimestamp={tableDateRange.from}
+              toTimestamp={tableDateRange.to}
+              isExternalLoading={experiments.status === "loading"}
+            />
           )}
 
           {isShowingMostRecent && (
