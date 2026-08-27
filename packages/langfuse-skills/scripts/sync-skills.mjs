@@ -4,7 +4,6 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import process from "node:process";
 import { format as formatWithPrettier } from "prettier";
-import { parse as parseYaml } from "yaml";
 
 const packageRoot = resolve(new URL("..", import.meta.url).pathname);
 const generatedPath = resolve(packageRoot, "src/generated/skills.js");
@@ -55,7 +54,14 @@ const parseSkill = (fileName, markdown) => {
     throw new Error(`${fileName} is missing frontmatter`);
   }
 
-  const metadata = parseYaml(frontmatterMatch[1]);
+  const metadata = Object.fromEntries(
+    frontmatterMatch[1]
+      .split("\n")
+      .flatMap((line) => {
+        const match = line.match(/^([a-z_]+):\s*(.*)$/);
+        return match ? [[match[1], match[2]]] : [];
+      }),
+  );
   if (
     !metadata ||
     typeof metadata !== "object" ||

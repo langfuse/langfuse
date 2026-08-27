@@ -248,9 +248,6 @@ importers:
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
 
   packages/shared:
     dependencies:
