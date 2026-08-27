@@ -1,11 +1,11 @@
 SELECT
     trace_id,
-    sum(sum_cost) AS cost,
-    min(min_start) AS min_start,
-    max(max_end) AS max_end,
-    dateDiff('millisecond', min(min_start), max(max_end)) AS latency_ms,
-    sum(span_count) AS span_count
-FROM trace_metrics_5m_benchmark
+    sum(tm.sum_cost) AS cost,
+    min(tm.min_start) AS min_start,
+    max(tm.max_end) AS max_end,
+    dateDiff('millisecond', min(tm.min_start), max(tm.max_end)) AS latency_ms,
+    sum(tm.span_count) AS span_count
+FROM trace_metrics_5m_benchmark AS tm
 WHERE project_id = {projectId: String}
   AND bucket >= toStartOfFiveMinutes({from: DateTime64(6)})
   AND bucket < toStartOfFiveMinutes({to: DateTime64(6)}) + INTERVAL 5 MINUTE
