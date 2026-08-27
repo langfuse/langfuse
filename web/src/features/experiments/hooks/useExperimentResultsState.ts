@@ -11,14 +11,16 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 /** How the selected experiments are laid out against each other. */
 export type ExperimentResultsLayout = "grid" | "list";
 
-/** What the second line of a diff cell is measured against. */
-export type ExperimentDiffMode = "comparison" | "off";
+/** What a diff cell's extra line is measured against. */
+export type ExperimentDiffMode = "comparison" | "expected" | "off";
 
 const asLayout = (value: unknown): ExperimentResultsLayout | undefined =>
   value === "grid" || value === "list" ? value : undefined;
 
 const asDiffMode = (value: unknown): ExperimentDiffMode | undefined =>
-  value === "comparison" || value === "off" ? value : undefined;
+  value === "comparison" || value === "expected" || value === "off"
+    ? value
+    : undefined;
 
 // Drop null/empty entries and de-duplicate, preserving first-seen order.
 const dedupe = (ids: (string | null | undefined)[]): string[] =>
@@ -130,7 +132,13 @@ export function useExperimentResultsState() {
 
   const setDiffMode = (newDiffMode: ExperimentDiffMode) => {
     setStoredDiffMode(newDiffMode);
-    setState({ diff: newDiffMode });
+    // Expected → Output is the diff layout's two-line cell; picking it from the
+    // side-by-side layout would otherwise appear to do nothing.
+    setState({
+      diff: newDiffMode,
+      ...(newDiffMode === "expected" ? { layout: "list" } : {}),
+    });
+    if (newDiffMode === "expected") setStoredLayout("list");
   };
 
   // Item visibility management

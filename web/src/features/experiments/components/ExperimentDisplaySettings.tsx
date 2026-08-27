@@ -89,12 +89,18 @@ export function ExperimentDisplaySettings({
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel>Compare against</DropdownMenuLabel>
+        <DropdownMenuLabel>Diff</DropdownMenuLabel>
         <OptionItem
           selected={diffMode === "comparison"}
           onSelect={() => onDiffModeChange("comparison")}
         >
           Comparison → Baseline
+        </OptionItem>
+        <OptionItem
+          selected={diffMode === "expected"}
+          onSelect={() => onDiffModeChange("expected")}
+        >
+          Expected → Output
         </OptionItem>
         <OptionItem
           selected={diffMode === "off"}

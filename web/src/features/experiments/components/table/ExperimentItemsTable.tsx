@@ -55,6 +55,7 @@ import {
   getExperimentColorStyles,
 } from "./types";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -235,10 +236,13 @@ const StackedOutputRow = ({
   output,
   markerClass,
   singleLine,
+  chip,
 }: {
   output: string;
   markerClass: string;
   singleLine: boolean;
+  /** Rendered after the value, e.g. the expected-output verdict. */
+  chip?: React.ReactNode;
 }) => {
   return (
     <div className="flex min-w-0 items-start">
@@ -254,9 +258,31 @@ const StackedOutputRow = ({
         singleLine={singleLine}
         className="bg-accent-light-green"
       />
+      {chip}
     </div>
   );
 };
+
+/**
+ * Whether an output is the expected one. Exact match after trimming — anything
+ * looser would be guessing at what "close enough" means for the user's data.
+ */
+const matchesExpectedOutput = (
+  output: string | null | undefined,
+  expectedOutput: string | null | undefined,
+) =>
+  Boolean(output && expectedOutput) &&
+  output!.trim() === expectedOutput!.trim();
+
+const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
+  <Badge
+    size="sm"
+    variant={matches ? "success" : "error"}
+    className="mt-0.5 ml-1 shrink-0 font-bold"
+  >
+    {matches ? "match" : "differs"}
+  </Badge>
+);
 
 /**
  * Cell component that renders stacked output values for each experiment.
@@ -267,25 +293,48 @@ const StackedOutputCell = ({
   colorExperimentIds,
   singleLine,
   isLoading,
+  expectedOutput,
 }: {
   outputs: ExperimentOutputData[];
   allExperimentIds: string[];
   colorExperimentIds?: string[];
   singleLine: boolean;
   isLoading: boolean;
+  /**
+   * The item's expected output, shown as the cell's first line with a verdict on
+   * each output — the `Expected → Output` diff mode. Undefined in every other
+   * mode, and for the items that simply have no expected output.
+   */
+  expectedOutput?: string | null;
 }) => {
   const outputsByExperimentId = useMemo(
     () => new Map(outputs.map((out) => [out.experimentId, out])),
     [outputs],
   );
 
+  const showExpectedLine = Boolean(expectedOutput);
+
   return (
     <div
       className="grid h-full min-h-0 gap-1"
       style={{
-        gridTemplateRows: `repeat(${Math.max(allExperimentIds.length, 1)}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${Math.max(allExperimentIds.length, 1) + (showExpectedLine ? 1 : 0)}, minmax(0, 1fr))`,
       }}
     >
+      {showExpectedLine && (
+        <div className="flex min-h-0 items-start overflow-hidden py-0.5 pr-1 pl-1.5">
+          <div className="flex min-w-0 items-start">
+            <span className="text-muted-foreground mt-0.5 mr-1 shrink-0 text-[10px] font-bold uppercase">
+              Exp
+            </span>
+            <MemoizedIOTableCell
+              isLoading={false}
+              data={expectedOutput ?? null}
+              singleLine={singleLine}
+            />
+          </div>
+        </div>
+      )}
       {allExperimentIds.map((experimentId) => {
         const out = outputsByExperimentId.get(experimentId);
         const colorStyles = getExperimentColorStyles(
@@ -311,6 +360,16 @@ const StackedOutputCell = ({
                 output={out.output}
                 markerClass={colorStyles.markerClass}
                 singleLine={singleLine}
+                chip={
+                  showExpectedLine ? (
+                    <ExpectedMatchChip
+                      matches={matchesExpectedOutput(
+                        out.output,
+                        expectedOutput,
+                      )}
+                    />
+                  ) : undefined
+                }
               />
             ) : (
               <span className="text-muted-foreground px-2 py-1">—</span>
@@ -355,8 +414,11 @@ export default function ExperimentItemsTable({
     itemVisibility,
   } = useExperimentResultsState();
 
-  // "Off" turns the whole diff apparatus into plain values.
-  const showComparisonDiff = diffMode === "comparison";
+  // "Off" turns the whole diff apparatus into plain values; "expected" keeps the
+  // baseline deltas on the scores (a score has no expected value to diff
+  // against) and points the output cell at the item's expected output instead.
+  const showComparisonDiff = diffMode !== "off";
+  const isExpectedDiff = diffMode === "expected";
 
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
@@ -1102,7 +1164,9 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    ...(showExpectedOutput ? [expectedOutputColumn] : []),
+    // The expected output moves inside the output cell in that diff mode, so it
+    // does not also hold a column of its own.
+    ...(showExpectedOutput && !isExpectedDiff ? [expectedOutputColumn] : []),
     {
       accessorKey: "output",
       id: "output",
@@ -1118,6 +1182,13 @@ export default function ExperimentItemsTable({
             colorExperimentIds={colorExperimentIds}
             singleLine={ioSingleLine}
             isLoading={ioLoading}
+            // Items with no expected output get no expected line and no
+            // verdict, rather than a diff against nothing.
+            expectedOutput={
+              isExpectedDiff
+                ? (row.original.expectedOutput ?? undefined)
+                : undefined
+            }
           />
         );
       },
