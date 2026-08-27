@@ -1,11 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Redis } from "ioredis";
 
 vi.mock("../../env", () => ({
@@ -17,11 +10,7 @@ vi.mock("../../env", () => ({
 }));
 
 import { env } from "../../env";
-import {
-  safeMultiGet,
-  scanKeys,
-  redisQueueRetryOptions,
-} from "./redis";
+import { safeMultiGet, scanKeys, redisQueueRetryOptions } from "./redis";
 import {
   buildRedisErrorContext,
   formatRedisErrorMessage,
@@ -363,6 +352,20 @@ describe("redisQueueRetryOptions", () => {
       );
       options.reconnectOnError!(new Error("ECONNREFUSED 127.0.0.1:6379"));
       expect(logger.warn).toHaveBeenCalledTimes(2);
+    });
+
+    it("suppresses alternating error messages, not just back-to-back repeats", () => {
+      // During a real outage with ~40 concurrent queue connections the same
+      // two errors can alternate (A-B-A-B). A single-slot dedupe would log
+      // every occurrence; per-message suppression collapses them.
+      const errA = new Error("getaddrinfo ENOTFOUND langfuse-redis");
+      const errB = new Error("ECONNREFUSED 127.0.0.1:6379");
+      options.reconnectOnError!(errA);
+      options.reconnectOnError!(errB);
+      options.reconnectOnError!(errA);
+      options.reconnectOnError!(errB);
+      options.reconnectOnError!(errA);
+      expect(logger.warn).toHaveBeenCalledTimes(2); // once per distinct message
     });
 
     it("returns 2 for READONLY errors and still logs", () => {
