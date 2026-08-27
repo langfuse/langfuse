@@ -1,5 +1,5 @@
 import { registeredProviders } from "../../conventions";
-import type { RootMessageSource } from "../../conventions/io-convention";
+import type { MessageSource } from "../../conventions/io-convention";
 import { asRecord, parseIfString, parseRecord } from "../utils/json";
 import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
@@ -149,7 +149,7 @@ function collectMessageSequence(
 }
 
 function emitRootSource(
-  rootSource: RootMessageSource,
+  rootSource: MessageSource,
   parserContext: ParserContext,
   messages: NormalizedMessage[],
   accumulator: NormalizedIOAccumulator,
@@ -200,10 +200,11 @@ function collectRecordMessages(
 
   const providerClaims = registeredProviders.map((provider) => ({
     provider,
-    sources: provider.claimRootMessageSources?.(record, source) ?? [],
+    sources: provider.claimMessages?.(record, source) ?? [],
+    systemMessage: provider.getSystemMessage?.(record, source),
   }));
-  const selectedClaim = providerClaims.find(({ sources }) =>
-    sources.some((rootSource) => rootSource.claimsConversation),
+  const selectedClaim = providerClaims.find(
+    ({ sources }) => sources.length > 0,
   );
 
   if (selectedClaim) {
@@ -211,9 +212,7 @@ function collectRecordMessages(
   }
 
   const messages: NormalizedMessage[] = [];
-  const claimedSources = selectedClaim?.sources.filter(
-    (rootSource) => rootSource.claimsConversation,
-  );
+  const claimedSources = selectedClaim?.sources;
 
   if (claimedSources && claimedSources.length > 0) {
     for (const rootSource of claimedSources) {
@@ -237,12 +236,14 @@ function collectRecordMessages(
   // suppresses every top-level system sidecar.
   if (source === "input" && !parserContext.hasSystemMessage) {
     const systemMessages: NormalizedMessage[] = [];
-    for (const { sources } of providerClaims) {
-      for (const rootSource of sources.filter(
-        (source) => !source.claimsConversation,
-      )) {
-        emitRootSource(rootSource, parserContext, systemMessages, accumulator);
-        if (parserContext.hasSystemMessage) break;
+    for (const { systemMessage } of providerClaims) {
+      if (systemMessage) {
+        emitRootSource(
+          systemMessage,
+          parserContext,
+          systemMessages,
+          accumulator,
+        );
       }
       if (parserContext.hasSystemMessage) break;
     }

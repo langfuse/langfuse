@@ -24,7 +24,7 @@ import type {
   ConventionResult,
   IOConvention,
   PartHandlerContext,
-  RootMessageSource,
+  MessageSource,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
 } from "../../io-convention";
@@ -207,34 +207,37 @@ function geminiToolDefinitionSources(
  * Gemini's request container: `contents` (+ `config.system_instruction`)
  * on input, `candidates` (each with its own finish reason) on output.
  */
-function geminiRootMessageSources(
+function geminiSystemMessage(
   root: Record<string, unknown>,
   kind: "input" | "output",
-): RootMessageSource[] {
-  const sources: RootMessageSource[] = [];
+): MessageSource | undefined {
+  if (kind !== "input") return undefined;
+
+  const config = asRecord(root.config);
+  const systemInstruction =
+    config?.system_instruction ?? config?.systemInstruction;
+  if (!systemInstruction) return undefined;
+
+  return {
+    kind: "single",
+    value: systemInstruction,
+    fallbackRole: "user",
+    roleOverride: "system",
+  };
+}
+
+function geminiMessages(
+  root: Record<string, unknown>,
+  kind: "input" | "output",
+): MessageSource[] {
+  const sources: MessageSource[] = [];
 
   if (kind === "input") {
-    const config = asRecord(root.config);
-    const systemInstruction =
-      config?.system_instruction ?? config?.systemInstruction;
-    if (systemInstruction) {
-      sources.push({
-        kind: "single",
-        sourceKey: "system_instruction",
-        value: systemInstruction,
-        fallbackRole: "user",
-        roleOverride: "system",
-        claimsConversation: false,
-      });
-    }
-
     if ("new_message" in root) {
       sources.push({
         kind: "single",
-        sourceKey: "new_message",
         value: root.new_message,
         fallbackRole: "user",
-        claimsConversation: true,
       });
       return sources;
     }
@@ -245,10 +248,8 @@ function geminiRootMessageSources(
         : [root.contents];
       sources.push({
         kind: "sequence",
-        sourceKey: "contents",
         values: contents,
         fallbackRole: "user",
-        claimsConversation: true,
       });
     }
   }
@@ -260,10 +261,8 @@ function geminiRootMessageSources(
         const candidateRecord = asRecord(candidate);
         sources.push({
           kind: "single",
-          sourceKey: "candidates",
           value: candidateRecord?.content,
           fallbackRole: "assistant",
-          claimsConversation: true,
           // Gemini reports the finish reason on the candidate, not the content.
           finishReasonCarrier: candidateRecord,
         });
@@ -281,6 +280,7 @@ export const geminiProvider = {
   // Gemini contents carry their blocks in a `parts` array.
   messageLikeKeys: new Set(["parts"]),
   tryNormalizeUntypedPart: normalizeGeminiPart,
-  claimRootMessageSources: geminiRootMessageSources,
+  claimMessages: geminiMessages,
+  getSystemMessage: geminiSystemMessage,
   collectToolDefinitionSources: geminiToolDefinitionSources,
 } satisfies IOConvention;

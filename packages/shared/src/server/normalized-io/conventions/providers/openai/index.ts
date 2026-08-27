@@ -37,7 +37,7 @@ import type {
   IOConvention,
   MessageEnvelopeContext,
   PartHandler,
-  RootMessageSource,
+  MessageSource,
   SiblingPartContribution,
 } from "../../io-convention";
 
@@ -383,23 +383,21 @@ function openAiCollectSiblingParts(
  * OpenAI response envelopes: Chat Completions `choices[]` (finish reason
  * per choice) and Responses' `output[]` item array.
  */
-function openAiRootMessageSources(
+function openAiMessages(
   root: Record<string, unknown>,
   kind: "input" | "output",
-): RootMessageSource[] {
+): MessageSource[] {
   if (kind !== "output") return [];
 
   const choices = parseArray(root.choices);
   if (choices) {
-    const sources: RootMessageSource[] = [];
+    const sources: MessageSource[] = [];
     for (const choice of choices) {
       const choiceRecord = asRecord(choice);
       sources.push({
         kind: "single",
-        sourceKey: "choices",
         value: choiceRecord?.message,
         fallbackRole: "assistant",
-        claimsConversation: true,
         // Chat Completions reports the finish reason on the choice, not the
         // message.
         finishReasonCarrier: choiceRecord,
@@ -425,10 +423,8 @@ function openAiRootMessageSources(
     return [
       {
         kind: "sequence",
-        sourceKey: "output",
         values: responseOutput,
         fallbackRole: "assistant",
-        claimsConversation: true,
       },
     ];
   }
@@ -559,5 +555,5 @@ export const openAiProvider: IOConvention = {
   citationKeys: OPENAI_CITATION_KEYS,
   typedParts: OPENAI_PART_HANDLERS,
   collectSiblingParts: openAiCollectSiblingParts,
-  claimRootMessageSources: openAiRootMessageSources,
+  claimMessages: openAiMessages,
 };

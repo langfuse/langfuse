@@ -15,7 +15,7 @@ export type {
   MessageEnvelopeContext,
   PartHandlerContext,
   PartHandler,
-  RootMessageSource,
+  MessageSource,
   SiblingPartContribution,
   SiblingPartSlot,
   ToolDefinitionCarrier,
@@ -27,11 +27,11 @@ export { claimed, dropped, unmatched } from "./io-convention";
 /**
  * All registered provider conventions, in deliberate order: common providers
  * first, so every fold checks the hot dialects before the long tail.
- * Part and tool-definition shapes are mostly disjoint, but root message
- * carriers are intentionally exclusive: the first provider claiming a
- * conversation owns that carrier. Keep this list ordered from the most
- * specific/common root envelopes to the generic tail; parser context then
- * tries the selected provider first while normalizing nested parts.
+ * Part and tool-definition shapes are mostly disjoint, but message claims are
+ * intentionally exclusive: the first provider claiming a conversation owns
+ * that carrier. Keep this list ordered from the most specific/common root
+ * envelopes to the generic tail; parser context then tries the selected
+ * provider first while normalizing nested parts.
  * Adding a provider is a directory plus one entry here; `registry.test.ts`
  * asserts folder <-> registry parity.
  *

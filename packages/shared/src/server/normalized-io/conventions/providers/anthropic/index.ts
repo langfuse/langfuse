@@ -24,7 +24,7 @@ import type { FilePart, FinishReason } from "../../../types";
 import type {
   IOConvention,
   PartHandler,
-  RootMessageSource,
+  MessageSource,
 } from "../../io-convention";
 
 /**
@@ -200,21 +200,17 @@ const ANTHROPIC_PART_HANDLERS = {
  * carried beside `content` rather than in the message stream. Wrapped as
  * message content and forced to the system role.
  */
-function anthropicRootMessageSources(
+function anthropicSystemMessage(
   root: Record<string, unknown>,
   kind: "input" | "output",
-): RootMessageSource[] {
-  if (kind !== "input" || !("system" in root)) return [];
-  return [
-    {
-      kind: "single",
-      sourceKey: "system",
-      value: { content: root.system },
-      fallbackRole: "user",
-      roleOverride: "system",
-      claimsConversation: false,
-    },
-  ];
+): MessageSource | undefined {
+  if (kind !== "input" || !("system" in root)) return undefined;
+  return {
+    kind: "single",
+    value: { content: root.system },
+    fallbackRole: "user",
+    roleOverride: "system",
+  };
 }
 
 // Anthropic carries citations under `citations` on text parts and document
@@ -250,5 +246,5 @@ export const anthropicProvider = {
       ? [{ sourceKey: "thinking", slot: "after-content", parts }]
       : [];
   },
-  claimRootMessageSources: anthropicRootMessageSources,
+  getSystemMessage: anthropicSystemMessage,
 } satisfies IOConvention;

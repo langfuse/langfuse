@@ -52,16 +52,12 @@ export type SiblingPartContribution = {
   parts: NormalizedMessagePart[];
 };
 
-type RootMessageSourceBase = {
-  sourceKey: string;
+type MessageSourceBase = {
   fallbackRole: "user" | "assistant";
-  /** Whether this source represents the record's conversation. Sidecars such
-   * as system prompts do not suppress the record fallback on their own. */
-  claimsConversation: boolean;
 };
 
-export type RootMessageSource =
-  | (RootMessageSourceBase & {
+export type MessageSource =
+  | (MessageSourceBase & {
       kind: "single";
       value: unknown;
       roleOverride?: "system";
@@ -69,7 +65,7 @@ export type RootMessageSource =
        * reads it via `normalizeFinishReason`'s key chain). */
       finishReasonCarrier?: Record<string, unknown>;
     })
-  | (RootMessageSourceBase & {
+  | (MessageSourceBase & {
       kind: "sequence";
       values: unknown[];
     });
@@ -158,17 +154,20 @@ export interface IOConvention {
     context: PartHandlerContext,
   ): SiblingPartContribution[];
 
-  /**
-   * Provider-specific message containers at the IO root. The core invokes
-   * conventions in registry order and uses the first result that contains a
-   * conversation source. A result may also contain sidecars such as a system
-   * instruction. Providers must guard weak keys (for example `output`) so an
-   * unrelated record cannot claim the conversation.
-   */
-  claimRootMessageSources?(
+  /** Provider-specific message containers at the IO root. The first provider
+   * returning a non-empty result claims the conversation. Providers must guard
+   * weak keys (for example `output`) so unrelated records do not claim it. */
+  claimMessages?(
     root: Record<string, unknown>,
     kind: "input" | "output",
-  ): RootMessageSource[];
+  ): MessageSource[];
+
+  /** Additive system-instruction carrier. It never claims the conversation and
+   * is used only when the input messages contain no system message. */
+  getSystemMessage?(
+    root: Record<string, unknown>,
+    kind: "input" | "output",
+  ): MessageSource | undefined;
 
   /** Provider-specific tool-definition carriers (IO root and/or OTel
    * metadata attributes — implementations read the carrier field they own). */
