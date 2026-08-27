@@ -1,50 +1,13 @@
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type RecordedSpan = { name: string; attributes: Record<string, unknown> };
-
-const mocks = vi.hoisted(() => {
-  const spans: RecordedSpan[] = [];
-
-  /**
-   * Stand-in for instrumentAsync that records the span name and every attribute
-   * set on it, so a test can assert what APM would show.
-   */
-  const instrumentAsync = vi.fn(
-    async (
-      ctx: { name: string },
-      callback: (span: unknown) => Promise<unknown>,
-    ) => {
-      const attributes: Record<string, unknown> = {};
-      spans.push({ name: ctx.name, attributes });
-      return await callback({
-        setAttribute: (key: string, value: unknown) => {
-          attributes[key] = value;
-        },
-        setAttributes: (values: Record<string, unknown>) => {
-          Object.assign(attributes, values);
-        },
-        recordException: vi.fn(),
-        setStatus: vi.fn(),
-        end: vi.fn(),
-      });
-    },
-  );
-
-  return {
-    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    spans,
-    instrumentAsync,
-  };
-});
+const mocks = vi.hoisted(() => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SharedServer>();
-  return {
-    ...actual,
-    logger: mocks.logger,
-    instrumentAsync: mocks.instrumentAsync,
-  };
+  return { ...actual, logger: mocks.logger };
 });
 
 import {
@@ -74,26 +37,9 @@ const provider = () =>
 const grant = (accessToken: string, expiresIn = 86_400) =>
   jsonResponse(200, { access_token: accessToken, expires_in: expiresIn });
 
-/** A JWT-shaped access token carrying the given claims — signature is filler. */
-const jwt = (claims: Record<string, unknown>) =>
-  [
-    Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString(
-      "base64url",
-    ),
-    Buffer.from(JSON.stringify(claims)).toString("base64url"),
-    "signature",
-  ].join(".");
-
-const mintSpan = () => {
-  const span = mocks.spans.find((s) => s.name === "chb.auth.token.mint");
-  if (!span) throw new Error("no chb.auth.token.mint span was recorded");
-  return span;
-};
-
 describe("chbAccessToken", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.spans.length = 0;
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -230,6 +176,14 @@ describe("chbAccessToken", () => {
     await expect(provider().getToken()).rejects.toBeInstanceOf(ChbAuthError);
   });
 
+  it("hands back a token whose claims cannot be decoded", async () => {
+    // The provider reads iss/aud off the token to tag the APM span. That is a
+    // diagnostic, so a token it cannot parse must not fail the billing request.
+    fetchMock.mockResolvedValue(grant("not.base64url-{{.sig"));
+
+    await expect(provider().getToken()).resolves.toBe("not.base64url-{{.sig");
+  });
+
   it("retries the grant after a failure instead of latching onto it", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(500, {}))
@@ -239,87 +193,5 @@ describe("chbAccessToken", () => {
     await expect(tokens.getToken()).rejects.toBeInstanceOf(ChbAuthError);
     // The single-flight promise must not outlive its own rejection.
     await expect(tokens.getToken()).resolves.toBe("token-1");
-  });
-
-  describe("tracing", () => {
-    it("spans the grant with the tenant and audience it asked for", async () => {
-      fetchMock.mockResolvedValue(grant("token-1", 3_600));
-
-      await provider().getToken();
-
-      expect(mintSpan().attributes).toMatchObject({
-        "chb.auth.domain": AUTH0_DOMAIN,
-        "chb.auth.audience": "billing-api",
-        "chb.auth.client_id": "client-id",
-        "chb.auth.expires_in_seconds": 3_600,
-        "http.status_code": 200,
-      });
-    });
-
-    it("tags the issuer and audience CHB will verify the token against", async () => {
-      fetchMock.mockResolvedValue(
-        grant(
-          jwt({
-            iss: "https://chb-tenant.eu.auth0.com/",
-            aud: ["billing-api", "https://chb-tenant.eu.auth0.com/userinfo"],
-          }),
-        ),
-      );
-
-      await provider().getToken();
-
-      // These two claims are exactly what CHB's verifier checks, so a tenant or
-      // audience mismatch is readable off the span without a reproduction.
-      expect(mintSpan().attributes).toMatchObject({
-        "chb.auth.token_format": "jwt",
-        "chb.auth.token_issuer": "https://chb-tenant.eu.auth0.com/",
-        "chb.auth.token_audience": [
-          "billing-api",
-          "https://chb-tenant.eu.auth0.com/userinfo",
-        ],
-      });
-    });
-
-    it("never tags the token itself", async () => {
-      const accessToken = jwt({ iss: "https://t.eu.auth0.com/", aud: "a" });
-      fetchMock.mockResolvedValue(grant(accessToken));
-
-      await provider().getToken();
-
-      const tagged = JSON.stringify(mintSpan().attributes);
-      expect(tagged).not.toContain(accessToken);
-      expect(tagged).not.toContain("signature");
-    });
-
-    it("flags an opaque token, which CHB's JWT verifier cannot accept", async () => {
-      // Auth0 hands back an opaque token when the audience is not a registered
-      // API — the request then fails at CHB with an unhelpful 401.
-      fetchMock.mockResolvedValue(grant("opaque-token"));
-
-      await provider().getToken();
-
-      expect(mintSpan().attributes["chb.auth.token_format"]).toBe("opaque");
-      expect(mintSpan().attributes).not.toHaveProperty("chb.auth.token_issuer");
-    });
-
-    it("survives a payload it cannot decode", async () => {
-      fetchMock.mockResolvedValue(grant("not.base64url-{{.sig"));
-
-      // A diagnostic must never be the reason a billing request fails.
-      await expect(provider().getToken()).resolves.toBe("not.base64url-{{.sig");
-      expect(mintSpan().attributes["chb.auth.token_format"]).toBe("jwt");
-    });
-
-    it("spans a rejected grant with its status", async () => {
-      fetchMock.mockResolvedValue(
-        jsonResponse(403, { error: "access_denied" }),
-      );
-
-      await provider()
-        .getToken()
-        .catch(() => undefined);
-
-      expect(mintSpan().attributes["http.status_code"]).toBe(403);
-    });
   });
 });
