@@ -15,12 +15,15 @@ const DESIGN_COMPONENT_STORIES = [
   "Checkbox/Checkbox",
   "Codeblock/Codeblock",
   "Dropzone/Dropzone",
+  "KeyboardShortcut/KeyboardShortcut",
   "LangfuseIcon/LangfuseIcon",
   "LangfuseLogo/LangfuseLogo",
+  "PasswordInput/PasswordInput",
   "Progress/Progress",
   "SearchInput/SearchInput",
   "Spinner/Spinner",
   "Switch/Switch",
+  "Toggle/Toggle",
   "Table/columns/createBadgeTableColumn",
   "Table/columns/createDateTableColumn",
   "Table/columns/createDurationTableColumn",
@@ -74,7 +77,7 @@ const config: StorybookConfig = {
   stories: [
     // Curated design-system documentation shown under Design.
     {
-      directory: "../storybook/docs",
+      directory: "./docs",
       files: "**/*.mdx",
       titlePrefix: "Design",
     },
@@ -92,7 +95,7 @@ const config: StorybookConfig = {
     })),
     // Design-system reference pages shown directly under Design.
     ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
-      directory: "../src/components/design-system",
+      directory: "./docs",
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design",
     })),
@@ -137,6 +140,9 @@ const config: StorybookConfig = {
     },
   ],
   experimental_indexers: flattenStoryIndexTitles(STORY_TITLE_GROUPS),
+  features: {
+    changeDetection: true,
+  },
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),

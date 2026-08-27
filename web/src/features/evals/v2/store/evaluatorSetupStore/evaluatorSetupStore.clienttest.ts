@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
-import { createEvaluatorSetupStore } from "./evaluatorSetupStore";
+import {
+  createEvaluatorSetupStore,
+  selectHasValidModel,
+} from "./evaluatorSetupStore";
 
 describe("createEvaluatorSetupStore", () => {
   it("starts new evaluator descriptions empty", () => {
@@ -186,6 +189,29 @@ describe("createEvaluatorSetupStore", () => {
     ]);
   });
 
+  it("derives whether any usable model is available", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    expect(selectHasValidModel(store.getState())).toBe(false);
+
+    store
+      .getState()
+      .actions.setDefaultModel({ provider: "OpenAI", model: "gpt-4.1-mini" });
+    expect(selectHasValidModel(store.getState())).toBe(true);
+
+    store.getState().actions.setDefaultModel(null);
+    store
+      .getState()
+      .actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
+    expect(selectHasValidModel(store.getState())).toBe(true);
+
+    store.getState().actions.setType("CODE");
+    expect(selectHasValidModel(store.getState())).toBe(true);
+  });
+
   it("keeps configured parameters for the selected model and resets them when the model changes", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,
@@ -202,5 +228,83 @@ describe("createEvaluatorSetupStore", () => {
 
     actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
     expect(store.getState().modelParams).toBeNull();
+  });
+
+  it("loads an old LLM definition without replacing evaluator metadata", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Answer quality",
+        description: "Checks answer quality",
+        definition: {
+          type: "CODE",
+          sourceCode: "return { score: 1 };",
+          sourceCodeLanguage: "TYPESCRIPT",
+        },
+      },
+      mode: "edit",
+    });
+    const sampleFilter = store.getState().sampleFilter;
+
+    store.getState().actions.applyDefinition({
+      type: "LLM_AS_JUDGE",
+      prompt: "Judge {{output}}",
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      modelParams: { temperature: 0.2 },
+      vars: ["output"],
+      variableMapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+      ],
+      outputDefinition: {
+        version: 2,
+        dataType: "NUMERIC",
+        score: {
+          description: "Answer quality",
+          minValue: 0,
+          maxValue: 1,
+        },
+        reasoning: { description: "Explain the score" },
+      },
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "LLM_AS_JUDGE",
+      name: "Answer quality",
+      description: "Checks answer quality",
+      prompt: "Judge {{output}}",
+      modelMode: "custom",
+      selectedModel: { provider: "openai", model: "gpt-4.1-mini" },
+      modelParams: { temperature: 0.2 },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: null },
+      },
+    });
+    expect(store.getState().sampleFilter).toBe(sampleFilter);
+  });
+
+  it("loads an old code definition", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    store.getState().actions.applyDefinition({
+      type: "CODE",
+      sourceCode: "def evaluate(ctx):\n  return []",
+      sourceCodeLanguage: "PYTHON",
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "CODE",
+      sourceCode: "def evaluate(ctx):\n  return []",
+      sourceCodeLanguage: "PYTHON",
+      sourceCodeDrafts: {
+        PYTHON: "def evaluate(ctx):\n  return []",
+      },
+    });
   });
 });

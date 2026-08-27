@@ -75,6 +75,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_getPrompt: "Inspecting prompt",
   langfuse_getScore: "Inspecting score",
   langfuse_getScoreConfig: "Inspecting score config",
+  langfuse_getV4MigrationData: "Inspecting v4 migration data",
   langfuse_listAlerts: "Browsing alerts",
   langfuse_listAnnotationQueueItems: "Browsing annotation queue items",
   langfuse_listAnnotationQueues: "Browsing annotation queues",

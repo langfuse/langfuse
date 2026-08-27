@@ -47,7 +47,15 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
+import {
+  formatObservationCost,
+  isObservationCostDisplayable,
+} from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   getRowHeightIOCharLimit,
@@ -1318,8 +1326,13 @@ export default function ObservationsEventsTable({
       size: 120,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
+        const type = row.original.type;
 
-        return value !== undefined ? (
+        if (!isObservationCostDisplayable(value, type)) {
+          return <span>{formatObservationCost(value, type)}</span>;
+        }
+
+        return (
           <BreakdownTooltip
             details={row.original.costDetails}
             isCost
@@ -1330,7 +1343,7 @@ export default function ObservationsEventsTable({
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
-        ) : undefined;
+        );
       },
       enableHiding: true,
       enableSorting,
@@ -1359,9 +1372,11 @@ export default function ObservationsEventsTable({
               outputCost: number | undefined;
             };
 
-            return value.inputCost !== undefined ? (
-              <span>{usdFormatter(value.inputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.inputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1379,9 +1394,11 @@ export default function ObservationsEventsTable({
               outputCost: number | undefined;
             };
 
-            return value.outputCost !== undefined ? (
-              <span>{usdFormatter(value.outputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.outputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1396,8 +1413,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolCalls",
@@ -1406,8 +1422,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1439,31 +1454,24 @@ export default function ObservationsEventsTable({
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "tokensPerSecond",
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => {
+            const { latency, usage } = row;
+            if (latency === undefined) return undefined;
+            if (usage.outputUsage === 0 && usage.totalUsage === 0)
+              return undefined;
+            if (!usage.outputUsage || !latency) return undefined;
+
+            return Number((usage.outputUsage / latency).toFixed(1));
+          },
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }) => {
-            const latency: number | undefined = row.getValue("latency");
-            const usage = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return latency !== undefined &&
-              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
-              <span>
-                {usage.outputUsage && latency
-                  ? Number((usage.outputUsage / latency).toFixed(1))
-                  : undefined}
-              </span>
-            ) : undefined;
-          },
+          formatter: String,
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
+        }),
         createNumberTableColumn<EventsTableRow>({
           id: "inputTokens",
           accessorFn: (row) => row.usage.inputUsage,
@@ -1472,8 +1480,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
@@ -1483,8 +1490,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
@@ -1494,8 +1500,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },

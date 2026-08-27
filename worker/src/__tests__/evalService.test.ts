@@ -43,7 +43,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 // Import the mocked function
-import { generateLLMText } from "@langfuse/shared/src/server";
+import {
+  EvalExecutionQueue,
+  generateLLMText,
+} from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -749,6 +752,116 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].jobInputTraceId).toBe(traceId);
       expect(jobs[0].status.toString()).toBe("PENDING");
       expect(jobs[0].startTime).not.toBeNull();
+    }, 10_000);
+
+    test("creates a single eval job when two producers race for the same trace", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await createMigratedEvalConfig({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const payload = { projectId, traceId };
+
+      // Two shard workers observing the same trace concurrently. Both pass the
+      // dedup existence check before either inserts.
+      await Promise.all([
+        createEvalJobs({
+          sourceEventType: "trace-upsert",
+          event: payload,
+          jobTimestamp,
+        }),
+        createEvalJobs({
+          sourceEventType: "trace-upsert",
+          event: payload,
+          jobTimestamp,
+        }),
+      ]);
+
+      const jobs = await prisma.jobExecution.findMany({ where: { projectId } });
+
+      expect(jobs.length).toBe(1);
+    }, 10_000);
+
+    test("does not leave a PENDING eval job behind when enqueueing fails", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const traceId = randomUUID();
+
+      await upsertTrace({
+        id: traceId,
+        project_id: projectId,
+        timestamp: convertDateToClickhouseDateTime(new Date()),
+        created_at: convertDateToClickhouseDateTime(new Date()),
+        updated_at: convertDateToClickhouseDateTime(new Date()),
+      });
+
+      await createMigratedEvalConfig({
+        data: {
+          id: randomUUID(),
+          projectId,
+          filter: JSON.parse("[]"),
+          jobType: "EVAL",
+          delay: 0,
+          sampling: new Decimal("1"),
+          targetObject: EvalTargetObject.TRACE,
+          scoreName: "score",
+          variableMapping: JSON.parse("[]"),
+        },
+      });
+
+      const getInstanceSpy = vi
+        .spyOn(EvalExecutionQueue, "getInstance")
+        .mockReturnValue({
+          add: vi.fn().mockRejectedValue(new Error("redis is down")),
+        } as never);
+
+      try {
+        await expect(
+          createEvalJobs({
+            sourceEventType: "trace-upsert",
+            event: { projectId, traceId },
+            jobTimestamp,
+          }),
+        ).rejects.toThrow("redis is down");
+      } finally {
+        getInstanceSpy.mockRestore();
+      }
+
+      // The row must be gone, otherwise the BullMQ redelivery hits the dedup
+      // check and the execution stays PENDING forever.
+      await expect(
+        prisma.jobExecution.count({ where: { projectId } }),
+      ).resolves.toBe(0);
+
+      // The retry recreates and enqueues it.
+      await createEvalJobs({
+        sourceEventType: "trace-upsert",
+        event: { projectId, traceId },
+        jobTimestamp,
+      });
+
+      await expect(
+        prisma.jobExecution.count({ where: { projectId } }),
+      ).resolves.toBe(1);
     }, 10_000);
 
     test("creates new 'dataset' eval job", async () => {
