@@ -547,7 +547,10 @@ const GroupSection = ({
   <div
     className={cn(
       "flex flex-col gap-1 px-2 py-1.5",
-      grow ? "min-h-0 flex-1" : "shrink-0",
+      // `grow` takes the spare space but keeps its content's height as its
+      // base, so a cell with no spare space still shows the output rather than
+      // collapsing to its label and letting the output spill over the scores.
+      grow ? "shrink-0 grow" : "shrink-0",
     )}
   >
     {header && (
