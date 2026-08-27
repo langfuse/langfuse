@@ -11,6 +11,9 @@ const organizationScopes = [
   "organizationMembers:CUD",
   "langfuseCloudBilling:CRUD",
   "auditLogs:read",
+
+  // Public-API action token; not granted to any UI role.
+  "projects:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "organizationMembers:read"

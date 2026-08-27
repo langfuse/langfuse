@@ -17,6 +17,7 @@ import { v4 } from "uuid";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Generation (Legacy)",
+    action: "traces:create",
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
@@ -61,6 +62,7 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Patch Generation (Legacy)",
+    action: "traces:create",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",

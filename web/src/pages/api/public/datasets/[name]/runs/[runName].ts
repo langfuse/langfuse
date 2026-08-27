@@ -15,6 +15,7 @@ import { DATASET_RUNS_DEPRECATION } from "@/src/features/public-api/server/depre
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "get-dataset-run",
+    action: "datasets:read",
     querySchema: GetDatasetRunV1Query,
     responseSchema: GetDatasetRunV1Response,
     deprecation: DATASET_RUNS_DEPRECATION,
@@ -32,6 +33,7 @@ export default withMiddlewares({
   }),
   DELETE: createAuthedProjectAPIRoute({
     name: "delete-dataset-run",
+    action: "datasets:CUD",
     querySchema: DeleteDatasetRunV1Query,
     responseSchema: DeleteDatasetRunV1Response,
     rateLimitResource: "datasets",

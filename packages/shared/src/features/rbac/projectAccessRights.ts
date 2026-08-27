@@ -81,6 +81,18 @@ export const projectScopes = [
 
   "alerts:read",
   "alerts:CUD",
+
+  // Public-API action tokens; not granted to any UI role.
+  "traces:read",
+  "traces:create",
+  "scores:read",
+  "scores:create",
+  "media:create",
+  "sessions:read",
+  "metrics:read",
+  "models:read",
+  "experiments:read",
+  "mcp:access",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"

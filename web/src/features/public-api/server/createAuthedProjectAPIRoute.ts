@@ -31,6 +31,8 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+import { verifyAuth as verifyAuthWithPolicy } from "@/src/features/auth/policy/shadow.projects";
+import { type ProjectAction } from "@/src/features/auth/policy/types";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -46,6 +48,12 @@ export type AuthedProjectAPIRouteConfig<
   TResponse extends ZodType<any>,
 > = {
   name: string;
+  /**
+   * The project action this route authorizes through the policy core. Required
+   * so a route cannot ship with no authorization; `null` is the greppable
+   * shadow opt-out for routes that intentionally skip the check.
+   */
+  action: ProjectAction | null;
   querySchema?: TQuery;
   bodySchema?: TBody;
   responseSchema: TResponse;
@@ -343,12 +351,13 @@ export const createAuthedProjectAPIRoute = <
 
     // Verify authentication (API key or admin API key)
     try {
-      auth = await verifyAuth(
+      auth = await verifyAuthWithPolicy({
         req,
-        routeConfig.isAdminApiKeyAuthAllowed || false,
-        routeConfig.allowedAccessLevels || ["project"],
-        routeConfig.allowInAppAgentKey === true,
-      );
+        action: routeConfig.action,
+        isAdminApiKeyAuthAllowed: routeConfig.isAdminApiKeyAuthAllowed || false,
+        allowedAccessLevels: routeConfig.allowedAccessLevels || ["project"],
+        allowInAppAgentKey: routeConfig.allowInAppAgentKey === true,
+      });
     } catch (error: any) {
       if (isPrismaException(error)) {
         traceException(error);
