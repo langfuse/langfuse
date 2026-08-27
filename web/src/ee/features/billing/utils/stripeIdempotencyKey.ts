@@ -31,6 +31,14 @@ export const IdempotencyKind = z.enum([
   "subscription.migrate.flexible",
   "subscription.schedule.clear",
   "subscription.update.discounts.add",
+  // ClickHouse Billing (CHB) operations — same machinery, keyed on the
+  // client-generated opId the router already accepts. The checkout mutation
+  // takes an opId too: BillingSwitchPlanDialog generates one per dialog
+  // lifetime, which is exactly the double-submit window, and drops it on
+  // remount so a fresh visit gets a fresh session rather than an expired one.
+  "chb.checkout.create",
+  "chb.bundle.scheduled.set",
+  "chb.bundle.scheduled.clear",
 ]);
 
 export type IdempotencyKind = z.infer<typeof IdempotencyKind>;

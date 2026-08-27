@@ -11,6 +11,7 @@ import { SelectDashboardDialog } from "@/src/features/dashboard/components/Selec
 import { useState } from "react";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { getDefaultView } from "@/src/features/widgets/utils";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function NewWidget() {
   const router = useRouter();
@@ -19,9 +20,19 @@ export default function NewWidget() {
     dashboardId?: string;
   };
   const { isBetaEnabled } = useV4Beta();
+  const capture = usePostHogClientCapture();
 
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // Which measure/aggregation/chart shapes do users actually save?
+      capture("dashboard:widget_saved", {
+        isNew: true,
+        view: variables.view,
+        chartType: variables.chartType,
+        measures: variables.metrics.map((m) => `${m.agg}:${m.measure}`),
+        dimensionCount: variables.dimensions.length,
+        filterCount: variables.filters.length,
+      });
       showSuccessToast({
         title: "Widget created successfully",
         description: "Your widget has been created.",

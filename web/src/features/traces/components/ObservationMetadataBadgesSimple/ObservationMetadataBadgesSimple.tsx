@@ -81,13 +81,3 @@ export function LevelBadge({ level }: { level: string | null | undefined }) {
     </Badge>
   );
 }
-
-export function StatusMessageBadge({
-  statusMessage,
-}: {
-  statusMessage: string | null | undefined;
-}) {
-  if (!statusMessage) return null;
-
-  return <Badge variant="tertiary">{statusMessage}</Badge>;
-}

@@ -63,6 +63,10 @@ class FakeWorker {
   answer(message: ElkMessage, data: unknown) {
     this.onmessage?.({ data: { id: message.id, data } } as MessageEvent);
   }
+
+  fail(message: ElkMessage, error: unknown) {
+    this.onmessage?.({ data: { id: message.id, error } } as MessageEvent);
+  }
 }
 
 // The client keeps the worker in module state, so every test needs its own copy.
@@ -128,6 +132,21 @@ describe("requestGraphLayout", () => {
     staleWorker.answer(staleRequest, laidOut(1));
     freshWorker.answer(freshWorker.layoutRequests[0], laidOut(2));
     await expect(fresh).resolves.toMatchObject({ width: 2 });
+  });
+
+  it("gives up with the too-large notice when elkjs overflows the worker stack", async () => {
+    const client = await loadClient();
+    const pending = client.requestGraphLayout(graph, {}, "DOWN");
+    const worker = FakeWorker.instances[0];
+    await flush();
+
+    worker.fail(worker.layoutRequests[0], "Maximum call stack size exceeded");
+
+    await expect(pending).resolves.toMatchObject({
+      tooLarge: true,
+      nodeCount: 2,
+      edgeCount: 1,
+    });
   });
 
   it("gives up with the too-large notice when a layout blows the deadline", async () => {

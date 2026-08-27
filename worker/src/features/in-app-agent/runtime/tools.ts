@@ -39,8 +39,8 @@ import {
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
 import {
-  getInAppAgentSilentMcpOutputMessage,
   isSilentInAppAgentMcpToolOutput,
+  toAiSdkToolModelOutput,
   type CompletedInAppAgentMcpToolCall,
   type SilentInAppAgentMcpToolOutput,
 } from "@langfuse/shared/in-app-agent/server/toolResults";
@@ -219,19 +219,12 @@ export function withOptionalSilentMcpOutput(params: {
       };
       tool.toModelOutput = (output) => {
         if (isSilentInAppAgentMcpToolOutput(output)) {
-          if (!output.toolCallId) {
-            return output.output;
-          }
-
-          return output.toolName
-            ? getInAppAgentSilentMcpOutputMessage(
-                output.toolName,
-                output.toolCallId,
-              )
-            : output.output;
+          return toAiSdkToolModelOutput(output);
         }
 
-        return toModelOutput ? toModelOutput(output) : output;
+        return toAiSdkToolModelOutput(
+          toModelOutput ? toModelOutput(output) : output,
+        );
       };
 
       return [toolName, tool];

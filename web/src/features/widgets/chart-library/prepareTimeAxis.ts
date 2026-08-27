@@ -268,10 +268,11 @@ export function prepareTimeAxis(
   const span = count >= 2 ? maxTs - minTs : 0;
   // Date ticks normally omit the year (one unit per scale), but show it when the
   // range straddles a year boundary so "Dec 29 → Jan 5" stays unambiguous.
-  // Use LOCAL year to match the tick formatter (toLocaleDateString renders in
-  // local time), so a range that crosses Jan 1 locally still shows the year.
+  // UTC year to match date/month formatters (buckets are UTC-aligned; local
+  // midnight would otherwise drop the year on a range that only crosses Jan 1
+  // in the browser timezone).
   const crossesYear =
-    new Date(minTs).getFullYear() !== new Date(maxTs).getFullYear();
+    new Date(minTs).getUTCFullYear() !== new Date(maxTs).getUTCFullYear();
 
   const mode: AxisMode =
     span > 0 && span <= TIME_SCALE_MAX
@@ -297,6 +298,10 @@ export function prepareTimeAxis(
   const subHour = bucketMs > 0 && bucketMs < HOUR;
   const subDay = bucketMs > 0 && bucketMs < DAY;
 
+  // Date/month labels use UTC so a UTC-midnight bucket is not formatted as the
+  // previous local evening. Intraday time ticks stay in the browser timezone.
+  const calendarTimeZone = mode === "time" ? undefined : "UTC";
+
   const formatTick = (raw: unknown): string => {
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
@@ -308,11 +313,13 @@ export function prepareTimeAxis(
     }
     if (mode === "month") {
       return date.toLocaleDateString("en-US", {
+        timeZone: calendarTimeZone,
         month: "short",
         year: "numeric",
       });
     }
     return date.toLocaleDateString("en-US", {
+      timeZone: calendarTimeZone,
       month: "short",
       day: "numeric",
       ...(crossesYear ? { year: "numeric" } : {}),
@@ -327,6 +334,7 @@ export function prepareTimeAxis(
     const date = parseChartTimestamp(raw);
     if (!date) return typeof raw === "string" ? raw : "";
     return date.toLocaleString("en-US", {
+      ...(calendarTimeZone ? { timeZone: calendarTimeZone } : {}),
       month: "short",
       day: "numeric",
       year: "numeric",

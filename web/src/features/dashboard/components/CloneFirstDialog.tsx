@@ -76,6 +76,9 @@ export function CloneFirstDialog({
         source: "clone_first_dialog",
         set_as_home: setAsHome,
         had_pending_change: Boolean(pendingDefinition),
+        dashboardId,
+        // The clone-first flow only exists for locked Langfuse-owned dashboards.
+        owner: "LANGFUSE",
       });
       showSuccessToast({
         title: "Editable copy created",

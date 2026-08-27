@@ -48,7 +48,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { usdFormatter } from "@/src/utils/numbers";
+import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
   InfoIcon,
@@ -1053,8 +1053,7 @@ function buildGroupedColumns(
         accessorKey: "observationCount",
         header: "Observations",
         size: 110,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        formatter: (value) => numberFormatter(value, 0, 0),
       }),
       {
         accessorKey: "latency",
@@ -1070,20 +1069,19 @@ function buildGroupedColumns(
     id: "usageGroup",
     header: "Cost & usage",
     columns: [
-      {
-        accessorKey: "totalCost",
+      createNumberTableColumn<TraceRow>({
         id: "totalCostGrouped",
+        accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        cell: ({ row }) => usdFormatter(row.original.totalCost.toNumber()),
-      },
+        formatter: usdFormatter,
+      }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
         accessorFn: (row) => row.usage.totalUsage,
         header: "Tokens",
         size: 100,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        formatter: (value) => numberFormatter(value, 0, 0),
       }),
     ] satisfies LangfuseColumnDef<TraceRow>[],
   };
