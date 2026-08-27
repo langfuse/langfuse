@@ -20,8 +20,13 @@ const mocks = vi.hoisted(() => ({
   experimentalFeaturesEnabled: false,
   userFeatureFlags: {
     modernSession: false,
-    compactTimeline: false,
   },
+  /**
+   * Which previews are already organization defaults. Per-test since the
+   * Compact Timeline reached GA: with a single preview in the registry, a test
+   * that needs one which is NOT yet a default can no longer just pick the other.
+   */
+  orgDefaults: ["modernSession"] as string[],
   updateSession: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -117,7 +122,7 @@ vi.mock("@/src/utils/api", () => ({
     organizations: {
       getFeatureFlagOrgDefaults: {
         useQuery: () => ({
-          data: { defaults: ["modernSession"], memberCount: 3 },
+          data: { defaults: mocks.orgDefaults, memberCount: 3 },
           isError: false,
           isPending: false,
         }),
@@ -138,8 +143,8 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     mocks.experimentalFeaturesEnabled = false;
     mocks.userFeatureFlags = {
       modernSession: false,
-      compactTimeline: false,
     };
+    mocks.orgDefaults = ["modernSession"];
     mocks.mutate.mockImplementation((variables) => {
       mocks.mutationOptions?.onSuccess?.({}, variables);
     });
@@ -161,7 +166,9 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     const switches = screen.getAllByRole("checkbox", {
       name: /organization default/i,
     });
-    expect(switches).toHaveLength(2);
+    // One row per preview, and there is one preview since the Compact Timeline
+    // reached GA and left the registry.
+    expect(switches).toHaveLength(1);
     switches.forEach((featureSwitch) => {
       expect(featureSwitch).toBeChecked();
       expect(featureSwitch).toBeDisabled();
@@ -169,18 +176,19 @@ describe("OrganizationFeaturePreviewsSettings", () => {
   });
 
   it("requires an admin to enable a preview personally before enabling the organization default", () => {
+    // Not a default yet: an admin can always turn one OFF, so the lock only
+    // shows on a row they would be turning ON.
+    mocks.orgDefaults = [];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline organization default",
-      }),
-    ).toBeDisabled();
+    // NOTE: this also compared against a SECOND preview the admin had enabled
+    // personally, whose row stayed interactive. That was `compactTimeline`, gone
+    // at GA — the contrast half returns with the next preview.
     expect(
       screen.getByRole("checkbox", {
         name: "Toggle Compact Session View organization default",
       }),
-    ).not.toBeDisabled();
+    ).toBeDisabled();
     const personalEnablementRequirements = screen.getAllByText(
       /enable this preview in your personal feature preview settings/i,
     );
@@ -190,7 +198,8 @@ describe("OrganizationFeaturePreviewsSettings", () => {
   });
 
   it("confirms an organization default change and captures metadata once", async () => {
-    mocks.userFeatureFlags.compactTimeline = true;
+    mocks.userFeatureFlags.modernSession = true;
+    mocks.orgDefaults = [];
     render(<OrganizationFeaturePreviewsSettings orgId="org-1" />);
 
     expect(
@@ -198,7 +207,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline organization default",
+        name: "Toggle Compact Session View organization default",
       }),
     );
     expect(screen.getByText("Already enabled for you")).toBeInTheDocument();
@@ -209,18 +218,19 @@ describe("OrganizationFeaturePreviewsSettings", () => {
 
     expect(mocks.mutate).toHaveBeenCalledWith({
       orgId: "org-1",
-      flag: "compactTimeline",
+      flag: "modernSession",
       enabled: true,
     });
     await waitFor(() => expect(mocks.capture).toHaveBeenCalledTimes(1));
     expect(mocks.capture).toHaveBeenCalledWith(
       "organization_settings:feature_flag_default_toggled",
-      { feature: "compactTimeline", isEnabled: true },
+      { feature: "modernSession", isEnabled: true },
     );
   });
 
   it("does not capture analytics when a default change fails", () => {
-    mocks.userFeatureFlags.compactTimeline = true;
+    mocks.userFeatureFlags.modernSession = true;
+    mocks.orgDefaults = [];
     mocks.mutate.mockImplementation(() => {
       mocks.mutationOptions?.onError?.(new Error("denied"));
     });
@@ -228,7 +238,7 @@ describe("OrganizationFeaturePreviewsSettings", () => {
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline organization default",
+        name: "Toggle Compact Session View organization default",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));

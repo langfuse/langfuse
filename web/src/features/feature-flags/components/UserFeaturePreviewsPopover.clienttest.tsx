@@ -122,7 +122,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: {
         allowed: false,
@@ -135,7 +134,7 @@ describe("UserFeaturePreviewsControl", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /0\/2 enabled/i }),
+      screen.getByRole("button", { name: /0\/1 enabled/i }),
     ).toBeDisabled();
   });
 
@@ -145,14 +144,13 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: { allowed: true },
     });
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline for user",
+        name: "Toggle Compact Session View for user",
       }),
     );
 
@@ -160,7 +158,7 @@ describe("UserFeaturePreviewsControl", () => {
       {
         orgId: "org-1",
         userId: "user-1",
-        flag: "compactTimeline",
+        flag: "modernSession",
         enabled: true,
       },
       expect.objectContaining({ onSettled: expect.any(Function) }),
@@ -170,7 +168,7 @@ describe("UserFeaturePreviewsControl", () => {
     });
     expect(mocks.capture).toHaveBeenCalledWith(
       "organization_settings:user_feature_flag_toggled",
-      { feature: "compactTimeline", isEnabled: true },
+      { feature: "modernSession", isEnabled: true },
     );
   });
 
@@ -181,21 +179,20 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: { allowed: true },
     });
 
-    const compactTimeline = screen.getByRole("checkbox", {
-      name: "Toggle Compact Timeline for user",
-    });
     const sessions = screen.getByRole("checkbox", {
       name: "Toggle Compact Session View for user",
     });
-    fireEvent.click(compactTimeline);
+    fireEvent.click(sessions);
 
-    expect(compactTimeline).toBeDisabled();
-    expect(sessions).not.toBeDisabled();
+    // NOTE: this also asserted that the OTHER preview's row stayed enabled, so
+    // that a pending toggle disables only its own row. `compactTimeline` was the
+    // other row, and it went away at GA — there is one preview left, so the
+    // isolation half returns with the next one.
+    expect(sessions).toBeDisabled();
   });
 
   it("refetches without capturing analytics when the mutation fails", async () => {
@@ -208,14 +205,13 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: { allowed: true },
     });
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline for user",
+        name: "Toggle Compact Session View for user",
       }),
     );
 
