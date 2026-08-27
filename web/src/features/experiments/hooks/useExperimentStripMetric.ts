@@ -44,6 +44,10 @@ export function useExperimentStripMetric({
       obs_score_categories: processCategoricalScoreOptions(
         scoreOptions.data.obs_score_categories,
       ),
+      trace_scores_avg: scoreOptions.data.trace_scores_avg,
+      trace_score_categories: processCategoricalScoreOptions(
+        scoreOptions.data.trace_score_categories,
+      ),
       experiment_scores_avg: scoreOptions.data.experiment_scores_avg,
       experiment_score_categories: processCategoricalScoreOptions(
         scoreOptions.data.experiment_score_categories,

@@ -24,6 +24,18 @@ export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
     filterKey: "obs_score_categories",
     group: "Observation Scores",
   },
+  "trace:numeric": {
+    level: "trace",
+    dataType: "numeric",
+    filterKey: "trace_scores_avg",
+    group: "Trace Scores",
+  },
+  "trace:categorical": {
+    level: "trace",
+    dataType: "categorical",
+    filterKey: "trace_score_categories",
+    group: "Trace Scores",
+  },
   "experiment:numeric": {
     level: "experiment",
     dataType: "numeric",
@@ -84,6 +96,9 @@ export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
   { field: string }
 > = {
   obs: { field: "experimentName" },
+  // A trace-level score has no observation, so the experiment has to be read
+  // off the scored trace's root event rather than off the observation.
+  trace: { field: "traceExperimentName" },
   experiment: { field: "datasetRunId" },
 };
 
@@ -112,6 +127,14 @@ export const SCORE_LEVEL_FILTERS: Record<ScoreLevel, FilterCondition[]> = {
     {
       column: "observationId",
       operator: "is not null",
+      value: "",
+      type: "null",
+    },
+  ],
+  trace: [
+    {
+      column: "observationId",
+      operator: "is null",
       value: "",
       type: "null",
     },

@@ -2,12 +2,13 @@ import { BASE_CHART_IDS } from "@/src/features/experiments/constants/charts";
 import type { MetricOption } from "@/src/features/experiments/types/charts";
 
 /** Score chart ids are `${level}-score-${dataType}:${scoreName}`. */
-const NUMERIC_SCORE_ID = /^(obs|experiment)-score-numeric:/;
+const NUMERIC_SCORE_ID = /^(obs|trace|experiment)-score-numeric:/;
 
 /**
  * Which metric the strip opens on. The rule: the first score by name, numeric
- * before categorical, with ties (the same score name at two levels) keeping the
- * option order — observation-level first. Cost is the fallback only when the
+ * before categorical, with ties (the same score name at several levels) keeping
+ * the option order — observation, then trace, then run level. Cost is the
+ * fallback only when the
  * experiments in view carry no scores at all, so the default visualisation
  * answers "did quality move?" instead of "what did it cost?". (LFE-15711)
  */

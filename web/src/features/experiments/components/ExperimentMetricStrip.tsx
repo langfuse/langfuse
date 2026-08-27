@@ -21,6 +21,58 @@ import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useEx
 const AXIS_EXPLANATION =
   "One point per experiment, left to right in the order of the table below — sorting or filtering the table re-orders the chart. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
 
+/**
+ * Which columns carry the experiment, keyed by the chart's entity dimension.
+ * A score's level decides this: an observation-level score reads the experiment
+ * off its observation, a trace-level score off the scored trace's root event,
+ * and a run-level score is keyed by dataset run id alone.
+ */
+const EXPERIMENT_SCOPE_COLUMNS: Record<
+  string,
+  { nameColumn?: string; idColumn: string }
+> = {
+  experimentName: { nameColumn: "experimentName", idColumn: "experimentId" },
+  traceExperimentName: {
+    nameColumn: "traceExperimentName",
+    idColumn: "traceExperimentId",
+  },
+  datasetRunId: { idColumn: "datasetRunId" },
+};
+
+const buildExperimentScopeFilters = ({
+  entityDimensionField,
+  experimentNames,
+  experimentIds,
+}: {
+  entityDimensionField?: string;
+  experimentNames: string[];
+  experimentIds: string[];
+}) => {
+  const scope = entityDimensionField
+    ? EXPERIMENT_SCOPE_COLUMNS[entityDimensionField]
+    : undefined;
+  if (!scope) return [];
+
+  return [
+    ...(scope.nameColumn && experimentNames.length > 0
+      ? [
+          {
+            column: scope.nameColumn,
+            operator: "any of" as const,
+            value: experimentNames,
+            type: "stringOptions" as const,
+          },
+        ]
+      : []),
+    {
+      column: scope.idColumn,
+      operator: "any of" as const,
+      value: experimentIds,
+      type: "stringOptions" as const,
+    },
+  ];
+};
+
 type ExperimentMetricStripProps = {
   projectId: string;
   /** In table order — the strip's x-axis is that order. */
@@ -97,33 +149,11 @@ export function ExperimentMetricStrip({
       })),
       filters: [
         ...(widgetConfig.filters ?? []),
-        ...(entityDimensionField === "experimentName" &&
-        experimentNames.length > 0
-          ? [
-              {
-                column: "experimentName" as const,
-                operator: "any of" as const,
-                value: experimentNames,
-                type: "stringOptions" as const,
-              },
-              {
-                column: "experimentId" as const,
-                operator: "any of" as const,
-                value: experimentIds,
-                type: "stringOptions" as const,
-              },
-            ]
-          : []),
-        ...(entityDimensionField === "datasetRunId"
-          ? [
-              {
-                column: "datasetRunId" as const,
-                operator: "any of" as const,
-                value: experimentIds,
-                type: "stringOptions" as const,
-              },
-            ]
-          : []),
+        ...buildExperimentScopeFilters({
+          entityDimensionField,
+          experimentNames,
+          experimentIds,
+        }),
       ],
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
