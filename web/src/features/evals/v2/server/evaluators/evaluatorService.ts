@@ -27,6 +27,7 @@ import {
   type DeleteEvaluatorsInput,
   type EvaluatorDefinition,
   type EvaluatorDefinitionForPersistence,
+  type EvaluatorListOrderBy,
   type EvaluatorVersionCursor,
   type UpdateEvaluatorInput,
   encodeEvaluatorVersionCursor,
@@ -86,6 +87,7 @@ export class EvaluatorService {
     projectId: string;
     page: number;
     limit: number;
+    orderBy?: EvaluatorListOrderBy;
     search?: string;
     filter?: FilterState;
   }) {
