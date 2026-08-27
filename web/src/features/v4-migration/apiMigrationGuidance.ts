@@ -23,15 +23,13 @@ const guidanceByEndpoint: Record<
     replacement: "GET /api/public/v2/observations",
     methods: observationsMethods({
       python: {
-        current: "client.api.trace.list(...)",
-        replacement:
-          "client.api.observations.get_many(from_start_time=..., to_start_time=...)",
+        current: "client.api.trace.list",
+        replacement: "client.api.observations.get_many",
         minimumVersion: "4.0.0",
       },
       javascript: {
-        current: "client.api.trace.list(...)",
-        replacement:
-          "client.api.observations.getMany({ fromStartTime, toStartTime })",
+        current: "client.api.trace.list",
+        replacement: "client.api.observations.getMany",
         minimumVersion: "4.0.0",
       },
     }),
@@ -40,13 +38,13 @@ const guidanceByEndpoint: Record<
     replacement: "GET /api/public/v2/observations",
     methods: observationsMethods({
       python: {
-        current: "client.api.trace.get(...)",
-        replacement: "client.api.observations.get_many(trace_id=trace_id)",
+        current: "client.api.trace.get",
+        replacement: "client.api.observations.get_many",
         minimumVersion: "4.0.0",
       },
       javascript: {
-        current: "client.api.trace.get(...)",
-        replacement: "client.api.observations.getMany({ traceId })",
+        current: "client.api.trace.get",
+        replacement: "client.api.observations.getMany",
         minimumVersion: "4.0.0",
       },
     }),
@@ -55,33 +53,28 @@ const guidanceByEndpoint: Record<
     replacement: "GET /api/public/v2/observations",
     methods: {
       python: {
-        current: "client.api.legacy.observations_v1.get_many(...)",
-        replacement:
-          "client.api.observations.get_many(from_start_time=..., to_start_time=...)",
+        current: "client.api.legacy.observations_v1.get_many",
+        replacement: "client.api.observations.get_many",
         minimumVersion: "4.0.0",
       },
       javascript: {
-        current: "client.api.legacy.observationsV1.getMany(...)",
-        replacement:
-          "client.api.observations.getMany({ fromStartTime, toStartTime })",
+        current: "client.api.legacy.observationsV1.getMany",
+        replacement: "client.api.observations.getMany",
         minimumVersion: "4.0.0",
       },
     },
   },
   "GET /api/public/observations/{id}": {
-    replacement:
-      "GET /api/public/v2/observations?filter=<id filter>&fromStartTime=<from>&toStartTime=<to>",
+    replacement: "GET /api/public/v2/observations",
     methods: {
       python: {
-        current: "client.api.legacy.observations_v1.get(...)",
-        replacement:
-          'client.api.observations.get_many(filter="<id filter>", from_start_time=..., to_start_time=...)',
+        current: "client.api.legacy.observations_v1.get",
+        replacement: "client.api.observations.get_many",
         minimumVersion: "4.0.0",
       },
       javascript: {
-        current: "client.api.legacy.observationsV1.get(...)",
-        replacement:
-          'client.api.observations.getMany({ filter: "<id filter>", fromStartTime, toStartTime })',
+        current: "client.api.legacy.observationsV1.get",
+        replacement: "client.api.observations.getMany",
         minimumVersion: "4.0.0",
       },
     },
@@ -90,144 +83,126 @@ const guidanceByEndpoint: Record<
     replacement: "GET /api/public/v3/scores",
     methods: {
       python: {
-        current: "client.api.scores.get_many(...)",
-        replacement: "client.api.scores_v3.get_many_v3(...)",
+        current: "client.api.scores.get_many",
+        replacement: "client.api.scores_v3.get_many_v3",
         minimumVersion: "4.8.1",
       },
       javascript: {
-        current: "client.api.scores.getMany(...)",
-        replacement: "client.api.scoresV3.getManyV3(...)",
+        current: "client.api.scores.getMany",
+        replacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },
   },
   "GET /api/public/v2/scores/{id}": {
-    replacement: "GET /api/public/v3/scores?id=<score id>",
+    replacement: "GET /api/public/v3/scores",
     methods: {
       python: {
-        current: "client.api.scores.get_by_id(...)",
-        replacement: "client.api.scores_v3.get_many_v3(id=score_id)",
+        current: "client.api.scores.get_by_id",
+        replacement: "client.api.scores_v3.get_many_v3",
         minimumVersion: "4.8.1",
       },
       javascript: {
-        current: "client.api.scores.getById(...)",
-        replacement: "client.api.scoresV3.getManyV3({ id: scoreId })",
+        current: "client.api.scores.getById",
+        replacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },
   },
   "GET /api/public/scores/{id}": {
-    replacement: "GET /api/public/v3/scores?id=<score id>",
+    replacement: "GET /api/public/v3/scores",
     methods: {
       python: {
-        current: "client.api.scores.get_by_id(...)",
-        replacement: "client.api.scores_v3.get_many_v3(id=score_id)",
+        current: "client.api.scores.get_by_id",
+        replacement: "client.api.scores_v3.get_many_v3",
         minimumVersion: "4.8.1",
       },
       javascript: {
-        current: "client.api.scores.getById(...)",
-        replacement: "client.api.scoresV3.getManyV3({ id: scoreId })",
+        current: "client.api.scores.getById",
+        replacement: "client.api.scoresV3.getManyV3",
         minimumVersion: "5.5.0",
       },
     },
   },
   "GET /api/public/sessions": {
-    replacement:
-      "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>, then group rows by sessionId",
+    replacement: "GET /api/public/v2/observations",
     methods: observationsMethods({
       python: {
-        current: "client.api.sessions.list(...)",
-        replacement:
-          "client.api.observations.get_many(from_start_time=..., to_start_time=...)  # group by session_id",
+        current: "client.api.sessions.list",
+        replacement: "client.api.observations.get_many",
         minimumVersion: "4.0.0",
       },
       javascript: {
-        current: "client.api.sessions.list(...)",
-        replacement:
-          "client.api.observations.getMany({ fromStartTime, toStartTime }) // group by sessionId",
+        current: "client.api.sessions.list",
+        replacement: "client.api.observations.getMany",
         minimumVersion: "4.0.0",
       },
     }),
   },
   "GET /api/public/sessions/{id}": {
-    replacement:
-      "GET /api/public/v2/observations?filter=<sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
+    replacement: "GET /api/public/v2/observations",
     methods: {
       python: {
-        current: "client.api.sessions.get(...)",
-        replacement:
-          'client.api.observations.get_many(filter="<sessionId filter>", from_start_time=..., to_start_time=...)',
+        current: "client.api.sessions.get",
+        replacement: "client.api.observations.get_many",
         minimumVersion: "4.0.0",
       },
       javascript: {
-        current: "client.api.sessions.get(...)",
-        replacement:
-          'client.api.observations.getMany({ filter: "<sessionId filter>", fromStartTime, toStartTime })',
+        current: "client.api.sessions.get",
+        replacement: "client.api.observations.getMany",
         minimumVersion: "4.0.0",
       },
     },
   },
   "GET /api/public/metrics": {
-    replacement:
-      "GET /api/public/v2/metrics with a supported observations or scores query; the traces view has no drop-in v2 replacement",
+    replacement: "GET /api/public/v2/metrics",
     methods: {
       python: {
-        current: "client.api.legacy.metrics_v1.metrics(...)",
-        replacement:
-          "client.api.metrics.metrics(...) with an observations or scores view; the traces view has no drop-in v2 replacement",
+        current: "client.api.legacy.metrics_v1.metrics",
+        replacement: "client.api.metrics.metrics",
       },
       javascript: {
-        current: "client.api.legacy.metricsV1.metrics(...)",
-        replacement:
-          "client.api.metrics.metrics(...) with an observations or scores view; the traces view has no drop-in v2 replacement",
+        current: "client.api.legacy.metricsV1.metrics",
+        replacement: "client.api.metrics.metrics",
       },
     },
   },
   "GET /api/public/dataset-run-items": {
-    replacement:
-      "GET /api/public/experiment-items?datasetId=<dataset id>&experimentName=<run name>&fromStartTime=<ISO timestamp>",
+    replacement: "GET /api/public/experiment-items",
     methods: {
       python: {
-        current: "client.api.dataset_run_items.list(...)",
-        replacement:
-          "client.api.experiments.list_items(dataset_id=dataset_id, experiment_name=run_name, from_start_time=from_start_time)",
+        current: "client.api.dataset_run_items.list",
+        replacement: "client.api.experiments.list_items",
       },
       javascript: {
-        current: "client.api.datasetRunItems.list(...)",
-        replacement:
-          "client.api.experiments.listItems({ datasetId, experimentName: runName, fromStartTime })",
+        current: "client.api.datasetRunItems.list",
+        replacement: "client.api.experiments.listItems",
       },
     },
   },
   "GET /api/public/datasets/{datasetName}/runs": {
-    replacement:
-      "GET /api/public/experiments?datasetId=<dataset id>&fromStartTime=<ISO timestamp>",
+    replacement: "GET /api/public/experiments",
     methods: {
       python: {
-        current: "client.api.datasets.get_runs(...)",
-        replacement:
-          "client.api.experiments.list(dataset_id=dataset_id, from_start_time=from_start_time)",
+        current: "client.api.datasets.get_runs",
+        replacement: "client.api.experiments.list",
       },
       javascript: {
-        current: "client.api.datasets.getRuns(...)",
-        replacement:
-          "client.api.experiments.list({ datasetId, fromStartTime })",
+        current: "client.api.datasets.getRuns",
+        replacement: "client.api.experiments.list",
       },
     },
   },
   "GET /api/public/datasets/{datasetName}/runs/{runName}": {
-    replacement:
-      "GET /api/public/experiment-items?datasetId=<dataset id>&experimentName=<run name>&fromStartTime=<ISO timestamp>",
+    replacement: "GET /api/public/experiment-items",
     methods: {
       python: {
-        current: "client.api.datasets.get_run(...)",
-        replacement:
-          "client.api.experiments.list_items(dataset_id=dataset_id, experiment_name=run_name, from_start_time=from_start_time)",
+        current: "client.api.datasets.get_run",
+        replacement: "client.api.experiments.list_items",
       },
       javascript: {
-        current: "client.api.datasets.getRun(...)",
-        replacement:
-          "client.api.experiments.listItems({ datasetId, experimentName: runName, fromStartTime })",
+        current: "client.api.datasets.getRun",
+        replacement: "client.api.experiments.listItems",
       },
     },
   },
