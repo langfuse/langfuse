@@ -77,6 +77,7 @@ type EvaluatorSetupStoreActions = {
   setSampleFilter: (sampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
+  applyDefinition: (definition: EvaluatorDefinition) => void;
 };
 
 export type EvaluatorSetupStoreState = {
@@ -235,6 +236,40 @@ export function createEvaluatorSetupStore({
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),
       setTestPanelOpen: (testPanelOpen) => set({ testPanelOpen }),
+      applyDefinition: (definition) =>
+        set((state) => {
+          if (definition.type === EvalTemplateTypeEnum.CODE) {
+            return {
+              type: definition.type,
+              sourceCode: definition.sourceCode,
+              sourceCodeLanguage: definition.sourceCodeLanguage,
+              sourceCodeDrafts: {
+                ...state.sourceCodeDrafts,
+                [definition.sourceCodeLanguage]: definition.sourceCode,
+              },
+              activeMapping: null,
+            };
+          }
+
+          const selectedModel =
+            definition.provider && definition.model
+              ? {
+                  provider: definition.provider,
+                  model: definition.model,
+                }
+              : null;
+
+          return {
+            type: definition.type,
+            prompt: definition.prompt,
+            scoreOutput: toScoreOutputFormState(definition.outputDefinition),
+            variableFields: buildInitialVariableFields(definition),
+            activeMapping: null,
+            modelMode: selectedModel ? "custom" : "default",
+            selectedModel,
+            modelParams: selectedModel ? definition.modelParams : null,
+          };
+        }),
     },
   }));
 }

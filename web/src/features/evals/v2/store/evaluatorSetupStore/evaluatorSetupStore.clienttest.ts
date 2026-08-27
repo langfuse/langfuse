@@ -203,4 +203,82 @@ describe("createEvaluatorSetupStore", () => {
     actions.selectModel({ provider: "OpenAI", model: "gpt-4.1" });
     expect(store.getState().modelParams).toBeNull();
   });
+
+  it("loads an old LLM definition without replacing evaluator metadata", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: {
+        name: "Answer quality",
+        description: "Checks answer quality",
+        definition: {
+          type: "CODE",
+          sourceCode: "return { score: 1 };",
+          sourceCodeLanguage: "TYPESCRIPT",
+        },
+      },
+      mode: "edit",
+    });
+    const sampleFilter = store.getState().sampleFilter;
+
+    store.getState().actions.applyDefinition({
+      type: "LLM_AS_JUDGE",
+      prompt: "Judge {{output}}",
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      modelParams: { temperature: 0.2 },
+      vars: ["output"],
+      variableMapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+      ],
+      outputDefinition: {
+        version: 2,
+        dataType: "NUMERIC",
+        score: {
+          description: "Answer quality",
+          minValue: 0,
+          maxValue: 1,
+        },
+        reasoning: { description: "Explain the score" },
+      },
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "LLM_AS_JUDGE",
+      name: "Answer quality",
+      description: "Checks answer quality",
+      prompt: "Judge {{output}}",
+      modelMode: "custom",
+      selectedModel: { provider: "openai", model: "gpt-4.1-mini" },
+      modelParams: { temperature: 0.2 },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: null },
+      },
+    });
+    expect(store.getState().sampleFilter).toBe(sampleFilter);
+  });
+
+  it("loads an old code definition", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+
+    store.getState().actions.applyDefinition({
+      type: "CODE",
+      sourceCode: "def evaluate(ctx):\n  return []",
+      sourceCodeLanguage: "PYTHON",
+    });
+
+    expect(store.getState()).toMatchObject({
+      type: "CODE",
+      sourceCode: "def evaluate(ctx):\n  return []",
+      sourceCodeLanguage: "PYTHON",
+      sourceCodeDrafts: {
+        PYTHON: "def evaluate(ctx):\n  return []",
+      },
+    });
+  });
 });

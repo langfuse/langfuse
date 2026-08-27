@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyEvaluatorSuggestion,
+  getEvaluatorVersionDefinition,
   shouldOfferRuleAttachment,
 } from "./EvaluatorSetupPage";
 
@@ -11,6 +12,50 @@ describe("shouldOfferRuleAttachment", () => {
 
   it("offers rule attachment for an active evaluator", () => {
     expect(shouldOfferRuleAttachment({ blockedAt: null })).toBe(true);
+  });
+});
+
+describe("getEvaluatorVersionDefinition", () => {
+  it("rebuilds an LLM definition from a saved version", () => {
+    const outputDefinition = {
+      version: 2 as const,
+      dataType: "NUMERIC" as const,
+      score: { description: "Answer quality", minValue: 0, maxValue: 1 },
+      reasoning: { description: "Explain the score" },
+    };
+
+    expect(
+      getEvaluatorVersionDefinition({
+        id: "version-1",
+        version: 1,
+        createdAt: new Date(),
+        createdByUser: null,
+        type: "LLM_AS_JUDGE",
+        prompt: "Judge {{output}}",
+        provider: "openai",
+        model: "gpt-4.1-mini",
+        modelParams: { temperature: 0.2 },
+        vars: ["output"],
+        variableMapping: [
+          {
+            templateVariable: "output",
+            selectedColumnId: "output",
+            jsonSelector: null,
+          },
+        ],
+        outputDefinition,
+        sourceCode: null,
+        sourceCodeLanguage: null,
+      }),
+    ).toMatchObject({
+      type: "LLM_AS_JUDGE",
+      prompt: "Judge {{output}}",
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      modelParams: { temperature: 0.2 },
+      vars: ["output"],
+      outputDefinition,
+    });
   });
 });
 

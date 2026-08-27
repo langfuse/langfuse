@@ -81,6 +81,36 @@ export function applyEvaluatorSuggestion(
   return true;
 }
 
+export function getEvaluatorVersionDefinition(
+  version: EvaluatorVersion,
+): EvaluatorDefinition {
+  if (version.type === "CODE") {
+    return {
+      type: version.type,
+      sourceCode: version.sourceCode ?? "",
+      sourceCodeLanguage: version.sourceCodeLanguage ?? "TYPESCRIPT",
+    };
+  }
+
+  type LlmEvaluatorDefinition = Extract<
+    EvaluatorDefinition,
+    { type: "LLM_AS_JUDGE" }
+  >;
+
+  return {
+    type: version.type,
+    prompt: version.prompt ?? "",
+    provider: version.provider,
+    model: version.model,
+    modelParams: version.modelParams,
+    vars: version.vars,
+    variableMapping:
+      version.variableMapping as LlmEvaluatorDefinition["variableMapping"],
+    outputDefinition:
+      version.outputDefinition as LlmEvaluatorDefinition["outputDefinition"],
+  };
+}
+
 export function EvaluatorSetupPage(
   props:
     | {
@@ -147,14 +177,6 @@ export function EvaluatorSetupPage(
     evaluatorSetupStore,
     (state) => state.testPanelOpen,
   );
-  const judgeModelSelection = useStore(
-    evaluatorSetupStore,
-    useShallow((state) => ({
-      type: state.type,
-      mode: state.modelMode,
-      selectedModel: state.selectedModel,
-    })),
-  );
   const [testResult, setTestResult] = useState<unknown>(null);
   const [hasCompletedTestCall, setHasCompletedTestCall] = useState(false);
   const [lastTestRunCostUsd, setLastTestRunCostUsd] = useState<number | null>(
@@ -163,9 +185,6 @@ export function EvaluatorSetupPage(
   const [rawResultOpen, setRawResultOpen] = useState(false);
   const hasRequestedName = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(
-    null,
-  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
@@ -220,6 +239,9 @@ export function EvaluatorSetupPage(
     prompt: version.prompt,
     provider: version.provider,
     model: version.model,
+    modelParams: version.modelParams as EvaluatorVersion["modelParams"],
+    vars: version.vars,
+    variableMapping: version.variableMapping,
     outputDefinition: version.outputDefinition,
     createdByUser: version.createdByUser,
   }));
@@ -228,13 +250,6 @@ export function EvaluatorSetupPage(
     projectId,
     source: "editor",
   });
-  const hasValidModel =
-    judgeModelSelection.type !== "LLM_AS_JUDGE" ||
-    Boolean(
-      judgeModelSelection.mode === "custom"
-        ? judgeModelSelection.selectedModel
-        : projectDefaultModel.defaultModel,
-    );
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
@@ -585,7 +600,7 @@ export function EvaluatorSetupPage(
     <EvaluatorTestPanelContainer
       projectId={projectId}
       store={evaluatorSetupStore}
-      hasValidModel={hasValidModel}
+      defaultModel={projectDefaultModel.defaultModel}
       sampleSelector={
         <SampleObservationSelectorContainer
           store={evaluatorSetupStore}
@@ -734,13 +749,19 @@ export function EvaluatorSetupPage(
           versions={versions}
           currentVersionId={versions[0]?.id ?? ""}
           defaultModel={projectDefaultModel.defaultModel}
-          expandedVersionId={expandedVersionId}
-          onExpandedVersionChange={(versionId) => {
+          onVersionExpansionChange={(versionId) => {
             capture("evaluators:version_history_interaction", {
               action:
                 versionId === null ? "collapse_version" : "expand_version",
             });
-            setExpandedVersionId(versionId);
+          }}
+          onRestoreVersion={(version) => {
+            evaluatorSetupStore
+              .getState()
+              .actions.applyDefinition(getEvaluatorVersionDefinition(version));
+            capture("evaluators:version_history_interaction", {
+              action: "restore_version",
+            });
           }}
           isLoading={versionHistory.isPending}
           hasMore={versionHistory.hasNextPage}

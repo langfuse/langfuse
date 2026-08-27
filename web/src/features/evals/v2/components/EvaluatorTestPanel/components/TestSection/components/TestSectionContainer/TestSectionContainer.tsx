@@ -6,12 +6,13 @@ import { TestRerunAction } from "@/src/features/evals/v2/components/EvaluatorTes
 import { TestResultActions } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestResultActions/TestResultActions";
 import { TestRunCard } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRunCard/TestRunCard";
 import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
+import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function TestSectionContainer({
   projectId,
   store,
-  hasValidModel,
+  defaultModel,
   testResult,
   testPending,
   rawResultOpen,
@@ -21,7 +22,7 @@ export function TestSectionContainer({
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
-  hasValidModel: boolean;
+  defaultModel: JudgeModel | null;
   testResult: unknown;
   testPending: boolean;
   rawResultOpen: boolean;
@@ -30,6 +31,14 @@ export function TestSectionContainer({
   onOpenExecutionTrace: (traceId: string) => void;
 }) {
   const type = useStore(store, (state) => state.type);
+  const hasValidModel = useStore(
+    store,
+    (state) =>
+      state.type !== "LLM_AS_JUDGE" ||
+      Boolean(
+        state.modelMode === "custom" ? state.selectedModel : defaultModel,
+      ),
+  );
   const executionTraceId =
     testResult &&
     typeof testResult === "object" &&
