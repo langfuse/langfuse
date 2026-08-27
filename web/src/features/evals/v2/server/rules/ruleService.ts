@@ -35,6 +35,7 @@ import type {
   UpdateRuleInput,
 } from "./ruleTypes";
 import * as evaluatorRepository from "../evaluators/evaluatorRepository";
+import { toEvaluatorDefinition } from "../evaluators/evaluatorService";
 import {
   assertActiveRuleLimitNotExceeded,
   assertEnabledRuleHasAssignments,
@@ -793,11 +794,14 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
+      const definition = toEvaluatorDefinition(evaluator.type, latestVersion);
+      if (definition.type !== EvalTemplateType.LLM_AS_JUDGE) {
+        throw new LangfuseNotFoundError("LLM evaluator definition not found");
+      }
       assertCompleteEvaluatorVariableMapping({
-        promptVariables: extractEvaluatorPromptVariables({
-          prompt: latestVersion.prompt,
-          promptMessages: latestVersion.promptMessages,
-        }),
+        promptVariables: extractEvaluatorPromptVariables(
+          definition.promptMessages,
+        ),
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });

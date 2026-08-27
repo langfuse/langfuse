@@ -6,7 +6,6 @@ import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/eva
 type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
-  | "prompt"
   | "promptMessages"
   | "sourceCode"
   | "sourceCodeLanguage"
@@ -25,7 +24,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
   const mappings =
     params.type === "LLM_AS_JUDGE"
       ? buildEvaluatorVariableMappings({
-          prompt: params.prompt,
+          promptMessages: params.promptMessages,
           variableFields: params.variableFields,
         })
       : [];
@@ -34,7 +33,6 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
       ? outputDefinition && promptMessagesValid
         ? {
             type: params.type,
-            prompt: params.prompt,
             promptMessages: params.promptMessages,
             modelConfig:
               params.modelMode === "custom" && params.selectedModel

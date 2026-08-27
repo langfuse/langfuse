@@ -9,7 +9,6 @@ export const LlmAsAJudge = meta.story({
   args: {
     definition: {
       type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-      prompt: "Judge whether {{output}} correctly answers {{input}}.",
       promptMessages: [
         {
           role: "user",

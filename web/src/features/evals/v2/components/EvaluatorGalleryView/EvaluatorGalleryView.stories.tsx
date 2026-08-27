@@ -56,7 +56,12 @@ const managedTemplate = {
   maintainer: "langfuse",
   evaluator: {
     type: EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: "Rate the relevance of {{generation}} to {{query}}.",
+    promptMessages: [
+      {
+        role: "user",
+        content: "Rate the relevance of {{generation}} to {{query}}.",
+      },
+    ],
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
       dataType: "NUMERIC",
@@ -71,7 +76,6 @@ const customTemplate = {
   id: "evaluator-1",
   name: "Project exact match",
   type: EvalTemplateTypeEnum.CODE,
-  prompt: null,
   sourceCodeLanguage: "TYPESCRIPT",
   updatedAt: new Date("2026-07-01"),
   version: 2,

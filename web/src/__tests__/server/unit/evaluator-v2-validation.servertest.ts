@@ -40,7 +40,7 @@ describe("evaluator configuration validation", () => {
         description: null,
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{output}}",
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
           modelConfig: null,
           variableMapping: null,
           outputDefinition: {
@@ -51,6 +51,27 @@ describe("evaluator configuration validation", () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it("requires prompt messages at the evaluator API boundary", () => {
+    expect(
+      CreateEvaluatorSchema.safeParse({
+        projectId: "project-id",
+        name: "Legacy prompt evaluator",
+        description: null,
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{output}}",
+          modelConfig: null,
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts text filters for evaluator models", () => {
@@ -100,7 +121,7 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{output}}",
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
           provider: null,
           model: null,
           modelParams: null,
@@ -145,7 +166,6 @@ describe("evaluator configuration validation", () => {
   it("rejects system messages after the first prompt message", async () => {
     const definition = {
       type: EvalTemplateType.LLM_AS_JUDGE,
-      prompt: "Judge {{output}}",
       promptMessages: [
         { role: "user" as const, content: "Judge {{output}}" },
         { role: "system" as const, content: "Be strict" },
@@ -186,7 +206,6 @@ describe("evaluator configuration validation", () => {
   it("rejects empty prompt messages", async () => {
     const definition = {
       type: EvalTemplateType.LLM_AS_JUDGE,
-      prompt: "Judge {{output}}",
       promptMessages: [
         { role: "user" as const, content: "Judge {{output}}" },
         { role: "assistant" as const, content: "   " },
@@ -229,7 +248,9 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}} and {{output}}",
+          promptMessages: [
+            { role: "user", content: "Judge {{input}} and {{output}}" },
+          ],
           provider: null,
           model: null,
           modelParams: null,
@@ -252,7 +273,7 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{output}}",
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
           provider: null,
           model: null,
           modelParams: null,
@@ -283,7 +304,9 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}} and {{output}}",
+          promptMessages: [
+            { role: "user", content: "Judge {{input}} and {{output}}" },
+          ],
           provider: null,
           model: null,
           modelParams: null,
@@ -308,7 +331,7 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           provider: null,
           model: null,
           modelParams: null,

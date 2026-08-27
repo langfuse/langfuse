@@ -1,7 +1,6 @@
 import {
   EvalTemplateType,
   extractVariables,
-  getEvaluatorPromptMessages,
   InvalidRequestError,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -18,15 +17,12 @@ import {
 } from "./evaluatorErrors";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
 
-export function extractEvaluatorPromptVariables(params: {
-  prompt: string | null;
-  promptMessages?: unknown;
-}) {
+export function extractEvaluatorPromptVariables(
+  promptMessages: Array<{ content: string }>,
+) {
   return [
     ...new Set(
-      getEvaluatorPromptMessages(params).flatMap(({ content }) =>
-        extractVariables(content),
-      ),
+      promptMessages.flatMap(({ content }) => extractVariables(content)),
     ),
   ];
 }
@@ -121,17 +117,16 @@ export async function assertEvaluatorConfigurationValid(params: {
     return;
   }
 
-  const promptMessagesValidationError = params.definition.promptMessages
-    ? getPromptMessagesValidationError(params.definition.promptMessages)
-    : null;
+  const promptMessagesValidationError = getPromptMessagesValidationError(
+    params.definition.promptMessages,
+  );
   if (promptMessagesValidationError) {
     throw new InvalidRequestError(promptMessagesValidationError);
   }
 
-  const promptVariables = extractEvaluatorPromptVariables({
-    prompt: params.definition.prompt,
-    promptMessages: params.definition.promptMessages,
-  });
+  const promptVariables = extractEvaluatorPromptVariables(
+    params.definition.promptMessages,
+  );
   assertEvaluatorVariablesMatchPrompt({
     promptVariables,
     variables: params.definition.vars,

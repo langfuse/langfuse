@@ -4,8 +4,8 @@ import {
   CodeEvaluatorDefinitionSchema,
   CreateEvaluatorSchema,
   EvaluatorModelConfigSchema,
-  LlmEvaluatorDefinitionSchema,
 } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
 
 const CreateEvaluatorWithoutProjectSchema = CreateEvaluatorSchema.omit({
   projectId: true,
@@ -31,7 +31,7 @@ export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name,
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
   type: z.enum(EvalTemplateType),
-  prompt: LlmEvaluatorDefinitionSchema.shape.prompt.optional(),
+  prompt: z.string().min(1).optional(),
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
     "Optional custom model configuration. Omit to use the project default model.",
   ),
@@ -52,7 +52,9 @@ function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
       description: input.description ?? null,
       definition: {
         type: input.type,
-        prompt: input.prompt!,
+        promptMessages: reconcileEvaluatorPromptMessages({
+          prompt: input.prompt!,
+        }),
         modelConfig: input.modelConfig ?? null,
         variableMapping: input.variableMapping ?? null,
         outputDefinition: input.outputDefinition,

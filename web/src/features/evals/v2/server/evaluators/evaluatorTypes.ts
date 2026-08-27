@@ -53,14 +53,12 @@ export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
 
 export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  prompt: z.string().min(1),
   promptMessages: z
     .array(EvaluatorPromptMessageSchema)
     .min(1)
     .refine((messages) => !hasInvalidSystemPromptMessage(messages), {
       message: "System messages are only allowed as the first prompt message",
-    })
-    .optional(),
+    }),
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),
@@ -88,14 +86,12 @@ export const EvaluatorModelConfigSchema = z.object({
 
 const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  prompt: z.string().min(1),
   promptMessages: z
     .array(EvaluatorPromptMessageSchema)
     .min(1)
     .refine((messages) => !hasInvalidSystemPromptMessage(messages), {
       message: "System messages are only allowed as the first prompt message",
-    })
-    .optional(),
+    }),
   modelConfig: EvaluatorModelConfigSchema.nullable(),
   outputDefinition: EvalOutputDefinitionSchema,
 });
@@ -111,12 +107,17 @@ export const EvaluatorDefinitionInputSchema = z
         ? definition
         : {
             type: EvalTemplateType.LLM_AS_JUDGE,
-            prompt: definition.prompt,
             promptMessages: definition.promptMessages,
             provider: definition.modelConfig?.provider ?? null,
             model: definition.modelConfig?.model ?? null,
             modelParams: definition.modelConfig?.modelParams ?? null,
-            vars: extractVariables(definition.prompt),
+            vars: [
+              ...new Set(
+                definition.promptMessages.flatMap(({ content }) =>
+                  extractVariables(content),
+                ),
+              ),
+            ],
             variableMapping: definition.variableMapping,
             outputDefinition: definition.outputDefinition,
           },
@@ -231,7 +232,7 @@ export const SuggestEvaluatorTextSchema = z.object({
   definition: z.discriminatedUnion("type", [
     z.object({
       type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-      prompt: z.string().min(1),
+      promptMessages: z.array(EvaluatorPromptMessageSchema).min(1),
     }),
     z.object({
       type: z.literal(EvalTemplateType.CODE),
@@ -241,21 +242,13 @@ export const SuggestEvaluatorTextSchema = z.object({
 });
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
-type LlmEvaluatorDefinition = Extract<
-  EvaluatorDefinition,
-  { type: "LLM_AS_JUDGE" }
->;
-export type NormalizedEvaluatorDefinition =
-  | (Omit<LlmEvaluatorDefinition, "promptMessages"> & {
+export type NormalizedEvaluatorDefinition = EvaluatorDefinition;
+export type EvaluatorDefinitionForPersistence =
+  | (Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> & {
+      prompt: string;
       promptMessages: PersistedEvaluatorPromptMessages;
     })
-  | Extract<EvaluatorDefinition, { type: "CODE" }>;
-export type EvaluatorDefinitionForPersistence =
-  | Extract<NormalizedEvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
-  | (Omit<
-      Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>,
-      "variableMapping"
-    > & {
+  | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
       variableMapping: ObservationVariableMapping[];
     });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;

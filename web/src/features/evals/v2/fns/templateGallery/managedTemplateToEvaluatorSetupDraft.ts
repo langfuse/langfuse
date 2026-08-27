@@ -10,10 +10,7 @@ export function managedTemplateToEvaluatorSetupDraft(
     template.evaluator.type === "LLM_AS_JUDGE"
       ? {
           type: template.evaluator.type,
-          prompt: template.evaluator.prompt,
-          promptMessages: [
-            { role: "user" as const, content: template.evaluator.prompt },
-          ],
+          promptMessages: template.evaluator.promptMessages,
           provider: null,
           model: null,
           modelParams: null,

@@ -102,7 +102,6 @@ export function getEvaluatorVersionDefinition(
 
   return {
     type: version.type,
-    prompt: version.prompt!,
     promptMessages: version.promptMessages!,
     provider: version.provider,
     model: version.model,
@@ -265,7 +264,6 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-    prompt: version.prompt,
     promptMessages:
       initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
     provider: version.provider,
@@ -334,7 +332,7 @@ export function EvaluatorSetupPage(
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
     return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, prompt: state.prompt }
+      ? { type: state.type, promptMessages: state.promptMessages }
       : { type: state.type, sourceCode: state.sourceCode };
   };
 

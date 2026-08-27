@@ -51,24 +51,41 @@ type SuggestEvaluatorTextParams = {
   projectId: string;
   userId: string | null;
   definition: Pick<EvaluatorDefinition, "type"> &
-    ({ prompt: string } | { sourceCode: string });
+    (
+      | Pick<
+          Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>,
+          "promptMessages"
+        >
+      | { sourceCode: string }
+    );
 };
 
 const FALLBACK_EVALUATOR_NAME = "Custom Evaluator";
 const MAX_GENERATED_EVALUATOR_NAME_WORDS = 6;
 
+export function getLegacyEvaluatorPrompt(
+  promptMessages: Array<{ content: string }>,
+) {
+  return promptMessages.map(({ content }) => content).join("\n\n");
+}
+
+export function reconcileEvaluatorPromptMessages(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}) {
+  return getEvaluatorPromptMessages(params);
+}
+
 function normalizeVersionPromptMessages<
   T extends { prompt: string | null; promptMessages?: unknown },
 >(version: T) {
+  const { prompt, promptMessages, ...normalizedVersion } = version;
   return {
-    ...version,
+    ...normalizedVersion,
     promptMessages:
-      version.prompt === null
+      prompt === null
         ? null
-        : getEvaluatorPromptMessages({
-            prompt: version.prompt,
-            promptMessages: version.promptMessages,
-          }),
+        : reconcileEvaluatorPromptMessages({ prompt, promptMessages }),
   };
 }
 
@@ -83,36 +100,19 @@ function normalizeEvaluatorPromptMessages<
   };
 }
 
-export function normalizeEvaluatorDefinition(
-  definition: EvaluatorDefinition,
-): NormalizedEvaluatorDefinition {
-  if (definition.type === EvalTemplateType.CODE) return definition;
-
-  return {
-    ...definition,
-    promptMessages: getEvaluatorPromptMessages({
-      prompt: definition.prompt,
-      promptMessages: definition.promptMessages,
-    }),
-  };
-}
-
 function prepareEvaluatorDefinitionForPersistence(
   definition: EvaluatorDefinition,
 ): EvaluatorDefinitionForPersistence {
-  const normalizedDefinition = normalizeEvaluatorDefinition(definition);
-  if (normalizedDefinition.type === EvalTemplateType.CODE) {
+  if (definition.type === EvalTemplateType.CODE) {
     return {
-      ...normalizedDefinition,
+      ...definition,
       variableMapping: getCodeEvalVariableMapping(),
     };
   }
 
   return {
-    ...normalizedDefinition,
-    prompt: normalizedDefinition.promptMessages
-      .map(({ content }) => content)
-      .join("\n\n"),
+    ...definition,
+    prompt: getLegacyEvaluatorPrompt(definition.promptMessages),
   };
 }
 
@@ -621,10 +621,7 @@ export class EvaluatorService {
     if (!evaluator && !isPregeneratedEvaluatorId(params.evaluatorId)) {
       throw new LangfuseNotFoundError("Evaluator not found");
     }
-    return executeEvaluatorTest({
-      ...params,
-      definition: normalizeEvaluatorDefinition(params.definition),
-    });
+    return executeEvaluatorTest(params);
   }
 
   async suggestName(params: SuggestEvaluatorTextParams) {
@@ -778,9 +775,7 @@ async function updateEvaluator(params: {
   if (!latest) throw new LangfuseNotFoundError("Evaluator version not found");
   const definitionChanged = !isDeepStrictEqual(
     toEvaluatorDefinition(current.type, latest),
-    input.definition.type === EvalTemplateType.CODE
-      ? input.definition
-      : prepareEvaluatorDefinitionForPersistence(input.definition),
+    input.definition,
   );
 
   await repository.updateEvaluatorMetadata({
@@ -891,8 +886,7 @@ export function toEvaluatorDefinition(
     type === EvalTemplateType.LLM_AS_JUDGE
       ? {
           type,
-          prompt: version.prompt ?? "",
-          promptMessages: getEvaluatorPromptMessages({
+          promptMessages: reconcileEvaluatorPromptMessages({
             prompt: version.prompt,
             promptMessages: version.promptMessages,
           }),
@@ -909,17 +903,20 @@ export function toEvaluatorDefinition(
           sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
         },
   );
-  return normalizeEvaluatorDefinition(definition);
+  return definition;
+}
+
+function getSuggestionDefinitionText(params: SuggestEvaluatorTextParams) {
+  return "promptMessages" in params.definition
+    ? getLegacyEvaluatorPrompt(params.definition.promptMessages)
+    : params.definition.sourceCode;
 }
 
 async function defaultNameGenerator(
   params: SuggestEvaluatorTextParams,
   model: string,
 ) {
-  const definition =
-    "prompt" in params.definition
-      ? params.definition.prompt
-      : params.definition.sourceCode;
+  const definition = getSuggestionDefinitionText(params);
   return generateLangfuseAIText({
     messages: [
       {
@@ -944,10 +941,7 @@ async function defaultDescriptionGenerator(
   params: SuggestEvaluatorTextParams,
   model: string,
 ) {
-  const definition =
-    "prompt" in params.definition
-      ? params.definition.prompt
-      : params.definition.sourceCode;
+  const definition = getSuggestionDefinitionText(params);
   return generateLangfuseAIText({
     messages: [
       {

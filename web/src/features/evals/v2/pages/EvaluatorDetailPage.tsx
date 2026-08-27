@@ -25,7 +25,6 @@ export default function EvaluatorDetailPage() {
     evaluator.data.type === "LLM_AS_JUDGE"
       ? {
           type: "LLM_AS_JUDGE" as const,
-          prompt: latest.prompt ?? "",
           promptMessages: latest.promptMessages!,
           provider: latest.provider,
           model: latest.model,

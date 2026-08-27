@@ -107,7 +107,6 @@ const llmInput = (
   description: "Initial description",
   definition: {
     type: "LLM_AS_JUDGE",
-    prompt: "Judge {{output}}",
     promptMessages: [{ role: "user", content: "Judge {{output}}" }],
     provider: null,
     model: null,
@@ -241,6 +240,7 @@ describe("EvaluatorService", () => {
     ];
     const created = await service.create({ ...input, evaluatorId }, null);
 
+    expect(created.versions[0]).not.toHaveProperty("prompt");
     expect(created).toMatchObject({
       id: evaluatorId,
       projectId,
@@ -252,7 +252,9 @@ describe("EvaluatorService", () => {
         }),
       ],
     });
-    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
+    const fetched = await service.get(projectId, created.id);
+    expect(fetched.versions[0]).not.toHaveProperty("prompt");
+    expect(fetched).toMatchObject({
       id: created.id,
       versions: [
         expect.objectContaining({
@@ -282,22 +284,6 @@ describe("EvaluatorService", () => {
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
     );
-  });
-
-  it("normalizes a legacy string prompt before returning it", async () => {
-    const input = llmInput("Legacy prompt evaluator");
-    const { promptMessages: _promptMessages, ...legacyDefinition } =
-      input.definition;
-    const legacyInput: CreateEvaluatorInput = {
-      ...input,
-      definition: legacyDefinition,
-    };
-
-    const created = await createService().create(legacyInput, null);
-
-    expect(created.versions[0]?.promptMessages).toEqual([
-      { role: "user", content: legacyDefinition.prompt },
-    ]);
   });
 
   it("writes the canonical mapping when creating a code evaluator", async () => {
@@ -579,7 +565,9 @@ describe("EvaluatorService", () => {
         evaluatorId: evaluator.id,
         definition: {
           ...llmInput("Invalid model").definition,
-          prompt: "Updated prompt: {{output}}",
+          promptMessages: [
+            { role: "user", content: "Updated prompt: {{output}}" },
+          ],
           provider: "openai",
           model: "available-model",
         },
@@ -606,7 +594,9 @@ describe("EvaluatorService", () => {
         evaluatorId: evaluator.id,
         definition: {
           ...llmInput("Invalid model").definition,
-          prompt: "Another updated prompt: {{output}}",
+          promptMessages: [
+            { role: "user", content: "Another updated prompt: {{output}}" },
+          ],
           provider: "openai",
           model: "available-model",
         },
@@ -694,7 +684,6 @@ describe("EvaluatorService", () => {
         description: "Changed only metadata",
         definition: {
           ...input.definition,
-          prompt: "Judge {{output}} strictly",
           promptMessages: [
             {
               role: "user" as const,
@@ -781,7 +770,12 @@ describe("EvaluatorService", () => {
           evaluatorId: created.id,
           definition: {
             ...input.definition,
-            prompt: "Judge {{input}} and {{output}}",
+            promptMessages: [
+              {
+                role: "user",
+                content: "Judge {{input}} and {{output}}",
+              },
+            ],
             vars: ["input", "output"],
             variableMapping: [
               { templateVariable: "input", selectedColumnId: "input" },
@@ -813,14 +807,20 @@ describe("EvaluatorService", () => {
           tx,
           evaluatorId: created.id,
           version: 2,
-          definition: input.definition,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+          },
           createdByUserId: null,
         });
         await evaluatorRepository.appendEvaluatorVersion({
           tx,
           evaluatorId: created.id,
           version: 2,
-          definition: input.definition,
+          definition: {
+            ...input.definition,
+            prompt: "Judge {{output}}",
+          },
           createdByUserId: null,
         });
       }),
@@ -906,7 +906,7 @@ describe("EvaluatorService", () => {
     const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge quality",
+      promptMessages: [{ role: "user" as const, content: "Judge quality" }],
     };
 
     await expect(
@@ -973,7 +973,7 @@ describe("EvaluatorService", () => {
     const service = createService();
     const definition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge quality",
+      promptMessages: [{ role: "user" as const, content: "Judge quality" }],
     };
 
     await expect(

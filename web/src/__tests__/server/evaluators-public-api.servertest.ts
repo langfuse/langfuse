@@ -218,7 +218,7 @@ describe("stable evaluators public API", () => {
         description: null,
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           vars: ["input"],
           provider: null,
           model: null,
@@ -455,7 +455,7 @@ describe("stable evaluators public API", () => {
         description: null,
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           vars: ["input"],
           provider: "openai",
           model: "gpt-4.1-mini",

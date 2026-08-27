@@ -68,7 +68,6 @@ export function EvaluatorGalleryDialog({
               name: evaluator.name,
               description: evaluator.description,
               type: evaluator.type,
-              prompt: latest.prompt,
               sourceCodeLanguage: latest.sourceCodeLanguage,
               updatedAt: evaluator.updatedAt,
               version: latest.version,

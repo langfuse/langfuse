@@ -58,7 +58,6 @@ function buildInitialVariableFields(
 
 type EvaluatorSetupStoreActions = {
   setType: (type: EvalTemplateType) => void;
-  setPrompt: (prompt: string) => void;
   setPromptMessage: (index: number, message: EvaluatorPromptMessage) => void;
   addPromptMessage: () => void;
   removePromptMessage: (index: number) => void;
@@ -90,7 +89,6 @@ type EvaluatorSetupStoreActions = {
 export type EvaluatorSetupStoreState = {
   initialDefinition: NormalizedEvaluatorDefinition | undefined;
   type: EvalTemplateType;
-  prompt: string;
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
@@ -160,7 +158,6 @@ export function createEvaluatorSetupStore({
       initialDefinition?.type ??
       initialType ??
       EvalTemplateTypeEnum.LLM_AS_JUDGE,
-    prompt: initialPromptMessages.map(({ content }) => content).join("\n\n"),
     promptMessages: initialPromptMessages,
     promptMessageIds: initialPromptMessages.map(() => safeRandomUUID()),
     sourceCode: initialSourceCode,
@@ -206,21 +203,12 @@ export function createEvaluatorSetupStore({
     testPanelOpen: true,
     actions: {
       setType: (type) => set({ type }),
-      setPrompt: (prompt) =>
-        set({
-          prompt,
-          promptMessages: [{ role: "user", content: prompt }],
-          promptMessageIds: [safeRandomUUID()],
-        }),
       setPromptMessage: (index, message) =>
         set((state) => {
           const promptMessages = state.promptMessages.map((current, i) =>
             i === index ? message : current,
           );
-          return {
-            promptMessages,
-            prompt: promptMessages.map(({ content }) => content).join("\n\n"),
-          };
+          return { promptMessages };
         }),
       addPromptMessage: () =>
         set((state) => ({
@@ -241,7 +229,6 @@ export function createEvaluatorSetupStore({
             promptMessageIds: state.promptMessageIds.filter(
               (_, i) => i !== index,
             ),
-            prompt: promptMessages.map(({ content }) => content).join("\n\n"),
           };
         }),
       reorderPromptMessage: (fromIndex, toIndex) =>
@@ -265,7 +252,6 @@ export function createEvaluatorSetupStore({
           return {
             promptMessages,
             promptMessageIds: reorder(state.promptMessageIds),
-            prompt: promptMessages.map(({ content }) => content).join("\n\n"),
           };
         }),
       setSourceCode: (sourceCode) =>
@@ -347,7 +333,6 @@ export function createEvaluatorSetupStore({
 
           return {
             type: definition.type,
-            prompt: definition.prompt,
             promptMessages: definition.promptMessages,
             promptMessageIds: definition.promptMessages.map(() =>
               safeRandomUUID(),

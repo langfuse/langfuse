@@ -12,7 +12,6 @@ export type EvaluatorVersion = {
   type: EvalTemplateType;
   sourceCode: string | null;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
-  prompt: string | null;
   promptMessages: EvaluatorPromptMessage[] | null;
   provider: string | null;
   model: string | null;

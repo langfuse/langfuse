@@ -7,7 +7,6 @@ describe("prepareEvaluatorDraft", () => {
   it("prepares a complete judge definition", () => {
     const initialDefinition = {
       type: "LLM_AS_JUDGE" as const,
-      prompt: "Judge {{output}}",
       promptMessages: [{ role: "user" as const, content: "Judge {{output}}" }],
       provider: "openai",
       model: "gpt-test",
@@ -24,7 +23,6 @@ describe("prepareEvaluatorDraft", () => {
     expect(
       prepareEvaluatorDraft({
         type: "LLM_AS_JUDGE",
-        prompt: "Judge {{output}}",
         promptMessages: [{ role: "user", content: "Judge {{output}}" }],
         sourceCode: "",
         sourceCodeLanguage: "TYPESCRIPT",
@@ -48,7 +46,7 @@ describe("prepareEvaluatorDraft", () => {
     ).toMatchObject({
       definition: {
         type: "LLM_AS_JUDGE",
-        prompt: "Judge {{output}}",
+        promptMessages: [{ role: "user", content: "Judge {{output}}" }],
         modelConfig: {
           provider: "openai",
           model: "gpt-test",
@@ -68,7 +66,6 @@ describe("prepareEvaluatorDraft", () => {
   it("does not prepare a definition with a non-first system message", () => {
     const result = prepareEvaluatorDraft({
       type: "LLM_AS_JUDGE",
-      prompt: "Judge {{output}}\n\nBe strict",
       promptMessages: [
         { role: "user", content: "Judge {{output}}" },
         { role: "system", content: "Be strict" },
@@ -99,7 +96,6 @@ describe("prepareEvaluatorDraft", () => {
   it("does not prepare a definition with an empty prompt message", () => {
     const result = prepareEvaluatorDraft({
       type: "LLM_AS_JUDGE",
-      prompt: "Judge {{output}}",
       promptMessages: [
         { role: "user", content: "Judge {{output}}" },
         { role: "assistant", content: "   " },

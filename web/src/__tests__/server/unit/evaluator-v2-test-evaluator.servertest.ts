@@ -104,7 +104,6 @@ describe("testEvaluator", () => {
         shouldReadFromObservationsTable: true,
         definition: {
           type: "LLM_AS_JUDGE",
-          prompt: "Judge {{answer}}",
           promptMessages: [
             { role: "system", content: "Judge consistently" },
             { role: "user", content: "Judge {{answer}}" },
