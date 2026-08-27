@@ -3,7 +3,7 @@ export const TRACING_TABS = {
   OBSERVATIONS: "observations",
 } as const;
 
-export type TracingTab = (typeof TRACING_TABS)[keyof typeof TRACING_TABS];
+type TracingTab = (typeof TRACING_TABS)[keyof typeof TRACING_TABS];
 
 export const getTracingTabs = (projectId: string) => [
   {

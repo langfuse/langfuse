@@ -3,7 +3,7 @@ export const EVALS_TABS = {
   TEMPLATES: "templates",
 } as const;
 
-export type EvalsTab = (typeof EVALS_TABS)[keyof typeof EVALS_TABS];
+type EvalsTab = (typeof EVALS_TABS)[keyof typeof EVALS_TABS];
 
 export const getEvalsTabs = (projectId: string) => [
   {

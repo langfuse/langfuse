@@ -33,7 +33,7 @@ const PricingTierSchema = z.object({
   prices: PriceMapSchema,
 });
 
-export type PricingTier = z.infer<typeof PricingTierSchema>;
+type PricingTier = z.infer<typeof PricingTierSchema>;
 
 /**
  * A usage type row is identified by its opaque `key`, never by its name: the
@@ -111,7 +111,7 @@ export const UpsertModelSchema = z
       path: ["pricingTiers"],
     },
   );
-export type UpsertModel = z.infer<typeof UpsertModelSchema>;
+type UpsertModel = z.infer<typeof UpsertModelSchema>;
 
 export const FormUpsertModelSchema = z
   .object({

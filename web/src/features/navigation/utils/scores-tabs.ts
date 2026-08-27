@@ -3,7 +3,7 @@ export const SCORES_TABS = {
   ANALYTICS: "analytics",
 } as const;
 
-export type ScoresTab = (typeof SCORES_TABS)[keyof typeof SCORES_TABS];
+type ScoresTab = (typeof SCORES_TABS)[keyof typeof SCORES_TABS];
 
 export const getScoresTabs = (projectId: string) => [
   {

@@ -2,7 +2,7 @@ import { type SingleValueOption, scoresTableCols } from "@langfuse/shared";
 
 export { scoresTableCols };
 
-export type ScoreOptions = {
+type ScoreOptions = {
   name: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
   traceName: Array<SingleValueOption>;

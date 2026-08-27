@@ -14,6 +14,6 @@ export const useUiCustomization = () => {
   return customization.data ?? null;
 };
 
-export type UiCustomizationOption = keyof NonNullable<
+type UiCustomizationOption = keyof NonNullable<
   ReturnType<typeof useUiCustomization>
 >;

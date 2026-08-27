@@ -45,7 +45,7 @@ const ChbScheduledChangeSchema = z.object({
   planCode: z.string().nullish(),
   startDate: z.string().nullish(),
 });
-export type ChbScheduledChange = z.infer<typeof ChbScheduledChangeSchema>;
+type ChbScheduledChange = z.infer<typeof ChbScheduledChangeSchema>;
 
 const ChbBundleSchema = z.object({
   id: z.string(),

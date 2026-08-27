@@ -2,7 +2,7 @@ import type { WidgetConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
 
 // Extended widget config for experiment charts with query-building fields
 // Omit conflicting properties from WidgetConfig that have readonly/mutable mismatches
-export interface ExperimentWidgetConfig extends WidgetConfig {
+interface ExperimentWidgetConfig extends WidgetConfig {
   orderBy: readonly { field: string; direction: "asc" | "desc" }[];
   timeDimension: null;
   entityDimension: { field: string };

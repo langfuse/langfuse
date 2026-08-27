@@ -29,7 +29,7 @@ export interface BaseChunkTodo {
   retryCount?: number;
 }
 
-export interface ChunkedBackfillArgs {
+interface ChunkedBackfillArgs {
   concurrency?: number;
   pollIntervalMs?: number;
   maxRetries?: number;
@@ -211,7 +211,7 @@ export async function loadPartitionsFromClickhouse(
 // Fire query (long-running, abort-and-poll pattern)
 // ============================================================================
 
-export interface FireQueryRetrySettings {
+interface FireQueryRetrySettings {
   retry0?: Record<string, string | number>;
   retry1?: Record<string, string | number>;
   retry2?: Record<string, string | number>;
@@ -223,7 +223,7 @@ const DEFAULT_RETRY_SETTINGS: FireQueryRetrySettings = {
   retry2: { max_threads: 1, max_insert_threads: "1", max_block_size: "2048" },
 };
 
-export interface FireQueryOptions {
+interface FireQueryOptions {
   query: string;
   queryId: string;
   params?: Record<string, unknown>;

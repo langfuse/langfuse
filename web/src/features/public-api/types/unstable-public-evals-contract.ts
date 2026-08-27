@@ -303,7 +303,7 @@ export type PromptVariableMappingInputType = z.infer<
 export type PromptVariableMappingReadType = z.infer<
   typeof PromptVariableMappingRead
 >;
-export type ObservationPromptVariableMappingInputType = z.infer<
+type ObservationPromptVariableMappingInputType = z.infer<
   typeof ObservationPromptVariableMappingInput
 >;
 export type LegacyPromptVariableMappingType = z.infer<
@@ -312,11 +312,6 @@ export type LegacyPromptVariableMappingType = z.infer<
 export type PublicEvaluationRuleFilterType = z.infer<
   typeof PublicEvaluationRuleFilter
 >;
-export type {
-  StructuredPublicApiErrorCodeType,
-  StructuredPublicApiErrorDetailsType,
-};
-
 export const UnstablePublicApiPaginationQuery = z.object({
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),

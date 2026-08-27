@@ -23,9 +23,9 @@ export interface FlatLogItem {
 /**
  * View mode for log view display.
  */
-export type LogViewMode = "chronological" | "tree-order";
+type LogViewMode = "chronological" | "tree-order";
 
 /**
  * Tree style for tree-order view.
  */
-export type LogViewTreeStyle = "flat" | "indented";
+type LogViewTreeStyle = "flat" | "indented";

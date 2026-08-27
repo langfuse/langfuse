@@ -86,7 +86,7 @@ export const GetMediaQuerySchema = z.object({
   mediaId: z.string(),
 });
 
-export type GetMediaQuery = z.infer<typeof GetMediaQuerySchema>;
+type GetMediaQuery = z.infer<typeof GetMediaQuerySchema>;
 
 export const GetMediaResponseSchema = z.object({
   mediaId: z.string(),

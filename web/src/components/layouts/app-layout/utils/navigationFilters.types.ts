@@ -35,7 +35,7 @@ export type NavigationFilterContext = {
  * Filter function that processes a route and returns it (if visible) or null (if hidden)
  * Filters are composable and should be pure functions
  */
-export type NavigationFilter = (
+type NavigationFilter = (
   route: Route,
   context: NavigationFilterContext,
 ) => Route | null;

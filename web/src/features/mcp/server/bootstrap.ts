@@ -47,7 +47,7 @@ const MCP_FEATURES = [
   v4MigrationFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
-export type McpFeature = (typeof MCP_FEATURES)[number];
+type McpFeature = (typeof MCP_FEATURES)[number];
 export type McpToolName = McpFeature["tools"][number]["definition"]["name"];
 
 /**

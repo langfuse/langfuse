@@ -84,7 +84,7 @@ export function getCurrentMatchIndexInRow(
 /**
  * Get search statistics
  */
-export interface SearchStats {
+interface SearchStats {
   totalMatches: number;
   matchedRows: number;
   keyMatches: number;

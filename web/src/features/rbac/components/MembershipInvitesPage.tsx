@@ -12,7 +12,7 @@ import Header from "@/src/components/layouts/header";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
 
-export type tmp = Organization;
+type tmp = Organization;
 export type InvitesTableRow = {
   email: string;
   createdAt: Date;

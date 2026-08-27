@@ -15,20 +15,20 @@ export function isString(value: unknown): value is string {
 
 // non-primitive type checks
 
-export type NestedObservation = ObservationReturnType & {
+type NestedObservation = ObservationReturnType & {
   children: NestedObservation[];
 };
 
-export type Event = Observation & {
+type Event = Observation & {
   type: "EVENT";
 };
 
-export type Span = Observation & {
+type Span = Observation & {
   type: "SPAN";
   endTime: Date; // not null
 };
 
-export type Generation = Observation & {
+type Generation = Observation & {
   type: "GENERATION";
   promptTokens: number;
   completionTokens: number;
@@ -38,31 +38,31 @@ export type Generation = Observation & {
   };
 };
 
-export type Agent = Observation & {
+type Agent = Observation & {
   type: "AGENT";
 };
 
-export type Tool = Observation & {
+type Tool = Observation & {
   type: "TOOL";
 };
 
-export type Chain = Observation & {
+type Chain = Observation & {
   type: "CHAIN";
 };
 
-export type Retriever = Observation & {
+type Retriever = Observation & {
   type: "RETRIEVER";
 };
 
-export type Evaluator = Observation & {
+type Evaluator = Observation & {
   type: "EVALUATOR";
 };
 
-export type Embedding = Observation & {
+type Embedding = Observation & {
   type: "EMBEDDING";
 };
 
-export type Guardrail = Observation & {
+type Guardrail = Observation & {
   type: "GUARDRAIL";
 };
 

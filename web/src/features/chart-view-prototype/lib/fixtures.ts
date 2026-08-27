@@ -183,4 +183,4 @@ export const SCENARIOS = {
   empty: [] as PrototypeEvent[],
 } satisfies Record<string, PrototypeEvent[]>;
 
-export type ScenarioKey = keyof typeof SCENARIOS;
+type ScenarioKey = keyof typeof SCENARIOS;

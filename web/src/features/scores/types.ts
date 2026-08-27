@@ -14,11 +14,11 @@ import {
 } from "@langfuse/shared";
 import { type z } from "zod";
 
-export type HistogramBin = { binLabel: string; count: number };
+type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
 export type ChartBin = { binLabel: string } & CategoryCounts;
 
-export type TimeseriesChartProps = {
+type TimeseriesChartProps = {
   chartData: ChartBin[];
   chartLabels: string[];
   title: string;
@@ -44,12 +44,12 @@ export interface TimeseriesDataTransformer {
   toChartData(): ChartData;
 }
 
-export type SessionScoreTarget = {
+type SessionScoreTarget = {
   type: "session";
   sessionId: string;
 };
 
-export type TraceScoreTarget = {
+type TraceScoreTarget = {
   type: "trace";
   traceId: string;
   observationId?: string;

@@ -15,7 +15,7 @@ export const detailPageListKeys = {
   evalTemplates: "eval-templates",
 } as const;
 
-export type DetailPageListKey =
+type DetailPageListKey =
   (typeof detailPageListKeys)[keyof typeof detailPageListKeys];
 
 export type ListEntry<

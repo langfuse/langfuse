@@ -11,19 +11,13 @@ import type { CommentRange } from "./utils/commentRanges";
 // JSON Value Types
 // ============================================================================
 
-export type JSONValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JSONObject
-  | JSONArray;
+type JSONValue = string | number | boolean | null | JSONObject | JSONArray;
 
-export interface JSONObject {
+interface JSONObject {
   [key: string]: JSONValue;
 }
 
-export interface JSONArray extends Array<JSONValue> {}
+interface JSONArray extends Array<JSONValue> {}
 
 export type JSONType =
   | "string"
@@ -192,7 +186,7 @@ export type PartialJSONTheme = Partial<JSONTheme>;
 /**
  * Main AdvancedJsonViewer props
  */
-export interface AdvancedJsonViewerProps {
+interface AdvancedJsonViewerProps {
   /** Data to display */
   data: unknown;
 
@@ -262,7 +256,7 @@ export interface AdvancedJsonViewerProps {
 /**
  * Props for JsonRow component
  */
-export interface JsonRowProps {
+interface JsonRowProps {
   /** Row data */
   row: FlatJSONRow;
 
@@ -375,7 +369,7 @@ export interface JsonKeyProps {
 /**
  * Configuration for flattening algorithm
  */
-export interface FlattenConfig {
+interface FlattenConfig {
   /** Root key name */
   rootKey?: string;
 
@@ -389,7 +383,7 @@ export interface FlattenConfig {
 /**
  * Configuration for row height estimation
  */
-export interface RowHeightConfig {
+interface RowHeightConfig {
   /** Base row height in pixels */
   baseHeight: number;
 
@@ -406,7 +400,7 @@ export interface RowHeightConfig {
 /**
  * Result of height estimation
  */
-export interface RowHeightEstimate {
+interface RowHeightEstimate {
   /** Estimated height in pixels */
   height: number;
 
@@ -421,7 +415,7 @@ export interface RowHeightEstimate {
 /**
  * Node type discriminator for multi-section trees
  */
-export type TreeNodeType =
+type TreeNodeType =
   | "meta"
   | "section-header"
   | "section-footer"

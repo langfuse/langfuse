@@ -377,7 +377,7 @@ export function applyExpansionState(
  * @param tree - Current tree state
  * @returns Stats object
  */
-export interface ExpansionStats {
+interface ExpansionStats {
   totalExpandable: number;
   totalExpanded: number;
   totalCollapsed: number;

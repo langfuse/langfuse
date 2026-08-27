@@ -31,7 +31,7 @@ export type FilterSegment = {
   editable: true;
 };
 
-export type PlainSegment = {
+type PlainSegment = {
   id: string;
   kind: "freeText" | "operator" | "paren";
   from: number;
@@ -40,7 +40,7 @@ export type PlainSegment = {
   editable: boolean;
 };
 
-export type InvalidSegment = {
+type InvalidSegment = {
   id: string;
   kind: "invalid";
   from: number;

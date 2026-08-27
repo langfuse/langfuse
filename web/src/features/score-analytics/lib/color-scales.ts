@@ -21,7 +21,7 @@ const HEATMAP_BASE_COLORS = {
   accent: { l: 65, c: 0.1, h: 240 }, // --accent (blue-ish, muted but visible)
 } as const;
 
-export type HeatmapColorVariant = keyof typeof HEATMAP_BASE_COLORS;
+type HeatmapColorVariant = keyof typeof HEATMAP_BASE_COLORS;
 
 /**
  * Get contrasting text color (black or white) for an OKLCH background color

@@ -3,7 +3,7 @@ export const EXPERIMENT_RUN_TABS = {
   ANALYTICS: "analytics",
 } as const;
 
-export type ExperimentRunTab =
+type ExperimentRunTab =
   (typeof EXPERIMENT_RUN_TABS)[keyof typeof EXPERIMENT_RUN_TABS];
 
 export const getExperimentRunTabs = (

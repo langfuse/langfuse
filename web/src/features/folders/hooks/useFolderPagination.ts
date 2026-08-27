@@ -89,4 +89,4 @@ export const useFolderPagination = () => {
   };
 };
 
-export type UseFolderPaginationReturn = ReturnType<typeof useFolderPagination>;
+type UseFolderPaginationReturn = ReturnType<typeof useFolderPagination>;

@@ -9,7 +9,7 @@ import {
 import { type PromptVersionTableRow } from "@/src/pages/project/[projectId]/prompts/metrics";
 import { type ScoreDataTypeType, type ScoreSourceType } from "@langfuse/shared";
 
-export type TableRowTypesWithIndividualScoreColumns =
+type TableRowTypesWithIndividualScoreColumns =
   | ObservationsTableRow
   | TracesTableRow
   | DatasetRunItemByItemRowData

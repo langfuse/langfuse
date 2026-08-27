@@ -43,7 +43,7 @@ export type BackgroundExecutionApprovalView = {
   status: "pending" | "submitting";
 };
 
-export type BackgroundExecutionAttachment =
+type BackgroundExecutionAttachment =
   | { status: "detached" }
   | { status: "attaching" }
   | { status: "attached" }
@@ -596,7 +596,7 @@ function getBackgroundRunFailureMessage(errorCode: string | null): string {
   );
 }
 
-export type BackgroundRunNoticeTone = "info" | "warning";
+type BackgroundRunNoticeTone = "info" | "warning";
 
 export type BackgroundRunNotice = {
   text: string;

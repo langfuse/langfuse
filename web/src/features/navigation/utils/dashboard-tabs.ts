@@ -3,7 +3,7 @@ export const DASHBOARD_TABS = {
   WIDGETS: "widgets",
 } as const;
 
-export type DashboardTab = (typeof DASHBOARD_TABS)[keyof typeof DASHBOARD_TABS];
+type DashboardTab = (typeof DASHBOARD_TABS)[keyof typeof DASHBOARD_TABS];
 
 export const getDashboardTabs = (projectId: string) => [
   {

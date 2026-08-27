@@ -10,7 +10,7 @@ import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 import type { SessionContextValue } from "next-auth/react";
 
 /** Actions the auth guard can request */
-export type AuthGuardAction = "allow" | "loading" | "redirect" | "sign-out";
+type AuthGuardAction = "allow" | "loading" | "redirect" | "sign-out";
 
 /** Result of auth guard evaluation */
 export type AuthGuardResult =

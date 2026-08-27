@@ -45,4 +45,4 @@ export const APIScoreSchemaV2 = z.discriminatedUnion("dataType", [
   ScoreFoundationSchemaV2.omit({ value: true }).extend(TextData.shape),
 ]);
 
-export type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;
+type APIScoreV2 = z.infer<typeof APIScoreSchemaV2>;

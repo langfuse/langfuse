@@ -315,7 +315,7 @@ export const TIMELINE_SHAPES = {
   huge: () => manySpans(10_000),
 } satisfies Record<string, () => LayoutNode[]>;
 
-export type TimelineShapeKey = keyof typeof TIMELINE_SHAPES;
+type TimelineShapeKey = keyof typeof TIMELINE_SHAPES;
 
 /**
  * One streaming model call: a quarter of its time waiting for the first token,

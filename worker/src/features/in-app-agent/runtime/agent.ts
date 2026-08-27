@@ -254,7 +254,7 @@ class EnsureFinalResponseProcessor implements Processor {
   }
 }
 
-export type InAppAgentCompleteOutcome = {
+type InAppAgentCompleteOutcome = {
   /** The turn reached the step cap, whether or not wrap-up rescued it. */
   reachedStepLimit: boolean;
   truncatedByStepLimit: boolean;

@@ -1,7 +1,7 @@
 import { type RowData, type ColumnDef } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 
-export type TableRowOptions = {
+type TableRowOptions = {
   columnId: string;
   options: { label: string; value: number; icon?: LucideIcon }[];
 };

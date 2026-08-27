@@ -3,7 +3,7 @@ export const PROMPT_TABS = {
   METRICS: "metrics",
 } as const;
 
-export type PromptTab = (typeof PROMPT_TABS)[keyof typeof PROMPT_TABS];
+type PromptTab = (typeof PROMPT_TABS)[keyof typeof PROMPT_TABS];
 
 export const getPromptTabs = (projectId: string, promptName: string) => [
   {

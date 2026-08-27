@@ -12,7 +12,7 @@ import {
 // Types
 // ============================================================================
 
-export interface WidgetMetricConfig {
+interface WidgetMetricConfig {
   measure: string;
   agg: string;
 }
@@ -21,7 +21,7 @@ export interface WidgetDimensionConfig {
   field: string;
 }
 
-export interface WidgetChartConfig {
+interface WidgetChartConfig {
   type: DashboardWidgetChartType;
   row_limit?: number;
   bins?: number;
@@ -48,7 +48,7 @@ export interface WidgetConfig {
   minVersion?: number;
 }
 
-export interface UseWidgetQueryParams {
+interface UseWidgetQueryParams {
   widgetConfig: WidgetConfig;
   dateRange: { from: Date; to: Date } | undefined;
   /**
@@ -62,7 +62,7 @@ export interface UseWidgetQueryParams {
   sortState?: { column: string; order: string } | null;
 }
 
-export interface UseWidgetQueryResult {
+interface UseWidgetQueryResult {
   query: QueryType;
   version: ViewVersion;
   validation: QueryValidationResult;
