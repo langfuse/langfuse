@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { env } from "../../env";
 import { logger } from "../../server/logger";
-import { getInAppAgentModelConfig } from "./modelProvider";
+import {
+  getInAppAgentModelConfig,
+  isInAppAgentInstanceEnabled,
+} from "./modelProvider";
 
 const original = {
   LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
@@ -13,6 +16,7 @@ const original = {
   LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
   LANGFUSE_AI_EXTRA_HEADERS: env.LANGFUSE_AI_EXTRA_HEADERS,
   LANGFUSE_AI_AWS_BEDROCK_REGION: env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+  LANGFUSE_IN_APP_AGENT_ENABLED: env.LANGFUSE_IN_APP_AGENT_ENABLED,
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
 };
 
@@ -206,5 +210,25 @@ describe("getInAppAgentModelConfig", () => {
       titleModelId: "eu.anthropic.claude-opus-5",
       region: undefined,
     });
+  });
+});
+
+describe("isInAppAgentInstanceEnabled", () => {
+  it("enables the self-hosted worker when LANGFUSE_IN_APP_AGENT_ENABLED is true", () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_IN_APP_AGENT_ENABLED: "true",
+    });
+
+    expect(isInAppAgentInstanceEnabled()).toBe(true);
+  });
+
+  it("disables the self-hosted worker when LANGFUSE_IN_APP_AGENT_ENABLED is unset", () => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_IN_APP_AGENT_ENABLED: undefined,
+    });
+
+    expect(isInAppAgentInstanceEnabled()).toBe(false);
   });
 });
