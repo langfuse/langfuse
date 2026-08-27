@@ -21,7 +21,7 @@ export const PublicApiCreator = z
   })
   .strict();
 
-export const EvaluatorChatMessage = z
+const EvaluatorChatMessage = z
   .object({
     role: z.literal("user"),
     content: z.string(),
@@ -51,7 +51,7 @@ const EvaluatorModelConfig = z
   })
   .strict();
 
-export const LlmAsJudgeEvaluatorVersion = EvaluatorVersionBase.extend({
+const LlmAsJudgeEvaluatorVersion = EvaluatorVersionBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   prompt: EvaluatorChatPrompt,
   variables: z.array(z.string()),
@@ -60,7 +60,7 @@ export const LlmAsJudgeEvaluatorVersion = EvaluatorVersionBase.extend({
   outputDefinition: PublicEvaluatorOutputDefinitionRead,
 }).strict();
 
-export const CodeEvaluatorVersion = EvaluatorVersionBase.extend({
+const CodeEvaluatorVersion = EvaluatorVersionBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_CODE),
   sourceCode: z.string().min(1),
   sourceCodeLanguage: PublicCodeEvaluatorSourceCodeLanguage,
@@ -71,7 +71,7 @@ export const EvaluatorVersion = z.discriminatedUnion("type", [
   CodeEvaluatorVersion,
 ]);
 
-export const EvaluationRuleAssignment = z
+const EvaluationRuleAssignment = z
   .object({
     evaluationRuleId: z.string(),
     variableMappingOverride: z.array(PromptVariableMapping).optional(),
@@ -105,7 +105,7 @@ export const LlmAsJudgeEvaluator = EvaluatorBase.extend({
   outputDefinition: PublicEvaluatorOutputDefinitionRead,
 }).strict();
 
-export const CodeEvaluator = EvaluatorBase.extend({
+const CodeEvaluator = EvaluatorBase.extend({
   type: z.literal(PUBLIC_EVALUATOR_TYPE_CODE),
   sourceCode: z.string().min(1),
   sourceCodeLanguage: PublicCodeEvaluatorSourceCodeLanguage,
@@ -134,7 +134,7 @@ const CodeEvaluatorDefinition = z
   })
   .strict();
 
-export const EvaluatorDefinition = z.discriminatedUnion("type", [
+const _EvaluatorDefinition = z.discriminatedUnion("type", [
   LlmAsJudgeEvaluatorDefinition,
   CodeEvaluatorDefinition,
 ]);
@@ -198,7 +198,7 @@ const EvaluatorVersionCursor = z.discriminatedUnion("v", [
   z.object({ v: z.literal(1), version: z.number().int().positive() }),
 ]);
 
-export const EncodedEvaluatorVersionCursor = z
+const EncodedEvaluatorVersionCursor = z
   .string()
   .transform(decodeCursor)
   .pipe(EvaluatorVersionCursor);
@@ -236,6 +236,6 @@ export const ListEvaluatorVersionsResponse = z
 
 export const DeleteEvaluatorResponse = z.object({ id: z.string() }).strict();
 
-export type EvaluatorDefinitionType = z.infer<typeof EvaluatorDefinition>;
+export type EvaluatorDefinitionType = z.infer<typeof _EvaluatorDefinition>;
 export type CreateEvaluatorBodyType = z.infer<typeof CreateEvaluatorBody>;
 export type UpdateEvaluatorBodyType = z.infer<typeof UpdateEvaluatorBody>;

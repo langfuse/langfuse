@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const structuredPublicApiErrorCodes = [
+const structuredPublicApiErrorCodes = [
   "authentication_failed",
   "access_denied",
   "invalid_request",
@@ -22,9 +22,7 @@ export const structuredPublicApiErrorCodes = [
   "internal_error",
 ] as const;
 
-export const StructuredPublicApiErrorCode = z.enum(
-  structuredPublicApiErrorCodes,
-);
+const StructuredPublicApiErrorCode = z.enum(structuredPublicApiErrorCodes);
 
 const StructuredPublicApiValidationIssue = z
   .object({

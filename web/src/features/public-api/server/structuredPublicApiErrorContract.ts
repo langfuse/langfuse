@@ -34,7 +34,7 @@ type StructuredPublicApiErrorBody = {
   details?: StructuredPublicApiErrorDetailsType;
 };
 
-export { createStructuredPublicApiError, StructuredPublicApiError };
+export { StructuredPublicApiError };
 
 function toBody(error: StructuredPublicApiError): StructuredPublicApiErrorBody {
   return {

@@ -12,7 +12,7 @@ import {
   PublicApiCreator,
 } from "./evaluators";
 
-export const EvaluationRuleEvaluatorAssignmentInput = z
+const EvaluationRuleEvaluatorAssignmentInput = z
   .object({
     evaluatorId: z.string().min(1),
     variableMapping: z
@@ -22,7 +22,7 @@ export const EvaluationRuleEvaluatorAssignmentInput = z
   })
   .strict();
 
-export const EvaluatorAssignment = z
+const EvaluatorAssignment = z
   .object({
     evaluatorId: z.string(),
     variableMapping: z.array(PromptVariableMapping).nullable(),

@@ -64,15 +64,7 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experiment_item_metadata: "experiment_item_metadata",
 };
 
-export function toPublicEvaluatorType(type: EvalTemplateType) {
-  return type === EvalTemplateType.CODE
-    ? PUBLIC_EVALUATOR_TYPE_CODE
-    : PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
-}
-
-export function toStoredMappingList(
-  mappings: PromptVariableMappingInputType[],
-) {
+function toStoredMappingList(mappings: PromptVariableMappingInputType[]) {
   return observationVariableMappingList.parse(
     mappings.map((mapping) => ({
       templateVariable: mapping.variable,
@@ -83,9 +75,7 @@ export function toStoredMappingList(
   );
 }
 
-export function toApiReadMappings(
-  mappings: unknown,
-): PromptVariableMappingReadType[] {
+function toApiReadMappings(mappings: unknown): PromptVariableMappingReadType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
   if (!parsed.success) {
     logger.error("Failed to parse public evaluation rule mappings", {
@@ -131,7 +121,7 @@ function toApiLegacyMappings(
   );
 }
 
-export function toPublicOutputDefinition(outputDefinition: unknown) {
+function toPublicOutputDefinition(outputDefinition: unknown) {
   const parsed =
     PersistedEvalOutputDefinitionSchema.safeParse(outputDefinition);
   if (!parsed.success) {
@@ -358,7 +348,7 @@ export function toInternalFilters(filters: FilterState) {
   ) as FilterState;
 }
 
-export function toPublicFilters(filters: unknown) {
+function toPublicFilters(filters: unknown) {
   return PublicEvaluationRuleReadFilter.array()
     .parse(filters)
     .map((filter) =>
