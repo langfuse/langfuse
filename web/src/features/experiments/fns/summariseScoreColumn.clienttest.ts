@@ -44,7 +44,8 @@ describe("summariseScoreColumn", () => {
       hasComparison: true,
     });
 
-    expect(summary.delta).toBeCloseTo(0.03333, 4);
+    // The header belongs to the baseline, so the delta is baseline − comparison.
+    expect(summary.delta).toBeCloseTo(-0.03333, 4);
     expect(summary.movement).toEqual({
       improved: 1,
       regressed: 1,
@@ -52,6 +53,22 @@ describe("summariseScoreColumn", () => {
       changed: 0,
       notComparable: 0,
     });
+  });
+
+  // Pins the frame's direction so it cannot silently flip back: the run you
+  // opened scoring higher than the run it is read against is an improvement.
+  it("reads a baseline that scored higher as an improvement", () => {
+    const summary = summariseScoreColumn({
+      pairs: [
+        { baseline: numeric(0.6), comparison: numeric(0.4) },
+        { baseline: numeric(0.5), comparison: numeric(0.4) },
+      ],
+      dataType: "NUMERIC",
+      hasComparison: true,
+    });
+
+    expect(summary.delta).toBeCloseTo(0.15, 4);
+    expect(summary.movement).toMatchObject({ improved: 2, regressed: 0 });
   });
 
   it("never counts a missing score as a regression", () => {
@@ -70,8 +87,8 @@ describe("summariseScoreColumn", () => {
     });
 
     expect(summary.movement).toEqual({
-      improved: 1,
-      regressed: 0,
+      improved: 0,
+      regressed: 1,
       unchanged: 0,
       changed: 0,
       notComparable: 3,

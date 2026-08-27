@@ -23,7 +23,9 @@ export type ScoreColumnAggregate =
     };
 
 export type ScoreColumnMovement = {
+  /** Items the baseline — the experiment you opened — scored better on. */
   improved: number;
+  /** Items the baseline scored worse on. */
   regressed: number;
   unchanged: number;
   /** A different value with no order to it — categorical only. */
@@ -35,7 +37,7 @@ export type ScoreColumnMovement = {
 export type ScoreColumnSummary = {
   baseline: ScoreColumnAggregate | null;
   comparison: ScoreColumnAggregate | null;
-  /** `comparison − baseline` on the ordered reading of the score, else null. */
+  /** `baseline − comparison` on the ordered reading of the score, else null. */
   delta: number | null;
   /** Null when no comparison is selected. */
   movement: ScoreColumnMovement | null;
@@ -129,6 +131,12 @@ const emptyMovement = (): ScoreColumnMovement => ({
  * way. This is the analysis the deleted Analytics tab was going to carry, put
  * where the eye already is. (LFE-15711)
  *
+ * A delta chip describes the thing it is attached to, and this summary is the
+ * header of the experiment you opened — so the delta reads
+ * `baseline − comparison` and an item counts as improved when the baseline
+ * scored better. (A stacked cell line belongs to its comparison instead, and
+ * keeps the opposite frame.)
+ *
  * An item with no score on either side is **not comparable**, never a
  * regression: it is counted separately and stays visible in the header's hover.
  * Categorical scores have no order, so they only ever report changed/unchanged.
@@ -184,9 +192,9 @@ export const summariseScoreColumn = ({
     const comparisonValue = orderedValue(pair.comparison, dataType);
     if (baselineValue === null || comparisonValue === null) {
       movement.notComparable += 1;
-    } else if (comparisonValue > baselineValue) {
+    } else if (baselineValue > comparisonValue) {
       movement.improved += 1;
-    } else if (comparisonValue < baselineValue) {
+    } else if (baselineValue < comparisonValue) {
       movement.regressed += 1;
     } else {
       movement.unchanged += 1;
@@ -203,7 +211,7 @@ export const summariseScoreColumn = ({
     comparison,
     delta:
       orderedBaseline !== null && orderedComparison !== null
-        ? orderedComparison - orderedBaseline
+        ? orderedBaseline - orderedComparison
         : null,
     movement,
   };
