@@ -10,7 +10,7 @@ import Link from "next/link";
 import { type Details } from "@/src/features/traces/fns/calculateAggregatedUsage";
 import { ExternalLink } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
+import { cva, type VariantProps } from "class-variance-authority";
 
 export interface PriceSource {
   projectId: string;
@@ -135,6 +135,19 @@ export const BreakdownTooltip = ({
   );
 };
 
+const breakdownRowVariants = cva("flex min-w-0 items-center gap-3 text-xs", {
+  variants: {
+    variant: {
+      item: "text-muted-foreground",
+      section: "border-b pb-1 font-bold",
+      total: "border-t border-b-4 border-double py-1 font-bold",
+    },
+  },
+  defaultVariants: {
+    variant: "item",
+  },
+});
+
 function BreakdownRow({
   label,
   value,
@@ -142,32 +155,15 @@ function BreakdownRow({
 }: {
   label: string;
   value: string;
-  variant: "item" | "section" | "total";
+  variant: NonNullable<VariantProps<typeof breakdownRowVariants>["variant"]>;
 }) {
-  const isEmphasis = variant !== "item";
-
   return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-3",
-        variant === "section" && "border-b pb-1",
-        variant === "total" && "border-t border-b-4 border-double py-1",
-      )}
-    >
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate text-xs",
-          isEmphasis ? "font-bold" : "text-muted-foreground",
-        )}
-        title={label}
-      >
+    <div className={breakdownRowVariants({ variant })}>
+      <span className="min-w-0 flex-1 truncate" title={label}>
         {label}
       </span>
       <span
-        className={cn(
-          "max-w-[50%] min-w-0 truncate text-right font-mono text-xs tabular-nums",
-          isEmphasis ? "font-bold" : "text-muted-foreground",
-        )}
+        className="max-w-[50%] min-w-0 truncate text-right font-mono tabular-nums"
         title={value}
       >
         {value}
