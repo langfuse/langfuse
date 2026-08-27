@@ -3,8 +3,10 @@ import { z } from "zod";
 
 import { env } from "../../env";
 import {
+  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
+  ServiceUnavailableError,
   UnauthorizedError,
 } from "../../errors";
 import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
@@ -326,13 +328,15 @@ export const processEventBatch = async (
 
   // Send each event individually to IngestionQueue for ClickHouse processing
   if (s3UploadErrored) {
-    throw new Error(
+    throw new InternalServerError(
       "Failed to upload events to blob storage, aborting event processing",
     );
   }
 
   if (!redis) {
-    throw new Error("Redis not initialized, aborting event processing");
+    throw new ServiceUnavailableError(
+      "Redis not initialized, aborting event processing",
+    );
   }
 
   const projectIdsToSkipS3List =
