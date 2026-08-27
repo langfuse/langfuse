@@ -4,7 +4,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Dialog } from "@/src/components/ui/dialog";
 
-import { TransferProjectDialogContent } from "./TransferProjectDialog";
+import { TransferProjectDialogContent } from "./TransferProjectDialogContent";
 
 const defaultArgs = {
   projectName: "Support assistant",
