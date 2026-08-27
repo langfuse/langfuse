@@ -7,6 +7,47 @@ import {
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 /**
+ * Global repetitions setting shared by all playground windows, LangSmith-style:
+ * a single control next to "Run All" instead of per-window state. Stored at
+ * module level (like the window registry below) and read at execution time so
+ * submissions never capture a stale value.
+ */
+export const MAX_RUN_COUNT = 50;
+export const DEFAULT_RUN_COUNT = 1;
+
+let globalRunCount = DEFAULT_RUN_COUNT;
+const RUN_COUNT_CHANGE_EVENT = "playground:run-count-change";
+
+export const getGlobalRunCount = (): number => globalRunCount;
+
+export const setGlobalRunCount = (runCount: number): void => {
+  globalRunCount = Math.min(
+    Math.max(Math.round(runCount) || 1, 1),
+    MAX_RUN_COUNT,
+  );
+  playgroundEventBus.dispatchEvent(
+    new CustomEvent(RUN_COUNT_CHANGE_EVENT, { detail: { runCount } }),
+  );
+};
+
+/** Reactive view of the global repetitions setting. */
+export const useGlobalRunCount = (): number => {
+  const [runCount, setRunCount] = useState(globalRunCount);
+
+  useEffect(() => {
+    const handleChange = () => setRunCount(globalRunCount);
+    playgroundEventBus.addEventListener(RUN_COUNT_CHANGE_EVENT, handleChange);
+    return () =>
+      playgroundEventBus.removeEventListener(
+        RUN_COUNT_CHANGE_EVENT,
+        handleChange,
+      );
+  }, []);
+
+  return runCount;
+};
+
+/**
  * Playground window registry for coordinating actions across multiple playground windows
  * This Map stores references to all active playground windows and their handles
  * Key: windowId, Value: PlaygroundHandle interface
