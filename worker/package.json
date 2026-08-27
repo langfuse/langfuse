@@ -74,7 +74,6 @@
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.0",
-    "yaml": "^2.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
