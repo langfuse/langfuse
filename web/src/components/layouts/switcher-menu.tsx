@@ -130,6 +130,7 @@ const SwitcherMenuContent = ({
                       >
                         <Link
                           href={item.settingsHref}
+                          aria-label={`Go to settings for ${item.name}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             onClose();
