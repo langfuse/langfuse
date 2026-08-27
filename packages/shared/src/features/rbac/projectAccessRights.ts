@@ -1,7 +1,5 @@
 import { type Role } from "../../db";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
 export const projectScopes = [
   "projectMembers:read",
   "projectMembers:CUD",
