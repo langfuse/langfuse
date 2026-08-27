@@ -29,7 +29,6 @@ describe("getOrganizationPlanServerSide (cloud)", () => {
     ["LANGFUSE_HOBBY", "cloud:hobby"],
     ["LANGFUSE_CORE", "cloud:core"],
     ["LANGFUSE_PRO", "cloud:pro"],
-    // CHB's code for the Team tier does not carry the Langfuse tier name.
     ["LANGFUSE_PRO_TEAMS", "cloud:team"],
     ["LANGFUSE_ENTERPRISE", "cloud:enterprise"],
   ])("maps CHB plan code %s to %s", (planCode, expected) => {
