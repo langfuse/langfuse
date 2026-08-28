@@ -328,6 +328,8 @@ export function ExperimentMetricStrip({
             // tooltip carries the exact name either way.
             hideXAxisLabels
             colorBarsByCategory
+            // Bars are compared by length, so they have to start at zero.
+            zeroBaseline
           />
         )}
       </div>

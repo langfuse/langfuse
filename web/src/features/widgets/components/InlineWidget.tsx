@@ -90,6 +90,11 @@ export interface WidgetContentProps {
    */
   colorBarsByCategory?: boolean;
   /**
+   * Measure bars from zero rather than from a fitted domain. Off by default;
+   * see `ChartProps.zeroBaseline`.
+   */
+  zeroBaseline?: boolean;
+  /**
    * Replaces the chart's default "No data" card — for a widget in a band too
    * short for it. Pass a stable node (see `Chart`).
    */
@@ -141,6 +146,7 @@ export function WidgetContent({
   entityDimensionLabelMap,
   hideXAxisLabels,
   colorBarsByCategory,
+  zeroBaseline,
   emptyState,
 }: WidgetContentProps) {
   const { isBetaEnabled } = useV4Beta();
@@ -418,6 +424,7 @@ export function WidgetContent({
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
         colorBarsByCategory={colorBarsByCategory}
+        zeroBaseline={zeroBaseline}
         emptyState={emptyState}
       />
       <ChartLoadingState

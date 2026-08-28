@@ -65,6 +65,7 @@ const ChartComponent = ({
   missingValue,
   hideXAxisLabels,
   colorBarsByCategory,
+  zeroBaseline,
   emptyState,
 }: {
   chartType: DashboardWidgetChartType;
@@ -109,6 +110,8 @@ const ChartComponent = ({
    * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
    */
   colorBarsByCategory?: boolean;
+  /** See {@link ChartProps.zeroBaseline}. Consumed by VERTICAL_BAR. */
+  zeroBaseline?: boolean;
   /**
    * Replaces the default "No data" card when the chart has nothing to draw.
    * For a chart in a band too short for that card (the table strips), where it
@@ -239,6 +242,7 @@ const ChartComponent = ({
             subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
             colorBarsByCategory={colorBarsByCategory}
+            zeroBaseline={zeroBaseline}
           />
         );
       case "PIE":

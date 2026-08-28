@@ -160,4 +160,14 @@ export interface ChartProps {
    * the bounded palette to identify any of them. (LFE-15711)
    */
   colorBarsByCategory?: boolean;
+  /**
+   * Measure the bars from zero instead of from recharts' fitted domain. A bar
+   * encodes its value as a length, so this is what makes two bars comparable at
+   * all — on a fitted domain 0.80/0.87/1.00 draw as short/medium/full.
+   *
+   * Off by default only because it is a visible change to the bar charts that
+   * already ship without it (the score-analytics dashboard widget), which are
+   * out of scope here. Every vertical bar chart ought to have it. (LFE-15711)
+   */
+  zeroBaseline?: boolean;
 }

@@ -66,6 +66,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   subtleFill = false,
   hideXAxisLabels = false,
   colorBarsByCategory = false,
+  zeroBaseline = false,
 }) => {
   const { ref: containerRef, maxYTicks } = useChartTickBudget();
 
@@ -109,13 +110,17 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
             tickLine={false}
             axisLine={false}
             niceTicks="auto"
-            // A bar encodes its value as a LENGTH, so the baseline has to be
-            // zero: on a fitted domain three bars of 0.8/0.87/1.0 draw as
-            // short/medium/full and read as a far bigger difference than there
-            // is. `min(0, dataMin)` rather than a flat 0 so a negative series
-            // (a delta) still fits. The max keeps `"auto"`, which is what lets
+            // `min(0, dataMin)` rather than a flat 0 so a negative series (a
+            // delta) still fits, and the max keeps `"auto"`, which is what lets
             // niceTicks round the top of the scale. (LFE-15711)
-            domain={[(dataMin: number) => Math.min(0, dataMin), "auto"]}
+            {...(zeroBaseline
+              ? {
+                  domain: [
+                    (dataMin: number) => Math.min(0, dataMin),
+                    "auto" as const,
+                  ] as const,
+                }
+              : {})}
             // Ask for only as many ticks as the measured height fits, so
             // recharts never has to drop colliding labels — and so the zero
             // tick, the one that says where a bar is measured from, survives in
