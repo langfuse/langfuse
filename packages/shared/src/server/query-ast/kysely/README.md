@@ -133,9 +133,11 @@ stay live.
 CLICKHOUSE_BIN=clickhouse pnpm --filter @langfuse/shared run test src/server/query-ast
 ```
 
-`catalog.test.ts` and the golden tests assert `compile(AST) ≡ referenceSQL`
-after `clickhouse format`, so they need a local `clickhouse` binary and
-otherwise `describe.skip` (they do not yet run in shared CI — a binary in that
-job is a tracked follow-up). `composition.test.ts` asserts on raw compiler
-output and runs everywhere. After an intentional SQL change, regenerate golden
-baselines with `-u` (see `../README.md`).
+`catalog.golden.test.ts` and the other `*.golden.test.ts` suites assert
+`compile(AST) ≡ referenceSQL` after `clickhouse format`, so they need a local
+`clickhouse` binary and otherwise `describe.skip`. CI's non-blocking
+SQL-equivalence step installs the pinned binary and runs every `*.golden.test.ts`
+(it selects them by that name), so a suite must carry the `.golden.test.ts`
+suffix to run there. `composition.test.ts` asserts on raw compiler output and
+runs everywhere. After an intentional SQL change, regenerate golden baselines
+with `-u` (see `../README.md`).
