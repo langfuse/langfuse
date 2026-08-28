@@ -23,11 +23,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import {
-  AnnotateDrawerController,
-  AnnotateDrawerMenuButton,
-  AnnotateDrawerToolbarButton,
-} from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -52,9 +48,11 @@ import {
   ChevronDown,
   EllipsisVertical,
   ListPlus,
+  LockIcon,
   MessageSquare,
   MessageSquareOff,
   MoreHorizontal,
+  SquarePen,
 } from "lucide-react";
 import {
   Popover,
@@ -187,13 +185,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         environment: trace.environment,
                       }}
                     >
-                      {({ annotationCount, disabled, openDrawer }) => (
-                        <AnnotateDrawerMenuButton
-                          annotationCount={annotationCount}
+                      {({ disabled, openDrawer }) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           disabled={disabled}
+                          className="w-full justify-start gap-2 font-normal"
                           onClick={openDrawer}
-                          showAnnotationCount={false}
-                        />
+                        >
+                          {disabled ? (
+                            <LockIcon className="h-3 w-3" />
+                          ) : (
+                            <SquarePen className="h-4 w-4" />
+                          )}
+                          <span className="text-sm">Annotate</span>
+                        </Button>
                       )}
                     </AnnotateDrawerController>
                     <AnnotationQueueItemDropdownMenuController
@@ -282,15 +288,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     environment: trace.environment,
                   }}
                 >
-                  {({ annotationCount, disabled, openDrawer }) => (
-                    <AnnotateDrawerToolbarButton
-                      annotationCount={annotationCount}
-                      buttonVariant="secondary"
-                      disabled={disabled}
-                      onClick={openDrawer}
-                      showAnnotationCount={false}
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      variant="secondary"
                       size="sm"
-                    />
+                      disabled={disabled}
+                      className="rounded-r-none"
+                      onClick={openDrawer}
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      <span>Annotate</span>
+                    </Button>
                   )}
                 </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
