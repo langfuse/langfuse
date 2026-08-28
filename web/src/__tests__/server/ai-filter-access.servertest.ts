@@ -68,7 +68,6 @@ async function prepare(projectRole: Role) {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: false,
-        searchBar: true,
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,

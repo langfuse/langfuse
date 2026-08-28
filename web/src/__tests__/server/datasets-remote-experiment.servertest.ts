@@ -43,7 +43,6 @@ const prepare = async (projectRole: "ADMIN" | "MEMBER" = "ADMIN") => {
         },
       ],
       featureFlags: {
-        searchBar: false,
         templateFlag: true,
         excludeClickhouseRead: false,
         v4BetaToggleVisible: false,

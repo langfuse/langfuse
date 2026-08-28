@@ -55,7 +55,6 @@ describe("annotation queues trpc", () => {
           excludeClickhouseRead: false,
           experimentsV4Enabled: false,
           observationEvals: false,
-          searchBar: false,
           v4BetaToggleVisible: false,
         },
       },
