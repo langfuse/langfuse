@@ -18,6 +18,12 @@ import { type RowHeight } from "@/src/components/table/data-table-row-height-swi
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -30,7 +36,6 @@ import {
 } from "@/src/components/level-counts-display";
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   TableBadgeLoadingCell,
@@ -44,9 +49,9 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
 import {
   Copy,
+  Folder,
   InfoIcon,
   ListTree,
   MoreVertical,
@@ -81,7 +86,7 @@ import {
 //   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
 //                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
 // Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, FolderBreadcrumbLink, Skeleton, the
+// TokenUsageBadge, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -262,27 +267,18 @@ function buildTraceColumns(
         />
       ),
     },
-    {
+    createDateTableColumn<TraceRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       size: 150,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value = row.original.timestamp;
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createTextTableColumn<TraceRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       enableSorting: true,
-      // Returns the raw string — hits DataTable's string-cell branch exactly
-      // like the real Name cell.
-      cell: ({ row }) => row.original.name ?? undefined,
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",
@@ -427,35 +423,16 @@ function buildTraceColumns(
         ) : null;
       },
     },
-    {
+    createTagsTableColumn<TraceRow>({
       accessorKey: "tags",
-      id: "tags",
       header: "Tags",
       size: 150,
       headerTooltip: {
         description: "Group traces with tags.",
         href: "https://langfuse.com/docs/observability/features/tags",
       },
-      loadingCell: <TableTextLoadingCell />,
-      // Real Traces Tags cell: TagList inside the `flex gap-x-2 gap-y-1`
-      // wrapper, wrapping only on non-"s" row heights.
-      cell: ({ row }) => {
-        const traceTags = row.original.tags;
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "metadata",
       header: "Metadata",
@@ -489,15 +466,13 @@ function buildTraceColumns(
       },
       enableSorting: true,
     },
-    {
+    createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
-      id: "id",
       size: 90,
       defaultHidden: true,
-      cell: ({ row }) => <TableIdOrName value={row.original.id} />,
       enableSorting: true,
-    },
+    }),
     {
       accessorKey: "action",
       header: "Action",
@@ -533,29 +508,19 @@ function buildTraceColumns(
 // pagination, and selection stories where the full Traces column set is noise.
 
 const plainColumns: LangfuseColumnDef<TraceRow>[] = [
-  {
-    accessorKey: "id",
-    id: "id",
-    header: "ID",
-    size: 220,
-    cell: ({ row }) => <TableIdOrName value={row.original.id} />,
-  },
-  {
+  createIdTableColumn<TraceRow>({ accessorKey: "id", header: "ID", size: 220 }),
+  createTextTableColumn<TraceRow>({
     accessorKey: "name",
-    id: "name",
     header: "Name",
     enableSorting: true,
     size: 180,
-    cell: ({ row }) => row.original.name,
-  },
-  {
+  }),
+  createDateTableColumn<TraceRow>({
     accessorKey: "timestamp",
-    id: "timestamp",
     header: "Timestamp",
     enableSorting: true,
     size: 200,
-    cell: ({ row }) => <LocalIsoDate date={row.original.timestamp} />,
-  },
+  }),
   {
     accessorKey: "environment",
     id: "environment",
@@ -1085,15 +1050,12 @@ function buildGroupedColumns(
     id: "scoresGroup",
     header: "Scores",
     columns: [
-      {
+      createNumberTableColumn<TraceRow>({
         accessorKey: "observationCount",
-        id: "observationCount",
         header: "Observations",
         size: 110,
-        cell: ({ row }) => (
-          <span>{numberFormatter(row.original.observationCount, 0)}</span>
-        ),
-      },
+        formatter: (value) => numberFormatter(value, 0, 0),
+      }),
       {
         accessorKey: "latency",
         id: "latencyScore",
@@ -1108,20 +1070,20 @@ function buildGroupedColumns(
     id: "usageGroup",
     header: "Cost & usage",
     columns: [
-      {
-        accessorKey: "totalCost",
+      createNumberTableColumn<TraceRow>({
         id: "totalCostGrouped",
+        accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        cell: ({ row }) => usdFormatter(row.original.totalCost.toNumber()),
-      },
-      {
-        accessorKey: "usage",
+        formatter: usdFormatter,
+      }),
+      createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
+        accessorFn: (row) => row.usage.totalUsage,
         header: "Tokens",
         size: 100,
-        cell: ({ row }) => numberFormatter(row.original.usage.totalUsage, 0),
-      },
+        formatter: (value) => numberFormatter(value, 0, 0),
+      }),
     ] satisfies LangfuseColumnDef<TraceRow>[],
   };
   // place groups just before the action column (last entry)
@@ -1172,8 +1134,8 @@ export const WithGroupedHeaders = meta.story({
 // -----------------------------------------------------------------------------
 // Reproduces features/prompts/components/prompts-table.tsx cell-for-cell:
 //   - cellPadding="comfortable" (the Prompts one-off override at prompts-table.tsx:482)
-//   - Name column: folder rows use the real FolderBreadcrumbLink (TableLink +
-//     Folder icon); prompt rows use TableLink to the prompt.
+//   - Name column: folder rows use the folder key column (TableLink + Folder
+//     icon); prompt rows use TableLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
 //   - "Latest Version Created At": LocalIsoDate, null on folder rows.
@@ -1251,27 +1213,28 @@ const PROMPT_ROWS: PromptRow[] = [
 ];
 
 const promptColumns: LangfuseColumnDef<PromptRow>[] = [
-  {
+  createFolderKeyTableColumn<PromptRow>({
     accessorKey: "name",
     header: "Name",
-    id: "name",
     enableSorting: true,
     size: 250,
-    cell: ({ row }) => {
-      const { name, type, fullPath } = row.original;
+    getCell: (name, { row }) => {
+      if (!name) return undefined;
+      const { type, fullPath } = row.original;
       if (type === "folder") {
-        // Real folder cell: FolderBreadcrumbLink (TableLink + Folder icon).
-        return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+        return { type: "folder", name, onClick: () => undefined };
       }
-      return name ? (
-        <TableLink
-          path={`/prompts/${encodeURIComponent(fullPath)}`}
-          value={name}
-          title={fullPath}
-        />
-      ) : undefined;
+
+      return {
+        type: "link",
+        props: {
+          path: `/prompts/${encodeURIComponent(fullPath)}`,
+          value: name,
+          title: fullPath,
+        },
+      };
     },
-  },
+  }),
   {
     accessorKey: "version",
     header: "Versions",
@@ -1411,7 +1374,7 @@ export const WithFolderRows = meta.story({
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
 //   - TableLink with a leading icon (ListTree)
-//   - FolderBreadcrumbLink (Folder icon)
+//   - Folder link (Folder icon)
 // A second plain-text column shows the row stays aligned across the table.
 
 type IconCellRow = {
@@ -1481,7 +1444,19 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
             />
           );
         case "folder":
-          return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+          return (
+            <TableLink
+              path=""
+              value={name}
+              icon={
+                <span className="flex flex-row items-center gap-1">
+                  <Folder className="h-3.5 w-3.5 shrink-0" />
+                  {name}
+                </span>
+              }
+              onClick={() => undefined}
+            />
+          );
         case "plain":
         default:
           return (
@@ -1492,13 +1467,11 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       }
     },
   },
-  {
+  createTextTableColumn<IconCellRow>({
     accessorKey: "detail",
-    id: "detail",
     header: "Status",
     size: 120,
-    cell: ({ getValue }) => getValue<string>(),
-  },
+  }),
 ];
 
 function InlineIconCellsStory() {

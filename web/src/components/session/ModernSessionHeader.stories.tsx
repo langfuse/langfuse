@@ -306,3 +306,27 @@ export const TestConfiguresMultipleMetadataPaths = meta.story({
     await expect(getVisibleText("cloud_region")).toBeInTheDocument();
   },
 });
+
+export const TestCompactsTokenCounts = meta.story({
+  name: "(Test) Compacts token counts",
+  args: {
+    ...minimalArgs,
+    tokensIn: 648_714,
+    tokensOut: 6_697,
+    totalTokens: 655_411,
+  },
+  play: async ({ canvasElement }) => {
+    const tokenPill = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>(
+        "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
+      ),
+    ).find((pill) => pill.textContent?.trim().startsWith("tokens "));
+
+    await expect(tokenPill).toBeInTheDocument();
+    await expect(tokenPill).toHaveTextContent("tokens 649k → 7k (Σ 655k)");
+    await expect(tokenPill).toHaveAttribute(
+      "title",
+      "tokens 648,714 → 6,697 (Σ 655,411)",
+    );
+  },
+});

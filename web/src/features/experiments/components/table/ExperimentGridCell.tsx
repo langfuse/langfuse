@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -549,7 +550,7 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "level",
             cell: ({ data }) => (
-              <MetadataItem label="Level">
+              <MetadataItem label="Status">
                 <span className="text-xs">{data.level}</span>
               </MetadataItem>
             ),

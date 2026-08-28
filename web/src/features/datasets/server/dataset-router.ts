@@ -33,6 +33,7 @@ import {
   ActionId,
   BatchActionType,
   BatchExportTableName,
+  type BulkDatasetItemValidationError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -95,7 +96,6 @@ import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
@@ -185,7 +185,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
  * @param filters - Array of filter conditions to evaluate
  * @returns true if any filter requires DRI metrics, false if using basic dataset run data is sufficient
  */
-export const requiresClickhouseLookups = (filters: FilterState): boolean => {
+const requiresClickhouseLookups = (filters: FilterState): boolean => {
   if (filters.length === 0) {
     return false;
   }

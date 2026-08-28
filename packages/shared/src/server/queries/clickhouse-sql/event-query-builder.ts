@@ -57,7 +57,7 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
-export type OrderByColumnsOptions = {
+type OrderByColumnsOptions = {
   eventTableAlias?: string;
   /**
    * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the
@@ -474,6 +474,7 @@ const FIELD_SETS = {
     "toolCalls",
     "toolCallNames",
     "experimentId",
+    "experimentName",
     "experimentItemRootSpanId",
     "experimentItemExpectedOutput",
     "experimentItemMetadata",
@@ -588,7 +589,7 @@ const AGGREGATION_FIELD_SETS = {
  * // Use when you need to query across all projects (use with caution!)
  * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
  */
-export const NoProjectId = Symbol("NoProjectId");
+const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
@@ -719,6 +720,18 @@ abstract class AbstractQueryBuilder {
   limitBy(...columns: string[]): this {
     if (columns.length > 0) {
       this.limitByClause = `LIMIT 1 BY ${columns.join(", ")}`;
+    }
+
+    return this;
+  }
+
+  /**
+   * Keep up to `limit` rows per unique combination of columns.
+   */
+  limitByCount(limit: number, ...columns: string[]): this {
+    if (columns.length > 0) {
+      this.limitByClause = `LIMIT {limitByCount: Int32} BY ${columns.join(", ")}`;
+      this.params.limitByCount = limit;
     }
 
     return this;

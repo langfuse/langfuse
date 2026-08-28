@@ -1,4 +1,8 @@
-import { FilterState, TraceDomain } from "@langfuse/shared";
+import {
+  FilterState,
+  matchesUiColumnMapping,
+  TraceDomain,
+} from "@langfuse/shared";
 import { tracesTableUiColumnDefinitions } from "@langfuse/shared/src/server";
 
 const _inMemoryTraceFilterColumns = [
@@ -21,9 +25,7 @@ type InMemoryTraceFilterColumn = (typeof _inMemoryTraceFilterColumns)[number];
 function getColumnDefinition(column: string) {
   const columnDef = tracesTableUiColumnDefinitions.find(
     (col) =>
-      col.uiTableId === column ||
-      col.uiTableName === column ||
-      col.clickhouseSelect === column,
+      matchesUiColumnMapping(col, column) || col.clickhouseSelect === column,
   );
   if (!columnDef) {
     throw new Error(`Unhandled column for trace filter: ${column}`);

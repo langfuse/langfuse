@@ -13,6 +13,7 @@ import {
   eventsTableTraceNameSqlForAlias,
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -488,7 +489,7 @@ export const observationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "observations.tool_call_names",
+      sql: "arrayDistinct(observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -623,6 +624,16 @@ export const observationsView: ViewDeclarationType = {
       alias: "toolCalls",
       type: "integer",
       description: "Number of tool calls per observation.",
+      unit: "calls",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
   },
@@ -849,6 +860,15 @@ const createScoreSpecificDimensions = (
     alias: "name",
     type: "string",
     description: "Name of the score (e.g., accuracy, toxicity).",
+  },
+  evaluatorId: {
+    sql: `coalesce(nullIf(${tableAlias}.metadata['${EvalExecutionMetadataKey.EVALUATOR_ID}'], ''), ${tableAlias}.metadata['${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}'])`,
+    alias: "evaluatorId",
+    type: "string",
+    description:
+      "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
+    highCardinality: true,
+    uiHidden: true,
   },
   source: {
     sql: `${tableAlias}.source`,
@@ -1305,7 +1325,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "events_observations.tool_call_names",
+      sql: "arrayDistinct(events_observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -1506,6 +1526,16 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "toolCalls",
       type: "integer",
       description: "Number of tool calls per observation.",
+      unit: "calls",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
     costByType: {

@@ -8,22 +8,19 @@ import {
   generateDatasetRunItemsForPublicApi,
   getDatasetRunItemsCountForPublicApi,
 } from "@/src/features/public-api/server/dataset-run-items";
-import type {
-  APIDatasetRunItem,
-  GetDatasetsV1Query,
-  GetDatasetV1Query,
-  GetDatasetItemV1Query,
-  GetDatasetItemsV1Query,
-  GetDatasetRunV1Query,
-  GetDatasetRunsV1Query,
-  GetDatasetsV2Query,
-  GetDatasetV2Query,
-  PostDatasetRunItemsV1Body,
-  PostDatasetsV1Body,
-  PostDatasetsV2Body,
-  PostDatasetItemsV1Body,
-} from "@/src/features/public-api/types/datasets";
 import {
+  type APIDatasetRunItem,
+  type GetDatasetsV1Query,
+  type GetDatasetV1Query,
+  type GetDatasetItemV1Query,
+  type GetDatasetItemsV1Query,
+  type GetDatasetRunV1Query,
+  type GetDatasetRunsV1Query,
+  type GetDatasetsV2Query,
+  type PostDatasetRunItemsV1Body,
+  type PostDatasetsV1Body,
+  type PostDatasetsV2Body,
+  type PostDatasetItemsV1Body,
   PostDatasetRunItemsV1Response,
   transformDbDatasetItemDomainToAPIDatasetItem,
   transformDbDatasetRunToAPIDatasetRun,
@@ -73,10 +70,6 @@ type ListDatasetsInput = z.infer<typeof GetDatasetsV2Query> & {
 };
 
 type ListDatasetsV1Input = z.infer<typeof GetDatasetsV1Query> & {
-  projectId: string;
-};
-
-type GetDatasetInput = z.infer<typeof GetDatasetV2Query> & {
   projectId: string;
 };
 
@@ -152,6 +145,10 @@ type DeleteDatasetRunByIdInput = DatasetAuditScope & {
 
 type DeleteDatasetItemInput = DatasetAuditScope &
   z.infer<typeof GetDatasetItemV1Query>;
+
+// This deprecated endpoint embeds items without pagination. Keep its response
+// bounded while giving existing users room to migrate to GET /dataset-items.
+const LEGACY_DATASET_ITEM_LIMIT = 1_000;
 
 const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   if (Array.isArray(metadata)) {
@@ -370,14 +367,6 @@ export const listDatasetsForApi = async ({
   };
 };
 
-export const getDatasetForApi = async ({
-  projectId,
-  datasetName,
-}: GetDatasetInput) => {
-  const dataset = await getDatasetByNameOrThrow({ projectId, datasetName });
-  return transformDbDatasetToAPIDataset(dataset);
-};
-
 export const getDatasetByIdForApi = async ({
   projectId,
   datasetId,
@@ -496,22 +485,15 @@ export const getDatasetByNameForApi = async ({
       status: "ACTIVE",
     }),
     includeDatasetName: true,
+    limit: LEGACY_DATASET_ITEM_LIMIT,
+    page: 0,
   });
 
   const { datasetRuns = [], ...params } = dataset;
 
-  const mediaReferences = await resolveDatasetItemMediaReferences({
-    projectId,
-    items: datasetItems,
-  });
-
   return {
     ...transformDbDatasetToAPIDataset(params),
-    items: datasetItems.map((item) => ({
-      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
-      mediaReferences:
-        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
-    })),
+    items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
     runs: datasetRuns.map(({ name }) => name),
   };
 };

@@ -1,5 +1,5 @@
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type RouterOutput } from "@/src/utils/types";
@@ -17,6 +17,7 @@ import {
   datasetItemFilterColumns,
   DatasetStatus,
   type Prisma,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -27,11 +28,11 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BatchExportTableName } from "@langfuse/shared";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
@@ -50,6 +51,11 @@ type RowData = {
   expectedOutput: Prisma.JsonValue;
   metadata: Prisma.JsonValue;
 };
+
+const datasetStatusToStatus = {
+  [DatasetStatus.ACTIVE]: "active",
+  [DatasetStatus.ARCHIVED]: "archived",
+} satisfies Record<DatasetStatus, Status>;
 
 export function DatasetItemsTable({
   projectId,
@@ -142,73 +148,70 @@ export function DatasetItemsTable({
   );
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData>({
       accessorKey: "id",
       header: "Item id",
-      id: "id",
       size: 90,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const id: string = row.getValue("id");
-        const versionParam = selectedVersion
-          ? `?version=${encodeURIComponent(selectedVersion.toISOString())}`
-          : "";
-        return (
-          <TableLink
-            path={`/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (!id) return undefined;
+        let versionParam = "";
+        if (selectedVersion) {
+          versionParam = `?version=${encodeURIComponent(selectedVersion.toISOString())}`;
+        }
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`,
+            value: id,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<RowData, RowData["source"]>({
       accessorKey: "source",
       header: "Source",
       headerTooltip: {
         description:
           "Link to the source trace based on which this item was added",
       },
-      id: "source",
       size: 90,
-      cell: ({ row }) => {
-        const source: RowData["source"] = row.getValue("source");
-        if (!source) return null;
-        return source.observationId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}?observation=${encodeURIComponent(source.observationId)}`}
-            value={source.observationId}
-            icon={<ListTree className="h-4 w-4" />}
-          />
-        ) : (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(source.traceId)}`}
-            value={source.traceId}
-            icon={<ListTree className="h-4 w-4" />}
-          />
-        );
+      getCell: (source) => {
+        if (!source) return undefined;
+        if (source.observationId) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(source.traceId)}?observation=${encodeURIComponent(source.observationId)}`,
+              value: source.observationId,
+              icon: ListTree,
+            },
+          };
+        }
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(source.traceId)}`,
+            value: source.traceId,
+            icon: ListTree,
+          },
+        };
       },
-    },
-    {
+    }),
+    createStatusTableColumn<RowData, DatasetStatus>({
       accessorKey: "status",
       header: "Status",
-      id: "status",
+      getStatus: (status) =>
+        status ? datasetStatusToStatus[status] : undefined,
       size: 80,
-      cell: ({ row }) => {
-        const status: DatasetStatus = row.getValue("status");
-        return <StatusBadge type={status.toLowerCase()} isLive={false} />;
-      },
-    },
-    {
+      isLive: false,
+    }),
+    createDateTableColumn<RowData>({
       accessorKey: "createdAt",
       header: "Created At",
-      id: "createdAt",
       size: 150,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: RowData["createdAt"] = row.getValue("createdAt");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "input",
       header: "Input",

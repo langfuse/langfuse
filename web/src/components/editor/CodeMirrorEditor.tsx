@@ -20,8 +20,11 @@ import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
 import { useState, useCallback, useMemo, type RefObject } from "react";
-import { LanguageSupport, StreamLanguage } from "@codemirror/language";
-import type { StringStream } from "@codemirror/language";
+import {
+  LanguageSupport,
+  StreamLanguage,
+  type StringStream,
+} from "@codemirror/language";
 import {
   isValidVariableName,
   MULTILINE_VARIABLE_REGEX,
@@ -564,7 +567,7 @@ export function CodeMirrorEditor({
       onChange={handleChange}
       onBlur={onBlur}
       className={cn(
-        "overflow-hidden overflow-y-auto rounded-md border text-xs",
+        "ph-no-capture overflow-hidden overflow-y-auto rounded-md border text-xs",
         className,
       )}
       editable={editable}

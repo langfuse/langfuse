@@ -1,6 +1,8 @@
 import { signOut } from "next-auth/react";
 import posthog from "posthog-js";
 import { env } from "@/src/env.mjs";
+import { isPostHogClientEnabled } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+import { clearV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
 /**
  * Canonical client-side sign-out.
@@ -14,7 +16,11 @@ import { env } from "@/src/env.mjs";
  */
 export const signOutCleanly = async () => {
   sessionStorage.clear();
-  if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+  // NextAuth redirecting signOut unloads the page before UserTracking can
+  // see `unauthenticated`. Drop the pageload cache here so the sign-in
+  // hard load is not tagged with the previous user's v4 state.
+  clearV4BetaEnabledSentryTag();
+  if (isPostHogClientEnabled()) {
     posthog.reset();
   }
   // On preview deployments the sign-in page signs visitors back in

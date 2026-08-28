@@ -175,7 +175,7 @@ const SimpleMultiSectionViewerInner = forwardRef<
         );
         if (sectionElement) {
           sectionElement.scrollIntoView({
-            behavior: "smooth",
+            behavior: "instant",
             block: "start",
           });
         }

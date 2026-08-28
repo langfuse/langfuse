@@ -10,23 +10,28 @@ import {
   eventTypes,
   markProjectIngestFailure,
   createIngestionAttribution,
+  processEventBatch,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { jsonSchema } from "@langfuse/shared";
-import { isPrismaException } from "@/src/utils/exceptions";
 import {
+  jsonSchema,
   MethodNotAllowedError,
   BaseError,
   UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
-import { processEventBatch } from "@langfuse/shared/src/server";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
+import {
+  SDK_NAME_ATTRIBUTE,
+  SDK_VERSION_ATTRIBUTE,
+  extractSdkAttributes,
+} from "@langfuse/shared/instrumentation/bootstrap";
 
 export const config = {
   api: {
@@ -64,7 +69,9 @@ export default async function handler(
     // add context of api call to the span
     const currentSpan = getCurrentSpan();
 
-    // get x-langfuse-xxx headers and add them to the span
+    // Preserve the raw x-langfuse-* attributes consumed by existing ingestion
+    // dashboards. The canonical attributes below are shared by all public API
+    // routes and intentionally use a bounded SDK name/version vocabulary.
     Object.keys(req.headers).forEach((header) => {
       if (
         header.toLowerCase().startsWith("x-langfuse") ||
@@ -76,6 +83,14 @@ export default async function handler(
         });
       }
     });
+
+    const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
+    if (sdkName) {
+      currentSpan?.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
+    }
+    if (sdkVersion) {
+      currentSpan?.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
+    }
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 

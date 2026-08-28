@@ -33,13 +33,16 @@ import {
   type TimeFilter,
   type TracingSearchType,
   type ScoreAggregate,
+  buildTracePath,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import {
-  TableBadgeLoadingCell,
-  TableIconBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -49,6 +52,10 @@ import {
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
+import {
+  formatObservationCost,
+  isObservationCostDisplayable,
+} from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   getRowHeightIOCharLimit,
@@ -66,18 +73,14 @@ import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Badge } from "@/src/components/ui/badge";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
-import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -107,7 +110,6 @@ import {
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { buildTracePath } from "@langfuse/shared";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
@@ -154,6 +156,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 
 export type EventsTableRow = {
   // Identity fields
@@ -1079,9 +1082,8 @@ export default function ObservationsEventsTable({
       id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
       label: "Add to Annotation Queue",
-      description: "Add selected observations to an annotation queue.",
-      targetLabel: "Annotation Queue",
-      execute: handleAddToAnnotationQueue,
+      description: `Add ${itemCountDisplay} selected observations to an annotation queue.`,
+      customDialog: true,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -1122,34 +1124,19 @@ export default function ObservationsEventsTable({
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
     ...(hideControls || isMobile ? [] : [selectActionColumn]),
-    {
+    createDateTableColumn<EventsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: getEventsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
-    {
+    }),
+    createItemBadgeTableColumn<EventsTableRow>({
       accessorKey: "type",
-      id: "type",
       header: getEventsColumnName("type"),
       size: 50,
-      loadingCell: <TableIconBadgeLoadingCell />,
       enableSorting,
-      cell: ({ row }) => {
-        const value: ObservationType = row.getValue("type");
-        return value ? (
-          <div className="flex items-center gap-1">
-            <ItemBadge type={value} />
-          </div>
-        ) : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       id: "name",
@@ -1325,20 +1312,13 @@ export default function ObservationsEventsTable({
         ) : undefined;
       },
     },
-    {
+    createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
-      id: "latency",
       header: getEventsColumnName("latency"),
       size: 100,
-      cell: ({ row }) => {
-        const latency: number | undefined = row.getValue("latency");
-        return latency !== undefined ? (
-          <span>{formatIntervalSeconds(latency)}</span>
-        ) : undefined;
-      },
       enableHiding: true,
       enableSorting,
-    },
+    }),
     {
       accessorKey: "totalCost",
       header: getEventsColumnName("totalCost"),
@@ -1346,8 +1326,13 @@ export default function ObservationsEventsTable({
       size: 120,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
+        const type = row.original.type;
 
-        return value !== undefined ? (
+        if (!isObservationCostDisplayable(value, type)) {
+          return <span>{formatObservationCost(value, type)}</span>;
+        }
+
+        return (
           <BreakdownTooltip
             details={row.original.costDetails}
             isCost
@@ -1358,7 +1343,7 @@ export default function ObservationsEventsTable({
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
-        ) : undefined;
+        );
       },
       enableHiding: true,
       enableSorting,
@@ -1387,9 +1372,11 @@ export default function ObservationsEventsTable({
               outputCost: number | undefined;
             };
 
-            return value.inputCost !== undefined ? (
-              <span>{usdFormatter(value.inputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.inputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1407,9 +1394,11 @@ export default function ObservationsEventsTable({
               outputCost: number | undefined;
             };
 
-            return value.outputCost !== undefined ? (
-              <span>{usdFormatter(value.outputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.outputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1417,36 +1406,24 @@ export default function ObservationsEventsTable({
         },
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
-    {
+    createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolDefinitions",
-      id: "toolDefinitions",
       header: getEventsColumnName("toolDefinitions"),
       size: 120,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("toolDefinitions");
-        return value !== undefined ? (
-          <span>{numberFormatter(value, 0)}</span>
-        ) : undefined;
-      },
-    },
-    {
+      formatter: (value) => numberFormatter(value, 0, 0),
+    }),
+    createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolCalls",
-      id: "toolCalls",
       header: getEventsColumnName("toolCalls"),
       size: 100,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("toolCalls");
-        return value !== undefined ? (
-          <span>{numberFormatter(value, 0)}</span>
-        ) : undefined;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0, 0),
+    }),
     {
       accessorKey: "timeToFirstToken",
       id: "timeToFirstToken",
@@ -1477,85 +1454,54 @@ export default function ObservationsEventsTable({
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "tokensPerSecond",
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => {
+            const { latency, usage } = row;
+            if (latency === undefined) return undefined;
+            if (usage.outputUsage === 0 && usage.totalUsage === 0)
+              return undefined;
+            if (!usage.outputUsage || !latency) return undefined;
+
+            return Number((usage.outputUsage / latency).toFixed(1));
+          },
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }) => {
-            const latency: number | undefined = row.getValue("latency");
-            const usage = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return latency !== undefined &&
-              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
-              <span>
-                {usage.outputUsage && latency
-                  ? Number((usage.outputUsage / latency).toFixed(1))
-                  : undefined}
-              </span>
-            ) : undefined;
-          },
+          formatter: String,
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
-        {
-          accessorKey: "inputTokens",
+        }),
+        createNumberTableColumn<EventsTableRow>({
           id: "inputTokens",
+          accessorFn: (row) => row.usage.inputUsage,
           header: getEventsColumnName("inputTokens"),
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "outputTokens",
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
+          accessorFn: (row) => row.usage.outputUsage,
           header: getEventsColumnName("outputTokens"),
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "totalTokens",
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
+          accessorFn: (row) => row.usage.totalUsage,
           header: getEventsColumnName("totalTokens"),
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
-        },
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     {
@@ -1597,51 +1543,19 @@ export default function ObservationsEventsTable({
         return promptName && promptVersion && <TableIdOrName value={value} />;
       },
     },
-    {
+    createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
-      id: "environment",
       size: 150,
       enableHiding: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value: EventsTableRow["environment"] =
-          row.getValue("environment");
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
-    {
+    }),
+    createTagsTableColumn<EventsTableRow>({
       accessorKey: "traceTags",
-      id: "traceTags",
       header: getEventsColumnName("traceTags"),
       size: 250,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const traceTags: string[] | undefined = row.getValue("traceTags");
-        return (
-          traceTags &&
-          traceTags.length > 0 && (
-            <div
-              className={cn(
-                "flex gap-x-2 gap-y-1",
-                rowHeight !== "s" && "flex-wrap",
-              )}
-            >
-              <TagList selectedTags={traceTags} isLoading={false} />
-            </div>
-          )
-        );
-      },
-    },
+      shouldWrap: rowHeight !== "s",
+    }),
     {
       accessorKey: "scores",
       header: "Scores",
@@ -1653,19 +1567,14 @@ export default function ObservationsEventsTable({
       },
       columns: scoreColumns,
     },
-    {
+    createDateTableColumn<EventsTableRow>({
       accessorKey: "endTime",
-      id: "endTime",
       header: getEventsColumnName("endTime"),
       size: 150,
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: Date | undefined = row.getValue("endTime");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "traceId",
       id: "traceId",
@@ -1746,6 +1655,8 @@ export default function ObservationsEventsTable({
 
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: eventsFilterConfig.tableName,
+    isV4: true,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: EventsTableRow) => ({
       traceId: row.traceId || "",
@@ -1961,6 +1872,8 @@ export default function ObservationsEventsTable({
                     updateQuery={setSearchQuery}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4
                   />
                 )
               }
@@ -2078,6 +1991,8 @@ export default function ObservationsEventsTable({
               columns={columns}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
+              tableName={eventsFilterConfig.tableName}
+              isV4={true}
               searchConfig={
                 // In search-bar mode full-text search (bare text +
                 // content:/input:/output:) lives inline in the bar, so the
@@ -2143,25 +2058,49 @@ export default function ObservationsEventsTable({
                 />,
                 !chartActive &&
                 (selectedObservationIds.length > 0 || selectAll) ? (
-                  <TableActionMenu
+                  <AddTracesToAnnotationQueueDialogController
                     key="observations-multi-select-actions"
                     projectId={projectId}
-                    actions={tableActions}
-                    tableName={BatchExportTableName.Observations}
-                    selectedCount={selectedObservationCount}
-                    onClearSelection={() => {
+                    actionId={ActionId.ObservationAddToAnnotationQueue}
+                    tableName={BatchExportTableName.Events}
+                    alternateTableName={BatchExportTableName.Observations}
+                    objectLabel="observations"
+                    description={`Add ${itemCountDisplay} selected observations to an annotation queue.`}
+                    onAddToQueue={handleAddToAnnotationQueue}
+                    onSuccess={() => {
                       setSelectedRows({});
                       setSelectAll(false);
                     }}
-                    onCustomAction={(actionType) => {
-                      if (actionType === ActionId.ObservationBatchEvaluation) {
-                        setShowRunEvaluationDialog(true);
-                      }
-                      if (actionType === ActionId.ObservationAddToDataset) {
-                        setShowAddToDatasetDialog(true);
-                      }
-                    }}
-                  />
+                  >
+                    {({ openDialog }) => (
+                      <TableActionMenu
+                        projectId={projectId}
+                        actions={tableActions}
+                        tableName={BatchExportTableName.Observations}
+                        selectedCount={selectedObservationCount}
+                        onClearSelection={() => {
+                          setSelectedRows({});
+                          setSelectAll(false);
+                        }}
+                        onCustomAction={(actionType) => {
+                          if (
+                            actionType ===
+                            ActionId.ObservationAddToAnnotationQueue
+                          ) {
+                            openDialog();
+                          }
+                          if (
+                            actionType === ActionId.ObservationBatchEvaluation
+                          ) {
+                            setShowRunEvaluationDialog(true);
+                          }
+                          if (actionType === ActionId.ObservationAddToDataset) {
+                            setShowAddToDatasetDialog(true);
+                          }
+                        }}
+                      />
+                    )}
+                  </AddTracesToAnnotationQueueDialogController>
                 ) : null,
               ]}
               // No row selection in chart mode — the table (and its select-all

@@ -337,6 +337,12 @@ export class QueryBuilder {
       const dimension = this.resolveDimension(filter.column, view);
 
       if (dimension) {
+        if (dimension.pairExpand) {
+          throw new InvalidRequestError(
+            `Field '${filter.column}' cannot be used as a filter.`,
+          );
+        }
+
         const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
           dimension.type,
         );
@@ -1569,9 +1575,12 @@ export class QueryBuilder {
     const appliedMetrics = this.mapMetrics(query.metrics, view);
     const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 
-    // Auto-include dimensions required by pairExpand-dependent measures.
+    // Auto-include dimensions required to evaluate a measure, whether the
+    // dimension uses pairExpand or explodeArray.
     // e.g. costByType.requiresDimension = "costType": without that dimension the
     // ARRAY JOIN is never emitted and ClickHouse errors with "unknown column cost_value".
+    // toolCallInvocations similarly needs calledToolNames so arrayJoin is emitted
+    // and its per-tool result alias is in scope.
     for (const metric of appliedMetrics) {
       if (
         metric.requiresDimension &&
@@ -1582,6 +1591,7 @@ export class QueryBuilder {
           appliedDimensions.push({
             ...requiredDimDef,
             table: requiredDimDef.relationTable || view.name,
+            explodeArray: requiredDimDef.explodeArray,
             pairExpand: requiredDimDef.pairExpand,
           });
         }

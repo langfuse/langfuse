@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { InvalidRequestError } from "../../../errors";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -130,6 +131,24 @@ describe("queryBuilder filter type validation", () => {
     },
   );
 
+  it("rejects filters on pair-expanded dimensions", async () => {
+    const result = buildQueryWithFilter(
+      {
+        column: "usageType",
+        operator: "contains",
+        value: "cache",
+        type: "string",
+      },
+      undefined,
+      "v2",
+    );
+
+    await expect(result).rejects.toThrow(InvalidRequestError);
+    await expect(result).rejects.toThrow(
+      "Field 'usageType' cannot be used as a filter.",
+    );
+  });
+
   it.each([
     {
       name: "arrayOptions on string array dimension",
@@ -169,6 +188,27 @@ describe("queryBuilder filter type validation", () => {
     expect(query).toContain("toBool(scores_boolean.value) = {booleanFilter");
     expect(query).toContain(": Boolean}");
   });
+
+  it.each(["v1", "v2"] as const)(
+    "lowers evaluator score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "evaluatorId",
+          operator: "any of",
+          value: ["evaluator-1", "rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain(
+        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
+      );
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
 
   it("lowers the semantic-root observation filter only in the v2 events view", async () => {
     const { query } = await buildQueryWithFilter(
@@ -385,5 +425,53 @@ describe("queryBuilder DateTime64 parameter encoding", () => {
     );
     expect(parameters.fillFromDate).toBe("2025-01-01 00:00:00.000");
     expect(parameters.fillToDate).toBe("2025-01-02 00:00:00.000");
+  });
+});
+
+describe("toolCallInvocations measure", () => {
+  it("auto-includes distinct calledToolNames in a two-level query", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain(
+      "arrayJoin(arrayDistinct(observations.tool_call_names)) as calledToolNames",
+    );
+    expect(compiledQuery).toContain(
+      "countEqual(any(observations.tool_call_names), calledToolNames)",
+    );
+    expect(compiledQuery).toContain("sum(toolCallInvocations)");
+  });
+
+  it("stays single-level for the events view", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v2",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+      },
+      "test-project",
+      true,
+    );
+
+    expect(compiledQuery).toContain(
+      "arrayJoin(arrayDistinct(events_observations.tool_call_names)) as calledToolNames",
+    );
+    expect(compiledQuery).toContain(
+      "sum(countEqual((events_observations.tool_call_names), calledToolNames))",
+    );
+    expect(compiledQuery).not.toContain(
+      "any(events_observations.tool_call_names)",
+    );
+    expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
   });
 });

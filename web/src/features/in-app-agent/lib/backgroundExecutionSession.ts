@@ -1,11 +1,9 @@
 import type { AgentSubscriber } from "@ag-ui/client";
 
-import type {
-  AgUiContext,
-  AgUiMessage,
-  InAppAgentToolApprovalRequest,
-} from "@langfuse/shared/in-app-agent";
 import {
+  type AgUiContext,
+  type AgUiMessage,
+  type InAppAgentToolApprovalRequest,
   AgUiMessageSchema,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
@@ -45,7 +43,7 @@ export type BackgroundExecutionApprovalView = {
   status: "pending" | "submitting";
 };
 
-export type BackgroundExecutionAttachment =
+type BackgroundExecutionAttachment =
   | { status: "detached" }
   | { status: "attaching" }
   | { status: "attached" }
@@ -591,16 +589,14 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
 };
 
-export function getBackgroundRunFailureMessage(
-  errorCode: string | null,
-): string {
+function getBackgroundRunFailureMessage(errorCode: string | null): string {
   return (
     BACKGROUND_RUN_FAILURE_MESSAGES[errorCode ?? ""] ??
     "The run failed. Try again."
   );
 }
 
-export type BackgroundRunNoticeTone = "info" | "warning";
+type BackgroundRunNoticeTone = "info" | "warning";
 
 export type BackgroundRunNotice = {
   text: string;

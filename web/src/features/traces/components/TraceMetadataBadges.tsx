@@ -23,7 +23,7 @@ export function SessionBadge({
   return (
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="inline-flex"
+      className="ph-no-capture inline-flex"
     >
       <Badge>
         <span className="truncate" title={text}>
@@ -49,7 +49,7 @@ export function UserIdBadge({
   return (
     <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="inline-flex"
+      className="ph-no-capture inline-flex"
     >
       <Badge>
         <span className="truncate" title={text}>
@@ -75,7 +75,7 @@ export function TargetTraceBadge({
   return (
     <Link
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="inline-flex"
+      className="ph-no-capture inline-flex"
     >
       <Badge>
         <span className="truncate" title={text}>

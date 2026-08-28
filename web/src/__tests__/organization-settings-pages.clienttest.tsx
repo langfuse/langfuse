@@ -36,9 +36,9 @@ vi.mock("@/src/components/SettingsDangerZone", () => ({
 }));
 
 vi.mock(
-  "@/src/features/organizations/components/DeleteOrganizationButton",
+  "@/src/features/organizations/components/DeleteOrganizationDialogController",
   () => ({
-    DeleteOrganizationButton: () => null,
+    DeleteOrganizationDialogController: () => null,
   }),
 );
 
@@ -144,7 +144,7 @@ describe("useOrganizationSettingsPages", () => {
     );
   });
 
-  it("gates the v4 migration link on the v4UpgradeUi flag", () => {
+  it("gates the v4 migration link on deployment availability", () => {
     const { result } = renderHook(() => useOrganizationSettingsPages());
 
     expect(

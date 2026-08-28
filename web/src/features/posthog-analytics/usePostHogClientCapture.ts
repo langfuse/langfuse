@@ -5,9 +5,8 @@ import { useCallback } from "react";
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 // resource:action, only use snake_case
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const events = {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -119,6 +118,7 @@ export const events = {
     "create_form_submit",
     "update_form_submit",
     "manage_configs_item_click",
+    "add_category_inline",
     "archive_form_open",
     "archive_form_submit",
   ],
@@ -168,6 +168,31 @@ export const events = {
     "delete_form_open",
     "delete_template_button_click",
   ],
+  evaluators: [
+    "create",
+    "update",
+    "delete",
+    "test",
+    "saved_dialog_submit",
+    "overview_action_click",
+    "variable_mapping_configured",
+    "version_history_interaction",
+    "default_model_update",
+    "reactivate",
+    "gallery_creation_source_select",
+    "empty_state_template_select",
+    "empty_state_browse_library",
+    "empty_state_detect_topics",
+  ],
+  evaluation_rules: [
+    "create",
+    "update",
+    "delete",
+    "status_change",
+    "attach_evaluator",
+    "detach_evaluator",
+    "filter_reused",
+  ],
   integrations: [
     "posthog_form_submitted",
     "blob_storage_form_submitted",
@@ -186,6 +211,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -256,6 +283,20 @@ export const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
+  // never experiment or dataset names, score values, or item content.
+  // `isV4` + `tableName` on every event. `source` on comparison/baseline
+  // distinguishes picker vs table-selection vs url (deep link / redirect).
+  experiment: [
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "chart_metric_changed",
+    "charts_section_toggled",
+    "analytics_tab_opened",
+    "score_column_scope_toggled",
+    "item_regression_filter_applied",
+  ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No
   // props carry user content.
@@ -302,6 +343,8 @@ export const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "feature_flag_default_toggled",
+    "user_feature_flag_toggled",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],
@@ -367,6 +410,7 @@ export const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
+    "facet_fold_toggled",
     "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",

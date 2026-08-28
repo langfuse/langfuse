@@ -568,14 +568,37 @@ describe("legacy compatibility boundary", () => {
 
     await expect(
       generateLLMText({
-        ...openAIOptions(),
+        model: { adapter: LLMAdapter.GoogleAIStudio, id: "gemini-2.5-flash" },
+        connection: encryptedConnection,
+        messages: [...messages],
         credentialSource: "langfuse",
       }),
     ).rejects.toMatchObject({
       name: "LLMValidationError",
-      message: "Langfuse credentials are only supported for Amazon Bedrock",
+      message:
+        "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, and OpenAI",
       statusCode: 400,
       code: "invalid-connection",
     });
+  });
+
+  it("allows Langfuse credentials for OpenAI", async () => {
+    useModel(
+      new MockLanguageModelV4({
+        doGenerate: {
+          content: [{ type: "text", text: "ok" }],
+          finishReason,
+          usage,
+          warnings: [],
+        },
+      }),
+    );
+
+    const result = await generateLLMText({
+      ...openAIOptions(),
+      credentialSource: "langfuse",
+    });
+
+    expect(result.text).toBe("ok");
   });
 });

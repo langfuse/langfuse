@@ -5,7 +5,7 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer, type LayerName } from "@/src/components/ui/layer";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
@@ -32,6 +32,7 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
   position?: "top";
   height?: "default" | "md";
   blockTextSelection?: boolean;
+  portalLayer?: LayerName;
 };
 
 // https://tailwindcss.com/docs/responsive-design
@@ -115,9 +116,12 @@ const DrawerTrigger = DrawerPrimitive.Trigger;
 // Route the Vaul portal into the `panel` overlay layer (null until mounted →
 // falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
 const DrawerPortal = ({
+  layer = "panel",
   ...props
-}: React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Portal>) => {
-  const container = useLayerContainer("panel");
+}: React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Portal> & {
+  layer?: LayerName;
+}) => {
+  const container = useLayerContainer(layer);
   return <DrawerPrimitive.Portal container={container} {...props} />;
 };
 DrawerPortal.displayName = "DrawerPortal";
@@ -141,13 +145,22 @@ const DrawerContent = React.forwardRef<
   DrawerContentProps
 >(
   (
-    { className, children, overlayClassName, size, height, position, ...props },
+    {
+      className,
+      children,
+      overlayClassName,
+      size,
+      height,
+      position,
+      portalLayer,
+      ...props
+    },
     ref,
   ) => {
     const { blockTextSelection, direction } = useDrawerContext();
 
     return (
-      <DrawerPortal>
+      <DrawerPortal layer={portalLayer}>
         <DrawerOverlay className={overlayClassName} />
         <DrawerPrimitive.Content
           ref={ref}
@@ -218,13 +231,10 @@ DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
 export {
   Drawer,
-  DrawerPortal,
-  DrawerOverlay,
   DrawerTrigger,
   DrawerClose,
   DrawerContent,
   DrawerHeader,
-  DrawerFooter,
   DrawerTitle,
   DrawerDescription,
 };

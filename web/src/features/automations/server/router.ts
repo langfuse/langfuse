@@ -1,5 +1,7 @@
-import { createTRPCRouter } from "@/src/server/api/trpc";
-import { protectedProjectProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { z } from "zod";
 import {
   ActionCreateSchema,
@@ -27,7 +29,7 @@ import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
-export const CreateAutomationInputSchema = z.object({
+const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
   eventSource: z.string(),
@@ -39,7 +41,7 @@ export const CreateAutomationInputSchema = z.object({
   actionConfig: ActionCreateSchema,
 });
 
-export const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
+const UpdateAutomationInputSchema = CreateAutomationInputSchema.extend({
   automationId: z.string(),
 });
 

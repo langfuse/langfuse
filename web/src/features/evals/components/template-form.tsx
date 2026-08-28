@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,11 +29,12 @@ import {
   resolvePersistedEvalOutputDefinition,
   EvalTemplateType,
   EvalTemplateSourceCodeLanguage,
+  type EvalTemplate,
+  type ModelParams,
+  ZodModelConfig,
 } from "@langfuse/shared";
 import router from "next/router";
-import { type EvalTemplate } from "@langfuse/shared";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { type ModelParams, ZodModelConfig } from "@langfuse/shared";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -189,7 +191,7 @@ export type EvalTemplateFormPreFill = {
   shouldUseDefaultModel?: boolean;
 };
 
-export const InnerEvalTemplateForm = (props: {
+const InnerEvalTemplateForm = (props: {
   projectId: string;
   useDialog: boolean;
   // pre-filled values from langfuse-defined template or template from db
@@ -318,13 +320,9 @@ export const InnerEvalTemplateForm = (props: {
   const isCategoricalOutput = scoreDataType === ScoreDataTypeEnum.CATEGORICAL;
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
-  const categoriesError = form.formState.errors.categories;
-  const categoriesErrorMessage =
-    typeof categoriesError?.message === "string"
-      ? categoriesError.message
-      : typeof categoriesError?.root?.message === "string"
-        ? categoriesError.root.message
-        : undefined;
+  const hasCategoriesArrayError = hasArrayLevelFieldError(
+    form.formState.errors.categories,
+  );
 
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
@@ -411,7 +409,6 @@ export const InnerEvalTemplateForm = (props: {
       return {
         intent: "clone" as const,
         cloneSourceId: props.cloneSourceId,
-        retargetUsingJobConfigs: false,
       };
     }
 
@@ -630,6 +627,7 @@ export const InnerEvalTemplateForm = (props: {
                 }}
                 editable={Boolean(props.isEditing)}
                 validationResult={codeValidationResult}
+                ctxSample={null}
               />
             )}
           />
@@ -915,11 +913,7 @@ export const InnerEvalTemplateForm = (props: {
                           </FormItem>
                         )}
                       />
-                      {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-bold">
-                          {categoriesErrorMessage}
-                        </p>
-                      ) : null}
+                      {hasCategoriesArrayError ? <FormMessage /> : null}
                     </FormItem>
                   )}
                 />

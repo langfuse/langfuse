@@ -1597,6 +1597,827 @@ paths:
               schema: {}
       security: *ref_0
       deprecated: true
+  /api/public/v2/evaluation-rules:
+    post:
+      description: >-
+        Create an evaluation rule using stable evaluator identifiers.
+
+
+        An evaluation rule defines **which** incoming observations should be
+        evaluated and how prompt variables should be populated.
+
+
+        Key behavior:
+
+        - rule names are not identifiers and do not need to be unique
+
+        - rules always use the latest version of each associated evaluator
+
+        - an enabled rule requires at least one evaluator assignment
+
+        - omit `sampling` to evaluate every matching observation
+
+        - omit `filter` to match every incoming observation
+
+        - `datasetId` is the public filter name for selecting experiment
+        datasets
+      operationId: evaluationRules_create
+      tags:
+        - EvaluationRules
+      parameters: []
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvaluationRuleRequest'
+    get:
+      description: >-
+        List evaluation rules in newest-first creation order.
+
+
+        This includes legacy trace and dataset rules so they can be inspected
+        and migrated. Treat the cursor as opaque and return it unchanged.
+      operationId: evaluationRules_list
+      tags:
+        - EvaluationRules
+      parameters:
+        - name: limit
+          in: query
+          description: >-
+            Maximum number of items to return. Defaults to `50` and cannot
+            exceed `100`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationRulesPage'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+  /api/public/v2/evaluation-rules/{evaluationRuleId}:
+    get:
+      description: >-
+        Get one evaluation rule, including a legacy trace or dataset rule, by
+        its stable identifier.
+      operationId: evaluationRules_get
+      tags:
+        - EvaluationRules
+      parameters:
+        - name: evaluationRuleId
+          in: path
+          description: >-
+            Stable evaluation-rule identifier returned by the evaluation-rule
+            endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+    patch:
+      description: >-
+        Update an evaluation rule by its stable identifier.
+
+
+        Provide only the fields to change. Providing `evaluatorAssignments`
+        replaces the complete assignment list. Replacing the list with an empty
+        array disables the rule. Setting `enabled=true` is rejected when the
+        resulting assignment list is empty, including when both fields are sent
+        in the same request.
+
+
+        Legacy trace and dataset rules follow the existing lifecycle
+        restrictions: they can be deactivated with `enabled=false`, but their
+        name, filters, sampling, and evaluator assignments cannot be changed.
+      operationId: evaluationRules_update
+      tags:
+        - EvaluationRules
+      parameters:
+        - name: evaluationRuleId
+          in: path
+          description: >-
+            Stable evaluation-rule identifier returned by the evaluation-rule
+            endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEvaluationRuleRequest'
+    delete:
+      description: >-
+        Delete an evaluation rule.
+
+
+        This removes the live-ingestion rule only. It does not delete associated
+        evaluators or scores already produced by them.
+
+
+        Legacy trace and dataset rules can also be deleted. Their evaluators and
+        previously produced scores are preserved.
+      operationId: evaluationRules_delete
+      tags:
+        - EvaluationRules
+      parameters:
+        - name: evaluationRuleId
+          in: path
+          description: >-
+            Stable evaluation-rule identifier returned by the evaluation-rule
+            endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedEvaluationRule'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+  /api/public/v2/evaluators:
+    post:
+      description: >-
+        Create an evaluator in the authenticated project.
+
+
+        An evaluator defines **how** Langfuse should score data. LLM-as-a-judge
+        evaluators define a prompt, expected structured output, and optional
+        model configuration. Code evaluators define source code and a runtime
+        language.
+
+
+        This always creates a new evaluator with version `1`. Names are not
+        identifiers and do not need to be unique.
+      operationId: evaluators_create
+      tags:
+        - Evaluators
+      parameters: []
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '412':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvaluatorRequest'
+    get:
+      description: >-
+        List evaluators in newest-first creation order.
+
+
+        Every evaluator includes its latest definition and version metadata
+        flattened into the evaluator object, plus associated evaluation rules.
+        Treat the cursor as opaque and return it unchanged.
+      operationId: evaluators_list
+      tags:
+        - Evaluators
+      parameters:
+        - name: limit
+          in: query
+          description: >-
+            Maximum number of items to return. Defaults to `50` and cannot
+            exceed `100`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluatorsPage'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+  /api/public/v2/evaluators/{evaluatorId}:
+    get:
+      description: >-
+        Get one evaluator by its stable identifier.
+
+
+        The response includes the evaluator's latest definition and version
+        metadata flattened into the evaluator object, plus associated evaluation
+        rules. Use the version-history endpoint when older definitions are
+        needed.
+      operationId: evaluators_get
+      tags:
+        - Evaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+    patch:
+      description: >-
+        Update an evaluator by its stable identifier.
+
+
+        Provide only the top-level fields to change. Metadata-only changes do
+        not create a version. Evaluator type cannot change.
+
+
+        Definition fields are flattened into the request. To replace a
+        definition, include `type` and every definition field for that type.
+        Definition fields are replaced as a complete unit rather than merged.
+        For LLM-as-a-judge evaluators, omitting or setting `modelConfig` to
+        `null` selects the project's default evaluation model.
+
+
+        Replacing a definition automatically returns an evaluator paused by an
+        invalid or missing model configuration to `active`, while preserving its
+        id and evaluation-rule assignments. Pauses caused by provider
+        authentication, billing, connectivity, account state, or an unknown
+        legacy reason remain paused until the explicit reactivation check
+        succeeds.
+      operationId: evaluators_update
+      tags:
+        - Evaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '412':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEvaluatorRequest'
+    delete:
+      description: >-
+        Delete an evaluator and all of its stored versions.
+
+
+        Associated evaluation-rule assignments are also removed. Scores already
+        produced by the evaluator are preserved.
+      operationId: evaluators_delete
+      tags:
+        - Evaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletedEvaluator'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
+  /api/public/v2/evaluators/{evaluatorId}/versions:
+    get:
+      description: >-
+        List an evaluator's version history in newest-first order.
+
+
+        This endpoint is intended for history and audit use cases. Ordinary
+        clients can use the flattened `version` and definition fields on the
+        evaluator response.
+      operationId: evaluators_listVersions
+      tags:
+        - Evaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Stable evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: >-
+            Maximum number of versions to return. Defaults to `50` and cannot
+            exceed `100`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluatorVersionsPage'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicApiError'
+      security: *ref_0
   /api/public/experiments:
     get:
       description: |-
@@ -1855,6 +2676,9 @@ paths:
         Submit explicit user-approved feedback about Langfuse skills, MCP tools,
         CLI, docs, or public API. Do not include secrets, credentials, customer
         data, trace payloads, or unrelated use-case details.
+
+
+        Not available in the HIPAA cloud region.
       operationId: feedback_submit
       tags:
         - Feedback
@@ -3286,6 +4110,58 @@ paths:
               schema: {}
       security: *ref_0
   /api/public/models/{id}:
+    put:
+      description: >-
+        Create or replace a project-owned model using its id. Built-in models
+        cannot be modified.
+      operationId: models_upsert
+      tags:
+        - Models
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
     get:
       description: Get a model
       operationId: models_get
@@ -7695,6 +8571,14 @@ paths:
   /api/public/unstable/evaluation-rules:
     post:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
+        are unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Create an evaluation rule.
 
 
@@ -7712,8 +8596,11 @@ paths:
 
         - `target` must be `observation` or `experiment`
 
-        - `evaluator.name` + `evaluator.scope` must identify an existing
-        evaluator family returned by the evaluator endpoints
+        - provide either the compatibility `evaluator` field or the new
+        `evaluators` array, never both
+
+        - each evaluator `name` + `type` must identify an existing evaluator
+        family returned by the evaluator endpoints
 
         - Langfuse resolves that family to its latest version before saving the
         evaluation rule
@@ -7721,8 +8608,11 @@ paths:
         - for `target=experiment`, use dataset `id` values from `GET
         /api/public/v2/datasets` when filtering by `datasetId`
 
-        - for `llm_as_judge` evaluators, every evaluator prompt variable must be
-        mapped exactly once
+        - an omitted LLM-as-judge assignment mapping inherits the evaluator
+        version's default mapping
+
+        - the effective mapping must map every evaluator prompt variable exactly
+        once
 
         - for `code` evaluators, Langfuse uses the fixed code runtime mapping;
         omit `mapping` in create and update requests
@@ -7733,8 +8623,9 @@ paths:
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
 
-        - at most 50 evaluation rules can be effectively active in one project
-        at the same time
+        - at most 500 evaluation rules can be effectively active in one project
+        at the same time (enforced identically by the API, the MCP tools, and
+        the app)
 
 
         If an evaluation rule with the same `name` already exists in the
@@ -7745,8 +8636,8 @@ paths:
         creating a second one.
 
 
-        If enabling this resource would exceed the 50-active limit, the API also
-        returns `409`.
+        If enabling this resource would exceed the 500-active limit, the API
+        also returns `409`.
 
         In that case, disable or pause another active evaluation rule before
         enabling a new one.
@@ -7850,8 +8741,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluationRuleRequest'
+      deprecated: true
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
+        are unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         List evaluation rules in the authenticated project.
 
 
@@ -7922,9 +8822,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
   /api/public/unstable/evaluation-rules/{evaluationRuleId}:
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
+        are unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get one evaluation rule by its identifier.
 
 
@@ -7988,8 +8897,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
     patch:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
+        are unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Update an evaluation rule.
 
 
@@ -8027,7 +8945,7 @@ paths:
         selected evaluator can run
 
         - if the update would move a non-active evaluation rule into the active
-        state and the project already has 50 active evaluation rules, the API
+        state and the project already has 500 active evaluation rules, the API
         returns `409`
 
 
@@ -8106,8 +9024,17 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableUpdateEvaluationRuleRequest'
+      deprecated: true
     delete:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments
+        are unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Delete an evaluation rule.
 
 
@@ -8168,9 +9095,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
   /api/public/unstable/evaluators:
     post:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluators` API instead. Self-hosted deployments are
+        unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Create an evaluator in the authenticated project.
 
 
@@ -8190,9 +9126,10 @@ paths:
         - If the name already exists in your project, Langfuse creates the next
         version and returns it.
 
-        - When a new project version is created, existing evaluation rules in
-        that project automatically move to the newest version for that evaluator
-        name.
+        - The evaluator `id` remains stable across versions.
+
+        - Existing evaluation rules automatically use the latest evaluator
+        version; no rule update is required.
 
 
         Recommended workflow:
@@ -8205,7 +9142,7 @@ paths:
         whether future scores will be numeric, boolean, or categorical.
 
         4. Create one or more evaluation rules that reference the returned
-        evaluator family using `name` and `scope`.
+        evaluator family using `name` and `type`.
 
 
         Code evaluator validation:
@@ -8310,20 +9247,16 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluatorRequest'
+      deprecated: true
     get:
-      description: >-
+      description: |-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
         List the evaluators available to the authenticated project.
 
-
         Important behavior:
-
         - This endpoint returns the latest version of each available evaluator.
-
-        - Results can include evaluators from your project and Langfuse-managed
-        evaluators.
-
-        - If the same evaluator name exists in both places, both are returned as
-        separate items with different `scope` values.
+        - Every evaluator is owned by the authenticated project.
       operationId: unstable_evaluators_list
       tags:
         - UnstableEvaluators
@@ -8387,15 +9320,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
   /api/public/unstable/evaluators/{evaluatorId}:
     get:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluators` API instead. Self-hosted deployments are
+        unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Get one evaluator by `id`.
 
 
-        Use this endpoint when you want the prompt, output definition, model
-        configuration, and derived variables for the evaluator you plan to use
-        in an evaluation rule.
+        This endpoint always returns the evaluator's latest version. Use it when
+        you want the current prompt, output definition, model configuration, and
+        derived variables for the evaluator you plan to use in an evaluation
+        rule.
       operationId: unstable_evaluators_get
       tags:
         - UnstableEvaluators
@@ -8451,21 +9394,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
     delete:
       description: >-
+        **Deprecated:** On Langfuse Cloud, this unstable endpoint is deprecated
+        and will be removed on September 4, 2026. Use the stable
+        `/api/public/v2/evaluators` API instead. Self-hosted deployments are
+        unaffected by this date; the endpoint becomes unavailable when they
+        upgrade to Langfuse v4. See the [Langfuse v3 to v4 upgrade
+        guide](https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4).
+
+
         Delete an evaluator.
 
 
         Important behavior:
 
-        - This deletes the evaluator including all of its stored versions;
-        `evaluatorId` may reference any version.
+        - This deletes the evaluator including all of its stored versions.
 
-        - The API returns `409` while evaluation rules still reference the
-        evaluator. Delete those evaluation rules first.
-
-        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the
-        API returns `403`.
+        - Evaluation rule assignments referencing the evaluator are also
+        deleted.
 
         - Scores already produced by the evaluator are not deleted.
       operationId: unstable_evaluators_delete
@@ -8510,12 +9458,6 @@ paths:
           content:
             application/json:
               schema: {}
-        '409':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/unstablePublicApiError'
         '429':
           description: ''
           content:
@@ -8529,6 +9471,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+      deprecated: true
 components:
   schemas:
     AnnotationQueueStatus:
@@ -10040,6 +10983,7 @@ components:
             - $ref: '#/components/schemas/NumericScoreV1'
           required:
             - dataType
+          title: NumericScoreV1
         - type: object
           allOf:
             - type: object
@@ -10051,6 +10995,7 @@ components:
             - $ref: '#/components/schemas/CategoricalScoreV1'
           required:
             - dataType
+          title: CategoricalScoreV1
         - type: object
           allOf:
             - type: object
@@ -10062,6 +11007,7 @@ components:
             - $ref: '#/components/schemas/BooleanScoreV1'
           required:
             - dataType
+          title: BooleanScoreV1
         - type: object
           allOf:
             - type: object
@@ -10073,6 +11019,7 @@ components:
             - $ref: '#/components/schemas/TextScoreV1'
           required:
             - dataType
+          title: TextScoreV1
     BaseScore:
       title: BaseScore
       type: object
@@ -10242,6 +11189,7 @@ components:
             - $ref: '#/components/schemas/NumericScore'
           required:
             - dataType
+          title: NumericScore
         - type: object
           allOf:
             - type: object
@@ -10253,6 +11201,7 @@ components:
             - $ref: '#/components/schemas/CategoricalScore'
           required:
             - dataType
+          title: CategoricalScore
         - type: object
           allOf:
             - type: object
@@ -10264,6 +11213,7 @@ components:
             - $ref: '#/components/schemas/BooleanScore'
           required:
             - dataType
+          title: BooleanScore
         - type: object
           allOf:
             - type: object
@@ -10275,6 +11225,7 @@ components:
             - $ref: '#/components/schemas/CorrectionScore'
           required:
             - dataType
+          title: CorrectionScore
         - type: object
           allOf:
             - type: object
@@ -10286,6 +11237,7 @@ components:
             - $ref: '#/components/schemas/TextScore'
           required:
             - dataType
+          title: TextScore
       properties:
         _deprecation:
           $ref: '#/components/schemas/Deprecation'
@@ -10295,7 +11247,9 @@ components:
       oneOf:
         - type: number
           format: double
+          title: DoubleNumber
         - type: string
+          title: String
       description: >-
         The value of the score. Must be passed as string for categorical and
         text scores, and numeric for boolean and numeric scores
@@ -10778,6 +11732,34 @@ components:
       enum:
         - model_parameters
         - metadata
+    PricingTierConditionInput:
+      title: PricingTierConditionInput
+      oneOf:
+        - $ref: '#/components/schemas/PricingTierUsageConditionInput'
+        - $ref: '#/components/schemas/PricingTierAttributeCondition'
+      description: Condition input for matching a pricing tier.
+    PricingTierUsageConditionInput:
+      title: PricingTierUsageConditionInput
+      type: object
+      description: Input condition that sums usage details whose keys match a regex.
+      properties:
+        usageDetailPattern:
+          type: string
+          description: Regex pattern matched against usage detail keys.
+        operator:
+          $ref: '#/components/schemas/PricingTierOperator'
+        value:
+          type: number
+          format: double
+          description: Numeric threshold for the summed matching usage values.
+        caseSensitive:
+          type: boolean
+          nullable: true
+          description: Whether the usage-detail regex is case-sensitive. Defaults to false.
+      required:
+        - usageDetailPattern
+        - operator
+        - value
     PricingTier:
       title: PricingTier
       type: object
@@ -10940,6 +11922,7 @@ components:
             Volume Tier", "Extended Context"
         isDefault:
           type: boolean
+          nullable: true
           description: >-
             Whether this is the default tier. Exactly one tier per model must be
             marked as default.
@@ -10955,6 +11938,7 @@ components:
 
 
             The default tier acts as a fallback when no conditional tiers match.
+            Defaults to false when omitted.
         priority:
           type: integer
           description: >-
@@ -10970,7 +11954,7 @@ components:
         conditions:
           type: array
           items:
-            $ref: '#/components/schemas/PricingTierCondition'
+            $ref: '#/components/schemas/PricingTierConditionInput'
           description: >-
             Array of conditions that must ALL be met for this tier to match (AND
             logic).
@@ -11004,7 +11988,6 @@ components:
             million input tokens and $15 per million output tokens.
       required:
         - name
-        - isDefault
         - priority
         - conditions
         - prices
@@ -11043,17 +12026,22 @@ components:
       oneOf:
         - type: string
           nullable: true
+          title: String
         - type: integer
           nullable: true
+          title: Integer
         - type: number
           format: float
           nullable: true
+          title: FloatNumber
         - type: boolean
           nullable: true
+          title: Boolean
         - type: array
           items:
             type: string
           nullable: true
+          title: Array
     CommentObjectType:
       title: CommentObjectType
       type: string
@@ -11270,6 +12258,1838 @@ components:
           type: string
       required:
         - message
+    EvaluatorType:
+      title: EvaluatorType
+      type: string
+      enum:
+        - llm_as_judge
+        - code
+      description: |-
+        The evaluator type.
+
+        The public API supports LLM-as-a-judge and code evaluators.
+    CodeEvaluatorSourceCodeLanguage:
+      title: CodeEvaluatorSourceCodeLanguage
+      type: string
+      enum:
+        - PYTHON
+        - TYPESCRIPT
+      description: Code evaluator runtime language.
+    PromptVariableMappingSource:
+      title: PromptVariableMappingSource
+      type: string
+      enum:
+        - input
+        - output
+        - metadata
+        - tool_calls
+        - expected_output
+        - experiment_item_metadata
+      description: >-
+        Source field used to populate a prompt variable.
+
+
+        Use these values when mapping evaluator prompt variables to live data.
+
+
+        Source semantics:
+
+        - `input`: the observation input payload
+
+        - `output`: the observation output payload
+
+        - `metadata`: the observation metadata object. Combine with `jsonPath`
+        when you need one nested field instead of the whole object.
+
+        - `tool_calls`: the tool calls recorded on the observation, as an array
+        of `{id, name, arguments, type, index}` objects in the order the model
+        emitted them. Combine with `jsonPath` (for example `$[*].name`) to
+        select parts of each call.
+
+        - `expected_output`: the experiment item's expected output when the
+        observation belongs to an experiment.
+
+        - `experiment_item_metadata`: the experiment item's metadata when the
+        observation belongs to an experiment.
+    EvaluatorOutputScoreType:
+      title: EvaluatorOutputScoreType
+      type: string
+      enum:
+        - NUMERIC
+        - BOOLEAN
+        - CATEGORICAL
+      description: >-
+        Structured score type returned by an evaluator.
+
+
+        This controls the type of score value Langfuse stores for evaluation
+        results:
+
+        - `NUMERIC`: a numeric score such as `0.82`
+
+        - `BOOLEAN`: a boolean score such as `true`
+
+        - `CATEGORICAL`: one or more category labels from a fixed list
+    EvaluatorOutputDefinition:
+      title: EvaluatorOutputDefinition
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/PublicEvaluatorNumericScore'
+          required:
+            - dataType
+          title: PublicEvaluatorNumericScore
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/PublicEvaluatorBooleanScore'
+          required:
+            - dataType
+          title: PublicEvaluatorBooleanScore
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/PublicEvaluatorCategoricalScore'
+          required:
+            - dataType
+          title: PublicEvaluatorCategoricalScore
+      description: >-
+        Flat structured output definition used when creating or updating an
+        evaluator.
+
+
+        - `dataType` is required.
+
+        - `scoreReasoningInstructions` and `scoreValueInstructions` are optional
+        instructions.
+
+        - `minValue` and `maxValue` apply only to `NUMERIC` outputs. If both are
+        set, `minValue` must not exceed `maxValue`.
+
+        - `categories` and `shouldAllowMultipleMatches` apply only to
+        `CATEGORICAL` outputs.
+
+        - Do not send `version`; that is an internal storage detail.
+    EvaluatorOutputDefinitionBase:
+      title: EvaluatorOutputDefinitionBase
+      type: object
+      properties:
+        scoreReasoningInstructions:
+          type: string
+          nullable: true
+          description: >-
+            Optional instructions for deriving the reasoning returned with the
+            score.
+        scoreValueInstructions:
+          type: string
+          nullable: true
+          description: Optional instructions for deriving the score value.
+    PublicEvaluatorNumericScore:
+      title: PublicEvaluatorNumericScore
+      type: object
+      properties:
+        dataType:
+          type: string
+          const: NUMERIC
+          description: Numeric score output.
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: Optional inclusive minimum value.
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: Optional inclusive maximum value.
+      required:
+        - dataType
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorOutputDefinitionBase'
+    PublicEvaluatorBooleanScore:
+      title: PublicEvaluatorBooleanScore
+      type: object
+      properties:
+        dataType:
+          type: string
+          const: BOOLEAN
+          description: Boolean score output.
+      required:
+        - dataType
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorOutputDefinitionBase'
+    PublicEvaluatorCategoricalScore:
+      title: PublicEvaluatorCategoricalScore
+      type: object
+      properties:
+        dataType:
+          type: string
+          const: CATEGORICAL
+          description: Categorical score output.
+        categories:
+          type: array
+          items:
+            type: string
+          description: Allowed category values. At least two unique values are required.
+        shouldAllowMultipleMatches:
+          type: boolean
+          description: Whether the evaluator may return more than one category.
+      required:
+        - dataType
+        - categories
+        - shouldAllowMultipleMatches
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorOutputDefinitionBase'
+    PublicEvaluatorOutputDefinition:
+      title: PublicEvaluatorOutputDefinition
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/PublicEvaluatorNumericScore'
+          required:
+            - dataType
+          title: PublicEvaluatorNumericScore
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/PublicEvaluatorBooleanScore'
+          required:
+            - dataType
+          title: PublicEvaluatorBooleanScore
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/PublicEvaluatorCategoricalScore'
+          required:
+            - dataType
+          title: PublicEvaluatorCategoricalScore
+      description: >-
+        Flat evaluator output definition returned by the public API.
+
+
+        This response always includes `dataType` and never includes an internal
+        output-definition `version`.
+
+        Optional empty descriptions from legacy definitions are omitted.
+    EvaluationRuleStringFilterOperator:
+      title: EvaluationRuleStringFilterOperator
+      type: string
+      enum:
+        - '='
+        - contains
+        - does not contain
+        - starts with
+        - ends with
+    EvaluationRuleNumberFilterOperator:
+      title: EvaluationRuleNumberFilterOperator
+      type: string
+      enum:
+        - '='
+        - '>'
+        - <
+        - '>='
+        - <=
+    EvaluationRuleOptionsFilterOperator:
+      title: EvaluationRuleOptionsFilterOperator
+      type: string
+      enum:
+        - any of
+        - none of
+    EvaluationRuleArrayOptionsFilterOperator:
+      title: EvaluationRuleArrayOptionsFilterOperator
+      type: string
+      enum:
+        - any of
+        - none of
+        - all of
+    EvaluationRuleBooleanFilterOperator:
+      title: EvaluationRuleBooleanFilterOperator
+      type: string
+      enum:
+        - '='
+        - <>
+    EvaluationRuleNullFilterOperator:
+      title: EvaluationRuleNullFilterOperator
+      type: string
+      enum:
+        - is null
+        - is not null
+    DateTimeEvaluationRuleFilter:
+      title: DateTimeEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleNumberFilterOperator'
+          description: Comparison operator for datetime values.
+        value:
+          type: string
+          format: date-time
+          description: Datetime value to compare against.
+      required:
+        - column
+        - operator
+        - value
+    StringEvaluationRuleFilter:
+      title: StringEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleStringFilterOperator'
+        value:
+          type: string
+      required:
+        - column
+        - operator
+        - value
+    NumberEvaluationRuleFilter:
+      title: NumberEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleNumberFilterOperator'
+        value:
+          type: number
+          format: double
+      required:
+        - column
+        - operator
+        - value
+    StringOptionsEvaluationRuleFilter:
+      title: StringOptionsEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleOptionsFilterOperator'
+        value:
+          type: array
+          items:
+            type: string
+          description: One or more allowed string values.
+      required:
+        - column
+        - operator
+        - value
+    ArrayOptionsEvaluationRuleFilter:
+      title: ArrayOptionsEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleArrayOptionsFilterOperator'
+        value:
+          type: array
+          items:
+            type: string
+          description: One or more array elements to match.
+      required:
+        - column
+        - operator
+        - value
+    StringObjectEvaluationRuleFilter:
+      title: StringObjectEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: >-
+            Object-valued column to filter on. Currently only `metadata` is
+            supported.
+        key:
+          type: string
+          description: Top-level key inside the object-valued column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleStringFilterOperator'
+        value:
+          type: string
+      required:
+        - column
+        - key
+        - operator
+        - value
+    NumberObjectEvaluationRuleFilter:
+      title: NumberObjectEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Object-valued column to filter on.
+        key:
+          type: string
+          description: Key inside the object-valued column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleNumberFilterOperator'
+        value:
+          type: number
+          format: double
+      required:
+        - column
+        - key
+        - operator
+        - value
+    CategoryOptionsEvaluationRuleFilter:
+      title: CategoryOptionsEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Object-valued column to filter on.
+        key:
+          type: string
+          description: Key inside the object-valued column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleOptionsFilterOperator'
+        value:
+          type: array
+          items:
+            type: string
+      required:
+        - column
+        - key
+        - operator
+        - value
+    BooleanEvaluationRuleFilter:
+      title: BooleanEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleBooleanFilterOperator'
+        value:
+          type: boolean
+      required:
+        - column
+        - operator
+        - value
+    NullEvaluationRuleFilter:
+      title: NullEvaluationRuleFilter
+      type: object
+      properties:
+        column:
+          type: string
+          description: Column to filter on, for example `parentObservationId`.
+        operator:
+          $ref: '#/components/schemas/EvaluationRuleNullFilterOperator'
+        value:
+          type: string
+          const: ''
+          description: >-
+            Required empty-string placeholder used by the runtime filter
+            contract.
+      required:
+        - column
+        - operator
+        - value
+    PromptVariableMappingInput:
+      title: PromptVariableMappingInput
+      type: object
+      description: >-
+        Connects one prompt variable to data from an observation or experiment.
+
+
+        Manual mappings are used for `llm_as_judge` evaluators. `code`
+        evaluators use a fixed runtime mapping managed by Langfuse.
+
+
+        How to build a valid mapping list:
+
+        1. Create the evaluator or fetch it with `GET /evaluators/{id}`.
+
+        2. Read the evaluator `variables` array.
+
+        3. Add exactly one mapping object for each variable in that array.
+
+        4. Use the variable name exactly as returned, without braces such as
+        `{{` or `}}`.
+
+        5. Choose the source field that should populate the variable.
+
+
+        `jsonPath` is optional. Use it only when the selected source is a JSON
+        object and you want to extract one nested field before inserting it into
+        the evaluator prompt.
+
+
+        Invalid, missing, or duplicate mappings return a validation error.
+        Malformed JSONPath expressions are also rejected.
+      properties:
+        variable:
+          type: string
+          description: >-
+            Prompt variable name without braces.
+
+
+            Example: for the prompt `Judge {{input}} against {{output}}`, use
+            `input` and `output`.
+        source:
+          $ref: '#/components/schemas/PromptVariableMappingSource'
+          description: >-
+            Source field that should populate the prompt variable.
+
+
+            Available sources are `input`, `output`, `metadata`, `tool_calls`,
+            `expected_output`, and `experiment_item_metadata`.
+        jsonPath:
+          type: string
+          nullable: true
+          description: >-
+            Optional JSONPath selector applied to the selected source before it
+            is passed to the evaluator prompt.
+
+
+            Requirements:
+
+            - Must start with `$`
+
+            - Must be a syntactically valid JSONPath expression
+
+            - Most useful with `source=metadata`
+      required:
+        - variable
+        - source
+    PromptVariableMappingRead:
+      title: PromptVariableMappingRead
+      type: object
+      description: |-
+        Connects one prompt variable to source data.
+
+        `source` is `null` when the mapping is incomplete.
+      properties:
+        variable:
+          type: string
+          description: Prompt variable name without braces.
+        source:
+          type: string
+          nullable: true
+          description: >-
+            Stored source field populating the variable, or `null` when the
+            mapping is incomplete.
+        jsonPath:
+          type: string
+          nullable: true
+          description: Optional JSONPath selector applied to the selected source.
+      required:
+        - variable
+        - source
+    PromptVariableMapping:
+      title: PromptVariableMapping
+      oneOf:
+        - $ref: '#/components/schemas/PromptVariableMappingRead'
+        - $ref: '#/components/schemas/LegacyPromptVariableMapping'
+      description: Connects one prompt variable to source data.
+    LegacyPromptVariableMapping:
+      title: LegacyPromptVariableMapping
+      type: object
+      description: >-
+        **Deprecated:** Connects one prompt variable to data from a legacy trace
+        or dataset evaluation rule.
+
+
+        `langfuseObject` selects the object kind. `objectName` separately
+        selects a named observation and is `null` for trace and dataset-item
+        mappings.
+      properties:
+        mappingType:
+          type: string
+          const: legacy
+          description: Explicitly marks this as a legacy mapping.
+        variable:
+          type: string
+          description: Prompt variable name without braces.
+        langfuseObject:
+          $ref: '#/components/schemas/LegacyEvaluationObject'
+          description: Legacy object kind selected as the mapping source.
+        objectName:
+          type: string
+          nullable: true
+          description: >-
+            Observation name to match, or `null` when `langfuseObject` is
+            `trace` or `dataset_item`.
+        source:
+          type: string
+          description: Field selected from the legacy object.
+        jsonPath:
+          type: string
+          nullable: true
+          description: Optional JSONPath selector applied to the selected field.
+      required:
+        - mappingType
+        - variable
+        - langfuseObject
+        - objectName
+        - source
+    LegacyEvaluationObject:
+      title: LegacyEvaluationObject
+      type: string
+      enum:
+        - trace
+        - span
+        - generation
+        - event
+        - agent
+        - tool
+        - chain
+        - retriever
+        - evaluator
+        - embedding
+        - guardrail
+        - dataset_item
+      description: >-
+        **Deprecated:** Legacy Langfuse object kind used by trace and dataset
+        evaluation rules.
+    EvaluationRuleFilter:
+      title: EvaluationRuleFilter
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - datetime
+            - $ref: '#/components/schemas/DateTimeEvaluationRuleFilter'
+          required:
+            - type
+          title: DateTimeEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - string
+            - $ref: '#/components/schemas/StringEvaluationRuleFilter'
+          required:
+            - type
+          title: StringEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - number
+            - $ref: '#/components/schemas/NumberEvaluationRuleFilter'
+          required:
+            - type
+          title: NumberEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - stringOptions
+            - $ref: '#/components/schemas/StringOptionsEvaluationRuleFilter'
+          required:
+            - type
+          title: StringOptionsEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - categoryOptions
+            - $ref: '#/components/schemas/CategoryOptionsEvaluationRuleFilter'
+          required:
+            - type
+          title: CategoryOptionsEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - arrayOptions
+            - $ref: '#/components/schemas/ArrayOptionsEvaluationRuleFilter'
+          required:
+            - type
+          title: ArrayOptionsEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - stringObject
+            - $ref: '#/components/schemas/StringObjectEvaluationRuleFilter'
+          required:
+            - type
+          title: StringObjectEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - numberObject
+            - $ref: '#/components/schemas/NumberObjectEvaluationRuleFilter'
+          required:
+            - type
+          title: NumberObjectEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - boolean
+            - $ref: '#/components/schemas/BooleanEvaluationRuleFilter'
+          required:
+            - type
+          title: BooleanEvaluationRuleFilter
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - 'null'
+            - $ref: '#/components/schemas/NullEvaluationRuleFilter'
+          required:
+            - type
+          title: NullEvaluationRuleFilter
+      description: >-
+        One filter condition used to decide whether a live-ingested observation
+        should be evaluated.
+
+
+        All filters must be satisfied for the rule to run. Experiment scope is
+        expressed with filters rather than a separate target field:
+
+        - `isExperimentItemRootSpan = true` limits execution to experiment item
+        roots.
+
+        - `datasetId` limits execution to experiments for the selected datasets.
+        Use dataset IDs from `GET /api/public/v2/datasets`.
+
+
+        Pick the filter `type` first, as it determines the required fields and
+        value shape. Use `key` only for object filters such as `metadata`.
+
+
+        Operator quick reference by filter `type`:
+
+        - `string`: `"="`, `contains`, `does not contain`, `starts with`, `ends
+        with`
+
+        - `number`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+
+        - `datetime`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+
+        - `stringOptions`: `any of`, `none of`
+
+        - `arrayOptions`: `any of`, `none of`, `all of`
+
+        - `stringObject`: same operators as `string`
+
+        - `boolean`: `"="`, `"<>"`
+
+        - `null`: `is null`, `is not null`
+
+
+        Supported columns. Each column accepts exactly one filter `type`;
+        sending a column with a different `type` is rejected with `400`.
+
+        - `type`: `stringOptions`, values `SPAN`, `EVENT`, `GENERATION`,
+        `AGENT`, `TOOL`, `CHAIN`, `RETRIEVER`, `EVALUATOR`, `EMBEDDING`,
+        `GUARDRAIL`
+
+        - `name`: `stringOptions`
+
+        - `environment`: `stringOptions`
+
+        - `level`: `stringOptions`, values `DEBUG`, `DEFAULT`, `WARNING`,
+        `ERROR`
+
+        - `version`: `string`
+
+        - `traceName`: `stringOptions`
+
+        - `userId`: `string`
+
+        - `sessionId`: `string`
+
+        - `tags`: `arrayOptions`
+
+        - `metadata`: `stringObject`, requires `key`
+
+        - `isRootObservation`: `boolean`; true when the observation has no
+        parent or is explicitly marked as an application root
+
+        - `parentObservationId`: `null`
+
+        - `experimentId`: `stringOptions`
+
+        - `isExperimentItemRootSpan`: `boolean`
+
+        - `calledToolNames`: `arrayOptions`
+
+        - `toolCalls`: `number`, the number of tool calls on the observation
+
+        - `datasetId`: `stringOptions`. Use dataset `id` values from `GET
+        /api/public/v2/datasets`, not dataset names.
+    EvaluationRuleReadFilterBase:
+      title: EvaluationRuleReadFilterBase
+      type: object
+      description: Stored filter returned verbatim by evaluation-rule read endpoints.
+      properties:
+        type:
+          type: string
+          description: >-
+            Stored filter type. This is not broken down into separate public
+            response types.
+        column:
+          type: string
+        operator:
+          type: string
+        value:
+          nullable: true
+          description: Stored filter value. Its shape depends on the filter type.
+      required:
+        - type
+        - column
+        - operator
+    EvaluationRuleReadFilterWithKey:
+      title: EvaluationRuleReadFilterWithKey
+      type: object
+      properties:
+        key:
+          type: string
+          description: Stored object or legacy filter key.
+      required:
+        - key
+      allOf:
+        - $ref: '#/components/schemas/EvaluationRuleReadFilterBase'
+    EvaluationRuleReadFilter:
+      title: EvaluationRuleReadFilter
+      oneOf:
+        - $ref: '#/components/schemas/EvaluationRuleReadFilterWithKey'
+        - $ref: '#/components/schemas/EvaluationRuleReadFilterBase'
+      description: >-
+        Filter returned verbatim by evaluation-rule read endpoints.
+
+
+        Filters with a stored `key` use the keyed shape. All other filters use
+        the base shape. Response filters are intentionally not broken down by
+        their internal `type` value.
+    PublicApiErrorCode:
+      title: PublicApiErrorCode
+      type: string
+      enum:
+        - authentication_failed
+        - access_denied
+        - invalid_request
+        - invalid_query
+        - invalid_body
+        - resource_not_found
+        - conflict
+        - rate_limited
+        - method_not_allowed
+        - internal_error
+      description: >-
+        Stable machine-readable error code returned by the evaluators and
+        evaluation-rules API.
+    PublicApiValidationIssue:
+      title: PublicApiValidationIssue
+      type: object
+      description: One request validation issue.
+      properties:
+        code:
+          type: string
+          description: Validator issue code.
+        message:
+          type: string
+          description: Human-readable explanation.
+        path:
+          type: array
+          items: {}
+          description: Path to the invalid request field.
+      required:
+        - code
+        - message
+        - path
+    PublicApiErrorDetails:
+      title: PublicApiErrorDetails
+      type: object
+      description: Optional structured context for validation and rate-limit errors.
+      properties:
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicApiValidationIssue'
+          nullable: true
+          description: Validation issues for an invalid request body or query.
+        retryAfterSeconds:
+          type: integer
+          nullable: true
+          description: Number of seconds to wait before retrying a rate-limited request.
+        limit:
+          type: integer
+          nullable: true
+          description: Rate-limit request allowance.
+        remaining:
+          type: integer
+          nullable: true
+          description: Remaining requests in the current rate-limit window.
+        resetAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Time when the current rate-limit window resets.
+    PublicApiError:
+      title: PublicApiError
+      type: object
+      description: >-
+        Standard error response for the stable evaluators and evaluation-rules
+        API.
+
+
+        Use the HTTP status for the broad failure class and `code` for
+        programmatic handling. `details` is included when field-level validation
+        or retry information is available.
+      properties:
+        message:
+          type: string
+          description: Human-readable description of the failure.
+        code:
+          $ref: '#/components/schemas/PublicApiErrorCode'
+          description: Stable machine-readable error code.
+        details:
+          $ref: '#/components/schemas/PublicApiErrorDetails'
+          nullable: true
+          description: Optional structured validation or rate-limit context.
+      required:
+        - message
+        - code
+    EvaluationRuleEvaluatorAssignmentInput:
+      title: EvaluationRuleEvaluatorAssignmentInput
+      type: object
+      properties:
+        evaluatorId:
+          type: string
+          description: >-
+            Stable evaluator identifier. The rule automatically uses that
+            evaluator's latest version.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          nullable: true
+          description: >-
+            Rule-specific prompt-variable mapping.
+
+
+            Set to `null` or omit to inherit the evaluator's latest default
+            mapping. Code evaluators use the fixed runtime mapping and should
+            use `null`.
+      required:
+        - evaluatorId
+    EvaluatorAssignment:
+      title: EvaluatorAssignment
+      type: object
+      properties:
+        evaluatorId:
+          type: string
+          description: Stable identifier of the evaluator associated with this rule.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMapping'
+          nullable: true
+          description: >-
+            Stored rule-specific override, or `null` when the evaluator's latest
+            default mapping is inherited. Legacy mappings are returned as an
+            explicit `legacy` variant.
+      required:
+        - evaluatorId
+        - variableMapping
+    EvaluationRule:
+      title: EvaluationRule
+      type: object
+      description: >-
+        Live evaluation rule for incoming observations.
+
+
+        A rule determines which evaluators should be used, which observations
+        should trigger scoring, how often scoring should run, and which
+        observation fields should populate prompt variables.
+      properties:
+        id:
+          type: string
+          description: Stable evaluation-rule identifier.
+        name:
+          type: string
+          description: >-
+            Human-readable rule name. This is independent from evaluator names
+            and does not need to be unique.
+        createdBy:
+          $ref: '#/components/schemas/Creator'
+          nullable: true
+          description: User who created this rule, or `null` when no user can be resolved.
+        enabled:
+          type: boolean
+          description: Whether live execution is enabled for this rule.
+        sampling:
+          type: number
+          format: double
+          description: |-
+            Fraction of matching observations that should be evaluated.
+
+            Must be between `0` and `1`.
+            - `1` evaluates every matching observation.
+            - `0.25` evaluates approximately 25% of matching observations.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleReadFilter'
+          description: >-
+            List of stored filter conditions returned verbatim. Filters with a
+            `key` use the keyed response shape; all others use the base shape.
+            These response shapes are not broken down by internal filter type.
+            An empty list matches every incoming object.
+        evaluatorAssignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluatorAssignment'
+          description: Evaluators attached to this rule in deterministic assignment order.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluation rule was last updated.
+      required:
+        - id
+        - name
+        - createdBy
+        - enabled
+        - sampling
+        - filter
+        - evaluatorAssignments
+        - createdAt
+        - updatedAt
+    CreateEvaluationRuleRequest:
+      title: CreateEvaluationRuleRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: >-
+            Human-readable rule name. Names are not identifiers and do not need
+            to be unique.
+        enabled:
+          type: boolean
+          description: >-
+            Whether live execution should start immediately. Enabled rules
+            require at least one evaluator assignment.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            Fraction of matching observations to evaluate. Omit this field to
+            use the default of `1`, which evaluates every match. `null` is not
+            accepted.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Conditions used to select observations. Defaults to an empty list,
+            which matches every incoming observation.
+        evaluatorAssignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleEvaluatorAssignmentInput'
+          description: >-
+            Evaluators to attach to this rule. Disabled rules may use an empty
+            list as a draft.
+      required:
+        - name
+        - enabled
+        - evaluatorAssignments
+    UpdateEvaluationRuleRequest:
+      title: UpdateEvaluationRuleRequest
+      type: object
+      description: At least one field must be provided.
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: New human-readable rule name.
+        enabled:
+          type: boolean
+          nullable: true
+          description: New desired live-execution state.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            New fraction of matching observations to evaluate. Omit to keep the
+            current value.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Complete replacement filter list. An empty list matches every
+            incoming observation.
+        evaluatorAssignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleEvaluatorAssignmentInput'
+          nullable: true
+          description: >-
+            Complete replacement assignment list. An empty list disables the
+            rule.
+    EvaluationRulesPage:
+      title: EvaluationRulesPage
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRule'
+          description: Evaluation rules for this page.
+        meta:
+          $ref: '#/components/schemas/CursorMeta'
+          description: Cursor pagination metadata.
+      required:
+        - data
+        - meta
+    DeletedEvaluationRule:
+      title: DeletedEvaluationRule
+      type: object
+      description: Confirmation returned after successful evaluation-rule deletion.
+      properties:
+        id:
+          type: string
+          description: Identifier of the deleted evaluation rule.
+      required:
+        - id
+    Creator:
+      title: Creator
+      type: object
+      description: User who created the resource, or `null` when no user can be resolved.
+      properties:
+        id:
+          type: string
+          description: User identifier.
+        name:
+          type: string
+          nullable: true
+          description: User name, or `null` when unavailable.
+      required:
+        - id
+        - name
+    EvaluatorModelConfig:
+      title: EvaluatorModelConfig
+      type: object
+      description: >-
+        Explicit model configuration for an evaluator.
+
+
+        If the complete `modelConfig` is `null`, Langfuse uses the project's
+        default evaluation model.
+
+        If provided, the model must be available to the project when the
+        evaluator or evaluation rule is enabled.
+      properties:
+        provider:
+          type: string
+          description: >-
+            Provider identifier, for example `openai` or `anthropic`.
+
+
+            To discover valid values for the current project, call `GET
+            /api/public/llm-connections` and use one of the returned `provider`
+            values.
+        model:
+          type: string
+          description: >-
+            Model identifier exposed by the provider, for example `gpt-4.1-mini`.
+      required:
+        - provider
+        - model
+    EvaluatorChatMessage:
+      title: EvaluatorChatMessage
+      type: object
+      description: One user chat message in an evaluator prompt.
+      properties:
+        role:
+          type: string
+          const: user
+        content:
+          type: string
+          description: Message content. Evaluator variables use `{{variable}}` syntax.
+      required:
+        - role
+        - content
+    EvaluatorChatPrompt:
+      title: EvaluatorChatPrompt
+      type: array
+      items:
+        $ref: '#/components/schemas/EvaluatorChatMessage'
+      description: A list containing exactly one user chat message.
+    EvaluatorChatPromptInput:
+      title: EvaluatorChatPromptInput
+      oneOf:
+        - type: string
+          title: String
+        - $ref: '#/components/schemas/EvaluatorChatPrompt'
+      description: >-
+        A user prompt string, or a list containing exactly one user chat message.
+    EvaluatorVersionBase:
+      title: EvaluatorVersionBase
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable identifier of this evaluator version.
+        version:
+          type: integer
+          description: Monotonically increasing evaluator version number.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when this evaluator version was created.
+        createdBy:
+          $ref: '#/components/schemas/Creator'
+          nullable: true
+          description: >-
+            User who created this version, or `null` when no user can be
+            resolved.
+      required:
+        - id
+        - version
+        - createdAt
+        - createdBy
+    LlmAsJudgeEvaluatorVersion:
+      title: LlmAsJudgeEvaluatorVersion
+      type: object
+      properties:
+        type:
+          type: string
+          const: llm_as_judge
+          description: Evaluator type.
+        prompt:
+          $ref: '#/components/schemas/EvaluatorChatPrompt'
+          description: The single user chat message used during evaluation.
+        variables:
+          type: array
+          items:
+            type: string
+          description: >-
+            Variables extracted from the prompt and available for
+            evaluation-rule mappings.
+
+
+            Every variable must be mapped exactly once when a rule provides an
+            explicit mapping.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingRead'
+          nullable: true
+          description: >-
+            Default variable mapping for this evaluator version, or `null` when
+            no default is configured.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+          description: >-
+            Explicit model configuration, or `null` when the project's default
+            evaluation model is used.
+        outputDefinition:
+          $ref: '#/components/schemas/PublicEvaluatorOutputDefinition'
+          description: >-
+            Structured output schema returned by this evaluator.
+
+
+            Responses include `dataType` and omit the internal output-definition
+            persistence version.
+      required:
+        - type
+        - prompt
+        - variables
+        - variableMapping
+        - modelConfig
+        - outputDefinition
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorVersionBase'
+    CodeEvaluatorVersion:
+      title: CodeEvaluatorVersion
+      type: object
+      properties:
+        type:
+          type: string
+          const: code
+          description: Evaluator type.
+        sourceCode:
+          type: string
+          description: Source code executed for each matched observation.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/CodeEvaluatorSourceCodeLanguage'
+          description: Runtime language used to execute the source code.
+      required:
+        - type
+        - sourceCode
+        - sourceCodeLanguage
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorVersionBase'
+    EvaluatorVersion:
+      title: EvaluatorVersion
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/LlmAsJudgeEvaluatorVersion'
+          required:
+            - type
+          title: LlmAsJudgeEvaluatorVersion
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/CodeEvaluatorVersion'
+          required:
+            - type
+          title: CodeEvaluatorVersion
+    EvaluationRuleAssignment:
+      title: EvaluationRuleAssignment
+      type: object
+      description: Evaluation-rule assignment associated with this evaluator.
+      properties:
+        evaluationRuleId:
+          type: string
+          description: Stable identifier of the assigned evaluation rule.
+        variableMappingOverride:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMapping'
+          nullable: true
+          description: >-
+            Rule-specific variable mapping override. Omitted when the
+            evaluator's latest default mapping is inherited. Legacy mappings use
+            the explicit `legacy` variant.
+      required:
+        - evaluationRuleId
+    EvaluatorBase:
+      title: EvaluatorBase
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable identifier of this evaluator across all versions.
+        name:
+          type: string
+          description: >-
+            Human-readable evaluator name. Names are not identifiers and do not
+            need to be unique.
+        description:
+          type: string
+          nullable: true
+          description: Optional human-readable evaluator description.
+        createdBy:
+          $ref: '#/components/schemas/Creator'
+          nullable: true
+          description: >-
+            User who created this evaluator, or `null` when no user can be
+            resolved.
+        status:
+          $ref: '#/components/schemas/EvaluatorStatus'
+          description: >-
+            Effective evaluator status after Langfuse validates its runtime
+            configuration.
+        pausedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the evaluator was paused, otherwise `null`.
+        pausedReason:
+          type: string
+          nullable: true
+          description: Machine-readable reason when `status=paused`, otherwise `null`.
+        pausedMessage:
+          type: string
+          nullable: true
+          description: Human-readable explanation when `status=paused`, otherwise `null`.
+        evaluationRuleAssignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleAssignment'
+          description: >-
+            All modern and legacy evaluation-rule assignments in
+            newest-assignment-first order. Rule-specific mappings are exposed as
+            `variableMappingOverride`; inherited defaults are omitted.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluator was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the evaluator was last updated.
+        versionId:
+          type: string
+          description: Stable identifier of the latest evaluator version.
+        version:
+          type: integer
+          description: Monotonically increasing latest evaluator version number.
+        versionCreatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the latest evaluator version was created.
+        versionCreatedBy:
+          $ref: '#/components/schemas/Creator'
+          nullable: true
+          description: >-
+            User who created the latest evaluator version, or `null` when no
+            user can be resolved.
+      required:
+        - id
+        - name
+        - description
+        - createdBy
+        - status
+        - pausedAt
+        - pausedReason
+        - pausedMessage
+        - evaluationRuleAssignments
+        - createdAt
+        - updatedAt
+        - versionId
+        - version
+        - versionCreatedAt
+        - versionCreatedBy
+    LlmAsJudgeEvaluator:
+      title: LlmAsJudgeEvaluator
+      type: object
+      properties:
+        type:
+          type: string
+          const: llm_as_judge
+          description: Evaluator type.
+        prompt:
+          $ref: '#/components/schemas/EvaluatorChatPrompt'
+          description: The single user chat message used by the latest evaluator version.
+        variables:
+          type: array
+          items:
+            type: string
+          description: >-
+            Variables extracted from the latest prompt and available for
+            evaluation-rule mappings.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingRead'
+          nullable: true
+          description: >-
+            Default variable mapping for the latest version, or `null` when no
+            default is configured.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+          description: >-
+            Explicit model configuration for the latest version, or `null` when
+            the project's default evaluation model is used.
+        outputDefinition:
+          $ref: '#/components/schemas/PublicEvaluatorOutputDefinition'
+          description: Structured output schema returned by the latest evaluator version.
+      required:
+        - type
+        - prompt
+        - variables
+        - variableMapping
+        - modelConfig
+        - outputDefinition
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorBase'
+    CodeEvaluator:
+      title: CodeEvaluator
+      type: object
+      properties:
+        type:
+          type: string
+          const: code
+          description: Evaluator type.
+        sourceCode:
+          type: string
+          description: Source code executed by the latest evaluator version.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/CodeEvaluatorSourceCodeLanguage'
+          description: Runtime language used to execute the latest source code.
+      required:
+        - type
+        - sourceCode
+        - sourceCodeLanguage
+      allOf:
+        - $ref: '#/components/schemas/EvaluatorBase'
+    Evaluator:
+      title: Evaluator
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/LlmAsJudgeEvaluator'
+          required:
+            - type
+          title: LlmAsJudgeEvaluator
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/CodeEvaluator'
+          required:
+            - type
+          title: CodeEvaluator
+      description: >-
+        One evaluator that can be used for scoring.
+
+
+        An evaluator describes **how** to score data. Associated evaluation
+        rules describe **which** live objects should be evaluated.
+    EvaluatorStatus:
+      title: EvaluatorStatus
+      type: string
+      enum:
+        - active
+        - paused
+      description: >-
+        Effective evaluator runtime status.
+
+
+        - `active`: the evaluator can run.
+
+        - `paused`: Langfuse paused execution until the underlying issue is
+        resolved.
+    CreateLlmAsJudgeEvaluatorRequest:
+      title: CreateLlmAsJudgeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: >-
+            Human-readable evaluator name. Names are not identifiers and do not
+            need to be unique.
+        description:
+          type: string
+          nullable: true
+          description: Optional human-readable evaluator description.
+        type:
+          type: string
+          const: llm_as_judge
+          description: Evaluator type.
+        prompt:
+          $ref: '#/components/schemas/EvaluatorChatPromptInput'
+          description: >-
+            User prompt string shortcut or a list containing exactly one user
+            chat message.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+          description: >-
+            Explicit model configuration. Set to `null` or omit to use the
+            project's default evaluation model.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          nullable: true
+          description: >-
+            Default prompt-variable mapping, or `null` when no default is
+            configured.
+        outputDefinition:
+          $ref: '#/components/schemas/EvaluatorOutputDefinition'
+          description: >-
+            Structured output schema returned by this evaluator. Do not include
+            an internal persistence version.
+      required:
+        - name
+        - type
+        - prompt
+        - outputDefinition
+    CreateCodeEvaluatorRequest:
+      title: CreateCodeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: >-
+            Human-readable evaluator name. Names are not identifiers and do not
+            need to be unique.
+        description:
+          type: string
+          nullable: true
+          description: Optional human-readable evaluator description.
+        type:
+          type: string
+          const: code
+          description: Evaluator type.
+        sourceCode:
+          type: string
+          description: Source code executed for each matched observation.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/CodeEvaluatorSourceCodeLanguage'
+          description: Runtime language used to execute the source code.
+      required:
+        - name
+        - type
+        - sourceCode
+        - sourceCodeLanguage
+    CreateEvaluatorRequest:
+      title: CreateEvaluatorRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/CreateLlmAsJudgeEvaluatorRequest'
+          required:
+            - type
+          title: CreateLlmAsJudgeEvaluatorRequest
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/CreateCodeEvaluatorRequest'
+          required:
+            - type
+          title: CreateCodeEvaluatorRequest
+      description: >-
+        Initial evaluator definition with metadata and definition fields at the
+        same level. The returned evaluator starts at version `1`.
+    UpdateEvaluatorMetadataRequest:
+      title: UpdateEvaluatorMetadataRequest
+      type: object
+      description: Metadata-only update. At least one field must be provided.
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: New human-readable evaluator name.
+        description:
+          type: string
+          nullable: true
+          description: New description. Set to `null` to clear it.
+    UpdateLlmAsJudgeEvaluatorRequest:
+      title: UpdateLlmAsJudgeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: New human-readable evaluator name.
+        description:
+          type: string
+          nullable: true
+          description: New description. Set to `null` to clear it.
+        type:
+          type: string
+          const: llm_as_judge
+          description: Evaluator type. The type of an existing evaluator cannot change.
+        prompt:
+          $ref: '#/components/schemas/EvaluatorChatPromptInput'
+          description: >-
+            Complete replacement user prompt string or a list containing exactly
+            one user chat message.
+        modelConfig:
+          $ref: '#/components/schemas/EvaluatorModelConfig'
+          nullable: true
+          description: >-
+            Explicit model configuration. Set to `null` or omit to use the
+            project's default evaluation model.
+        variableMapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptVariableMappingInput'
+          nullable: true
+          description: >-
+            Complete replacement default variable mapping, or `null` when no
+            default is configured.
+        outputDefinition:
+          $ref: '#/components/schemas/EvaluatorOutputDefinition'
+          description: >-
+            Complete replacement output schema. Do not include an internal
+            persistence version.
+      required:
+        - type
+        - prompt
+        - outputDefinition
+    UpdateCodeEvaluatorRequest:
+      title: UpdateCodeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: New human-readable evaluator name.
+        description:
+          type: string
+          nullable: true
+          description: New description. Set to `null` to clear it.
+        type:
+          type: string
+          const: code
+          description: Evaluator type. The type of an existing evaluator cannot change.
+        sourceCode:
+          type: string
+          description: Complete replacement source code.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/CodeEvaluatorSourceCodeLanguage'
+          description: Runtime language used to execute the source code.
+      required:
+        - type
+        - sourceCode
+        - sourceCodeLanguage
+    UpdateEvaluatorRequest:
+      title: UpdateEvaluatorRequest
+      oneOf:
+        - $ref: '#/components/schemas/UpdateEvaluatorMetadataRequest'
+        - $ref: '#/components/schemas/UpdateLlmAsJudgeEvaluatorRequest'
+        - $ref: '#/components/schemas/UpdateCodeEvaluatorRequest'
+      description: >-
+        Metadata-only update or complete flattened definition replacement. At
+        least one field must be provided.
+    EvaluatorsPage:
+      title: EvaluatorsPage
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evaluator'
+          description: Evaluators for this page.
+        meta:
+          $ref: '#/components/schemas/CursorMeta'
+          description: Cursor pagination metadata.
+      required:
+        - data
+        - meta
+    EvaluatorVersionsPage:
+      title: EvaluatorVersionsPage
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluatorVersion'
+          description: Evaluator versions for this page in newest-first order.
+        meta:
+          $ref: '#/components/schemas/CursorMeta'
+          description: Cursor pagination metadata.
+      required:
+        - data
+        - meta
+    CursorMeta:
+      title: CursorMeta
+      type: object
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page. Omitted when there is no next page.
+    DeletedEvaluator:
+      title: DeletedEvaluator
+      type: object
+      description: Confirmation returned after successful evaluator deletion.
+      properties:
+        id:
+          type: string
+          description: Identifier of the deleted evaluator.
+      required:
+        - id
     ExperimentsResponse:
       title: ExperimentsResponse
       type: object
@@ -11520,6 +14340,7 @@ components:
             - $ref: '#/components/schemas/TraceEvent'
           required:
             - type
+          title: TraceEvent
         - type: object
           allOf:
             - type: object
@@ -11531,6 +14352,7 @@ components:
             - $ref: '#/components/schemas/ScoreEvent'
           required:
             - type
+          title: ScoreEvent
         - type: object
           allOf:
             - type: object
@@ -11542,6 +14364,7 @@ components:
             - $ref: '#/components/schemas/CreateSpanEvent'
           required:
             - type
+          title: CreateSpanEvent
         - type: object
           allOf:
             - type: object
@@ -11553,6 +14376,7 @@ components:
             - $ref: '#/components/schemas/UpdateSpanEvent'
           required:
             - type
+          title: UpdateSpanEvent
         - type: object
           allOf:
             - type: object
@@ -11564,6 +14388,7 @@ components:
             - $ref: '#/components/schemas/CreateGenerationEvent'
           required:
             - type
+          title: CreateGenerationEvent
         - type: object
           allOf:
             - type: object
@@ -11575,6 +14400,7 @@ components:
             - $ref: '#/components/schemas/UpdateGenerationEvent'
           required:
             - type
+          title: UpdateGenerationEvent
         - type: object
           allOf:
             - type: object
@@ -11586,6 +14412,7 @@ components:
             - $ref: '#/components/schemas/CreateEventEvent'
           required:
             - type
+          title: CreateEventEvent
         - type: object
           allOf:
             - type: object
@@ -11597,6 +14424,7 @@ components:
             - $ref: '#/components/schemas/SDKLogEvent'
           required:
             - type
+          title: SDKLogEvent
         - type: object
           allOf:
             - type: object
@@ -11608,6 +14436,7 @@ components:
             - $ref: '#/components/schemas/CreateObservationEvent'
           required:
             - type
+          title: CreateObservationEvent
         - type: object
           allOf:
             - type: object
@@ -11619,6 +14448,7 @@ components:
             - $ref: '#/components/schemas/UpdateObservationEvent'
           required:
             - type
+          title: UpdateObservationEvent
     ObservationType:
       title: ObservationType
       type: string
@@ -12195,6 +15025,7 @@ components:
         - type: object
           additionalProperties:
             type: integer
+          title: Object
         - $ref: '#/components/schemas/OpenAICompletionUsageSchema'
         - $ref: '#/components/schemas/OpenAIResponseUsageSchema'
     legacyMetricsResponse:
@@ -12587,6 +15418,13 @@ components:
             Histograms will return an array with [lower, upper, height] tuples.
       required:
         - data
+    ModelTokenizerId:
+      title: ModelTokenizerId
+      type: string
+      enum:
+        - openai
+        - claude
+      description: Tokenizer supported by Langfuse for model usage inference.
     PaginatedModels:
       title: PaginatedModels
       type: object
@@ -12624,7 +15462,6 @@ components:
           description: Apply only to generations which are newer than this ISO date.
         unit:
           $ref: '#/components/schemas/ModelUsageUnit'
-          nullable: true
           description: Unit used by this model.
         inputPrice:
           type: number
@@ -12688,7 +15525,7 @@ components:
             which will automatically create a single default tier named
             "Standard".
         tokenizerId:
-          type: string
+          $ref: '#/components/schemas/ModelTokenizerId'
           nullable: true
           description: >-
             Optional. Tokenizer to be applied to observations which match to
@@ -12701,6 +15538,7 @@ components:
       required:
         - modelName
         - matchPattern
+        - unit
     ObservationsV2Response:
       title: ObservationsV2Response
       type: object
@@ -13284,6 +16122,7 @@ components:
             - $ref: '#/components/schemas/ChatPrompt'
           required:
             - type
+          title: ChatPrompt
         - type: object
           allOf:
             - type: object
@@ -13295,6 +16134,7 @@ components:
             - $ref: '#/components/schemas/TextPrompt'
           required:
             - type
+          title: TextPrompt
     PromptType:
       title: PromptType
       type: string
@@ -13861,6 +16701,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectTraceV3'
           required:
             - kind
+          title: ScoreSubjectTraceV3
         - type: object
           allOf:
             - type: object
@@ -13872,6 +16713,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectObservationV3'
           required:
             - kind
+          title: ScoreSubjectObservationV3
         - type: object
           allOf:
             - type: object
@@ -13883,6 +16725,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectSessionV3'
           required:
             - kind
+          title: ScoreSubjectSessionV3
         - type: object
           allOf:
             - type: object
@@ -13894,6 +16737,7 @@ components:
             - $ref: '#/components/schemas/ScoreSubjectExperimentV3'
           required:
             - kind
+          title: ScoreSubjectExperimentV3
       description: >-
         A reference to the entity this score is attached to. Discriminated by
         "kind" — one of trace, observation, session, or experiment.
@@ -14038,6 +16882,7 @@ components:
             - $ref: '#/components/schemas/NumericScoreV3'
           required:
             - dataType
+          title: NumericScoreV3
         - type: object
           allOf:
             - type: object
@@ -14049,6 +16894,7 @@ components:
             - $ref: '#/components/schemas/BooleanScoreV3'
           required:
             - dataType
+          title: BooleanScoreV3
         - type: object
           allOf:
             - type: object
@@ -14060,6 +16906,7 @@ components:
             - $ref: '#/components/schemas/CategoricalScoreV3'
           required:
             - dataType
+          title: CategoricalScoreV3
         - type: object
           allOf:
             - type: object
@@ -14071,6 +16918,7 @@ components:
             - $ref: '#/components/schemas/TextScoreV3'
           required:
             - dataType
+          title: TextScoreV3
         - type: object
           allOf:
             - type: object
@@ -14082,6 +16930,7 @@ components:
             - $ref: '#/components/schemas/CorrectionScoreV3'
           required:
             - dataType
+          title: CorrectionScoreV3
     GetScoresV3Meta:
       title: GetScoresV3Meta
       type: object
@@ -14283,6 +17132,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataNumeric'
           required:
             - dataType
+          title: GetScoresResponseDataNumeric
         - type: object
           allOf:
             - type: object
@@ -14294,6 +17144,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataCategorical'
           required:
             - dataType
+          title: GetScoresResponseDataCategorical
         - type: object
           allOf:
             - type: object
@@ -14305,6 +17156,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataBoolean'
           required:
             - dataType
+          title: GetScoresResponseDataBoolean
         - type: object
           allOf:
             - type: object
@@ -14316,6 +17168,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataCorrection'
           required:
             - dataType
+          title: GetScoresResponseDataCorrection
         - type: object
           allOf:
             - type: object
@@ -14327,6 +17180,7 @@ components:
             - $ref: '#/components/schemas/GetScoresResponseDataText'
           required:
             - dataType
+          title: GetScoresResponseDataText
     GetScoresResponse:
       title: GetScoresResponse
       type: object
@@ -14398,7 +17252,7 @@ components:
         - llm_as_judge
         - code
       description: |-
-        The evaluator engine type.
+        The evaluator type.
 
         The unstable public API supports LLM-as-a-judge and code evaluators.
     unstableCodeEvaluatorSourceCodeLanguage:
@@ -14408,17 +17262,6 @@ components:
         - PYTHON
         - TYPESCRIPT
       description: Code evaluator runtime language.
-    unstableEvaluatorScope:
-      title: unstableEvaluatorScope
-      type: string
-      enum:
-        - project
-        - managed
-      description: |-
-        Where an evaluator comes from.
-
-        - `project`: created in your project
-        - `managed`: provided by Langfuse
     unstableEvaluationRuleTarget:
       title: unstableEvaluationRuleTarget
       type: string
@@ -14456,8 +17299,8 @@ components:
 
         - `paused`: enabled, but Langfuse has blocked execution until the
         underlying issue is resolved.
-    unstableEvaluationRuleMappingSource:
-      title: unstableEvaluationRuleMappingSource
+    unstablePromptVariableMappingSource:
+      title: unstablePromptVariableMappingSource
       type: string
       enum:
         - input
@@ -14591,6 +17434,7 @@ components:
                 #/components/schemas/unstablePublicNumericEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicNumericEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -14603,6 +17447,7 @@ components:
                 #/components/schemas/unstablePublicBooleanEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicBooleanEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -14615,6 +17460,7 @@ components:
                 #/components/schemas/unstablePublicCategoricalEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicCategoricalEvaluatorOutputDefinition
       description: >-
         Structured output definition to send when creating an evaluator.
 
@@ -14629,8 +17475,30 @@ components:
         - For `NUMERIC` and `BOOLEAN`, provide `reasoning.description` and
         `score.description`.
 
+        - For `NUMERIC`, `score.minValue` and `score.maxValue` optionally define
+        inclusive bounds. If both are set, `minValue` must not exceed
+        `maxValue`.
+
         - For `CATEGORICAL`, also provide `score.categories` and
         `score.shouldAllowMultipleMatches`.
+    unstablePublicNumericEvaluatorOutputScoreDefinition:
+      title: unstablePublicNumericEvaluatorOutputScoreDefinition
+      type: object
+      properties:
+        description:
+          type: string
+        minValue:
+          type: number
+          format: double
+          nullable: true
+          description: Inclusive minimum value for numeric evaluator scores.
+        maxValue:
+          type: number
+          format: double
+          nullable: true
+          description: Inclusive maximum value for numeric evaluator scores.
+      required:
+        - description
     unstablePublicNumericEvaluatorOutputDefinition:
       title: unstablePublicNumericEvaluatorOutputDefinition
       type: object
@@ -14641,7 +17509,8 @@ components:
         reasoning:
           $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
         score:
-          $ref: '#/components/schemas/unstableEvaluatorOutputFieldDefinition'
+          $ref: >-
+            #/components/schemas/unstablePublicNumericEvaluatorOutputScoreDefinition
       required:
         - dataType
         - reasoning
@@ -14708,6 +17577,7 @@ components:
                 #/components/schemas/unstablePublicNumericEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicNumericEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -14720,6 +17590,7 @@ components:
                 #/components/schemas/unstablePublicBooleanEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicBooleanEvaluatorOutputDefinition
         - type: object
           allOf:
             - type: object
@@ -14732,6 +17603,7 @@ components:
                 #/components/schemas/unstablePublicCategoricalEvaluatorOutputDefinition
           required:
             - dataType
+          title: UnstablePublicCategoricalEvaluatorOutputDefinition
       description: >-
         Evaluator output definition returned by the public API.
 
@@ -14977,11 +17849,11 @@ components:
       required:
         - column
         - operator
-    unstableEvaluationRuleMapping:
-      title: unstableEvaluationRuleMapping
+    unstablePromptVariableMappingInput:
+      title: unstablePromptVariableMappingInput
       type: object
       description: >-
-        Maps one evaluator variable to one source field from the target object.
+        Connects one prompt variable to the available evaluation data.
 
 
         Manual mappings are used for `llm_as_judge` evaluators. `code`
@@ -15012,10 +17884,10 @@ components:
         - `invalid_variable_mapping`: the variable name is unknown for this
         evaluator, or the selected `source` is not valid for the chosen `target`
 
-        - `missing_variable_mapping`: one or more LLM-as-judge evaluator
-        variables are not mapped yet
+        - `missing_variable_mapping`: one or more LLM-as-judge prompt variables
+        are not mapped yet
 
-        - `duplicate_variable_mapping`: the same evaluator variable appears more
+        - `duplicate_variable_mapping`: the same prompt variable appears more
         than once
 
         - `invalid_json_path`: the JSONPath expression is malformed. Remove it
@@ -15030,7 +17902,7 @@ components:
             Example: for the prompt `Judge {{input}} against {{output}}`, use
             `input` and `output`.
         source:
-          $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
+          $ref: '#/components/schemas/unstablePromptVariableMappingSource'
           description: >-
             Source field that should populate the prompt variable.
 
@@ -15059,6 +17931,30 @@ components:
       required:
         - variable
         - source
+    unstablePromptVariableMappingRead:
+      title: unstablePromptVariableMappingRead
+      type: object
+      description: |-
+        Connects one prompt variable to data from a target.
+
+        `source` is `null` when the mapping is incomplete.
+      properties:
+        variable:
+          type: string
+          description: Prompt variable name without braces.
+        source:
+          $ref: '#/components/schemas/unstablePromptVariableMappingSource'
+          nullable: true
+          description: >-
+            Source field populating the variable, or `null` when the mapping is
+            incomplete.
+        jsonPath:
+          type: string
+          nullable: true
+          description: Optional JSONPath selector applied to the selected source.
+      required:
+        - variable
+        - source
     unstableEvaluationRuleFilter:
       title: unstableEvaluationRuleFilter
       oneOf:
@@ -15073,6 +17969,7 @@ components:
             - $ref: '#/components/schemas/unstableDateTimeEvaluationRuleFilter'
           required:
             - type
+          title: UnstableDateTimeEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15084,6 +17981,7 @@ components:
             - $ref: '#/components/schemas/unstableStringEvaluationRuleFilter'
           required:
             - type
+          title: UnstableStringEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15095,6 +17993,7 @@ components:
             - $ref: '#/components/schemas/unstableNumberEvaluationRuleFilter'
           required:
             - type
+          title: UnstableNumberEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15106,6 +18005,7 @@ components:
             - $ref: '#/components/schemas/unstableStringOptionsEvaluationRuleFilter'
           required:
             - type
+          title: UnstableStringOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15117,6 +18017,7 @@ components:
             - $ref: '#/components/schemas/unstableCategoryOptionsEvaluationRuleFilter'
           required:
             - type
+          title: UnstableCategoryOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15128,6 +18029,7 @@ components:
             - $ref: '#/components/schemas/unstableArrayOptionsEvaluationRuleFilter'
           required:
             - type
+          title: UnstableArrayOptionsEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15139,6 +18041,7 @@ components:
             - $ref: '#/components/schemas/unstableStringObjectEvaluationRuleFilter'
           required:
             - type
+          title: UnstableStringObjectEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15150,6 +18053,7 @@ components:
             - $ref: '#/components/schemas/unstableNumberObjectEvaluationRuleFilter'
           required:
             - type
+          title: UnstableNumberObjectEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15161,6 +18065,7 @@ components:
             - $ref: '#/components/schemas/unstableBooleanEvaluationRuleFilter'
           required:
             - type
+          title: UnstableBooleanEvaluationRuleFilter
         - type: object
           allOf:
             - type: object
@@ -15172,6 +18077,7 @@ components:
             - $ref: '#/components/schemas/unstableNullEvaluationRuleFilter'
           required:
             - type
+          title: UnstableNullEvaluationRuleFilter
       description: >-
         One filter condition used to decide whether a live-ingested target
         should be evaluated.
@@ -15585,6 +18491,7 @@ components:
             - $ref: '#/components/schemas/unstableWidgetPlacement'
           required:
             - type
+          title: UnstableWidgetPlacement
         - type: object
           allOf:
             - type: object
@@ -15596,6 +18503,7 @@ components:
             - $ref: '#/components/schemas/unstablePresetPlacement'
           required:
             - type
+          title: UnstablePresetPlacement
       description: |-
         A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
         top-left cell (0-based; `y` grows downward), `width`/`height` its size
@@ -15662,6 +18570,7 @@ components:
             - $ref: '#/components/schemas/unstableCreateWidgetPlacement'
           required:
             - type
+          title: UnstableCreateWidgetPlacement
         - type: object
           allOf:
             - type: object
@@ -15673,6 +18582,7 @@ components:
             - $ref: '#/components/schemas/unstableCreatePresetPlacement'
           required:
             - type
+          title: UnstableCreatePresetPlacement
     unstableCreateWidgetPlacement:
       title: unstableCreateWidgetPlacement
       type: object
@@ -16064,7 +18974,7 @@ components:
 
         - how often scoring should run
 
-        - which target fields should populate each evaluator variable
+        - which target fields should populate each prompt variable
 
         - whether the deployment is active, inactive, or paused
 
@@ -16089,16 +18999,18 @@ components:
             evaluator name.
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+          nullable: true
           description: >-
-            Evaluator currently used by this rule.
+            Deprecated compatibility alias for `evaluators[0].evaluator`, or
+            `null`
+
+            when the rule currently has no evaluator assignments.
 
 
-            `name` and `scope` identify the evaluator family conceptually.
+            `id` identifies the evaluator family. The rule automatically uses
+            the
 
-            `id` is the currently active evaluator version in that family.
-
-            If you create a newer project version with the same evaluator name
-            later, existing evaluation rules are moved to it automatically.
+            latest available version of that evaluator.
         enabled:
           type: boolean
           description: Desired enabled state configured by the client.
@@ -16147,6 +19059,13 @@ components:
       title: unstableEvaluationRule
       type: object
       properties:
+        evaluators:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorAssignment'
+          description: >-
+            Evaluators attached to this rule in deterministic assignment order.
+            A `null` mapping inherits the evaluator version's default mapping.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           description: Target object type that should trigger scoring.
@@ -16160,11 +19079,12 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
           description: >-
-            Variable mappings used to populate evaluator runtime variables from
-            the live target object.
+            Deprecated compatibility alias containing the effective mapping for
+            `evaluators[0]`.
       required:
+        - evaluators
         - target
         - filter
         - mapping
@@ -16174,16 +19094,20 @@ components:
       title: unstableLegacyEvaluationRule
       type: object
       description: >-
-        Legacy trace- or dataset-level evaluation rule returned by list and get
-        for migration.
+        **Deprecated:** Legacy trace- or dataset-level evaluation rule returned
+        by list and get for migration.
 
 
         This resource is read-only through the unstable public API. Its mapping
-        preserves the trace, dataset item, or named observation that each
-        evaluator variable previously read from. Its filters use the persisted
-        legacy filter format so migration clients can read the configuration
-        without losing information.
+        preserves the trace, dataset item, or named observation selected for
+        each prompt variable.
       properties:
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableLegacyEvaluationRuleEvaluatorAssignment
+          description: Evaluators attached to this rule in deterministic assignment order.
         target:
           $ref: '#/components/schemas/unstableLegacyEvaluationRuleTarget'
         delay:
@@ -16204,11 +19128,12 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableLegacyEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstableLegacyPromptVariableMapping'
           description: >-
             Stored variable mappings, including the trace, dataset item, or
             named observation selected for each variable.
       required:
+        - evaluators
         - target
         - delay
         - timeScope
@@ -16245,6 +19170,8 @@ components:
       oneOf:
         - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluationRuleRequest'
         - $ref: '#/components/schemas/unstableCreateCodeEvaluationRuleRequest'
+        - $ref: >-
+            #/components/schemas/unstableCreateEvaluationRuleWithEvaluatorsRequest
       description: >-
         Request body for creating an evaluation rule.
 
@@ -16252,7 +19179,7 @@ components:
         Checklist for agents and SDK clients:
 
         - reference an existing evaluator family by `evaluator.name` and
-        `evaluator.scope`
+        `evaluator.type`
 
         - choose `target=observation` or `target=experiment`
 
@@ -16261,7 +19188,7 @@ components:
         `filter[].value`
 
         - for `llm_as_judge`, fetch or inspect the evaluator first and provide a
-        complete variable mapping for every evaluator variable
+        complete mapping for every prompt variable
 
         - for `code`, do not send variables or mappings; Langfuse stores the
         fixed code runtime mapping automatically
@@ -16269,6 +19196,43 @@ components:
         - optionally narrow execution with `filter`
 
         - set `enabled=true` only when you want live execution immediately
+    unstableCreateEvaluationRuleWithEvaluatorsRequest:
+      title: unstableCreateEvaluationRuleWithEvaluatorsRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableCreateEvaluationRuleEvaluatorAssignment
+          description: >-
+            One or more evaluator assignments. Providing the deprecated
+            top-level `evaluator` or `mapping` fields alongside this is rejected
+            with `400`.
+
+
+            Multiple assignments are supported on writable targets.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+        enabled:
+          type: boolean
+        sampling:
+          type: number
+          format: double
+          nullable: true
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+      required:
+        - name
+        - evaluators
+        - target
+        - enabled
     unstableCreateLlmAsJudgeEvaluationRuleRequest:
       title: unstableCreateLlmAsJudgeEvaluationRuleRequest
       type: object
@@ -16283,9 +19247,9 @@ components:
             LLM-as-judge evaluator family to use.
 
 
-            Use `name`, `scope`, and `type` from the evaluator endpoints. If
-            `type` is omitted, Langfuse defaults it to `llm_as_judge` for
-            backwards compatibility.
+            Use `name` and `type` from the evaluator endpoints. If `type` is
+            omitted, Langfuse defaults it to `llm_as_judge` for backwards
+            compatibility.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -16320,15 +19284,12 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
-          description: >-
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
+          description: |-
             LLM-as-judge variable mappings.
 
-
-            Every evaluator variable must appear exactly once.
-
-            Build this list from the evaluator `variables` array returned by the
-            evaluator endpoints.
+            Every prompt variable must appear exactly once.
+            Build this list from the evaluator's `variables` array.
       required:
         - name
         - evaluator
@@ -16348,7 +19309,7 @@ components:
             Code evaluator family to use.
 
 
-            Use `name`, `scope`, and `type` from the evaluator endpoints.
+            Use `name` and `type` from the evaluator endpoints.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -16402,8 +19363,16 @@ components:
         - If you only want to rename the rule or change sampling, send just
         those fields.
 
+        - To add, remove, or remap evaluators, send `evaluators`. It replaces
+        the whole assignment set, so include every evaluator the rule should
+        keep.
+
+        - `evaluators` cannot be combined with the deprecated
+        `evaluator`/`mapping` pair, which only ever addressed the first
+        assignment.
+
         - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping`
-        unless you are certain the existing mapping still matches the evaluator
+        unless you are certain the existing mapping still matches the prompt
         variables.
 
         - If you change `target` for an LLM-as-judge rule, usually send both
@@ -16419,19 +19388,35 @@ components:
           type: string
           nullable: true
           description: Updated deployment name.
+        evaluators:
+          type: array
+          items:
+            $ref: >-
+              #/components/schemas/unstableCreateEvaluationRuleEvaluatorAssignment
+          nullable: true
+          description: >-
+            Full replacement of the rule's evaluator assignments: entries that
+            are
+
+            not listed are detached.
+
+
+            Mutually exclusive with the deprecated `evaluator` and `mapping`
+            fields.
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
           nullable: true
           description: >-
-            Updated evaluator family.
+            Deprecated single-evaluator alias: updates the first assignment
+            only. Prefer `evaluators`.
 
 
             Langfuse resolves the provided evaluator family to its latest
             version before saving the rule.
 
-            A rule's evaluator type cannot be changed: provide `name` and
-            `scope` for an evaluator family of the rule's current type. To use a
-            different evaluator type, create a new rule.
+            A rule's evaluator type cannot be changed: provide `name` for an
+            evaluator family of the rule's current type. To use a different
+            evaluator type, create a new rule.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           nullable: true
@@ -16459,7 +19444,7 @@ components:
         mapping:
           type: array
           items:
-            $ref: '#/components/schemas/unstableEvaluationRuleMapping'
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
           nullable: true
           description: >-
             Updated LLM-as-judge variable mappings.
@@ -16485,8 +19470,8 @@ components:
         Evaluator family reference used when updating an evaluation rule.
 
 
-        `name` and `scope` identify the evaluator family in the authenticated
-        project context.
+        `name` identifies the evaluator family in the authenticated project
+        context.
 
         A rule's evaluator type cannot be changed, so this reference does not
         accept a `type`; the family must match the rule's current evaluator
@@ -16495,12 +19480,8 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
       required:
         - name
-        - scope
     unstableLlmAsJudgeEvaluationRuleEvaluatorReference:
       title: unstableLlmAsJudgeEvaluationRuleEvaluatorReference
       type: object
@@ -16511,16 +19492,12 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           $ref: '#/components/schemas/unstableLlmAsJudgeEvaluatorType'
           nullable: true
-          description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
+          description: Evaluator type. Defaults to `llm_as_judge` when omitted.
       required:
         - name
-        - scope
     unstableCodeEvaluationRuleEvaluatorReference:
       title: unstableCodeEvaluationRuleEvaluatorReference
       type: object
@@ -16529,22 +19506,73 @@ components:
         name:
           type: string
           description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           type: string
           const: code
           description: Must be `code`.
       required:
         - name
-        - scope
         - type
     unstableLlmAsJudgeEvaluatorType:
       title: unstableLlmAsJudgeEvaluatorType
       type: string
       enum:
         - llm_as_judge
+    unstableEvaluationRuleEvaluator:
+      title: unstableEvaluationRuleEvaluator
+      type: object
+      description: |-
+        Resolved evaluator currently used by the evaluation rule.
+
+        `id` identifies the evaluator family. Evaluation runs automatically use
+        the latest available evaluator version.
+      properties:
+        id:
+          type: string
+          description: >-
+            Identifier of the exact evaluator version currently used by the rule.
+        name:
+          type: string
+          description: Evaluator family name.
+        type:
+          $ref: '#/components/schemas/unstableEvaluatorType'
+          description: Evaluator type.
+      required:
+        - id
+        - name
+        - type
+    unstableEvaluationRuleEvaluatorAssignment:
+      title: unstableEvaluationRuleEvaluatorAssignment
+      type: object
+      properties:
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
+          nullable: true
+          description: >-
+            Rule-specific override, or `null` to inherit the evaluator version's
+            default mapping.
+      required:
+        - evaluator
+        - mapping
+    unstableLegacyEvaluationRuleEvaluatorAssignment:
+      title: unstableLegacyEvaluationRuleEvaluatorAssignment
+      type: object
+      description: '**Deprecated:** Evaluator assignment on a legacy trace or dataset rule.'
+      properties:
+        evaluator:
+          $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableLegacyPromptVariableMapping'
+          nullable: true
+      required:
+        - evaluator
+        - mapping
     unstableEvaluationRuleTimeScope:
       title: unstableEvaluationRuleTimeScope
       type: string
@@ -16557,21 +19585,18 @@ components:
       enum:
         - trace
         - dataset
-    unstableLegacyEvaluationRuleMapping:
-      title: unstableLegacyEvaluationRuleMapping
+      description: '**Deprecated:** Legacy trace or dataset evaluation target.'
+    unstableLegacyPromptVariableMapping:
+      title: unstableLegacyPromptVariableMapping
       type: object
       description: >-
-        Maps one evaluator variable to a trace, dataset item, or field on a
-        named observation in a legacy rule.
+        **Deprecated:** Connects one prompt variable to data from a trace,
+        dataset item, or named observation in a legacy rule.
       properties:
         variable:
           type: string
-          description: Evaluator prompt variable populated by this mapping.
         langfuseObject:
           $ref: '#/components/schemas/unstableLegacyEvaluationObject'
-          description: >-
-            Trace, dataset item, or observation type from which the value is
-            read.
         objectName:
           type: string
           nullable: true
@@ -16580,11 +19605,9 @@ components:
             `trace` or `dataset_item`.
         source:
           type: string
-          description: Stored field selected from the trace, dataset item, or observation.
         jsonPath:
           type: string
           nullable: true
-          description: Optional JSONPath selector applied to the selected field.
       required:
         - variable
         - langfuseObject
@@ -16606,33 +19629,37 @@ components:
         - embedding
         - guardrail
         - dataset_item
-    unstableEvaluationRuleEvaluator:
-      title: unstableEvaluationRuleEvaluator
+      description: >-
+        **Deprecated:** Legacy Langfuse object used by a trace or dataset
+        evaluation rule.
+    unstableCreateEvaluationRuleEvaluatorAssignment:
+      title: unstableCreateEvaluationRuleEvaluatorAssignment
       type: object
-      description: |-
-        Resolved evaluator currently used by the evaluation rule.
-
-        `id` is the exact active evaluator version.
-        `name`, `scope`, and `type` identify the evaluator family conceptually.
       properties:
-        id:
-          type: string
+        evaluator:
+          $ref: '#/components/schemas/unstableCreateEvaluationRuleEvaluatorReference'
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
+          nullable: true
           description: >-
-            Identifier of the exact evaluator version currently used by the rule.
+            Optional rule-specific override. Omit to inherit the evaluator
+            version's default mapping. Omit for code evaluators.
+      required:
+        - evaluator
+    unstableCreateEvaluationRuleEvaluatorReference:
+      title: unstableCreateEvaluationRuleEvaluatorReference
+      type: object
+      properties:
         name:
           type: string
-          description: Evaluator family name.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
           $ref: '#/components/schemas/unstableEvaluatorType'
-          description: Evaluator engine type.
+          nullable: true
+          description: Defaults to `llm_as_judge`.
       required:
-        - id
         - name
-        - scope
-        - type
     unstableDeleteEvaluatorResponse:
       title: unstableDeleteEvaluatorResponse
       type: object
@@ -16657,6 +19684,7 @@ components:
             - $ref: '#/components/schemas/unstableLlmAsJudgeEvaluator'
           required:
             - type
+          title: UnstableLlmAsJudgeEvaluator
         - type: object
           allOf:
             - type: object
@@ -16668,6 +19696,7 @@ components:
             - $ref: '#/components/schemas/unstableCodeEvaluator'
           required:
             - type
+          title: UnstableCodeEvaluator
       description: >-
         One evaluator that can be used for scoring.
 
@@ -16694,7 +19723,10 @@ components:
         - `GET /evaluators` returns the latest version of each available
         evaluator.
 
-        - `GET /evaluators/{id}` can return an older version.
+        - `GET /evaluators/{id}` returns the latest version.
+
+        - `id` identifies the evaluator family and remains stable when a new
+        version is created.
 
         - Evaluation rules always run against the latest version for the
         selected evaluator name within the same source (`project` or `managed`).
@@ -16704,18 +19736,13 @@ components:
       properties:
         id:
           type: string
-          description: Identifier of this evaluator.
+          description: Stable identifier of this evaluator across all versions.
         name:
           type: string
           description: Evaluator name.
         version:
           type: integer
           description: Version number of this evaluator.
-        scope:
-          $ref: '#/components/schemas/unstableEvaluatorScope'
-          description: >-
-            Where this evaluator comes from: your project or Langfuse-managed
-            defaults.
         variables:
           type: array
           items:
@@ -16727,11 +19754,28 @@ components:
             LLM evaluators require every variable to be mapped exactly once.
             Code evaluators always expose the fixed runtime payload fields and
             Langfuse maps them automatically.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
+          nullable: true
+          description: >-
+            Default variable mapping for this evaluator version, or `null` when
+            no default is configured.
+
+
+            An entry's `source` is `null` when that variable was never fully
+            configured, and sources
+
+            are not restricted by rule `target` here, because the default is
+            stored on the evaluator
+
+            rather than on any one rule.
         evaluationRuleCount:
           type: integer
           description: >-
             Number of evaluation rules in the project that currently use this
-            evaluator version.
+            evaluator.
         createdAt:
           type: string
           format: date-time
@@ -16744,8 +19788,8 @@ components:
         - id
         - name
         - version
-        - scope
         - variables
+        - mapping
         - evaluationRuleCount
         - createdAt
         - updatedAt
@@ -16820,6 +19864,7 @@ components:
             - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluatorRequest'
           required:
             - type
+          title: UnstableCreateLlmAsJudgeEvaluatorRequest
         - type: object
           allOf:
             - type: object
@@ -16831,6 +19876,7 @@ components:
             - $ref: '#/components/schemas/unstableCreateCodeEvaluatorRequest'
           required:
             - type
+          title: UnstableCreateCodeEvaluatorRequest
       description: >-
         Request body for creating an evaluator.
 
@@ -16838,8 +19884,8 @@ components:
         If the same `name` already exists in your project, Langfuse creates the
         next version and returns it.
 
-        Existing evaluation rules in the same project are then moved to that new
-        latest version automatically.
+        Existing evaluation rules automatically use the latest evaluator
+        version.
 
         If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
         backwards compatibility.
@@ -16869,6 +19915,14 @@ components:
           description: >-
             Optional explicit model configuration. Omit or set to `null` to use
             the project default evaluation model.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePromptVariableMappingInput'
+          nullable: true
+          description: >-
+            Optional default variable mapping inherited by rule assignments that
+            do not provide an override.
       required:
         - name
         - prompt

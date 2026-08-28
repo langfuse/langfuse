@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type MediaDescriptor } from "./mediaUtils";
-import { type MediaTagStatus } from "./MediaTag";
+import { type MediaTagStatus } from "../../MediaTag/MediaTag";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;
 

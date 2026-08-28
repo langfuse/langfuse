@@ -46,6 +46,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
@@ -172,8 +173,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluators.isSuccess, evaluators.data]);
+  }, [evaluators.isSuccess, evaluators.data, setDetailPageList]);
 
   const columnHelper = createColumnHelper<EvaluatorDataRow>();
   const columns = [
@@ -222,21 +222,18 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("totalCost", {
+    createNumberTableColumn<EvaluatorDataRow>({
+      accessorKey: "totalCost",
       header: "Total Cost (7d)",
-      id: "totalCost",
       enableSorting: false,
       size: 120,
-      cell: (row) => {
-        const totalCost = row.getValue();
+      emptyValue: "–",
+      formatter: (value) => usdFormatter(value, 2, 4),
+      getValue: (value, { row }) => {
+        if (row.original.isCostLoading) return { type: "loading" };
+        if (value === null || value === undefined) return undefined;
 
-        if (row.row.original.isCostLoading) {
-          return <Skeleton className="h-4 w-16" />;
-        }
-
-        if (totalCost != null) return usdFormatter(totalCost, 2, 4);
-
-        return "–";
+        return value;
       },
     }),
     columnHelper.accessor("result", {
@@ -270,7 +267,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             onClick={(e) => {
               e.stopPropagation();
               router.push(
-                `/project/${projectId}/evals/${encodeURIComponent(id)}`,
+                `/project/${projectId}/evals/legacy/${encodeURIComponent(id)}`,
               );
             }}
           >
@@ -418,7 +415,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    tableName: evaluatorFilterConfig.tableName,
+    isV4: false,
+  });
 
   const peekConfig = useMemo(
     () => ({
@@ -496,6 +496,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <TablePeekViewEvaluatorConfigDetail
           {...peekConfig}
           projectId={projectId}
+          readOnly={false}
         />
       </div>
       <Dialog
