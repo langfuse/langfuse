@@ -88,6 +88,20 @@ type AiFilterConfig = {
   generateFilters: (prompt: string) => Promise<WipFilterState | null>;
 };
 
+/** ClickHouse string-stored metadata only. Postgres JSON columns (prompts.config, datasetItems.metadata) use a hard CAST that errors on non-numeric values. */
+function allowsNumericMetadataComparisons(
+  column: ColumnDefinition | undefined,
+): boolean {
+  if (column?.type !== "stringObject") return false;
+  if (column.id === "config") return false;
+  if (column.internal.includes("di.")) return false;
+  return (
+    column.id === "metadata" ||
+    column.id === "eventMetadata" ||
+    column.id === "itemMetadata"
+  );
+}
+
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
   columns,
@@ -907,7 +921,7 @@ function FilterBuilderForm({
           // protect against invalid empty operator values
           if (value === "") return;
           const numericMetadataOperator =
-            column?.type === "stringObject" &&
+            allowsNumericMetadataComparisons(column) &&
             (filterOperators.number as readonly string[]).includes(value) &&
             value !== "=";
           if (numericMetadataOperator) {
@@ -927,7 +941,7 @@ function FilterBuilderForm({
             return;
           }
           if (
-            column?.type === "stringObject" &&
+            allowsNumericMetadataComparisons(column) &&
             filter.type === "numberObject"
           ) {
             handleFilterChange(
@@ -968,7 +982,7 @@ function FilterBuilderForm({
         </SelectTrigger>
         <SelectContent>
           {filter.type !== undefined
-            ? (column?.type === "stringObject"
+            ? (allowsNumericMetadataComparisons(column)
                 ? [
                     ...filterOperators.stringObject,
                     ...filterOperators.number.filter((op) => op !== "="),
