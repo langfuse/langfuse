@@ -478,6 +478,8 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
 
+    // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+    // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
     // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.

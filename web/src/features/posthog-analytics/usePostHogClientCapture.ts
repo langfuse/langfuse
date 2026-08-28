@@ -419,7 +419,6 @@ const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
-    "facet_fold_toggled",
     "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",

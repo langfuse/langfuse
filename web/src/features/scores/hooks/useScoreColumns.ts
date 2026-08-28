@@ -43,9 +43,13 @@ export function createScoreColumns<T extends Record<string, any>>({
     // The header prefix is decoupled from the id prefix so the score level can
     // be renamed without orphaning persisted column visibility and order.
     const level = headerPrefix ?? prefix;
-    const header = level
-      ? `${level}: ${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`
-      : `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
+    // The score's name identifies the column, so it comes first. A score
+    // column is narrow and truncates from the right, so a leading level ate
+    // the name and left every column of a level looking alike. The level
+    // still trails the name, where the hover title and the column picker
+    // pick it up in full.
+    const label = `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
+    const header = level ? `${label} · ${level}` : label;
 
     return {
       accessorKey,
