@@ -2,10 +2,11 @@
 name: cursor-agents-workflow
 description: |
   Human handoff, Linear branch names, reviewable (non-draft) PRs, Claude,
-  Greptile, and Codex review comments, preview test steps, and review-doubt
-  notes for Cursor agents. Use when a Cursor Cloud or Cursor desktop agent
-  implements a Linear issue, opens a GitHub PR, asks a human to test, or
-  handles Claude, Greptile, or Codex code-review comments.
+  Greptile, and Codex review comments, preview test steps, proof of work
+  posted on the GitHub PR, and review-doubt notes for Cursor agents. Use
+  when a Cursor Cloud or Cursor desktop agent implements a Linear issue,
+  opens a GitHub PR, asks a human to test, posts screenshots or videos,
+  or handles Claude, Greptile, or Codex code-review comments.
 ---
 
 # Cursor Agents Workflow
@@ -81,8 +82,32 @@ Data: demo project is enough.
 Sandbox: same path on http://localhost:3000 after the cloud stack is up.
 ```
 
-For user-visible behavior, attach proof of the fix: a screenshot, short
-video, or before/after. Docs-only changes can skip this.
+For user-visible behavior, say that proof is on the GitHub PR. Do not leave
+screenshots only in this chat. Docs-only changes can skip proof.
+
+## Proof of work on the PR
+
+Cursor chat attachments are not enough. Reviewers look at GitHub, so post
+the screenshot, short video, or before/after **on the GitHub PR**.
+
+After you have walkthrough artifacts:
+
+1. Embed them in the PR body when you create or update the PR.
+2. Repeat them in the last GitHub PR comment (same comment as "what to
+   doubt"), but only when that comment will be attributed to Cursor.
+
+Use HTML tags and absolute local paths. Do not commit artifacts to the repo.
+Claude Code and other tools that comment as the user still embed proof in
+the PR body; they skip only the last comment.
+
+```html
+<img src="/opt/cursor/artifacts/cost_cell_dash.png" alt="Cost cell shows a dash" />
+<video src="/opt/cursor/artifacts/cost_cell_dash.mp4" controls></video>
+```
+
+The PR tool uploads those paths and rewrites them to public URLs. Use
+width-only HTML if you need sizing; do not set a fixed `height`. Skip this
+for docs-only or non-visual changes.
 
 ## What to doubt
 
@@ -91,9 +116,13 @@ Cursor, not to a human author. Claude Code and other tools that comment as
 the authenticated user must skip this section.
 
 When the PR is ready for a human, post one last GitHub PR comment (not a
-changelog) that names the risky or curious parts:
+changelog). Lead with proof when the change is user-visible, then name the
+risky or curious parts:
 
 ```text
+Proof of work
+<img src="/opt/cursor/artifacts/cost_cell_dash.png" alt="Cost cell shows a dash" />
+
 What to doubt in review
 - I reused the existing cache key; check it cannot collide across projects.
 - I skipped Greptile's unused-import note — that import is used in the
