@@ -151,6 +151,26 @@ export async function markDatasetMediaUploadComplete(props: {
 }
 
 /**
+ * Throws if `datasetId` is missing, deleted, or belongs to another project.
+ * Call before persisting media bytes so a rejected request cannot leave
+ * unassociated blob content.
+ */
+export async function assertDatasetInProject(props: {
+  projectId: string;
+  datasetId: string;
+}): Promise<void> {
+  const dataset = await prisma.dataset.findFirst({
+    where: { id: props.datasetId, projectId: props.projectId },
+    select: { id: true },
+  });
+  if (!dataset) {
+    throw new LangfuseNotFoundError(
+      `Dataset ${props.datasetId} not found in project ${props.projectId}`,
+    );
+  }
+}
+
+/**
  * Declares a pending media association at upload (a dataset_item_media row with
  * null validFrom/jsonPath/referenceString), claimed when the item is written.
  * Verifies the dataset belongs to the project; the item may not exist yet.
@@ -162,15 +182,10 @@ export async function declarePendingDatasetItemMedia(props: {
   field: DatasetItemMediaField;
   mediaId: string;
 }) {
-  const dataset = await prisma.dataset.findFirst({
-    where: { id: props.datasetId, projectId: props.projectId },
-    select: { id: true },
+  await assertDatasetInProject({
+    projectId: props.projectId,
+    datasetId: props.datasetId,
   });
-  if (!dataset) {
-    throw new LangfuseNotFoundError(
-      `Dataset ${props.datasetId} not found in project ${props.projectId}`,
-    );
-  }
 
   // createMany for skipDuplicates: redeclaring the same (item, field, media)
   // is a no-op against the pending partial unique index (create would throw,

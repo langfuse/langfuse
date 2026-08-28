@@ -6,6 +6,9 @@ await import("./src/env.mjs");
 import { withSentryConfig } from "@sentry/nextjs";
 import { env } from "./src/env.mjs";
 import { renamedRouteRedirects } from "./redirects.mjs";
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
 
 /**
  * CSP headers
