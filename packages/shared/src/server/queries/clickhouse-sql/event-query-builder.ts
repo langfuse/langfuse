@@ -580,6 +580,9 @@ const AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_AGGREGATION_FIELDS
   >,
+  // One row per trace with user_id. Used by the users table so we collapse
+  // observations before grouping by user, matching traces-table semantics.
+  users: ["id", "projectId", "user_id"] as const,
 } as const;
 
 /**

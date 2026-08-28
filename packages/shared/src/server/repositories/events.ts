@@ -109,6 +109,7 @@ import {
   EventsQueryBuilder,
   CTEQueryBuilder,
   EventsAggQueryBuilder,
+  EventsAggregationQueryBuilder,
   buildEventsFullTableSplitQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
@@ -2921,13 +2922,31 @@ const usersFromEventsTableColumnDefinitions: UiColumnMappings = [
     uiTableName: "Timestamp",
     uiTableId: "timestamp",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."start_time"',
+    clickhouseSelect: "start_time",
+    queryPrefix: "e",
   },
 ];
 
+const buildUsersFromEventsTracesCte = (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
+  );
+
+  return new EventsAggregationQueryBuilder({ projectId })
+    .selectFieldSet("users")
+    .where(eventsFilter.apply())
+    .whereRaw("e.is_deleted = 0")
+    .buildWithSchema();
+};
+
 /**
- * Get users with trace counts from events table with pagination
- * Similar to getTracesGroupedByUsers but queries the events table
+ * Get users with trace counts from events table with pagination.
+ * Collapses observations to one row per trace first (same grain as the traces
+ * table), then groups by user_id. Grouping observation rows by user_id with
+ * uniq(trace_id) scans every event and can exceed ClickHouse memory limits.
  */
 export const getUsersFromEventsTable = async (
   projectId: string,
@@ -2936,24 +2955,19 @@ export const getUsersFromEventsTable = async (
   limit?: number,
   offset?: number,
 ) => {
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
-  );
-  const appliedEventsFilter = eventsFilter.apply();
+  const tracesCte = buildUsersFromEventsTracesCte(projectId, filter);
 
-  const queryBuilder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.user_id",
-    selectExpression: "e.user_id as user, uniq(e.trace_id) as count",
-  })
-    .where(appliedEventsFilter)
-    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
-    .whereRaw("e.is_deleted = 0")
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("traces", tracesCte)
+    .from("traces", "t")
+    .select("t.user_id as user", "count(*) as count")
+    .whereRaw("t.user_id IS NOT NULL AND length(t.user_id) > 0")
     .when(Boolean(searchQuery), (b) =>
-      b.whereRaw("e.user_id ILIKE {searchQuery: String}", {
+      b.whereRaw("t.user_id ILIKE {searchQuery: String}", {
         searchQuery: `%${searchQuery}%`,
       }),
     )
+    .groupBy("t.user_id")
     .orderBy("ORDER BY count DESC")
     .limit(limit, offset);
 
@@ -2975,33 +2989,24 @@ export const getUsersCountFromEventsTable = async (
   filter: FilterState,
   searchQuery?: string,
 ): Promise<{ totalCount: string }[]> => {
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
-  );
-  const appliedEventsFilter = eventsFilter.apply();
+  const tracesCte = buildUsersFromEventsTracesCte(projectId, filter);
 
-  const searchCondition = searchQuery
-    ? `AND e.user_id ILIKE {searchQuery: String}`
-    : "";
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("traces", tracesCte)
+    .from("traces", "t")
+    .select("uniq(t.user_id) AS totalCount")
+    .whereRaw("t.user_id IS NOT NULL AND t.user_id != ''")
+    .when(Boolean(searchQuery), (b) =>
+      b.whereRaw("t.user_id ILIKE {searchQuery: String}", {
+        searchQuery: `%${searchQuery}%`,
+      }),
+    );
 
-  const query = `
-    SELECT uniq(e.user_id) AS totalCount
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-    AND e.user_id IS NOT NULL
-    AND e.user_id != ''
-    AND e.is_deleted = 0
-    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-    ${searchCondition}
-  `;
+  const { query, params } = queryBuilder.buildWithParams();
 
   return queryClickhouse<{ totalCount: string }>({
     query,
-    params: {
-      projectId,
-      ...appliedEventsFilter.params,
-      ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
-    },
+    params,
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
