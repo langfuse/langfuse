@@ -1363,6 +1363,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
           project_id: projectId,
           name: "test-observation-for-score-v2",
           provided_model_name: "gpt-4-turbo",
+          prompt_name: "ticket-intent-router",
+          prompt_version: 2,
           start_time: Date.now() * 1000,
         }),
       ]);
@@ -1406,6 +1408,16 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         "test-observation-for-score-v2",
         (row: any) => row.observationName === "test-observation-for-score-v2",
       ],
+      [
+        "observationPromptName",
+        "ticket-intent-router",
+        (row: any) => row.observationPromptName === "ticket-intent-router",
+      ],
+      [
+        "observationPromptVersion",
+        2,
+        (row: any) => Number(row.observationPromptVersion) === 2,
+      ],
     ])(
       "should support %s dimension via events table",
       async (dimensionField, expectedValue, findRowFn) => {
@@ -1439,5 +1451,90 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         expect(foundRow).toBeDefined();
       },
     );
+
+    it("should filter scores-numeric by observationPromptVersion as a number", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-observation-v2",
+            type: "string",
+          },
+          {
+            column: "observationPromptVersion",
+            operator: "=",
+            value: 2,
+            type: "number",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "score-with-observation-v2",
+          }),
+        ]),
+      );
+
+      const mismatched = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(
+          JSON.stringify({
+            ...query,
+            filters: [
+              query.filters[0],
+              {
+                column: "observationPromptVersion",
+                operator: "=",
+                value: 99,
+                type: "number",
+              },
+            ],
+          }),
+        )}`,
+      );
+
+      expect(mismatched.status).toBe(200);
+      expect(mismatched.body.data ?? []).toHaveLength(0);
+    });
+
+    it("rejects a string filter on observationPromptVersion", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "observationPromptVersion",
+            operator: "=",
+            value: "2",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(400);
+    });
   });
 });

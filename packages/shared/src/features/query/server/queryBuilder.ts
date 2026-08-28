@@ -564,7 +564,7 @@ export class QueryBuilder {
         } else {
           clickhouseSelect = dimension.sql;
         }
-        type = "string";
+        type = dimension.type ?? "string";
         if (dimension.relationTable) {
           clickhouseTableName = dimension.relationTable;
         }
