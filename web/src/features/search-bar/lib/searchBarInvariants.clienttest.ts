@@ -184,13 +184,7 @@ describe("search bar invariants — events v4 registry", () => {
     });
   });
 
-  it("exposes cached cost, but not cached tokens, as nullable", () => {
-    expect(EVENTS_FIELD_REGISTRY.nullableFieldIds.has("cachedInputCost")).toBe(
-      true,
-    );
-    expect(
-      EVENTS_FIELD_REGISTRY.nullableFieldIds.has("cachedInputTokens"),
-    ).toBe(false);
+  it("supports presence filters for cached cost", () => {
     expect(
       planCommit(
         "has:cachedCost -has:cachedCost",

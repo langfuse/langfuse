@@ -54,41 +54,19 @@ export const isRootObservation = ({
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
 
-const CACHED_INPUT_TOTAL_KEYS = [
-  "input_cached_tokens",
-  "input_cache_read",
-  "cache_read_input_tokens",
-  "cached_content_token_count",
-] as const;
+const isCachedInputMetric = (key: string): boolean =>
+  key.includes("cached") || key.includes("cache_read");
 
-const CACHED_INPUT_MODALITY_KEYS = [
-  "input_cached_text_tokens",
-  "input_cached_audio_tokens",
-] as const;
-
-/**
- * Cache-read metric semantics shared by the v4 events table UI and its
- * ClickHouse filters. Prefer a provider's total bucket so modality details are
- * not double-counted; fall back to summing those details when no total exists.
- */
 const findCachedInputMetric = (
   details?: Record<string, number> | null,
 ): number | undefined => {
-  for (const key of CACHED_INPUT_TOTAL_KEYS) {
-    if (details && Object.prototype.hasOwnProperty.call(details, key)) {
-      return Number(details?.[key] ?? 0);
-    }
-  }
+  const values = Object.entries(details ?? {})
+    .filter(([key]) => isCachedInputMetric(key))
+    .map(([, value]) => Number(value));
 
-  const hasModalityMetric = CACHED_INPUT_MODALITY_KEYS.some(
-    (key) => details && Object.prototype.hasOwnProperty.call(details, key),
-  );
-  if (!hasModalityMetric) return undefined;
-
-  return CACHED_INPUT_MODALITY_KEYS.reduce(
-    (sum, key) => sum + Number(details?.[key] ?? 0),
-    0,
-  );
+  return values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0)
+    : undefined;
 };
 
 export const getCachedInputMetric = (
@@ -103,18 +81,14 @@ const cachedInputMetricSql = (
   detailsColumn: string,
   missingValueSql: "0" | "NULL",
 ): string => {
-  const totalBranches = CACHED_INPUT_TOTAL_KEYS.flatMap((key) => [
-    `mapContains(${detailsColumn}, '${key}')`,
-    `${detailsColumn}['${key}']`,
-  ]);
-  const hasModalityMetric = CACHED_INPUT_MODALITY_KEYS.map(
-    (key) => `mapContains(${detailsColumn}, '${key}')`,
-  ).join(" OR ");
-  const modalitySum = CACHED_INPUT_MODALITY_KEYS.map(
-    (key) => `${detailsColumn}['${key}']`,
-  ).join(" + ");
+  const keyPredicate = (key: string) =>
+    `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+  const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
+  const sum = `arraySum(mapValues(${filteredDetails}))`;
 
-  return `multiIf(${totalBranches.concat([hasModalityMetric, modalitySum, missingValueSql]).join(", ")})`;
+  return missingValueSql === "NULL"
+    ? `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`
+    : sum;
 };
 
 export const eventsTableCachedInputTokensSql = cachedInputMetricSql(

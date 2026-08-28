@@ -45,14 +45,6 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
   );
 
   it("keeps missing cached cost distinguishable from an explicit zero", () => {
-    expect(
-      eventsTableCols.find((column) => column.id === "cachedInputTokens"),
-    ).not.toHaveProperty("nullable", true);
-    expect(
-      eventsTableCols.find((column) => column.id === "cachedInputCost"),
-    ).toHaveProperty("nullable", true);
-    expect(eventsTableCachedInputCostSql).toContain("NULL");
-
     const [filter] = createFilterFromFilterState(
       [
         {

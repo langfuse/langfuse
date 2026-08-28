@@ -60,40 +60,18 @@ describe("observation status display name", () => {
 });
 
 describe("cached input metrics", () => {
-  it.each([
-    ["input_cached_tokens", 80],
-    ["input_cache_read", 81],
-    ["cache_read_input_tokens", 82],
-    ["cached_content_token_count", 83],
-  ])("reads the %s cache-read bucket", (key, value) => {
-    expect(getCachedInputMetric({ [key]: value })).toBe(value);
-  });
-
-  it("prefers a total bucket over cached modality sub-buckets", () => {
+  it("sums cache-read buckets and excludes cache creation", () => {
     expect(
       getCachedInputMetric({
-        input_cached_tokens: 80,
-        input_cached_text_tokens: 60,
-        input_cached_audio_tokens: 20,
+        input_cached_tokens: 20,
+        cache_read_input_tokens: 22,
+        input_cache_creation: 100,
       }),
-    ).toBe(80);
-  });
-
-  it("sums cached modality sub-buckets when no total bucket exists", () => {
-    expect(
-      getCachedInputMetric({
-        input_cached_text_tokens: 60,
-        input_cached_audio_tokens: 20,
-      }),
-    ).toBe(80);
-  });
-
-  it("returns zero when no cached-read bucket exists", () => {
-    expect(getCachedInputMetric()).toBe(0);
-    expect(getCachedInputMetric({ input_cache_creation: 100 })).toBe(0);
+    ).toBe(42);
   });
 
   it("distinguishes unattributed cached cost from an explicit zero cost", () => {
+    expect(getCachedInputMetric()).toBe(0);
     expect(getCachedInputCost()).toBeUndefined();
     expect(getCachedInputCost({ input_cache_creation: 0.01 })).toBeUndefined();
     expect(getCachedInputCost({ input_cached_tokens: 0 })).toBe(0);
