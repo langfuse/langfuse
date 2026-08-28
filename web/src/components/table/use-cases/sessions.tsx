@@ -8,9 +8,9 @@ import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -553,32 +553,22 @@ export default function SessionsTable({
       },
       columns: scoreColumns,
     },
-    {
+    createLinkListTableColumn<SessionTableRow>({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.includes("userIds"),
-      id: "userIds",
       header: "User IDs",
       size: 200,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["userIds"] = row.getValue("userIds");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value && Array.isArray(value) ? (
-          <div className="flex gap-1">
-            {(value as string[]).map((user) => (
-              <TableLink
-                key={user}
-                path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-                value={user}
-              />
-            ))}
-          </div>
-        ) : undefined;
+      getCell: (userIds) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!userIds?.length) return undefined;
+
+        return userIds.map((userId) => ({
+          path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,
+          value: userId,
+        }));
       },
-    },
+    }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "countTraces",
       header: "Traces",
