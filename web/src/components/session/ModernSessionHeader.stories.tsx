@@ -354,7 +354,11 @@ export const TestHidesAndRevealsDetails = meta.story({
     const hideTraceDetail = await canvas.findByRole("button", {
       name: "Hide trace and span counts in session header",
     });
-    await userEvent.hover(canvas.getByText("traces"));
+    const visibleTraceDetail = hideTraceDetail.closest(
+      "[data-overflow-visible-item='true']",
+    );
+    await expect(visibleTraceDetail).toBeInTheDocument();
+    await userEvent.hover(visibleTraceDetail!);
     await expect(hideTraceDetail).toBeVisible();
     await userEvent.click(hideTraceDetail);
     await expect(
