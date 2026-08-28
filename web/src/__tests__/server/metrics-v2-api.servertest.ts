@@ -1490,7 +1490,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         ]),
       );
 
-      const mismatched = await makeAPICall(
+      const mismatched = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(
           JSON.stringify({
@@ -1509,7 +1510,7 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       );
 
       expect(mismatched.status).toBe(200);
-      expect(mismatched.body.data ?? []).toHaveLength(0);
+      expect(mismatched.body.data).toHaveLength(0);
     });
 
     it("rejects a string filter on observationPromptVersion", async () => {
