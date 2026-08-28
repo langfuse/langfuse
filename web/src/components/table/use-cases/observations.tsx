@@ -60,6 +60,7 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { IOTableCell } from "../../design-system/table/components/IOTableCell/IOTableCell";
+import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
@@ -729,7 +730,12 @@ export default function ObservationsTable({
       id: "input",
       size: 300,
       loadingCell: () => (
-        <IOTableCell isLoading variant="input" singleLine={rowHeight === "s"} />
+        <IOTableCell
+          isLoading
+          variant="input"
+          singleLine={rowHeight === "s"}
+          renderMediaReference={renderMediaReference}
+        />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -757,6 +763,7 @@ export default function ObservationsTable({
           isLoading
           variant="output"
           singleLine={rowHeight === "s"}
+          renderMediaReference={renderMediaReference}
         />
       ),
       cell: ({ row }) => {
@@ -972,7 +979,11 @@ export default function ObservationsTable({
       header: "Metadata",
       size: 300,
       loadingCell: () => (
-        <IOTableCell isLoading singleLine={rowHeight === "s"} />
+        <IOTableCell
+          isLoading
+          singleLine={rowHeight === "s"}
+          renderMediaReference={renderMediaReference}
+        />
       ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -1648,8 +1659,22 @@ const GenerationsDynamicCell = ({
     col === "input" ? "input" : col === "output" ? "output" : "default";
 
   if (observation.isPending) {
-    return <IOTableCell isLoading variant={variant} singleLine={singleLine} />;
+    return (
+      <IOTableCell
+        isLoading
+        variant={variant}
+        singleLine={singleLine}
+        renderMediaReference={renderMediaReference}
+      />
+    );
   }
 
-  return <IOTableCell data={data} variant={variant} singleLine={singleLine} />;
+  return (
+    <IOTableCell
+      data={data}
+      variant={variant}
+      singleLine={singleLine}
+      renderMediaReference={renderMediaReference}
+    />
+  );
 };

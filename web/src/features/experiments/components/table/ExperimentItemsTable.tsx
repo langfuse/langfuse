@@ -42,10 +42,7 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
-import {
-  createIOTableColumn,
-  IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -62,6 +59,7 @@ import {
   getExperimentColorStyles,
 } from "./types";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -195,7 +193,12 @@ const StackedOutputRow = ({
           markerClass,
         )}
       />
-      <IOTableCell data={output} singleLine={singleLine} variant="output" />
+      <IOTableCell
+        data={output}
+        singleLine={singleLine}
+        variant="output"
+        renderMediaReference={renderMediaReference}
+      />
     </div>
   );
 };
@@ -242,7 +245,11 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <IOTableCell isLoading singleLine={singleLine} />
+                <IOTableCell
+                  isLoading
+                  singleLine={singleLine}
+                  renderMediaReference={renderMediaReference}
+                />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -849,8 +856,7 @@ export default function ExperimentItemsTable({
       header: "Input",
       size: 300,
       enableHiding: true,
-      getCell: (value) =>
-        ioLoading ? IO_TABLE_COLUMN_LOADING : (value ?? null),
+      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? null)),
       singleLine: ioSingleLine,
     }),
     createIOTableColumn<ExperimentItemsTableRow>({
@@ -858,7 +864,7 @@ export default function ExperimentItemsTable({
       header: "Expected Output",
       size: 300,
       enableHiding: true,
-      getCell: (value) => (ioLoading ? IO_TABLE_COLUMN_LOADING : (value ?? "")),
+      getCell: (value) => (ioLoading ? { type: "loading" } : (value ?? "")),
       singleLine: ioSingleLine,
       variant: "output",
     }),

@@ -42,10 +42,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import {
-  createIOTableColumn,
-  IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
@@ -1166,9 +1163,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("input"),
       size: 300,
       getCell: (value, { row }) =>
-        isIoPending(row.original.id)
-          ? IO_TABLE_COLUMN_LOADING
-          : value || undefined,
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
       singleLine: rowHeight === "s",
       enableHiding: true,
     }),
@@ -1177,9 +1172,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("output"),
       size: 300,
       getCell: (value, { row }) =>
-        isIoPending(row.original.id)
-          ? IO_TABLE_COLUMN_LOADING
-          : value || undefined,
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
       singleLine: rowHeight === "s",
       variant: "output",
       enableHiding: true,
@@ -1193,9 +1186,7 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/metadata",
       },
       getCell: (value, { row }) =>
-        isIoPending(row.original.id)
-          ? IO_TABLE_COLUMN_LOADING
-          : value || undefined,
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
       singleLine: rowHeight === "s",
       enableHiding: true,
     }),
@@ -1237,6 +1228,7 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       defaultHidden: true,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     createDurationTableColumn<EventsTableRow>({

@@ -7,10 +7,7 @@ import {
   type TracingSearchType,
 } from "@langfuse/shared";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
-import {
-  createIOTableColumn,
-  IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
@@ -392,7 +389,7 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return IO_TABLE_COLUMN_LOADING;
+          if (!io && observationIOPending) return { type: "loading" };
           return io?.input;
         },
         singleLine: rowHeight === "s",
@@ -406,7 +403,7 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return IO_TABLE_COLUMN_LOADING;
+          if (!io && observationIOPending) return { type: "loading" };
           return io?.output;
         },
         singleLine: rowHeight === "s",
@@ -420,7 +417,7 @@ export function SampleObservationSelectorBase(
         enableHiding: true,
         getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          if (!io && observationIOPending) return IO_TABLE_COLUMN_LOADING;
+          if (!io && observationIOPending) return { type: "loading" };
           return io?.metadata;
         },
         singleLine: rowHeight === "s",

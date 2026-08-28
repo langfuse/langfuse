@@ -108,6 +108,7 @@ export const AutomationExecutionsTable: React.FC<
     createIOTableColumn<ActionExecutionRow>({
       accessorKey: "output",
       header: "Output",
+      getCell: (value) => value || "-",
       variant: "output",
     }),
     {

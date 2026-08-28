@@ -1,5 +1,6 @@
 import { api } from "@/src/utils/api";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 
@@ -33,7 +34,13 @@ export const DatasetItemIOCell = ({
   );
 
   if (datasetItem.isLoading) {
-    return <IOTableCell isLoading singleLine={singleLine} />;
+    return (
+      <IOTableCell
+        isLoading
+        singleLine={singleLine}
+        renderMediaReference={renderMediaReference}
+      />
+    );
   }
 
   return (
@@ -44,6 +51,7 @@ export const DatasetItemIOCell = ({
           : datasetItem.data?.input
       }
       singleLine={singleLine}
+      renderMediaReference={renderMediaReference}
     />
   );
 };
@@ -112,7 +120,14 @@ export const TraceObservationIOCell = ({
 
   const variant = io === "output" ? "output" : "default";
   if (isLoading || !data) {
-    return <IOTableCell isLoading variant={variant} singleLine={singleLine} />;
+    return (
+      <IOTableCell
+        isLoading
+        variant={variant}
+        singleLine={singleLine}
+        renderMediaReference={renderMediaReference}
+      />
+    );
   }
 
   return (
@@ -120,6 +135,7 @@ export const TraceObservationIOCell = ({
       data={io === "output" ? data.output : data.input}
       variant={variant}
       singleLine={singleLine}
+      renderMediaReference={renderMediaReference}
     />
   );
 };

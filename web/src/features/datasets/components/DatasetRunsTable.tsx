@@ -520,6 +520,7 @@ export function DatasetRunsTable(props: {
       header: "Metadata",
       size: 200,
       enableHiding: true,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     {

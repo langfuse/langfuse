@@ -216,6 +216,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       enableHiding: true,
       size: 120,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     {

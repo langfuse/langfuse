@@ -1,13 +1,13 @@
 import preview from "../../../../../.storybook/preview";
+import { expect } from "storybook/test";
 
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import {
   DataTable,
   type AsyncTableData,
 } from "@/src/components/table/data-table";
-import {
-  createIOTableColumn,
-  IO_TABLE_COLUMN_LOADING,
-} from "./createIOTableColumn";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
+import { createIOTableColumn } from "./createIOTableColumn";
 
 type Row = {
   compact: unknown;
@@ -16,6 +16,10 @@ type Row = {
   output: unknown;
 };
 
+const renderMediaReference = (descriptor: MediaDescriptor) => (
+  <MediaTag contentType={descriptor.contentType} status="idle" />
+);
+
 const columns = [
   createIOTableColumn<Row>({
     accessorKey: "input",
@@ -23,10 +27,10 @@ const columns = [
     size: 260,
     singleLine: true,
     enableExpandOnHover: true,
+    renderMediaReference,
     getCell: (input, { row }) => {
-      if (row.original.isInputLoading) return IO_TABLE_COLUMN_LOADING;
-      if (input === null || input === undefined) return undefined;
-      return input;
+      if (row.original.isInputLoading) return { type: "loading" };
+      return input || undefined;
     },
   }),
   createIOTableColumn<Row>({
@@ -34,6 +38,8 @@ const columns = [
     header: "Output",
     size: 260,
     singleLine: true,
+    renderMediaReference,
+    getCell: (output) => output || "-",
     variant: "output",
   }),
   createIOTableColumn<Row>({
@@ -41,6 +47,7 @@ const columns = [
     header: "Compact",
     size: 260,
     compact: true,
+    renderMediaReference,
   }),
 ];
 
@@ -114,5 +121,21 @@ export const Loading = meta.story({
       isLoading: true,
       isError: false,
     },
+  },
+});
+
+export const TestCustomFalsyHandling = meta.story({
+  name: "(Test) Custom Falsy Handling",
+  args: {
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [{ input: false, output: false, compact: false }],
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.queryByText("false")).toBeInTheDocument();
+    await expect(canvas.getAllByText("false")).toHaveLength(1);
+    await expect(canvas.getByText("-")).toBeInTheDocument();
   },
 });

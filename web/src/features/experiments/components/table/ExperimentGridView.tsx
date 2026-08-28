@@ -1,9 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  createIOTableColumn,
-  IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -207,16 +204,14 @@ export const ExperimentGridView = ({
         accessorKey: "input",
         header: "Input",
         size: 200,
-        getCell: (value) =>
-          isLoading ? IO_TABLE_COLUMN_LOADING : (value ?? null),
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
       }),
       createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "expectedOutput",
         header: "Expected Output",
         size: 200,
-        getCell: (value) =>
-          isLoading ? IO_TABLE_COLUMN_LOADING : (value ?? null),
+        getCell: (value) => (isLoading ? { type: "loading" } : (value ?? null)),
         singleLine,
         variant: "output",
       }),

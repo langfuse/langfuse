@@ -118,12 +118,14 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       header: "Range",
       enableHiding: true,
       size: 300,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     createIOTableColumn<ScoreConfigTableRow>({
       accessorKey: "description",
       header: "Description",
       enableHiding: true,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     {

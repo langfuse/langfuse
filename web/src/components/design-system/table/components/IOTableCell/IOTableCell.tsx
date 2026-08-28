@@ -4,10 +4,12 @@ import {
   IO_TABLE_CHAR_LIMIT,
   JSONView,
 } from "@/src/components/ui/CodeJsonViewer";
-import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
-import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import {
+  splitStringByMediaReferences,
+  type MediaDescriptor,
+} from "@/src/components/ui/media/mediaUtils";
 import { cn } from "@/src/utils/tailwind";
-import { memo, useRef, useState, type ReactNode } from "react";
+import { Fragment, memo, useRef, useState, type ReactNode } from "react";
 import {
   HoverCard,
   HoverCardContent,
@@ -16,7 +18,10 @@ import {
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 export type IOTableCellVariant = "default" | "input" | "output";
-export type IOTableCellSize = "default" | "compact";
+type IOTableCellSize = "default" | "compact";
+export type IOTableCellMediaRenderer = (
+  descriptor: MediaDescriptor,
+) => ReactNode;
 
 const ioTableCellVariantClassNames: Record<IOTableCellVariant, string> = {
   default: "",
@@ -31,6 +36,7 @@ const ioTableCellPaddingClassNames: Record<IOTableCellSize, string> = {
 
 type IOTableCellProps = {
   enableExpandOnHover?: boolean;
+  renderMediaReference: IOTableCellMediaRenderer;
   singleLine?: boolean;
   size?: IOTableCellSize;
   variant?: IOTableCellVariant;
@@ -43,7 +49,10 @@ type IOTableCellProps = {
   | { data?: never; isLoading: true }
 );
 
-function renderStringWithMediaReferences(value: string) {
+function renderStringWithMediaReferences(
+  value: string,
+  renderMediaReference: IOTableCellProps["renderMediaReference"],
+) {
   // Copy the segments: the quote-trim below mutates `value` in place, and the
   // originals belong to splitStringByMediaReferences (unsafe to mutate if it
   // ever memoizes its result).
@@ -78,10 +87,9 @@ function renderStringWithMediaReferences(value: string) {
 
   return segments.map((segment, index) =>
     segment.type === "media" ? (
-      <MediaReferenceTag
-        key={`${segment.value}-${index}`}
-        descriptor={segment.descriptor}
-      />
+      <Fragment key={`${segment.value}-${index}`}>
+        {renderMediaReference(segment.descriptor)}
+      </Fragment>
     ) : (
       segment.value
     ),
@@ -90,6 +98,8 @@ function renderStringWithMediaReferences(value: string) {
 
 export const IOTableCell = memo(function IOTableCell({
   enableExpandOnHover = false,
+  // Inject media rendering so this component stays independent of the tRPC-backed resolver and remains usable in Storybook.
+  renderMediaReference,
   singleLine = false,
   size = "default",
   variant = "default",
@@ -155,7 +165,10 @@ export const IOTableCell = memo(function IOTableCell({
         }
       >
         {singleLineText
-          ? renderStringWithMediaReferences(singleLineText)
+          ? renderStringWithMediaReferences(
+              singleLineText,
+              renderMediaReference,
+            )
           : null}
       </div>
     );

@@ -2,24 +2,22 @@ import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import {
   IOTableCell,
+  type IOTableCellMediaRenderer,
   type IOTableCellVariant,
 } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { renderMediaReference as renderResolvedMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   createTableColumn,
   type TableColumnOptions,
 } from "./utils/createTableColumn";
 
-export const IO_TABLE_COLUMN_LOADING = Symbol("IO_TABLE_COLUMN_LOADING");
-
-type IOTableColumnCell<TValue> =
-  | TValue
-  | typeof IO_TABLE_COLUMN_LOADING
-  | undefined;
+type IOTableColumnCell<TValue> = TValue | { type: "loading" } | undefined;
 
 export function createIOTableColumn<TData extends RowData, TValue = unknown>({
   compact = false,
   enableExpandOnHover = false,
   getCell,
+  renderMediaReference = renderResolvedMediaReference,
   singleLine = false,
   variant = "default",
   ...options
@@ -30,6 +28,7 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
     value: TValue | null | undefined,
     context: CellContext<TData, TValue | null | undefined>,
   ) => IOTableColumnCell<TValue>;
+  renderMediaReference?: IOTableCellMediaRenderer;
   singleLine?: boolean;
   variant?: IOTableCellVariant;
 }) {
@@ -40,7 +39,13 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
     variant,
   };
 
-  const loadingCell = <IOTableCell {...cellProps} isLoading />;
+  const loadingCell = (
+    <IOTableCell
+      {...cellProps}
+      isLoading
+      renderMediaReference={renderMediaReference}
+    />
+  );
 
   return createTableColumn<TData, TValue>({
     ...options,
@@ -56,9 +61,22 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
       }
 
       if (cell === undefined) return null;
-      if (cell === IO_TABLE_COLUMN_LOADING) return loadingCell;
+      if (
+        typeof cell === "object" &&
+        cell !== null &&
+        "type" in cell &&
+        cell.type === "loading"
+      ) {
+        return loadingCell;
+      }
 
-      return <IOTableCell {...cellProps} data={cell} />;
+      return (
+        <IOTableCell
+          {...cellProps}
+          data={cell}
+          renderMediaReference={renderMediaReference}
+        />
+      );
     },
   });
 }

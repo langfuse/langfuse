@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -479,19 +480,22 @@ export const ExperimentGridCell = ({
       {
         accessorKey: "output",
         header: "Output",
-        cell: ({ data }) => (
-          <div className="min-h-8">
-            {data.isLoading ? (
-              <IOTableCell isLoading variant="output" singleLine={singleLine} />
-            ) : (
-              <IOTableCell
-                data={data.output ?? null}
-                variant="output"
-                singleLine={singleLine}
-              />
-            )}
-          </div>
-        ),
+        cell: ({ data }) =>
+          data.isLoading ? (
+            <IOTableCell
+              isLoading
+              variant="output"
+              singleLine={singleLine}
+              renderMediaReference={renderMediaReference}
+            />
+          ) : (
+            <IOTableCell
+              data={data.output ?? null}
+              variant="output"
+              singleLine={singleLine}
+              renderMediaReference={renderMediaReference}
+            />
+          ),
       },
       // Keep all score levels together. Individual score visibility still
       // follows the list-view columns.

@@ -421,6 +421,7 @@ export function DatasetsTable(props: { projectId: string }) {
       header: "Metadata",
       enableHiding: true,
       size: 300,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     {

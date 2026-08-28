@@ -122,12 +122,14 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
       accessorKey: "before",
       header: "Before",
       size: 300,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     createIOTableColumn<AuditLogRow>({
       accessorKey: "after",
       header: "After",
       size: 300,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
   ];

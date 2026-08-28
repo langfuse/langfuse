@@ -100,6 +100,7 @@ describe("ExperimentGridCell", () => {
       screen.getByText("Output").parentElement?.nextElementSibling;
 
     expect(outputContent).toHaveClass("h-16", "overflow-hidden");
+    expect(outputContent?.firstElementChild).toBe(screen.getByText("IO cell"));
   });
 
   it("links evaluator score comments to their execution trace", async () => {

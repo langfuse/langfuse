@@ -1,13 +1,20 @@
 import { expect, fireEvent, within } from "storybook/test";
 
 import preview from "../../../../../../.storybook/preview";
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import { IOTableCell } from "./IOTableCell";
 
 const MEDIA_REF =
   "@@@langfuseMedia:type=image/png|id=cc48838a-3da8-4ca4-a007-2cf8df930e69|source=bytes@@@";
 
+const renderMediaReference = (descriptor: MediaDescriptor) => (
+  <MediaTag contentType={descriptor.contentType} status="idle" />
+);
+
 const meta = preview.meta({
   component: IOTableCell,
+  args: { renderMediaReference },
   parameters: {
     layout: "fullscreen",
   },

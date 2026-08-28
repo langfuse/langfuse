@@ -481,6 +481,7 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
+      getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
     createIOTableColumn<ExperimentsTableRow>({

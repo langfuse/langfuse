@@ -30,6 +30,8 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import TableIdOrName from "@/src/components/table/table-id";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   LevelCountsDisplay,
@@ -59,6 +61,10 @@ import {
   PlusCircle,
   Trash,
 } from "lucide-react";
+
+const renderMediaReference = (descriptor: MediaDescriptor) => (
+  <MediaTag contentType={descriptor.contentType} status="idle" />
+);
 
 // =============================================================================
 // FIDELITY GOAL
@@ -286,7 +292,12 @@ function buildTraceColumns(
       id: "input",
       size: 400,
       loadingCell: () => (
-        <IOTableCell isLoading variant="input" singleLine={singleLine} />
+        <IOTableCell
+          isLoading
+          variant="input"
+          singleLine={singleLine}
+          renderMediaReference={renderMediaReference}
+        />
       ),
       cell: ({ row }) => (
         <IOTableCell
@@ -294,6 +305,7 @@ function buildTraceColumns(
           variant="input"
           singleLine={singleLine}
           enableExpandOnHover={singleLine}
+          renderMediaReference={renderMediaReference}
         />
       ),
     },

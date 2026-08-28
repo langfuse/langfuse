@@ -29,6 +29,10 @@ export function MediaReferenceTag({
   return <LangfuseRefMediaTag descriptor={descriptor} />;
 }
 
+export function renderMediaReference(descriptor: MediaDescriptor) {
+  return <MediaReferenceTag descriptor={descriptor} />;
+}
+
 function LangfuseRefMediaTag({
   descriptor,
 }: {
