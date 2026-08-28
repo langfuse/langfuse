@@ -34,7 +34,7 @@ export const hasEntitlementLimit = (
   });
 };
 
-export const hasEntitlementLimitBasedOnPlan = ({
+const hasEntitlementLimitBasedOnPlan = ({
   plan,
   entitlementLimit,
 }: {
