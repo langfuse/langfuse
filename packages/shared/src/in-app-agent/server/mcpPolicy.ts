@@ -186,11 +186,11 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   },
   listExperiments: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   listExperimentItems: {
     approval: "auto",
-    availability: { scope: "project:read" },
+    availability: { scope: "promptExperiments:read" },
   },
   submitFeedback: {
     approval: "approval",
@@ -363,6 +363,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   deleteDashboardPlacement: {
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
+  },
+  getV4MigrationData: {
+    approval: "auto",
+    availability: { scope: "project:read" },
   },
 } satisfies Record<string, InAppAgentMcpToolPolicy>;
 

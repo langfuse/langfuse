@@ -2,7 +2,6 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import type { ColumnDefinition } from "@langfuse/shared";
 
 // Temporary column definitions for experiments
@@ -137,14 +136,7 @@ export const getExperimentsColumnName = (id: string): string => {
   return column.name;
 };
 
-/**
- * Maps frontend column IDs to backend-expected column IDs for experiments table
- */
-export const EXPERIMENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  // No mapping needed currently
-};
-
-export const experimentsFilterConfig: FilterConfig = {
+const experimentsFilterConfig: FilterConfig = {
   tableName: "experiments",
 
   columnDefinitions: experimentsTableCols,

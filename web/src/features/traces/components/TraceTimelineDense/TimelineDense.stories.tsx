@@ -4,6 +4,7 @@ import preview from "../../../../../.storybook/preview";
 import { TimelineDense, type TimelineDenseProps } from "./TimelineDense";
 import {
   deepNesting,
+  streamingSpan,
   manySpans,
   reporterTrace,
   threeSpans,
@@ -417,9 +418,11 @@ export const LabelsStayReadableOnBars = meta.story({
 
       // And its colour is the one that contrasts with THIS bar: the bar is the
       // label's own row, so ask that bar what colour it resolved to.
-      const bar = label.parentElement?.querySelector<HTMLElement>(
-        '[data-testid="timeline-dense-bar"]',
-      );
+      // From the ROW, not the label's parent: the label lives in the metric
+      // cluster now, and the bar is its sibling rather than its uncle.
+      const bar = label
+        .closest('[data-testid="timeline-dense-row"]')
+        ?.querySelector<HTMLElement>('[data-testid="timeline-dense-bar"]');
       if (!bar) throw new Error("a label with no bar to sit on");
       const barLuminance = luminance(getComputedStyle(bar).backgroundColor);
       const textLuminance = luminance(getComputedStyle(label).color);
@@ -460,9 +463,9 @@ export const LabelsKeepTheirDistance = meta.story({
 
     let sawBefore = false;
     for (const label of labels) {
-      const bar = label.parentElement?.querySelector<HTMLElement>(
-        '[data-testid="timeline-dense-bar"]',
-      );
+      const bar = label
+        .closest('[data-testid="timeline-dense-row"]')
+        ?.querySelector<HTMLElement>('[data-testid="timeline-dense-bar"]');
       if (!bar) continue;
       const l = label.getBoundingClientRect();
       const b = bar.getBoundingClientRect();
@@ -479,8 +482,8 @@ export const LabelsKeepTheirDistance = meta.story({
   },
 });
 
-export const TooltipShowsCostAndTokens = meta.story({
-  name: "(Test) Tooltip Shows Cost And Tokens",
+export const TooltipShowsTheCost = meta.story({
+  name: "(Test) Tooltip Shows The Cost",
   args: {
     roots: manySpans(40),
     box: PHONE,
@@ -492,7 +495,7 @@ export const TooltipShowsCostAndTokens = meta.story({
     selectedId: null,
     onSelect: fn(),
     onHover: fn(),
-    factsOf: () => ["$0.006425", "2,100 → 380 (∑ 2,480)"],
+    metricsOf: () => ({ costText: "$0.006425" }),
   },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
@@ -521,7 +524,6 @@ export const TooltipShowsCostAndTokens = meta.story({
     // At this density hover IS how a row is read, so it says what a tree row
     // says: identity, then the metrics.
     await expect(box.innerText).toContain("$0.006425");
-    await expect(box.innerText).toContain("2,100 → 380");
     // And the NAME survives the extra facts. One flex row made the name the only
     // flexible item, so cost and tokens truncated it to nothing — the one thing
     // the hover was for.
@@ -1627,7 +1629,7 @@ export const TheTooltipEscapesTheSurface = meta.story({
     selectedId: null,
     onSelect: fn(),
     onHover: fn(),
-    factsOf: () => ["$0.006425", "2,100 → 380 (∑ 2,480)"],
+    metricsOf: () => ({ costText: "$0.006425" }),
   },
   play: async ({ canvasElement }) => {
     const surface = canvasElement.querySelector<HTMLElement>(
@@ -2127,5 +2129,153 @@ export const APinchAbandonsAnUnfinishedBox = meta.story({
       // Still fitted, which is the point.
     }
     await expect(flew).toBe(false);
+  },
+});
+
+/**
+ * A streaming call spends part of its bar waiting for the first token. The wide
+ * timeline says so with a second shade; here it is a divider, because a shade
+ * needs a bar tall enough to read one and these are a single pixel at the floor.
+ */
+export const TheFirstTokenHasItsMark = meta.story({
+  name: "(Test) The First Token Has Its Mark",
+  args: {
+    roots: streamingSpan(),
+    box: DESKTOP,
+    gutter: "expanded" as const,
+    pointer: "fine" as const,
+    barColor: "type" as const,
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const bar = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-bar"]',
+    );
+    if (!bar) throw new Error("no bar");
+    const mark = bar.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-first-token"]',
+    );
+    if (!mark) throw new Error("the streaming split is not drawn");
+
+    // A quarter of the way along, whatever the scale happens to be.
+    const barBox = bar.getBoundingClientRect();
+    const markBox = mark.getBoundingClientRect();
+    const fraction = (markBox.left - barBox.left) / barBox.width;
+    await expect(fraction).toBeGreaterThan(0.2);
+    await expect(fraction).toBeLessThan(0.3);
+    // And inside its own bar, not over the lane.
+    await expect(markBox.right).toBeLessThanOrEqual(barBox.right + 0.5);
+  },
+});
+
+/**
+ * The cluster stays inside its box, and it moves to the side that has room. It
+ * used to inherit the side `layout()` chose by measuring the duration alone,
+ * which is why annotations vanished mid-zoom: growing a bar turned the budget
+ * from "the rest of the lane" into "this bar".
+ */
+export const TheClusterTakesTheRoomierSide = meta.story({
+  name: "(Test) The Cluster Takes The Roomier Side",
+  args: {
+    roots: threeSpans(),
+    box: DESKTOP,
+    gutter: "expanded" as const,
+    pointer: "fine" as const,
+    barColor: "type" as const,
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    metricsOf: () => ({ costText: "$0.0021" }),
+  },
+  play: async ({ canvasElement }) => {
+    const clusters = [
+      ...canvasElement.querySelectorAll<HTMLElement>(
+        '[data-testid="timeline-dense-metrics"]',
+      ),
+    ];
+    await expect(clusters.length).toBeGreaterThan(0);
+
+    for (const cluster of clusters) {
+      const row = cluster.closest('[data-testid="timeline-dense-row"]');
+      const bar = row?.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      if (!bar) continue;
+      const barBox = bar.getBoundingClientRect();
+      const lane = cluster.parentElement!.getBoundingClientRect();
+      // Whichever side it picked, it must be the one with the most room.
+      const after = lane.right - barBox.right;
+      const before = barBox.left - lane.left;
+      if (cluster.dataset.placement === "after") {
+        await expect(after).toBeGreaterThanOrEqual(before - 0.5);
+      }
+      // And it never spills: the cluster clips, so what it admits has to fit.
+      await expect(cluster.scrollWidth).toBeLessThanOrEqual(
+        cluster.clientWidth + 0.5,
+      );
+      await expect(cluster.innerText).toContain("$0.0021");
+    }
+  },
+});
+
+/**
+ * When the lane is too narrow for even one metric, the row draws none — and the
+ * tooltip is what keeps it from going silent. It states the same duration and
+ * cost for every row at every density, which is why the cluster does not need a
+ * title on a box of zero width.
+ */
+export const ARowTooTightForMetricsStillSaysThem = meta.story({
+  name: "(Test) A Row Too Tight For Metrics Still Says Them",
+  args: {
+    // 600 rows in this box are 1px each: no room for a metric anywhere.
+    roots: manySpans(600),
+    box: PHONE,
+    gutter: "auto" as const,
+    pointer: "fine" as const,
+    barColor: "type" as const,
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+    metricsOf: () => ({ costText: "$0.0021" }),
+  },
+  play: async ({ canvasElement }) => {
+    // Nothing is drawn beside a 1px bar.
+    await expect(
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-metrics"]')
+        .length,
+    ).toBe(0);
+
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + rect.width * 0.6,
+        clientY: rect.top + 200,
+      }),
+    );
+
+    const tooltip = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-tooltip"]',
+      );
+      if (!el) throw new Error("no tooltip");
+      return el;
+    });
+    // The duration and the cost, on a row that had no room to print either.
+    await expect(tooltip.innerText).toMatch(/\d/);
+    await expect(tooltip.innerText).toContain("$0.0021");
   },
 });

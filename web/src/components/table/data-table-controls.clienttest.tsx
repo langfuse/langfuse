@@ -829,6 +829,81 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
   });
 });
 
+describe("DataTableControls facet catalog", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): CategoricalUIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const CATALOG = [
+    categoricalFilter("environment", "Environment", false),
+    categoricalFilter("release", "Release", false),
+    categoricalFilter("name", "Name", false),
+    categoricalFilter("version", "Version", false),
+  ];
+
+  it("keeps every facet visible so browser find can reach it", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter(CATALOG)} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(screen.getByText("Name")).toBeVisible();
+    expect(screen.getByText("Release")).toBeVisible();
+    expect(screen.getByText("Version")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Show \d+ more/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expand-all expands every facet in the catalog", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={{
+            ...queryFilter(CATALOG),
+            onExpandedChange,
+          }}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    expect(onExpandedChange).toHaveBeenCalledWith([
+      "environment",
+      "release",
+      "name",
+      "version",
+    ]);
+  });
+});
+
 describe("DataTableControls facet-name search", () => {
   // A catalog long enough to earn the search box (the traces sidebar's shape).
   const CATALOG: [column: string, label: string][] = [

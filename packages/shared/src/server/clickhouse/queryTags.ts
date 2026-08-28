@@ -16,6 +16,9 @@ export type ClickHouseQueryTags = {
   surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
   projectId?: string;
+  sdkName?: "python" | "javascript";
+  sdkVersion?: string;
+  userAgent?: string;
 };
 
 export type NormalizedClickHouseQueryTags = {
@@ -23,12 +26,18 @@ export type NormalizedClickHouseQueryTags = {
   surface: ClickHouseQuerySurface | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
   route?: string;
   projectId?: string;
+  sdkName?: "python" | "javascript";
+  sdkVersion?: string;
+  userAgent?: string;
 };
 
 export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
   surface: "langfuse.clickhouse.surface",
   route: "langfuse.clickhouse.route",
   projectId: "langfuse.project.id",
+  sdkName: "langfuse.clickhouse.sdk_name",
+  sdkVersion: "langfuse.clickhouse.sdk_version",
+  userAgent: "langfuse.clickhouse.user_agent",
 } as const;
 
 const surfaceSet = new Set<string>(clickHouseQuerySurfaces);
@@ -52,7 +61,23 @@ export function normalizeClickHouseQueryTags(
   const projectId =
     providedTags?.projectId ??
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId)?.value;
+  const sdkName =
+    providedTags?.sdkName ??
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkName)?.value;
+  const sdkVersion =
+    providedTags?.sdkVersion ??
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkVersion)?.value;
+  const userAgent =
+    providedTags?.userAgent ??
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.userAgent)?.value;
   const normalizedRoute = typeof route === "string" ? route.trim() : "";
+  const normalizedSdkName =
+    sdkName === "python" || sdkName === "javascript" ? sdkName : undefined;
+  const normalizedSdkVersion =
+    typeof sdkVersion === "string" ? sdkVersion.trim() : "";
+  const normalizedUserAgent =
+    typeof userAgent === "string" ? userAgent.trim() : "";
+  const isPublicApi = surface === "publicapi";
 
   return {
     tag_schema_version: CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION,
@@ -61,6 +86,13 @@ export function normalizeClickHouseQueryTags(
       : UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE,
     ...(normalizedRoute ? { route: normalizedRoute } : {}),
     ...(projectId ? { projectId } : {}),
+    ...(isPublicApi && normalizedSdkName ? { sdkName: normalizedSdkName } : {}),
+    ...(isPublicApi && normalizedSdkVersion
+      ? { sdkVersion: normalizedSdkVersion }
+      : {}),
+    ...(isPublicApi && normalizedUserAgent
+      ? { userAgent: normalizedUserAgent }
+      : {}),
   };
 }
 

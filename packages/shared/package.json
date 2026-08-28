@@ -47,6 +47,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/normalized-io": {
+      "import": "./dist/src/utils/normalized-io/index.js",
+      "require": "./dist/src/utils/normalized-io/index.js"
+    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
@@ -110,6 +114,10 @@
     "./in-app-agent/server/modelProvider": {
       "import": "./dist/src/in-app-agent/server/modelProvider.js",
       "require": "./dist/src/in-app-agent/server/modelProvider.js"
+    },
+    "./in-app-agent/server/openaiCompatibility": {
+      "import": "./dist/src/in-app-agent/server/openaiCompatibility.js",
+      "require": "./dist/src/in-app-agent/server/openaiCompatibility.js"
     }
   },
   "scripts": {

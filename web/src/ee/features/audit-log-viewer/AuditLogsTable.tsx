@@ -3,7 +3,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import {
   Avatar,
   AvatarFallback,
@@ -118,26 +118,20 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
       accessorKey: "action",
       header: "Action",
     },
-    {
+    createIOTableColumn<AuditLogRow>({
       accessorKey: "before",
       header: "Before",
       size: 300,
-      cell: (row) => {
-        const value = row.getValue() as string | null;
-        if (!value) return null;
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<AuditLogRow>({
       accessorKey: "after",
       header: "After",
       size: 300,
-      cell: (row) => {
-        const value = row.getValue() as string | null;
-        if (!value) return null;
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
   ];
 
   return (

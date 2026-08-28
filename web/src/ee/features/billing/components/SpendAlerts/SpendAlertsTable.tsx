@@ -16,8 +16,9 @@ import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
-import { usdFormatter } from "@/src/utils/numbers";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { costFormatter } from "@/src/utils/numbers";
 
 interface SpendAlertsTableProps {
   orgId: string;
@@ -77,13 +78,13 @@ export function SpendAlertsTable({ orgId }: SpendAlertsTableProps) {
       header: "Title",
       size: 160,
     }),
-    {
-      accessorKey: "Limit",
+    createNumberTableColumn<AlertRow>({
+      accessorFn: (row) => row.threshold,
       id: "limit",
       header: "Limit (USD)",
       size: 140,
-      cell: ({ row }) => usdFormatter(row.original.threshold, 2, 2),
-    },
+      formatter: costFormatter,
+    }),
     {
       accessorKey: "status",
       id: "status",

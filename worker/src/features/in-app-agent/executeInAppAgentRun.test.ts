@@ -19,8 +19,9 @@ vi.hoisted(() => {
   delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
   process.env.NEXTAUTH_URL ??= "http://localhost:3000";
-  process.env.LANGFUSE_AWS_BEDROCK_REGION ??= "eu-central-1";
-  process.env.LANGFUSE_AWS_BEDROCK_MODEL ??= "test-bedrock-model";
+  process.env.LANGFUSE_AI_PROVIDER ??= "bedrock";
+  process.env.LANGFUSE_AI_AWS_BEDROCK_REGION ??= "eu-central-1";
+  process.env.LANGFUSE_AI_MODEL ??= "test-bedrock-model";
 });
 
 /**
@@ -1055,12 +1056,12 @@ describe("executeInAppAgentRun", () => {
     expect(await getInAppAgentApiKeys(projectId)).toHaveLength(0);
   });
 
-  it("claims a run when LANGFUSE_AWS_BEDROCK_REGION is unset", async () => {
-    const originalRegion = sharedEnv.LANGFUSE_AWS_BEDROCK_REGION;
+  it("claims a run when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", async () => {
+    const originalRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
     const originalAiRegion = sharedEnv.LANGFUSE_AI_AWS_BEDROCK_REGION;
     (
-      sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
-    ).LANGFUSE_AWS_BEDROCK_REGION = undefined;
+      sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+    ).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
     (
       sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
     ).LANGFUSE_AI_AWS_BEDROCK_REGION = undefined;
@@ -1075,8 +1076,8 @@ describe("executeInAppAgentRun", () => {
       expect(finished.status).toBe("SUCCEEDED");
     } finally {
       (
-        sharedEnv as { LANGFUSE_AWS_BEDROCK_REGION?: string }
-      ).LANGFUSE_AWS_BEDROCK_REGION = originalRegion;
+        sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
+      ).LANGFUSE_AI_AWS_BEDROCK_REGION = originalRegion;
       (
         sharedEnv as { LANGFUSE_AI_AWS_BEDROCK_REGION?: string }
       ).LANGFUSE_AI_AWS_BEDROCK_REGION = originalAiRegion;

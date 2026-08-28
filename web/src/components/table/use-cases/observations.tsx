@@ -53,9 +53,13 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  formatObservationCost,
+  isObservationCostDisplayable,
+} from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "../../ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
@@ -72,14 +76,14 @@ import {
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import TableIdOrName from "@/src/components/table/table-id";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
-import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -724,13 +728,9 @@ export default function ObservationsTable({
       header: "Input",
       id: "input",
       size: 300,
+      cellBackground: "gray",
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -753,13 +753,9 @@ export default function ObservationsTable({
       id: "output",
       header: "Output",
       size: 300,
+      cellBackground: "green",
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -830,8 +826,13 @@ export default function ObservationsTable({
       size: 120,
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
+        const type = row.original.type;
 
-        return value !== undefined ? (
+        if (!isObservationCostDisplayable(value, type)) {
+          return <span>{formatObservationCost(value, type)}</span>;
+        }
+
+        return (
           <BreakdownTooltip
             details={row.original.costDetails}
             isCost
@@ -842,7 +843,7 @@ export default function ObservationsTable({
               <InfoIcon className="h-3 w-3" />
             </div>
           </BreakdownTooltip>
-        ) : undefined;
+        );
       },
       enableHiding: true,
       enableSorting,
@@ -854,7 +855,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<ObservationsTableRow>({
       accessorKey: "toolCalls",
@@ -863,7 +864,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -969,11 +970,7 @@ export default function ObservationsTable({
       header: "Metadata",
       size: 300,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -1086,65 +1083,41 @@ export default function ObservationsTable({
           },
           header: "Tokens per second",
           size: 200,
-          maximumFractionDigits: 1,
+          formatter: (value) => numberFormatter(value, 0, 1),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
         }),
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.inputUsage,
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "outputTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.outputUsage,
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "totalTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.totalUsage,
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
-        },
+          formatter: (value) => numberFormatter(value, 0),
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {
@@ -1169,9 +1142,11 @@ export default function ObservationsTable({
               outputCost: number | undefined;
             } = row.getValue("cost");
 
-            return value.inputCost !== undefined ? (
-              <span>{usdFormatter(value.inputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.inputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1189,9 +1164,11 @@ export default function ObservationsTable({
               outputCost: number | undefined;
             } = row.getValue("cost");
 
-            return value.outputCost !== undefined ? (
-              <span>{usdFormatter(value.outputCost)}</span>
-            ) : undefined;
+            return (
+              <span>
+                {formatObservationCost(value.outputCost, row.original.type)}
+              </span>
+            );
           },
           enableHiding: true,
           defaultHidden: true,
@@ -1220,6 +1197,8 @@ export default function ObservationsTable({
       "traceId",
       "startTime",
     ],
+    tableName: observationsFilterConfig.tableName,
+    isV4: false,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
       traceId: row.traceId || "",
@@ -1663,15 +1642,9 @@ const GenerationsDynamicCell = ({
         ? observation.data?.input
         : observation.data?.metadata;
 
-  return (
-    <MemoizedIOTableCell
-      isLoading={observation.isPending}
-      data={data}
-      className={cn(
-        col === "output" && "bg-accent-light-green",
-        col === "input" && "bg-muted/50",
-      )}
-      singleLine={singleLine}
-    />
-  );
+  if (observation.isPending) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
+  return <ConnectedIOTableCell data={data} singleLine={singleLine} />;
 };

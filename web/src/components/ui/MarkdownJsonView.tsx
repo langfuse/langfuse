@@ -10,8 +10,8 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
-import { cn } from "@/src/utils/tailwind";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { cn } from "@/src/utils/tailwind";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
@@ -26,6 +26,7 @@ type MarkdownJsonViewHeaderProps = {
     isCollapsed: boolean;
     onToggle: () => void;
   };
+  inset?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
@@ -36,6 +37,7 @@ export function MarkdownJsonViewHeader({
   canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
   collapseControl,
+  inset = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
   const collapseLabel = collapseControl
@@ -67,7 +69,12 @@ export function MarkdownJsonViewHeader({
   );
 
   return (
-    <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-bold capitalize transition-colors">
+    <div
+      className={cn(
+        "io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between py-1 text-sm font-bold capitalize transition-colors",
+        inset ? "px-2" : "px-1",
+      )}
+    >
       {/* Masked from session recordings: the title can be a customer-provided
           message `name` (or tool name) rather than a fixed role string. */}
       <div className="ph-no-capture flex items-center gap-2">

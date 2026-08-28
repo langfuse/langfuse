@@ -1,6 +1,6 @@
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -18,7 +18,7 @@ import {
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { ChevronDown, Columns3, MoreVertical, Trash } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,7 +46,7 @@ import {
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import {
   Dialog,
   DialogContent,
@@ -383,41 +383,40 @@ export function DatasetRunsTable(props: {
         );
       },
     },
-    {
+    createLinkTableColumn<DatasetRunRowData>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       size: 150,
       isFixedPosition: true,
       isPinnedLeft: true,
-      cell: ({ row }) => {
-        const name: DatasetRunRowData["name"] = row.getValue("name");
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
-            value={name}
-          />
-        );
+      getCell: (name, { row }) => {
+        if (!name) return undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/runs/${row.original.id}`,
+            value: name,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<DatasetRunRowData>({
       accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const id: DatasetRunRowData["id"] = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (!id) return undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/runs/${id}`,
+            value: id,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "description",
       header: "Description",
@@ -516,20 +515,14 @@ export function DatasetRunsTable(props: {
       size: 150,
       enableHiding: true,
     }),
-    {
+    createIOTableColumn<DatasetRunRowData>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const metadata: DatasetRunRowData["metadata"] =
-          row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",

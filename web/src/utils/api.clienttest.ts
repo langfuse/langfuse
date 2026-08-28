@@ -3,6 +3,7 @@
 import { TRPCClientError } from "@trpc/client";
 import { vi } from "vitest";
 import {
+  EXPECTED_TRPC_CONFLICT_PATHS,
   EXPECTED_TRPC_ERROR_CODES,
   captureBuildId,
   fetchWithParseErrorStatus,
@@ -453,6 +454,43 @@ describe("isExpectedTrpcClientError", () => {
     ).toBe(false);
   });
 
+  it("treats a stale in-app-agent tool approval as expected", () => {
+    // decideToolApproval throws CONFLICT only when the parent run is no
+    // longer AWAITING_APPROVAL (already decided, expired, or cancelled).
+    // The UI toasts "Reload the conversation." — product working as designed.
+    const error = trpcServerError({
+      code: "CONFLICT",
+      httpStatus: 409,
+      path: "inAppAgent.decideToolApproval",
+      message: "This approval is no longer pending. Reload the conversation.",
+    });
+
+    expect(isExpectedTrpcClientError(error)).toBe(true);
+  });
+
+  it("does not treat CONFLICT on other procedures as expected", () => {
+    // Negative fixture: duplicate-name / unique-constraint CONFLICTs must
+    // still reach Sentry. Widening the allowlist would hide those.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path: "prompts.create",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "CONFLICT",
+          httpStatus: 409,
+          path: "inAppAgent.startRun",
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("suppresses Zod input validation (empty/too-short fields) as expected user input", () => {
     expect(
       isExpectedTrpcClientError(
@@ -626,6 +664,25 @@ describe("reportTrpcErrorWithoutToast", () => {
     warnSpy.mockRestore();
   });
 
+  it("suppresses a stale in-app-agent tool approval (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "CONFLICT",
+        httpStatus: 409,
+        path: EXPECTED_TRPC_CONFLICT_PATHS[0],
+        message: "This approval is no longer pending. Reload the conversation.",
+      }),
+      "in-app-agent",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "CONFLICT",
+      path: "inAppAgent.decideToolApproval",
+    });
+  });
+
   it("suppresses expected codes (breadcrumb, no capture) — same policy as the seam", () => {
     // The organizations.delete FORBIDDEN advice: previously console.error'd by
     // the component (one Sentry event per retry), now classified as expected.
@@ -664,6 +721,25 @@ describe("reportTrpcErrorWithoutToast", () => {
 
   // Negative fixture: real errors MUST still be captured, with the
   // procedure/code fingerprint and tags.
+  it("captures CONFLICT on procedures outside the allowlist", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "CONFLICT",
+        httpStatus: 409,
+        path: "prompts.create",
+      }),
+      "prompts",
+    );
+
+    expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    const [, options] = captureExceptionMock.mock.calls[0]!;
+    expect(options.tags).toMatchObject({
+      area: "trpc",
+      "trpc.code": "CONFLICT",
+      "trpc.path": "prompts.create",
+    });
+  });
+
   it("captures a real (5xx) tRPC error with fingerprint and tags", () => {
     const error = trpcServerError({
       code: "INTERNAL_SERVER_ERROR",

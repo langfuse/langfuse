@@ -258,6 +258,8 @@ export function DataTableControls({
     facetInteractionRef.current,
   );
   facetOrderRef.current = facetOrder;
+  // No event = a programmatic in-list action (Add filter), which is always a
+  // deliberate interaction.
   const noteFacetInteraction = () => {
     facetInteractionRef.current += 1;
   };
@@ -287,33 +289,40 @@ export function DataTableControls({
   // must never narrow the list behind the user's back.
   const facetSearchQuery = showFacetSearch ? facetSearch.trim() : "";
 
-  // The name search FILTERS, it does not reorder: the settled promoted block
-  // and config order still own every position. A facet whose name misses the
-  // query goes whether or not it is filtering — what is in force stays on show
-  // above the list (the header's active count, plus the search bar's tokens
-  // where there is one), so the sidebar need not repeat it mid-search.
-  //
-  // Non-matching facets are HIDDEN, never unmounted. Every facet holds
+  // Matching facet columns, or null when not searching. The name search
+  // FILTERS, it does not reorder: the settled promoted block and render order
+  // still own every position. A facet whose name misses the query goes whether
+  // or not it is filtering — what is in force stays on show above the list
+  // (the header's active count, plus the search bar's tokens where there is
+  // one), so the sidebar need not repeat it mid-search. The match set is also
+  // what tells "nothing matched" apart from an unsearched list.
+  const facetSearchMatches = facetSearchQuery
+    ? new Set(
+        displayedFilters
+          .filter((filter) => facetNameRank(filter, facetSearchQuery) !== null)
+          .map((filter) => filter.column),
+      )
+    : null;
+
+  // Facet-usage recency: every facet the user has filtered on, on this table,
+  // in this browser (localStorage; written by the activity effect below).
+  // Feeds the "Add filter" dropdown's ordering.
+  const [recentColumns, setRecentColumns] = useLocalStorage<
+    Record<string, number>
+  >(`${storagePrefix}-recent-facets`, EMPTY_RECENCY);
+  // Search hides non-matching rows; it never unmounts them. Every facet holds
   // uncommitted local state — a typed-but-not-added text filter, a metadata
   // condition mid-build, a "show more" expansion, a debounced numeric draft —
-  // and unmounting throws all of it away with nothing said. Now that an ACTIVE
-  // facet can be hidden too, that matters more, not less: hiding is
+  // and unmounting throws all of it away with nothing said. Hiding is
   // presentation only and must never touch the filter state.
-  const visibleFilters = facetSearchQuery
-    ? displayedFilters.filter(
-        (filter) => facetNameRank(filter, facetSearchQuery) !== null,
-      )
+  const visibleFilters = facetSearchMatches
+    ? displayedFilters.filter((filter) => facetSearchMatches.has(filter.column))
     : displayedFilters;
   const visibleColumns = new Set(visibleFilters.map((filter) => filter.column));
   const expandedVisibleCount = queryFilter.expanded.filter((column) =>
     visibleColumns.has(column),
   ).length;
 
-  // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
-  // filters someone actually uses on this table surface first.
-  const [recentColumns, setRecentColumns] = useLocalStorage<
-    Record<string, number>
-  >(`${storagePrefix}-recent-facets`, EMPTY_RECENCY);
   const addableFilters = showOnlyActive
     ? orderedFilters
         .filter(
@@ -726,10 +735,10 @@ export function DataTableControls({
             the promoted/rest boundary would REMOUNT (wiping input
             focus and draft state) instead of moving.
 
-            Every facet renders; a search only sets `hidden` on the rows
-            it excludes. The wrapper is always present for the same
-            reason the array is single: swapping the element around a
-            facet would remount it and lose its draft state. */}
+            Every facet renders; a search only sets `hidden`
+            on the rows it excludes. The wrapper is always present for
+            the same reason the array is single: swapping the element
+            around a facet would remount it and lose its draft state. */}
         {displayedFilters.flatMap((filter) => {
           const nodes = [];
           if (showPromotedSeparator && filter.column === firstCatalogColumn) {
@@ -1379,7 +1388,7 @@ interface FilterAccordionItemProps {
   onReset?: () => void;
 }
 
-export function FilterAccordionItem({
+function FilterAccordionItem({
   label,
   tooltip,
   help,
@@ -2012,7 +2021,7 @@ function CategoricalSelectContent({
   );
 }
 
-export function NumericFacet({
+function NumericFacet({
   label,
   tooltip,
   help,
@@ -2183,7 +2192,7 @@ export function NumericFacet({
   );
 }
 
-export function StringFacet({
+function StringFacet({
   label,
   tooltip,
   help,
@@ -2264,7 +2273,7 @@ export function StringFacet({
   );
 }
 
-export function KeyValueFacet({
+function KeyValueFacet({
   label,
   tooltip,
   help,
@@ -2314,7 +2323,7 @@ export function KeyValueFacet({
   );
 }
 
-export function NumericKeyValueFacet({
+function NumericKeyValueFacet({
   label,
   tooltip,
   help,
@@ -2362,7 +2371,7 @@ export function NumericKeyValueFacet({
   );
 }
 
-export function BooleanKeyValueFacet({
+function BooleanKeyValueFacet({
   label,
   tooltip,
   help,
@@ -2410,7 +2419,7 @@ export function BooleanKeyValueFacet({
   );
 }
 
-export function StringKeyValueFacet({
+function StringKeyValueFacet({
   label,
   tooltip,
   help,
@@ -2607,7 +2616,7 @@ interface FilterValueCheckboxProps {
   disabled?: boolean;
 }
 
-export function FilterValueCheckbox({
+function FilterValueCheckbox({
   id,
   label,
   icon,
@@ -2682,21 +2691,6 @@ export function FilterValueCheckbox({
           </span>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-export function DataTableControlsSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-3">
-      <h3 className="text-foreground text-sm font-bold">{title}</h3>
-      <div>{children}</div>
     </div>
   );
 }

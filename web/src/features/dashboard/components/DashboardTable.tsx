@@ -7,9 +7,9 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
-import TableLink from "@/src/components/table/table-link";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -40,9 +40,11 @@ type DashboardTableRow = {
 function CloneDashboardButton({
   dashboardId,
   projectId,
+  owner,
 }: {
   dashboardId: string;
   projectId: string;
+  owner: DashboardTableRow["owner"];
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
@@ -51,7 +53,11 @@ function CloneDashboardButton({
   const mutCloneDashboard = api.dashboard.cloneDashboard.useMutation({
     onSuccess: () => {
       utils.dashboard.invalidate();
-      capture("dashboard:clone_dashboard", { source: "list_clone_button" });
+      capture("dashboard:clone_dashboard", {
+        source: "list_clone_button",
+        dashboardId,
+        owner,
+      });
       showSuccessToast({
         title: "Dashboard cloned",
         description: "The dashboard has been cloned successfully",
@@ -211,19 +217,23 @@ export function DashboardTable() {
 
   const columnHelper = createColumnHelper<DashboardTableRow>();
   const dashboardColumns = [
-    columnHelper.accessor("name", {
+    createLinkTableColumn<DashboardTableRow>({
+      accessorKey: "name",
       header: "Name",
-      id: "name",
       enableSorting: true,
       size: 200,
-      cell: (row) => {
-        const name = row.getValue();
-        return name ? (
-          <TableLink
-            path={`/project/${projectId}/dashboards/${encodeURIComponent(row.row.original.id)}`}
-            value={name}
-          />
-        ) : undefined;
+      getCell: (name, { row }) => {
+        if (name) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/dashboards/${encodeURIComponent(row.original.id)}`,
+              value: name,
+            },
+          };
+        }
+
+        return undefined;
       },
     }),
     createTextTableColumn<DashboardTableRow>({
@@ -302,6 +312,7 @@ export function DashboardTable() {
                   <CloneDashboardButton
                     dashboardId={id}
                     projectId={projectId}
+                    owner={owner}
                   />
                 </DropdownMenuItem>
                 {owner === "PROJECT" && (

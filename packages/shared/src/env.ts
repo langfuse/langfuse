@@ -127,6 +127,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
+    .enum(["auto", "no_throw", "sanitize"])
+    .optional(),
   // Optional to allow for server-setting fallbacks
   CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: z.string().optional(),
   CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: z.coerce.number().int().optional(),
@@ -519,18 +522,39 @@ const EnvSchema = z.object({
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
-  // LANGFUSE_AWS_BEDROCK_REGION is a deprecated alias of
-  // LANGFUSE_AI_AWS_BEDROCK_REGION. Bedrock model IDs stay on
-  // LANGFUSE_AWS_BEDROCK_MODEL / LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
-  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL are Anthropic-only.
-  LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-  LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
-  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic"]).optional(),
+  // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+  // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
+  // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+  // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
+  // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+  // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
   LANGFUSE_AI_BASE_URL: z.string().optional(),
+  LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
+  LANGFUSE_AI_EXTRA_HEADERS: z
+    .string()
+    .optional()
+    .refine(
+      (value) => {
+        if (value == null || value.trim() === "") {
+          return true;
+        }
+
+        try {
+          z.record(z.string(), z.string()).parse(JSON.parse(value));
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        message:
+          "LANGFUSE_AI_EXTRA_HEADERS must be a JSON object of string header names and values",
+      },
+    ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 

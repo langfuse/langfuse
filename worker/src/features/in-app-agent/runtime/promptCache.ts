@@ -1,6 +1,6 @@
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
-export type PromptCacheProvider = "bedrock" | "anthropic";
+type PromptCacheProvider = "bedrock" | "anthropic" | "openai-compatible";
 
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const ANTHROPIC_CLAUDE_MODEL_ID_PART = "claude";
@@ -9,7 +9,11 @@ const BEDROCK_PROMPT_CACHE_POINT = { type: "default" as const };
 const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
 
 /**
- * Prompt cache for Claude on Bedrock Converse and native Anthropic Messages.
+ * Prompt cache for Claude on Bedrock Converse, native Anthropic Messages,
+ * and Anthropic slugs behind an OpenAI-compatible gateway (OpenRouter,
+ * LiteLLM). Native Messages get `anthropic.cacheControl`. Compatible
+ * Chat Completions get `openaiCompatible.cache_control` because that SDK
+ * only forwards the `openaiCompatible` namespace.
  *
  * A checkpoint writes the prefix `tools → that message`. The next call
  * cache-reads only if that prefix is byte-identical. Hits last 5 minutes
@@ -21,7 +25,7 @@ const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
  * Three checkpoints, each for a different prefix:
  *
  * 1. Last leading system — tools + compiled system. Must stay byte-stable
- *    across turns (date, screen, and clock live on a trailing suffix that
+ *    across turns (user, screen, and clock live on a trailing suffix that
  *    is not persisted).
  * 2. Last conversation message — grows as this turn adds tool results so
  *    the next in-loop step can read it. A trailing `<current_time>` suffix
@@ -111,6 +115,11 @@ function resolvePromptCacheProvider(
   ) {
     return "anthropic";
   }
+  // OpenRouter / LiteLLM Chat Completions: provider is `openai.chat` but
+  // the upstream model id is still `anthropic/claude-…`.
+  if (modelId.includes("anthropic")) {
+    return "openai-compatible";
+  }
   return undefined;
 }
 
@@ -177,9 +186,13 @@ function getMessageRole(message: unknown) {
 }
 
 function withPromptCache(message: unknown, cacheProvider: PromptCacheProvider) {
-  return cacheProvider === "bedrock"
-    ? withBedrockCachePoint(message)
-    : withAnthropicCacheControl(message);
+  if (cacheProvider === "bedrock") {
+    return withBedrockCachePoint(message);
+  }
+  if (cacheProvider === "openai-compatible") {
+    return withOpenAICompatibleCacheControl(message);
+  }
+  return withAnthropicCacheControl(message);
 }
 
 function withBedrockCachePoint(message: unknown) {
@@ -235,5 +248,75 @@ function withAnthropicCacheControl(message: unknown) {
         cacheControl: ANTHROPIC_CACHE_CONTROL,
       },
     },
+  };
+}
+
+function withOpenAICompatibleCacheControl(message: unknown) {
+  if (!isRecord(message)) {
+    return message;
+  }
+
+  const providerOptions = isRecord(message.providerOptions)
+    ? message.providerOptions
+    : {};
+  const openaiCompatible = isRecord(providerOptions.openaiCompatible)
+    ? providerOptions.openaiCompatible
+    : {};
+
+  if (isRecord(openaiCompatible.cache_control)) {
+    return message;
+  }
+
+  return withOpenAICompatibleCacheControlOnLastPart({
+    ...message,
+    providerOptions: {
+      ...providerOptions,
+      openaiCompatible: {
+        ...openaiCompatible,
+        cache_control: ANTHROPIC_CACHE_CONTROL,
+      },
+    },
+  });
+}
+
+function withOpenAICompatibleCacheControlOnLastPart(
+  message: Record<string, unknown>,
+) {
+  if (!Array.isArray(message.content) || message.content.length === 0) {
+    return message;
+  }
+
+  const lastIndex = message.content.length - 1;
+  const lastPart = message.content[lastIndex];
+  if (!isRecord(lastPart)) {
+    return message;
+  }
+
+  const partOptions = isRecord(lastPart.providerOptions)
+    ? lastPart.providerOptions
+    : {};
+  const openaiCompatible = isRecord(partOptions.openaiCompatible)
+    ? partOptions.openaiCompatible
+    : {};
+
+  if (isRecord(openaiCompatible.cache_control)) {
+    return message;
+  }
+
+  const nextContent = message.content.slice();
+  nextContent[lastIndex] = {
+    ...lastPart,
+    providerOptions: {
+      ...partOptions,
+      openaiCompatible: {
+        ...openaiCompatible,
+        cache_control: ANTHROPIC_CACHE_CONTROL,
+      },
+    },
+  };
+
+  return {
+    ...message,
+    content: nextContent,
   };
 }
