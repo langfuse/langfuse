@@ -19,6 +19,7 @@ pnpm run seed -- agent-timeline --turns 120 --turn-gap-ms 60000 --v4  # ~2.5h wa
 pnpm run seed -- timeline-shapes --v4  # a dozen SMALL traces, one per timeline morphology (retry backoff, human wait, fan-out, slow tool, in-flight, instants, ...)
 pnpm run seed -- timeline-shapes --shape retry-backoff --v4  # just one of them
 pnpm run seed -- timeline-annotated --v4  # ONE trace with every row annotation at once (scores incl. +N overflow, 1 and 12 comments, costs, heat map, first-token mark) — for judging visual load
+pnpm run seed -- timeline-showcase --v4  # ONE ~9-minute trace with every timeline shape at once (3 repeating research rounds: search waterfalls, embedding queues, nested ladders, streaming generations, retry staircases, instants, in-flight spans, 10 observation types) — sized for demos and screen recordings; --scale multiplies the fan-outs
 pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted support-copilot run (videos/screenshots)
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed / media v4 sessions
