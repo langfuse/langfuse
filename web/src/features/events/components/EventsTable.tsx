@@ -34,6 +34,7 @@ import {
   type TracingSearchType,
   type ScoreAggregate,
   buildTracePath,
+  getCachedInputMetric,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
@@ -1382,6 +1383,16 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
         },
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputMetric(row.costDetails),
+          id: "cachedInputCost",
+          header: getEventsColumnName("cachedInputCost"),
+          size: 140,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: usdFormatter,
+        }),
         {
           accessorKey: "outputCost",
           id: "outputCost",
@@ -1477,6 +1488,16 @@ export default function ObservationsEventsTable({
           accessorFn: (row) => row.usage.inputUsage,
           header: getEventsColumnName("inputTokens"),
           size: 100,
+          enableHiding: true,
+          defaultHidden: true,
+          enableSorting,
+          formatter: (value) => numberFormatter(value, 0, 0),
+        }),
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => getCachedInputMetric(row.usageDetails),
+          id: "cachedInputTokens",
+          header: getEventsColumnName("cachedInputTokens"),
+          size: 140,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,

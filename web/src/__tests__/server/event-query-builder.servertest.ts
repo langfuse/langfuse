@@ -9,9 +9,41 @@ import {
   eventsTableUiColumnDefinitions,
   ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
-import { eventsTableCols } from "@langfuse/shared";
+import {
+  eventsTableCachedInputCostSql,
+  eventsTableCachedInputTokensSql,
+  eventsTableCols,
+} from "@langfuse/shared";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
+  it.each([
+    ["cachedInputTokens", eventsTableCachedInputTokensSql, "Decimal64(3)"],
+    ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal64(12)"],
+  ] as const)(
+    "maps %s filters to the cached-read metric expression",
+    (column, expression, clickhouseType) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "number",
+            operator: "=",
+            value: 0,
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      const applied = filter.apply();
+      expect(applied.query).toContain(expression);
+      expect(applied.query).toContain(clickhouseType);
+      expect(Object.values(applied.params)).toContain("0");
+    },
+  );
+
   it("builds one events_core scan for multiple filter option columns", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       projectId: "test-project",

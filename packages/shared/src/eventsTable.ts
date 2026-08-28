@@ -54,6 +54,55 @@ export const isRootObservation = ({
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
 
+const CACHED_INPUT_TOTAL_KEYS = [
+  "input_cached_tokens",
+  "input_cache_read",
+  "cache_read_input_tokens",
+  "cached_content_token_count",
+] as const;
+
+const CACHED_INPUT_MODALITY_KEYS = [
+  "input_cached_text_tokens",
+  "input_cached_audio_tokens",
+] as const;
+
+/**
+ * Cache-read metric semantics shared by the v4 events table UI and its
+ * ClickHouse filters. Prefer a provider's total bucket so modality details are
+ * not double-counted; fall back to summing those details when no total exists.
+ */
+export const getCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number => {
+  for (const key of CACHED_INPUT_TOTAL_KEYS) {
+    if (details && Object.prototype.hasOwnProperty.call(details, key)) {
+      return Number(details?.[key] ?? 0);
+    }
+  }
+
+  return CACHED_INPUT_MODALITY_KEYS.reduce(
+    (sum, key) => sum + Number(details?.[key] ?? 0),
+    0,
+  );
+};
+
+const cachedInputMetricSql = (detailsColumn: string): string => {
+  const totalBranches = CACHED_INPUT_TOTAL_KEYS.flatMap((key) => [
+    `mapContains(${detailsColumn}, '${key}')`,
+    `${detailsColumn}['${key}']`,
+  ]);
+  const modalityFallback = CACHED_INPUT_MODALITY_KEYS.map(
+    (key) => `${detailsColumn}['${key}']`,
+  ).join(" + ");
+
+  return `multiIf(${[...totalBranches, modalityFallback].join(", ")})`;
+};
+
+export const eventsTableCachedInputTokensSql =
+  cachedInputMetricSql("e.usage_details");
+export const eventsTableCachedInputCostSql =
+  cachedInputMetricSql("e.cost_details");
+
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
   : T extends object
@@ -239,6 +288,12 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Cached Input Tokens",
+    id: "cachedInputTokens",
+    type: "number",
+    internal: eventsTableCachedInputTokensSql,
+  },
+  {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
@@ -261,6 +316,12 @@ const eventsTableColsDefinition = [
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
     nullable: true,
+  },
+  {
+    name: "Cached Input Cost ($)",
+    id: "cachedInputCost",
+    type: "number",
+    internal: eventsTableCachedInputCostSql,
   },
   {
     name: "Output Cost ($)",

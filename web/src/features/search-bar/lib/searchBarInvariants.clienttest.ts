@@ -157,6 +157,32 @@ describe("search bar invariants — events v4 registry", () => {
       ],
     });
   });
+
+  it("filters cached tokens and cost, including events without cache reads", () => {
+    expect(
+      planCommit(
+        "cachedTokens:0 cachedCost:<=0",
+        undefined,
+        EVENTS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "cachedInputTokens",
+          type: "number",
+          operator: "=",
+          value: 0,
+        },
+        {
+          column: "cachedInputCost",
+          type: "number",
+          operator: "<=",
+          value: 0,
+        },
+      ],
+    });
+  });
 });
 
 describe("search bar invariants — evaluation rules registry", () => {
