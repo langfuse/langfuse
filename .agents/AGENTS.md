@@ -7,6 +7,10 @@ evaluating, and debugging AI applications.
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Delegate exploratory or noisy work — broad code search, multi-file
+  investigation, log or test-output trawls — to a subagent so the
+  intermediate tool output stays out of the main context. This isn't
+  automatic; ask for it explicitly when it applies.
 - For bug fixes, first write the smallest failing test that proves the reported
   behavior and confirm it fails against the buggy behavior before changing
   production code. Add another test only when it exercises a distinct adapter,
@@ -37,6 +41,10 @@ evaluating, and debugging AI applications.
   commit messages, PR titles and descriptions, or changelog entries. They mean
   nothing to OSS readers. Describe the problem on its own terms; a
   ticket-prefixed branch name is the one place the identifier belongs.
+- Code comments document behavior for future readers, not the reasoning
+  behind the current change. Do not reference PR/review history ("changed X
+  to Y", "now also handles", "per review", "was previously") or describe
+  code that no longer exists.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 - Human handoff: assume the reader does not remember the ticket. Lead with
@@ -48,8 +56,6 @@ evaluating, and debugging AI applications.
   the seed command or sandbox URL (`http://localhost:3000`) to reproduce
   the data. Attach proof of the fix (screenshot, short video, or
   before/after). Humans can ask for more detail.
-- After opening a PR, leave a short last comment on what a reviewer should
-  doubt — the curious, questionable parts — not a changelog.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
   comments appear on a PR you own: do not reply. Keep each thread open
@@ -120,6 +126,8 @@ langfuse/
 - Use Linear's git branch name (`lfe-XXXX-short-title`). Never create a
   `cursor/` branch, even if a Cursor Cloud prompt suggests that prefix.
   Repo guidance wins.
+- After opening a PR, leave a short last comment on what a reviewer should
+  doubt — the curious, questionable parts — not a changelog.
 
 ## Local Data Inspection
 
