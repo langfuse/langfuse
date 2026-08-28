@@ -48,7 +48,7 @@ import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-tr
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
@@ -999,7 +999,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -1072,7 +1072,9 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? <TableTextLoadingCell /> : null;
+        return generations.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
         createNumberTableColumn<ObservationsTableRow>({
@@ -1127,7 +1129,9 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? <TableTextLoadingCell /> : null;
+        return generations.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
         {
@@ -1135,7 +1139,7 @@ export default function ObservationsTable({
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
+          loadingCell: <Skeleton className="h-4 w-1/2" />,
           cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;
@@ -1157,7 +1161,7 @@ export default function ObservationsTable({
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
+          loadingCell: <Skeleton className="h-4 w-1/2" />,
           cell: ({ row }) => {
             const value: {
               inputCost: number | undefined;

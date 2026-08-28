@@ -1,8 +1,8 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { type LucideIcon } from "lucide-react";
 
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -29,11 +29,11 @@ export function createLinkTableColumn<TData extends RowData, TValue = string>({
 }) {
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
       if (!cell) return null;
-      if (cell.type === "loading") return <TableTextLoadingCell />;
+      if (cell.type === "loading") return <Skeleton className="h-4 w-1/2" />;
 
       const { icon: Icon, path, value: linkValue, title, onClick } = cell.props;
       return (
