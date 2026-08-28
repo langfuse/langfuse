@@ -92,11 +92,13 @@ export type AuthedProjectAPIRouteConfig<
   /**
    * When set, writes the handler result instead of `res.json`.
    * Use this for routes whose wire format is not JSON (for example OTLP/HTTP).
+   * `body` is the handler result, or `{ message: "OK" }` when the handler
+   * returns a falsy value.
    */
   writeResponse?: (params: {
     req: NextApiRequest;
     res: NextApiResponse;
-    body: z.infer<TResponse>;
+    body: unknown;
     statusCode: number;
   }) => void;
   fn: (params: {
