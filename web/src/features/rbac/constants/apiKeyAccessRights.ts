@@ -29,6 +29,12 @@ export const apiKeyAccessRights: Record<ApiKeyRole, SystemPolicy[]> = {
       effect: "allow",
       actions: allOrganizationActions,
     },
+    {
+      kind: "project",
+      source: { kind: "role", id: "ORGANIZATION" },
+      effect: "allow",
+      actions: ["project:read"],
+    },
   ],
   SCORES_INGEST: [
     {

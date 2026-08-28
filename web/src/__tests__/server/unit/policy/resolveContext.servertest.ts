@@ -184,19 +184,21 @@ describe("expansion table: scope PROJECT, privateKey", () => {
         apiKey: apiKey(),
       }),
     );
-    expect(authorize(ctx, "projects:read", { orgId: ORG }).success).toBe(false);
+    expect(authorize(ctx, "project:read", { orgId: ORG }).success).toBe(false);
   });
 });
 
 describe("expansion table: scope ORGANIZATION, privateKey", () => {
-  it("grants the full org vocabulary and no project access", async () => {
+  it("grants the full org vocabulary and project:read across org projects", async () => {
     const ctx = contextOf(
       await makeResolver().resolver.resolveContext({
         authorization: "privateKey",
         apiKey: orgKey(),
       }),
     );
-    expect(authorize(ctx, "projects:read", { orgId: ORG }).success).toBe(true);
+    expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
+      true,
+    );
     expect(authorize(ctx, "traces:read", { projectId: PRJ }).success).toBe(
       false,
     );

@@ -10,10 +10,7 @@ const organizationScopes = [
   "organizationMembers:read",
   "organizationMembers:CUD",
   "langfuseCloudBilling:CRUD",
-  "auditLogs:read",
-
-  // Public-API action token; not granted to any UI role.
-  "projects:read",
+  "orgAuditLogs:read",
 ] as const;
 
 // type string of all Resource:Action, e.g. "organizationMembers:read"
@@ -29,7 +26,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organizationMembers:CUD",
     "organizationMembers:read",
     "langfuseCloudBilling:CRUD",
-    "auditLogs:read",
+    "orgAuditLogs:read",
   ],
   ADMIN: [
     "projects:create",
@@ -37,7 +34,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "organization:update",
     "organizationMembers:CUD",
     "organizationMembers:read",
-    "auditLogs:read",
+    "orgAuditLogs:read",
   ],
   MEMBER: ["organizationMembers:read"],
   VIEWER: [],

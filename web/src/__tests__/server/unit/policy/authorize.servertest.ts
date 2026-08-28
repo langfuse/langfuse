@@ -89,22 +89,23 @@ describe("authorize — kind-gating", () => {
   it("a project wildcard never satisfies an org action", () => {
     const projectWildcard = ctx([allowProject(["prompts:read"], wildcard)]);
     expect(
-      authorize(projectWildcard, "projects:read", { orgId: ORG }).success,
+      authorize(projectWildcard, "project:read", { orgId: ORG }).success,
     ).toBe(false);
   });
   it("an org wildcard never satisfies a project action", () => {
-    const orgWildcard = ctx([allowOrg(["projects:read"], wildcard)]);
+    const orgWildcard = ctx([allowOrg(["project:read"], wildcard)]);
     expect(
       authorize(orgWildcard, "prompts:read", { projectId: PRJ }).success,
     ).toBe(false);
   });
   it("a project audit grant does not satisfy an org-level audit check", () => {
-    const projectAudit = ctx([allowProject(["auditLogs:read"], [PRJ])]);
+    const projectAudit = ctx([allowProject(["projectAuditLogs:read"], [PRJ])]);
     expect(
-      authorize(projectAudit, "auditLogs:read", { projectId: PRJ }).success,
+      authorize(projectAudit, "projectAuditLogs:read", { projectId: PRJ })
+        .success,
     ).toBe(true);
     expect(
-      authorize(projectAudit, "auditLogs:read", { orgId: ORG }).success,
+      authorize(projectAudit, "projectAuditLogs:read", { orgId: ORG }).success,
     ).toBe(false);
   });
 });
