@@ -16,7 +16,7 @@ export default withMiddlewares({
     querySchema: GetExperimentItemsV1Query,
     responseSchema: GetExperimentItemsV1Response,
     allowInAppAgentKey: true,
-    fn: async ({ query, auth, res }) => {
+    fn: async ({ query, auth }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
           "The experiment items API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
@@ -27,12 +27,6 @@ export default withMiddlewares({
         plan: auth.scope.plan,
         fromTimestamp: query.fromStartTime,
       });
-      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-        res.setHeader(
-          "X-Langfuse-Data-Access-From",
-          dataAccessWindow.accessFloor.toISOString(),
-        );
-      }
 
       return listExperimentItemsForPublicApi({
         projectId: auth.scope.projectId,

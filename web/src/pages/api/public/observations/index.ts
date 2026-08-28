@@ -35,17 +35,11 @@ export default withMiddlewares(
         legacyPublicApiRateLimitUpgradePaths.observationsList,
       rejectInEventsOnlyMode: true,
       deprecation: OBSERVATIONS_V1_DEPRECATION,
-      fn: async ({ query, auth, res }) => {
+      fn: async ({ query, auth }) => {
         const dataAccessWindow = clampToDataAccessDays({
           plan: auth.scope.plan,
           fromTimestamp: query.fromStartTime ?? undefined,
         });
-        if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-          res.setHeader(
-            "X-Langfuse-Data-Access-From",
-            dataAccessWindow.accessFloor.toISOString(),
-          );
-        }
         const advancedFilters = dataAccessWindow.accessFloor
           ? [
               ...(query.filter ?? []),

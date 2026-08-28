@@ -67,18 +67,12 @@ export default withMiddlewares({
     responseSchema: GetScoresResponseV1,
     deprecation: SCORES_DEPRECATION,
     rejectInEventsOnlyMode: true,
-    fn: async ({ query, auth, res }) => {
+    fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
       const dataAccessWindow = clampToDataAccessDays({
         plan: auth.scope.plan,
         fromTimestamp: query.fromTimestamp ?? undefined,
       });
-      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-        res.setHeader(
-          "X-Langfuse-Data-Access-From",
-          dataAccessWindow.accessFloor.toISOString(),
-        );
-      }
       const advancedFilters = dataAccessWindow.accessFloor
         ? [
             ...(query.filter ?? []),

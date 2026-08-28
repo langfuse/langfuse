@@ -102,17 +102,11 @@ export default withMiddlewares({
     name: "Get Scores V3",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
-    fn: async ({ query, auth, res }) => {
+    fn: async ({ query, auth }) => {
       const dataAccessWindow = clampToDataAccessDays({
         plan: auth.scope.plan,
         fromTimestamp: query.fromTimestamp,
       });
-      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-        res.setHeader(
-          "X-Langfuse-Data-Access-From",
-          dataAccessWindow.accessFloor.toISOString(),
-        );
-      }
 
       const result = await listScoresV3ForPublicApi({
         projectId: auth.scope.projectId,

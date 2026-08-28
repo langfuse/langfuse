@@ -25,7 +25,7 @@ export default withMiddlewares({
     rateLimitResource: "public-api-v2-metrics",
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,
-    fn: async ({ query, auth, res }) => {
+    fn: async ({ query, auth }) => {
       if (!isMetricsV2Available()) {
         throw new LangfuseNotFoundError(
           "The metrics v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
@@ -37,12 +37,6 @@ export default withMiddlewares({
           plan: auth.scope.plan,
           fromTimestamp: query.query.fromTimestamp,
         });
-        if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-          res.setHeader(
-            "X-Langfuse-Data-Access-From",
-            dataAccessWindow.accessFloor.toISOString(),
-          );
-        }
         const effectiveQuery = {
           ...query.query,
           fromTimestamp:

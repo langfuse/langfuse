@@ -18,18 +18,12 @@ export default withMiddlewares({
     responseSchema: GetSessionsV1Response,
     rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.sessionsList,
     rejectInEventsOnlyMode: true,
-    fn: async ({ query, auth, res }) => {
+    fn: async ({ query, auth }) => {
       const { fromTimestamp, toTimestamp, limit, page, environment } = query;
       const dataAccessWindow = clampToDataAccessDays({
         plan: auth.scope.plan,
         fromTimestamp: fromTimestamp ?? undefined,
       });
-      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-        res.setHeader(
-          "X-Langfuse-Data-Access-From",
-          dataAccessWindow.accessFloor.toISOString(),
-        );
-      }
 
       const where = {
         projectId: auth.scope.projectId,

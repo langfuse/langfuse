@@ -85,7 +85,7 @@ export default withMiddlewares(
       deprecation: TRACES_DEPRECATION,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
-      fn: async ({ query, auth, res }) => {
+      fn: async ({ query, auth }) => {
         // Api-performance controls.
         // 1. Reject if no date range and rejection is enabled
         if (
@@ -116,12 +116,6 @@ export default withMiddlewares(
         });
         effectiveFromTimestamp =
           dataAccessWindow.effectiveFromTimestamp?.toISOString();
-        if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-          res.setHeader(
-            "X-Langfuse-Data-Access-From",
-            dataAccessWindow.accessFloor.toISOString(),
-          );
-        }
 
         const advancedFilters = dataAccessWindow.accessFloor
           ? [

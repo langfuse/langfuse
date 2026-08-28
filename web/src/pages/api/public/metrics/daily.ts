@@ -21,17 +21,11 @@ export default withMiddlewares({
     // Aggregates over the legacy traces and observations tables without an
     // events_full fallback.
     rejectInEventsOnlyMode: true,
-    fn: async ({ query, auth, res }) => {
+    fn: async ({ query, auth }) => {
       const dataAccessWindow = clampToDataAccessDays({
         plan: auth.scope.plan,
         fromTimestamp: query.fromTimestamp ?? undefined,
       });
-      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-        res.setHeader(
-          "X-Langfuse-Data-Access-From",
-          dataAccessWindow.accessFloor.toISOString(),
-        );
-      }
 
       const filterProps = {
         projectId: auth.scope.projectId,

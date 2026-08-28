@@ -22,19 +22,13 @@ export default withMiddlewares(
       // v1 metrics executes QueryBuilder against the legacy traces/observations
       // tables; the v2 endpoint at /api/public/v2/metrics targets events_full.
       rejectInEventsOnlyMode: true,
-      fn: async ({ query, auth, res }) => {
+      fn: async ({ query, auth }) => {
         try {
           // Extract the parsed query object
           const dataAccessWindow = clampToDataAccessDays({
             plan: auth.scope.plan,
             fromTimestamp: query.query.fromTimestamp,
           });
-          if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
-            res.setHeader(
-              "X-Langfuse-Data-Access-From",
-              dataAccessWindow.accessFloor.toISOString(),
-            );
-          }
           const queryParams = {
             ...query.query,
             fromTimestamp:
