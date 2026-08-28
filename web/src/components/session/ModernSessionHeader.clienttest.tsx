@@ -96,7 +96,7 @@ describe("ModernSessionHeader", () => {
       {
         action: "hide",
         detailType: "traces",
-        hiddenDetailCount: 1,
+        storedHiddenDetailCount: 1,
         isV4: true,
       },
     );
@@ -126,7 +126,7 @@ describe("ModernSessionHeader", () => {
       {
         action: "show",
         detailType: "traces",
-        hiddenDetailCount: 0,
+        storedHiddenDetailCount: 0,
         isV4: true,
       },
     );

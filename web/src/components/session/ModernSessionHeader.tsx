@@ -5,6 +5,7 @@ import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
+  MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
   parseStoredHiddenSessionHeaderDetails,
   sessionHeaderDynamicDetailKey,
   sessionHeaderVisibilityStorageKey,
@@ -576,12 +577,6 @@ export function ModernSessionHeader({
   const manuallyHiddenPills = pills.filter((pill) =>
     hiddenDetailKeySet.has(pill.key),
   );
-  const hiddenUserDetailCount = userDetails.reduce(
-    (count, detail) => count + Number(hiddenDetailKeySet.has(detail.key)),
-    0,
-  );
-  const currentlyHiddenDetailCount =
-    manuallyHiddenPills.length + hiddenUserDetailCount;
   const changeDetailVisibility = (
     detail: SessionHeaderDetail,
     isHidden: boolean,
@@ -593,15 +588,17 @@ export function ModernSessionHeader({
     setRawHiddenDetailKeys((current: unknown) => {
       const currentKeys = parseStoredHiddenSessionHeaderDetails(current);
       return isHidden
-        ? currentKeys.concat(detail.key).slice(-1_000)
+        ? currentKeys
+            .concat(detail.key)
+            .slice(-MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS)
         : currentKeys.filter((key) => key !== detail.key);
     });
     capture("session_detail:header_detail_visibility_changed", {
       action: isHidden ? "hide" : "show",
       detailType: detail.type,
-      hiddenDetailCount: Math.max(
-        currentlyHiddenDetailCount + (isHidden ? 1 : -1),
-        0,
+      storedHiddenDetailCount: Math.min(
+        Math.max(hiddenDetailKeys.length + (isHidden ? 1 : -1), 0),
+        MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
       ),
       isV4: true,
     });

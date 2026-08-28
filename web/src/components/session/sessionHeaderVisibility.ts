@@ -1,8 +1,10 @@
 import { z } from "zod";
 
+export const MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS = 1_000;
+
 const storedHiddenSessionHeaderDetailsSchema = z
   .array(z.string().min(1).max(2_000))
-  .max(1_000)
+  .max(MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS)
   .transform((keys) => Array.from(new Set(keys)));
 
 export type StoredHiddenSessionHeaderDetails = z.infer<
