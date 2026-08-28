@@ -206,17 +206,17 @@ describe("ModernSessionHeader", () => {
         name: "Show 1 hidden session details",
       }),
     );
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Hide user 4 in session header",
-      }),
-    );
+    const hideOverflowUser = screen.getByRole("button", {
+      name: "Hide user 4 in session header",
+    });
+    hideOverflowUser.focus();
+    fireEvent.click(hideOverflowUser);
 
-    expect(
-      screen.getByRole("button", {
-        name: "Show user 4 in session header",
-      }),
-    ).toBeInTheDocument();
+    const showOverflowUser = screen.getByRole("button", {
+      name: "Show user 4 in session header",
+    });
+    expect(showOverflowUser).toBeInTheDocument();
+    expect(showOverflowUser).toHaveFocus();
     expect(
       localStorage.getItem(sessionHeaderVisibilityStorageKey("project-1")),
     ).not.toContain(users[3]);

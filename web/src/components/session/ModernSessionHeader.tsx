@@ -35,6 +35,7 @@ import {
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
+import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ModernSessionHeaderProps = {
@@ -134,18 +135,26 @@ const SessionHeaderDetailWithVisibilityControl = ({
     detail: SessionHeaderDetail,
     isHidden: boolean,
     location: SessionHeaderDetailControlLocation,
+    control: HTMLButtonElement,
   ) => void;
 }) => {
   const action = isHidden ? "Show" : "Hide";
   return (
-    <span className="group relative flex items-center [@media(hover:none)]:pr-6">
+    <span
+      className={cn(
+        "group relative flex items-center",
+        detail.type === "metadata" ? "pr-6" : "[@media(hover:none)]:pr-6",
+      )}
+    >
       {detail.content}
       <button
         type="button"
         aria-label={`${action} ${detail.visibilityLabel} in session header`}
         title={`${action} in session header`}
         className="bg-header hover:bg-muted focus-visible:ring-ring absolute right-0 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
-        onClick={() => onVisibilityChange(detail, !isHidden, location)}
+        onClick={(event) =>
+          onVisibilityChange(detail, !isHidden, location, event.currentTarget)
+        }
       >
         {isHidden ? (
           <Eye aria-hidden="true" className="h-3 w-3" />
@@ -577,6 +586,7 @@ export function ModernSessionHeader({
     detail: SessionHeaderDetail,
     isHidden: boolean,
     location: SessionHeaderDetailControlLocation,
+    control: HTMLButtonElement,
   ) => {
     if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
 
@@ -596,6 +606,8 @@ export function ModernSessionHeader({
       isV4: true,
     });
     window.requestAnimationFrame(() => {
+      if (control.isConnected) return;
+
       const preferredTarget =
         location === "overflow"
           ? overflowSearchInputRef.current
