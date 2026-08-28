@@ -1,8 +1,13 @@
 import {
+  isIPAddress,
   logger,
+  OutboundUrlValidationError,
+  parseOutboundUrl,
   redactUrlCredentials,
+  validateOutboundResolvedIp,
   validateWebhookURL,
   whitelistFromEnv,
+  type OutboundUrlValidationWhitelist,
   type RedirectOptions,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
@@ -34,6 +39,79 @@ export const buildAnalyticsRedirectOptions = (
     logContext,
   },
 });
+
+/**
+ * Hostname of a configured URL, for log lines and notifications.
+ *
+ * Never log the configured URL itself: it can carry credentials
+ * (`http://user:pass@host`), and the rejection path fires exactly when the
+ * URL was refused — including when it was refused for carrying them. The
+ * hostname component cannot contain userinfo.
+ *
+ * Uses `new URL` rather than `parseOutboundUrl` deliberately: this is
+ * redaction, not validation, and `parseOutboundUrl` refuses a credentialed
+ * URL outright, so it cannot extract a safe hostname from the case that
+ * matters most.
+ */
+export function hostnameForLog(configuredUrl: string): string {
+  try {
+    return new URL(configuredUrl).hostname || "<no hostname>";
+  } catch {
+    return "<unparseable>";
+  }
+}
+
+/**
+ * Use-time destination check for the analytics exporters. Covers exactly what
+ * the connect-time DNS lookup hook structurally cannot see, and nothing more:
+ *
+ *  - IP-literal hosts. Node skips DNS for a literal, so the connect-time
+ *    lookup never fires and the address reaches the socket unchecked.
+ *    `fetchWithSecureRedirects` validates Location targets, not the initial
+ *    URL. Without this check, any region/baseUrl that yields an IP literal
+ *    (e.g. `http://169.254.169.254/`) would receive the exported events and
+ *    the Authorization header.
+ *  - String-level faults no network check can catch: embedded credentials,
+ *    bad encoding, a non-HTTP(S) scheme.
+ *
+ * DNS-named hosts are deliberately not policed here. The connect-time lookup
+ * re-validates every IP the name actually resolves to, at connect, which is
+ * strictly stronger than a string pre-check.
+ *
+ * Not routed through `validateWebhookURL`: that wrapper also imposes the
+ * webhook surface's port policy (80/443 only), which the exporters do not
+ * have. Ports stay unrestricted because host/IP policy, not the port, is
+ * what confines this egress. Redirect targets keep the stricter default.
+ *
+ * Uses the webhook allowlist on purpose: allowing a host for webhook
+ * delivery also allows analytics exports to it. Splitting the lists is a
+ * separate operator-facing change.
+ */
+export function validateAnalyticsIntegrationUrl(
+  urlString: string,
+  whitelist: OutboundUrlValidationWhitelist = whitelistFromEnv(),
+): void {
+  // parseOutboundUrl (not new URL) so embedded credentials and bad encoding
+  // are refused without echoing the URL — undici's own guard echoes it,
+  // which would put the password in worker logs.
+  const url = parseOutboundUrl(urlString);
+
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new OutboundUrlValidationError(
+      "protocol-not-allowed",
+      `Only HTTP and HTTPS protocols are allowed for analytics integration exports, got ${url.protocol}`,
+    );
+  }
+
+  if (!isIPAddress(url.hostname)) return;
+
+  validateOutboundResolvedIp({
+    hostname: url.hostname,
+    ip: url.hostname,
+    whitelist,
+    logContext: "Analytics integration",
+  });
+}
 
 /**
  * A serialization-safe stand-in for the validation error. The original holds the
