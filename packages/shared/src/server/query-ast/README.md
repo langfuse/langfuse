@@ -25,3 +25,19 @@ Regenerate baselines with `-u` after an intentional SQL change:
 ```
 pnpm --filter @langfuse/shared run test src/server/query-ast -- -u
 ```
+
+## CI and the `clickhouse format` version
+
+These tests need the `clickhouse` binary (the `format` subcommand, shipped in
+`clickhouse-common-static`); without it they `describe.skip`. The `tests-shared`
+CI job installs it pinned to **26.4.5.143** — the ClickHouse version recommended
+for Langfuse v4, also pinned in `scripts/codex/cloud_services.sh`.
+
+`clickhouse format` output is version-sensitive (e.g. how `UNION ALL` branches
+are parenthesized changed between 25.x and 26.x), so the committed snapshots are
+coupled to that exact version. When bumping the CI pin, regenerate the snapshots
+against the new binary in the same PR, or the golden tests drift.
+
+The golden step is intentionally **non-blocking** in CI (`continue-on-error`): a
+drift surfaces as a warning (and a PR comment on same-repo PRs) but never blocks
+the pipeline. Promote it to a required check once it has proven stable.
