@@ -1,5 +1,6 @@
 import { registeredProviders } from "../../conventions";
 import type { NormalizedMessagePart, NormalizedMessageRole } from "../../types";
+import { ownLookup } from "../utils/json";
 const CANONICAL_ROLES = new Set(["system", "user", "assistant", "tool"]);
 
 export function normalizeRole(
@@ -9,7 +10,7 @@ export function normalizeRole(
   if (typeof rawRole === "string") {
     const lowered = rawRole.toLowerCase();
     for (const provider of registeredProviders) {
-      const role = provider.roleByRawRole?.[lowered];
+      const role = ownLookup(provider.roleByRawRole, lowered);
       if (role) return role;
     }
     if (CANONICAL_ROLES.has(lowered)) return lowered as NormalizedMessageRole;
@@ -21,7 +22,7 @@ export function normalizeRole(
 
   if (typeof message.type !== "string") return undefined;
   for (const provider of registeredProviders) {
-    const role = provider.roleByMessageType?.[message.type];
+    const role = ownLookup(provider.roleByMessageType, message.type);
     if (role) return role;
   }
   return undefined;

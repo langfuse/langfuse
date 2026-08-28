@@ -4,7 +4,12 @@ import type {
   PartHandlerContext,
 } from "../../conventions/io-convention";
 import type { NormalizedMessagePart } from "../../types";
-import { asRecord, isRecord, remainingProviderMetadata } from "../utils/json";
+import {
+  asRecord,
+  isRecord,
+  ownLookup,
+  remainingProviderMetadata,
+} from "../utils/json";
 import { normalizeFallbackPart } from "./message-parts/fallback";
 import {
   filePartFromMediaReference,
@@ -84,14 +89,14 @@ function normalizePartBase(
 
   const type = typeof value.type === "string" ? value.type : undefined;
   if (type) {
-    const sharedHandler = SHARED_TYPED_PART_HANDLERS[type];
+    const sharedHandler = ownLookup(SHARED_TYPED_PART_HANDLERS, type);
     if (sharedHandler) {
       const result = sharedHandler(value, partContext);
       if (result.matched) return result.value;
     }
 
     for (const provider of providers) {
-      const handler = provider.typedParts?.[type];
+      const handler = ownLookup(provider.typedParts, type);
       if (!handler) continue;
       const result = handler(value, partContext);
       if (result.matched) return result.value;

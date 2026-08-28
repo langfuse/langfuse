@@ -76,7 +76,7 @@ export function toEvalRecord(
         id: part.toolCallId ?? "",
         name: part.toolName,
         arguments: part.input ?? {},
-        type: "",
+        type: part.toolType ?? "",
         index: callIndex++,
       });
     }

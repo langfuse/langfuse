@@ -1,6 +1,6 @@
 import { registeredProviders } from "../../conventions";
 import { FinishReason } from "../../types";
-import { optionalString } from "../utils/json";
+import { optionalString, ownLookup } from "../utils/json";
 
 /**
  * Read the finish/stop carrier off a record (message, choice/candidate, or
@@ -27,7 +27,7 @@ export function normalizeFinishReason(
   // same canonical value (asserted by registry.test.ts).
   const lowered = value.toLowerCase();
   const providerType = registeredProviders
-    .map((provider) => provider.finishReasonTypeByRaw?.[lowered])
+    .map((provider) => ownLookup(provider.finishReasonTypeByRaw, lowered))
     .find((type) => type !== undefined);
 
   return { type: providerType ?? "unknown", raw: value };

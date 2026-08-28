@@ -9,6 +9,20 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Own-property lookup for input-derived keys: `__proto__`/`constructor` must
+ * miss (taking the caller's unknown-value fallback), not resolve through the
+ * prototype chain to non-handler values.
+ */
+export function ownLookup<T>(
+  record: Readonly<Record<string, T>> | undefined,
+  key: string,
+): T | undefined {
+  return record !== undefined && Object.hasOwn(record, key)
+    ? record[key]
+    : undefined;
+}
+
 export function toJsonValue(value: unknown): JsonValue {
   if (value === null) return null;
   if (typeof value === "string" || typeof value === "boolean") return value;
