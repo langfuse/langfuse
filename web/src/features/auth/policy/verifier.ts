@@ -1,12 +1,11 @@
 import crypto from "node:crypto";
 
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { UnauthorizedError } from "@langfuse/shared";
+import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
 import { createShaHash } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import { type ErrorResult, type Success } from "./types";
-import { type ResolveContextParams } from "./resolveContext";
 
 /** invalidCredentials is today's single 401 body for any unknown or malformed token. */
 const invalidCredentials =
@@ -15,13 +14,13 @@ const invalidCredentials =
 /** Verifier authenticates a request credential into a resolvable presentation, dispatching Basic vs Bearer and never throwing. */
 export class Verifier {
   constructor(
-    private readonly store: KeyStore,
+    private readonly store: ApiKeyRepository,
     private readonly salt: string = env.SALT,
     private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
     private readonly isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
   ) {}
 
-  /** verify resolves the Authorization header to a credential presentation, or a 401. */
+  /** verify resolves the Authorization header to a credential presentation, or a typed failure. */
   async verify(authHeader: string | undefined): Promise<VerifyResult> {
     if (authHeader?.startsWith("Basic ")) {
       return this.verifyBasic(authHeader.slice("Basic ".length));
@@ -41,17 +40,23 @@ export class Verifier {
     const byFastHash = await this.store.findByFastHash(
       createShaHash(secretKey, this.salt),
     );
-    if (byFastHash?.fastHashedSecretKey) {
-      return privateKey(byFastHash);
+    if (!byFastHash.success) return byFastHash;
+    if (byFastHash.apiKey?.fastHashedSecretKey) {
+      return privateKey(byFastHash.apiKey);
     }
 
     const slow = await this.store.findByPublicKey(publicKey);
-    if (slow && (await this.store.verifySlow(secretKey, slow))) {
-      await this.store.backfillFastHash(
-        slow,
-        createShaHash(secretKey, this.salt),
-      );
-      return privateKey(slow);
+    if (!slow.success) return slow;
+    if (slow.apiKey) {
+      const verified = await this.store.verifySlow(secretKey, slow.apiKey);
+      if (!verified.success) return verified;
+      if (verified.valid) {
+        await this.store.backfillFastHash(
+          slow.apiKey,
+          createShaHash(secretKey, this.salt),
+        );
+        return privateKey(slow.apiKey);
+      }
     }
     return unauthorized();
   }
@@ -65,13 +70,19 @@ export class Verifier {
     const byFastHash = await this.store.findByFastHash(
       createShaHash(token, this.salt),
     );
-    if (byFastHash?.fastHashedSecretKey) {
-      return privateKey(byFastHash);
+    if (!byFastHash.success) return byFastHash;
+    if (byFastHash.apiKey?.fastHashedSecretKey) {
+      return privateKey(byFastHash.apiKey);
     }
 
     const byPublicKey = await this.store.findByPublicKey(token);
-    if (byPublicKey) {
-      return { success: true, authorization: "publicKey", apiKey: byPublicKey };
+    if (!byPublicKey.success) return byPublicKey;
+    if (byPublicKey.apiKey) {
+      return {
+        success: true,
+        authorization: "publicKey",
+        apiKey: byPublicKey.apiKey,
+      };
     }
     return unauthorized();
   }
@@ -109,15 +120,30 @@ function decodeBasic(
   return { publicKey, secretKey };
 }
 
-/** VerifyResult is the credential the resolver consumes, or a 401; verify returns, never throws. */
-export type VerifyResult =
-  | (Success & ResolveContextParams)
-  | ErrorResult<UnauthorizedError>;
+/** VerifiedCredential is the presentation the resolver consumes: an api key with how it was presented, or the admin key. */
+export type VerifiedCredential =
+  | { authorization: "publicKey" | "privateKey"; apiKey: ApiKey }
+  | { authorization: "adminKey" };
 
-/** KeyStore reads `ApiKey` rows by the two disjoint unique indexes and backfills the fast hash. */
-export type KeyStore = {
-  findByFastHash: (hash: string) => Promise<ApiKey | null>;
-  findByPublicKey: (publicKey: string) => Promise<ApiKey | null>;
-  verifySlow: (secretKey: string, apiKey: ApiKey) => Promise<boolean>;
+/** VerifyResult is the verified credential, or a typed failure; verify returns, never throws. */
+export type VerifyResult =
+  | (Success & VerifiedCredential)
+  | ErrorResult<UnauthorizedError | InternalServerError>;
+
+/** ApiKeyLookup is a hit, a miss (null), or an infra failure; a miss is normal control flow, not an error. */
+export type ApiKeyLookup =
+  | (Success & { apiKey: ApiKey | null })
+  | ErrorResult<InternalServerError>;
+
+/** VerifySlowResult is the bcrypt comparison outcome, or an infra failure. */
+export type VerifySlowResult =
+  | (Success & { valid: boolean })
+  | ErrorResult<InternalServerError>;
+
+/** ApiKeyRepository reads `ApiKey` rows by the two disjoint unique indexes and backfills the fast hash. */
+export type ApiKeyRepository = {
+  findByFastHash: (hash: string) => Promise<ApiKeyLookup>;
+  findByPublicKey: (publicKey: string) => Promise<ApiKeyLookup>;
+  verifySlow: (secretKey: string, apiKey: ApiKey) => Promise<VerifySlowResult>;
   backfillFastHash: (apiKey: ApiKey, hash: string) => Promise<void>;
 };

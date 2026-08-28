@@ -4,12 +4,14 @@ import { type Redis, type Cluster } from "ioredis";
 
 import {
   type ApiKey,
+  type Organization,
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
 import {
   CloudConfigSchema,
   InternalServerError,
+  LangfuseNotFoundError,
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
@@ -21,19 +23,16 @@ import {
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { env } from "@/src/env.mjs";
 import { headerValue } from "./enforce";
-import {
-  ContextResolver,
-  type OrgEnrichment,
-  type OrgRepo,
-} from "./resolveContext";
-import { Verifier, type KeyStore } from "./verifier";
+import { resolveContext } from "./resolveContext";
+import { Verifier, type ApiKeyRepository } from "./verifier";
 import {
   type AuthorizationContext,
   type ErrorResult,
+  type PrincipalOrganization,
   type Success,
 } from "./types";
 
-/** keyStoreCachePrefix namespaces the Verifier cache (`fast hash → ApiKey record`) in redis. */
+/** keyStoreCachePrefix namespaces the api-key fast-hash cache (`fast hash → ApiKey record`) in redis. */
 const keyStoreCachePrefix = "authz:apikey:";
 
 /** authenticate resolves a request's credential into an `AuthorizationContext`, returning a typed failure rather than throwing. */
@@ -49,7 +48,18 @@ export async function authenticate(
   const gate = gateKeyKind(verified, params);
   if (gate) return gate;
 
-  return buildResolver().resolveContext(verified);
+  if (verified.authorization === "adminKey") {
+    return resolveContext({ authorization: "adminKey" });
+  }
+
+  const enriched = await enrichOrg(verified.apiKey);
+  if (!enriched.success) return enriched;
+
+  return resolveContext({
+    authorization: verified.authorization,
+    apiKey: verified.apiKey,
+    organization: enriched.organization,
+  });
 }
 
 /** gateKeyKind rejects key kinds a route does not opt into: in-app-agent and admin. */
@@ -81,71 +91,154 @@ function gateKeyKind(
   return null;
 }
 
+/** enrichOrg loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
+async function enrichOrg(
+  apiKey: ApiKey,
+): Promise<
+  | (Success & { organization: PrincipalOrganization })
+  | ErrorResult<InternalServerError>
+> {
+  if (apiKey.orgId === null) {
+    return {
+      success: false,
+      error: new InternalServerError(`key ${apiKey.id} has no orgId`),
+    };
+  }
+  const found = await buildOrgRepo().getByOrgId(apiKey.orgId);
+  if (!found.success) {
+    return {
+      success: false,
+      error:
+        found.error instanceof InternalServerError
+          ? found.error
+          : new InternalServerError(found.error.message),
+    };
+  }
+  return { success: true, organization: enrich(found.organization) };
+}
+
+/** enrich derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
+function enrich(org: OrganizationWithProjects): PrincipalOrganization {
+  const cloudConfig = org.cloudConfig
+    ? CloudConfigSchema.parse(org.cloudConfig)
+    : undefined;
+  return {
+    orgId: org.id,
+    plan: getOrganizationPlanServerSide(cloudConfig),
+    rateLimitConfig: cloudConfig?.rateLimitOverrides ?? [],
+    projectIds: org.projects.map((p) => p.id),
+    isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
+  };
+}
+
 /** buildVerifier is the prisma/redis-backed Verifier on its default collaborators. */
 function buildVerifier(
   prisma: PrismaClient = defaultPrisma,
   redis: Redis | Cluster | null = defaultRedis,
 ): Verifier {
-  return new Verifier(prismaKeyStore(prisma, redis));
+  return new Verifier(prismaApiKeyRepository(prisma, redis));
 }
 
-/** buildResolver is the ContextResolver bound to the prisma org enricher. */
-function buildResolver(prisma: PrismaClient = defaultPrisma): ContextResolver {
-  return new ContextResolver(prismaOrgRepo(prisma));
+/** buildOrgRepo is the prisma-backed OrganizationRepository on its default client. */
+function buildOrgRepo(
+  prisma: PrismaClient = defaultPrisma,
+): OrganizationRepository {
+  return prismaOrganizationRepository(prisma);
 }
 
-/** prismaKeyStore reads `ApiKey` rows by index, read-through cached by fast hash and failing open to Postgres. */
-function prismaKeyStore(
+/** prismaApiKeyRepository reads `ApiKey` rows by index, read-through cached by fast hash, returning infra failures as values. */
+function prismaApiKeyRepository(
   prisma: PrismaClient,
   redis: Redis | Cluster | null,
-): KeyStore {
+): ApiKeyRepository {
   return {
     findByFastHash: async (hash) => {
-      const cached = await readCachedKey(redis, hash);
-      if (cached) return cached;
-      const row = await prisma.apiKey.findUnique({
-        where: { fastHashedSecretKey: hash },
-      });
-      if (row?.fastHashedSecretKey) await writeCachedKey(redis, hash, row);
-      return row;
+      try {
+        const cached = await readCachedKey(redis, hash);
+        if (cached) return { success: true, apiKey: cached };
+        const row = await prisma.apiKey.findUnique({
+          where: { fastHashedSecretKey: hash },
+        });
+        if (row?.fastHashedSecretKey) await writeCachedKey(redis, hash, row);
+        return { success: true, apiKey: row };
+      } catch (error) {
+        return {
+          success: false,
+          error: new InternalServerError(
+            `api key lookup by fast hash failed: ${String(error)}`,
+          ),
+        };
+      }
     },
-    findByPublicKey: (publicKey) =>
-      prisma.apiKey.findUnique({ where: { publicKey } }),
-    verifySlow: (secretKey, apiKey) =>
-      verifySecretKey(secretKey, apiKey.hashedSecretKey),
+    findByPublicKey: async (publicKey) => {
+      try {
+        const apiKey = await prisma.apiKey.findUnique({ where: { publicKey } });
+        return { success: true, apiKey };
+      } catch (error) {
+        return {
+          success: false,
+          error: new InternalServerError(
+            `api key lookup by public key failed: ${String(error)}`,
+          ),
+        };
+      }
+    },
+    verifySlow: async (secretKey, apiKey) => {
+      try {
+        return {
+          success: true,
+          valid: await verifySecretKey(secretKey, apiKey.hashedSecretKey),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: new InternalServerError(
+            `slow verify failed: ${String(error)}`,
+          ),
+        };
+      }
+    },
     backfillFastHash: async (apiKey, hash) => {
-      await prisma.apiKey.update({
-        where: { id: apiKey.id },
-        data: { fastHashedSecretKey: hash },
-      });
+      try {
+        await prisma.apiKey.update({
+          where: { id: apiKey.id },
+          data: { fastHashedSecretKey: hash },
+        });
+      } catch (error) {
+        logger.error("authz api key fast-hash backfill failed", error);
+      }
     },
   };
 }
 
-/** prismaOrgRepo enriches an org id into its `PrincipalOrganization` caps and liveness. */
-function prismaOrgRepo(prisma: PrismaClient): OrgRepo {
+/** prismaOrganizationRepository reads an org with its live projects, returning a miss or infra failure as a value. */
+function prismaOrganizationRepository(
+  prisma: PrismaClient,
+): OrganizationRepository {
   return {
-    enrich: async (orgId) => {
-      const org = await prisma.organization.findUnique({
-        where: { id: orgId },
-        include: {
-          projects: { where: { deletedAt: null }, select: { id: true } },
-        },
-      });
-      if (!org) {
-        throw new InternalServerError(`org ${orgId} not found`);
+    getByOrgId: async (id) => {
+      try {
+        const organization = await prisma.organization.findUnique({
+          where: { id },
+          include: {
+            projects: { where: { deletedAt: null }, select: { id: true } },
+          },
+        });
+        if (!organization) {
+          return {
+            success: false,
+            error: new LangfuseNotFoundError(`org ${id} not found`),
+          };
+        }
+        return { success: true, organization };
+      } catch (error) {
+        return {
+          success: false,
+          error: new InternalServerError(
+            `failed to load org ${id}: ${String(error)}`,
+          ),
+        };
       }
-      const cloudConfig = org.cloudConfig
-        ? CloudConfigSchema.parse(org.cloudConfig)
-        : undefined;
-      return {
-        orgId,
-        plan: getOrganizationPlanServerSide(cloudConfig),
-        rateLimitConfig: cloudConfig?.rateLimitOverrides ?? [],
-        projectIds: org.projects.map((p) => p.id),
-        isIngestionSuspended:
-          org.cloudFreeTierUsageThresholdState === "BLOCKED",
-      } satisfies OrgEnrichment;
     },
   };
 }
@@ -160,7 +253,7 @@ async function readCachedKey(
     const raw = await redis.get(`${keyStoreCachePrefix}${hash}`);
     return raw ? (deserializeKey(raw) ?? null) : null;
   } catch (error) {
-    logger.error("authz Verifier cache read failed, falling open", error);
+    logger.error("authz api key cache read failed, falling open", error);
     return null;
   }
 }
@@ -180,7 +273,7 @@ async function writeCachedKey(
       env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
     );
   } catch (error) {
-    logger.error("authz Verifier cache write failed", error);
+    logger.error("authz api key cache write failed", error);
   }
 }
 
@@ -201,5 +294,20 @@ export type AuthenticateParams = {
   isAdminApiKeyAuthAllowed?: boolean;
 };
 
-/** Authenticated is the resolver's success outcome: the resolved authorization context. */
+/** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };
+
+/** OrganizationWithProjects is the raw org row plus its live project ids. */
+export type OrganizationWithProjects = Organization & {
+  projects: { id: string }[];
+};
+
+/** OrganizationRepository loads an org by id, returning a miss or infra failure as a value. */
+export type OrganizationRepository = {
+  getByOrgId: (
+    id: string,
+  ) => Promise<
+    | (Success & { organization: OrganizationWithProjects })
+    | ErrorResult<LangfuseNotFoundError | InternalServerError>
+  >;
+};
