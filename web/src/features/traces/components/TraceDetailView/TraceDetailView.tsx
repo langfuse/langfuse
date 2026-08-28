@@ -43,6 +43,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 // Extracted components
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
@@ -155,8 +156,11 @@ export function TraceDetailView({
 
   // Fetch comments for this trace (for inline comment highlighting)
   const session = useSession();
-  // The normalized-parser formatted view is validated by Langfuse admins only.
-  const isAdmin = session.data?.user?.admin === true;
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -292,7 +296,7 @@ export function TraceDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
-                      {isAdmin && (
+                      {showPrettyBeta && (
                         <TabsTrigger
                           value="pretty-beta"
                           className="h-fit px-1 text-xs"

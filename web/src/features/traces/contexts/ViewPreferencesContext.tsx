@@ -28,7 +28,11 @@ export type LogViewTreeStyle = "flat" | "indented";
 
 /** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta).
  * "pretty-beta" is the admin-only normalized-parser formatted view. */
-export type JsonViewPreference = "pretty" | "pretty-beta" | "json" | "json-beta";
+export type JsonViewPreference =
+  | "pretty"
+  | "pretty-beta"
+  | "json"
+  | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
 export type TraceRenderContext = "fullscreen" | "peek" | "annotation";

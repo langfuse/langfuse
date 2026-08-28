@@ -64,6 +64,7 @@ import {
 } from "@/src/features/traces/fns/traceAggregation";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";
 
 export interface ConnectedObservationDetailViewProps {
@@ -277,8 +278,11 @@ export function ConnectedObservationDetailView({
   });
 
   const session = useSession();
-  // The normalized-parser formatted view is validated by Langfuse admins only.
-  const isAdmin = session.data?.user?.admin === true;
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -379,7 +383,7 @@ export function ConnectedObservationDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
-                      {isAdmin && (
+                      {showPrettyBeta && (
                         <TabsTrigger
                           value="pretty-beta"
                           className="h-fit px-1 text-xs"

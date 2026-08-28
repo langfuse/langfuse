@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
@@ -151,9 +151,11 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
-  const session = useSession();
-  // The normalized-parser formatted view is validated by Langfuse admins only.
-  const isAdmin = session.data?.user?.admin === true;
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
     useLocalStorage<string[]>(STORAGE_KEY, []);
 
@@ -230,7 +232,7 @@ export function IOPreview({
           selectedView={selectedView}
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
-          showPrettyBeta={isAdmin}
+          showPrettyBeta={showPrettyBeta}
         />
       )}
 
@@ -303,7 +305,9 @@ export function IOPreview({
         <IOPreviewPretty
           {...sharedProps}
           parser={
-            selectedView === "pretty-beta" && isAdmin ? "normalized" : "legacy"
+            selectedView === "pretty-beta" && showPrettyBeta
+              ? "normalized"
+              : "legacy"
           }
           observationName={observationName}
           showMetadata={showMetadata}
