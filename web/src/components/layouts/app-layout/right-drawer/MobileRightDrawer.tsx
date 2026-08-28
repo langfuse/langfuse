@@ -64,10 +64,10 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
               <div className="bg-muted h-2 w-20 rounded-full" />
             </div>
             {/* sr-only for screen readers and accessibility */}
-            <DrawerTitle className="sr-only">Upgrade to v4</DrawerTitle>
+            <DrawerTitle className="sr-only">Ensure compatibility</DrawerTitle>
             <DrawerDescription className="sr-only">
-              Information about migrating to Langfuse v4 and upcoming
-              deprecations.
+              Action items to keep your integrations compatible with Langfuse v4
+              and upcoming deprecations.
             </DrawerDescription>
           </DrawerHeader>
           <V4MigrationPanel
