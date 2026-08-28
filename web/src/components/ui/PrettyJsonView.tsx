@@ -93,13 +93,14 @@ const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
   { container: string; row: string; cell: string }
 > = {
   danger: {
-    container: "border-dark-red bg-light-red",
-    row: "hover:bg-light-red",
-    cell: "border-dark-red/30",
+    container:
+      "border-dark-red/30 bg-light-red/50 dark:border-dark-red/20 dark:bg-light-red/35",
+    row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
+    cell: "border-dark-red/20 dark:border-dark-red/15",
   },
   warning: {
-    container: "border-dark-yellow/40 bg-light-yellow",
-    row: "hover:bg-light-yellow",
+    container: "border-dark-yellow/40 bg-light-yellow/80",
+    row: "hover:bg-light-yellow/80",
     cell: "border-dark-yellow/20",
   },
   muted: {
