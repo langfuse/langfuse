@@ -105,7 +105,9 @@ export const experimentsTableCols: ColumnDefinition[] = [
   // Level-agnostic scores: one filter per data type that matches a score
   // whether it was recorded on an observation or on the trace. The `obs_*` ids
   // are aliases so existing links and saved views keep resolving — and start
-  // matching trace-level scores, which is the fix.
+  // matching trace-level scores, which is the fix. The old DISPLAY names are
+  // aliases too: a saved view may store a column by its label, and
+  // `validateFilters` drops what it cannot resolve.
   {
     name: "Numeric Scores",
     id: "scores_avg",

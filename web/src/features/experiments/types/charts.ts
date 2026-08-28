@@ -21,13 +21,19 @@ export type ScoreFilterOptions = {
   experiment_score_booleans?: string[];
 };
 
+export type ScoreNameLevels = Record<string, ("observation" | "trace")[]>;
+
+/**
+ * What the three score facets offer, plus the level(s) each offered name exists
+ * at so the picker can tag them.
+ */
 export type ExperimentItemScoreFilterOptions = {
-  obs_scores_avg?: string[];
-  obs_score_categories?: Record<string, string[]>;
-  obs_score_booleans?: string[];
-  trace_scores_avg?: string[];
-  trace_score_categories?: Record<string, string[]>;
-  trace_score_booleans?: string[];
+  scores_avg?: string[];
+  score_categories?: Record<string, string[]>;
+  score_booleans?: string[];
+  score_name_levels_numeric?: ScoreNameLevels;
+  score_name_levels_categorical?: ScoreNameLevels;
+  score_name_levels_boolean?: ScoreNameLevels;
 };
 
 export type ScoreLevel = "obs" | "trace" | "experiment";

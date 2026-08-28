@@ -22,7 +22,6 @@ import {
   eventsExperimentsForItems,
   eventsExperiments,
   eventsExperimentsAggregation,
-  eventsScoresAggregation,
   eventsTracesScoresAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -162,6 +161,88 @@ const experimentScoreCTE = (params: {
     )
     .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())
+    .buildWithParams();
+};
+
+/**
+ * Per-item score arrays that span BOTH levels and the item's whole subtree:
+ * scores on any observation the item produced, plus scores on its trace. Keyed
+ * by the root span id, which is unique per (experiment, item) - so a join on it
+ * scopes to one experiment's run of that item without any experiment predicate
+ * of its own.
+ *
+ * The level is kept in the inner GROUP BY, giving one array entry per
+ * (name, level). Score filters compile to array-existence checks, so a positive
+ * filter then matches at either level and its negation means "at neither" - the
+ * same trick the runs aggregate uses.
+ */
+const experimentItemScoreCTE = (params: {
+  projectId: string;
+  startTimeFrom?: string | null;
+  itemSpansCTE: CTEWithSchema;
+}) => {
+  const joinedItemScores = new CTEQueryBuilder()
+    .withCTE("item_spans", {
+      ...params.itemSpansCTE,
+    })
+    .withCTE("unit_scores", {
+      ...buildScoresCTE({
+        projectId: params.projectId,
+        startTimeFrom: params.startTimeFrom,
+        level: "any",
+      }),
+    })
+    .from("item_spans", "isp")
+    .innerJoin(
+      "unit_scores",
+      "us",
+      // An observation-level score counts when it sits on ANY observation the
+      // item produced, not only its root span - an evaluator usually scores the
+      // generation inside the run. Trace-level scores carry no observation, and
+      // are matched at the root row only so they are not counted once per span.
+      "ON us.project_id = isp.project_id AND us.trace_id = isp.trace_id AND (us.observation_id = isp.span_id OR (us.observation_id IS NULL AND isp.span_id = isp.root_span_id))",
+    )
+    .select(
+      "isp.project_id AS project_id",
+      "isp.root_span_id AS root_span_id",
+      "us.name AS name",
+      "us.data_type AS data_type",
+      "us.string_value AS string_value",
+      "avg(us.avg_value) AS item_avg",
+    )
+    .groupBy(
+      "isp.project_id",
+      "isp.root_span_id",
+      "us.name",
+      "us.data_type",
+      "us.string_value",
+      // The level discriminator - see the header. Grouped but not selected: the
+      // tuples only need to be distinct per level, not to name it.
+      "us.observation_id IS NULL",
+    )
+    .buildWithParams();
+
+  return new CTEQueryBuilder()
+    .withCTE("item_scores", {
+      ...joinedItemScores,
+      schema: [
+        "project_id",
+        "root_span_id",
+        "name",
+        "data_type",
+        "string_value",
+        "item_avg",
+      ],
+    })
+    .from("item_scores", "sc")
+    .select(
+      "sc.project_id AS project_id",
+      "sc.root_span_id AS root_span_id",
+      "groupArrayIf(tuple(sc.name, sc.item_avg, sc.data_type, sc.string_value), sc.data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg",
+      "groupArrayIf(concat(sc.name, ':', sc.string_value), sc.data_type = 'CATEGORICAL' AND notEmpty(sc.string_value)) AS score_categories",
+      `${scoreBooleansAggregation("sc.")} AS score_booleans`,
+    )
+    .groupBy("sc.project_id", "sc.root_span_id")
     .buildWithParams();
 };
 
@@ -568,11 +649,16 @@ const buildScoreFilterOptionsQuery = (params: {
 }): { query: string; params: Record<string, unknown> } => {
   const { projectId, experimentIds, level } = params;
 
-  // Build experiment events CTE using existing fragment
-  const experimentEventsCTE = eventsExperimentsRootSpans({
-    projectId,
-    experimentIds,
-  })
+  // Offered-set == matchable-set. An observation-level filter matches a score on
+  // ANY observation the run produced, so discovery has to see them all - keying
+  // off root spans alone would hide every score an evaluator wrote to a nested
+  // generation, offering less than the filter can match. The trace level joins
+  // on trace_id only, so root spans are enough there and scan less.
+  const experimentEventsCTE = (
+    level === "trace"
+      ? eventsExperimentsRootSpans({ projectId, experimentIds })
+      : eventsExperimentsForItems({ projectId, experimentIds })
+  )
     .selectRaw("e.project_id", "e.trace_id", "e.span_id")
     .limitBy("e.project_id", "e.trace_id", "e.span_id")
     .buildWithParams();
@@ -862,7 +948,7 @@ type QualificationPlan = {
   where: { query: string; params: Record<string, any> };
   having: { query: string; params: Record<string, any> } | null;
   orderBy: string | null;
-  hasScoreFilters: boolean;
+  hasAgnosticScoreFilters: boolean;
   hasTraceScoreFilters: boolean;
 };
 
@@ -931,10 +1017,17 @@ const buildQualificationPlan = (
   });
 
   const filters = filterByExperiment.flatMap((f) => f.filters);
-  const hasScoreFilters = filters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
-      f.column,
-    ),
+  // The canonical ids and their `obs_*` aliases both resolve to the
+  // level-agnostic aggregate, so both mount the same CTE.
+  const hasAgnosticScoreFilters = filters.some((f) =>
+    [
+      "scores_avg",
+      "score_categories",
+      "score_booleans",
+      "obs_scores_avg",
+      "obs_score_categories",
+      "obs_score_booleans",
+    ].includes(f.column),
   );
   const hasTraceScoreFilters = filters.some((f) =>
     [
@@ -978,7 +1071,7 @@ const buildQualificationPlan = (
           }
       : null,
     orderBy: `ORDER BY e.experiment_item_id ASC`,
-    hasScoreFilters,
+    hasAgnosticScoreFilters,
     hasTraceScoreFilters,
   };
 };
@@ -1009,13 +1102,38 @@ const getExperimentItemsFromEventsGeneric = (params: {
     offset,
   } = params;
 
-  const { where, having, orderBy, hasScoreFilters, hasTraceScoreFilters } =
-    buildQualificationPlan({
-      baseExperimentId,
-      compExperimentIds,
-      filterByExperiment,
-      config,
-    });
+  const {
+    where,
+    having,
+    orderBy,
+    hasAgnosticScoreFilters,
+    hasTraceScoreFilters,
+  } = buildQualificationPlan({
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+    config,
+  });
+
+  // Every observation each item produced, tagged with the item's root span so
+  // the aggregate can key by it. Scoped to the experiments in play so the CTE
+  // never scans the whole project.
+  const itemSpans = eventsExperimentsForItems({
+    projectId,
+    experimentIds: [
+      ...(baseExperimentId ? [baseExperimentId] : []),
+      ...compExperimentIds,
+    ],
+  })
+    .whereRaw("e.experiment_item_root_span_id != ''")
+    .selectRaw(
+      "e.project_id",
+      "e.experiment_item_root_span_id AS root_span_id",
+      "e.trace_id",
+      "e.span_id",
+    )
+    .limitBy("e.project_id", "e.span_id")
+    .buildWithParams();
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
@@ -1026,17 +1144,23 @@ const getExperimentItemsFromEventsGeneric = (params: {
       "e.experiment_item_id as item_id, min(e.start_time) as start_time",
   })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .when(hasScoreFilters, (b) =>
+    .when(hasAgnosticScoreFilters, (b) =>
       b.withCTE(
-        "scores_agg",
-        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
-        eventsScoresAggregation({
+        "item_scores_agg",
+        experimentItemScoreCTE({
           projectId,
+          itemSpansCTE: {
+            ...itemSpans,
+            schema: ["project_id", "root_span_id", "trace_id", "span_id"],
+          },
         }),
       ),
     )
-    .when(hasScoreFilters, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
+    .when(hasAgnosticScoreFilters, (b) =>
+      b.leftJoin(
+        "item_scores_agg AS ias",
+        "ON ias.project_id = e.project_id AND ias.root_span_id = e.span_id",
+      ),
     )
     .when(hasTraceScoreFilters, (b) =>
       b.withCTE(

@@ -72,6 +72,7 @@ import {
   eventsTraceMetadata,
   eventsExperimentTraceIds,
   eventsExperiments,
+  eventsExperimentsForItems,
   promptEventsForMetrics,
 } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
@@ -483,6 +484,106 @@ export const getScoresForExperimentItems = async (
       includeMetadataPayload,
     ),
     experimentId: row.experiment_id,
+    hasMetadata: !!row.has_metadata,
+  }));
+};
+
+/**
+ * Observation-level scores for experiment items, tagged with the item's ROOT
+ * span so a caller can group them per (experiment, item).
+ *
+ * An item's scores are the scores of its whole run: an evaluator usually writes
+ * to the generation inside the item, not to the root span the item is keyed by.
+ * Reading only the root span's scores hid those, while the item's score FILTERS
+ * match them - so the table showed less than it could filter on.
+ */
+export const getObservationScoresForExperimentItems = async (
+  projectId: string,
+  experimentIds: string[],
+  experimentItemIds?: string[],
+): Promise<
+  Array<
+    ScoreByDataType<AggregatableScoreDataType> & {
+      rootSpanId: string;
+      hasMetadata: boolean;
+    }
+  >
+> => {
+  if (experimentIds.length === 0) return [];
+
+  const itemSpansSubquery = eventsExperimentsForItems({
+    projectId,
+    experimentIds,
+    experimentItemIds,
+  })
+    .whereRaw("e.experiment_item_root_span_id != ''")
+    .selectRaw(
+      "e.project_id",
+      "e.experiment_item_root_span_id AS root_span_id",
+      "e.trace_id",
+      "e.span_id",
+    )
+    .buildWithParams();
+
+  const query = `
+    SELECT
+      s.id as id,
+      s.timestamp as timestamp,
+      s.project_id as project_id,
+      s.environment as environment,
+      s.trace_id as trace_id,
+      s.session_id as session_id,
+      s.observation_id as observation_id,
+      s.dataset_run_id as dataset_run_id,
+      s.name as name,
+      s.value as value,
+      s.source as source,
+      s.comment as comment,
+      s.author_user_id as author_user_id,
+      s.config_id as config_id,
+      s.data_type as data_type,
+      s.string_value as string_value,
+      s.queue_id as queue_id,
+      s.execution_trace_id as execution_trace_id,
+      s.created_at as created_at,
+      s.updated_at as updated_at,
+      s.event_ts as event_ts,
+      s.is_deleted as is_deleted,
+      length(mapKeys(s.metadata)) > 0 AS has_metadata,
+      isp.root_span_id as root_span_id
+    FROM (${itemSpansSubquery.query}) isp
+    JOIN scores s FINAL ON s.project_id = isp.project_id
+      AND s.trace_id = isp.trace_id
+      AND s.observation_id = isp.span_id
+    WHERE s.project_id = {projectId: String}
+      AND s.data_type IN ({dataTypes: Array(String)})
+    ORDER BY s.event_ts DESC
+    LIMIT 1 BY s.id, s.project_id, isp.root_span_id
+  `;
+
+  const rows = await queryClickhouse<
+    Omit<ScoreRecordReadType, "metadata"> & {
+      has_metadata: 0 | 1;
+      root_span_id: string;
+    }
+  >({
+    query,
+    params: {
+      projectId,
+      ...itemSpansSubquery.params,
+      dataTypes: AGGREGATABLE_SCORE_TYPES,
+    },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  const includeMetadataPayload = false;
+  return rows.map((row) => ({
+    ...convertClickhouseScoreToDomain<false, AggregatableScoreDataType>(
+      { ...row, metadata: {} },
+      includeMetadataPayload,
+    ),
+    rootSpanId: row.root_span_id,
     hasMetadata: !!row.has_metadata,
   }));
 };
