@@ -16,6 +16,13 @@ const processCategoricalScoreOptions = (
  * default (`pickDefaultStripMetric`) keeps applying as the score options
  * arrive — and a stored metric that the experiments in view no longer carry
  * falls back to it instead of rendering an empty chart.
+ *
+ * `isLoading` covers "we do not know the options yet", not just "a request is
+ * in flight". `pickDefaultStripMetric`'s Cost fallback asserts something —
+ * that the experiments in view carry no scores — and only the score-options
+ * query can assert it. Until it has, the strip must show its loading state:
+ * reporting ready would put "Cost ($)" in the header of a project full of
+ * scores. (LFE-15711)
  */
 export function useExperimentStripMetric({
   projectId,
@@ -24,11 +31,14 @@ export function useExperimentStripMetric({
   projectId: string;
   experimentIds: string[];
 }) {
+  // `projectId` arrives with `router.query` after hydration; without it in the
+  // guard the query can fire with `undefined` and zod rejects it. With no
+  // experiments in view there is nothing to ask about.
+  const canLoadScoreOptions = Boolean(projectId) && experimentIds.length > 0;
+
   const scoreOptions = api.experiments.scoreOptions.useQuery(
     { projectId, experimentIds },
-    // `projectId` arrives with `router.query` after hydration; without it in
-    // the guard the query can fire with `undefined` and zod rejects it.
-    { enabled: Boolean(projectId) && experimentIds.length > 0 },
+    { enabled: canLoadScoreOptions },
   );
 
   const [selectedMetricId, setSelectedMetricId] = useSessionStorage<
@@ -74,6 +84,10 @@ export function useExperimentStripMetric({
     metricId,
     setMetricId: setSelectedMetricId,
     availableMetricOptions,
-    isLoading: scoreOptions.isLoading,
+    // A disabled query is "pending" forever, so settle on the query's own
+    // outcome rather than on `isLoading`, which a not-yet-started fetch
+    // reports as false.
+    isLoading:
+      canLoadScoreOptions && !scoreOptions.isSuccess && !scoreOptions.isError,
   };
 }

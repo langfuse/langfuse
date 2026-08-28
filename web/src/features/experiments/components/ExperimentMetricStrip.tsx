@@ -244,6 +244,9 @@ export function ExperimentMetricStrip({
   return (
     <MetricStripBand
       status={status}
+      // The band's own voice, in place of a 144px dashed card clipped by a
+      // 63px band: say which half is missing.
+      emptyMessage="No experiments in view"
       header={
         <MetricStripHeaderRow>
           <Select value={metricId} onValueChange={handleMetricChange}>
