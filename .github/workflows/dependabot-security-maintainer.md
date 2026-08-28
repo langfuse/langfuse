@@ -60,6 +60,11 @@ tools:
   edit:
 
 steps:
+  - name: Setup pnpm
+    uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+    with:
+      run_install: false
+
   - name: Fetch open npm Dependabot alerts
     env:
       GH_TOKEN: ${{ github.token }}
@@ -80,7 +85,9 @@ safe-outputs:
   # staged run always remains a preview.
   staged: ${{ vars.DEPENDABOT_SECURITY_MAINTAINER_LIVE != 'enabled' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live') }}
   report-failure-as-issue: false
-  report-incomplete: false
+  report-incomplete:
+    max: 1
+    create-issue: false
   missing-tool: false
   missing-data: false
   create-pull-request:
@@ -152,8 +159,9 @@ The current run's safe-output staged flag is
    version exists or the fix requires a major migration, mark the package as
    attempted and continue with the next eligible alert.
 5. Run the upgrade loop for the selected dependency, then repeat selection from
-   step 3. Stop after requesting 10 PRs or when no eligible alert remains. If no
-   dependency produces a PR, call `noop`.
+   step 3. Stop after requesting 10 PRs or when no eligible alert remains. Track
+   any package that cannot complete because a required tool, network request,
+   upgrade command, or verification fails.
 
 ## Upgrade loop
 
@@ -198,4 +206,9 @@ The current run's safe-output staged flag is
 8. Return to clean `origin/main`, mark the package as attempted, and select the
    next eligible alert. If one upgrade fails, continue with the remaining alerts.
 
-If no dependency needs a new PR, call `noop`.
+After the loop, call `report_incomplete` exactly once if any selected upgrade
+failed because a required tool, network request, command, or verification could
+not complete. Include the affected packages and exact failure evidence. Do not
+call `noop` in that case. Call `noop` only when no PR is needed and no selected
+upgrade failed, for example because there are no alerts or every alert is already
+covered by an open PR.
