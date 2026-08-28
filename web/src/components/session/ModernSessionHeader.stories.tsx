@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { ModernSessionHeader } from "@/src/components/session/ModernSessionHeader";
+import { sessionHeaderVisibilityStorageKey } from "@/src/components/session/sessionHeaderVisibility";
 
 const scores = [
   {
@@ -328,5 +329,60 @@ export const TestCompactsTokenCounts = meta.story({
       "title",
       "tokens 648,714 → 6,697 (Σ 655,411)",
     );
+  },
+});
+
+export const TestHidesAndRevealsDetails = meta.story({
+  name: "(Test) Hides and reveals details",
+  args: {
+    ...defaultArgs,
+    projectId: "project-header-visibility-story",
+  },
+  play: async ({ canvasElement }) => {
+    const storageKey = sessionHeaderVisibilityStorageKey(
+      "project-header-visibility-story",
+    );
+    const storedValue = JSON.stringify([]);
+    localStorage.setItem(storageKey, storedValue);
+    window.dispatchEvent(
+      new CustomEvent("localStorageChange", {
+        detail: { key: storageKey, newValue: storedValue },
+      }),
+    );
+
+    const canvas = within(canvasElement);
+    const hideTraceDetail = await canvas.findByRole("button", {
+      name: "Hide trace and span counts in session header",
+    });
+    await userEvent.hover(canvas.getByText("traces"));
+    await expect(hideTraceDetail).toBeVisible();
+    await userEvent.click(hideTraceDetail);
+    await expect(
+      canvas.queryByRole("button", {
+        name: "Hide trace and span counts in session header",
+      }),
+    ).not.toBeInTheDocument();
+    await expect(
+      JSON.parse(localStorage.getItem(storageKey) ?? "[]"),
+    ).toContain("traces");
+
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: /show \d+ hidden session details/i,
+      }),
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    const showTraceDetail = await body.findByRole("button", {
+      name: "Show trace and span counts in session header",
+    });
+    await userEvent.hover(showTraceDetail);
+    await userEvent.click(showTraceDetail);
+
+    await expect(
+      canvas.getByRole("button", {
+        name: "Hide trace and span counts in session header",
+      }),
+    ).toBeInTheDocument();
+    await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));
   },
 });

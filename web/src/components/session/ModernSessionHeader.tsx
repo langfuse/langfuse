@@ -6,6 +6,7 @@ import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList"
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
 import {
   parseStoredHiddenSessionHeaderDetails,
+  sessionHeaderDynamicDetailKey,
   sessionHeaderVisibilityStorageKey,
 } from "@/src/components/session/sessionHeaderVisibility";
 import {
@@ -131,12 +132,12 @@ const SessionHeaderDetailWithVisibilityControl = ({
   return (
     <span className="group/detail flex items-center">
       {detail.content}
-      <span className="-ml-1 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within/detail:ml-1 group-focus-within/detail:w-4 group-hover/detail:ml-1 group-hover/detail:w-4">
+      <span className="-ml-1 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within/detail:ml-1 group-focus-within/detail:w-4 group-hover/detail:ml-1 group-hover/detail:w-4 [@media(hover:none)]:ml-1 [@media(hover:none)]:w-4">
         <button
           type="button"
           aria-label={`${action} ${detail.visibilityLabel} in session header`}
           title={`${action} in session header`}
-          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within/detail:opacity-100 group-hover/detail:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within/detail:opacity-100 group-hover/detail:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
           onClick={() => onVisibilityChange(detail, !isHidden)}
         >
           {isHidden ? (
@@ -361,28 +362,6 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
-  const changeDetailVisibility = (
-    detail: SessionHeaderDetail,
-    isHidden: boolean,
-  ) => {
-    if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
-
-    setRawHiddenDetailKeys((current: unknown) => {
-      const currentKeys = parseStoredHiddenSessionHeaderDetails(current);
-      return isHidden
-        ? currentKeys.concat(detail.key)
-        : currentKeys.filter((key) => key !== detail.key);
-    });
-    capture("session_detail:header_detail_visibility_changed", {
-      action: isHidden ? "hide" : "show",
-      detailType: detail.type,
-      hiddenDetailCount: Math.max(
-        hiddenDetailKeys.length + (isHidden ? 1 : -1),
-        0,
-      ),
-      isV4: true,
-    });
-  };
   const latencies =
     traces.state === "loaded"
       ? traces.data.flatMap((trace) =>
@@ -492,7 +471,7 @@ export function ModernSessionHeader({
     ),
   });
 
-  scores.forEach((score) => {
+  scores.forEach((score, index) => {
     const value = scoreChipValue(score);
     const isFraction =
       score.dataType === "NUMERIC" &&
@@ -501,9 +480,9 @@ export function ModernSessionHeader({
       score.value >= 0 &&
       score.value <= 1;
     pills.push({
-      key: `score-${score.id}`,
+      key: sessionHeaderDynamicDetailKey("score", score.id),
       searchText: `score ${score.name} ${value}`,
-      visibilityLabel: "score",
+      visibilityLabel: `score ${index + 1}`,
       type: "score",
       content: (
         <ModernSessionHeaderPill variant="display" title={score.name}>
@@ -535,26 +514,26 @@ export function ModernSessionHeader({
     });
   }
 
-  users.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT).forEach((user) => {
+  users.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT).forEach((user, index) => {
     pills.push({
-      key: `user-${user}`,
+      key: sessionHeaderDynamicDetailKey("user", user),
       searchText: `user ${user}`,
-      visibilityLabel: "user",
+      visibilityLabel: `user ${index + 1}`,
       type: "user",
       content: <UserChip projectId={projectId} user={user} />,
     });
   });
   const remainingUsers = users.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
 
-  metadataJsonPaths.paths.forEach((path) => {
+  metadataJsonPaths.paths.forEach((path, index) => {
     const display = getConfiguredMetadataDisplay(
       path,
       metadataJsonPaths.source,
     );
     pills.push({
-      key: `metadata-${path}`,
+      key: sessionHeaderDynamicDetailKey("metadata", path),
       searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
-      visibilityLabel: "metadata",
+      visibilityLabel: `metadata ${index + 1}`,
       type: "metadata",
       content: (
         <MetadataJsonPathPill
@@ -570,6 +549,31 @@ export function ModernSessionHeader({
   const manuallyHiddenPills = pills.filter((pill) =>
     hiddenDetailKeySet.has(pill.key),
   );
+  const availableDetailKeySet = new Set(pills.map((pill) => pill.key));
+  const changeDetailVisibility = (
+    detail: SessionHeaderDetail,
+    isHidden: boolean,
+  ) => {
+    if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
+
+    setRawHiddenDetailKeys((current: unknown) => {
+      const availableStoredKeys = parseStoredHiddenSessionHeaderDetails(
+        current,
+      ).filter((key) => availableDetailKeySet.has(key));
+      return isHidden
+        ? availableStoredKeys.concat(detail.key)
+        : availableStoredKeys.filter((key) => key !== detail.key);
+    });
+    capture("session_detail:header_detail_visibility_changed", {
+      action: isHidden ? "hide" : "show",
+      detailType: detail.type,
+      hiddenDetailCount: Math.max(
+        manuallyHiddenPills.length + (isHidden ? 1 : -1),
+        0,
+      ),
+      isV4: true,
+    });
+  };
 
   return (
     <div className="bg-header border-b px-4 py-2">

@@ -12,6 +12,18 @@ export type StoredHiddenSessionHeaderDetails = z.infer<
 export const sessionHeaderVisibilityStorageKey = (projectId: string) =>
   `modern-session:hidden-header-details:v1:${projectId}`;
 
+export const sessionHeaderDynamicDetailKey = (
+  type: "metadata" | "score" | "user",
+  identity: string,
+) => {
+  let fingerprint = 2_166_136_261;
+  for (let index = 0; index < identity.length; index += 1) {
+    fingerprint ^= identity.charCodeAt(index);
+    fingerprint = Math.imul(fingerprint, 16_777_619);
+  }
+  return `${type}-${(fingerprint >>> 0).toString(36)}`;
+};
+
 export const parseStoredHiddenSessionHeaderDetails = (
   raw: unknown,
 ): StoredHiddenSessionHeaderDetails => {

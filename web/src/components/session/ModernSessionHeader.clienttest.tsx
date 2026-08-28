@@ -120,6 +120,16 @@ describe("ModernSessionHeader", () => {
     expect(
       localStorage.getItem(sessionHeaderVisibilityStorageKey("project-1")),
     ).toBe(JSON.stringify([]));
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(capture).toHaveBeenLastCalledWith(
+      "session_detail:header_detail_visibility_changed",
+      {
+        action: "show",
+        detailType: "traces",
+        hiddenDetailCount: 0,
+        isV4: true,
+      },
+    );
   });
 
   it("restores hidden details from project-scoped local storage", () => {
@@ -144,5 +154,22 @@ describe("ModernSessionHeader", () => {
         name: "Show trace and span counts in session header",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("does not persist customer identifiers in dynamic detail keys", () => {
+    const userId = "customer@example.com";
+    render(<ModernSessionHeader {...defaultProps} users={[userId]} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hide user 1 in session header",
+      }),
+    );
+
+    const storedValue = localStorage.getItem(
+      sessionHeaderVisibilityStorageKey("project-1"),
+    );
+    expect(storedValue).not.toContain(userId);
+    expect(JSON.parse(storedValue ?? "[]")).toHaveLength(1);
   });
 });
