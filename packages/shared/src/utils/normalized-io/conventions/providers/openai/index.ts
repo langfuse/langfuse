@@ -119,7 +119,6 @@ const normalizeOpenAiFunctionCall: PartHandler = (value) => {
       input: value.arguments ?? functionCall?.arguments,
       toolType:
         optionalString(value.type) ?? (functionCall ? "function" : undefined),
-      index: value.index,
     }),
   );
 };
@@ -544,7 +543,9 @@ export const openAiProvider: IOConvention = {
   tryUnwrapMessage: tryUnwrapLegacyFunctionMessage,
   tryNormalizeToolDefinition: tryNormalizeOpenAiToolDefinition,
   // Deprecated function-calling protocol: function messages are tool results.
-  roleByRawRole: { function: "tool" },
+  // `developer` is OpenAI's replacement name for `system` (o1+); the API
+  // treats them as aliases, so the canonical vocabulary keeps only `system`.
+  roleByRawRole: { function: "tool", developer: "system" },
   // Responses reasoning items carry no role but are model output even when
   // replayed on the input side.
   roleByMessageType: { reasoning: "assistant" },

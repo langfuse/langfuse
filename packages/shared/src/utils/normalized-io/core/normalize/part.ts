@@ -156,7 +156,6 @@ const CONSUMED_PART_KEYS_BY_TYPE: Record<
     "custom",
     "executable_code",
     "executableCode",
-    "index",
     "providerExecuted",
   ]),
   "tool-result": new Set([

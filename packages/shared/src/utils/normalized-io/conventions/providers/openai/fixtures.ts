@@ -434,7 +434,9 @@ export const openAiChatMultimodalRichResponseFixture = {
   spanIO: {
     input: {
       messages: [
-        { role: "system", content: "You are a helpful assistant." },
+        // `developer` is OpenAI's replacement name for `system` — aliases to
+        // the canonical system role.
+        { role: "developer", content: "You are a helpful assistant." },
         {
           role: "user",
           content: [

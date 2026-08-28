@@ -19,8 +19,13 @@ export function toToolColumns(io: NormalizedIO): ToolColumns {
   for (const message of io.messages) {
     if (message.source !== "output") continue;
 
+    // Parallel-call slot within the message (chat-completions `index`
+    // semantics: tool_calls[i].index === i in assembled payloads). Counted
+    // before the invalid filter so emitted slots match the raw payload.
+    let callIndex = 0;
     for (const part of message.parts) {
       if (part.type !== "tool-call") continue;
+      const index = callIndex++;
       // Columns count executable calls only; attempts whose arguments could
       // not be parsed stay out — legacy parity, the legacy extractor never
       // saw unparsed calls.
@@ -32,7 +37,7 @@ export function toToolColumns(io: NormalizedIO): ToolColumns {
           id: part.toolCallId ?? "",
           arguments: JSON.stringify(part.input ?? {}),
           type: part.toolType ?? "",
-          index: part.index ?? 0,
+          index,
         }),
       );
     }

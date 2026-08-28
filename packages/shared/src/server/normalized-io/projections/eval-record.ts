@@ -66,6 +66,9 @@ export function toEvalRecord(
     // this observation newly called
     if (message.source !== "output") continue;
 
+    // Parallel-call slot within the message (chat-completions `index`
+    // semantics: tool_calls[i].index === i in assembled payloads).
+    let callIndex = 0;
     for (const part of message.parts) {
       if (part.type !== "tool-call") continue;
 
@@ -74,7 +77,7 @@ export function toEvalRecord(
         name: part.toolName,
         arguments: part.input ?? {},
         type: "",
-        index: part.index ?? 0,
+        index: callIndex++,
       });
     }
   }

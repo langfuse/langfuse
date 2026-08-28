@@ -22,8 +22,6 @@ export type ToolCallFields = {
   /** Raw arguments payload; one JSON-string boundary is parsed. Defaults {}. */
   input?: unknown;
   toolType?: string;
-  /** Kept only when a number (chat-completions streaming index). */
-  index?: unknown;
   /** Kept only when a boolean. */
   providerExecuted?: unknown;
 };
@@ -39,7 +37,6 @@ export function toolCallPart(fields: ToolCallFields): ToolCallPart | null {
     toolName: fields.toolName,
     input: toJsonValue(parseIfString(fields.input ?? {})),
     toolType: fields.toolType,
-    index: typeof fields.index === "number" ? fields.index : undefined,
     providerExecuted:
       typeof fields.providerExecuted === "boolean"
         ? fields.providerExecuted

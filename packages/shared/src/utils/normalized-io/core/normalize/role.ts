@@ -1,12 +1,6 @@
 import { registeredProviders } from "../../conventions";
 import type { NormalizedMessagePart, NormalizedMessageRole } from "../../types";
-const CANONICAL_ROLES = new Set([
-  "system",
-  "developer", // openai
-  "user",
-  "assistant",
-  "tool",
-]);
+const CANONICAL_ROLES = new Set(["system", "user", "assistant", "tool"]);
 
 export function normalizeRole(
   message: Record<string, unknown>,

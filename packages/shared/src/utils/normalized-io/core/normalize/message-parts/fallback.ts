@@ -72,7 +72,6 @@ function sniffLooseToolCall(
         : functionCall
           ? "function"
           : undefined,
-    index: value.index, // openai chat completions streaming
     providerExecuted: value.providerExecuted, // ai sdk
   });
 }

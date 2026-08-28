@@ -67,7 +67,6 @@ export type ToolCallPart = NormalizedPartBase & {
   /** Raw source type used by compatibility projections (for example
    * `function`, `custom`, or a provider-specific built-in kind). */
   toolType?: string;
-  index?: number;
   providerExecuted?: boolean;
   /** Attempt the model made whose arguments could not be parsed (e.g.
    * LangChain invalid_tool_calls). Visible in the stream, filterable for
@@ -124,7 +123,6 @@ export type NormalizedMessagePart =
 
 export type NormalizedMessageRole =
   | "system"
-  | "developer"
   | "user"
   | "assistant"
   | "tool";
