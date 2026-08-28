@@ -358,7 +358,7 @@ export const TestHidesAndRevealsDetails = meta.story({
       "[data-overflow-visible-item='true']",
     );
     await expect(visibleTraceDetail).toBeInTheDocument();
-    await userEvent.hover(visibleTraceDetail!);
+    hideTraceDetail.focus();
     await waitFor(() => expect(hideTraceDetail).toBeVisible());
     await userEvent.click(hideTraceDetail);
     await expect(
@@ -379,7 +379,7 @@ export const TestHidesAndRevealsDetails = meta.story({
     const showTraceDetail = await body.findByRole("button", {
       name: "Show trace and span counts in session header",
     });
-    await userEvent.hover(showTraceDetail);
+    showTraceDetail.focus();
     await waitFor(() => expect(showTraceDetail).toBeVisible());
     await userEvent.click(showTraceDetail);
 
