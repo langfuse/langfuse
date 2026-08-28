@@ -94,7 +94,12 @@ export class BufferedStreamUploader {
   private readonly stats: UploadPartStats;
 
   constructor(params: BufferedStreamUploaderParams) {
-    this.params = params;
+    // Buffer.concat rejects a non-integer length. Callers can pass
+    // MiB * 1024 * 1024 from a fractional env value (e.g. 5.1).
+    this.params = {
+      ...params,
+      partSizeBytes: Math.floor(params.partSizeBytes),
+    };
     this.stats = params.stats ?? emptyUploadPartStats();
   }
 

@@ -147,6 +147,22 @@ describe("BufferedStreamUploader", () => {
       ).toBe(chunks.join(""));
     });
 
+    it("should coerce a fractional partSizeBytes to an integer byte length", async () => {
+      const mock = createMockStrategy();
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        partSizeBytes: 10.5,
+      });
+
+      // 15 bytes: floor(10.5)=10 full part + 5-byte remainder. A float
+      // part size would throw in Buffer.concat before this change.
+      await uploader.upload(streamFrom(["aaaaaaaaaa", "bbbbb"]));
+
+      expect(mock.uploadedParts).toHaveLength(2);
+      expect(mock.uploadedParts[0].data.byteLength).toBe(10);
+      expect(mock.uploadedParts[1].data.byteLength).toBe(5);
+    });
+
     it("should slice a single oversized chunk into exact partSizeBytes parts", async () => {
       const mock = createMockStrategy();
       const uploader = new BufferedStreamUploader({
