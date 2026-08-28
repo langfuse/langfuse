@@ -22,11 +22,18 @@ export function DiffLabel({
   formatValue,
   className,
   preferNegativeDiff = false,
+  title,
 }: {
   diff: NumericDiff | CategoricalDiff;
   formatValue: (value: number) => string;
   className?: string;
   preferNegativeDiff?: boolean;
+  /**
+   * What the chip means, on hover. `+0.07` and `a → b` do not say which side
+   * is which; a caller that knows the two sides should say it
+   * (`describeRunComparison`). Falls back to the chip's own text.
+   */
+  title?: string;
 }) {
   if (diff.type === "NUMERIC") {
     return (
@@ -34,6 +41,7 @@ export function DiffLabel({
         size="sm"
         variant={getVariant(diff.direction, preferNegativeDiff)}
         className={cn("font-bold", className)}
+        title={title}
       >
         {diff.direction}
         {formatValue(diff.absoluteDifference)}
@@ -52,7 +60,7 @@ export function DiffLabel({
         // qualifies matters more than the move does — so shrink and ellipsise
         // here rather than clipping mid-word, and keep the full move on hover.
         className={cn("min-w-0 truncate font-bold", className)}
-        title={move}
+        title={title ?? move}
       >
         {move}
       </Badge>

@@ -47,6 +47,7 @@ import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
+import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -71,6 +72,8 @@ type ExperimentGridCellProps = {
   showDiff?: boolean;
   baselineScores?: ScoreAggregate;
   baselineTraceScores?: ScoreAggregate;
+  /** Named in every diff chip's hover sentence, so the arrow has a direction. */
+  baselineExperimentName?: string;
   isLoading?: boolean;
   columnVisibility?: VisibilityState;
   markerClassName?: string;
@@ -96,6 +99,11 @@ type GridCellData = {
   traceScores: ScoreAggregate;
   scoreDiffs?: Record<string, BaselineDiff>;
   traceScoreDiffs?: Record<string, BaselineDiff>;
+  baselineScores?: ScoreAggregate;
+  baselineTraceScores?: ScoreAggregate;
+  baselineTotalCost?: number | null;
+  baselineLatencyMs?: number | null;
+  baselineExperimentName?: string;
   isLoading: boolean;
 };
 
@@ -132,7 +140,12 @@ const ScoreCommentPeek = ({
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
-        <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-end px-1">
+        {/* Name what the icon opened: a bare block of text next to a score
+            does not say it is the score's comment. */}
+        <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+          <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+            Score comment
+          </span>
           <Button
             onClick={handleCopy}
             variant="ghost"
@@ -217,12 +230,31 @@ const ScoreMetadataPeek = ({
 };
 
 /**
+ * How one score reads in a cell: a categorical score's modal value, a numeric
+ * score's average. Shared with the hover sentence beside it, which has to
+ * quote the same value the cell shows.
+ */
+const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
+  if (!aggregate) return "-";
+  if (aggregate.type === "CATEGORICAL") {
+    if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
+      return [...aggregate.valueCounts].sort((a, b) => b.count - a.count)[0]
+        .value;
+    }
+    return aggregate.values?.[0] ?? "-";
+  }
+  return aggregate.average !== undefined ? aggregate.average.toFixed(2) : "-";
+};
+
+/**
  * Simple score display component for grid cells.
  * Shows only the score name, with source and type on hover.
  */
 const ScoreItem = ({
   scoreKey,
   aggregate,
+  baselineAggregate,
+  baselineExperimentName,
   diff,
   projectId,
   level,
@@ -230,6 +262,8 @@ const ScoreItem = ({
 }: {
   scoreKey: string;
   aggregate: AggregatedScoreData | null;
+  baselineAggregate?: AggregatedScoreData | null;
+  baselineExperimentName?: string;
   diff?: BaselineDiff | null;
   projectId: string;
   level: Extract<ScoreLevel, "observation" | "trace">;
@@ -238,25 +272,26 @@ const ScoreItem = ({
   // Decompose the key to get name, source, and dataType
   const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
 
-  let displayValue = "-";
-  if (aggregate) {
-    if (aggregate.type === "CATEGORICAL") {
-      if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
-        const sorted = [...aggregate.valueCounts].sort(
-          (a, b) => b.count - a.count,
-        );
-        displayValue = sorted[0].value;
-      } else if (aggregate.values && aggregate.values.length > 0) {
-        displayValue = aggregate.values[0];
-      }
-    } else {
-      displayValue =
-        aggregate.average !== undefined ? aggregate.average.toFixed(2) : "-";
-    }
-  }
+  const displayValue = scoreValueOf(aggregate);
 
   const hasComment = aggregate?.comment;
   const hasMetadata = aggregate?.hasMetadata && aggregate?.id;
+
+  // `true → false` and `+0.07` do not say which side is the baseline.
+  const diffTitle = diff
+    ? describeRunComparison({
+        baselineName: baselineExperimentName,
+        ...(diff.type === "CATEGORICAL"
+          ? {
+              baselineText: diff.from ?? "several values",
+              currentText: diff.to ?? "several values",
+            }
+          : {
+              baselineText: scoreValueOf(baselineAggregate),
+              currentText: scoreValueOf(aggregate),
+            }),
+      })
+    : undefined;
 
   return (
     <div className="flex items-center justify-between gap-1 text-xs">
@@ -317,7 +352,13 @@ const ScoreItem = ({
             <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
           )}
         </span>
-        {diff && <DiffLabel diff={diff} formatValue={(v) => v.toFixed(2)} />}
+        {diff && (
+          <DiffLabel
+            diff={diff}
+            formatValue={(v) => v.toFixed(2)}
+            title={diffTitle}
+          />
+        )}
       </div>
     </div>
   );
@@ -335,6 +376,12 @@ const getScoreRowDefinition = (
       aggregate={
         level === "trace" ? data.traceScores[scoreKey] : data.scores[scoreKey]
       }
+      baselineAggregate={
+        level === "trace"
+          ? data.baselineTraceScores?.[scoreKey]
+          : data.baselineScores?.[scoreKey]
+      }
+      baselineExperimentName={data.baselineExperimentName}
       diff={
         level === "trace"
           ? data.traceScoreDiffs?.[scoreKey]
@@ -515,6 +562,12 @@ const CellMetadataFooter = ({
               diff={data.totalCostDiff}
               preferNegativeDiff
               formatValue={(value) => usdFormatter(value, 2, 6)}
+              title={describeRunComparison({
+                baselineName: data.baselineExperimentName,
+                baselineText: usdFormatter(data.baselineTotalCost ?? 0, 2, 6),
+                currentText: usdFormatter(data.totalCost ?? 0, 2, 6),
+                verb: "cost",
+              })}
             />
           )}
         </span>
@@ -531,6 +584,12 @@ const CellMetadataFooter = ({
               diff={data.latencyDiff}
               preferNegativeDiff
               formatValue={(value) => latencyFormatter(value)}
+              title={describeRunComparison({
+                baselineName: data.baselineExperimentName,
+                baselineText: latencyFormatter(data.baselineLatencyMs ?? 0),
+                currentText: latencyFormatter(data.latencyMs ?? 0),
+                verb: "took",
+              })}
             />
           )}
         </span>
@@ -609,6 +668,7 @@ export const ExperimentGridCell = ({
   showDiff = true,
   baselineScores,
   baselineTraceScores,
+  baselineExperimentName,
   isLoading = false,
   columnVisibility = {},
   markerClassName,
@@ -677,6 +737,11 @@ export const ExperimentGridCell = ({
     traceScores,
     scoreDiffs,
     traceScoreDiffs,
+    baselineScores,
+    baselineTraceScores,
+    baselineTotalCost,
+    baselineLatencyMs,
+    baselineExperimentName,
     isLoading,
   };
 
