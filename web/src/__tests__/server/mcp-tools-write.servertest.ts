@@ -41,13 +41,16 @@ vi.mock(
   }),
 );
 
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
+  createInAppAgentMcpContext,
   createMcpTestSetup,
   createPromptInDb,
+  createUserWithOrgRole,
   mcpEvalOutputDefinition,
+  protectPromptLabel,
   verifyAuditLog,
   verifyToolAnnotations,
 } from "./mcp-helpers";
@@ -1756,6 +1759,171 @@ describe("MCP Write Tools", () => {
       )) as { name: string };
 
       expect(result.name).toBe(promptName);
+    });
+  });
+
+  describe("in-app-agent protected prompt labels", () => {
+    it.each([
+      {
+        name: "rejects adding production with a MEMBER in-app-agent key",
+        role: Role.MEMBER,
+        inAppAgent: true,
+        labels: ["production"],
+        expectForbidden: true,
+      },
+      {
+        name: "allows a MEMBER in-app-agent key to add a non-protected label",
+        role: Role.MEMBER,
+        inAppAgent: true,
+        labels: ["staging"],
+        expectForbidden: false,
+      },
+      {
+        name: "allows an ADMIN in-app-agent key to add production",
+        role: Role.ADMIN,
+        inAppAgent: true,
+        labels: ["production"],
+        expectForbidden: false,
+      },
+      {
+        name: "allows a regular project API key to add production",
+        inAppAgent: false,
+        labels: ["production"],
+        expectForbidden: false,
+      },
+    ] as const)("$name", async (testCase) => {
+      const setup = await createMcpTestSetup();
+      await protectPromptLabel({
+        projectId: setup.projectId,
+        label: "production",
+      });
+
+      let context = setup.context;
+      if (testCase.inAppAgent) {
+        const { userId } = await createUserWithOrgRole({
+          orgId: setup.orgId,
+          role: testCase.role,
+        });
+        ({ context } = await createInAppAgentMcpContext({
+          projectId: setup.projectId,
+          orgId: setup.orgId,
+          createdByUserId: userId,
+        }));
+      }
+
+      const promptName = `protected-labels-${nanoid()}`;
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId: setup.projectId,
+        labels: [],
+        version: 1,
+      });
+
+      const update = handleUpdatePromptLabels(
+        {
+          name: promptName,
+          version: 1,
+          newLabels: [...testCase.labels],
+        },
+        context,
+      );
+
+      if (testCase.expectForbidden) {
+        await expect(update).rejects.toMatchObject({
+          name: "McpError",
+          message: expect.stringContaining("Access forbidden"),
+        });
+
+        const prompt = await prisma.prompt.findFirst({
+          where: {
+            projectId: setup.projectId,
+            name: promptName,
+            version: 1,
+          },
+        });
+        for (const label of testCase.labels) {
+          expect(prompt?.labels).not.toContain(label);
+        }
+      } else {
+        await expect(update).resolves.toMatchObject({
+          labels: expect.arrayContaining([...testCase.labels]),
+        });
+      }
+    });
+
+    it("rejects creating a prompt with a custom protected label using a MEMBER in-app-agent key", async () => {
+      const setup = await createMcpTestSetup();
+      const protectedLabel = "release-gate";
+      await protectPromptLabel({
+        projectId: setup.projectId,
+        label: protectedLabel,
+      });
+      const { userId } = await createUserWithOrgRole({
+        orgId: setup.orgId,
+        role: Role.MEMBER,
+      });
+      const { context } = await createInAppAgentMcpContext({
+        projectId: setup.projectId,
+        orgId: setup.orgId,
+        createdByUserId: userId,
+      });
+      const promptName = `member-create-protected-${nanoid()}`;
+
+      await expect(
+        handleCreateTextPrompt(
+          {
+            name: promptName,
+            prompt: "Protected create",
+            labels: [protectedLabel],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        name: "McpError",
+        message: expect.stringContaining("Access forbidden"),
+      });
+
+      await expect(
+        prisma.prompt.findFirst({
+          where: { projectId: setup.projectId, name: promptName },
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("rejects adding production when the in-app-agent key has no creator", async () => {
+      const setup = await createMcpTestSetup();
+      await protectPromptLabel({
+        projectId: setup.projectId,
+        label: "production",
+      });
+      const { context } = await createInAppAgentMcpContext({
+        projectId: setup.projectId,
+        orgId: setup.orgId,
+      });
+      const promptName = `missing-creator-${nanoid()}`;
+
+      await createPromptInDb({
+        name: promptName,
+        prompt: "Test",
+        projectId: setup.projectId,
+        labels: [],
+        version: 1,
+      });
+
+      await expect(
+        handleUpdatePromptLabels(
+          {
+            name: promptName,
+            version: 1,
+            newLabels: ["production"],
+          },
+          context,
+        ),
+      ).rejects.toMatchObject({
+        name: "McpError",
+        message: expect.stringContaining("Access forbidden"),
+      });
     });
   });
 });
