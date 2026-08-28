@@ -150,6 +150,7 @@ const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "metadata_jsonpath_config_changed",
+    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",
