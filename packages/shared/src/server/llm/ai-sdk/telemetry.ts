@@ -23,8 +23,10 @@ import type { TelemetryOptions } from "ai";
 import { stringifyValue } from "../../../utils/stringChecks";
 import { traceException } from "../../instrumentation";
 import { logger } from "../../logger";
-import { LangfuseOtelSpanAttributes } from "../../otel/attributes";
-import { AI_FEATURE_OTEL_SDK_NAME } from "../../otel/internalAiFeatureOtelWriter";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  LangfuseOtelSpanAttributes,
+} from "../../otel/attributes";
 import { publishInternalOtelSpans } from "../../otel/internalTraceOtelWriter";
 import type { InternalTraceExperimentContext } from "../internalTraceEvents";
 import type { TraceSinkParams } from "../types";
