@@ -22,7 +22,7 @@ import {
   QueueName,
   redis,
   ZodModelConfig,
-  getScoresForObservations,
+  getObservationScoresForExperimentItems,
   getScoresForTraces,
   traceException,
   getExperimentNamesFromEvents,
@@ -620,11 +620,6 @@ export const experimentsRouter = createTRPCRouter({
         },
       });
 
-      const observationIds = Array.from(
-        new Set(
-          items.flatMap((item) => item.experiments.map((i) => i.observationId)),
-        ),
-      );
       const traceIds = Array.from(
         new Set(
           items.flatMap((item) => item.experiments.map((i) => i.traceId)),
@@ -632,12 +627,16 @@ export const experimentsRouter = createTRPCRouter({
       );
 
       const [observationScores, traceScores] = await Promise.all([
-        getScoresForObservations({
-          projectId: input.projectId,
-          observationIds,
-          excludeMetadata: true,
-          includeHasMetadata: true,
-        }),
+        // Every observation-level score the items produced, tagged with the
+        // item's root span - not just the scores on the root span itself.
+        getObservationScoresForExperimentItems(
+          input.projectId,
+          [
+            ...(input.baseExperimentId ? [input.baseExperimentId] : []),
+            ...input.compExperimentIds,
+          ],
+          items.map(({ itemId }) => itemId),
+        ),
         getScoresForTraces({
           projectId: input.projectId,
           traceIds,
@@ -660,17 +659,24 @@ export const experimentsRouter = createTRPCRouter({
         onParseError: traceException,
       });
 
+      // Keyed by the item's ROOT span, which is what a row carries as its
+      // `observationId` - the scores in a bucket may sit on other observations
+      // of that item.
+      const rootSpanIdByScoreId = new Map(
+        observationScores.map((score) => [score.id, score.rootSpanId]),
+      );
       const scoresByObservationId = new Map<
         string,
         Array<(typeof validatedObservationScores)[number]>
       >();
       for (const score of validatedObservationScores) {
-        if (!score.observationId) continue;
-        const existingScores = scoresByObservationId.get(score.observationId);
+        const rootSpanId = rootSpanIdByScoreId.get(score.id);
+        if (!rootSpanId) continue;
+        const existingScores = scoresByObservationId.get(rootSpanId);
         if (existingScores) {
           existingScores.push(score);
         } else {
-          scoresByObservationId.set(score.observationId, [score]);
+          scoresByObservationId.set(rootSpanId, [score]);
         }
       }
 
