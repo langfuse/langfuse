@@ -218,7 +218,7 @@ describe("chbApiClient", () => {
 
       onChb(
         jsonResponse(200, {
-          url: "https://pay.example.com/c/1",
+          checkoutUrl: "https://pay.example.com/c/1",
           organizationId: CH_ORG_ID,
         }),
       );
@@ -371,6 +371,26 @@ describe("chbApiClient", () => {
       expect(bundle.scheduled).toBeUndefined();
     });
 
+    it("reads the checkout URL from CHB's checkoutUrl field", async () => {
+      onChb(
+        jsonResponse(200, {
+          organizationId: CH_ORG_ID,
+          checkoutUrl: "https://pay.example.com/c/1",
+        }),
+      );
+
+      await expect(
+        client().createCheckoutSession({
+          email: "user@example.com",
+          planCode: "LANGFUSE_PRO",
+          returnUrl: "https://cloud.langfuse.com/back",
+        }),
+      ).resolves.toEqual({
+        organizationId: CH_ORG_ID,
+        checkoutUrl: "https://pay.example.com/c/1",
+      });
+    });
+
     it("defaults the invoice list to empty when CHB omits the key", async () => {
       onChb(jsonResponse(200, {}));
 
@@ -387,7 +407,7 @@ describe("chbApiClient", () => {
       // uuid — rejecting here keeps a bad id from ever reaching the database.
       onChb(
         jsonResponse(200, {
-          url: "https://pay.example.com/c/1",
+          checkoutUrl: "https://pay.example.com/c/1",
           organizationId: "not-a-uuid",
         }),
       );
