@@ -117,10 +117,14 @@ const cachedInputMetricSql = (
   return `multiIf(${totalBranches.concat([hasModalityMetric, modalitySum, missingValueSql]).join(", ")})`;
 };
 
-export const eventsTableCachedInputTokensSql =
-  cachedInputMetricSql("e.usage_details", "0");
-export const eventsTableCachedInputCostSql =
-  cachedInputMetricSql("e.cost_details", "NULL");
+export const eventsTableCachedInputTokensSql = cachedInputMetricSql(
+  "e.usage_details",
+  "0",
+);
+export const eventsTableCachedInputCostSql = cachedInputMetricSql(
+  "e.cost_details",
+  "NULL",
+);
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
