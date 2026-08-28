@@ -23,9 +23,11 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
-import { AnnotateDrawerMenuButton } from "@/src/features/scores/components/AnnotateDrawerMenuButton";
-import { AnnotateDrawerToolbarButton } from "@/src/features/scores/components/AnnotateDrawerToolbarButton";
+import {
+  AnnotateDrawerController,
+  AnnotateDrawerMenuButton,
+  AnnotateDrawerToolbarButton,
+} from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";

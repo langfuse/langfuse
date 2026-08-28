@@ -1,7 +1,12 @@
 import { expect, fn, userEvent } from "storybook/test";
+import { vi } from "vitest";
 
 import preview from "../../../../.storybook/preview";
-import { AnnotateDrawerMenuButton } from "./AnnotateDrawerMenuButton";
+import { AnnotateDrawerMenuButton } from "./AnnotateDrawerController";
+
+vi.mock("./AnnotateDrawerContent", () => ({
+  AnnotateDrawerContent: () => null,
+}));
 
 const meta = preview.meta({
   component: AnnotateDrawerMenuButton,

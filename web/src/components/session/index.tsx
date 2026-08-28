@@ -16,8 +16,10 @@ import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
-import { AnnotateDrawerMenuButton } from "@/src/features/scores/components/AnnotateDrawerMenuButton";
-import { AnnotateDrawerToolbarButton } from "@/src/features/scores/components/AnnotateDrawerToolbarButton";
+import {
+  AnnotateDrawerMenuButton,
+  AnnotateDrawerToolbarButton,
+} from "@/src/features/scores/components/AnnotateDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
