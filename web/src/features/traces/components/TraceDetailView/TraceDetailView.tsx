@@ -101,16 +101,28 @@ export function TraceDetailView({
     isAnnotationMode,
   } = useViewPreferences();
 
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
+
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
   // Both formatted variants share the pretty layout; JSON views differ.
   const isPrettyLikeView =
     currentView === "pretty" || currentView === "pretty-beta";
 
+  // A persisted "pretty-beta" preference clamps to "pretty" when the beta
+  // tab is unavailable, so the highlighted tab matches the rendered parser.
   const selectedViewTab =
-    jsonViewPreference === "pretty" || jsonViewPreference === "pretty-beta"
-      ? jsonViewPreference
-      : ("json" as const);
+    jsonViewPreference === "pretty-beta"
+      ? showPrettyBeta
+        ? "pretty-beta"
+        : "pretty"
+      : jsonViewPreference === "pretty"
+        ? "pretty"
+        : ("json" as const);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -156,11 +168,6 @@ export function TraceDetailView({
 
   // Fetch comments for this trace (for inline comment highlighting)
   const session = useSession();
-  // The normalized-parser formatted view is gated to admins and explicitly
-  // flagged users; it must never surface for regular users.
-  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
-    projectId,
-  });
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",

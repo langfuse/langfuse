@@ -233,6 +233,7 @@ export function IOPreview({
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
           showPrettyBeta={showPrettyBeta}
+          prettyBetaDisabled={chatMLParserResult !== undefined}
         />
       )}
 
@@ -305,7 +306,11 @@ export function IOPreview({
         <IOPreviewPretty
           {...sharedProps}
           parser={
-            selectedView === "pretty-beta" && showPrettyBeta
+            // Precomputed legacy parses win inside the parser hook, so a
+            // beta-labeled view must never claim them as normalized output.
+            selectedView === "pretty-beta" &&
+            showPrettyBeta &&
+            chatMLParserResult === undefined
               ? "normalized"
               : "legacy"
           }
