@@ -4,7 +4,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
-import { authenticate } from "@/src/features/auth/policy/identity";
+import { Authenticator } from "@/src/features/apiKey/auth";
 import { authorize } from "@/src/features/auth/policy/authorize";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
@@ -21,7 +21,7 @@ describe("policy authenticate() composition", () => {
   };
 
   const auth = (authorization: string) =>
-    authenticate({ headers: { authorization } });
+    new Authenticator().auth({ headers: { authorization } });
 
   beforeEach(async () => {
     fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });

@@ -5,11 +5,20 @@ import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
 import { createShaHash } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type ErrorResult, type Success } from "./types";
+import {
+  type ErrorResult,
+  type Success,
+} from "@/src/features/auth/policy/types";
 
 /** invalidCredentials is today's single 401 body for any unknown or malformed token. */
 const invalidCredentials =
   "Invalid credentials. Confirm that you've configured the correct host.";
+
+/** basicPrefix is the HTTP Basic auth scheme prefix. */
+const basicPrefix = "Basic ";
+
+/** bearerPrefix is the HTTP Bearer auth scheme prefix. */
+const bearerPrefix = "Bearer ";
 
 /** Verifier authenticates a request credential into a resolvable presentation, dispatching Basic vs Bearer and never throwing. */
 export class Verifier {
@@ -22,11 +31,11 @@ export class Verifier {
 
   /** verify resolves the Authorization header to a credential presentation, or a typed failure. */
   async verify(authHeader: string | undefined): Promise<VerifyResult> {
-    if (authHeader?.startsWith("Basic ")) {
-      return this.verifyBasic(authHeader.slice("Basic ".length));
+    if (authHeader?.startsWith(basicPrefix)) {
+      return this.verifyBasic(authHeader.slice(basicPrefix.length));
     }
-    if (authHeader?.startsWith("Bearer ")) {
-      return this.verifyBearer(authHeader.slice("Bearer ".length));
+    if (authHeader?.startsWith(bearerPrefix)) {
+      return this.verifyBearer(authHeader.slice(bearerPrefix.length));
     }
     return unauthorized();
   }

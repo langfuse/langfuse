@@ -8,7 +8,7 @@ import {
   type ApiKeyLookup,
   type ApiKeyRepository,
   type VerifySlowResult,
-} from "@/src/features/auth/policy/verifier";
+} from "@/src/features/apiKey/verifier";
 
 const SALT = "salt";
 const ADMIN = "admin-secret";

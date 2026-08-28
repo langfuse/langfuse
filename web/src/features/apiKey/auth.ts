@@ -22,50 +22,86 @@ import {
 
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { env } from "@/src/env.mjs";
-import { headerValue } from "./enforce";
-import { resolveContext } from "./resolveContext";
-import { Verifier, type ApiKeyRepository } from "./verifier";
+import { headerValue } from "@/src/features/auth/policy/enforce";
+import { resolveContext } from "@/src/features/auth/policy/resolveContext";
+import {
+  Verifier,
+  type ApiKeyRepository,
+} from "@/src/features/apiKey/verifier";
 import {
   type AuthorizationContext,
   type ErrorResult,
   type PrincipalOrganization,
   type Success,
-} from "./types";
+} from "@/src/features/auth/policy/types";
 
 /** keyStoreCachePrefix namespaces the api-key fast-hash cache (`fast hash → ApiKey record`) in redis. */
 const keyStoreCachePrefix = "authz:apikey:";
 
-/** authenticate resolves a request's credential into an `AuthorizationContext`, returning a typed failure rather than throwing. */
-export async function authenticate(
-  params: AuthenticateParams,
-): Promise<
-  Authenticated | ErrorResult<UnauthorizedError | InternalServerError>
-> {
-  const authHeader = headerValue(params.headers.authorization);
-  const verified = await buildVerifier().verify(authHeader);
-  if (!verified.success) return verified;
+/** Authenticator resolves a request's credential into an `AuthorizationContext`: verify → gate key kind → load org → enrich → resolve. */
+export class Authenticator {
+  constructor(
+    private readonly verifier: Verifier = buildVerifier(),
+    private readonly orgs: OrganizationRepository = buildOrgRepo(),
+  ) {}
 
-  const gate = gateKeyKind(verified, params);
-  if (gate) return gate;
+  /** auth runs the full pipeline, returning a typed failure rather than throwing. */
+  async auth(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
+    const authHeader = headerValue(params.headers.authorization);
+    const verified = await this.verifier.verify(authHeader);
+    if (!verified.success) return verified;
 
-  if (verified.authorization === "adminKey") {
-    return resolveContext({ authorization: "adminKey" });
+    const gate = gateKeyKind(verified, params);
+    if (gate) return gate;
+
+    if (verified.authorization === "adminKey") {
+      return resolveContext({ authorization: "adminKey" });
+    }
+
+    const enriched = await this.enrichOrg(verified.apiKey);
+    if (!enriched.success) return enriched;
+
+    return resolveContext({
+      authorization: verified.authorization,
+      apiKey: verified.apiKey,
+      organization: enriched.organization,
+    });
   }
 
-  const enriched = await enrichOrg(verified.apiKey);
-  if (!enriched.success) return enriched;
-
-  return resolveContext({
-    authorization: verified.authorization,
-    apiKey: verified.apiKey,
-    organization: enriched.organization,
-  });
+  /** enrichOrg loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
+  private async enrichOrg(
+    apiKey: ApiKey,
+  ): Promise<
+    | (Success & { organization: PrincipalOrganization })
+    | ErrorResult<InternalServerError>
+  > {
+    if (apiKey.orgId === null) {
+      return {
+        success: false,
+        error: new InternalServerError(`key ${apiKey.id} has no orgId`),
+      };
+    }
+    const found = await this.orgs.getByOrgId(apiKey.orgId);
+    if (!found.success) {
+      return {
+        success: false,
+        error:
+          found.error instanceof InternalServerError
+            ? found.error
+            : new InternalServerError(found.error.message),
+      };
+    }
+    return { success: true, organization: enrich(found.organization) };
+  }
 }
+
+/** defaultAuthenticator is the Authenticator on its default prisma/redis collaborators. */
+export const defaultAuthenticator = new Authenticator();
 
 /** gateKeyKind rejects key kinds a route does not opt into: in-app-agent and admin. */
 function gateKeyKind(
   verified: Extract<Awaited<ReturnType<Verifier["verify"]>>, { success: true }>,
-  params: AuthenticateParams,
+  params: ApiKeyAuthParams,
 ): ErrorResult<UnauthorizedError> | null {
   if (
     verified.authorization === "adminKey" &&
@@ -89,32 +125,6 @@ function gateKeyKind(
     };
   }
   return null;
-}
-
-/** enrichOrg loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
-async function enrichOrg(
-  apiKey: ApiKey,
-): Promise<
-  | (Success & { organization: PrincipalOrganization })
-  | ErrorResult<InternalServerError>
-> {
-  if (apiKey.orgId === null) {
-    return {
-      success: false,
-      error: new InternalServerError(`key ${apiKey.id} has no orgId`),
-    };
-  }
-  const found = await buildOrgRepo().getByOrgId(apiKey.orgId);
-  if (!found.success) {
-    return {
-      success: false,
-      error:
-        found.error instanceof InternalServerError
-          ? found.error
-          : new InternalServerError(found.error.message),
-    };
-  }
-  return { success: true, organization: enrich(found.organization) };
 }
 
 /** enrich derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
@@ -287,12 +297,17 @@ function deserializeKey(raw: string): ApiKey | undefined {
   }
 }
 
-/** AuthenticateParams is the request headers plus the route's key-kind opt-ins. */
-export type AuthenticateParams = {
+/** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */
+export type ApiKeyAuthParams = {
   headers: IncomingHttpHeaders;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };
+
+/** ApiKeyAuthResults is the pipeline's outcome: the resolved context, or a typed failure. */
+export type ApiKeyAuthResults =
+  | Authenticated
+  | ErrorResult<UnauthorizedError | InternalServerError>;
 
 /** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };

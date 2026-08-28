@@ -9,7 +9,7 @@ import {
 
 import { authorize } from "./authorize";
 import { headerValue } from "./enforce";
-import { authenticate } from "./identity";
+import { defaultAuthenticator } from "@/src/features/apiKey/auth";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -24,7 +24,7 @@ const projectIdHeader = "x-langfuse-project-id";
 export async function enforceProjectAuth(
   params: EnforceProjectAuthParams,
 ): Promise<ProjectAccessResult | ErrorResult<AuthError>> {
-  const authn = await authenticate({
+  const authn = await defaultAuthenticator.auth({
     headers: params.headers,
     allowInAppAgentKey: params.allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
