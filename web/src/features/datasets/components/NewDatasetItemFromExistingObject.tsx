@@ -1,4 +1,4 @@
-import { ChevronDown, CopyIcon, LockIcon, PlusIcon } from "lucide-react";
+import { ChevronDown, LockIcon, PlusIcon } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -14,28 +14,21 @@ import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { type Prisma } from "@langfuse/shared";
-import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 
 /**
  * Component for creating a new dataset item from an existing object.
  *
- * This component can be used in two different contexts:
- * 1. From a trace/observation: Creates a dataset item using data from a trace or observation
- *    (requires traceId and optionally observationId)
- * 2. From an existing dataset item: Creates a new dataset item based on an existing one
- *    (requires fromDatasetId) -> isCopyItem
+ * Creates a dataset item using data from a trace or observation.
  */
 export const NewDatasetItemFromExistingObject = (props: {
   projectId: string;
   traceId?: string;
   observationId?: string;
-  fromDatasetId?: string;
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
-  isCopyItem?: boolean;
   buttonVariant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
   /**
@@ -70,22 +63,6 @@ export const NewDatasetItemFromExistingObject = (props: {
   return (
     <NewDatasetItemFromExistingObjectDialogController {...props}>
       {({ Trigger }) => {
-        if (props.isCopyItem) {
-          return (
-            <Trigger asChild>
-              <ActionButton
-                variant="outline"
-                size={buttonSize === "sm" ? "icon-xs" : "icon"}
-                hasAccess={hasAccess}
-                title="Copy item"
-                aria-label="Copy item"
-              >
-                <CopyIcon className="size-3" />
-              </ActionButton>
-            </Trigger>
-          );
-        }
-
         if (
           observationInDatasets.data &&
           observationInDatasets.data.length > 0
