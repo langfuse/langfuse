@@ -16,10 +16,6 @@ info:
     - password: Langfuse Secret Key
 
 
-    A private (secret) key may also authenticate with `Authorization: Bearer
-    <secret_key>`.
-
-
     ## Exports
 
 
@@ -80,7 +76,6 @@ paths:
               schema: {}
       security: &ref_0
         - BasicAuth: []
-        - BearerAuth: []
     post:
       description: Create an annotation queue
       operationId: annotationQueues_createQueue
@@ -20021,6 +20016,3 @@ components:
     BasicAuth:
       type: http
       scheme: basic
-    BearerAuth:
-      type: http
-      scheme: bearer

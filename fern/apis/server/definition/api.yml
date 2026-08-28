@@ -7,25 +7,13 @@ docs: |
   - username: Langfuse Public Key
   - password: Langfuse Secret Key
 
-  A private (secret) key may also authenticate with `Authorization: Bearer <secret_key>`.
-
   ## Exports
 
   - OpenAPI spec: https://cloud.langfuse.com/generated/api/openapi.yml
 
 error-discrimination:
   strategy: status-code
-auth-schemes:
-  BasicAuth:
-    scheme: basic
-  BearerAuth:
-    scheme: bearer
-    token:
-      name: secretKey
-auth:
-  any:
-    - BasicAuth
-    - BearerAuth
+auth: basic
 imports:
   commons: commons.yml
 errors:
