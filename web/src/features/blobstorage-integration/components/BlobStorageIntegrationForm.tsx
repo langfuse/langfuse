@@ -84,7 +84,10 @@ export const BlobStorageIntegrationForm = ({
         onSubmit={blobStorageForm.handleSubmit(onSubmit)}
       >
         <StorageProviderFields control={control} />
-        <ExportScheduleFields control={control} />
+        <ExportScheduleFields
+          control={control}
+          projectCreatedAt={exportSourceCtx.projectCreatedAt}
+        />
         <ExportSourceField
           control={control}
           persistedExportSource={persistedExportSource}

@@ -85,6 +85,7 @@ import {
   buildBlobExportDeprecationNotice,
   buildBlobExportDeprecationNoticeKey,
 } from "./deprecationNotice";
+import { resolveBlobExportMinTimestamp } from "./exportStartTimestamp";
 
 const BlobExportFormat = {
   JSON_RAW: "json-raw",
@@ -196,19 +197,14 @@ const getMinTimestampForExport = async (
   lastSyncAt: Date | null,
   exportMode: BlobStorageExportMode,
   exportStartDate: Date | null,
+  projectCreatedAt: Date,
 ): Promise<Date> => {
-  // If we have a lastSyncAt, use it (this is for subsequent exports)
-  if (lastSyncAt) {
-    return lastSyncAt;
-  }
+  let historicalMinTimestampMs: number | null = null;
 
-  // For first export, use the export mode to determine start date
-  switch (exportMode) {
-    case BlobStorageExportMode.FULL_HISTORY:
-      // Query ClickHouse for the actual minimum timestamp from traces, observations, and scores tables
-      try {
-        const result = await queryClickhouse<{ min_timestamp: number | null }>({
-          query: `
+  if (!lastSyncAt && exportMode === BlobStorageExportMode.FULL_HISTORY) {
+    try {
+      const result = await queryClickhouse<{ min_timestamp: number | null }>({
+        query: `
               SELECT min(toUnixTimestamp(ts)) * 1000 as min_timestamp
               FROM (
                 SELECT min(timestamp) as ts
@@ -229,43 +225,60 @@ const getMinTimestampForExport = async (
               )
               WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
-          params: { projectId },
-        });
+        params: { projectId },
+      });
 
-        // Extract the minimum timestamp
+      logger.info(
+        `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${result[0]?.min_timestamp}, type: ${typeof result[0]?.min_timestamp}`,
+      );
+      const minTimestampValue = Number(result[0]?.min_timestamp);
+
+      if (minTimestampValue && minTimestampValue > 0) {
+        historicalMinTimestampMs = minTimestampValue;
+        const date = new Date(minTimestampValue);
         logger.info(
-          `[BLOB INTEGRATION] ClickHouse min_timestamp for project ${projectId}: ${result[0]?.min_timestamp}, type: ${typeof result[0]?.min_timestamp}`,
+          `[BLOB INTEGRATION] Created Date from min_timestamp for project ${projectId}: ${date}, isValid: ${!isNaN(date.getTime())}, getTime: ${date.getTime()}`,
         );
-        const minTimestampValue = Number(result[0]?.min_timestamp);
-
-        if (minTimestampValue && minTimestampValue > 0) {
-          const date = new Date(minTimestampValue);
-          logger.info(
-            `[BLOB INTEGRATION] Created Date from min_timestamp for project ${projectId}: ${date}, isValid: ${!isNaN(date.getTime())}, getTime: ${date.getTime()}`,
-          );
-          return date;
-        }
-
-        // If no data exists, use current time as a fallback
+      } else {
         logger.info(
           `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
         );
-        return new Date(0);
-      } catch (error) {
-        logger.error(
-          `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
-          error,
-        );
-        throw new Error(`Failed to fetch minimum timestamp: ${error}`);
       }
-    case BlobStorageExportMode.FROM_TODAY:
-    case BlobStorageExportMode.FROM_CUSTOM_DATE:
-      return exportStartDate || new Date(); // Use export start date or current time as fallback
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const _exhaustiveCheck: never = exportMode;
-      throw new Error(`Invalid export mode: ${exportMode}`);
+    } catch (error) {
+      logger.error(
+        `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
+        error,
+      );
+      throw new Error(`Failed to fetch minimum timestamp: ${error}`);
+    }
   }
+
+  const minTimestamp = resolveBlobExportMinTimestamp({
+    lastSyncAt,
+    exportMode,
+    exportStartDate,
+    historicalMinTimestampMs,
+    projectCreatedAt,
+  });
+
+  if (minTimestamp.getTime() === projectCreatedAt.getTime()) {
+    const unclampedSource = lastSyncAt ?? exportStartDate;
+    const historicalIsBeforeFloor =
+      historicalMinTimestampMs != null &&
+      historicalMinTimestampMs > 0 &&
+      historicalMinTimestampMs < projectCreatedAt.getTime();
+    if (
+      historicalIsBeforeFloor ||
+      (unclampedSource != null &&
+        unclampedSource.getTime() < projectCreatedAt.getTime())
+    ) {
+      logger.info(
+        `[BLOB INTEGRATION] Clamping export start to project createdAt ${projectCreatedAt.toISOString()} for project ${projectId}`,
+      );
+    }
+  }
+
+  return minTimestamp;
 };
 
 /**
@@ -1196,6 +1209,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
       where: {
         projectId,
       },
+      include: {
+        project: {
+          select: { createdAt: true },
+        },
+      },
     },
   );
 
@@ -1234,6 +1252,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     blobStorageIntegration.lastSyncAt,
     blobStorageIntegration.exportMode,
     blobStorageIntegration.exportStartDate,
+    blobStorageIntegration.project.createdAt,
   );
 
   logger.info(

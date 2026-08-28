@@ -684,6 +684,51 @@ describe("Blob Storage Integration tRPC Router", () => {
     });
   });
 
+  describe("export start date floor", () => {
+    it("clamps a custom start date older than the project createdAt", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportMode: "FROM_CUSTOM_DATE",
+        exportStartDate: new Date("1970-01-01T00:00:00.000Z"),
+      });
+
+      const [stored, dbProject] = await Promise.all([
+        prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+        }),
+        prisma.project.findUniqueOrThrow({
+          where: { id: project.id },
+          select: { createdAt: true },
+        }),
+      ]);
+
+      expect(stored?.exportStartDate?.getTime()).toBe(
+        dbProject.createdAt.getTime(),
+      );
+    });
+
+    it("preserves a custom start date on or after the project createdAt", async () => {
+      const { caller, project } = await prepare();
+      const customDate = new Date();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportMode: "FROM_CUSTOM_DATE",
+        exportStartDate: customDate,
+      });
+
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+
+      expect(stored?.exportStartDate?.getTime()).toBe(customDate.getTime());
+    });
+  });
+
   describe("legacy blob export source cutoff gate", () => {
     afterEach(() => {
       vi.restoreAllMocks();

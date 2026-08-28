@@ -11,6 +11,7 @@ import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-int
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";
+import { clampExportStartDateToProjectCreatedAt } from "@/src/features/blobstorage-integration/validation";
 
 type UpsertBlobStorageIntegrationInput = {
   type: BlobStorageIntegrationType;
@@ -92,6 +93,14 @@ export async function upsertBlobStorageIntegration(params: {
     exportStartDate: data.exportStartDate,
   });
 
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { createdAt: true },
+  });
+  if (!project) {
+    throw new InvalidRequestError("Project not found");
+  }
+
   const writeData = {
     type: data.type,
     bucketName: data.bucketName,
@@ -104,7 +113,10 @@ export async function upsertBlobStorageIntegration(params: {
     forcePathStyle: data.forcePathStyle,
     fileType: data.fileType,
     exportMode: data.exportMode,
-    exportStartDate: resolvedExportStartDate,
+    exportStartDate: clampExportStartDateToProjectCreatedAt(
+      resolvedExportStartDate,
+      project.createdAt,
+    ),
     exportSource: data.exportSource,
     exportFieldGroups: data.exportFieldGroups,
     compressed: data.compressed ?? true,

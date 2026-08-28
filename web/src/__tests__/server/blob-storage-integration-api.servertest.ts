@@ -507,7 +507,41 @@ describe("Blob Storage Integrations API", () => {
 
       expect(response.status).toBe(200);
       expect(response.body.exportMode).toBe("FROM_CUSTOM_DATE");
-      expect(response.body.exportStartDate).toBeDefined();
+      expect(response.body.exportStartDate).toBeInstanceOf(Date);
+
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: testProject1Id },
+        select: { createdAt: true },
+      });
+      expect(response.body.exportStartDate!.getTime()).toBeGreaterThanOrEqual(
+        project.createdAt.getTime(),
+      );
+    });
+
+    it("clamps a custom export start date older than the project createdAt", async () => {
+      const response = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...validBlobStorageConfig,
+          projectId: testProject1Id,
+          exportMode: "FROM_CUSTOM_DATE" as const,
+          exportStartDate: "1970-01-01T00:00:00Z",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+        200,
+      );
+
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: testProject1Id },
+        select: { createdAt: true },
+      });
+      expect(response.status).toBe(200);
+      expect(response.body.exportStartDate).toBeInstanceOf(Date);
+      expect(response.body.exportStartDate!.getTime()).toBe(
+        project.createdAt.getTime(),
+      );
     });
 
     it("should store secretAccessKey encrypted in database", async () => {
