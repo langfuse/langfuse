@@ -23,7 +23,6 @@ import {
 
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { env } from "@/src/env.mjs";
-import { headerValue } from "@/src/features/auth/policy/enforce";
 import { resolveContext } from "@/src/features/auth/policy/resolveContext";
 import {
   Verifier,
@@ -35,6 +34,11 @@ import {
   type PrincipalOrganization,
   type Success,
 } from "@/src/features/auth/policy/types";
+
+/** headerValue normalizes a possibly-repeated header to its first value. */
+const headerValue = (
+  value: string | string[] | undefined,
+): string | undefined => (Array.isArray(value) ? value[0] : value);
 
 /** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → gate key kind → load org → enrich → resolve. */
 export class Authenticator {

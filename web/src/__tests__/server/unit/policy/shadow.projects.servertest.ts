@@ -19,7 +19,7 @@ const {
 
 vi.mock("@/src/env.mjs", () => ({ env }));
 
-vi.mock("@/src/features/public-api/server/createAuthedProjectAPIRoute", () => ({
+vi.mock("@/src/features/public-api/server/verifyProjectApiKeyAuth", () => ({
   verifyAuth: mockLegacyVerifyAuth,
 }));
 
@@ -33,7 +33,7 @@ vi.mock("@/src/features/auth/policy/shadow", async (importOriginal) => ({
   recordCoverage: mockRecordCoverage,
 }));
 
-import { verifyAuth } from "@/src/features/auth/policy/shadow.projects";
+import { verifyAuth } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
 describe("project seam verifyAuth", () => {
   const legacyScope = { scope: { projectId: "p1", accessLevel: "project" } };

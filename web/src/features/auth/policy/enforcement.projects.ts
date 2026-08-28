@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared";
 
 import { authorize } from "./authorize";
-import { headerValue } from "./enforce";
 import { defaultAuthenticator } from "@/src/features/apiKey/auth";
 import {
   type AuthorizationContext,
@@ -19,6 +18,11 @@ import {
 
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
+
+/** headerValue normalizes a possibly-repeated header to its first value. */
+const headerValue = (
+  value: string | string[] | undefined,
+): string | undefined => (Array.isArray(value) ? value[0] : value);
 
 /** enforceProjectAuth runs the new project pipeline — authenticate, its own target resolution, authorize — returning every outcome as a value; it never throws one. */
 export async function enforceProjectAuth(
