@@ -33,8 +33,8 @@ import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
-  LevelBadge,
 } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ModelBadge";
@@ -626,7 +626,12 @@ export const ObservationDetailViewHeader = memo(
               <ModelParametersBadges
                 modelParameters={observation.modelParameters}
               />
-              <LevelBadge level={observation.level} />
+              {observation.level !== "DEFAULT" && (
+                <ObservationLevelBadge
+                  level={observation.level}
+                  size="default"
+                />
+              )}
               {observation.promptId && (
                 <PromptBadge
                   promptId={observation.promptId}
