@@ -57,7 +57,7 @@ export function hostnameForLog(configuredUrl: string): string {
   try {
     return new URL(configuredUrl).hostname || "<no hostname>";
   } catch {
-    return "<unparseable>";
+    return "<unparsable>";
   }
 }
 

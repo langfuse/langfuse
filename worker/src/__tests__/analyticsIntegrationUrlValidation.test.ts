@@ -90,7 +90,7 @@ describe("hostnameForLog", () => {
     ).toBe("posthog.example.com");
   });
 
-  it("marks an unparseable value instead of throwing", () => {
-    expect(hostnameForLog("not a url")).toBe("<unparseable>");
+  it("marks an unparsable value instead of throwing", () => {
+    expect(hostnameForLog("not a url")).toBe("<unparsable>");
   });
 });
