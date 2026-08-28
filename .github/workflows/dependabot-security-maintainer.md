@@ -180,6 +180,11 @@ The current run's safe-output staged flag is
 6. Request one non-draft PR for this branch with temporary ID `aw_pr_1`. The
    title is the commit subject. The body must summarize the dependency upgrade
    and list every covered Dependabot alert number and GHSA ID.
+   This workflow intentionally allows multiple independent PRs. The generic
+   `create_pull_request` instruction to stop after the call means: do not modify,
+   retry, probe, or publish that completed branch again. It does not end this
+   upgrade loop. Call `create_pull_request` exactly once for this dependency,
+   then continue with steps 7 and 8.
 7. When the staged flag above is `false`, immediately request one `add_comment`
    on that PR using the same temporary ID as `item_number`. The comment is the
    remediation record: include the old and target versions, whether the package
