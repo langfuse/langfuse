@@ -121,6 +121,51 @@ export const langchainSerializedEnvelopeFixture = {
   },
 } satisfies NormalizedIOFixture;
 
+/**
+ * LangChain dict serialization (`.dict()` / LangSmith-style): messages carry
+ * `type: "tool"` instead of a `role` key. A ToolMessage dict with a
+ * tool_call_id must become a tool-result part — not a text part titled by
+ * `name` — and `name` is the tool's name, never a participant name.
+ */
+export const langchainDictToolMessageFixture = {
+  name: "normalizes a LangChain dict-serialized tool message",
+  spanIO: {
+    input: [
+      {
+        content: "It's 60 degrees and foggy.",
+        additional_kwargs: {},
+        response_metadata: {},
+        type: "tool",
+        name: "search",
+        id: "220ba511-6816-4d1a-8acf-8e5791c2d88e",
+        tool_call_id: "call_pNLR4DoZiptb5xGlb299QsoN",
+        artifact: null,
+        status: "success",
+      },
+    ],
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        id: "220ba511-6816-4d1a-8acf-8e5791c2d88e",
+        role: "tool",
+        parts: [
+          {
+            type: "tool-result",
+            toolCallId: "call_pNLR4DoZiptb5xGlb299QsoN",
+            toolName: "search",
+            output: "It's 60 degrees and foggy.",
+          },
+        ],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
 export const langgraphProductionShapeFixture = {
   name: "normalizes an anonymized LangGraph production-shaped span",
   otel: {

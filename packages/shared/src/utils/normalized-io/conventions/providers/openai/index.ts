@@ -494,16 +494,22 @@ const tryUnwrapLegacyFunctionMessage = (
   ctx: MessageEnvelopeContext,
 ): ConventionResult<NormalizedMessage> => {
   if (
-    value.role === "tool" &&
+    // LangChain dict serializations carry `type: "tool"` instead of a role
+    // key; the same tool-result shape (tool_call_id, artifact, status).
+    (value.role === "tool" || value.type === "tool") &&
     (typeof value.tool_call_id === "string" ||
       typeof value.tool_call_id === "number")
   ) {
     return claimed({
+      ...(optionalString(value.id) ? { id: String(value.id) } : {}),
       role: "tool",
       parts: [
         compact({
           type: "tool-result",
           toolCallId: nullableString(value.tool_call_id),
+          // A `name` on a tool message is the tool's name, never a
+          // participant name.
+          toolName: optionalString(value.name),
           output: toJsonValue(parseIfString(value.content ?? null)),
           isError: value.status === "error" ? true : undefined,
           providerMetadata:
