@@ -22,6 +22,7 @@ export function createScoreColumns<T extends Record<string, any>>({
   headerPrefix,
   defaultHidden,
   rawKey,
+  valueTitle,
 }: {
   scoreColumns: Array<{
     key: string;
@@ -37,6 +38,8 @@ export function createScoreColumns<T extends Record<string, any>>({
   headerPrefix?: string;
   defaultHidden?: boolean;
   rawKey?: boolean;
+  /** See `ScoresTableCell`'s `valueTitle`: what this row's value belongs to. */
+  valueTitle?: (original: T) => string | undefined;
 }): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
     const accessorKey = prefix ? `${prefix}-${key}` : key;
@@ -68,6 +71,7 @@ export function createScoreColumns<T extends Record<string, any>>({
           aggregate: value,
           displayFormat,
           hasMetadata: value.hasMetadata ?? false,
+          valueTitle: valueTitle?.(row.original),
         });
       },
     };

@@ -182,6 +182,11 @@ export const ExperimentGridView = ({
               showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
               columnVisibility={columnVisibility}
               markerClassName={colorStyles?.markerClass}
             />

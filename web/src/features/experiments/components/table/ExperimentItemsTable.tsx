@@ -20,6 +20,7 @@ import {
 } from "../../config/experiment-items-filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
+  type AggregatedScoreData,
   type FilterState,
   type FilterCondition,
   TableViewPresetTableName,
@@ -80,6 +81,7 @@ import {
   type ScoreColumnDef,
 } from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
+import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
 import { calculateNumericDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
@@ -192,6 +194,20 @@ const shouldEnableExperimentPeek = (props: {
  * Cell component that renders stacked values for each experiment.
  * Uses CSS grid for consistent horizontal alignment across columns.
  */
+/**
+ * A single score's value, as `ScoresTableCell` renders it in the smart format
+ * — for the hover sentence next to it, which has to quote the same number the
+ * cell shows.
+ */
+const formatScoreAggregateValue = (
+  aggregate?: AggregatedScoreData | null,
+): string => {
+  if (!aggregate) return "nothing";
+  return aggregate.type === "NUMERIC"
+    ? aggregate.average.toFixed(4)
+    : (aggregate.values[0] ?? "nothing");
+};
+
 const StackedExperimentCell = ({
   experiments,
   allExperimentIds,
@@ -457,6 +473,17 @@ export default function ExperimentItemsTable({
     );
   }, [experimentNames, allExperimentIds]);
 
+  // A stacked cell holds one line per run, told apart by a colour marker only,
+  // so every value and every comparison chip in it names its run on hover.
+  const runNameOf = useCallback(
+    (experimentId?: string) =>
+      experimentId
+        ? experimentNames.find((exp) => exp.experimentId === experimentId)
+            ?.experimentName
+        : undefined,
+    [experimentNames],
+  );
+
   const { selectAll, setSelectAll } = useSelectAll(
     projectId,
     "experiment-items",
@@ -694,8 +721,13 @@ export default function ExperimentItemsTable({
         displayFormat: "smart",
         headerPrefix: "Observation",
         rawKey: true,
+        valueTitle: (exp) => runNameOf(exp.experimentId),
       }),
-    [scoreColumnDefs.observationScoreColumns, presentScoreKeys?.observation],
+    [
+      scoreColumnDefs.observationScoreColumns,
+      presentScoreKeys?.observation,
+      runNameOf,
+    ],
   );
 
   const traceScoreColumns = useMemo(
@@ -709,8 +741,9 @@ export default function ExperimentItemsTable({
         displayFormat: "smart",
         prefix: "Trace",
         rawKey: true,
+        valueTitle: (exp) => runNameOf(exp.experimentId),
       }),
-    [scoreColumnDefs.traceScoreColumns, presentScoreKeys?.trace],
+    [scoreColumnDefs.traceScoreColumns, presentScoreKeys?.trace, runNameOf],
   );
 
   // Use the shared loading state for both sidebar and columns
@@ -983,13 +1016,39 @@ export default function ExperimentItemsTable({
                         } as any)
                       : null;
 
+                  // `true → false` and `+0.07` do not say which side is the
+                  // baseline; the hover title does.
+                  const diffTitle = diff
+                    ? describeRunComparison({
+                        baselineName: runNameOf(baselineId),
+                        ...(diff.type === "CATEGORICAL"
+                          ? {
+                              baselineText: diff.from ?? "several values",
+                              currentText: diff.to ?? "several values",
+                            }
+                          : {
+                              baselineText: formatScoreAggregateValue(
+                                baselineScoresData?.[scoreKey ?? ""],
+                              ),
+                              currentText: formatScoreAggregateValue(value),
+                            }),
+                      })
+                    : undefined;
+
                   return (
-                    <div className="flex min-w-0 items-center gap-1">
-                      {renderedScore}
+                    // The value never gives up width for the chip beside it:
+                    // a clipped value reads as data, so the move wraps under
+                    // it instead. `max-w-full` keeps a pathological value
+                    // inside the cell, where its own truncation has a title.
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                      <span className="flex max-w-full shrink-0 items-center">
+                        {renderedScore}
+                      </span>
                       {diff && (
                         <DiffLabel
                           diff={diff}
                           formatValue={(v) => v.toFixed(2)}
+                          title={diffTitle}
                         />
                       )}
                     </div>
@@ -1014,6 +1073,7 @@ export default function ExperimentItemsTable({
       setScoreComparisonFilter,
       removeScoreComparisonFilter,
       captureScoreComparisonFilter,
+      runNameOf,
     ],
   );
 
@@ -1080,16 +1140,30 @@ export default function ExperimentItemsTable({
     value,
     baselineValue,
     format,
+    verb,
   }: {
     exp: ExperimentItemData;
     value?: number | null;
     baselineValue?: number | null;
     format: (value: number) => string;
+    verb: "cost" | "took";
   }) => {
     if (!showComparisonDiff || exp.experimentId === baselineId) return null;
     const diff = calculateNumericDiff(value, baselineValue);
     if (!diff) return null;
-    return <DiffLabel diff={diff} preferNegativeDiff formatValue={format} />;
+    return (
+      <DiffLabel
+        diff={diff}
+        preferNegativeDiff
+        formatValue={format}
+        title={describeRunComparison({
+          baselineName: runNameOf(baselineId),
+          baselineText: format(baselineValue ?? 0),
+          currentText: format(value ?? 0),
+          verb,
+        })}
+      />
+    );
   };
 
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = [
@@ -1193,7 +1267,10 @@ export default function ExperimentItemsTable({
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => (
-              <span className="inline-flex items-center gap-1">
+              // Wraps rather than clipping: in a 120px column a six-decimal
+              // cost and its delta do not fit on one line, and half a currency
+              // value reads as data.
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
                 {exp.totalCost ? (
                   usdFormatter(exp.totalCost, 2, 6)
                 ) : (
@@ -1204,6 +1281,7 @@ export default function ExperimentItemsTable({
                   value: exp.totalCost,
                   baselineValue: baselineCost,
                   format: (value) => usdFormatter(value, 2, 6),
+                  verb: "cost",
                 })}
               </span>
             )}
@@ -1230,7 +1308,7 @@ export default function ExperimentItemsTable({
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => (
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
                 {exp.latencyMs != null ? (
                   latencyFormatter(exp.latencyMs)
                 ) : (
@@ -1241,6 +1319,7 @@ export default function ExperimentItemsTable({
                   value: exp.latencyMs,
                   baselineValue: baselineLatency,
                   format: latencyFormatter,
+                  verb: "took",
                 })}
               </span>
             )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, type ReactNode } from "react";
 import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
@@ -64,6 +64,7 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  emptyState,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -102,6 +103,12 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Replaces the default "No data" card when the chart has nothing to draw.
+   * For a chart in a band too short for that card (the table strips), where it
+   * would clip its own text. Pass a stable node so the memo still holds.
+   */
+  emptyState?: ReactNode;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -153,7 +160,7 @@ const ChartComponent = ({
       !isLoading &&
       isChartDataEmpty(data)
     ) {
-      return <NoDataOrLoading isLoading={false} />;
+      return emptyState ?? <NoDataOrLoading isLoading={false} />;
     }
 
     switch (chartType) {
