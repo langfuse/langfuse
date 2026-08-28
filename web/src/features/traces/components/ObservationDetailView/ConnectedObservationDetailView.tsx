@@ -178,13 +178,16 @@ export function ConnectedObservationDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  const selectedViewTab =
+    currentView === "pretty" || currentView === "pretty-beta"
+      ? currentView
+      : "json";
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
-      if (tab === "pretty") {
-        setJsonViewPreference("pretty");
+      if (tab === "pretty" || tab === "pretty-beta") {
+        setJsonViewPreference(tab);
       } else {
         // When switching to JSON, use beta preference
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
@@ -274,6 +277,8 @@ export function ConnectedObservationDetailView({
   });
 
   const session = useSession();
+  // The normalized-parser formatted view is validated by Langfuse admins only.
+  const isAdmin = session.data?.user?.admin === true;
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -374,6 +379,14 @@ export function ConnectedObservationDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
+                      {isAdmin && (
+                        <TabsTrigger
+                          value="pretty-beta"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Normalized (beta)
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger
                         value="pretty"
                         className="h-fit px-1 text-xs"

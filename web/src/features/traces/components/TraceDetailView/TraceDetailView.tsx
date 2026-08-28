@@ -102,14 +102,19 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
+  // Both formatted variants share the pretty layout; JSON views differ.
+  const isPrettyLikeView =
+    currentView === "pretty" || currentView === "pretty-beta";
 
   const selectedViewTab =
-    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+    jsonViewPreference === "pretty" || jsonViewPreference === "pretty-beta"
+      ? jsonViewPreference
+      : ("json" as const);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
-      if (tab === "pretty") {
-        setJsonViewPreference("pretty");
+      if (tab === "pretty" || tab === "pretty-beta") {
+        setJsonViewPreference(tab);
       } else {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
@@ -150,6 +155,8 @@ export function TraceDetailView({
 
   // Fetch comments for this trace (for inline comment highlighting)
   const session = useSession();
+  // The normalized-parser formatted view is validated by Langfuse admins only.
+  const isAdmin = session.data?.user?.admin === true;
   const hasCommentsReadAccess = useHasProjectAccess({
     projectId,
     scope: "comments:read",
@@ -285,6 +292,14 @@ export function TraceDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
+                      {isAdmin && (
+                        <TabsTrigger
+                          value="pretty-beta"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Normalized (beta)
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger
                         value="pretty"
                         className="h-fit px-1 text-xs"
@@ -364,12 +379,12 @@ export function TraceDetailView({
             {trace.tags.length > 0 && (
               <>
                 <div
-                  className={`px-2 pt-2 text-sm font-bold ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
                 >
                   Tags
                 </div>
                 <div
-                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                  className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
                 >
                   <TagList selectedTags={trace.tags} isLoading={false} />
                 </div>

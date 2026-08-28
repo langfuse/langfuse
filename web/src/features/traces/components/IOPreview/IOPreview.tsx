@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
@@ -150,6 +151,9 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
+  const session = useSession();
+  // The normalized-parser formatted view is validated by Langfuse admins only.
+  const isAdmin = session.data?.user?.admin === true;
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
     useLocalStorage<string[]>(STORAGE_KEY, []);
 
@@ -226,6 +230,7 @@ export function IOPreview({
           selectedView={selectedView}
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
+          showPrettyBeta={isAdmin}
         />
       )}
 
@@ -297,6 +302,9 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
+          parser={
+            selectedView === "pretty-beta" && isAdmin ? "normalized" : "legacy"
+          }
           observationName={observationName}
           showMetadata={showMetadata}
           contentMode={contentMode}

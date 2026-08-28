@@ -54,7 +54,7 @@ import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/
 export interface TraceLogViewProps {
   traceId: string;
   projectId: string;
-  currentView?: "pretty" | "json" | "json-beta";
+  currentView?: "pretty" | "pretty-beta" | "json" | "json-beta";
 }
 
 // Import configuration constants
@@ -317,7 +317,9 @@ export const TraceLogView = ({
       {/* Table view mode - render as expandable table */}
       {/* "json-beta" uses table mode since advanced I/O viewer works in expandable rows */}
       {flatItems.length > 0 &&
-        (currentView === "pretty" || currentView === "json-beta") && (
+        (currentView === "pretty" ||
+          currentView === "pretty-beta" ||
+          currentView === "json-beta") && (
           <JSONTableView
             items={flatItems}
             columns={columns}

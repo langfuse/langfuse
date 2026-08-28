@@ -1,6 +1,6 @@
 import useLocalStorage from "@/src/components/useLocalStorage";
 
-type ViewMode = "pretty" | "json" | "json-beta";
+type ViewMode = "pretty" | "pretty-beta" | "json" | "json-beta";
 
 /**
  * Hook for managing JSON Beta toggle state alongside view preference.
@@ -22,13 +22,15 @@ export function useJsonBetaToggle(
       localStorage.getItem("jsonViewPreference") === '"json-beta"',
   );
 
-  // Derive UI tab selection (2 tabs: pretty or json)
+  // Derive UI tab selection (pretty, admin-only pretty-beta, or json)
   const selectedViewTab =
-    currentView === "pretty" ? ("pretty" as const) : ("json" as const);
+    currentView === "pretty" || currentView === "pretty-beta"
+      ? currentView
+      : ("json" as const);
 
   const handleViewTabChange = (tab: string) => {
-    if (tab === "pretty") {
-      setCurrentView("pretty");
+    if (tab === "pretty" || tab === "pretty-beta") {
+      setCurrentView(tab);
     } else {
       // When switching to JSON, use beta preference
       setCurrentView(jsonBetaEnabled ? "json-beta" : "json");

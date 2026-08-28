@@ -2,18 +2,21 @@ import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useJsonBetaToggle } from "@/src/features/traces/hooks/useJsonBetaToggle";
 
-export type ViewMode = "pretty" | "json" | "json-beta";
+export type ViewMode = "pretty" | "pretty-beta" | "json" | "json-beta";
 
 export interface ViewModeToggleProps {
   selectedView: ViewMode;
   onViewChange: (view: ViewMode) => void;
   compensateScrollRef: React.RefObject<HTMLDivElement | null>;
+  /** Admin-only normalized-parser formatted view. */
+  showPrettyBeta?: boolean;
 }
 
 export function ViewModeToggle({
   selectedView,
   onViewChange,
   compensateScrollRef,
+  showPrettyBeta = false,
 }: ViewModeToggleProps) {
   const {
     jsonBetaEnabled,
@@ -31,6 +34,11 @@ export function ViewModeToggle({
         onValueChange={handleViewTabChange}
       >
         <TabsList className="h-fit p-0.5">
+          {showPrettyBeta && (
+            <TabsTrigger value="pretty-beta" className="h-fit px-1 text-xs">
+              Normalized (beta)
+            </TabsTrigger>
+          )}
           <TabsTrigger value="pretty" className="h-fit px-1 text-xs">
             Formatted
           </TabsTrigger>
