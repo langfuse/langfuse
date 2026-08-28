@@ -118,19 +118,25 @@ class LimitByPlugin implements KyselyPlugin {
   }
 }
 
-// Kysely parses `"table.column"` at the expression-builder layer (`eb.ref`),
-// but these plugins/helpers build raw OperationNodes where no ExpressionBuilder
-// is in scope, and Kysely does not export its string-reference parser. So we
-// split the dotted name into the node primitives ourselves.
+// Build a `table.column` reference straight from its parts. Prefer this
+// whenever the caller already holds the table and column separately.
+function qualifiedColumn(table: string, column: string): OperationNode {
+  return ReferenceNode.create(
+    ColumnNode.create(column),
+    TableNode.create(table),
+  );
+}
+
+// For callers whose column arrives as a single, possibly dotted string — e.g.
+// the `limitBy` column list. Kysely only parses `"table.column"` at the
+// expression-builder layer (`eb.ref`) and does not export its string-reference
+// parser, and these plugins build raw OperationNodes with no ExpressionBuilder
+// in scope, so we split the dotted name here rather than route through a string.
 function columnRef(name: string): OperationNode {
   const parts = name.split(".");
-  if (parts.length === 2) {
-    return ReferenceNode.create(
-      ColumnNode.create(parts[1]),
-      TableNode.create(parts[0]),
-    );
-  }
-  return ColumnNode.create(name);
+  return parts.length === 2
+    ? qualifiedColumn(parts[0], parts[1])
+    : ColumnNode.create(name);
 }
 
 function arrayFunction<T>(fn: string, column: string): Expression<T[]> {
@@ -161,9 +167,9 @@ export function metadataValue(
 ): ExpressionWrapper<ClickHouseDatabase, "events_core", string | number> {
   return new ExpressionWrapper(
     ArrayIndexNode.create(
-      columnRef(`${tableAlias}.metadata_values`),
+      qualifiedColumn(tableAlias, "metadata_values"),
       FunctionNode.create("indexOf", [
-        columnRef(`${tableAlias}.metadata_names`),
+        qualifiedColumn(tableAlias, "metadata_names"),
         ValueNode.create(key),
       ]),
     ) as unknown as OperationNode,
