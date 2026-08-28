@@ -9,10 +9,13 @@ export const useViewData = ({
   projectId: string;
 }) => {
   const { data: TableViewPresets } =
-    api.TableViewPresets.getByTableName.useQuery({
-      tableName,
-      projectId,
-    });
+    api.TableViewPresets.getByTableName.useQuery(
+      {
+        tableName,
+        projectId,
+      },
+      { enabled: Boolean(projectId) },
+    );
 
   return {
     TableViewPresetsList: TableViewPresets,

@@ -65,10 +65,13 @@ export default function Dataset() {
     }[]
   >([]);
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -122,13 +125,17 @@ export default function Dataset() {
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
-    { enabled: !isExperimentsBetaActive },
+    { enabled: !isExperimentsBetaActive && Boolean(projectId) },
   );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
     { projectId, targetObject: ["dataset", "experiment"] },
     {
-      enabled: !isExperimentsBetaActive && hasEvalReadAccess && !!datasetId,
+      enabled:
+        !isExperimentsBetaActive &&
+        hasEvalReadAccess &&
+        Boolean(projectId) &&
+        Boolean(datasetId),
     },
   );
 
@@ -158,7 +165,7 @@ export default function Dataset() {
     dataset.data?.name,
   );
 
-  if (isInitializing) {
+  if (isInitializing || !projectId || !datasetId) {
     return <Skeleton className="h-full w-full" />;
   }
 

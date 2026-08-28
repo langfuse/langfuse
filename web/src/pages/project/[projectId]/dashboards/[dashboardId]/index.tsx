@@ -113,10 +113,13 @@ export default function DashboardDetail() {
   const { isBetaEnabled } = useV4Beta();
 
   // Fetch dashboard data
-  const dashboard = api.dashboard.getDashboard.useQuery({
-    projectId,
-    dashboardId,
-  });
+  const dashboard = api.dashboard.getDashboard.useQuery(
+    {
+      projectId,
+      dashboardId,
+    },
+    { enabled: Boolean(projectId) && Boolean(dashboardId) },
+  );
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
