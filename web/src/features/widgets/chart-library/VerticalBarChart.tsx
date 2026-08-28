@@ -30,6 +30,7 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  hideXAxisLabels = false,
 }) => {
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -48,6 +49,12 @@ export const VerticalBarChart: React.FC<ChartProps> = ({
           tickLine={false}
           axisLine={false}
           niceTicks="auto"
+          // Same treatment prepareTimeAxis gives a hidden categorical axis:
+          // every tick drawn, label-less, on a slim axis. The category stays in
+          // the tooltip. (LFE-15711)
+          {...(hideXAxisLabels
+            ? { interval: 0, tickFormatter: () => "", height: 8 }
+            : {})}
         />
         <YAxis
           type="number"

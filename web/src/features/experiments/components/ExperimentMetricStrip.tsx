@@ -37,7 +37,7 @@ import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytic
 const EMPTY_PLOT = <MetricStripMessage message="No values for this metric" />;
 
 const AXIS_EXPLANATION =
-  "One point per experiment in view, oldest on the left and newest on the right, so a metric that improved over time rises. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
+  "One bar per experiment in view, oldest on the left and newest on the right, so a metric that improved over time climbs. The bars are a set of runs in start order, not a timeline — nothing is implied between two of them. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out, and hovering a bar names the experiment.";
 
 /**
  * Which columns carry the experiment, keyed by the chart's entity dimension.
@@ -104,9 +104,11 @@ type ExperimentMetricStripProps = {
  * The compact metric strip above the experiments table — one chart in the band
  * the 4×224px chart grid used to occupy, modelled on the events table's
  * outlier strip. It plots one metric across the experiments in view, defaulting
- * to a score rather than cost, on a chronological x-axis (oldest left) so an
- * improving metric reads as a rising line. Long experiment names stay off the
- * axis; the hover tooltip carries identity. (LFE-15711)
+ * to a score rather than cost, as one bar per experiment on a chronological
+ * x-axis (oldest left) so an improving metric climbs. The axis is a set of
+ * discrete runs, not a timeline — hence bars, not a line. Long experiment names
+ * stay off the axis; the legend and the hover tooltip carry identity.
+ * (LFE-15711)
  */
 export function ExperimentMetricStrip({
   projectId,
@@ -115,7 +117,7 @@ export function ExperimentMetricStrip({
   toTimestamp,
   isExternalLoading = false,
 }: ExperimentMetricStripProps) {
-  // Chronological, oldest first: a rising metric has to draw as a rising line.
+  // Chronological, oldest first: an improving metric has to read left-to-right.
   // The table stays newest-first, so this is deliberately not the table order.
   const orderedExperiments = useMemo(
     () =>

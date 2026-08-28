@@ -237,9 +237,21 @@ export function WidgetContent({
         };
       }
 
+      // A non-time-series chart draws `dimension` on its categorical axis, and
+      // on an entity query the ENTITY *is* that category — so hand it over as
+      // the dimension rather than the metric's name, which would collapse every
+      // entity into one bar. Only when the query has no breakdown of its own:
+      // that breakdown is the real series (categorical scores). (LFE-15711)
+      const entityIsCategory =
+        !isTimeSeries &&
+        item["entity_dimension"] !== undefined &&
+        dimensions.length === 0;
+
       // Handle series dimension (for legend)
       let seriesDimension: string;
-      if (dimensionValue !== undefined) {
+      if (entityIsCategory) {
+        seriesDimension = xAxisValue ?? "Unknown";
+      } else if (dimensionValue !== undefined) {
         const val = dimensionValue;
         // Empty first: "" is a string, so the order matters. (LFE-10694)
         if (val === null || val === undefined || val === "") {

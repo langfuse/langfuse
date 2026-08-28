@@ -155,8 +155,11 @@ const ChartComponent = ({
     // isChartDataEmpty); skip while loading so a first paint doesn't flash
     // "No data" before the real result arrives. (LFE-14333, manifesto
     // principle 8)
+    // A caller that supplied its own empty state (a table strip) gets it for
+    // any chart type: its band is too short for the default card, whatever the
+    // mark. (LFE-15711)
     if (
-      EMPTY_STATE_CHART_TYPES.has(chartType) &&
+      (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
       !isLoading &&
       isChartDataEmpty(data)
     ) {
@@ -228,6 +231,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "PIE":
