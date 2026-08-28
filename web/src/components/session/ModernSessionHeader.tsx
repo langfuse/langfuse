@@ -1,6 +1,6 @@
 import { percentile, type ScoreDomain } from "@langfuse/shared";
 import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
-import { type ReactNode, type SyntheticEvent, useState } from "react";
+import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
@@ -82,6 +82,8 @@ type SessionHeaderDetail = {
   content: ReactNode;
 };
 
+type SessionHeaderDetailControlLocation = "header" | "overflow";
+
 const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
 
 const ChipValue = ({ children }: { children: React.ReactNode }) => (
@@ -122,11 +124,17 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
 const SessionHeaderDetailWithVisibilityControl = ({
   detail,
   isHidden,
+  location,
   onVisibilityChange,
 }: {
   detail: SessionHeaderDetail;
   isHidden: boolean;
-  onVisibilityChange: (detail: SessionHeaderDetail, isHidden: boolean) => void;
+  location: SessionHeaderDetailControlLocation;
+  onVisibilityChange: (
+    detail: SessionHeaderDetail,
+    isHidden: boolean,
+    location: SessionHeaderDetailControlLocation,
+  ) => void;
 }) => {
   const action = isHidden ? "Show" : "Hide";
   return (
@@ -137,7 +145,7 @@ const SessionHeaderDetailWithVisibilityControl = ({
         aria-label={`${action} ${detail.visibilityLabel} in session header`}
         title={`${action} in session header`}
         className="bg-header hover:bg-muted focus-visible:ring-ring absolute right-0 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
-        onClick={() => onVisibilityChange(detail, !isHidden)}
+        onClick={() => onVisibilityChange(detail, !isHidden, location)}
       >
         {isHidden ? (
           <Eye aria-hidden="true" className="h-3 w-3" />
@@ -335,6 +343,9 @@ export function ModernSessionHeader({
   const hiddenDetailKeys =
     parseStoredHiddenSessionHeaderDetails(rawHiddenDetailKeys);
   const hiddenDetailKeySet = new Set(hiddenDetailKeys);
+  const overflowButtonRef = useRef<HTMLButtonElement>(null);
+  const metadataEditorButtonRef = useRef<HTMLButtonElement>(null);
+  const overflowSearchInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [visibleUserCount, setVisibleUserCount] = useState(
     SESSION_USERS_PER_PAGE,
@@ -512,16 +523,25 @@ export function ModernSessionHeader({
     });
   }
 
-  users.slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT).forEach((user, index) => {
-    pills.push({
+  const userDetails = users.map(
+    (user, index): SessionHeaderDetail => ({
       key: sessionHeaderDynamicDetailKey("user", user),
       searchText: `user ${user}`,
       visibilityLabel: `user ${index + 1}`,
       type: "user",
       content: <UserChip projectId={projectId} user={user} />,
-    });
-  });
-  const remainingUsers = users.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
+    }),
+  );
+  const visibleUserDetails = userDetails
+    .filter((detail) => !hiddenDetailKeySet.has(detail.key))
+    .slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
+  visibleUserDetails.forEach((detail) => pills.push(detail));
+  const visibleUserDetailKeySet = new Set(
+    visibleUserDetails.map((detail) => detail.key),
+  );
+  const overflowUserDetails = userDetails.filter(
+    (detail) => !visibleUserDetailKeySet.has(detail.key),
+  );
 
   metadataJsonPaths.paths.forEach((path, index) => {
     const display = getConfiguredMetadataDisplay(
@@ -547,9 +567,16 @@ export function ModernSessionHeader({
   const manuallyHiddenPills = pills.filter((pill) =>
     hiddenDetailKeySet.has(pill.key),
   );
+  const hiddenUserDetailCount = userDetails.reduce(
+    (count, detail) => count + Number(hiddenDetailKeySet.has(detail.key)),
+    0,
+  );
+  const currentlyHiddenDetailCount =
+    manuallyHiddenPills.length + hiddenUserDetailCount;
   const changeDetailVisibility = (
     detail: SessionHeaderDetail,
     isHidden: boolean,
+    location: SessionHeaderDetailControlLocation,
   ) => {
     if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
 
@@ -563,10 +590,21 @@ export function ModernSessionHeader({
       action: isHidden ? "hide" : "show",
       detailType: detail.type,
       hiddenDetailCount: Math.max(
-        manuallyHiddenPills.length + (isHidden ? 1 : -1),
+        currentlyHiddenDetailCount + (isHidden ? 1 : -1),
         0,
       ),
       isV4: true,
+    });
+    window.requestAnimationFrame(() => {
+      const preferredTarget =
+        location === "overflow"
+          ? overflowSearchInputRef.current
+          : overflowButtonRef.current;
+      (
+        preferredTarget ??
+        overflowButtonRef.current ??
+        metadataEditorButtonRef.current
+      )?.focus();
     });
   };
 
@@ -575,13 +613,14 @@ export function ModernSessionHeader({
       <SingleLineOverflowList
         items={visiblePills}
         additionalOverflowCount={
-          remainingUsers.length + manuallyHiddenPills.length
+          overflowUserDetails.length + manuallyHiddenPills.length
         }
         getKey={(pill) => pill.key}
         renderItem={(pill) => (
           <SessionHeaderDetailWithVisibilityControl
             detail={pill}
             isHidden={false}
+            location="header"
             onVisibilityChange={changeDetailVisibility}
           />
         )}
@@ -594,6 +633,7 @@ export function ModernSessionHeader({
               <ModernSessionHeaderPill
                 variant="button"
                 ariaLabel="Add metadata JSONPath"
+                ref={metadataEditorButtonRef}
               >
                 <Plus className="h-3 w-3" />
               </ModernSessionHeaderPill>
@@ -622,12 +662,14 @@ export function ModernSessionHeader({
                 pill.searchText.toLocaleLowerCase().includes(normalizedSearch),
               )
             : overflowPills;
-          const filteredUsers = normalizedSearch
-            ? remainingUsers.filter((user) =>
-                user.toLocaleLowerCase().includes(normalizedSearch),
+          const filteredUserDetails = normalizedSearch
+            ? overflowUserDetails.filter((detail) =>
+                detail.searchText
+                  .toLocaleLowerCase()
+                  .includes(normalizedSearch),
               )
-            : remainingUsers;
-          const visibleUsers = filteredUsers.slice(0, visibleUserCount);
+            : overflowUserDetails;
+          const visibleUsers = filteredUserDetails.slice(0, visibleUserCount);
           const hasResults =
             filteredPills.length > 0 || visibleUsers.length > 0;
 
@@ -643,6 +685,7 @@ export function ModernSessionHeader({
                 <ModernSessionHeaderPill
                   variant="button"
                   ariaLabel={`Show ${overflowItemCount} hidden session details`}
+                  ref={overflowButtonRef}
                 >
                   +{overflowItemCount}
                 </ModernSessionHeaderPill>
@@ -655,6 +698,7 @@ export function ModernSessionHeader({
                 <div className="relative border-b p-2">
                   <Search className="text-muted-foreground absolute top-1/2 left-4 h-3.5 w-3.5 -translate-y-1/2" />
                   <Input
+                    ref={overflowSearchInputRef}
                     value={search}
                     onChange={(event) => {
                       setSearch(event.target.value);
@@ -680,7 +724,7 @@ export function ModernSessionHeader({
                     setVisibleUserCount((current) =>
                       Math.min(
                         current + SESSION_USERS_PER_PAGE,
-                        filteredUsers.length,
+                        filteredUserDetails.length,
                       ),
                     );
                   }}
@@ -692,14 +736,17 @@ export function ModernSessionHeader({
                           key={pill.key}
                           detail={pill}
                           isHidden={hiddenDetailKeySet.has(pill.key)}
+                          location="overflow"
                           onVisibilityChange={changeDetailVisibility}
                         />
                       ))}
-                      {visibleUsers.map((user) => (
-                        <UserChip
-                          key={user}
-                          projectId={projectId}
-                          user={user}
+                      {visibleUsers.map((detail) => (
+                        <SessionHeaderDetailWithVisibilityControl
+                          key={detail.key}
+                          detail={detail}
+                          isHidden={hiddenDetailKeySet.has(detail.key)}
+                          location="overflow"
+                          onVisibilityChange={changeDetailVisibility}
                         />
                       ))}
                     </>

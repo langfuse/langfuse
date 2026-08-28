@@ -191,4 +191,34 @@ describe("ModernSessionHeader", () => {
       "traces",
     ]);
   });
+
+  it("lets overflow-only users participate in visibility preferences", () => {
+    const users = [
+      "user-1@example.com",
+      "user-2@example.com",
+      "user-3@example.com",
+      "user-4@example.com",
+    ];
+    render(<ModernSessionHeader {...defaultProps} users={users} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Show 1 hidden session details",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hide user 4 in session header",
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Show user 4 in session header",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      localStorage.getItem(sessionHeaderVisibilityStorageKey("project-1")),
+    ).not.toContain(users[3]);
+  });
 });

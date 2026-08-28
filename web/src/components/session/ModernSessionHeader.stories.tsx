@@ -376,12 +376,15 @@ export const TestHidesAndRevealsDetails = meta.story({
       JSON.parse(localStorage.getItem(storageKey) ?? "[]"),
     ).toContain("traces");
 
-    await userEvent.click(
-      canvas.getByRole("button", {
-        name: /show \d+ hidden session details/i,
-      }),
-    );
+    const overflowButton = canvas.getByRole("button", {
+      name: /show \d+ hidden session details/i,
+    });
+    await waitFor(() => expect(overflowButton).toHaveFocus());
+    await userEvent.click(overflowButton);
     const body = within(canvasElement.ownerDocument.body);
+    const overflowSearchInput = await body.findByRole("textbox", {
+      name: "Search session details",
+    });
     const showTraceDetail = await body.findByRole("button", {
       name: "Show trace and span counts in session header",
     });
@@ -395,5 +398,13 @@ export const TestHidesAndRevealsDetails = meta.story({
       }),
     ).toBeInTheDocument();
     await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));
+    const metadataEditorButton = canvas.getByRole("button", {
+      name: "Add metadata JSONPath",
+    });
+    await waitFor(() =>
+      expect([overflowSearchInput, metadataEditorButton]).toContain(
+        canvasElement.ownerDocument.activeElement,
+      ),
+    );
   },
 });
