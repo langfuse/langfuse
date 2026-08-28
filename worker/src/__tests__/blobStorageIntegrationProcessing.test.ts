@@ -730,6 +730,68 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   maybeDescribe("events table export tests", () => {
+    it("starts a first FULL_HISTORY export from events-only history instead of skipping as empty", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportMode: "FULL_HISTORY",
+          exportStartDate: null,
+          exportSource: "EVENTS",
+          lastSyncAt: null,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name: "Events-only history",
+          start_time: dataTime * 1000,
+          end_time: (dataTime + 5000) * 1000,
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration?.lastSyncAt).not.toBeNull();
+      expect(updatedIntegration?.lastSyncAt?.getUTCFullYear()).toBeGreaterThan(
+        1971,
+      );
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      expect(files.some((f) => f.file.includes("/observations_v2/"))).toBe(
+        true,
+      );
+      expect(files.some((f) => f.file.includes("1970-"))).toBe(false);
+    });
+
     it("should export traces, generations, and scores to S3", async () => {
       // Setup
       const { projectId } = await createOrgProjectAndApiKey();

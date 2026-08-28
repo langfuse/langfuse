@@ -222,6 +222,12 @@ const getMinTimestampForExport = async (
                 SELECT min(timestamp) as ts
                 FROM scores
                 WHERE project_id = {projectId: String}
+
+                UNION ALL
+
+                SELECT min(start_time) as ts
+                FROM events_core
+                WHERE project_id = {projectId: String}
               )
               WHERE ts > 0 -- Ignore 0 results (usually empty tables)
             `,
