@@ -94,9 +94,11 @@ After you have walkthrough artifacts:
 
 1. Embed them in the PR body when you create or update the PR.
 2. Repeat them in the last GitHub PR comment (same comment as "what to
-   doubt").
+   doubt"), but only when that comment will be attributed to Cursor.
 
 Use HTML tags and absolute local paths. Do not commit artifacts to the repo.
+Claude Code and other tools that comment as the user still embed proof in
+the PR body; they skip only the last comment.
 
 ```html
 <img src="/opt/cursor/artifacts/cost_cell_dash.png" alt="Cost cell shows a dash" />
@@ -108,6 +110,10 @@ width-only HTML if you need sizing; do not set a fixed `height`. Skip this
 for docs-only or non-visual changes.
 
 ## What to doubt
+
+Cursor only. Post this GitHub comment only when it will be attributed to
+Cursor, not to a human author. Claude Code and other tools that comment as
+the authenticated user must skip this section.
 
 When the PR is ready for a human, post one last GitHub PR comment (not a
 changelog). Lead with proof when the change is user-visible, then name the
