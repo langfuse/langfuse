@@ -455,17 +455,20 @@ jobs:
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
-        # The SQL-equivalence tests need the clickhouse binary and run
-        # non-blocking in their own step below; exclude them here so the rest
-        # of the shared suite hard-fails as usual.
-        run: pnpm --filter @langfuse/shared run test -- --exclude '**/*.golden.test.ts'
+        # The clickhouse binary isn't installed yet, so the SQL-equivalence
+        # tests skip here (they run for real in the dedicated step below); every
+        # other shared test hard-fails as usual.
+        run: pnpm --filter @langfuse/shared run test
       - name: Install ClickHouse binary for SQL-equivalence tests
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
         # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
-        # continue-on-error: a missing binary just skips the tests, never blocks.
+        # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
+        # mirror just skips the tests, never blocks (timeout-minutes bounds a
+        # hang, which continue-on-error alone would not).
         continue-on-error: true
+        timeout-minutes: 5
         env:
           CLICKHOUSE_VERSION: 26.4.5.143
         run: |
