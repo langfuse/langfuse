@@ -53,6 +53,12 @@ export const isFtsTextField = (field: string): boolean =>
 export const isFtsMetadataField = (field: string): boolean =>
   bareFtsField(field) === FTS_METADATA_FIELD;
 
+/** String-stored metadata columns (Map or parallel name/value arrays), not score tuples. */
+export const isStringStoredMetadataField = (field: string): boolean => {
+  const bare = bareFtsField(field);
+  return bare === FTS_METADATA_FIELD || bare.endsWith("_metadata");
+};
+
 export const isFtsTextTarget = (
   clickhouseTable: string,
   field: string,

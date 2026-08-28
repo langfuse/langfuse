@@ -151,6 +151,13 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draft).toBe("scores.accuracy:2.0");
   });
 
+  it("resetTo Number-normalizes a numeric metadata comparison", () => {
+    const store = createSearchBarStore();
+    store.getState().actions.setDraft("metadata.timeout:>2.0");
+    store.getState().actions.resetTo("metadata.timeout:>2");
+    expect(store.getState().draft).toBe("metadata.timeout:>2.0");
+  });
+
   it("resetTo still canonicalizes free-text order (negation fold is order-preserving)", () => {
     // The flat URL contract has no slot for filter-vs-free-text interleave, so
     // the reverse adapter canonicalizes to `<filters> <freetext>`. The negation
