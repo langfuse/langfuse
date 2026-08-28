@@ -11,6 +11,7 @@ import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -345,7 +346,12 @@ export default function ExperimentsTable({
   const oldFilterState = inputFilterState.concat(dateRangeFilter, fixedFilter);
 
   // Fetch filter options for datasets and scores
-  const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
+  const {
+    filterOptions,
+    datasetIdByName,
+    datasetNameById,
+    isFilterOptionsPending,
+  } = useExperimentFilterOptions({
     projectId,
     oldFilterState,
   });
@@ -412,7 +418,12 @@ export default function ExperimentsTable({
     fixedFilter,
   );
 
-  const filterState = combinedFilterState;
+  // The one boundary where a dataset NAME becomes its id — see
+  // fns/datasetNameFilter.
+  const filterState = useMemo(
+    () => withDatasetNamesResolved(combinedFilterState, datasetIdByName),
+    [combinedFilterState, datasetIdByName],
+  );
 
   // Use the custom hook for experiments data fetching
   const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
@@ -578,13 +589,13 @@ export default function ExperimentsTable({
     {
       accessorKey: "datasetId",
       id: "datasetId",
-      header: getExperimentsColumnName("experimentDatasetId"),
+      header: getExperimentsColumnName("experimentDatasetName"),
       size: 150,
       cell: ({ row }) => {
         const datasetId: string | undefined = row.getValue("datasetId");
-        const datasetName = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === datasetId,
-        )?.displayValue;
+        const datasetName = datasetId
+          ? datasetNameById.get(datasetId)
+          : undefined;
 
         if (!datasetId || !datasetName) {
           return undefined;

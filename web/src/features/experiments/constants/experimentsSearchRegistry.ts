@@ -21,6 +21,10 @@ function facetColumns(config: FilterConfig) {
 
 const AI_CONTEXT_FIELDS = [
   { observedOptionsKey: "name", promptLabel: "name" },
+  {
+    observedOptionsKey: "experimentDatasetName",
+    promptLabel: "experimentDatasetName (dataset)",
+  },
 ] as const;
 
 /**
@@ -38,14 +42,6 @@ const AI_CONTEXT_FIELDS = [
  * surface as a bogus keyless field.
  */
 const EXCLUDED_COLUMN_IDS: ReadonlySet<string> = new Set([
-  // `experimentDatasetId` holds the dataset ID while the sidebar's picker shows
-  // the dataset NAME (`displayValue`). A text query bar can only show what the
-  // query text contains, so offering it here would put `dataset:cmtc1z…` in a
-  // pill next to a sidebar that says `legal-answer-quality`. Making the bar
-  // speak names would require the derived committed text to depend on
-  // async-loaded options, which breaks the one invariant every bar surface
-  // relies on. Dataset filtering stays in the sidebar.
-  "experimentDatasetId",
   "obs_scores_avg",
   "obs_score_categories",
   "obs_score_booleans",
@@ -65,6 +61,11 @@ const EXPERIMENT_FIELD_OVERLAY = {
     label: "Experiment name",
     description: "Experiment name",
   },
+  experimentDatasetName: {
+    aliases: ["dataset", "datasetname", "dataset_name"],
+    label: "Dataset",
+    description: "Dataset the experiment ran against",
+  },
 };
 
 export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
@@ -81,7 +82,11 @@ export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
     recentSearches: true,
     // `dataset:` takes the dataset ID, not its name — the observed-value picker
     // offers the ids, so the examples must not imply a name works.
-    searchExamples: ["name:sonnet", "-name:baseline", 'metadata."model":opus'],
+    searchExamples: [
+      "dataset:legal-answer-quality",
+      "name:sonnet",
+      'metadata."model":opus',
+    ],
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
   });
