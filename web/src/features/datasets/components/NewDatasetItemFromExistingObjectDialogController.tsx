@@ -19,7 +19,10 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
-  children: (control: { Trigger: typeof DialogTrigger }) => ReactNode;
+  children: (control: {
+    openDialog: () => void;
+    Trigger: typeof DialogTrigger;
+  }) => ReactNode;
 }) {
   const normalizePrefillValue = (
     value: Prisma.JsonValue | null,
@@ -59,7 +62,7 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
         </>
       )}
     >
-      {({ Trigger }) => props.children({ Trigger })}
+      {({ openDialog, Trigger }) => props.children({ openDialog, Trigger })}
     </DialogController>
   );
 }
