@@ -9,8 +9,7 @@ evaluating, and debugging AI applications.
 - Keep changes scoped and avoid unrelated refactors.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
-  intermediate tool output stays out of the main context. This isn't
-  automatic; ask for it explicitly when it applies.
+  intermediate tool output stays out of the main context.
 - For bug fixes, first write the smallest failing test that proves the reported
   behavior and confirm it fails against the buggy behavior before changing
   production code. Add another test only when it exercises a distinct adapter,
