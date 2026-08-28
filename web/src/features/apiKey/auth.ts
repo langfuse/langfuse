@@ -18,6 +18,7 @@ import {
   redis as defaultRedis,
   verifySecretKey,
   logger,
+  createAuthzContextCacheKey,
 } from "@langfuse/shared/src/server";
 
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
@@ -35,21 +36,31 @@ import {
   type Success,
 } from "@/src/features/auth/policy/types";
 
-/** keyStoreCachePrefix namespaces the api-key fast-hash cache (`fast hash → ApiKey record`) in redis. */
-const keyStoreCachePrefix = "authz:apikey:";
-
-/** Authenticator resolves a request's credential into an `AuthorizationContext`: verify → gate key kind → load org → enrich → resolve. */
+/** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → gate key kind → load org → enrich → resolve. */
 export class Authenticator {
   constructor(
     private readonly verifier: Verifier = buildVerifier(),
     private readonly orgs: OrganizationRepository = buildOrgRepo(),
+    private readonly cache: ContextCache = buildContextCache(),
   ) {}
 
-  /** auth runs the full pipeline, returning a typed failure rather than throwing. */
+  /** auth runs the full pipeline read-through the consolidated context cache, returning a typed failure rather than throwing. */
   async auth(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const authHeader = headerValue(params.headers.authorization);
+    const cacheKey = this.verifier.cacheKey(authHeader);
+
+    if (cacheKey) {
+      const cached = await this.cache.read(cacheKey);
+      if (cached) return cached;
+    }
+
     const verified = await this.verifier.verify(authHeader);
-    if (!verified.success) return verified;
+    if (!verified.success) {
+      if (cacheKey && verified.error instanceof UnauthorizedError) {
+        await this.cache.writeUnauthorized(cacheKey, verified.error);
+      }
+      return verified;
+    }
 
     const gate = gateKeyKind(verified, params);
     if (gate) return gate;
@@ -61,11 +72,18 @@ export class Authenticator {
     const enriched = await this.enrichOrg(verified.apiKey);
     if (!enriched.success) return enriched;
 
-    return resolveContext({
+    const resolved = resolveContext({
       authorization: verified.authorization,
       apiKey: verified.apiKey,
       organization: enriched.organization,
     });
+
+    // In-app-agent keys ride a route-specific gate; caching their context would
+    // let a hit skip the gate on a route that disallows them.
+    if (cacheKey && !verified.apiKey.isInAppAgentKey) {
+      await this.cache.writeContext(cacheKey, resolved.context);
+    }
+    return resolved;
   }
 
   /** enrichOrg loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
@@ -141,12 +159,9 @@ function enrich(org: OrganizationWithProjects): PrincipalOrganization {
   };
 }
 
-/** buildVerifier is the prisma/redis-backed Verifier on its default collaborators. */
-function buildVerifier(
-  prisma: PrismaClient = defaultPrisma,
-  redis: Redis | Cluster | null = defaultRedis,
-): Verifier {
-  return new Verifier(prismaApiKeyRepository(prisma, redis));
+/** buildVerifier is the prisma-backed Verifier on its default collaborators. */
+function buildVerifier(prisma: PrismaClient = defaultPrisma): Verifier {
+  return new Verifier(prismaApiKeyRepository(prisma));
 }
 
 /** buildOrgRepo is the prisma-backed OrganizationRepository on its default client. */
@@ -156,21 +171,22 @@ function buildOrgRepo(
   return prismaOrganizationRepository(prisma);
 }
 
-/** prismaApiKeyRepository reads `ApiKey` rows by index, read-through cached by fast hash, returning infra failures as values. */
-function prismaApiKeyRepository(
-  prisma: PrismaClient,
-  redis: Redis | Cluster | null,
-): ApiKeyRepository {
+/** buildContextCache is the redis-backed ContextCache on the default client. */
+function buildContextCache(
+  redis: Redis | Cluster | null = defaultRedis,
+): ContextCache {
+  return redisContextCache(redis);
+}
+
+/** prismaApiKeyRepository reads `ApiKey` rows by index, returning infra failures as values; caching lives at the Authenticator, not here. */
+function prismaApiKeyRepository(prisma: PrismaClient): ApiKeyRepository {
   return {
     findByFastHash: async (hash) => {
       try {
-        const cached = await readCachedKey(redis, hash);
-        if (cached) return { success: true, apiKey: cached };
-        const row = await prisma.apiKey.findUnique({
+        const apiKey = await prisma.apiKey.findUnique({
           where: { fastHashedSecretKey: hash },
         });
-        if (row?.fastHashedSecretKey) await writeCachedKey(redis, hash, row);
-        return { success: true, apiKey: row };
+        return { success: true, apiKey };
       } catch (error) {
         return {
           success: false,
@@ -253,48 +269,50 @@ function prismaOrganizationRepository(
   };
 }
 
-/** readCachedKey reads a cached `ApiKey` row by fast hash, failing open on any redis error. */
-async function readCachedKey(
-  redis: Redis | Cluster | null,
-  hash: string,
-): Promise<ApiKey | null> {
-  if (!redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") return null;
-  try {
-    const raw = await redis.get(`${keyStoreCachePrefix}${hash}`);
-    return raw ? (deserializeKey(raw) ?? null) : null;
-  } catch (error) {
-    logger.error("authz api key cache read failed, falling open", error);
-    return null;
-  }
+/** cacheEnabled is the shared on/off switch for the context cache, reusing the legacy api-key cache flag. */
+function cacheEnabled(redis: Redis | Cluster | null): redis is Redis | Cluster {
+  return Boolean(redis) && env.LANGFUSE_CACHE_API_KEY_ENABLED === "true";
 }
 
-/** writeCachedKey caches an `ApiKey` row by fast hash on the absolute API-key TTL, swallowing redis errors. */
-async function writeCachedKey(
-  redis: Redis | Cluster | null,
-  hash: string,
-  apiKey: ApiKey,
-): Promise<void> {
-  if (!redis || env.LANGFUSE_CACHE_API_KEY_ENABLED !== "true") return;
-  try {
-    await redis.set(
-      `${keyStoreCachePrefix}${hash}`,
-      JSON.stringify({ ...apiKey, createdAt: apiKey.createdAt.toISOString() }),
-      "EX",
-      env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-    );
-  } catch (error) {
-    logger.error("authz api key cache write failed", error);
-  }
-}
+/** redisContextCache stores the materialized `AuthorizationContext` (and negative 401s) under the `authz:context:` namespace, failing open on any redis error. */
+export function redisContextCache(redis: Redis | Cluster | null): ContextCache {
+  const set = async (key: string, entry: CachedEntry): Promise<void> => {
+    if (!cacheEnabled(redis)) return;
+    try {
+      await redis.set(
+        createAuthzContextCacheKey(key),
+        JSON.stringify(entry),
+        "EX",
+        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+      );
+    } catch (error) {
+      logger.error("authz context cache write failed", error);
+    }
+  };
 
-/** deserializeKey rehydrates a cached `ApiKey` row's dates, or undefined if malformed. */
-function deserializeKey(raw: string): ApiKey | undefined {
-  try {
-    const parsed = JSON.parse(raw) as ApiKey & { createdAt: string };
-    return { ...parsed, createdAt: new Date(parsed.createdAt) };
-  } catch {
-    return undefined;
-  }
+  return {
+    read: async (key) => {
+      if (!cacheEnabled(redis)) return null;
+      try {
+        const raw = await redis.get(createAuthzContextCacheKey(key));
+        if (!raw) return null;
+        const entry = JSON.parse(raw) as CachedEntry;
+        if ("context" in entry) {
+          return { success: true, context: entry.context };
+        }
+        return {
+          success: false,
+          error: new UnauthorizedError(entry.unauthorized),
+        };
+      } catch (error) {
+        logger.error("authz context cache read failed, falling open", error);
+        return null;
+      }
+    },
+    writeContext: (key, context) => set(key, { context }),
+    writeUnauthorized: (key, error) =>
+      set(key, { unauthorized: error.message }),
+  };
 }
 
 /** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */
@@ -311,6 +329,18 @@ export type ApiKeyAuthResults =
 
 /** Authenticated is the pipeline's success outcome: the resolved authorization context. */
 export type Authenticated = Success & { context: AuthorizationContext };
+
+/** CachedEntry is the redis-serialized cache value: a materialized context, or a negative 401 body. */
+type CachedEntry = { context: AuthorizationContext } | { unauthorized: string };
+
+/** ContextCache is the consolidated read-through cache the Authenticator wraps its pipeline in. */
+export type ContextCache = {
+  read: (
+    key: string,
+  ) => Promise<Authenticated | ErrorResult<UnauthorizedError> | null>;
+  writeContext: (key: string, context: AuthorizationContext) => Promise<void>;
+  writeUnauthorized: (key: string, error: UnauthorizedError) => Promise<void>;
+};
 
 /** OrganizationWithProjects is the raw org row plus its live project ids. */
 export type OrganizationWithProjects = Organization & {

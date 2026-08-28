@@ -29,6 +29,20 @@ export class Verifier {
     private readonly isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
   ) {}
 
+  /** cacheKey derives the context-cache hash for a credential — `sha(secret+salt)` for Basic, `sha(token+salt)` for Bearer — or null when uncacheable. */
+  cacheKey(authHeader: string | undefined): string | null {
+    if (authHeader?.startsWith(basicPrefix)) {
+      const credentials = decodeBasic(authHeader.slice(basicPrefix.length));
+      return credentials
+        ? createShaHash(credentials.secretKey, this.salt)
+        : null;
+    }
+    if (authHeader?.startsWith(bearerPrefix)) {
+      return createShaHash(authHeader.slice(bearerPrefix.length), this.salt);
+    }
+    return null;
+  }
+
   /** verify resolves the Authorization header to a credential presentation, or a typed failure. */
   async verify(authHeader: string | undefined): Promise<VerifyResult> {
     if (authHeader?.startsWith(basicPrefix)) {
