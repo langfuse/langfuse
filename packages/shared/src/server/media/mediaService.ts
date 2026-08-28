@@ -11,7 +11,10 @@ import {
   type MediaField,
 } from "../../domain/media";
 import { InternalServerError } from "../../errors";
-import { declarePendingDatasetItemMedia } from "../repositories/dataset-item-media";
+import {
+  assertDatasetInProject,
+  declarePendingDatasetItemMedia,
+} from "../repositories/dataset-item-media";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { getS3MediaStorageClient } from "../s3";
 import { summarizeS3Error } from "../services/s3SigningDiagnostics";
@@ -346,8 +349,9 @@ export async function uploadMediaForTrace(params: {
 
 /**
  * Persists binary media and declares a pending dataset-item association that is
- * claimed when the item is written. Dedupes by project + SHA-256 like the
- * trace upload path.
+ * claimed when the item is written. Verifies dataset ownership before writing
+ * bytes so a rejected request cannot leave unassociated blob content. Dedupes
+ * by project + SHA-256 like the trace upload path.
  */
 export async function uploadMediaForDatasetItem(params: {
   projectId: string;
@@ -359,6 +363,11 @@ export async function uploadMediaForDatasetItem(params: {
   mediaBucket: string;
   mediaPrefix: string;
 }): Promise<UploadMediaForDatasetItemResult> {
+  await assertDatasetInProject({
+    projectId: params.projectId,
+    datasetId: params.datasetId,
+  });
+
   const stored = await storeMediaBytes({
     projectId: params.projectId,
     contentType: params.contentType,

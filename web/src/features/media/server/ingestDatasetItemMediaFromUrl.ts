@@ -53,6 +53,20 @@ const URL_EXTENSION_TO_MIME: Record<string, MediaContentType> = {
 };
 
 const PREVIEWABLE_TOP_LEVEL = new Set(["image", "audio", "video"]);
+const GENERIC_CONTENT_TYPES = new Set(["application/octet-stream"]);
+
+// Unambiguous file signatures used when the response omits a media Content-Type
+// and the final URL has no usable extension (common after CDN redirects).
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const GIF87A_MAGIC = Buffer.from("GIF87a");
+const GIF89A_MAGIC = Buffer.from("GIF89a");
+const RIFF_MAGIC = Buffer.from("RIFF");
+const WEBP_MAGIC = Buffer.from("WEBP");
+const WAVE_MAGIC = Buffer.from("WAVE");
+const TIFF_LE_MAGIC = Buffer.from([0x49, 0x49, 0x2a, 0x00]);
+const TIFF_BE_MAGIC = Buffer.from([0x4d, 0x4d, 0x00, 0x2a]);
+const FLAC_MAGIC = Buffer.from("fLaC");
+const OGG_MAGIC = Buffer.from("OggS");
 
 export type IngestDatasetItemMediaFromUrlResult = {
   referenceString: string;
@@ -74,14 +88,70 @@ function contentTypeFromMediaUrl(urlString: string): MediaContentType | null {
   return URL_EXTENSION_TO_MIME[ext] ?? null;
 }
 
+function declaredMime(header: string | null): string | null {
+  if (!header) return null;
+  const mime = header.split(";")[0]?.trim().toLowerCase();
+  return mime || null;
+}
+
 function normalizeContentTypeHeader(
   header: string | null,
 ): MediaContentType | null {
-  if (!header) return null;
-  const mime = header.split(";")[0]?.trim().toLowerCase();
+  const mime = declaredMime(header);
   if (!mime || !isMediaContentType(mime)) return null;
   if (!PREVIEWABLE_TOP_LEVEL.has(mime.split("/")[0]!)) return null;
   return mime;
+}
+
+function startsWithMagic(bytes: Buffer, magic: Buffer): boolean {
+  return (
+    bytes.length >= magic.length &&
+    bytes.subarray(0, magic.length).equals(magic)
+  );
+}
+
+function contentTypeFromMagicBytes(bytes: Buffer): MediaContentType | null {
+  if (startsWithMagic(bytes, PNG_MAGIC)) return "image/png";
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+  if (
+    startsWithMagic(bytes, GIF87A_MAGIC) ||
+    startsWithMagic(bytes, GIF89A_MAGIC)
+  ) {
+    return "image/gif";
+  }
+  if (
+    bytes.length >= 12 &&
+    startsWithMagic(bytes, RIFF_MAGIC) &&
+    bytes.subarray(8, 12).equals(WEBP_MAGIC)
+  ) {
+    return "image/webp";
+  }
+  if (bytes.length >= 2 && bytes[0] === 0x42 && bytes[1] === 0x4d) {
+    return "image/bmp";
+  }
+  if (
+    startsWithMagic(bytes, TIFF_LE_MAGIC) ||
+    startsWithMagic(bytes, TIFF_BE_MAGIC)
+  ) {
+    return "image/tiff";
+  }
+  if (
+    bytes.length >= 12 &&
+    startsWithMagic(bytes, RIFF_MAGIC) &&
+    bytes.subarray(8, 12).equals(WAVE_MAGIC)
+  ) {
+    return "audio/wav";
+  }
+  if (startsWithMagic(bytes, FLAC_MAGIC)) return "audio/flac";
+  if (startsWithMagic(bytes, OGG_MAGIC)) return "audio/ogg";
+  return null;
 }
 
 async function assertSafeHttpsMediaUrl(urlString: string): Promise<void> {
@@ -160,7 +230,7 @@ export async function ingestDatasetItemMediaFromUrl(params: {
 
   await assertSafeHttpsMediaUrl(params.url);
 
-  const { response } = await fetchWithSecureRedirects(
+  const { response, finalUrl } = await fetchWithSecureRedirects(
     params.url,
     {
       method: "GET",
@@ -185,11 +255,11 @@ export async function ingestDatasetItemMediaFromUrl(params: {
     );
   }
 
-  const contentType =
-    normalizeContentTypeHeader(response.headers.get("content-type")) ??
-    contentTypeFromMediaUrl(params.url);
-
-  if (!contentType) {
+  const contentTypeHeader = response.headers.get("content-type");
+  const headerContentType = normalizeContentTypeHeader(contentTypeHeader);
+  const mime = declaredMime(contentTypeHeader);
+  if (!headerContentType && mime && !GENERIC_CONTENT_TYPES.has(mime)) {
+    await response.body?.cancel();
     throw new InvalidRequestError(
       "URL is not a supported image, audio, or video file",
     );
@@ -203,6 +273,20 @@ export async function ingestDatasetItemMediaFromUrl(params: {
   if (contentBytes.byteLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH) {
     throw new InvalidRequestError(
       `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
+    );
+  }
+
+  // Prefer the declared type, then bytes, then the *final* URL after redirects.
+  // The original request URL is not used: a media-looking path can redirect to
+  // HTML or a different encoding.
+  const contentType =
+    headerContentType ??
+    contentTypeFromMagicBytes(contentBytes) ??
+    contentTypeFromMediaUrl(finalUrl);
+
+  if (!contentType) {
+    throw new InvalidRequestError(
+      "URL is not a supported image, audio, or video file",
     );
   }
 
