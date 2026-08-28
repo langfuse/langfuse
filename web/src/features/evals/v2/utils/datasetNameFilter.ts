@@ -55,10 +55,13 @@ export function fromDatasetNameFilters(
     if (filter.column !== DATASET_NAME_COLUMN) return filter;
 
     if (filter.type === "stringOptions") {
+      const ids = filter.value.map((name) => idByName.get(name));
+      if (ids.some((id) => id === undefined)) return filter;
+
       return {
         ...filter,
         column: DATASET_ID_COLUMN,
-        value: filter.value.map((name) => idByName.get(name) ?? name),
+        value: ids as string[],
       };
     }
 

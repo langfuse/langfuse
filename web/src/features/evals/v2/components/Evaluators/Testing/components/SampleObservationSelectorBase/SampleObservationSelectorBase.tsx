@@ -20,6 +20,7 @@ import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   type FieldRegistry,
   EVENTS_FIELD_REGISTRY,
+  withFieldAllowedValues,
 } from "@/src/features/search-bar/lib/fields";
 import {
   observedScoreNamesFromOptions,
@@ -186,13 +187,22 @@ export function SampleObservationSelectorBase(
     },
   );
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
+  const searchRegistry = useMemo(
+    () =>
+      withFieldAllowedValues(
+        activeRegistry,
+        DATASET_NAME_COLUMN,
+        new Set(datasetOptions.map((dataset) => dataset.name)),
+      ),
+    [activeRegistry, datasetOptions],
+  );
   const searchableFilterState = useMemo(
     () => toDatasetNameFilters(filterState, datasetOptions),
     [datasetOptions, filterState],
   );
   const reusableRuleFilters = useReusableRuleFilterPresets(
     projectId,
-    activeRegistry,
+    searchRegistry,
   );
   const capture = usePostHogClientCapture();
   const onQueryPresetPick = useCallback(
@@ -274,7 +284,7 @@ export function SampleObservationSelectorBase(
     setSearchType: (next) => {
       setSearchType(next);
     },
-    ...(registry ? { registry } : {}),
+    registry: searchRegistry,
   });
   // listCursor always reads in the events table's stable start_time DESC tuple
   // order, so it takes no orderBy.
@@ -354,10 +364,10 @@ export function SampleObservationSelectorBase(
         resultCount: observationQuery.isSuccess
           ? matchingObservations.length
           : null,
-        registry: activeRegistry,
+        registry: searchRegistry,
       }),
     [
-      activeRegistry,
+      searchRegistry,
       matchingObservations,
       observationQuery.isSuccess,
       observed,
@@ -365,10 +375,10 @@ export function SampleObservationSelectorBase(
   );
   const aiScoreNames = useMemo(
     () =>
-      activeRegistry.scores
+      searchRegistry.scores
         ? observedScoreNamesFromOptions(observed)
         : undefined,
-    [activeRegistry, observed],
+    [searchRegistry, observed],
   );
   const selectionToReconcile = observationQuery.isSuccess
     ? resolveSelection(matchingObservations, selectedObservationId)
@@ -497,7 +507,7 @@ export function SampleObservationSelectorBase(
           commit={search.commit}
           observed={observed}
           erroredColumns={options.erroredColumns}
-          {...(registry ? { registry } : {})}
+          registry={searchRegistry}
           onApplyFilters={search.applyFilters}
           onRequestColumns={options.requestColumns}
           presetSections={reusableRuleFilters.sections}

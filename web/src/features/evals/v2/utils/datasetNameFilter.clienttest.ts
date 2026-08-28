@@ -6,6 +6,7 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { withFieldAllowedValues } from "@/src/features/search-bar/lib/fields";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   fromDatasetNameFilters,
@@ -82,10 +83,15 @@ describe("dataset name search filters", () => {
       EVALUATOR_FIELD_REGISTRY,
       RULE_SAMPLE_FIELD_REGISTRY,
     ]) {
+      const registryWithDatasets = withFieldAllowedValues(
+        registry,
+        "experimentDatasetName",
+        new Set(datasets.map((dataset) => dataset.name)),
+      );
       const result = planCommit(
         'experimentDatasetName:"Support conversations"',
         undefined,
-        registry,
+        registryWithDatasets,
       );
 
       expect(result.status).toBe("committed");
@@ -100,6 +106,40 @@ describe("dataset name search filters", () => {
         },
       ]);
     }
+  });
+
+  it("rejects unresolved dataset names instead of persisting them as IDs", () => {
+    const registry = withFieldAllowedValues(
+      EVALUATOR_FIELD_REGISTRY,
+      "experimentDatasetName",
+      new Set(datasets.map((dataset) => dataset.name)),
+    );
+    const result = planCommit(
+      'experimentDatasetName:"Missing dataset"',
+      undefined,
+      registry,
+    );
+
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: '"Missing dataset" is not a valid experiment dataset name',
+          }),
+        ]),
+      );
+    }
+
+    const unresolved = [
+      {
+        column: "experimentDatasetName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["Missing dataset"],
+      },
+    ] satisfies FilterState;
+    expect(fromDatasetNameFilters(unresolved, datasets)).toEqual(unresolved);
   });
 
   it("quotes dataset names containing grammar characters", () => {

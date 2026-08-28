@@ -52,6 +52,9 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
+  /** Optional exact-value allowlist for virtual option fields whose values
+   * must resolve before they can be lowered to a persisted filter. */
+  allowedValues?: ReadonlySet<string>;
   /** Nullable-only columns participate in `has:` but are not direct filters. */
   directFilter?: boolean;
 };
@@ -163,6 +166,7 @@ export function fieldRegistryFromColumns(
         nullable: column.nullable,
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
+        allowedValues: fieldOverlay?.allowedValues,
         unit: fieldOverlay?.unit,
         negatedLabel: fieldOverlay?.negatedLabel,
       };
@@ -196,6 +200,29 @@ export function extendFieldRegistryWithColumns(
     id: registry.id,
     fields: [...registry.fields, ...addedFields],
     columns: [...registry.columns, ...columns],
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
+export function withFieldAllowedValues(
+  registry: FieldRegistry,
+  fieldId: string,
+  allowedValues: ReadonlySet<string>,
+): FieldRegistry {
+  return createFieldRegistry({
+    id: registry.id,
+    fields: registry.fields.map((field) =>
+      field.id === fieldId ? { ...field, allowedValues } : field,
+    ),
+    columns: registry.columns,
     metadata: registry.metadata,
     scores: registry.scores,
     traceScores: registry.traceScores,

@@ -159,6 +159,39 @@ function incompleteFieldTokenDiagnostics(
   }
 }
 
+function restrictedValueDiagnostics(
+  node: ASTNode,
+  textLength: number,
+  out: Diagnostic[],
+  registry: FieldRegistry,
+): void {
+  if (node.kind === "not") {
+    restrictedValueDiagnostics(node.child, textLength, out, registry);
+    return;
+  }
+  if (node.kind === "and" || node.kind === "or") {
+    for (const child of node.children) {
+      restrictedValueDiagnostics(child, textLength, out, registry);
+    }
+    return;
+  }
+  if (node.kind !== "filter") return;
+
+  const ref = registry.resolveField(node.key);
+  if (ref?.type !== "field" || ref.field.allowedValues === undefined) return;
+
+  for (const value of node.values) {
+    if (ref.field.allowedValues.has(value)) continue;
+    const span = nodeSpan(node, textLength);
+    out.push({
+      from: span.from,
+      to: span.to,
+      severity: "error",
+      message: `"${value}" is not a valid ${ref.field.label.toLowerCase()}`,
+    });
+  }
+}
+
 export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
@@ -172,6 +205,7 @@ export function semanticDiagnostics(
   // filter, not free text — checked over the WHOLE tree (not per top-level
   // node) so the adjacency scoping can see each text node's siblings.
   incompleteFieldTokenDiagnostics(ast, out, registry);
+  restrictedValueDiagnostics(ast, textLength, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same
