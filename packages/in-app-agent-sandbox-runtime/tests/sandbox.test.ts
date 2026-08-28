@@ -62,7 +62,10 @@ describe("sandbox runtime docker container", () => {
     { timeout: 120_000 },
     async () => {
       const health = await requestJson(baseUrl, "/health");
-      expect(health).toEqual({ status: 200, body: { status: "ok" } });
+      expect(health).toEqual({
+        status: 200,
+        body: { status: "ok", protocolVersion: 1 },
+      });
 
       const written = await requestJson(baseUrl, "/sandbox", {
         method: "POST",

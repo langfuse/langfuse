@@ -19,6 +19,10 @@ import type {
   SandboxProvider,
   SandboxSession,
 } from "../types";
+import {
+  assertSandboxRuntimeProtocolVersion,
+  isSandboxRuntimeProtocolMismatchError,
+} from "../protocolVersion";
 
 const DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES = 30;
 const AUTH_TOKEN_REFRESH_BUFFER_MS = 60_000;
@@ -494,15 +498,20 @@ async function waitForBridge(params: {
         },
       );
 
-      if (response.ok) {
+      if (!response.ok) {
+        lastError = new Error(
+          (await response.text()) ||
+            `[Lambda MicroVM Sandbox] health probe failed with ${response.status}`,
+        );
+      } else {
+        const healthBody = parseSandboxHealthBody(await response.text());
+        assertSandboxRuntimeProtocolVersion(healthBody);
         return { status: "ready" };
       }
-
-      lastError = new Error(
-        (await response.text()) ||
-          `[Lambda MicroVM Sandbox] health probe failed with ${response.status}`,
-      );
     } catch (error) {
+      if (isSandboxRuntimeProtocolMismatchError(error)) {
+        throw error;
+      }
       lastError = error;
     }
 
@@ -635,4 +644,16 @@ function isMissingMicrovmError(error: unknown) {
   const statusCode = $metadata?.httpStatusCode;
 
   return name === "ResourceNotFoundException" || statusCode === 404;
+}
+
+function parseSandboxHealthBody(bodyText: string): unknown {
+  if (!bodyText) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(bodyText);
+  } catch {
+    return {};
+  }
 }
