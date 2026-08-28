@@ -255,6 +255,15 @@ describe("ClickHouse Resource Error Handling", () => {
         errorType: "MEMORY_LIMIT",
       },
       {
+        // ClickHouse 241 uses this exact phrasing. The "(for query)" infix
+        // means a case-sensitive "memory limit exceeded" substring never matches.
+        name: "Canonical ClickHouse 241 memory limit (for query)",
+        errorMessage:
+          "Code: 241. DB::Exception: Memory limit (for query) exceeded: would use 9.31 GiB (attempt to allocate chunk of 4.49 MiB bytes), maximum: 8.40 GiB: While executing AggregatingTransform. (MEMORY_LIMIT_EXCEEDED)",
+        shouldBeResourceError: true,
+        errorType: "MEMORY_LIMIT",
+      },
+      {
         name: "Timeout error",
         errorMessage: "Timeout exceeded while reading from socket",
         shouldBeResourceError: true,

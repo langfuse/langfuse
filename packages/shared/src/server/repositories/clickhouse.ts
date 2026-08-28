@@ -51,7 +51,9 @@ const ERROR_TYPE_CONFIG: Record<
   }
 > = {
   MEMORY_LIMIT: {
-    discriminators: ["memory limit exceeded"],
+    // ClickHouse 241 variants include "Memory limit (for query) exceeded"
+    // and "memory limit exceeded". Match the shared prefix, case-insensitively.
+    discriminators: ["memory limit"],
   },
   OVERCOMMIT: {
     discriminators: ["OvercommitTracker"],
@@ -88,7 +90,7 @@ export class ClickHouseResourceError extends Error {
     originalError: Error,
     tags?: NormalizedClickHouseQueryTags,
   ): Error {
-    const errorMessage = originalError.message || "";
+    const errorMessage = (originalError.message || "").toLowerCase();
 
     for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
       [
@@ -97,7 +99,7 @@ export class ClickHouseResourceError extends Error {
       ]
     >) {
       const hasDiscriminator = config.discriminators.some((discriminator) =>
-        errorMessage.includes(discriminator),
+        errorMessage.includes(discriminator.toLowerCase()),
       );
 
       if (hasDiscriminator) {
