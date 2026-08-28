@@ -48,8 +48,10 @@ evaluating, and debugging AI applications.
   the seed command or sandbox URL (`http://localhost:3000`) to reproduce
   the data. Attach proof of the fix (screenshot, short video, or
   before/after). Humans can ask for more detail.
-- After opening a PR, leave a short last comment on what a reviewer should
-  doubt — the curious, questionable parts — not a changelog.
+- Do not post GitHub PR comments as the human author. Cursor agents that
+  comment as Cursor may leave a last "what to doubt" note; see
+  `cursor-agents-workflow`. Claude Code and other tools that comment as
+  the user must skip that comment.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - When Claude, Greptile, or Codex (`chatgpt-codex-connector[bot]`) review
   comments appear on a PR you own: do not reply. Keep each thread open
