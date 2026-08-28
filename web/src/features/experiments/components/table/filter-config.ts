@@ -49,8 +49,22 @@ export const experimentsTableCols: ColumnDefinition[] = [
     internal: "prompts",
     nullable: true,
   },
+  // Dataset names are unique per project, so the NAME is the canonical filter
+  // value: it survives in a URL or saved view as something readable, and the
+  // sidebar picker and the search bar can both show the same string. It is
+  // translated to `experimentDatasetId` on the way to the query (the dataset
+  // name is not a ClickHouse column) — see fns/datasetNameFilter.
   {
     name: "Dataset",
+    id: "experimentDatasetName",
+    type: "stringOptions",
+    internal: "experiment_dataset_id",
+    options: [],
+  },
+  // Still filterable so URLs and saved views written before the switch keep
+  // resolving; no longer offered as a facet.
+  {
+    name: "Dataset ID",
     id: "experimentDatasetId",
     type: "stringOptions",
     internal: "experiment_dataset_id",
@@ -88,30 +102,33 @@ export const experimentsTableCols: ColumnDefinition[] = [
     type: "number",
     internal: "error_count",
   },
-  // Observation-level scores (eos.* alias in backend)
+  // Level-agnostic scores: one filter per data type that matches a score
+  // whether it was recorded on an observation or on the trace. The `obs_*` ids
+  // are aliases so existing links and saved views keep resolving — and start
+  // matching trace-level scores, which is the fix.
   {
-    name: "Observation Scores (numeric)",
-    id: "obs_scores_avg",
+    name: "Numeric Scores",
+    id: "scores_avg",
     type: "numberObject",
-    internal: "obs_scores_avg",
-    aliases: ["Scores (numeric)"],
+    internal: "scores_avg",
+    aliases: ["obs_scores_avg", "Scores (numeric)"],
   },
   {
-    name: "Observation Scores (categorical)",
-    id: "obs_score_categories",
+    name: "Categorical Scores",
+    id: "score_categories",
     type: "categoryOptions",
-    internal: "obs_score_categories",
+    internal: "score_categories",
     options: [],
     nullable: true,
-    aliases: ["Scores (categorical)"],
+    aliases: ["obs_score_categories", "Scores (categorical)"],
   },
   {
-    name: "Observation Scores (boolean)",
-    id: "obs_score_booleans",
+    name: "Boolean Scores",
+    id: "score_booleans",
     type: "booleanObject",
-    internal: "obs_score_booleans",
+    internal: "score_booleans",
     nullable: true,
-    aliases: ["Scores (boolean)"],
+    aliases: ["obs_score_booleans", "Scores (boolean)"],
   },
   // Trace-level scores (ets.* alias in backend)
   {
@@ -151,7 +168,7 @@ export const experimentsFilterConfig: FilterConfig = {
 
   columnDefinitions: experimentsTableCols,
 
-  defaultExpanded: ["experimentDatasetId"],
+  defaultExpanded: ["experimentDatasetName"],
 
   facets: [
     {
@@ -161,56 +178,38 @@ export const experimentsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "experimentDatasetId",
-      label: getExperimentsColumnName("experimentDatasetId"),
+      column: "experimentDatasetName",
+      label: getExperimentsColumnName("experimentDatasetName"),
     },
     {
       type: "stringKeyValue" as const,
       column: "metadata",
       label: getExperimentsColumnName("metadata"),
     },
-    // Observation-level scores
+    // One facet per score data type. Each offered name is tagged with the
+    // level(s) it exists at (ScoreTag), so the distinction stays visible where
+    // it is actionable instead of being duplicated across six facets.
     {
       type: "keyValue" as const,
-      column: "obs_score_categories",
-      label: getExperimentsColumnName("obs_score_categories"),
-      tooltip: OBSERVATION_SCORES_TOOLTIP,
+      column: "score_categories",
+      label: getExperimentsColumnName("score_categories"),
     },
     {
       type: "numericKeyValue" as const,
-      column: "obs_scores_avg",
-      label: getExperimentsColumnName("obs_scores_avg"),
-      tooltip: OBSERVATION_SCORES_TOOLTIP,
+      column: "scores_avg",
+      label: getExperimentsColumnName("scores_avg"),
     },
     {
       type: "booleanKeyValue" as const,
-      column: "obs_score_booleans",
-      label: getExperimentsColumnName("obs_score_booleans"),
-      tooltip: OBSERVATION_SCORES_TOOLTIP,
-    },
-    // Trace-level scores
-    {
-      type: "keyValue" as const,
-      column: "trace_score_categories",
-      label: getExperimentsColumnName("trace_score_categories"),
-      tooltip: TRACE_SCORES_TOOLTIP,
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "trace_scores_avg",
-      label: getExperimentsColumnName("trace_scores_avg"),
-      tooltip: TRACE_SCORES_TOOLTIP,
-    },
-    {
-      type: "booleanKeyValue" as const,
-      column: "trace_score_booleans",
-      label: getExperimentsColumnName("trace_score_booleans"),
-      tooltip: TRACE_SCORES_TOOLTIP,
+      column: "score_booleans",
+      label: getExperimentsColumnName("score_booleans"),
     },
   ],
 };
 
-export type ExperimentsOmittableFilterColumn = "experimentDatasetId";
+export type ExperimentsOmittableFilterColumn =
+  | "experimentDatasetId"
+  | "experimentDatasetName";
 
 export function isExperimentsOmittableFilterColumn(
   column: string,
@@ -221,5 +220,12 @@ export function isExperimentsOmittableFilterColumn(
 export function getExperimentsFilterConfig(
   omittedFilter: ExperimentsOmittableFilterColumn[] = [],
 ): FilterConfig {
-  return omitFilterFacets(experimentsFilterConfig, omittedFilter);
+  // A dataset-scoped page pins `experimentDatasetId`, but the facet it should
+  // hide is the name one that replaced it.
+  return omitFilterFacets(
+    experimentsFilterConfig,
+    omittedFilter.map((column) =>
+      column === "experimentDatasetId" ? "experimentDatasetName" : column,
+    ) as ExperimentsOmittableFilterColumn[],
+  );
 }

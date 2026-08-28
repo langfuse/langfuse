@@ -15,15 +15,15 @@ import { experimentsFilterConfig } from "@/src/features/experiments/components/t
 function facetColumns(config: FilterConfig) {
   const exposed = new Set(config.facets.map((facet) => facet.column));
   return config.columnDefinitions.filter(
-    (column) => exposed.has(column.id) && !SCORE_COLUMN_IDS.has(column.id),
+    (column) => exposed.has(column.id) && !EXCLUDED_COLUMN_IDS.has(column.id),
   );
 }
 
 const AI_CONTEXT_FIELDS = [
   { observedOptionsKey: "name", promptLabel: "name" },
   {
-    observedOptionsKey: "experimentDatasetId",
-    promptLabel: "experimentDatasetId (dataset)",
+    observedOptionsKey: "experimentDatasetName",
+    promptLabel: "experimentDatasetName (dataset)",
   },
 ] as const;
 
@@ -41,7 +41,7 @@ const AI_CONTEXT_FIELDS = [
  * helper's keyed-score exclusion does not catch it and it would otherwise
  * surface as a bogus keyless field.
  */
-const SCORE_COLUMN_IDS: ReadonlySet<string> = new Set([
+const EXCLUDED_COLUMN_IDS: ReadonlySet<string> = new Set([
   "obs_scores_avg",
   "obs_score_categories",
   "obs_score_booleans",
@@ -61,8 +61,8 @@ const EXPERIMENT_FIELD_OVERLAY = {
     label: "Experiment name",
     description: "Experiment name",
   },
-  experimentDatasetId: {
-    aliases: ["dataset", "datasetid", "dataset_id", "experimentdatasetid"],
+  experimentDatasetName: {
+    aliases: ["dataset", "datasetname", "dataset_name"],
     label: "Dataset",
     description: "Dataset the experiment ran against",
   },
@@ -80,8 +80,10 @@ export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
     // `name` is the only text column, and it is what people look a run up by.
     defaultTextField: "name",
     recentSearches: true,
+    // `dataset:` takes the dataset ID, not its name — the observed-value picker
+    // offers the ids, so the examples must not imply a name works.
     searchExamples: [
-      "dataset:my-evals",
+      "dataset:legal-answer-quality",
       "name:sonnet",
       'metadata."model":opus',
     ],

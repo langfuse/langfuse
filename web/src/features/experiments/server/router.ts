@@ -526,29 +526,77 @@ export const experimentsRouter = createTRPCRouter({
             }))
           : [];
 
+      // Offered-set == matchable-set: the level-agnostic score filters match a
+      // score only if it rolls up into a trace, so discovery is scoped the same
+      // way. Session- and dataset-run scores can never match, and offering them
+      // would advertise a filter that cannot fire.
+      const nullCondition = (
+        column: "traceId" | "observationId",
+        operator: "is null" | "is not null",
+      ) => ({ type: "null" as const, column, operator, value: "" as const });
+      const traceScopedFilter = [
+        nullCondition("traceId", "is not null"),
+        ...(traceTimestampFilters ?? []),
+      ];
+      // Discovered per level as well, to tag each offered name with the level(s)
+      // it exists at rather than duplicating the facets per level.
+      const observationScopedFilter = [
+        ...traceScopedFilter,
+        nullCondition("observationId", "is not null"),
+      ];
+      const traceLevelScopedFilter = [
+        ...traceScopedFilter,
+        nullCondition("observationId", "is null"),
+      ];
+
       const [
         numericScoreNames,
         categoricalScoreNames,
         booleanScoreNames,
+        observationLevelNumeric,
+        observationLevelCategorical,
+        observationLevelBoolean,
+        traceLevelNumeric,
+        traceLevelCategorical,
+        traceLevelBoolean,
         experimentDatasetIds,
       ] = await Promise.all([
-        getNumericScoresGroupedByName(
-          input.projectId,
-          traceTimestampFilters ?? [],
-        ),
+        getNumericScoresGroupedByName(input.projectId, traceScopedFilter),
+        getCategoricalScoresGroupedByName(input.projectId, traceScopedFilter),
+        getBooleanScoresGroupedByName(input.projectId, traceScopedFilter),
+        getNumericScoresGroupedByName(input.projectId, observationScopedFilter),
         getCategoricalScoresGroupedByName(
           input.projectId,
-          traceTimestampFilters ?? [],
+          observationScopedFilter,
         ),
-        getBooleanScoresGroupedByName(
+        getBooleanScoresGroupedByName(input.projectId, observationScopedFilter),
+        getNumericScoresGroupedByName(input.projectId, traceLevelScopedFilter),
+        getCategoricalScoresGroupedByName(
           input.projectId,
-          traceTimestampFilters ?? [],
+          traceLevelScopedFilter,
         ),
+        getBooleanScoresGroupedByName(input.projectId, traceLevelScopedFilter),
         getEventsGroupedByExperimentDatasetId(
           input.projectId,
           input.startTimeFilter ?? [],
         ),
       ]);
+
+      /**
+       * Split per data type: a name can be reused across types at different
+       * levels (a numeric observation-level "accuracy" beside an unrelated
+       * categorical trace-level one), and a name-only map would mislabel both.
+       */
+      const levelsOf = (
+        observationNames: string[],
+        traceNames: string[],
+      ): Record<string, ("observation" | "trace")[]> => {
+        const out: Record<string, ("observation" | "trace")[]> = {};
+        for (const name of observationNames)
+          (out[name] ??= []).push("observation");
+        for (const name of traceNames) (out[name] ??= []).push("trace");
+        return out;
+      };
 
       const experimentDatasetIdSet = new Set<string>();
       for (const { experimentDatasetId } of experimentDatasetIds) {
@@ -563,14 +611,23 @@ export const experimentsRouter = createTRPCRouter({
       const booleanScoreOptions = booleanScoreNames.map((score) => score.name);
 
       return {
-        // Observation-level score options (eos.*)
-        obs_scores_avg: numericScoreOptions,
-        obs_score_categories: categoricalScoreNames,
-        obs_score_booleans: booleanScoreOptions,
-        // Trace-level score options (ets.*)
-        trace_scores_avg: numericScoreOptions,
-        trace_score_categories: categoricalScoreNames,
-        trace_score_booleans: booleanScoreOptions,
+        // What the three score facets offer, with the level(s) each name exists
+        // at so the picker can tag them.
+        scores_avg: numericScoreOptions,
+        score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreOptions,
+        score_name_levels_numeric: levelsOf(
+          observationLevelNumeric.map((score) => score.name),
+          traceLevelNumeric.map((score) => score.name),
+        ),
+        score_name_levels_categorical: levelsOf(
+          observationLevelCategorical.map((score) => score.label),
+          traceLevelCategorical.map((score) => score.label),
+        ),
+        score_name_levels_boolean: levelsOf(
+          observationLevelBoolean.map((score) => score.name),
+          traceLevelBoolean.map((score) => score.name),
+        ),
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),

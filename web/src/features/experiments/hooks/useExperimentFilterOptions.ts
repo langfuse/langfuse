@@ -53,34 +53,54 @@ export function useExperimentFilterOptions({
     { enabled: isProjectReady },
   );
 
-  const experimentFilterOptions = useMemo(() => {
-    const experimentDatasetFilterOptions = datasets.data
-      ?.filter((d) => filterOptions.data?.experimentDatasetIds?.includes(d.id))
-      .map((d) => ({
-        value: d.id,
-        displayValue: d.name,
-      }));
+  const usedDatasets = useMemo(
+    () =>
+      datasets.data?.filter((d) =>
+        filterOptions.data?.experimentDatasetIds?.includes(d.id),
+      ),
+    [datasets.data, filterOptions.data],
+  );
 
+  // Dataset names are unique per project, so the name IS the filter value —
+  // no displayValue indirection, which is what let the sidebar show a name
+  // while the search bar and the URL showed an opaque id.
+  const datasetIdByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dataset of usedDatasets ?? []) map.set(dataset.name, dataset.id);
+    return map;
+  }, [usedDatasets]);
+
+  /** Rows carry the dataset id; the table renders its name. */
+  const datasetNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const dataset of usedDatasets ?? []) map.set(dataset.id, dataset.name);
+    return map;
+  }, [usedDatasets]);
+
+  const experimentFilterOptions = useMemo(() => {
     return {
-      experimentDatasetId: experimentDatasetFilterOptions,
-      // Observation-level score options
-      obs_scores_avg: filterOptions.data?.obs_scores_avg ?? undefined,
-      obs_score_categories: processScoreCategories(
-        filterOptions.data?.obs_score_categories,
+      experimentDatasetName: usedDatasets?.map((d) => ({ value: d.name })),
+      // The three level-agnostic score facets, plus the per-data-type level maps
+      // that tag each offered name with the level(s) it exists at (ScoreTag).
+      // `useSidebarFilterState` looks the maps up by these exact keys.
+      scores_avg: filterOptions.data?.scores_avg ?? undefined,
+      score_categories: processScoreCategories(
+        filterOptions.data?.score_categories,
       ),
-      obs_score_booleans: filterOptions.data?.obs_score_booleans ?? undefined,
-      // Trace-level score options
-      trace_scores_avg: filterOptions.data?.trace_scores_avg ?? undefined,
-      trace_score_categories: processScoreCategories(
-        filterOptions.data?.trace_score_categories,
-      ),
-      trace_score_booleans:
-        filterOptions.data?.trace_score_booleans ?? undefined,
+      score_booleans: filterOptions.data?.score_booleans ?? undefined,
+      score_name_levels_numeric:
+        filterOptions.data?.score_name_levels_numeric ?? undefined,
+      score_name_levels_categorical:
+        filterOptions.data?.score_name_levels_categorical ?? undefined,
+      score_name_levels_boolean:
+        filterOptions.data?.score_name_levels_boolean ?? undefined,
     };
-  }, [datasets.data, filterOptions.data]);
+  }, [usedDatasets, filterOptions.data]);
 
   return {
     filterOptions: experimentFilterOptions,
+    datasetIdByName,
+    datasetNameById,
     isFilterOptionsPending: datasets.isLoading || filterOptions.isLoading,
   };
 }
