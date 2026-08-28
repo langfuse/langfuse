@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
@@ -27,10 +27,12 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
+  LockIcon,
   MessageSquare,
   MessageSquareOff,
   ListPlus,
   MoreVertical,
+  SquarePen,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -594,7 +596,7 @@ export const SessionPage: React.FC<{
                 )}
               </CommentDrawerController>
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   projectId={projectId}
                   scoreTarget={{
                     type: "session",
@@ -605,8 +607,24 @@ export const SessionPage: React.FC<{
                     projectId: projectId,
                     environment: session.data?.environment,
                   }}
-                  buttonVariant="outline"
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      variant="outline"
+                      size="default"
+                      disabled={disabled}
+                      className="rounded-r-none"
+                      onClick={openDrawer}
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-4 w-4" />
+                      )}
+                      <span>Annotate</span>
+                    </Button>
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
@@ -690,7 +708,7 @@ export const SessionPage: React.FC<{
                   </Button>
                 )}
               </CommentDrawerController>
-              <AnnotateDrawer
+              <AnnotateDrawerController
                 projectId={projectId}
                 scoreTarget={{
                   type: "session",
@@ -701,9 +719,24 @@ export const SessionPage: React.FC<{
                   projectId: projectId,
                   environment: session.data?.environment,
                 }}
-                buttonVariant="outline"
-                layout="menu"
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    className="w-full justify-start gap-2 font-normal"
+                    onClick={openDrawer}
+                  >
+                    {disabled ? (
+                      <LockIcon className="h-3 w-3" />
+                    ) : (
+                      <SquarePen className="h-4 w-4" />
+                    )}
+                    <span className="text-sm">Annotate</span>
+                  </Button>
+                )}
+              </AnnotateDrawerController>
               <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
@@ -1568,7 +1601,7 @@ const LoadedSessionEventsPage: React.FC<{
                 )}
               </CommentDrawerController>
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   projectId={projectId}
                   scoreTarget={{
                     type: "session",
@@ -1579,9 +1612,29 @@ const LoadedSessionEventsPage: React.FC<{
                     projectId: projectId,
                     environment: session.environment,
                   }}
-                  buttonVariant="outline"
-                  showAnnotationCount={isModernSessionEnabled}
-                />
+                >
+                  {({ annotationCount, disabled, openDrawer }) => (
+                    <Button
+                      variant="outline"
+                      size="default"
+                      disabled={disabled}
+                      className="rounded-r-none"
+                      onClick={openDrawer}
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-4 w-4" />
+                      )}
+                      <span>Annotate</span>
+                      {isModernSessionEnabled && annotationCount > 0 ? (
+                        <span className="ml-1">
+                          <ActionButtonCountBadge count={annotationCount} />
+                        </span>
+                      ) : null}
+                    </Button>
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
@@ -1687,7 +1740,7 @@ const LoadedSessionEventsPage: React.FC<{
                   </Button>
                 )}
               </CommentDrawerController>
-              <AnnotateDrawer
+              <AnnotateDrawerController
                 projectId={projectId}
                 scoreTarget={{
                   type: "session",
@@ -1698,10 +1751,29 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId: projectId,
                   environment: session.environment,
                 }}
-                buttonVariant="outline"
-                layout="menu"
-                showAnnotationCount={isModernSessionEnabled}
-              />
+              >
+                {({ annotationCount, disabled, openDrawer }) => (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    className="w-full justify-start gap-2 font-normal"
+                    onClick={openDrawer}
+                  >
+                    {disabled ? (
+                      <LockIcon className="h-3 w-3" />
+                    ) : (
+                      <SquarePen className="h-4 w-4" />
+                    )}
+                    <span className="text-sm">Annotate</span>
+                    {isModernSessionEnabled && annotationCount > 0 ? (
+                      <span className="ml-1">
+                        <ActionButtonCountBadge count={annotationCount} />
+                      </span>
+                    ) : null}
+                  </Button>
+                )}
+              </AnnotateDrawerController>
               <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
