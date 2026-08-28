@@ -31,22 +31,36 @@ Regenerate baselines with `-u` after an intentional SQL change:
 pnpm --filter @langfuse/shared run test src/server/query-ast -- -u
 ```
 
-## Kysely extension record (no fork)
+## CI and the `clickhouse format` version
 
-| Clause             | How it lands                                                                                                                                                                                               | Fork? |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
-| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
-| metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
-| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
+These tests need the `clickhouse` binary (the `format` subcommand, shipped in
+`clickhouse-common-static`); without it they `describe.skip`. The `tests-shared`
+CI job installs it pinned to **26.4.5.143** — the ClickHouse version recommended
+for Langfuse v4, also pinned in `scripts/codex/cloud_services.sh`.
 
-Honest node-vs-raw-SQL note: ARRAY JOIN / LIMIT BY are real node objects (`kind: ArrayJoinNode` / `LimitByNode`) whose children are traced Kysely FunctionNode/ColumnNode/ValueNode/IdentifierNode values — not `RawNode` string splices. Kysely's `OperationNodeKind` union is closed, so a first-class visitor-map kind would need a fork; instead they ride as extra fields on `SelectQueryNode`. Any plugin that uses the default `OperationNodeTransformer` would drop them — ours overrides `transformSelectQuery` so they survive. Upstream was not patched.
+`clickhouse format` output is version-sensitive (e.g. how `UNION ALL` branches
+are parenthesized changed between 25.x and 26.x), so the committed snapshots are
+coupled to that exact version. When bumping the CI pin, regenerate the snapshots
+against the new binary in the same PR, or the golden tests drift.
 
-## Tenancy choke point
+The CI step is intentionally **non-blocking**: a drift surfaces as a warning
+annotation but never fails the pipeline (`|| echo "::warning::"`). Promote it to
+a required check once it has proven stable.
 
-`compileClickhouseQuery(query, ctx)` is the only supported compile path:
+## Using it
 
-1. Missing `ExecutionContext` throws (`QueryCompileError`).
-2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects `project_id = {projectId}` on each tenanted physical table unless the tree already carries a predicate that _proves_ that scope: the equality's value must equal the context project, and — when more than one tenanted relation is in scope — the column must be table-qualified. It then identity-stamps the tree (`WeakSet`). A copied `langfuseTenancy` property is not a valid stamp.
-3. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is present, so `qb.compile()` without the plugin also fails.
-4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments that embed a `SELECT`/`FROM`/`JOIN`in SELECT/WHERE throw`UnscopedRelationError`. Kysely's own keyword fragments (`asc`/`desc`) are not relations.
+- **Compile only through `compileClickhouseQuery(query, ctx)`.** It is the one
+  supported path from a builder to `{ sql, params }`; the repository layer hands
+  that to `queryClickhouse`. `ctx` (an `ExecutionContext` carrying `projectId`)
+  is required — omitting it is a compile-time type error and an empty one throws.
+- **Never filter `project_id` yourself.** The compile step injects
+  `project_id = {projectId}` into every tenanted relation, so call sites pass
+  only `{ projectId }` (see `repositories/environments.ts`).
+- **ClickHouse-only clauses use `$call(helper())`** — e.g.
+  `.$call(arrayJoin({ … }))`, `.$call(limitBy({ … }))` — not fluent builder
+  methods, so they compose inside CTEs, subqueries, and views.
+
+For how ARRAY JOIN / LIMIT BY / metadata nodes are implemented without forking
+Kysely, how tenancy injection works internally, the escape hatches, and the
+Kysely-internals upgrade hazard, see the developer guide in
+[`kysely/README.md`](kysely/README.md).

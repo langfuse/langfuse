@@ -1,9 +1,28 @@
 # kysely/ — compile-only ClickHouse dialect: patterns & gotchas
 
 This folder adapts Kysely to emit ClickHouse SQL. Several patterns here are
-deliberately unusual — this guide is for anyone editing the folder. For the
-custom-node mechanics (ARRAY JOIN / LIMIT BY / metadata nodes) and the tenancy
-choke point, see [`../README.md`](../README.md); this file covers the rest.
+deliberately unusual — this is the guide for anyone **developing** the query
+builder. For how to **use** it from a call site, see [`../README.md`](../README.md).
+
+## How ClickHouse clauses land (no fork)
+
+Kysely's `OperationNodeKind` union is closed, so a first-class node kind would
+need a fork. Instead each ClickHouse-only construct rides as an extra field or a
+special-cased node, and the compiler/transformer are overridden to emit and
+preserve it:
+
+| Clause             | How it lands                                                                                                                                                                                               | Fork? |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| ARRAY JOIN         | Plugin attaches `ArrayJoinNode` as an extra field on `SelectQueryNode`. `ClickHouseOperationNodeTransformer` preserves it. `ClickHouseQueryCompiler.visitSelectQuery` emits it after JOINs / before WHERE. | no    |
+| LIMIT BY           | Plugin attaches `LimitByNode` the same way. Compiler emits it after ORDER BY / before LIMIT.                                                                                                               | no    |
+| metadata `indexOf` | Helper builds an `ArrayIndexNode` whose index child is a `FunctionNode` (`indexOf`) over a bound `ValueNode` key. Transformer + compiler special-case the node. No plugin.                                 | no    |
+| Virtual view       | Plugin rewrites `selectFrom(viewName)` into a WITH CTE. Outer types only expose the view's selected columns.                                                                                               | no    |
+
+These are real node objects whose children are traced Kysely
+`FunctionNode`/`ColumnNode`/`ValueNode`/`IdentifierNode` values — not `RawNode`
+string splices. Any plugin using the default `OperationNodeTransformer` would
+drop them, so ours overrides `transformSelectQuery` to keep them. Upstream is
+not patched.
 
 ## Kysely never runs — it only compiles
 
@@ -15,14 +34,31 @@ layer hands to `queryClickhouse`. Do **not** call `.execute()` / `.compile()`
 directly: the compiler refuses any tree that did not go through the tenancy
 pass (see `../README.md`).
 
-## Never write `project_id` — it is injected
+## Tenancy injection — how the choke point works
 
-Query bodies here do not filter `project_id`. `compileClickhouseQuery` requires
-an `ExecutionContext` and injects `project_id = {projectId}` into every tenanted
-relation as the leading predicate. Writing it by hand is redundant and
-discouraged; forgetting it is impossible (compile throws). This is why call
-sites like `repositories/environments.ts` pass only `{ projectId }` and never a
-`.where("project_id", …)`.
+`compileClickhouseQuery(query, ctx)` is the only supported compile path, and it
+is where tenancy is enforced:
+
+1. A missing/empty `ExecutionContext` throws (`QueryCompileError`) — `ctx` is a
+   required parameter, so omitting it is also a compile-time type error.
+2. `TenancyInjectionPlugin` walks every FROM/JOIN and injects
+   `project_id = {projectId}` on each tenanted physical table, unless the tree
+   already carries a predicate that _proves_ that scope: the equality's value
+   must equal the context project, and — when more than one tenanted relation is
+   in scope — the column must be table-qualified. A qualified predicate covers a
+   relation only when the qualifier matches its alias (if aliased) or its table
+   name (if not) — so `scores AS traces` joined to `traces AS t` still scopes
+   both. It then identity-stamps the tree (`WeakSet`); a copied
+   `langfuseTenancy` property is not a valid stamp.
+3. `ClickHouseQueryCompiler` refuses to emit SQL unless that identity stamp is
+   present, so `qb.compile()` without the plugin also fails.
+4. Raw-SQL table sources (`selectFrom(sql\`...\`)`) and raw fragments embedding a
+   `SELECT`/`FROM`/`JOIN` in SELECT/WHERE throw `UnscopedRelationError`. Kysely's
+   own keyword fragments (`asc`/`desc`) are not relations.
+
+So query bodies here never filter `project_id` by hand — it is redundant, and
+forgetting it is impossible. Call sites like `repositories/environments.ts` pass
+only `{ projectId }`.
 
 ## ClickHouse-only clauses use `$call(helper())`, not builder methods
 
