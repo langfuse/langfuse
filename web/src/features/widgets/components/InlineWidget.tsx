@@ -83,6 +83,18 @@ export interface WidgetContentProps {
    */
   hideXAxisLabels?: boolean;
   /**
+   * Colour each bar of a categorical (entity) axis and name it in a legend
+   * below the plot. Off by default; opt in on an entity-dimension bar chart
+   * whose axis labels are hidden (the experiments strip). See
+   * `prepareCategoryBars`.
+   */
+  colorBarsByCategory?: boolean;
+  /**
+   * Measure bars from zero rather than from a fitted domain. Off by default;
+   * see `ChartProps.zeroBaseline`.
+   */
+  zeroBaseline?: boolean;
+  /**
    * Replaces the chart's default "No data" card — for a widget in a band too
    * short for it. Pass a stable node (see `Chart`).
    */
@@ -133,6 +145,8 @@ export function WidgetContent({
   className,
   entityDimensionLabelMap,
   hideXAxisLabels,
+  colorBarsByCategory,
+  zeroBaseline,
   emptyState,
 }: WidgetContentProps) {
   const { isBetaEnabled } = useV4Beta();
@@ -237,9 +251,21 @@ export function WidgetContent({
         };
       }
 
+      // A non-time-series chart draws `dimension` on its categorical axis, and
+      // on an entity query the ENTITY *is* that category — so hand it over as
+      // the dimension rather than the metric's name, which would collapse every
+      // entity into one bar. Only when the query has no breakdown of its own:
+      // that breakdown is the real series (categorical scores). (LFE-15711)
+      const entityIsCategory =
+        !isTimeSeries &&
+        item["entity_dimension"] !== undefined &&
+        dimensions.length === 0;
+
       // Handle series dimension (for legend)
       let seriesDimension: string;
-      if (dimensionValue !== undefined) {
+      if (entityIsCategory) {
+        seriesDimension = xAxisValue ?? "Unknown";
+      } else if (dimensionValue !== undefined) {
         const val = dimensionValue;
         // Empty first: "" is a string, so the order matters. (LFE-10694)
         if (val === null || val === undefined || val === "") {
@@ -397,6 +423,8 @@ export function WidgetContent({
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
+        colorBarsByCategory={colorBarsByCategory}
+        zeroBaseline={zeroBaseline}
         emptyState={emptyState}
       />
       <ChartLoadingState

@@ -57,10 +57,12 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   // Entity (x-axis) order follows the experiments table order, applied
   // client-side in InlineWidget, so no query-side ordering is needed.
   orderBy: null,
-  chartType: "LINE_TIME_SERIES",
-  // A dot per experiment: on an entity axis a metric that only two runs
-  // recorded would otherwise draw one long line across every other run.
-  chartConfig: { type: "LINE_TIME_SERIES", show_data_point_dots: true },
+  // Bars, not a line: the axis is a set of discrete experiments, so a segment
+  // drawn between two of them claims a continuity that does not exist. A bar
+  // also makes a metric that only some runs recorded read as absent rather
+  // than as a long line across every other run. (LFE-15711)
+  chartType: "VERTICAL_BAR",
+  chartConfig: { type: "VERTICAL_BAR" },
   timeDimension: null,
   entityDimension: { field: "experimentName" },
   filters: [],
@@ -108,8 +110,9 @@ export const NUMERIC_SCORE_CHART_CONFIG = {
   dimensions: [],
   metrics: [{ measure: "value", agg: "avg" }],
   filters: [],
-  chartType: "LINE_TIME_SERIES",
-  chartConfig: { type: "LINE_TIME_SERIES", show_data_point_dots: true },
+  // See BASE_EXPERIMENT_WIDGET_CONFIG: one bar per experiment, not a line.
+  chartType: "VERTICAL_BAR",
+  chartConfig: { type: "VERTICAL_BAR" },
 } as const;
 
 export const CATEGORICAL_SCORE_CHART_CONFIG = {
