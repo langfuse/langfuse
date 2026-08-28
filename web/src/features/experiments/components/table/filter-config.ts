@@ -95,27 +95,33 @@ export const experimentsTableCols: ColumnDefinition[] = [
     type: "number",
     internal: "error_count",
   },
-  // Observation-level scores (eos.* alias in backend)
+  // Level-agnostic scores: one filter per data type that matches a score
+  // whether it was recorded on an observation or on the trace. The `obs_*` ids
+  // are aliases so existing links and saved views keep resolving — and start
+  // matching trace-level scores, which is the fix.
   {
-    name: "Scores (numeric)",
-    id: "obs_scores_avg",
+    name: "Numeric Scores",
+    id: "scores_avg",
     type: "numberObject",
-    internal: "obs_scores_avg",
+    internal: "scores_avg",
+    aliases: ["obs_scores_avg"],
   },
   {
-    name: "Scores (categorical)",
-    id: "obs_score_categories",
+    name: "Categorical Scores",
+    id: "score_categories",
     type: "categoryOptions",
-    internal: "obs_score_categories",
+    internal: "score_categories",
     options: [],
     nullable: true,
+    aliases: ["obs_score_categories"],
   },
   {
-    name: "Scores (boolean)",
-    id: "obs_score_booleans",
+    name: "Boolean Scores",
+    id: "score_booleans",
     type: "booleanObject",
-    internal: "obs_score_booleans",
+    internal: "score_booleans",
     nullable: true,
+    aliases: ["obs_score_booleans"],
   },
   // Trace-level scores (ets.* alias in backend)
   {
@@ -173,37 +179,23 @@ export const experimentsFilterConfig: FilterConfig = {
       column: "metadata",
       label: getExperimentsColumnName("metadata"),
     },
-    // Observation-level scores
+    // One facet per score data type. Each offered name is tagged with the
+    // level(s) it exists at (ScoreTag), so the distinction stays visible where
+    // it is actionable instead of being duplicated across six facets.
     {
       type: "keyValue" as const,
-      column: "obs_score_categories",
-      label: getExperimentsColumnName("obs_score_categories"),
+      column: "score_categories",
+      label: getExperimentsColumnName("score_categories"),
     },
     {
       type: "numericKeyValue" as const,
-      column: "obs_scores_avg",
-      label: getExperimentsColumnName("obs_scores_avg"),
+      column: "scores_avg",
+      label: getExperimentsColumnName("scores_avg"),
     },
     {
       type: "booleanKeyValue" as const,
-      column: "obs_score_booleans",
-      label: getExperimentsColumnName("obs_score_booleans"),
-    },
-    // Trace-level scores
-    {
-      type: "keyValue" as const,
-      column: "trace_score_categories",
-      label: getExperimentsColumnName("trace_score_categories"),
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "trace_scores_avg",
-      label: getExperimentsColumnName("trace_scores_avg"),
-    },
-    {
-      type: "booleanKeyValue" as const,
-      column: "trace_score_booleans",
-      label: getExperimentsColumnName("trace_score_booleans"),
+      column: "score_booleans",
+      label: getExperimentsColumnName("score_booleans"),
     },
   ],
 };
