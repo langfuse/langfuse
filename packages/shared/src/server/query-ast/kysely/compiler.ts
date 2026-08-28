@@ -54,19 +54,19 @@ function inferClickHouseType(value: unknown): string {
 /**
  * ClickHouse SQL compiler. Identifier quoting is omitted so `clickhouse format`
  * matches the golden snapshots (unquoted identifiers). Parameters are named
- * `{pN:Type}` binds, interned by (type, value) so repeated values collapse to
- * one placeholder. Example: a UNION whose two branches both filter
- * `project_id = 'p'` emits a single `{p1:String}` and reuses it in both
- * branches, instead of separate `{p1:String}` / `{p2:String}` bound to the
- * same value. This mirrors the existing named `{projectId:String}` style once
- * the golden harness's param normalizer runs.
+ * `{pN:Type}` binds, interned by (type, value) so repeated values collapse to a
+ * single placeholder, matching the named `{projectId:String}` style once the
+ * golden harness's param normalizer runs.
  *
- * ARRAY JOIN and LIMIT BY have no Kysely-native node, so they ride as extra
- * fields on the select node. This is worth stating because they are real
- * {@link ArrayJoinNode}/{@link LimitByNode} operation nodes visited like any
- * other clause — identifier-escaped and parameter-bound — not spliced-in raw
- * SQL strings, which is what a reader might otherwise assume for a
- * ClickHouse-only clause.
+ * Example — a UNION whose two branches both filter `project_id = 'p'`:
+ *
+ *     ... WHERE project_id = {p1:String} ... UNION ALL ... WHERE project_id = {p1:String}
+ *
+ * One `{p1:String}` bind is emitted and reused across both branches, not
+ * separate `{p1:String}` / `{p2:String}` bound to the same value.
+ *
+ * ARRAY JOIN and LIMIT BY ride as extra fields on the select node as real
+ * {@link ArrayJoinNode} / {@link LimitByNode} operation nodes.
  */
 export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   namedParameters: Record<string, unknown> = {};
@@ -74,22 +74,15 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   constructor() {
     super();
-    // FRAGILE: `ArrayIndexNode` is not one of Kysely's closed `OperationNode`
-    // kinds, so the default visitor dispatch cannot reach it, and Kysely
-    // exposes no public hook to register a new node kind. The only available
-    // seam is to wrap the private `visitNode` and drive the private `nodeStack`
-    // ourselves so the node routes to `visitArrayIndex`. The `as unknown as`
-    // casts below exist solely to reach those private members; the alternative
-    // is forking the compiler. Yes, patching a library's private methods is an
-    // anti-pattern — it is a deliberate, contained trade to avoid a fork.
-    //
-    // Because this couples us to Kysely internals, the version is pinned
-    // exactly (0.28.17, no caret), so it cannot move under us via a routine
-    // `pnpm install`. A deliberate bump that changes these internals will not
-    // fail silently or emit wrong SQL unnoticed: the metadata `indexOf` /
-    // array-index compile tests (extensions.test.ts, nodes.test.ts) assert the
-    // exact emitted SQL, so a broken route fails loudly in CI.
+    // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach, and
+    // Kysely has no public hook to register one. We patch its private
+    // visitNode/nodeStack to route the node to visitArrayIndex. Version is
+    // pinned exactly (0.28.17); the array-index compile tests in
+    // extensions.test.ts / nodes.test.ts fail loudly if an upgrade breaks this.
     const parentVisit = this.visitNode.bind(this);
+    // Anti-pattern: cast through `unknown` to overwrite Kysely's private
+    // `visitNode` (it is not part of the public type). Deliberate, to avoid
+    // forking the compiler.
     (
       this as unknown as { visitNode: (node: OperationNode) => void }
     ).visitNode = (node: OperationNode) => {
