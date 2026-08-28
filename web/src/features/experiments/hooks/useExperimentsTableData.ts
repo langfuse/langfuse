@@ -69,6 +69,7 @@ export function useExperimentsTableData({
 
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
+    enabled: Boolean(projectId),
     refetchOnWindowFocus: true,
   });
 
@@ -88,13 +89,17 @@ export function useExperimentsTableData({
 
   // Fetch metrics
   const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
-    enabled: experimentsQuery.isSuccess && metricsPayload !== null,
+    enabled:
+      Boolean(projectId) &&
+      experimentsQuery.isSuccess &&
+      metricsPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
+    enabled: Boolean(projectId),
     refetchOnWindowFocus: true,
   });
 

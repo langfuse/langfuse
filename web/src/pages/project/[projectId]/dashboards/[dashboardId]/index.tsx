@@ -1,5 +1,10 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import {
+  asSingleQueryParam,
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
@@ -98,25 +103,40 @@ function placementNextTo(anchor: DashboardPlacement) {
   };
 }
 
-export default function DashboardDetail() {
+export default function DashboardDetailPage() {
+  const route = useReadyRouteParams(["projectId", "dashboardId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DashboardDetail
+      projectId={route.params.projectId}
+      dashboardId={route.params.dashboardId}
+    />
+  );
+}
+
+function DashboardDetail({
+  projectId,
+  dashboardId,
+}: {
+  projectId: string;
+  dashboardId: string;
+}) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-
-  const { projectId, dashboardId, addWidgetId } = router.query as {
-    projectId: string;
-    dashboardId: string;
-    addWidgetId?: string;
-  };
+  const addWidgetId = asSingleQueryParam(router.query.addWidgetId);
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
   const { isBetaEnabled } = useV4Beta();
 
   // Fetch dashboard data
-  const dashboard = api.dashboard.getDashboard.useQuery({
-    projectId,
-    dashboardId,
-  });
+  const dashboard = api.dashboard.getDashboard.useQuery(
+    {
+      projectId,
+      dashboardId,
+    },
+    { enabled: Boolean(projectId) && Boolean(dashboardId) },
+  );
 
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
