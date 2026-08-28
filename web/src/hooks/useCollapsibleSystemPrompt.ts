@@ -96,7 +96,7 @@ interface UseCollapsibleSystemPromptOptions {
   previewCharLimit?: number;
 }
 
-export type SystemPromptCollapseSource = "inline" | "header";
+type SystemPromptCollapseSource = "inline" | "header";
 
 interface UseCollapsibleSystemPromptReturn {
   shouldBeCollapsible: boolean;
