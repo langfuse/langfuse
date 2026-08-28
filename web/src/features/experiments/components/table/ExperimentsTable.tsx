@@ -916,16 +916,6 @@ export default function ExperimentsTable({
             ]}
           />
 
-          {tableDateRange && (
-            <ExperimentMetricStrip
-              projectId={projectId}
-              experiments={chartExperiments}
-              fromTimestamp={tableDateRange.from}
-              toTimestamp={tableDateRange.to}
-              isExternalLoading={experiments.status === "loading"}
-            />
-          )}
-
           {isShowingMostRecent && (
             <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
               No experiments started in the selected time range. Showing the{" "}
@@ -942,6 +932,18 @@ export default function ExperimentsTable({
             />
 
             <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Table-width, like the events table's pulse strip: inside the
+                  layout so the facet sidebar keeps its full height and the
+                  strip resizes with the table. */}
+              {tableDateRange && (
+                <ExperimentMetricStrip
+                  projectId={projectId}
+                  experiments={chartExperiments}
+                  fromTimestamp={tableDateRange.from}
+                  toTimestamp={tableDateRange.to}
+                  isExternalLoading={experiments.status === "loading"}
+                />
+              )}
               <DataTable
                 key={`experiments-table-${dataUpdatedAt}`}
                 tableName="experiments"
