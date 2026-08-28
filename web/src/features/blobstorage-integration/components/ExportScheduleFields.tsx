@@ -142,10 +142,7 @@ export const ExportScheduleFields = ({
                       ? projectCreatedAt.toISOString().slice(0, 10)
                       : undefined
                   }
-                  max={(() => {
-                    const t = new Date();
-                    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-                  })()}
+                  max={new Date().toISOString().slice(0, 10)}
                   value={
                     field.value instanceof Date
                       ? field.value.toISOString().split("T")[0]

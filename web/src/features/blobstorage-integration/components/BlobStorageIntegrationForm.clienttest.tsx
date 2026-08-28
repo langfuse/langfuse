@@ -205,5 +205,6 @@ describe("BlobStorageIntegrationForm export start date", () => {
       "Export Start Date",
     ) as HTMLInputElement;
     expect(input.min).toBe("2024-06-15");
+    expect(input.max).toBe(new Date().toISOString().slice(0, 10));
   });
 });

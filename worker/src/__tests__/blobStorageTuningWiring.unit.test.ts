@@ -105,6 +105,7 @@ function baseRow(exportTuning: unknown) {
     // 2h ago so minTimestamp = lastSyncAt and we skip the ClickHouse min query.
     lastSyncAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
     createdAt: new Date("2026-01-01T00:00:00Z"),
+    project: { createdAt: new Date("2026-01-01T00:00:00Z") },
     exportTuning,
   };
 }
