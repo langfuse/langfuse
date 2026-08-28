@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
+  BlobStorageExportMode,
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
   LEGACY_EXPORT_PROJECT_CUTOFF,
@@ -37,12 +38,13 @@ const ui = (
   key: string,
   initialValues: BlobStorageFormValues,
   onSubmit: (values: unknown) => void = () => {},
+  ctx: ExportSourceContext = exportSourceCtx,
 ) => (
   <TooltipProvider>
     <BlobStorageIntegrationForm
       key={key}
       initialValues={initialValues}
-      exportSourceCtx={exportSourceCtx}
+      exportSourceCtx={ctx}
       persistedExportSource={null}
       isSaving={false}
       onSubmit={onSubmit}
@@ -171,5 +173,37 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       }),
       expect.anything(),
     );
+  });
+});
+
+describe("BlobStorageIntegrationForm export start date", () => {
+  beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+  });
+
+  it("custom start date picker cannot go before the project createdAt", () => {
+    const projectCreatedAt = new Date("2024-06-15T12:34:56.000Z");
+    const ctx = { ...exportSourceCtx, projectCreatedAt };
+    const initialValues = {
+      ...buildBlobStorageFormValues(undefined, ctx),
+      exportMode: BlobStorageExportMode.FROM_CUSTOM_DATE,
+    };
+
+    render(ui("p1:new", initialValues, () => {}, ctx));
+
+    const input = screen.getByLabelText(
+      "Export Start Date",
+    ) as HTMLInputElement;
+    expect(input.min).toBe("2024-06-15");
   });
 });
