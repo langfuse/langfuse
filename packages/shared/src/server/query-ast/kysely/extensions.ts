@@ -176,6 +176,11 @@ export function metadataValue(
   );
 }
 
+// Extract the element type `T` from an array-typed `Expression<T[]>`. `arrayJoin`
+// uses it to give each produced alias the array's *element* type in the
+// builder's output row (ARRAY JOIN yields one row per element, so a
+// `mapValues(...)` expression of `V[]` surfaces the alias as `V`, not `V[]`).
+// Resolves to `never` for a non-array expression.
 type ElementOf<E> =
   E extends Expression<infer A>
     ? A extends ReadonlyArray<infer T>
