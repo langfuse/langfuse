@@ -72,20 +72,22 @@ export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
   fieldRegistryFromColumns(facetColumns(experimentsFilterConfig), {
     id: "experiments",
     metadata: true,
-    // See SCORE_COLUMN_IDS: `scores.` needs the canonical column names, which
-    // the unification change introduces.
-    scores: false,
+    // `scores.<name>` lowers onto the canonical `scores_avg` /
+    // `score_categories` / `score_booleans` columns, which is exactly what this
+    // view filters on since the score unification — so the bar can render a
+    // score filter the sidebar set, and parse one the user types. `traceScores.`
+    // stays closed: the level-agnostic columns already match at trace level, and
+    // the `trace_*` columns are no longer offered.
+    scores: true,
     traceScores: false,
     allowFreeText: false,
     // `name` is the only text column, and it is what people look a run up by.
     defaultTextField: "name",
     recentSearches: true,
-    // `dataset:` takes the dataset ID, not its name — the observed-value picker
-    // offers the ids, so the examples must not imply a name works.
     searchExamples: [
       "dataset:legal-answer-quality",
       "name:sonnet",
-      'metadata."model":opus',
+      "scores.groundedness:>0.8",
     ],
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
