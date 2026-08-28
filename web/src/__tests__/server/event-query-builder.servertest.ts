@@ -44,6 +44,35 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     },
   );
 
+  it("keeps missing cached cost distinguishable from an explicit zero", () => {
+    expect(
+      eventsTableCols.find((column) => column.id === "cachedInputTokens"),
+    ).not.toHaveProperty("nullable", true);
+    expect(
+      eventsTableCols.find((column) => column.id === "cachedInputCost"),
+    ).toHaveProperty("nullable", true);
+    expect(eventsTableCachedInputCostSql).toContain("NULL");
+
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `${eventsTableCachedInputCostSql} is null`,
+    );
+  });
+
   it("builds one events_core scan for multiple filter option columns", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       projectId: "test-project",

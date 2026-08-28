@@ -158,7 +158,7 @@ describe("search bar invariants — events v4 registry", () => {
     });
   });
 
-  it("filters cached tokens and cost, including events without cache reads", () => {
+  it("filters cached tokens and attributed cached cost", () => {
     expect(
       planCommit(
         "cachedTokens:0 cachedCost:<=0",
@@ -179,6 +179,38 @@ describe("search bar invariants — events v4 registry", () => {
           type: "number",
           operator: "<=",
           value: 0,
+        },
+      ],
+    });
+  });
+
+  it("exposes cached cost, but not cached tokens, as nullable", () => {
+    expect(
+      EVENTS_FIELD_REGISTRY.nullableFieldIds.has("cachedInputCost"),
+    ).toBe(true);
+    expect(
+      EVENTS_FIELD_REGISTRY.nullableFieldIds.has("cachedInputTokens"),
+    ).toBe(false);
+    expect(
+      planCommit(
+        "has:cachedCost -has:cachedCost",
+        undefined,
+        EVENTS_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "cachedInputCost",
+          type: "null",
+          operator: "is null",
+          value: "",
         },
       ],
     });

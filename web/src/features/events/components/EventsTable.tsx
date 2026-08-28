@@ -34,6 +34,7 @@ import {
   type TracingSearchType,
   type ScoreAggregate,
   buildTracePath,
+  getCachedInputCost,
   getCachedInputMetric,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -1384,7 +1385,7 @@ export default function ObservationsEventsTable({
           enableSorting,
         },
         createNumberTableColumn<EventsTableRow>({
-          accessorFn: (row) => getCachedInputMetric(row.costDetails),
+          accessorFn: (row) => getCachedInputCost(row.costDetails),
           id: "cachedInputCost",
           header: getEventsColumnName("cachedInputCost"),
           size: 140,
@@ -1392,6 +1393,7 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
           formatter: usdFormatter,
+          emptyValue: "-",
         }),
         {
           accessorKey: "outputCost",

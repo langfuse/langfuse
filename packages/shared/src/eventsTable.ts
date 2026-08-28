@@ -71,14 +71,19 @@ const CACHED_INPUT_MODALITY_KEYS = [
  * ClickHouse filters. Prefer a provider's total bucket so modality details are
  * not double-counted; fall back to summing those details when no total exists.
  */
-export const getCachedInputMetric = (
+const findCachedInputMetric = (
   details?: Record<string, number> | null,
-): number => {
+): number | undefined => {
   for (const key of CACHED_INPUT_TOTAL_KEYS) {
     if (details && Object.prototype.hasOwnProperty.call(details, key)) {
       return Number(details?.[key] ?? 0);
     }
   }
+
+  const hasModalityMetric = CACHED_INPUT_MODALITY_KEYS.some(
+    (key) => details && Object.prototype.hasOwnProperty.call(details, key),
+  );
+  if (!hasModalityMetric) return undefined;
 
   return CACHED_INPUT_MODALITY_KEYS.reduce(
     (sum, key) => sum + Number(details?.[key] ?? 0),
@@ -86,22 +91,36 @@ export const getCachedInputMetric = (
   );
 };
 
-const cachedInputMetricSql = (detailsColumn: string): string => {
+export const getCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number => findCachedInputMetric(details) ?? 0;
+
+export const getCachedInputCost = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+const cachedInputMetricSql = (
+  detailsColumn: string,
+  missingValueSql: "0" | "NULL",
+): string => {
   const totalBranches = CACHED_INPUT_TOTAL_KEYS.flatMap((key) => [
     `mapContains(${detailsColumn}, '${key}')`,
     `${detailsColumn}['${key}']`,
   ]);
-  const modalityFallback = CACHED_INPUT_MODALITY_KEYS.map(
+  const hasModalityMetric = CACHED_INPUT_MODALITY_KEYS.map(
+    (key) => `mapContains(${detailsColumn}, '${key}')`,
+  ).join(" OR ");
+  const modalitySum = CACHED_INPUT_MODALITY_KEYS.map(
     (key) => `${detailsColumn}['${key}']`,
   ).join(" + ");
 
-  return `multiIf(${[...totalBranches, modalityFallback].join(", ")})`;
+  return `multiIf(${totalBranches.concat([hasModalityMetric, modalitySum, missingValueSql]).join(", ")})`;
 };
 
 export const eventsTableCachedInputTokensSql =
-  cachedInputMetricSql("e.usage_details");
+  cachedInputMetricSql("e.usage_details", "0");
 export const eventsTableCachedInputCostSql =
-  cachedInputMetricSql("e.cost_details");
+  cachedInputMetricSql("e.cost_details", "NULL");
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
@@ -322,6 +341,7 @@ const eventsTableColsDefinition = [
     id: "cachedInputCost",
     type: "number",
     internal: eventsTableCachedInputCostSql,
+    nullable: true,
   },
   {
     name: "Output Cost ($)",

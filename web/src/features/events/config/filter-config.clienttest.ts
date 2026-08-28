@@ -1,5 +1,6 @@
 import {
   eventsTableCols,
+  getCachedInputCost,
   getCachedInputMetric,
   observationsTableCols,
   tracesTableCols,
@@ -90,6 +91,13 @@ describe("cached input metrics", () => {
   it("returns zero when no cached-read bucket exists", () => {
     expect(getCachedInputMetric()).toBe(0);
     expect(getCachedInputMetric({ input_cache_creation: 100 })).toBe(0);
+  });
+
+  it("distinguishes unattributed cached cost from an explicit zero cost", () => {
+    expect(getCachedInputCost()).toBeUndefined();
+    expect(getCachedInputCost({ input_cache_creation: 0.01 })).toBeUndefined();
+    expect(getCachedInputCost({ input_cached_tokens: 0 })).toBe(0);
+    expect(getCachedInputCost({ input_cached_tokens: 0.004 })).toBe(0.004);
   });
 
   it("exposes cached token and cost columns as numeric sidebar facets", () => {
