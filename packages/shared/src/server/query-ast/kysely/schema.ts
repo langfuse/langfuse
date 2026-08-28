@@ -52,10 +52,15 @@ const RUNTIME_TYPE: Record<ChColumnType, ColumnDataType> = {
 
 function defineTable<const Cols extends Record<string, ChColumnType>>(spec: {
   columns: Cols;
-  /** Whether the tenancy pass must inject a `project_id` scope. */
-  tenant: boolean;
+  /**
+   * Whether the tenancy pass must inject a `project_id` scope. Defaults to
+   * `true`: every relation modeled here is project-gated, and defaulting on is
+   * fail-closed — a table added without this flag is still scoped. Set `false`
+   * only for a genuinely global relation.
+   */
+  tenant?: boolean;
 }) {
-  return spec;
+  return { columns: spec.columns, tenant: spec.tenant ?? true };
 }
 
 const TABLE_REGISTRY = {
@@ -66,7 +71,6 @@ const TABLE_REGISTRY = {
       timestamp: "DateTime",
       id: "String",
     },
-    tenant: true,
   }),
   observations: defineTable({
     columns: {
@@ -77,7 +81,6 @@ const TABLE_REGISTRY = {
       cost_details: "Map(String, Float)",
       usage_details: "Map(String, Float)",
     },
-    tenant: true,
   }),
   events_core: defineTable({
     columns: {
@@ -92,7 +95,6 @@ const TABLE_REGISTRY = {
       metadata_names: "Array(String)",
       metadata_values: "Array(String)",
     },
-    tenant: true,
   }),
   scores: defineTable({
     columns: {
@@ -101,7 +103,6 @@ const TABLE_REGISTRY = {
       timestamp: "DateTime",
       data_type: "String",
     },
-    tenant: true,
   }),
 } as const;
 

@@ -8,9 +8,12 @@ import {
 
 describe("table registry derivation", () => {
   it("derives the tenanted table set from the registry", () => {
-    // Only relations modeled with `tenant: true` are scoped. `events` /
-    // `events_full` are intentionally absent: they are not selectable (not in
-    // the row type) and raw sources are rejected, so they were unreachable.
+    // Only relations in the registry are scoped. `events_full` is just as
+    // project-gated as `events_core` and would be `tenant: true` if modeled —
+    // it is absent only because the builder targets `events_core` (the MV
+    // projection) and never selects `events_full`. Since it is not in the row
+    // type and raw sources are rejected, it is unreachable, so it needs no
+    // entry. Add one (tenant defaults true) the day a query selects it.
     expect([...TENANTED_TABLES].sort()).toEqual([
       "events_core",
       "observations",

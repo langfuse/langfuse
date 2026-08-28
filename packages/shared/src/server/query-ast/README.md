@@ -56,9 +56,39 @@ a required check once it has proven stable.
 - **Never filter `project_id` yourself.** The compile step injects
   `project_id = {projectId}` into every tenanted relation, so call sites pass
   only `{ projectId }` (see `repositories/environments.ts`).
-- **ClickHouse-only clauses use `$call(helper())`** — e.g.
-  `.$call(arrayJoin({ … }))`, `.$call(limitBy({ … }))` — not fluent builder
-  methods, so they compose inside CTEs, subqueries, and views.
+- **ClickHouse-only clauses use `$call(helper())`** — not fluent builder
+  methods, so they compose inside CTEs, subqueries, and views. See the recipes
+  below.
+
+### Recipes
+
+**Write an ARRAY JOIN** (`arrayJoin` + `mapKeys`/`mapValues` from `./kysely/extensions`):
+
+```ts
+db.selectFrom("observations")
+  .select("environment")
+  .$call(arrayJoin({ cost_key: mapKeys("cost_details"), cost: mapValues("cost_details") }));
+// … array join mapKeys(cost_details) as cost_key, mapValues(cost_details) as cost
+```
+
+**Write a LIMIT BY** (`limitBy`):
+
+```ts
+db.selectFrom("events_core")
+  .select(["span_id", "project_id"])
+  .orderBy("event_ts", "desc")
+  .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] }));
+// … order by event_ts desc limit 1 by span_id, project_id
+```
+
+**Select a metadata value** (`metadataValue` — lowers `metadata[key]` to a bound `indexOf` subscript):
+
+```ts
+db.selectFrom("events_core as e")
+  .select((eb) => [metadataValue("e", "my_key").as("my_val")])
+  .where((eb) => eb(metadataValue("e", "my_key"), ">", 2));
+// select metadata_values[indexof(e.metadata_names, {p:String})] as my_val …
+```
 
 For how ARRAY JOIN / LIMIT BY / metadata nodes are implemented without forking
 Kysely, how tenancy injection works internally, the escape hatches, and the
