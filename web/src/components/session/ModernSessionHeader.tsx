@@ -367,7 +367,7 @@ export function ModernSessionHeader({
   ) => {
     if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
 
-    setRawHiddenDetailKeys((current) => {
+    setRawHiddenDetailKeys((current: unknown) => {
       const currentKeys = parseStoredHiddenSessionHeaderDetails(current);
       return isHidden
         ? currentKeys.concat(detail.key)
