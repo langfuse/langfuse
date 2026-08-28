@@ -24,7 +24,7 @@ import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
  * has to RESERVE room for these badges buckets them identically — two copies of
  * the grouping rule are two chances to price a chip that never renders.
  */
-export const groupScoresByName = <
+const groupScoresByName = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >(
   scores: T[],

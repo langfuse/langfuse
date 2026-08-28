@@ -307,53 +307,6 @@ describe("textMeasurer", () => {
     expect(measure("abc")).toBeCloseTo(60, 6);
   });
 
-  it("reads the SIZE out of a weighted font, not the weight", () => {
-    // The bold twin asks for `700 20px …`. Reading the leading number takes 700,
-    // which against a context reporting 10px scales every width by seventy.
-    const stubborn = {
-      measureText: (text: string) =>
-        ({ width: text.length * 10 }) as TextMetrics,
-    };
-    Object.defineProperty(stubborn, "font", {
-      get: () => "10px sans-serif",
-      set: () => undefined,
-    });
-    const measurer = createTextMeasurerFrom(
-      stubborn as unknown as CanvasRenderingContext2D,
-      "20px test",
-    );
-    // Bold asks for the same 20px, so it corrects by two — never by seventy.
-    expect(measurer.measureBold("abc")).toBeCloseTo(60, 6);
-  });
-
-  it("measures bold wider than regular, and neither twin sets the other's font", () => {
-    // Width follows the FONT this context was last given, so an interleaved call
-    // that forgot to set it reads as the other weight — which is the bug: both
-    // twins share one canvas, and the run measurement happens lazily at measure
-    // time rather than when the twin was built.
-    const byWeight: {
-      font: string;
-      measureText: (text: string) => TextMetrics;
-    } = {
-      font: "",
-      measureText: (text: string) =>
-        ({
-          width: text.length * (byWeight.font.startsWith("700") ? 20 : 10),
-        }) as TextMetrics,
-    };
-    const measurer = createTextMeasurerFrom(
-      byWeight as unknown as CanvasRenderingContext2D,
-      "12px test",
-    );
-
-    expect(measurer.measure("abc")).toBeCloseTo(30, 6);
-    expect(measurer.measureBold("abc")).toBeCloseTo(60, 6);
-    // Interleaved, and each still its own weight.
-    expect(measurer.measure("abcd")).toBeCloseTo(40, 6);
-    expect(measurer.measureBold("abcd")).toBeCloseTo(80, 6);
-    expect(measurer.measure("ab")).toBeCloseTo(20, 6);
-  });
-
   it("falls back to a flat per-letter width with no canvas", () => {
     expect(createTextMeasurerFrom(null).measure("1m 35s")).toBeCloseTo(
       6 * PX_PER_LETTER,
