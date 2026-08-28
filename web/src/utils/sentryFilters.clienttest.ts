@@ -314,6 +314,60 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    // Firefox (and Chromium) reject HTMLMediaElement resource selection /
+    // autoplay as an unhandled NotSupportedError when the codec is unavailable
+    // (typical on Linux without proprietary codecs). The splash onboarding
+    // videos and inline audio/video players already degrade in the UI; the
+    // native promise has no app stack for us to catch.
+    const unsupportedMediaResourceEvent = (
+      value: string,
+      type = "NotSupportedError",
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops Firefox HTMLMediaElement NotSupportedError (LANGFUSE-60C)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops Chromium HTMLMediaElement NotSupportedError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "Failed to load because no supported source was found.",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same Firefox media error from the global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          unsupportedMediaResourceEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "NotSupportedError",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("drops an intentional request cancellation (AbortError)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -681,6 +735,41 @@ describe("isDenylistedNoiseEvent", () => {
           exceptionEvent(
             "play() failed because the user didn't interact with the document first",
             "NotAllowedError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a non-media NotSupportedError (WebGL / WebRTC / etc.)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The operation is not supported.",
+            "NotSupportedError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured NotSupportedError even with the media wording", () => {
+      // captureException / generic mechanism is our code reporting a real
+      // failure. Only the browser global handler shape is dropped.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "NotSupportedError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a TypeError that merely quotes the media wording", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+            "TypeError",
           ),
         ),
       ).toBe(false);

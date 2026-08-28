@@ -61,14 +61,26 @@ function VideoPlayer({ videoSrc }: { videoSrc: string }) {
       <video
         src={videoSrc}
         controls
-        autoPlay
         muted
         loop
         playsInline
         controlsList="nodownload"
         className="w-full"
         onError={() => setHasError(true)}
-        onLoadedData={() => setIsLoaded(true)}
+        onLoadedData={(event) => {
+          setIsLoaded(true);
+          // Own the autoplay promise: the autoPlay attribute's play()
+          // rejection is unhandled, and Firefox reports it as
+          // NotSupportedError when the codec is unavailable.
+          return event.currentTarget.play().catch((error: unknown) => {
+            if (
+              error instanceof DOMException &&
+              error.name === "NotSupportedError"
+            ) {
+              setHasError(true);
+            }
+          });
+        }}
       />
     </div>
   );

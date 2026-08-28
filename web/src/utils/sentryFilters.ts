@@ -250,8 +250,9 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
 /**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
- * poll logs, and expected browser-permission / cancellation artifacts. Returning
- * `true` drops the event in `beforeSend`.
+ * poll logs, expected browser-permission / cancellation artifacts, and
+ * native HTMLMediaElement codec failures. Returning `true` drops the event
+ * in `beforeSend`.
  *
  * Design rule (safety first): only signatures that CANNOT represent a real app
  * error are listed, each keyed on an unambiguous signature (whole-message match,
@@ -357,6 +358,25 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       return true;
     }
 
+    // Browser cannot decode an <audio>/<video> resource (codec missing, empty
+    // source list). Firefox and Chromium reject HTMLMediaElement resource
+    // selection / autoplay as an unhandled NotSupportedError with no app
+    // stack. Onboarding splash videos and inline media players already hide
+    // or fall back in the UI; this is an expected capability gap, not an
+    // application bug. Guarded to the global handler so an app-captured
+    // NotSupportedError with the same wording is KEPT. Other
+    // NotSupportedError families (WebGL, WebRTC, "The operation is not
+    // supported.") have different messages and are KEPT.
+    if (
+      isGlobalHandlerUnsupportedMediaResourceEvent(
+        exceptionType,
+        exceptionValue,
+        exception?.mechanism?.type,
+      )
+    ) {
+      return true;
+    }
+
     // Known-benign non-Error promise rejections. The `UnhandledRejection`
     // exception type is SDK-synthesized (a real `Error` rejection keeps its own
     // type, e.g. `TypeError`), and the value denylist is exact/prefix-anchored:
@@ -404,6 +424,37 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   }
 
   return false;
+}
+
+/**
+ * Exact browser-generated HTMLMediaElement messages. Whole-string match only:
+ * an app error that quotes a phrase is longer and is therefore KEPT.
+ */
+const UNSUPPORTED_MEDIA_RESOURCE_MESSAGES: readonly string[] = [
+  // Firefox
+  "The media resource indicated by the src attribute or assigned media provider object was not suitable.",
+  // Chromium / WebKit
+  "Failed to load because no supported source was found.",
+];
+
+/**
+ * True for a native HTMLMediaElement NotSupportedError delivered by the
+ * browser global handlers (`onunhandledrejection` / `onerror`). See the
+ * call site in {@link isDenylistedNoiseEvent} for why this is dropped.
+ */
+function isGlobalHandlerUnsupportedMediaResourceEvent(
+  exceptionType: string | undefined,
+  exceptionValue: string,
+  mechanismType: string | undefined,
+): boolean {
+  if (exceptionType !== "NotSupportedError") return false;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.global_handlers")
+  ) {
+    return false;
+  }
+  return UNSUPPORTED_MEDIA_RESOURCE_MESSAGES.includes(exceptionValue);
 }
 
 /**
