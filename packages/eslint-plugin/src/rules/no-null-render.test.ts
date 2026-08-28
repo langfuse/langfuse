@@ -65,6 +65,129 @@ ruleTester.run("no-null-render", rule, {
        if (node) return node;
        return <div />;
      }`,
+    `function AdminOnly({ children }: { children: React.ReactNode }) {
+       const canManage = true;
+       if (!canManage) return null;
+       return <>{children}</>;
+     }`,
+    `function ClientPortal({ children }: { children: React.ReactNode }) {
+       const target = document.body;
+       if (!target) return null;
+       return createPortal(children, target);
+     }`,
+    `function Layer({ children, container }: { children: React.ReactNode; container: HTMLElement | null }) {
+       return container ? createPortal(children, container) : null;
+     }`,
+    `function Portal({ children, el }: { children: React.ReactNode; el: HTMLElement }) {
+       return ReactDOM.createPortal(<>{children}</>, el);
+     }`,
+    `function Gate({ children, show }: { children: React.ReactNode; show: boolean }) {
+       return show ? children : null;
+     }`,
+    `function Gate({ children, show }: { children: React.ReactNode; show: boolean }) {
+       return show && children;
+     }`,
+    `function Gate({ children, value }: { children: React.ReactNode; value: React.ReactNode | null }) {
+       return children ?? null;
+     }`,
+    `function Gate({ children, value }: { children: React.ReactNode; value: React.ReactNode | null }) {
+       return children || null;
+     }`,
+    `function Dismiss({ children, show }: { children: (props: { onDismiss: () => void }) => React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return children({ onDismiss: () => undefined });
+     }`,
+    `function Slot(props: { children: React.ReactNode; show: boolean }) {
+       if (!props.show) return null;
+       return props.children;
+     }`,
+    `function Slot(props: { children: React.ReactNode; show: boolean }) {
+       if (!props.show) return null;
+       return props?.children;
+     }`,
+    `function RenderProp({ children, show }: { children: () => React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return children?.();
+     }`,
+    `function Frag({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return <React.Fragment>{children}</React.Fragment>;
+     }`,
+    `function Frag({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return <Fragment>{/* mount */}{children}</Fragment>;
+     }`,
+    `function Nested({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return <><>{children}</></>;
+     }`,
+    `function Alias({ children, show }: { children: React.ReactNode; show: boolean }) {
+       const out = children as React.ReactNode;
+       if (!show) return null;
+       return out;
+     }`,
+    `const Gate = memo(({ children, show }: { children: React.ReactNode; show: boolean }) =>
+       show ? children : null);`,
+    `const Gate = ({ children, show }: { children: React.ReactNode; show: boolean }) =>
+       show ? children : undefined;`,
+    `function SwitchGate({ children, kind }: { children: React.ReactNode; kind: "a" | "b" }) {
+       switch (kind) {
+         case "a":
+           return children;
+         default:
+           return null;
+       }
+     }`,
+    `function TryGate({ children }: { children: React.ReactNode }) {
+       try {
+         return children;
+       } catch {
+         return null;
+       }
+     }`,
+    `function List({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return [children];
+     }`,
+    `function NestedAnd({ children, show, flag }: { children: React.ReactNode; show: boolean; flag: boolean }) {
+       if (!show) return null;
+       return (flag && children) && children;
+     }`,
+    `function NestedCond({ children, show, flag }: { children: React.ReactNode; show: boolean; flag: boolean }) {
+       if (!show) return null;
+       return (flag ? children : null) && children;
+     }`,
+    `function ArrayAnd({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return [children] && children;
+     }`,
+    `function SpreadAnd({ children, show, items }: { children: React.ReactNode; show: boolean; items: React.ReactNode[] }) {
+       if (!show) return null;
+       return [...items] && children;
+     }`,
+    `function PortalAnd({ children, show, el }: { children: React.ReactNode; show: boolean; el: HTMLElement }) {
+       if (!show) return null;
+       return createPortal(children, el) && children;
+     }`,
+    `function FragAnd({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return <>{children}</> && children;
+     }`,
+    `function OptionalPortal({ children, el }: { children: React.ReactNode; el: HTMLElement }) {
+       return el ? createPortal?.(children, el) : null;
+     }`,
+    `function WhitespaceFrag({ children, show }: { children: React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return (
+         <>
+           {children}
+         </>
+       );
+     }`,
+    `function RenderPropAnd({ children, show }: { children: () => React.ReactNode; show: boolean }) {
+       if (!show) return null;
+       return children() && children();
+     }`,
   ],
   invalid: [
     {
@@ -257,6 +380,145 @@ ruleTester.run("no-null-render", rule, {
                  default:
                    return null;
                }
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <div>{children}</div>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <Provider>{children}</Provider>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, container }: { children: React.ReactNode; container: HTMLElement | null }) {
+               return container ? createPortal(<div>{children}</div>, container) : null;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <><span />{children}</>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <>hello{children}</>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ show }: { show: boolean }) {
+               if (!show) return null;
+               return <></>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <svg:g>{children}</svg:g>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <Foo.Bar>{children}</Foo.Bar>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <foo.Fragment>{children}</foo.Fragment>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ item, show }: { item: { children: React.ReactNode }; show: boolean }) {
+               if (!show) return null;
+               return item.children;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return createPortal();
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show, args }: { children: React.ReactNode; show: boolean; args: unknown[] }) {
+               if (!show) return null;
+               return createPortal(...args);
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return foo(children);
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show, obj }: { children: React.ReactNode; show: boolean; obj: Record<string, Function> }) {
+               if (!show) return null;
+               return obj["createPortal"](children);
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show, rest }: { children: React.ReactNode; show: boolean; rest: React.ReactNode[] }) {
+               if (!show) return null;
+               return [children, ...rest];
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return [, children];
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return <>{...children}</>;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return children && extra;
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show }: { children: React.ReactNode; show: boolean }) {
+               if (!show) return null;
+               return props["children"];
+             }`,
+      errors: [unexpectedNullishRender],
+    },
+    {
+      code: `function Comp({ children, show, flag }: { children: React.ReactNode; show: boolean; flag: boolean }) {
+               if (!show) return null;
+               return (flag ? extra : children) && children;
              }`,
       errors: [unexpectedNullishRender],
     },

@@ -14,9 +14,13 @@ type ResolveReturnExpression = (
 ) => TSESTree.Expression;
 
 type ReturnExpressionCallbacks = {
-  onReturnExpression: (
+  onReturnExpression?: (
     node: TSESTree.Expression,
     resolve?: ResolveReturnExpression,
+  ) => void;
+  onComponentReturns?: (
+    expressions: TSESTree.Expression[],
+    resolve: ResolveReturnExpression,
   ) => void;
 };
 
@@ -387,37 +391,40 @@ export function createComponentRootElementVisitors(
 
 function visitReturnExpressionsInStatement(
   statement: TSESTree.Statement | null | undefined,
-  callbacks: ReturnExpressionCallbacks,
+  onReturnExpression: (node: TSESTree.Expression) => void,
 ): void {
   if (!statement) return;
 
   if (statement.type === AST_NODE_TYPES.ReturnStatement) {
-    if (statement.argument) callbacks.onReturnExpression(statement.argument);
+    if (statement.argument) onReturnExpression(statement.argument);
     return;
   }
   if (statement.type === AST_NODE_TYPES.BlockStatement) {
     for (const child of statement.body) {
-      visitReturnExpressionsInStatement(child, callbacks);
+      visitReturnExpressionsInStatement(child, onReturnExpression);
     }
     return;
   }
   if (statement.type === AST_NODE_TYPES.IfStatement) {
-    visitReturnExpressionsInStatement(statement.consequent, callbacks);
-    visitReturnExpressionsInStatement(statement.alternate, callbacks);
+    visitReturnExpressionsInStatement(statement.consequent, onReturnExpression);
+    visitReturnExpressionsInStatement(statement.alternate, onReturnExpression);
     return;
   }
   if (statement.type === AST_NODE_TYPES.SwitchStatement) {
     for (const switchCase of statement.cases) {
       for (const child of switchCase.consequent) {
-        visitReturnExpressionsInStatement(child, callbacks);
+        visitReturnExpressionsInStatement(child, onReturnExpression);
       }
     }
     return;
   }
   if (statement.type === AST_NODE_TYPES.TryStatement) {
-    visitReturnExpressionsInStatement(statement.block, callbacks);
-    visitReturnExpressionsInStatement(statement.handler?.body, callbacks);
-    visitReturnExpressionsInStatement(statement.finalizer, callbacks);
+    visitReturnExpressionsInStatement(statement.block, onReturnExpression);
+    visitReturnExpressionsInStatement(
+      statement.handler?.body,
+      onReturnExpression,
+    );
+    visitReturnExpressionsInStatement(statement.finalizer, onReturnExpression);
   }
 }
 
@@ -485,7 +492,9 @@ export function createComponentReturnExpressionVisitors(
       node.expression
     ) {
       if (!expressionReturnsJsxOrNull(node.body)) return;
-      callbacks.onReturnExpression(node.body);
+      const resolve = (expression: TSESTree.Expression) => expression;
+      callbacks.onComponentReturns?.([node.body], resolve);
+      callbacks.onReturnExpression?.(node.body, resolve);
       return;
     }
 
@@ -500,13 +509,13 @@ export function createComponentReturnExpressionVisitors(
         }
         continue;
       }
-      visitReturnExpressionsInStatement(statement, {
-        onReturnExpression(expression) {
-          returnExpressions.push(resolve(expression));
-        },
+      visitReturnExpressionsInStatement(statement, (expression) => {
+        returnExpressions.push(resolve(expression));
       });
     }
     if (!returnExpressions.some(expressionReturnsJsxOrNull)) return;
+    callbacks.onComponentReturns?.(returnExpressions, resolve);
+    if (!callbacks.onReturnExpression) return;
     for (const expression of returnExpressions) {
       callbacks.onReturnExpression(expression, resolve);
     }

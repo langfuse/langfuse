@@ -141,8 +141,10 @@ export default [
 
   // Components should always render. Returning null/undefined hides the
   // condition that owns visibility and makes composition unpredictable — the
-  // parent should branch, or the logic should live in a hook/HOC. Existing
-  // violations use a file-level eslint-disable; do not add new ones.
+  // parent should branch, or the logic should live in a hook/HOC. Headless
+  // children/portal passthroughs (gates, createPortal wrappers) may return
+  // null; anything that owns markup may not. Existing violations use a
+  // file-level eslint-disable; do not add new ones.
   {
     name: "langfuse/web/no-null-render",
     files: ["src/**/*.{ts,tsx}"],

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { useSyncExternalStore } from "react";
