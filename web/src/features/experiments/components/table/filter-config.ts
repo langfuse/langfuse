@@ -42,8 +42,22 @@ export const experimentsTableCols: ColumnDefinition[] = [
     internal: "prompts",
     nullable: true,
   },
+  // Dataset names are unique per project, so the NAME is the canonical filter
+  // value: it survives in a URL or saved view as something readable, and the
+  // sidebar picker and the search bar can both show the same string. It is
+  // translated to `experimentDatasetId` on the way to the query (the dataset
+  // name is not a ClickHouse column) — see fns/datasetNameFilter.
   {
     name: "Dataset",
+    id: "experimentDatasetName",
+    type: "stringOptions",
+    internal: "experiment_dataset_id",
+    options: [],
+  },
+  // Still filterable so URLs and saved views written before the switch keep
+  // resolving; no longer offered as a facet.
+  {
+    name: "Dataset ID",
     id: "experimentDatasetId",
     type: "stringOptions",
     internal: "experiment_dataset_id",
@@ -141,7 +155,7 @@ export const experimentsFilterConfig: FilterConfig = {
 
   columnDefinitions: experimentsTableCols,
 
-  defaultExpanded: ["experimentDatasetId"],
+  defaultExpanded: ["experimentDatasetName"],
 
   facets: [
     {
@@ -151,8 +165,8 @@ export const experimentsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "experimentDatasetId",
-      label: getExperimentsColumnName("experimentDatasetId"),
+      column: "experimentDatasetName",
+      label: getExperimentsColumnName("experimentDatasetName"),
     },
     {
       type: "stringKeyValue" as const,
@@ -194,7 +208,9 @@ export const experimentsFilterConfig: FilterConfig = {
   ],
 };
 
-export type ExperimentsOmittableFilterColumn = "experimentDatasetId";
+export type ExperimentsOmittableFilterColumn =
+  | "experimentDatasetId"
+  | "experimentDatasetName";
 
 export function isExperimentsOmittableFilterColumn(
   column: string,
@@ -205,5 +221,12 @@ export function isExperimentsOmittableFilterColumn(
 export function getExperimentsFilterConfig(
   omittedFilter: ExperimentsOmittableFilterColumn[] = [],
 ): FilterConfig {
-  return omitFilterFacets(experimentsFilterConfig, omittedFilter);
+  // A dataset-scoped page pins `experimentDatasetId`, but the facet it should
+  // hide is the name one that replaced it.
+  return omitFilterFacets(
+    experimentsFilterConfig,
+    omittedFilter.map((column) =>
+      column === "experimentDatasetId" ? "experimentDatasetName" : column,
+    ) as ExperimentsOmittableFilterColumn[],
+  );
 }
