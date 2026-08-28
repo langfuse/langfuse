@@ -58,6 +58,7 @@ describe("dataset name search filters", () => {
         column: "experimentDatasetName",
         type: "null",
         operator: "is not null",
+        value: "",
       },
     ] satisfies FilterState;
 
@@ -66,6 +67,7 @@ describe("dataset name search filters", () => {
         column: "experimentDatasetId",
         type: "null",
         operator: "is not null",
+        value: "",
       },
     ]);
   });
