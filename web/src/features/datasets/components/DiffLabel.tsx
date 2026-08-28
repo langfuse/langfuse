@@ -40,7 +40,10 @@ export function DiffLabel({
       <Badge
         size="sm"
         variant={getVariant(diff.direction, preferNegativeDiff)}
-        className={cn("font-bold", className)}
+        // A number must never break across the badge's line box or give up
+        // width to a sibling: both render a fragment. If it cannot sit beside
+        // the value it qualifies, the caller's row wraps it whole.
+        className={cn("shrink-0 font-bold whitespace-nowrap", className)}
         title={title}
       >
         {diff.direction}

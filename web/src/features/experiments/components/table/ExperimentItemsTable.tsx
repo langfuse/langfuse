@@ -1267,7 +1267,10 @@ export default function ExperimentItemsTable({
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => (
-              <span className="inline-flex items-center gap-1">
+              // Wraps rather than clipping: in a 120px column a six-decimal
+              // cost and its delta do not fit on one line, and half a currency
+              // value reads as data.
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
                 {exp.totalCost ? (
                   usdFormatter(exp.totalCost, 2, 6)
                 ) : (
@@ -1305,7 +1308,7 @@ export default function ExperimentItemsTable({
             allExperimentIds={allExperimentIds}
             colorExperimentIds={colorExperimentIds}
             renderValue={(exp) => (
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
                 {exp.latencyMs != null ? (
                   latencyFormatter(exp.latencyMs)
                 ) : (

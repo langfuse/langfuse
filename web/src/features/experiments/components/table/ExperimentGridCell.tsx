@@ -551,7 +551,9 @@ const CellMetadataFooter = ({
   return (
     <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
       {visible("totalCost") && (
-        <span className="inline-flex items-center gap-1">
+        // Same rule as the diff layout's metric columns: the delta wraps
+        // whole rather than being clipped mid-number.
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
           {data.totalCost ? (
             usdFormatter(data.totalCost, 2, 6)
           ) : (
@@ -573,7 +575,7 @@ const CellMetadataFooter = ({
         </span>
       )}
       {visible("latencyMs") && (
-        <span className="inline-flex items-center gap-1">
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
           {data.latencyMs != null ? (
             latencyFormatter(data.latencyMs)
           ) : (
