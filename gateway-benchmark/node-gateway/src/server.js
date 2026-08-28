@@ -57,6 +57,12 @@ app.post(
     let telemetryContext;
     let telemetryFinalized = false;
 
+    if (!Buffer.isBuffer(request.body)) {
+      response.status(400).json({ error: "request body must be bytes" });
+      return;
+    }
+    let requestBody = request.body;
+
     const modeHeader = request.get("x-benchmark-mode") || "native";
     const mode = modeHeader === "translate" ? "translate" : "native";
     const rawTelemetrySnapshots = config.telemetryMode === "ipc";
@@ -64,8 +70,8 @@ app.post(
     metrics.requests.total += 1;
     metrics.requests.active += 1;
     metrics.requests[mode] += 1;
-    input.add(request.body);
-    metrics.requests.requestBytes += request.body.length;
+    input.add(requestBody);
+    metrics.requests.requestBytes += requestBody.length;
 
     const cancelUpstream = () => abort.abort();
     request.once("aborted", cancelUpstream);
@@ -111,14 +117,14 @@ app.post(
       let parsed;
       if (mode === "translate") {
         try {
-          parsed = JSON.parse(request.body.toString("utf8"));
+          parsed = JSON.parse(requestBody.toString("utf8"));
           model = parsed.model || model;
         } catch {
           throw new TranslationError("request body must be valid JSON");
         }
       } else {
         try {
-          model = JSON.parse(request.body.toString("utf8")).model || model;
+          model = JSON.parse(requestBody.toString("utf8")).model || model;
         } catch {
           // Native mode deliberately forwards malformed JSON unchanged.
         }
@@ -126,7 +132,7 @@ app.post(
 
       let upstreamBody =
         mode === "native"
-          ? request.body
+          ? requestBody
           : Buffer.from(JSON.stringify(openAiToAnthropic(parsed)));
       const translateStream = mode === "translate" && parsed.stream === true;
       // Match Rust's request translator, which drops its parsed JSON tree once
@@ -173,6 +179,7 @@ app.post(
       // The mock upstream consumes the full request before returning headers.
       // Release large input/translation buffers before the long response stream.
       request.body = undefined;
+      requestBody = undefined;
       upstreamBody = undefined;
 
       statusCode = upstream.statusCode;
@@ -212,18 +219,20 @@ app.post(
       errorMessage = error instanceof Error ? error.message : String(error);
       if (error instanceof TranslationError && !response.headersSent) {
         statusCode = 400;
-        const body = Buffer.from(JSON.stringify({ error: error.message }));
+        const payload = { error: error.message };
+        const body = Buffer.from(JSON.stringify(payload));
         output.add(body);
-        response.status(statusCode).type("json").send(body);
+        response.status(statusCode).json(payload);
       } else if (!response.headersSent && !response.destroyed) {
         statusCode = abort.signal.aborted ? 499 : 502;
-        const body = Buffer.from(
-          JSON.stringify({
-            error: abort.signal.aborted ? "request aborted" : errorMessage,
-          }),
-        );
+        const payload = {
+          error: abort.signal.aborted
+            ? "request aborted"
+            : "upstream request failed",
+        };
+        const body = Buffer.from(JSON.stringify(payload));
         output.add(body);
-        response.status(statusCode).type("json").send(body);
+        response.status(statusCode).json(payload);
       } else if (!response.destroyed) {
         response.destroy(error instanceof Error ? error : undefined);
       }
@@ -242,7 +251,7 @@ app.use((error, _request, response, _next) => {
     response.status(413).json({ error: "request body too large" });
     return;
   }
-  response.status(400).json({ error: error?.message || "invalid request" });
+  response.status(400).json({ error: "invalid request" });
 });
 
 function captureTransform(capture, onFlush) {
