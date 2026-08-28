@@ -418,10 +418,8 @@ jobs:
   tests-shared:
     timeout-minutes: 15
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # pull-requests: write lets the golden-SQL drift step post a best-effort
-    # PR comment. It is only attempted on same-repo PRs (fork PRs get a
-    # read-only token) and its step is continue-on-error, so a missing/denied
-    # token never fails the job.
+    # Lets the drift step comment on same-repo PRs (fork tokens are read-only).
+    # That step is best-effort, so a denied token never fails the job.
     permissions:
       contents: read
       pull-requests: write
@@ -462,23 +460,17 @@ jobs:
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
-        # Golden-SQL tests run separately below: they need the `clickhouse`
-        # binary and are intentionally non-blocking, so exclude them here to
-        # keep the rest of the shared suite hard-failing as usual.
+        # The SQL-equivalence tests need the clickhouse binary and run
+        # non-blocking in their own step below; exclude them here so the rest
+        # of the shared suite hard-fails as usual.
         run: pnpm --filter @langfuse/shared run test -- --exclude '**/*.golden.test.ts'
-      - name: Install ClickHouse binary for golden SQL tests
-        # continue-on-error keeps the vacation-safe guarantee: if the apt repo
-        # ever hiccups or prunes the pinned version, the binary is simply
-        # absent, the golden tests below skip (their pre-existing behavior), and
-        # nothing blocks unrelated PRs.
+      - name: Install ClickHouse binary for SQL-equivalence tests
+        # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
+        # the equivalence snapshots. Its output is version-specific, so pin the
+        # exact version and regenerate snapshots on any bump; keep in sync with
+        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
+        # continue-on-error: a missing binary just skips the tests, never blocks.
         continue-on-error: true
-        # The query-AST golden tests normalize SQL through `clickhouse format`
-        # (the multi-call binary shipped in clickhouse-common-static; no server
-        # needed). Pin the exact version: `clickhouse format` output is
-        # version-sensitive, so the committed snapshots are coupled to it. This
-        # matches the v4-recommended ClickHouse (26.4) and the version already
-        # pinned in scripts/codex/cloud_services.sh. Bump both together and
-        # regenerate the snapshots when this changes.
         env:
           CLICKHOUSE_VERSION: 26.4.5.143
         run: |
@@ -493,23 +485,20 @@ jobs:
           sudo apt-get install --allow-downgrades -y \
             "clickhouse-common-static=${CLICKHOUSE_VERSION}"
           clickhouse --version
-      - name: run golden SQL tests (non-blocking)
+      - name: run SQL-equivalence tests (non-blocking)
         id: golden
-        # Intentionally continue-on-error: a formatter-version drift or a
-        # genuine SQL-shape change must NOT block unrelated PRs. The next step
-        # surfaces any failure as a warning (and a PR comment on same-repo PRs).
-        # Promote to a required check once the suite has proven stable.
+        # Non-blocking: a snapshot drift or an intentional SQL change must not
+        # fail the job. The next step surfaces it. Make it required once stable.
         continue-on-error: true
         run: pnpm --filter @langfuse/shared run test .golden.test
-      - name: Flag golden SQL drift
+      - name: Flag SQL-equivalence drift
         if: steps.golden.outcome == 'failure'
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "::warning title=Golden SQL tests failed::Query-AST golden-SQL snapshots drifted or the tests failed. This is non-blocking. Review ${RUN_URL} — a ClickHouse \`format\` version bump needs the snapshots regenerated (pnpm --filter @langfuse/shared run test .golden.test -u)."
-      - name: Comment golden SQL drift on PR
-        # Best-effort only: same-repo PRs have a writable token; fork PRs do
-        # not, so guard on that and never fail the job on a comment error.
+          echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed. This is non-blocking. Review ${RUN_URL} — a ClickHouse \`format\` version bump needs the snapshots regenerated (pnpm --filter @langfuse/shared run test .golden.test -u)."
+      - name: Comment SQL-equivalence drift on PR
+        # Best-effort: fork PRs have read-only tokens. Never fails the job.
         if: >-
           steps.golden.outcome == 'failure' &&
           github.event_name == 'pull_request' &&
@@ -519,12 +508,12 @@ jobs:
         with:
           script: |
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const marker = '<!-- golden-sql-drift -->';
+            const marker = '<!-- sql-equivalence-drift -->';
             const body = [
               marker,
-              '⚠️ **Query-AST golden-SQL tests failed** (non-blocking).',
+              '⚠️ **Query-AST SQL-equivalence tests failed** (non-blocking).',
               '',
-              'The query-AST golden-SQL snapshots drifted or the tests failed. This check does **not** block the PR.',
+              'The query-AST SQL-equivalence snapshots drifted or the tests failed. This check does **not** block the PR.',
               '',
               `- Run: ${runUrl}`,
               '- If the SQL shape changed intentionally, regenerate: `pnpm --filter @langfuse/shared run test .golden.test -u`',
