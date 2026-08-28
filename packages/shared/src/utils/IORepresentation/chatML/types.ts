@@ -20,6 +20,14 @@ export const ToolCallSchema = z.object({
   arguments: z.string(), // JSON string of arguments
   type: z.string().optional(),
   index: z.number().optional(),
+  /** Paired tool result, set only by the normalized-parser projection
+   * (`toIOPreview`); `null` = the call has no result in this observation.
+   * Legacy ChatML parsing never sets this field, so result-in-card rendering
+   * is beta-only by data presence. */
+  response: z
+    .object({ output: z.unknown(), isError: z.boolean().optional() })
+    .nullable()
+    .optional(),
 });
 
 /**

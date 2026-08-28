@@ -80,6 +80,8 @@ function toToolDefinition(definition: NormalizedToolDefinition): {
   };
 }
 
+type ToolCallResponse = { output: JsonValue; isError?: boolean } | null;
+
 function toToolCallPart(
   part: Extract<NormalizedMessagePart, { type: "tool-call" }>,
 ) {
@@ -88,6 +90,8 @@ function toToolCallPart(
     name: part.toolName,
     arguments: part.input,
     ...(part.toolType ? { type: part.toolType } : {}),
+    // Paired by toIOPreview below; null = no result in this observation.
+    response: null as ToolCallResponse,
   };
 }
 
@@ -104,7 +108,13 @@ function toToolResultMessage(
   } as ChatMlMessage;
 }
 
-function toChatMessages(message: NormalizedMessage): ChatMlMessage[] {
+type ProjectedMessage = {
+  main: ChatMlMessage | undefined;
+  toolCallEntries: ReturnType<typeof toToolCallPart>[];
+  toolResultParts: Extract<NormalizedMessagePart, { type: "tool-result" }>[];
+};
+
+function toChatMessages(message: NormalizedMessage): ProjectedMessage {
   const contentParts: Array<string | Record<string, unknown>> = [];
   const thinking: Array<{
     type: "thinking";
@@ -207,10 +217,13 @@ function toChatMessages(message: NormalizedMessage): ChatMlMessage[] {
       } as ChatMlMessage)
     : undefined;
 
-  return [
-    ...(mainMessage ? [mainMessage] : []),
-    ...toolResults.map(toToolResultMessage),
-  ];
+  // Tool results stay parts here: toIOPreview pairs them into their call
+  // entries across messages before the leftovers become standalone messages.
+  return {
+    main: mainMessage,
+    toolCallEntries: toolCalls,
+    toolResultParts: toolResults,
+  };
 }
 
 /**
@@ -222,10 +235,49 @@ export function toIOPreview(
   io: NormalizedIO,
   parsedInput: unknown,
 ): ChatMLParserResult {
-  const projectedMessages = io.messages.map((message) => ({
+  const projected = io.messages.map((message) => ({
     source: message.source,
-    messages: toChatMessages(message),
+    ...toChatMessages(message),
   }));
+
+  // Pair tool results into their call entries by id (calls and results can
+  // live in different messages). First call with an id wins; a result whose
+  // id is unknown or already answered stays a standalone tool message, so
+  // nothing is ever dropped.
+  const callEntryById = new Map<
+    string,
+    ProjectedMessage["toolCallEntries"][number]
+  >();
+  for (const { toolCallEntries } of projected) {
+    for (const entry of toolCallEntries) {
+      if (entry.id && !callEntryById.has(entry.id)) {
+        callEntryById.set(entry.id, entry);
+      }
+    }
+  }
+
+  const projectedMessages = projected.map(
+    ({ source, main, toolResultParts }) => {
+      const standaloneResults = toolResultParts.filter((part) => {
+        const entry = part.toolCallId
+          ? callEntryById.get(part.toolCallId)
+          : undefined;
+        if (!entry || entry.response !== null) return true;
+        entry.response = {
+          output: part.output,
+          ...(part.isError !== undefined ? { isError: part.isError } : {}),
+        };
+        return false;
+      });
+      return {
+        source,
+        messages: [
+          ...(main ? [main] : []),
+          ...standaloneResults.map(toToolResultMessage),
+        ],
+      };
+    },
+  );
   const allMessages = projectedMessages.flatMap(({ messages }) => messages);
   const inputMessageCount = projectedMessages.reduce(
     (count, { source, messages }) =>

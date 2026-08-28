@@ -11,6 +11,17 @@ interface ToolCallInvocationsViewProps {
   className?: string;
 }
 
+/** Tool outputs are frequently JSON serialized as a string; show the
+ * structure when it parses, the raw string otherwise. */
+function parseIfJsonString(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
 export function ToolCallInvocationsView({
   message,
   toolCallNumbers,
@@ -80,6 +91,31 @@ export function ToolCallInvocationsView({
                 codeClassName="text-xs"
               />
             </div>
+
+            {/* Response view: paired tool result. Only the normalized-parser
+                projection sets `response`, so this section is beta-only by
+                data presence — legacy messages never carry the field. */}
+            {toolCall.response !== undefined && (
+              <div className="py-2 [&_.io-message-content]:px-0">
+                <div className="text-muted-foreground mb-1.5 text-xs font-bold">
+                  Response
+                  {toolCall.response?.isError && (
+                    <span className="text-dark-red ml-1">(error)</span>
+                  )}
+                </div>
+                {toolCall.response === null ? (
+                  <div className="text-muted-foreground text-xs">
+                    No response
+                  </div>
+                ) : (
+                  <PrettyJsonView
+                    json={parseIfJsonString(toolCall.response.output)}
+                    currentView="pretty"
+                    codeClassName="text-xs"
+                  />
+                )}
+              </div>
+            )}
           </div>
         );
       })}
