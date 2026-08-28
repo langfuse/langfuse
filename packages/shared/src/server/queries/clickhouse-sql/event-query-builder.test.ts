@@ -24,6 +24,21 @@ describe("EventsQueryBuilder public API v2 field groups", () => {
 });
 
 describe("EventsAggregationQueryBuilder", () => {
+  it("selects only trace identity and user_id for the users field set", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("users")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "argMaxIf(user_id, event_ts, user_id <> '') AS user_id",
+    );
+    expect(query).toContain("GROUP BY trace_id, project_id");
+    expect(query).not.toContain("sum(total_cost)");
+    expect(query).toContain("FROM events_core");
+  });
+
   it("counts distinct non-synthetic observations per trace", () => {
     const { query } = new EventsAggregationQueryBuilder({
       projectId: "test-project",
