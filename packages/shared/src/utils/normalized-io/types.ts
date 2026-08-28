@@ -121,11 +121,7 @@ export type NormalizedMessagePart =
   | DataPart
   | CustomPart;
 
-export type NormalizedMessageRole =
-  | "system"
-  | "user"
-  | "assistant"
-  | "tool";
+export type NormalizedMessageRole = "system" | "user" | "assistant" | "tool";
 
 /**
  * How the model's turn ended, canonicalized across providers so consumers
