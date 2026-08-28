@@ -2,8 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 
 import { __test } from "./WidgetImporter";
 

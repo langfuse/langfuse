@@ -7,7 +7,7 @@ import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 

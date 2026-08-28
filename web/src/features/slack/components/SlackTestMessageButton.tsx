@@ -2,8 +2,7 @@ import React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { Zap } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type SlackChannel } from "./ChannelSelector";
 
 /**

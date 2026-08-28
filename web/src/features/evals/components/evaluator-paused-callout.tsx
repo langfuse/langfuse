@@ -1,6 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 import { formatDistanceToNow } from "date-fns";
 import {
