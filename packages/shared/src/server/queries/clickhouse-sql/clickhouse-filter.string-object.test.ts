@@ -59,7 +59,7 @@ describe("StringObjectFilter events metadata formats", () => {
     expect(Object.values(applied.params)).toHaveLength(5);
   });
 
-  it("keeps the ngram prefilter outside the nested OR so both formats can prune", () => {
+  it("scopes the ngram prefilter to the flattened branch so escaped JSON can still match", () => {
     const applied = new StringObjectFilter({
       clickhouseTable: "events_full",
       field: "metadata",
@@ -69,11 +69,17 @@ describe("StringObjectFilter events metadata formats", () => {
       tablePrefix: "e",
     }).apply();
 
-    expect(
-      applied.query.startsWith("like(arrayStringConcat(e.metadata_values),"),
-    ).toBe(true);
+    expect(applied.query).toContain(
+      "like(arrayStringConcat(e.metadata_values),",
+    );
     expect(applied.query).toContain(" OR ");
     expect(applied.query).toContain("JSONExtractString(");
+    // A raw LIKE cannot see JSON escape sequences (`\n` stored as `\\n`).
+    // Gating the whole OR would drop migrated rows before JSONExtractString.
+    expect(applied.query.startsWith("like(")).toBe(false);
+    const afterOr = applied.query.slice(applied.query.indexOf(" OR ") + 4);
+    expect(afterOr).toContain("JSONExtractString(");
+    expect(afterOr).not.toContain("like(arrayStringConcat");
     expect(Object.values(applied.params)).toEqual(
       expect.arrayContaining([
         "config.timeout",

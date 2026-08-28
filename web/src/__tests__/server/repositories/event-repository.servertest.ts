@@ -3000,6 +3000,73 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(result.length).toBe(0);
       });
+
+      it("matches a nested contains filter on migrated JSON whose leaf is escaped", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const migratedId = randomUUID();
+        const flattenedId = randomUUID();
+        const note = "hello\nworld";
+
+        await createEventsCh([
+          createEvent({
+            id: migratedId,
+            span_id: migratedId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "migrated-escaped-nested-metadata",
+            metadata_names: ["config"],
+            metadata_values: [JSON.stringify({ note })],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: flattenedId,
+            span_id: flattenedId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "flattened-escaped-nested-metadata",
+            metadata_names: ["config.note"],
+            metadata_values: [note],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "contains",
+              key: "config.note",
+              value: note,
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.map((row) => row.name).sort()).toEqual([
+          "flattened-escaped-nested-metadata",
+          "migrated-escaped-nested-metadata",
+        ]);
+      });
     });
 
     describe("Truncation-sensitive filters (must read events_full)", () => {

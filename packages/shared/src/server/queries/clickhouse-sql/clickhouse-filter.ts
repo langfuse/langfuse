@@ -502,15 +502,22 @@ export class StringObjectFilter implements Filter {
           this.operator,
           valueParam,
         )})`;
-        query = `((${query}) OR (${legacyQuery}))`;
+        // Raw LIKE cannot see JSON escape sequences (`\n` stored as `\\n`).
+        // Keep ngram pruning on the flattened branch only so migrated rows
+        // still reach JSONExtractString.
+        const flattenedQuery = ngramPrefilter
+          ? `${ngramPrefilter} AND (${query})`
+          : query;
+        query = `((${flattenedQuery}) OR (${legacyQuery}))`;
         params[varLegacyKeyName] = legacyPath.topLevelKey;
         for (const pathParam of pathParams) {
           params[pathParam.name] = pathParam.segment;
         }
+      } else if (ngramPrefilter) {
+        query = `${ngramPrefilter} AND ${query}`;
       }
 
       if (ngramPrefilter) {
-        query = `${ngramPrefilter} AND ${query}`;
         params[ngramPrefilterParamName] =
           `%${escapeSqlLikePattern(this.value)}%`;
       }
