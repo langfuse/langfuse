@@ -1345,7 +1345,7 @@ describe("V4MigrationHeaderContent", () => {
 
     expect(screen.getByText("Ensure compatibility")).toBeInTheDocument();
     expect(screen.getByText(/features may stop working/)).toHaveTextContent(
-      "Some features may stop working if you don't update integrations before your administrator disables the legacy mode.",
+      "Some features may stop working if you don't update integrations before the legacy mode is disabled.",
     );
     expect(screen.queryByText(/November 16/)).not.toBeInTheDocument();
     expect(

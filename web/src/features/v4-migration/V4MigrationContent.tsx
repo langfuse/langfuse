@@ -1228,7 +1228,7 @@ export function V4MigrationDeadlineNote() {
     return (
       <p>
         Some features may stop working if you don&apos;t update integrations
-        before your administrator disables the legacy mode.
+        before the legacy mode is disabled.
       </p>
     );
   }

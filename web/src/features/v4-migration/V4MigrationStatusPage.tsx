@@ -539,7 +539,7 @@ function V4MigrationStatusPageContent() {
           <span className="underline">
             {hasDeadline
               ? `on ${V4_MIGRATION_DEADLINE}`
-              : "once your administrator disables the legacy mode"}
+              : "once the legacy mode is disabled"}
           </span>
           . They keep running until then, but we&apos;re no longer fixing bugs
           in them.
@@ -570,7 +570,7 @@ function V4MigrationStatusPageContent() {
           <span className="underline">
             {hasDeadline
               ? `On ${V4_MIGRATION_DEADLINE}`
-              : "Once your administrator disables the legacy mode"}
+              : "Once the legacy mode is disabled"}
           </span>
           , old SDKs stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
@@ -722,7 +722,7 @@ function SwitchBackSection() {
             The features powering the legacy v3 UI will be sunset{" "}
             {hasDeadline
               ? `on ${V4_MIGRATION_DEADLINE}`
-              : "once your administrator disables the legacy mode"}
+              : "once the legacy mode is disabled"}
             . We strongly recommend switching to the latest UI (v4) before then.
           </p>
         )}

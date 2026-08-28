@@ -318,10 +318,10 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     expect(
-      screen.getByText("once your administrator disables the legacy mode"),
+      screen.getByText("once the legacy mode is disabled"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Once your administrator disables the legacy mode"),
+      screen.getByText("Once the legacy mode is disabled"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/on November 16, 2026/)).not.toBeInTheDocument();
     expect(screen.queryByText(/On November 16, 2026/)).not.toBeInTheDocument();
@@ -335,7 +335,7 @@ describe("V4MigrationStatusPage", () => {
 
     expect(
       screen.getByText(
-        /The features powering the legacy v3 UI will be sunset once your administrator disables the legacy mode\./,
+        /The features powering the legacy v3 UI will be sunset once the legacy mode is disabled\./,
       ),
     ).toBeInTheDocument();
   });
