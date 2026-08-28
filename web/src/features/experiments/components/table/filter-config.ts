@@ -159,40 +159,6 @@ export const experimentsFilterConfig: FilterConfig = {
       column: "metadata",
       label: getExperimentsColumnName("metadata"),
     },
-    // Run metrics. These columns were already selected and sortable but had no
-    // facet, so they were the one thing the table showed and could not filter.
-    {
-      type: "numeric" as const,
-      column: "itemCount",
-      label: getExperimentsColumnName("itemCount"),
-      min: 0,
-      max: 1000,
-      step: 1,
-    },
-    {
-      type: "numeric" as const,
-      column: "errorCount",
-      label: getExperimentsColumnName("errorCount"),
-      min: 0,
-      max: 1000,
-      step: 1,
-    },
-    {
-      type: "numeric" as const,
-      column: "latencyAvg",
-      label: getExperimentsColumnName("latencyAvg"),
-      min: 0,
-      max: 3600,
-      unit: "s",
-    },
-    {
-      type: "numeric" as const,
-      column: "totalCost",
-      label: getExperimentsColumnName("totalCost"),
-      min: 0,
-      max: 100,
-      unit: "$",
-    },
     // Observation-level scores
     {
       type: "keyValue" as const,

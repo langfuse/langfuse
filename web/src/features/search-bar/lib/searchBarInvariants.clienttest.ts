@@ -540,7 +540,7 @@ describe("search bar invariants — sessions registry", () => {
 const experimentsView: RegistryUnderTest = {
   name: "experiments",
   registry: EXPERIMENTS_FIELD_REGISTRY,
-  extraKeys: ["metadata.owner", 'metadata."my key"', "has:totalCost"],
+  extraKeys: ["metadata.owner", 'metadata."my key"'],
   scoreContexts: [],
   fieldValues: ["x", "my-evals", "5", "0.8", "a b"],
   freeTextValues: ["hello", "run 12", "or", "!important"],
@@ -562,14 +562,10 @@ describe("search bar invariants — experiments registry", () => {
     ).toEqual([]);
   });
 
-  it("exposes the sidebar's facets, minus the score columns", () => {
+  it("exposes only the sidebar facets whose columns are actually filterable", () => {
     expect(EXPERIMENTS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
-      "errorCount",
       "experimentDatasetId",
-      "itemCount",
-      "latencyAvg",
       "name",
-      "totalCost",
     ]);
   });
 
@@ -609,20 +605,14 @@ describe("search bar invariants — experiments registry", () => {
     });
   });
 
-  it("lowers the run-metric aliases people will actually type", () => {
-    expect(
-      planCommit(
-        "cost:>1 errors:>0 latency:>30",
-        undefined,
-        EXPERIMENTS_FIELD_REGISTRY,
-      ),
-    ).toMatchObject({
-      status: "committed",
-      filters: [
-        { column: "totalCost", type: "number", operator: ">", value: 1 },
-        { column: "errorCount", type: "number", operator: ">", value: 0 },
-        { column: "latencyAvg", type: "number", operator: ">", value: 30 },
-      ],
-    });
+  it("keeps the run metrics out — the backend silently drops them", () => {
+    // itemCount / errorCount / totalCost / latencyAvg have ColumnDefinitions for
+    // display and sorting but no UiColumnMapping, and the repository partitions
+    // filters by allow-list, discarding anything in neither group. A field here
+    // would render a pill and change nothing.
+    for (const id of ["itemCount", "errorCount", "totalCost", "latencyAvg"]) {
+      expect(EXPERIMENTS_FIELD_REGISTRY.resolveField(id)).toBeNull();
+    }
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("cost")).toBeNull();
   });
 });

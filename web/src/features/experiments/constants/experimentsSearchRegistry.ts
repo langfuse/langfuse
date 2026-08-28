@@ -66,28 +66,6 @@ const EXPERIMENT_FIELD_OVERLAY = {
     label: "Dataset",
     description: "Dataset the experiment ran against",
   },
-  itemCount: {
-    aliases: ["items", "itemcount", "item_count"],
-    label: "Item count",
-    description: "Number of items in the run",
-  },
-  errorCount: {
-    aliases: ["errors", "errorcount", "error_count"],
-    label: "Error count",
-    description: "Number of errored items in the run",
-  },
-  latencyAvg: {
-    aliases: ["latency", "latencyavg", "latency_avg"],
-    label: "Average latency",
-    description: "Average item latency in seconds",
-    unit: "s",
-  },
-  totalCost: {
-    aliases: ["cost", "totalcost", "total_cost"],
-    label: "Total cost",
-    description: "Total run cost in USD",
-    unit: "$",
-  },
 };
 
 export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
@@ -104,9 +82,8 @@ export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
     recentSearches: true,
     searchExamples: [
       "dataset:my-evals",
-      "errorCount:>0",
-      "cost:>1",
-      "latency:>30",
+      "name:sonnet",
+      'metadata."model":opus',
     ],
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
