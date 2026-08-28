@@ -35,7 +35,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 ## Ownership
 
 - Margin should be applied by the parent component, not contained in a component. The child component should only define the inner spacing of itself and its contents.
-- It's bad practice to have a component that returns `null` or `undefined`. Most of the time this suggests that the condition that leads to this state should be handled by the parent component instead, often this can be done in a way close to the current component by using a hook or a HOC. `@repo/no-null-render` enforces this; do not add file-level disables for new code. Headless gates and portals that only pass through `children` (including `<>{children}</>` and `createPortal(children, …)`) may return null when they have nothing to mount — they do not own presentation.
+- It's bad practice to have a component that returns `null` or `undefined`. Most of the time this suggests that the condition that leads to this state should be handled by the parent component instead, often this can be done in a way close to the current component by using a hook or a HOC.
 
 ## Overlays
 
