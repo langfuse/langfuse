@@ -418,11 +418,6 @@ jobs:
   tests-shared:
     timeout-minutes: 15
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    # Lets the drift step comment on same-repo PRs (fork tokens are read-only).
-    # That step is best-effort, so a denied token never fails the job.
-    permissions:
-      contents: read
-      pull-requests: write
     needs:
       - pre-job
     # pre-job only runs on push events; everywhere else it resolves as skipped
@@ -486,48 +481,12 @@ jobs:
             "clickhouse-common-static=${CLICKHOUSE_VERSION}"
           clickhouse --version
       - name: run SQL-equivalence tests (non-blocking)
-        id: golden
-        # Non-blocking: a snapshot drift or an intentional SQL change must not
-        # fail the job. The next step surfaces it. Make it required once stable.
-        continue-on-error: true
-        run: pnpm --filter @langfuse/shared run test .golden.test
-      - name: Flag SQL-equivalence drift
-        if: steps.golden.outcome == 'failure'
-        env:
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Non-blocking: a snapshot drift or an intentional SQL change emits a
+        # warning but must not fail the job (`|| echo` swallows the exit code).
+        # Make it a required check once the suite has proven stable.
         run: |
-          echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed. This is non-blocking. Review ${RUN_URL} — a ClickHouse \`format\` version bump needs the snapshots regenerated (pnpm --filter @langfuse/shared run test .golden.test -u)."
-      - name: Comment SQL-equivalence drift on PR
-        # Best-effort: fork PRs have read-only tokens. Never fails the job.
-        if: >-
-          steps.golden.outcome == 'failure' &&
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const marker = '<!-- sql-equivalence-drift -->';
-            const body = [
-              marker,
-              '⚠️ **Query-AST SQL-equivalence tests failed** (non-blocking).',
-              '',
-              'The query-AST SQL-equivalence snapshots drifted or the tests failed. This check does **not** block the PR.',
-              '',
-              `- Run: ${runUrl}`,
-              '- If the SQL shape changed intentionally, regenerate: `pnpm --filter @langfuse/shared run test .golden.test -u`',
-              '- If CI bumped the pinned ClickHouse version, regenerate against the new `clickhouse format`.',
-            ].join('\n');
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
-            const existing = comments.find((c) => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            }
+          pnpm --filter @langfuse/shared run test .golden.test \
+            || echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed (non-blocking). Regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u"
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})

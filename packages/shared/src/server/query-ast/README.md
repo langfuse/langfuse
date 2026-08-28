@@ -38,6 +38,6 @@ are parenthesized changed between 25.x and 26.x), so the committed snapshots are
 coupled to that exact version. When bumping the CI pin, regenerate the snapshots
 against the new binary in the same PR, or the golden tests drift.
 
-The golden step is intentionally **non-blocking** in CI (`continue-on-error`): a
-drift surfaces as a warning (and a PR comment on same-repo PRs) but never blocks
-the pipeline. Promote it to a required check once it has proven stable.
+The CI step is intentionally **non-blocking**: a drift surfaces as a warning
+annotation but never fails the pipeline (`|| echo "::warning::"`). Promote it to
+a required check once it has proven stable.
