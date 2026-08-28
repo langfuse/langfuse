@@ -1499,7 +1499,7 @@ interface FilterAccordionItemProps {
   onReset?: () => void;
 }
 
-export function FilterAccordionItem({
+function FilterAccordionItem({
   label,
   tooltip,
   help,
@@ -2132,7 +2132,7 @@ function CategoricalSelectContent({
   );
 }
 
-export function NumericFacet({
+function NumericFacet({
   label,
   tooltip,
   help,
@@ -2303,7 +2303,7 @@ export function NumericFacet({
   );
 }
 
-export function StringFacet({
+function StringFacet({
   label,
   tooltip,
   help,
@@ -2384,7 +2384,7 @@ export function StringFacet({
   );
 }
 
-export function KeyValueFacet({
+function KeyValueFacet({
   label,
   tooltip,
   help,
@@ -2434,7 +2434,7 @@ export function KeyValueFacet({
   );
 }
 
-export function NumericKeyValueFacet({
+function NumericKeyValueFacet({
   label,
   tooltip,
   help,
@@ -2482,7 +2482,7 @@ export function NumericKeyValueFacet({
   );
 }
 
-export function BooleanKeyValueFacet({
+function BooleanKeyValueFacet({
   label,
   tooltip,
   help,
@@ -2530,7 +2530,7 @@ export function BooleanKeyValueFacet({
   );
 }
 
-export function StringKeyValueFacet({
+function StringKeyValueFacet({
   label,
   tooltip,
   help,
@@ -2727,7 +2727,7 @@ interface FilterValueCheckboxProps {
   disabled?: boolean;
 }
 
-export function FilterValueCheckbox({
+function FilterValueCheckbox({
   id,
   label,
   icon,
@@ -2802,21 +2802,6 @@ export function FilterValueCheckbox({
           </span>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-export function DataTableControlsSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-3">
-      <h3 className="text-foreground text-sm font-bold">{title}</h3>
-      <div>{children}</div>
     </div>
   );
 }

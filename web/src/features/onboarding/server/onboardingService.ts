@@ -210,7 +210,7 @@ export const resolveOnboardingRedirectTarget = async ({
   return null;
 };
 
-export const resolveOnboardingRedirectTargetWithFallback = async ({
+const resolveOnboardingRedirectTargetWithFallback = async ({
   prisma,
   userId,
   canCreateOrganizations,

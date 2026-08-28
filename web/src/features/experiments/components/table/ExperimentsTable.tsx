@@ -31,8 +31,8 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -69,6 +69,14 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  baselineChangedProps,
+  comparisonChangedProps,
+  chartsSectionToggledProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -104,11 +112,14 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
 function ExperimentsMultiSelectActionMenu({
   projectId,
   store,
+  datasetIdByExperimentId,
 }: {
   projectId: string;
   store: ExperimentsTableStore;
+  datasetIdByExperimentId: Record<string, string>;
 }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   // Page-scoped and in table order, so the first id is the topmost selected
   // row — the compare baseline.
@@ -157,6 +168,24 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiments",
+        comparisonCount: comparisons.length,
+        datasetIds: selectedExperimentIds.map(
+          (id) => datasetIdByExperimentId[id],
+        ),
+        source: "table-selection",
+      }),
+    );
+    capture(
+      "experiment:baseline_changed",
+      baselineChangedProps({
+        tableName: "experiments",
+        source: "table-selection",
+      }),
+    );
     const params = new URLSearchParams();
     params.set("baseline", baseline);
     comparisons.forEach((id) => {
@@ -320,6 +349,7 @@ export default function ExperimentsTable({
     loading: isFilterOptionsPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
+    isV4: true,
   });
 
   // Apply default filter on mount (only if no existing filter)
@@ -703,8 +733,49 @@ export default function ExperimentsTable({
   }, [rows]);
 
   // Charts accordion collapsed state (persisted in session storage)
+  const capture = usePostHogClientCapture();
   const { accordionValue, setAccordionValue } =
     useExperimentChartsAccordion(projectId);
+
+  const datasetIdByExperimentId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.id] = row.datasetId;
+    }
+    return map;
+  }, [rows]);
+
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiments",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
+  const handleChartsAccordionChange = useCallback(
+    (value: string) => {
+      const isExpanded = value === "charts";
+      const wasExpanded = accordionValue === "charts";
+      if (isExpanded !== wasExpanded) {
+        capture(
+          "experiment:charts_section_toggled",
+          chartsSectionToggledProps({
+            tableName: "experiments",
+            isExpanded,
+          }),
+        );
+      }
+      setAccordionValue(value);
+    },
+    [accordionValue, capture, setAccordionValue],
+  );
 
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
@@ -718,7 +789,7 @@ export default function ExperimentsTable({
 
   return (
     <>
-      <DataTableControlsProvider>
+      <DataTableControlsProvider tableName={filterConfig.tableName}>
         <div className="flex h-full w-full flex-col">
           {showControlsInPageHeader && (
             <TableHeaderControls
@@ -735,6 +806,9 @@ export default function ExperimentsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={filterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["name", "datasetId"]}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}
@@ -750,6 +824,7 @@ export default function ExperimentsTable({
                 key="experiments-multi-select-actions"
                 projectId={projectId}
                 store={experimentsTableStore}
+                datasetIdByExperimentId={datasetIdByExperimentId}
               />,
             ]}
           />
@@ -760,7 +835,7 @@ export default function ExperimentsTable({
               type="single"
               collapsible
               value={accordionValue}
-              onValueChange={setAccordionValue}
+              onValueChange={handleChartsAccordionChange}
             >
               <AccordionItem value="charts" className="border-t">
                 <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">

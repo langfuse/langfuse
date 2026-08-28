@@ -118,6 +118,15 @@ describe("Python SDK deprecations", () => {
       "sessions:get",
       "trace:get",
       "trace:list",
+      "unstable/evaluation_rules:create",
+      "unstable/evaluation_rules:list",
+      "unstable/evaluation_rules:get",
+      "unstable/evaluation_rules:update",
+      "unstable/evaluation_rules:delete",
+      "unstable/evaluators:create",
+      "unstable/evaluators:list",
+      "unstable/evaluators:get",
+      "unstable/evaluators:delete",
     ]);
   });
 

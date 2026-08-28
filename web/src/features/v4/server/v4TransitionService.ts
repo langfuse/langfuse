@@ -23,6 +23,7 @@ import {
   getSdkUsageSummaries,
   getSdkUsageSeriesByProject,
 } from "@/src/features/v4/server/v4TransitionSdkUsage";
+import { isActionableLegacyApiUsage } from "@/src/features/v4/utils";
 
 export { getSdkUsageSummaries, getLegacyApiUsageSummaries };
 
@@ -313,7 +314,9 @@ export const getMigrationActions = async ({
     apisActionNeeded:
       apiBlob === null
         ? null
-        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).length > 0,
+        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).some(
+            isActionableLegacyApiUsage,
+          ),
     evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
     exportsActionNeeded:
       (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,

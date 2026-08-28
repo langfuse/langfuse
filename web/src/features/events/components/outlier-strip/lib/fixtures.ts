@@ -30,9 +30,9 @@ export type FixtureProfile =
   /** Events exist but carry no metric data (root-only cost shape). */
   | "noMetricData";
 
-export const FIXTURE_BASE_MS = Date.UTC(2026, 6, 26, 0, 0, 0); // fixed: 2026-07-26
+const FIXTURE_BASE_MS = Date.UTC(2026, 6, 26, 0, 0, 0); // fixed: 2026-07-26
 
-export function makeFixtureBins(params: {
+function makeFixtureBins(params: {
   rangeMs: number;
   stepSeconds: number;
   profile: FixtureProfile;
