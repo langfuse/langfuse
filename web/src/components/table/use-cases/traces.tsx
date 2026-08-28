@@ -998,9 +998,8 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createNumberTableColumn<TracesTableRow, bigint>({
       accessorKey: "observationCount",
-      id: "observationCount",
       header: "Observations",
       size: 120,
       headerTooltip: {
@@ -1008,16 +1007,10 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["observationCount"] =
-          row.getValue("observationCount");
-        if (isMetricPending(row.original.id)) {
-          return <Skeleton className="h-4 w-1/2" />;
-        }
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0),
+      getValue: (value, { row }) =>
+        isMetricPending(row.original.id) ? { type: "loading" } : (value ?? 0n),
+    }),
     {
       accessorKey: "level",
       id: "level",
@@ -1136,7 +1129,7 @@ export default function TracesTable({
           header: "Input Cost",
           size: 100,
           emptyValue: "-",
-          formatter: usdFormatter,
+          formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
             return value ?? undefined;
@@ -1151,7 +1144,7 @@ export default function TracesTable({
           header: "Output Cost",
           size: 100,
           emptyValue: "-",
-          formatter: usdFormatter,
+          formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
             return value ?? undefined;
@@ -1174,57 +1167,48 @@ export default function TracesTable({
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<TracesTableRow, bigint>({
+          accessorFn: (row) => row.usage.inputUsage,
           id: "inputTokens",
           header: "Input Tokens",
           size: 110,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (isMetricPending(row.original.id)) {
-              return <Skeleton className="h-4 w-1/2" />;
-            }
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
+          formatter: (value) => numberFormatter(value, 0),
+          getValue: (value, { row }) =>
+            isMetricPending(row.original.id)
+              ? { type: "loading" }
+              : (value ?? 0n),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputTokens",
+        }),
+        createNumberTableColumn<TracesTableRow, bigint>({
+          accessorFn: (row) => row.usage.outputUsage,
           id: "outputTokens",
           header: "Output Tokens",
           size: 110,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (isMetricPending(row.original.id)) {
-              return <Skeleton className="h-4 w-1/2" />;
-            }
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
+          formatter: (value) => numberFormatter(value, 0),
+          getValue: (value, { row }) =>
+            isMetricPending(row.original.id)
+              ? { type: "loading" }
+              : (value ?? 0n),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "totalTokens",
+        }),
+        createNumberTableColumn<TracesTableRow, bigint>({
+          accessorFn: (row) => row.usage.totalUsage,
           id: "totalTokens",
           header: "Total Tokens",
           size: 110,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (isMetricPending(row.original.id)) {
-              return <Skeleton className="h-4 w-1/2" />;
-            }
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
+          formatter: (value) => numberFormatter(value, 0),
+          getValue: (value, { row }) =>
+            isMetricPending(row.original.id)
+              ? { type: "loading" }
+              : (value ?? 0n),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<TracesTableRow>[],
     },
     ...(hideControls

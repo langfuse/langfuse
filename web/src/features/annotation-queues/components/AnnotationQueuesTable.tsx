@@ -88,14 +88,14 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       header: "Completed Items",
       enableHiding: true,
       size: 90,
-      formatter: String,
+      formatter: (value) => String(value),
     }),
     createNumberTableColumn<RowData>({
       accessorKey: "countPendingItems",
       header: "Pending Items",
       enableHiding: true,
       size: 90,
-      formatter: String,
+      formatter: (value) => String(value),
     }),
     {
       accessorKey: "scoreConfigs",

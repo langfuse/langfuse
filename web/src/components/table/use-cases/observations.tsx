@@ -1134,50 +1134,30 @@ export default function ObservationsTable({
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.cost.inputCost,
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value: {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            } = row.getValue("cost");
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
+          emptyValue: "-",
+          formatter: (value, { row }) =>
+            formatObservationCost(value, row.original.type),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.cost.outputCost,
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value: {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            } = row.getValue("cost");
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
+          emptyValue: "-",
+          formatter: (value, { row }) =>
+            formatObservationCost(value, row.original.type),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
   ];

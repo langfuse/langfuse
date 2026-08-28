@@ -1363,7 +1363,7 @@ export default function ObservationsEventsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          formatter: String,
+          formatter: (value) => String(value),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
