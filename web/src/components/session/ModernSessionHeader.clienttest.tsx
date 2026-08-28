@@ -1,5 +1,4 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -75,11 +74,10 @@ describe("ModernSessionHeader", () => {
     localStorage.clear();
   });
 
-  it("hides and reveals a detail while persisting the preference", async () => {
-    const user = userEvent.setup();
+  it("hides and reveals a detail while persisting the preference", () => {
     render(<ModernSessionHeader {...defaultProps} />);
 
-    await user.click(
+    fireEvent.click(
       screen.getByRole("button", {
         name: "Hide trace and span counts in session header",
       }),
@@ -103,12 +101,12 @@ describe("ModernSessionHeader", () => {
       },
     );
 
-    await user.click(
+    fireEvent.click(
       screen.getByRole("button", {
         name: "Show 1 hidden session details",
       }),
     );
-    await user.click(
+    fireEvent.click(
       screen.getByRole("button", {
         name: "Show trace and span counts in session header",
       }),
@@ -124,13 +122,11 @@ describe("ModernSessionHeader", () => {
     ).toBe(JSON.stringify([]));
   });
 
-  it("restores hidden details from project-scoped local storage", async () => {
+  it("restores hidden details from project-scoped local storage", () => {
     localStorage.setItem(
       sessionHeaderVisibilityStorageKey("project-1"),
       JSON.stringify(["traces"]),
     );
-    const user = userEvent.setup();
-
     render(<ModernSessionHeader {...defaultProps} />);
 
     expect(
@@ -138,7 +134,7 @@ describe("ModernSessionHeader", () => {
         name: "Hide trace and span counts in session header",
       }),
     ).not.toBeInTheDocument();
-    await user.click(
+    fireEvent.click(
       screen.getByRole("button", {
         name: "Show 1 hidden session details",
       }),
