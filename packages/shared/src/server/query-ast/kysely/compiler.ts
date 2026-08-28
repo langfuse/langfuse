@@ -79,17 +79,18 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     // visitNode/nodeStack to route the node to visitArrayIndex. Kysely is
     // pinned to 0.28.17 for this; see kysely/README.md ("upgrade hazard").
     const parentVisit = this.visitNode.bind(this);
-    // Anti-pattern: cast through `unknown` to overwrite Kysely's private
-    // `visitNode` (not part of the public type). Deliberate, to avoid a fork.
-    (
-      this as unknown as { visitNode: (node: OperationNode) => void }
-    ).visitNode = (node: OperationNode) => {
+    // Anti-pattern: cast through `unknown` once to reach Kysely's private
+    // `visitNode` / `nodeStack` (not part of the public type). Deliberate, to
+    // avoid a fork.
+    const self = this as unknown as {
+      visitNode: (node: OperationNode) => void;
+      nodeStack: OperationNode[];
+    };
+    self.visitNode = (node: OperationNode) => {
       if (ArrayIndexNode.is(node)) {
-        (this as unknown as { nodeStack: OperationNode[] }).nodeStack.push(
-          node,
-        );
+        self.nodeStack.push(node);
         this.visitArrayIndex(node);
-        (this as unknown as { nodeStack: OperationNode[] }).nodeStack.pop();
+        self.nodeStack.pop();
         return;
       }
       parentVisit(node);

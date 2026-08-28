@@ -103,10 +103,8 @@ function injectSelect(
   ctx: ExecutionContext,
   cteNames: Set<string>,
 ): ClickHouseSelectQueryNode {
-  let next: ClickHouseSelectQueryNode = { ...node };
-
-  const fromRelations = (next.from?.froms ?? []).map(describeRelation);
-  const joinRelations = (next.joins ?? []).map((join) => ({
+  const fromRelations = (node.from?.froms ?? []).map(describeRelation);
+  const joinRelations = (node.joins ?? []).map((join) => ({
     join,
     relation: describeRelation(join.table),
   }));
@@ -137,7 +135,7 @@ function injectSelect(
   // unqualified reference is unambiguous and accepted.
   const requireQualified = tenantedFrom.length + tenantedJoinCount > 1;
 
-  let where = next.where;
+  let where = node.where;
   for (const table of tenantedFrom) {
     if (
       !predicateCovers(where?.where, table, ctx.projectId, requireQualified)
@@ -152,8 +150,7 @@ function injectSelect(
     }
   }
 
-  const joins = (next.joins ?? []).map((join, i) => {
-    const { relation } = joinRelations[i];
+  const joins = joinRelations.map(({ join, relation }) => {
     if (!isTenantedTable(relation)) {
       return join;
     }
@@ -171,13 +168,11 @@ function injectSelect(
     return JoinNode.cloneWithOn(join, predicate);
   });
 
-  next = {
-    ...next,
+  return {
+    ...node,
     ...(where ? { where } : {}),
     ...(joins.length ? { joins } : {}),
   };
-
-  return next;
 }
 
 function assertRelationAllowed(relation: Relation): void {
@@ -197,9 +192,6 @@ function describeRelation(node: OperationNode): Relation {
     if (inner.kind === "table") {
       const alias = identifierName(node.alias);
       return { kind: "table", tableName: inner.tableName, alias };
-    }
-    if (inner.kind === "raw") {
-      return { kind: "raw" };
     }
     return inner;
   }
@@ -323,12 +315,8 @@ function stampTenancy<T extends object>(node: T): T {
   return node;
 }
 
-function isTenancyStamped(node: object): boolean {
-  return TENANCY_STAMPED.has(node);
-}
-
 export function assertTenancyStamped(node: RootOperationNode): void {
-  if (!isTenancyStamped(node)) {
+  if (!TENANCY_STAMPED.has(node)) {
     throw new QueryCompileError(
       "Refusing to compile: the tenancy injection pass was not applied. Compile through compileClickhouseQuery() with an ExecutionContext.",
     );
