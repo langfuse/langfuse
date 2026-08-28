@@ -80,11 +80,9 @@ export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
     // `name` is the only text column, and it is what people look a run up by.
     defaultTextField: "name",
     recentSearches: true,
-    searchExamples: [
-      "dataset:my-evals",
-      "name:sonnet",
-      'metadata."model":opus',
-    ],
+    // `dataset:` takes the dataset ID, not its name — the observed-value picker
+    // offers the ids, so the examples must not imply a name works.
+    searchExamples: ["name:sonnet", "-name:baseline", 'metadata."model":opus'],
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
   });
