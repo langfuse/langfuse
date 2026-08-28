@@ -9,6 +9,7 @@ import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+  parseInAppAgentInterruptEvent,
 } from "@langfuse/shared/in-app-agent";
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -148,6 +149,7 @@ const instrumentationMocks = vi.hoisted(() => {
     recordToolExecutionEnd: vi.fn(),
     recordModelCallStart: vi.fn(),
     recordModelStreamPart: vi.fn(),
+    getLastModelObservationId: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -1682,6 +1684,85 @@ describe("createAgUiStream", () => {
       "requireApproval",
     );
     expect(agentTools?.langfuse_createScoreConfig?.requireApproval).toBe(true);
+  });
+
+  it("persists the parent invoke-model id on approval interrupts", async () => {
+    const { createAgUiStream } = await import("./agent");
+    const parentModelObservationId = "parent-run-1-llm-3";
+    instrumentationMocks.instrumentation.getLastModelObservationId.mockReturnValue(
+      parentModelObservationId,
+    );
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        { id: "user-message-1", role: "user" as const, content: "hello" },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.CUSTOM,
+        name: "on_interrupt",
+        value: {
+          type: "mastra_suspend",
+          toolCallId: "tool-1",
+          toolName: "langfuse_updateDashboardWidget",
+          args: { name: "errors" },
+          runId: "run-1",
+        },
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+    const persistedEvents: AgUiEvent[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onEvent: (event) => {
+          persistedEvents.push(event);
+        },
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient,
+        useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
+      },
+    });
+    await readStream(stream);
+
+    const interrupt = persistedEvents
+      .map((event) => parseInAppAgentInterruptEvent(event))
+      .find(Boolean);
+    expect(interrupt).toEqual(
+      expect.objectContaining({
+        toolCallId: "tool-1",
+        toolName: "langfuse_updateDashboardWidget",
+        parentModelObservationId,
+      }),
+    );
   });
 
   it("executes approved tools manually and continues with tool result history", async () => {

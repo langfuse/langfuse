@@ -11,6 +11,7 @@ import { MCPClient } from "@mastra/mcp";
 import type { Langfuse } from "langfuse";
 
 import {
+  attachInterruptParentModelObservationId,
   type AgUiEvent,
   type InAppAgentToolApprovalRequest,
 } from "@langfuse/shared/in-app-agent";
@@ -524,13 +525,17 @@ export async function createAgUiStream(params: {
         agUiEvent: AgUiEvent,
         afterPersist?: () => void | Promise<void>,
       ) => {
+        const persistedEvent = attachInterruptParentModelObservationId(
+          agUiEvent,
+          instrumentation?.getLastModelObservationId(),
+        );
         eventQueue = eventQueue
           .then(async () => {
             if (closed) {
               return;
             }
 
-            await params.options.onEvent?.(agUiEvent);
+            await params.options.onEvent?.(persistedEvent);
             await afterPersist?.();
 
             if (closed || !shouldEnqueue) {
