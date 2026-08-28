@@ -69,72 +69,82 @@ export const NewDatasetItemFromExistingObject = (props: {
 
   return (
     <NewDatasetItemFromExistingObjectDialogController {...props}>
-      {({ Trigger }) =>
-        props.isCopyItem ? (
-          <Trigger asChild>
-            <ActionButton
-              variant="outline"
-              size={buttonSize === "sm" ? "icon-xs" : "icon"}
-              hasAccess={hasAccess}
-              title="Copy item"
-              aria-label="Copy item"
-            >
-              <CopyIcon className="size-3" />
-            </ActionButton>
-          </Trigger>
-        ) : observationInDatasets.data &&
-          observationInDatasets.data.length > 0 ? (
-          <div>
-            <DropdownMenu open={hasAccess ? undefined : false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant={isMenu ? "ghost" : "secondary"}
-                  size={isMenu ? "sm" : buttonSize}
-                  disabled={!hasAccess}
-                  className={
-                    isMenu
-                      ? "w-full justify-start gap-2 font-normal"
-                      : undefined
-                  }
-                >
-                  {isMenu ? (
-                    <PlusIcon className="h-4 w-4" aria-hidden="true" />
-                  ) : null}
-                  <span className={isMenu ? "text-sm" : undefined}>
-                    {`In ${observationInDatasets.data.length} dataset(s)`}
-                  </span>
-                  <ChevronDown
-                    className={isMenu ? "ml-auto h-3 w-3" : "ml-2 h-3 w-3"}
-                  />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {observationInDatasets.data.map(
-                  ({ id: datasetItemId, datasetName, datasetId }) => (
-                    <DropdownMenuItem
-                      key={datasetItemId}
-                      className="capitalize"
-                      asChild
-                    >
-                      <Link
-                        href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+      {({ Trigger }) => {
+        if (props.isCopyItem) {
+          return (
+            <Trigger asChild>
+              <ActionButton
+                variant="outline"
+                size={buttonSize === "sm" ? "icon-xs" : "icon"}
+                hasAccess={hasAccess}
+                title="Copy item"
+                aria-label="Copy item"
+              >
+                <CopyIcon className="size-3" />
+              </ActionButton>
+            </Trigger>
+          );
+        }
+
+        if (
+          observationInDatasets.data &&
+          observationInDatasets.data.length > 0
+        ) {
+          return (
+            <div>
+              <DropdownMenu open={hasAccess ? undefined : false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isMenu ? "ghost" : "secondary"}
+                    size={isMenu ? "sm" : buttonSize}
+                    disabled={!hasAccess}
+                    className={
+                      isMenu
+                        ? "w-full justify-start gap-2 font-normal"
+                        : undefined
+                    }
+                  >
+                    {isMenu ? (
+                      <PlusIcon className="h-4 w-4" aria-hidden="true" />
+                    ) : null}
+                    <span className={isMenu ? "text-sm" : undefined}>
+                      {`In ${observationInDatasets.data.length} dataset(s)`}
+                    </span>
+                    <ChevronDown
+                      className={isMenu ? "ml-auto h-3 w-3" : "ml-2 h-3 w-3"}
+                    />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {observationInDatasets.data.map(
+                    ({ id: datasetItemId, datasetName, datasetId }) => (
+                      <DropdownMenuItem
+                        key={datasetItemId}
+                        className="capitalize"
+                        asChild
                       >
-                        {datasetName}
-                      </Link>
+                        <Link
+                          href={`/project/${props.projectId}/datasets/${datasetId}/items/${datasetItemId}`}
+                        >
+                          {datasetName}
+                        </Link>
+                      </DropdownMenuItem>
+                    ),
+                  )}
+                  <DropdownMenuSeparator />
+                  <Trigger asChild>
+                    <DropdownMenuItem className="capitalize">
+                      <PlusIcon size={16} className="mr-2" aria-hidden="true" />
+                      Add to more datasets
                     </DropdownMenuItem>
-                  ),
-                )}
-                <DropdownMenuSeparator />
-                <Trigger asChild>
-                  <DropdownMenuItem className="capitalize">
-                    <PlusIcon size={16} className="mr-2" aria-hidden="true" />
-                    Add to more datasets
-                  </DropdownMenuItem>
-                </Trigger>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : (
+                  </Trigger>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        }
+
+        return (
           <Trigger asChild>
             <Button
               onClick={() => {
@@ -175,8 +185,8 @@ export const NewDatasetItemFromExistingObject = (props: {
               ) : null}
             </Button>
           </Trigger>
-        )
-      }
+        );
+      }}
     </NewDatasetItemFromExistingObjectDialogController>
   );
 };
