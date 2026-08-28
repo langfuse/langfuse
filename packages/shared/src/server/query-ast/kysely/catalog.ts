@@ -2,7 +2,7 @@ import type { ClickhouseCompilable } from "./compile";
 import { getClickhouseKysely } from "./dialect";
 import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
 
-export type CatalogTier = 0 | 1 | 2 | 3 | 4;
+type CatalogTier = 0 | 1 | 2 | 3 | 4;
 
 export type CatalogEntry = {
   id: string;

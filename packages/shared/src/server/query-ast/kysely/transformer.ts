@@ -26,6 +26,11 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     queryId?: QueryId,
   ): T {
     if (ArrayIndexNode.is(node)) {
+      // Anti-pattern: cast through `unknown`. ArrayIndexNode is a custom kind
+      // outside Kysely's closed OperationNode union, so `transformArrayIndex`'s
+      // return type cannot be proven assignable to the generic `T` the base
+      // method is parameterized over. The `.is` guard above establishes at
+      // runtime that `T` is ArrayIndexNode here, so the cast is sound.
       return this.transformArrayIndex(node) as unknown as T;
     }
     return super.transformNodeImpl(node, queryId);

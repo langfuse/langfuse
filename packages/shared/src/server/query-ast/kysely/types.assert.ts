@@ -5,8 +5,9 @@ import { arrayJoin, limitBy, mapKeys, mapValues } from "./extensions";
 import { defineView, fromView } from "./views";
 
 /**
- * Compile-time assertions for condition 7 / 8. Never called at runtime;
- * `tsc` is the test. `@ts-expect-error` must stay unused-error-free.
+ * Compile-time assertions that the typed schema and virtual views enforce their
+ * guarantees at the type layer. Never called at runtime; `tsc` is the test, and
+ * every `@ts-expect-error` must stay a real (unused-error-free) error.
  *
  * Which layer catches what:
  * - DateTime vs Int comparison: TS types (Kysely OperandValueExpression)
@@ -16,7 +17,7 @@ import { defineView, fromView } from "./views";
  *   is any ReferenceExpression) — caught by the runtime validation pass
  * - column-name auto-complete: yes, from ClickHouseDatabase schema keys
  */
-export function condition7TypeAssertions(): void {
+export function schemaTypeAssertions(): void {
   const db = getClickhouseKysely();
 
   db.selectFrom("events_core")

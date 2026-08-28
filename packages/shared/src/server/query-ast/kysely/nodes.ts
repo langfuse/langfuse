@@ -14,7 +14,7 @@ import {
  */
 export type ArrayJoinVariant = "default" | "left" | "inner";
 
-export type ArrayJoinItemNode = {
+type ArrayJoinItemNode = {
   readonly expression: OperationNode;
   readonly alias: IdentifierNode;
 };

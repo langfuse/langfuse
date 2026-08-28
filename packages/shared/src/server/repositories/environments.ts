@@ -16,10 +16,10 @@ export const getEnvironmentsForProject = async (
   const { projectId, fromTimestamp } = props;
   const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
   const db = getClickhouseKysely();
-  // project_id is intentionally not filtered in the query bodies below: the
-  // compile step's mandatory tenancy pass injects `project_id = {projectId}`
-  // into every tenanted relation from this context, and refuses to compile a
-  // query that has no scope.
+  // Tenancy is applied at compile time: compileClickhouseQuery injects
+  // `project_id = {projectId}` into every tenanted relation and refuses to
+  // compile an unscoped query, so the query bodies below carry no project_id
+  // filter of their own.
   const ctx: ExecutionContext = { projectId };
 
   // In dual/events_only write modes all tracing data lands in events_core (the
