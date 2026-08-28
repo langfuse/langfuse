@@ -65,6 +65,8 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { captureIoFormatToggle } from "@/src/features/posthog-analytics/ioFormatToggleContext";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -180,9 +182,21 @@ export function ConnectedObservationDetailView({
   const currentView = jsonViewPreference;
   const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
+  const capture = usePostHogClientCapture();
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
+      const nextView =
+        tab === "pretty" ? "pretty" : jsonBetaEnabled ? "json-beta" : "json";
+      if (nextView !== jsonViewPreference) {
+        captureIoFormatToggle(
+          capture,
+          nextView,
+          selectedTab === "preview"
+            ? { observationType: observation.type }
+            : {},
+        );
+      }
       if (tab === "pretty") {
         setJsonViewPreference("pretty");
       } else {
@@ -190,7 +204,14 @@ export function ConnectedObservationDetailView({
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
     },
-    [jsonBetaEnabled, setJsonViewPreference],
+    [
+      capture,
+      jsonBetaEnabled,
+      jsonViewPreference,
+      observation.type,
+      selectedTab,
+      setJsonViewPreference,
+    ],
   );
 
   const handleBetaToggle = useCallback(
@@ -502,6 +523,7 @@ export function ConnectedObservationDetailView({
               projectId,
               traceId,
               environment: observation.environment,
+              observationType: observation.type,
             }}
           />
         </TabsBarContent>

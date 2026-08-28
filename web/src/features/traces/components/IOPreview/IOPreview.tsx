@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { captureIoFormatToggle } from "@/src/features/posthog-analytics/ioFormatToggleContext";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -88,6 +89,8 @@ export interface IOPreviewProps extends ExpansionStateProps {
   traceId: string;
   environment?: string;
   showCorrections?: boolean;
+  /** Observation type or "trace". Omit when unknown. */
+  observationType?: string;
 }
 
 /**
@@ -148,6 +151,7 @@ export function IOPreview({
   traceId,
   environment = "default",
   showCorrections = true,
+  observationType,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -173,7 +177,9 @@ export function IOPreview({
   // Handle view change with analytics
   const handleViewChange = (view: ViewMode) => {
     startPreserveScroll();
-    capture("trace_detail:io_mode_switch", { view });
+    if (view !== selectedView) {
+      captureIoFormatToggle(capture, view, { observationType });
+    }
     setLocalCurrentView(view);
   };
 
@@ -205,6 +211,7 @@ export function IOPreview({
     traceId,
     environment,
     showCorrections,
+    observationType,
   };
 
   // Only show empty state popup for traces (not observations) when there's no input/output
@@ -293,6 +300,7 @@ export function IOPreview({
           traceId={traceId}
           environment={environment}
           showCorrections={showCorrections}
+          observationType={observationType}
         />
       ) : (
         <IOPreviewPretty

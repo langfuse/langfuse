@@ -39,6 +39,7 @@ export interface IOPreviewJSONSimpleProps {
   onOutputExpandedChange?: (expanded: boolean) => void;
   onMetadataExpandedChange?: (expanded: boolean) => void;
   showCorrections?: boolean;
+  observationType?: string;
 }
 
 /**
@@ -82,6 +83,7 @@ export function IOPreviewJSONSimple({
   traceId,
   environment = "default",
   showCorrections = true,
+  observationType,
 }: IOPreviewJSONSimpleProps) {
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
@@ -161,6 +163,8 @@ export function IOPreviewJSONSimple({
                 expansion: boolean | Record<string, boolean>,
               ) => void
             }
+            observationType={observationType}
+            ioField="input"
           />
         ))}
       {showOutput &&
@@ -187,6 +191,8 @@ export function IOPreviewJSONSimple({
                 expansion: boolean | Record<string, boolean>,
               ) => void
             }
+            observationType={observationType}
+            ioField="output"
           />
         ))}
       {/* When the output is over-limit, effectiveOutput is undefined, so the
@@ -229,6 +235,8 @@ export function IOPreviewJSONSimple({
                 expansion: boolean | Record<string, boolean>,
               ) => void
             }
+            observationType={observationType}
+            ioField="metadata"
           />
         ))}
     </div>

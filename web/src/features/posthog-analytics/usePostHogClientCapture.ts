@@ -25,7 +25,13 @@ const events = {
     "observation_tree_expand",
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
+    // Formatted/JSON tabs. Payload: `view` plus optional `observationType`
+    // (GENERATION / SPAN / TOOL / … or "trace") and `ioField` (input | output
+    // | metadata). Omit either rather than guessing. Metadata only.
     "io_mode_switch",
+    // Dual-written from the same tabs (`renderMarkdown` = view === "pretty")
+    // so queries on this name can split by observationType. Unused handlers
+    // in JSONView / MarkdownView also fire it.
     "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",

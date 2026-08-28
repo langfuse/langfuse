@@ -33,6 +33,7 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  observationType?: string;
 }
 
 /**
@@ -55,6 +56,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
+  observationType,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -128,6 +130,7 @@ export function ChatMessageList({
                 toolCallNumbers={messageToToolCallNumbers.get(originalIndex)}
                 isOutputMessage={originalIndex >= (inputMessageCount ?? 0)}
                 contentMode={contentMode}
+                observationType={observationType}
               />
               {/* Show collapse/expand button after first message */}
               {isCollapsed !== null &&
@@ -153,6 +156,8 @@ export function ChatMessageList({
             title="Additional Input"
             json={additionalInput}
             currentView={shouldRenderMarkdown ? "pretty" : "json"}
+            observationType={observationType}
+            ioField="input"
           />
         )}
 

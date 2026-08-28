@@ -17,6 +17,10 @@ import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  type IoFormatToggleContext,
+  ioFormatToggleProperties,
+} from "@/src/features/posthog-analytics/ioFormatToggleContext";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
@@ -32,22 +36,24 @@ import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 
 export const IO_TABLE_CHAR_LIMIT = 10000;
 
-export function JSONView(props: {
-  canEnableMarkdown?: boolean;
-  json?: unknown;
-  title?: string;
-  hideTitle?: boolean;
-  className?: string;
-  isLoading?: boolean;
-  codeClassName?: string;
-  collapseStringsAfterLength?: number | null;
-  media?: MediaReturnType[];
-  scrollable?: boolean;
-  borderless?: boolean;
-  controlButtons?: React.ReactNode;
-  externalJsonCollapsed?: boolean;
-  onToggleCollapse?: () => void;
-}) {
+export function JSONView(
+  props: {
+    canEnableMarkdown?: boolean;
+    json?: unknown;
+    title?: string;
+    hideTitle?: boolean;
+    className?: string;
+    isLoading?: boolean;
+    codeClassName?: string;
+    collapseStringsAfterLength?: number | null;
+    media?: MediaReturnType[];
+    scrollable?: boolean;
+    borderless?: boolean;
+    controlButtons?: React.ReactNode;
+    externalJsonCollapsed?: boolean;
+    onToggleCollapse?: () => void;
+  } & IoFormatToggleContext,
+) {
   // some users ingest stringified json nested in json, parse it. Also decode
   // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
   // non-ASCII content renders as real characters. Already-decoded strings are
@@ -86,6 +92,10 @@ export function JSONView(props: {
     setIsMarkdownEnabled(true);
     capture("trace_detail:io_pretty_format_toggle_group", {
       renderMarkdown: true,
+      ...ioFormatToggleProperties({
+        observationType: props.observationType,
+        ioField: props.ioField,
+      }),
     });
   };
 

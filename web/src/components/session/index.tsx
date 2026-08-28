@@ -2011,6 +2011,7 @@ export const SessionIO = ({
           traceId={traceId}
           environment={previewEnvironment}
           showCorrections={showCorrections}
+          observationType="trace"
         />
       ) : (
         <div className="text-muted-foreground p-2 text-xs">

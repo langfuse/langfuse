@@ -50,6 +50,8 @@ import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { captureIoFormatToggle } from "@/src/features/posthog-analytics/ioFormatToggleContext";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -106,15 +108,32 @@ export function TraceDetailView({
   const selectedViewTab =
     jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
 
+  const capture = usePostHogClientCapture();
+
   const handleViewTabChange = useCallback(
     (tab: string) => {
+      const nextView =
+        tab === "pretty" ? "pretty" : jsonBetaEnabled ? "json-beta" : "json";
+      if (nextView !== jsonViewPreference) {
+        captureIoFormatToggle(
+          capture,
+          nextView,
+          selectedTab === "preview" ? { observationType: "trace" } : {},
+        );
+      }
       if (tab === "pretty") {
         setJsonViewPreference("pretty");
       } else {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
       }
     },
-    [jsonBetaEnabled, setJsonViewPreference],
+    [
+      capture,
+      jsonBetaEnabled,
+      jsonViewPreference,
+      selectedTab,
+      setJsonViewPreference,
+    ],
   );
 
   const handleBetaToggle = useCallback(
@@ -433,6 +452,7 @@ export function TraceDetailView({
               projectId={projectId}
               traceId={trace.id}
               environment={trace.environment}
+              observationType="trace"
             />
           </div>
         </TabsBarContent>
