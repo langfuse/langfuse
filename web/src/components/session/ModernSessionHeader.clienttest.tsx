@@ -172,4 +172,23 @@ describe("ModernSessionHeader", () => {
     expect(storedValue).not.toContain(userId);
     expect(JSON.parse(storedValue ?? "[]")).toHaveLength(1);
   });
+
+  it("preserves preferences for details that are temporarily unavailable", () => {
+    const storageKey = sessionHeaderVisibilityStorageKey("project-1");
+    localStorage.setItem(storageKey, JSON.stringify(["latency"]));
+    render(
+      <ModernSessionHeader {...defaultProps} traces={{ state: "loading" }} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hide trace and span counts in session header",
+      }),
+    );
+
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? "[]")).toEqual([
+      "latency",
+      "traces",
+    ]);
+  });
 });

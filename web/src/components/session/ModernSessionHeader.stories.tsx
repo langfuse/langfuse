@@ -360,6 +360,12 @@ export const TestHidesAndRevealsDetails = meta.story({
     await expect(visibleTraceDetail).toBeInTheDocument();
     hideTraceDetail.focus();
     await waitFor(() => expect(hideTraceDetail).toBeVisible());
+    await expect(
+      hideTraceDetail.getBoundingClientRect().width,
+    ).toBeGreaterThanOrEqual(24);
+    await expect(
+      hideTraceDetail.getBoundingClientRect().height,
+    ).toBeGreaterThanOrEqual(24);
     await userEvent.click(hideTraceDetail);
     await expect(
       canvas.queryByRole("button", {
