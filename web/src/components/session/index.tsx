@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
@@ -15,8 +16,9 @@ import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { useSession } from "next-auth/react";
 import {
   CheckIcon,
@@ -25,6 +27,8 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
+  MessageSquare,
+  MessageSquareOff,
   ListPlus,
   MoreVertical,
 } from "lucide-react";
@@ -116,7 +120,7 @@ import {
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
 
-export function SessionUsers({
+function SessionUsers({
   projectId,
   users,
 }: {
@@ -436,6 +440,8 @@ export const SessionPage: React.FC<{
       // traceId: not written here, but cleared so a v4-dialect shared URL
       // cannot pin the trace peek (LFE-11041).
       queryParams: ["observation", "display", "timestamp", "traceId"],
+      tableName: "sessions",
+      isV4: false,
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
@@ -548,14 +554,45 @@ export const SessionPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 key="comment"
-                variant="outline"
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="gap-1"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Add comment</span>
+                        {getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        ) ? (
+                          <ActionButtonCountBadge
+                            count={
+                              getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              ) ?? 0
+                            }
+                          />
+                        ) : null}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <div className="flex items-start">
                 <AnnotateDrawer
                   projectId={projectId}
@@ -618,14 +655,41 @@ export const SessionPage: React.FC<{
                 label="Share"
               />
               <CopySessionIdButton sessionId={sessionId} layout="menu" />
-              <CommentDrawerButton
-                variant="outline"
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                layout="menu"
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
+                    )}
+                    <span className="text-sm">Add comment</span>
+                    {!disabled &&
+                    getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                      <ActionButtonCountBadge
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          ) ?? 0
+                        }
+                      />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <AnnotateDrawer
                 projectId={projectId}
                 scoreTarget={{
@@ -764,6 +828,8 @@ export const SessionPage: React.FC<{
           closePeek={closePeek}
           expandPeek={expandPeek}
           resolveDetailNavigationPath={resolveDetailNavigationPath}
+          tableName="sessions"
+          isV4={false}
           projectId={projectId}
         />
       </Page>
@@ -952,6 +1018,8 @@ const LoadedSessionEventsPage: React.FC<{
       // traceId: not written here, but cleared so a v4-dialect shared URL
       // cannot pin the trace peek (LFE-11041).
       queryParams: ["observation", "display", "timestamp", "traceId"],
+      tableName: "session-events",
+      isV4: true,
       // observationId: set by a card's "Open in trace view" on a truncated
       // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
@@ -1460,14 +1528,45 @@ const LoadedSessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <CommentDrawerButton
+              <CommentDrawerController
                 key="comment"
-                variant="outline"
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="gap-1"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <>
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Add comment</span>
+                        {getNumberFromMap(
+                          sessionCommentCounts.data,
+                          sessionId,
+                        ) ? (
+                          <ActionButtonCountBadge
+                            count={
+                              getNumberFromMap(
+                                sessionCommentCounts.data,
+                                sessionId,
+                              ) ?? 0
+                            }
+                          />
+                        ) : null}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <div className="flex items-start">
                 <AnnotateDrawer
                   projectId={projectId}
@@ -1553,14 +1652,41 @@ const LoadedSessionEventsPage: React.FC<{
                 label="Share"
               />
               <CopySessionIdButton sessionId={sessionId} layout="menu" />
-              <CommentDrawerButton
-                variant="outline"
+              <CommentDrawerController
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
                 count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
-                layout="menu"
-              />
+              >
+                {({ disabled, openDrawer }) => (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    className="w-full justify-start gap-2 font-normal"
+                  >
+                    {disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
+                    )}
+                    <span className="text-sm">Add comment</span>
+                    {!disabled &&
+                    getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
+                      <ActionButtonCountBadge
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            sessionId,
+                          ) ?? 0
+                        }
+                      />
+                    ) : null}
+                  </Button>
+                )}
+              </CommentDrawerController>
               <AnnotateDrawer
                 projectId={projectId}
                 scoreTarget={{
@@ -1820,6 +1946,8 @@ const LoadedSessionEventsPage: React.FC<{
           closePeek={closePeek}
           expandPeek={expandPeek}
           resolveDetailNavigationPath={resolveDetailNavigationPath}
+          tableName="session-events"
+          isV4={true}
           projectId={projectId}
         />
       </Page>

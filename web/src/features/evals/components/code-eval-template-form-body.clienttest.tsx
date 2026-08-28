@@ -40,6 +40,24 @@ describe("CodeEvalTemplateFormBody", () => {
     vi.clearAllMocks();
   });
 
+  it("blocks evaluator source from PostHog session recordings", () => {
+    const { container } = render(
+      <CodeEvalTemplateFormBody
+        sourceCode="customer evaluator source"
+        sourceCodeLanguage="PYTHON"
+        onSourceCodeChange={vi.fn()}
+        editable={false}
+        validationResult={null}
+        ctxSample={null}
+      />,
+      { wrapper: TestTooltipProvider },
+    );
+
+    expect(container.querySelector(".ph-no-capture")).toContainElement(
+      container.querySelector(".cm-editor"),
+    );
+  });
+
   it("shows Python validation errors that arrive after the editor mounts", async () => {
     const sourceCode = "def evaluate(ctx):\n  return missing_name";
     const props = {

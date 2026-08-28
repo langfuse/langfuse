@@ -40,7 +40,7 @@ export interface AsyncJsonSource {
  * thread; every call resolves immediately. The same class is what a Worker host
  * would drive, exposing the identical interface across `postMessage`.
  */
-export function createInProcessSource(bytes: Uint8Array): AsyncJsonSource {
+function createInProcessSource(bytes: Uint8Array): AsyncJsonSource {
   const engine = new ByteJsonIndexEngine();
   const root = engine.load(bytes);
   return {

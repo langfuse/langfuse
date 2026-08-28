@@ -14,14 +14,18 @@ import {
   readExperimentPostUsageCache,
   readLegacyApiUsageCache,
 } from "@/src/features/v4/server/v4TransitionCache";
-import { trimLegacyApiUsageRows } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+import {
+  getLegacyApiUsageSummaries,
+  trimLegacyApiUsageRows,
+} from "@/src/features/v4/server/v4TransitionQueryLogUsage";
 import {
   deriveExperimentInstrumentationMigration,
+  getSdkUsageSummaries,
   getSdkUsageSeriesByProject,
 } from "@/src/features/v4/server/v4TransitionSdkUsage";
+import { isActionableLegacyApiUsage } from "@/src/features/v4/utils";
 
-export { getSdkUsageSummaries } from "@/src/features/v4/server/v4TransitionSdkUsage";
-export { getLegacyApiUsageSummaries } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
+export { getSdkUsageSummaries, getLegacyApiUsageSummaries };
 
 const legacyIntegrationExportSources =
   new Set<AnalyticsIntegrationExportSource>([
@@ -213,6 +217,36 @@ export const getTraceLevelEvalSummaries = async ({
 };
 
 /**
+ * Project-scoped migration evidence exposed by the v4 migration API.
+ * Keep MCP and UI consumers on the same data sources and detection windows.
+ */
+export const getProjectV4MigrationData = async ({
+  prisma,
+  projectId,
+}: {
+  prisma: V4TransitionPrisma;
+  projectId: string;
+}) => {
+  const projectIds = [projectId];
+  const [sdkUsage, legacyIntegrations, legacyApiUsage, traceLevelEvals] =
+    await Promise.all([
+      getSdkUsageSummaries({ projectIds }),
+      getLegacyIntegrationSummaries({ prisma, projectIds }),
+      getLegacyApiUsageSummaries({ projectIds }),
+      getTraceLevelEvalSummaries({ prisma, projectIds }),
+    ]);
+
+  return {
+    projectId,
+    forceV3Experience: isForceV3ExperienceProject(projectId),
+    sdkUsage: sdkUsage[0]!,
+    legacyIntegrations: legacyIntegrations[0]!,
+    legacyApiUsage,
+    traceLevelEvals: traceLevelEvals[0]!,
+  };
+};
+
+/**
  * Migration signals for the always-mounted sidebar "Action required" pill.
  * SDK uses the same Redis + live gap-fill path as the panel summaries so the
  * pill cannot go stale relative to them. Deprecated API / experiment signals
@@ -280,7 +314,9 @@ export const getMigrationActions = async ({
     apisActionNeeded:
       apiBlob === null
         ? null
-        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).length > 0,
+        : trimLegacyApiUsageRows(apiBlob.rows, nowMs).some(
+            isActionableLegacyApiUsage,
+          ),
     evalsActionNeeded: (evalSummaries[0]?.traceLevelEvalCount ?? 0) > 0,
     exportsActionNeeded:
       (integrationSummaries[0]?.legacyIntegrationCount ?? 0) > 0,

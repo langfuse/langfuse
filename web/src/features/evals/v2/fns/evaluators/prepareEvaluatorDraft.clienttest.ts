@@ -14,7 +14,6 @@ describe("prepareEvaluatorDraft", () => {
       vars: ["output"],
       variableMapping: [],
       outputDefinition: {
-        version: 2 as const,
         dataType: ScoreDataTypeEnum.NUMERIC,
         score: { description: "Quality" },
         reasoning: { description: "Reasoning" },
@@ -48,10 +47,11 @@ describe("prepareEvaluatorDraft", () => {
       definition: {
         type: "LLM_AS_JUDGE",
         prompt: "Judge {{output}}",
-        provider: "openai",
-        model: "gpt-test",
-        modelParams: { temperature: 0.2 },
-        vars: ["output"],
+        modelConfig: {
+          provider: "openai",
+          model: "gpt-test",
+          modelParams: { temperature: 0.2 },
+        },
         variableMapping: [
           {
             templateVariable: "output",

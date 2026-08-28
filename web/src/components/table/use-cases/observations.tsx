@@ -76,14 +76,14 @@ import {
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import TableIdOrName from "@/src/components/table/table-id";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
-import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -863,7 +863,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<ObservationsTableRow>({
       accessorKey: "toolCalls",
@@ -872,7 +872,7 @@ export default function ObservationsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1095,65 +1095,41 @@ export default function ObservationsTable({
           },
           header: "Tokens per second",
           size: 200,
-          maximumFractionDigits: 1,
+          formatter: (value) => numberFormatter(value, 0, 1),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
         }),
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.inputUsage,
           id: "inputTokens",
           header: "Input Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "outputTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.outputUsage,
           id: "outputTokens",
           header: "Output Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
-        },
-        {
-          accessorKey: "totalTokens",
+          formatter: (value) => numberFormatter(value, 0),
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.usage.totalUsage,
           id: "totalTokens",
           header: "Total Tokens",
           size: 100,
-          loadingCell: <TableTextLoadingCell />,
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          cell: ({ row }) => {
-            const value: {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            } = row.getValue("usage");
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
-        },
+          formatter: (value) => numberFormatter(value, 0),
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
     {
@@ -1233,6 +1209,8 @@ export default function ObservationsTable({
       "traceId",
       "startTime",
     ],
+    tableName: observationsFilterConfig.tableName,
+    isV4: false,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: ObservationsTableRow) => ({
       traceId: row.traceId || "",

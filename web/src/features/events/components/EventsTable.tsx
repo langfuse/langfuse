@@ -37,17 +37,21 @@ import {
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import {
   formatObservationCost,
   isObservationCostDisplayable,
@@ -1409,8 +1413,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     createNumberTableColumn<EventsTableRow>({
       accessorKey: "toolCalls",
@@ -1419,8 +1422,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       enableSorting,
       defaultHidden: true,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      formatter: (value) => numberFormatter(value, 0, 0),
     }),
     {
       accessorKey: "timeToFirstToken",
@@ -1452,31 +1454,24 @@ export default function ObservationsEventsTable({
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "tokensPerSecond",
+        createNumberTableColumn<EventsTableRow>({
+          accessorFn: (row) => {
+            const { latency, usage } = row;
+            if (latency === undefined) return undefined;
+            if (usage.outputUsage === 0 && usage.totalUsage === 0)
+              return undefined;
+            if (!usage.outputUsage || !latency) return undefined;
+
+            return Number((usage.outputUsage / latency).toFixed(1));
+          },
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          cell: ({ row }) => {
-            const latency: number | undefined = row.getValue("latency");
-            const usage = row.getValue("usage") as {
-              inputUsage: number;
-              outputUsage: number;
-              totalUsage: number;
-            };
-            return latency !== undefined &&
-              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
-              <span>
-                {usage.outputUsage && latency
-                  ? Number((usage.outputUsage / latency).toFixed(1))
-                  : undefined}
-              </span>
-            ) : undefined;
-          },
+          formatter: String,
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
-        },
+        }),
         createNumberTableColumn<EventsTableRow>({
           id: "inputTokens",
           accessorFn: (row) => row.usage.inputUsage,
@@ -1485,8 +1480,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
@@ -1496,8 +1490,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
@@ -1507,8 +1500,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
+          formatter: (value) => numberFormatter(value, 0, 0),
         }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
@@ -1663,6 +1655,8 @@ export default function ObservationsEventsTable({
 
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: eventsFilterConfig.tableName,
+    isV4: true,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: EventsTableRow) => ({
       traceId: row.traceId || "",
@@ -1878,6 +1872,8 @@ export default function ObservationsEventsTable({
                     updateQuery={setSearchQuery}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4
                   />
                 )
               }
@@ -1995,6 +1991,8 @@ export default function ObservationsEventsTable({
               columns={columns}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
+              tableName={eventsFilterConfig.tableName}
+              isV4={true}
               searchConfig={
                 // In search-bar mode full-text search (bare text +
                 // content:/input:/output:) lives inline in the bar, so the

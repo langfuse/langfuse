@@ -11,9 +11,7 @@ import { type Flags } from "./types";
 export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
 
-export const receivesFeaturePreviewsByDefault = (
-  email: string | null | undefined,
-) => {
+const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
   return (
     normalizedEmail?.endsWith("@langfuse.com") === true ||

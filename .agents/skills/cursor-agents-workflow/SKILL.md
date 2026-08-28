@@ -86,6 +86,10 @@ video, or before/after. Docs-only changes can skip this.
 
 ## What to doubt
 
+Cursor only. Post this GitHub comment only when it will be attributed to
+Cursor, not to a human author. Claude Code and other tools that comment as
+the authenticated user must skip this section.
+
 When the PR is ready for a human, post one last GitHub PR comment (not a
 changelog) that names the risky or curious parts:
 

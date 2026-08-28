@@ -1,9 +1,28 @@
-import { LangfuseConflictError, EvalTargetObject } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  LangfuseConflictError,
+  EvalTargetObject,
+} from "@langfuse/shared";
 import {
   type PrismaClient,
   type Prisma,
   JobConfigState,
 } from "@langfuse/shared/src/db";
+
+/**
+ * Enforced for every surface (tRPC, MCP, public API) through this shared guard,
+ * so the documented contract cannot drift per entry point.
+ */
+export function assertEnabledRuleHasAssignments(params: {
+  enabled: boolean;
+  assignmentCount: number;
+}) {
+  if (params.enabled && params.assignmentCount === 0) {
+    throw new InvalidRequestError(
+      "An enabled evaluation rule requires at least one evaluator assignment",
+    );
+  }
+}
 
 /**
  * Cap on simultaneously active evaluation rules per project. Enforced for every

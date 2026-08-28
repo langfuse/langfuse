@@ -7,13 +7,13 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { IOTableCell } from "../../ui/IOTableCell";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -238,6 +238,8 @@ export default function ScoresTable({
     // the peek to that trace instead of the one just clicked — matches the
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: scoresFilterConfig.tableName,
+    isV4: isBetaEnabled,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -732,119 +734,133 @@ export default function ScoresTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "traceName",
       header: "Trace Name",
-      id: "traceName",
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
-        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
+      getCell: (value) => {
+        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (!value) return undefined;
+
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
         );
-        return value ? (
-          <TableLink
-            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
-            value={value}
-          />
-        ) : undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces?filter=${filter}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       enableColumnFilter: true,
       header: "Trace",
       enableSorting: true,
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
-              value={value}
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        if (peekEnabled) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(value)}`,
+              value,
               // Opens the trace in the peek side panel instead of navigating
-              // away; a modifier-click (cmd/ctrl, middle-click) still opens
-              // the real page in a new tab via the href above.
-              onClick={peekEnabled ? () => openScorePeek(value) : undefined}
-            />
-          </>
-        ) : undefined;
+              // away; a modifier-click still opens the href in a new tab.
+              onClick: () => openScorePeek(value),
+            },
+          };
+        }
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(value)}`,
+            value,
+            onClick: undefined,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "observationId",
-      id: "observationId",
       header: "Observation",
       enableSorting: true,
       size: 100,
-      cell: ({ row }) => {
-        const observationId = row.getValue(
-          "observationId",
-        ) as ScoresTableRow["observationId"];
+      getCell: (observationId, { row }) => {
         const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
-        return traceId && observationId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
-            value={observationId}
-            // extractParamsValuesFromRow reads `row.observationId` (the
-            // original, not the table row wrapper) to add `?observation=`
-            // to the peek URL, focusing this observation within the trace.
-            onClick={
-              peekEnabled
-                ? () => openScorePeek(traceId, row.original)
-                : undefined
-            }
-          />
-        ) : undefined;
+        if (!traceId || !observationId) return undefined;
+
+        if (peekEnabled) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`,
+              value: observationId,
+              // extractParamsValuesFromRow reads the original row to focus
+              // this observation within the trace in the peek URL.
+              onClick: () => openScorePeek(traceId, row.original),
+            },
+          };
+        }
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`,
+            value: observationId,
+            onClick: undefined,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "executionTraceId",
-      id: "executionTraceId",
       header: "Execution Trace",
       enableSorting: false,
       enableHiding: true,
       defaultHidden: true,
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("executionTraceId");
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
-            value={value}
-          />
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "sessionId",
       header: "Session",
-      id: "sessionId",
       enableHiding: true,
       enableSorting: true,
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("sessionId");
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
-            value={value}
-          />
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/sessions/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       headerTooltip: {
         description: "The user ID associated with the trace.",
         href: "https://langfuse.com/docs/observability/features/users",
@@ -853,49 +869,40 @@ export default function ScoresTable({
       enableSorting: true,
       defaultHidden: true,
       size: 100,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
-        const value = row.getValue("userId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+      getCell: (value) => {
+        if (isBetaEnabled && !scoreMetrics.data) return { type: "loading" };
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createUserTableColumn<ScoresTableRow, ScoresTableRow["author"]>({
       accessorKey: "author",
-      id: "author",
       header: "Author",
       enableHiding: true,
       defaultHidden: true,
       size: 150,
-      cell: ({ row }) => {
-        const { userId, name, image } = row.getValue(
-          "author",
-        ) as ScoresTableRow["author"];
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{name ?? userId}</span>
-          </div>
-        );
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (author) => {
+        if (!author) return undefined;
+
+        const { userId, name, image } = author;
+        return {
+          type: "user",
+          user: { id: userId, name, image },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "jobConfigurationId",
       header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
-      id: "jobConfigurationId",
       headerTooltip: {
         description: isBetaEnabled
           ? "The evaluator associated with the score."
@@ -906,24 +913,32 @@ export default function ScoresTable({
       enableSorting: false,
       defaultHidden: true,
       size: 150,
-      cell: ({ row }) => {
-        const value = isBetaEnabled
-          ? row.original.evaluatorId
-          : row.getValue("jobConfigurationId");
+      getCell: (_, { row }) => {
+        if (isBetaEnabled) {
+          const value = row.original.evaluatorId;
+          if (typeof value !== "string") return undefined;
+
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/evals/${value}`,
+              value,
+            },
+          };
+        }
+
+        const value = row.getValue("jobConfigurationId");
         if (typeof value !== "string") return undefined;
 
-        return (
-          <TableLink
-            path={
-              isBetaEnabled
-                ? `/project/${projectId}/evals/${value}`
-                : `/project/${projectId}/evals/legacy/${value}`
-            }
-            value={value}
-          />
-        );
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/evals/legacy/${value}`,
+            value,
+          },
+        };
       },
-    },
+    }),
   ];
 
   const tableActions: TableAction[] = [
@@ -1241,6 +1256,8 @@ export default function ScoresTable({
             closePeek={closeScorePeek}
             expandPeek={expandScorePeek}
             itemType="TRACE"
+            tableName={scoresFilterConfig.tableName}
+            isV4={isBetaEnabled}
             projectId={projectId}
           />
         )}

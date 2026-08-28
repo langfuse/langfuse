@@ -1,5 +1,5 @@
 // LFE-7628: general comment counts use the square speech bubble, matching the
-// CommentDrawerButton, to stay distinct from per-score comment indicators.
+// CommentDrawerController, to stay distinct from per-score comment indicators.
 import { MessageSquareMore } from "lucide-react";
 
 export function CommentCountIcon({ count }: { count?: number }) {

@@ -5,9 +5,8 @@ import { useCallback } from "react";
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
 // resource:action, only use snake_case
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const events = {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const events = {
   table: [
     "filter_builder_open",
     "filter_builder_close",
@@ -212,6 +211,8 @@ export const events = {
     "save_to_prompt_version_button_click",
   ],
   dashboard: [
+    "view",
+    "widget_saved",
     "clone_dashboard",
     "home_dashboard_viewed",
     "home_dashboard_peeked",
@@ -281,6 +282,20 @@ export const events = {
     "charts_view_removed",
     "compare_run_added",
     "compare_run_removed",
+  ],
+  // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
+  // never experiment or dataset names, score values, or item content.
+  // `isV4` + `tableName` on every event. `source` on comparison/baseline
+  // distinguishes picker vs table-selection vs url (deep link / redirect).
+  experiment: [
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "chart_metric_changed",
+    "charts_section_toggled",
+    "analytics_tab_opened",
+    "score_column_scope_toggled",
+    "item_regression_filter_applied",
   ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No
