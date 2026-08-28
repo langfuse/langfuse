@@ -4,12 +4,14 @@ import { Readable } from "stream";
 import type { MediaAssociationOrigin } from "@prisma/client";
 
 import { Prisma, prisma } from "../../db";
+import type { DatasetItemMediaField } from "../../domain/dataset-items";
 import {
   getFileExtensionFromContentType,
   type MediaContentType,
   type MediaField,
 } from "../../domain/media";
 import { InternalServerError } from "../../errors";
+import { declarePendingDatasetItemMedia } from "../repositories/dataset-item-media";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { getS3MediaStorageClient } from "../s3";
 import { summarizeS3Error } from "../services/s3SigningDiagnostics";
@@ -171,37 +173,27 @@ export type UploadMediaForTraceResult = {
   outcome: "uploaded" | "reused";
 };
 
+type StoredMediaBytesResult = {
+  mediaId: string;
+  outcome: "uploaded" | "reused";
+  sha256Hash: string;
+};
+
+export type UploadMediaForDatasetItemResult = StoredMediaBytesResult;
+
 /**
- * Persists binary media and links it to a trace or observation.
- *
- * Content is deduplicated per project by its full SHA-256 hash. For new media,
- * the link is created only after S3 upload and the media row's upload status
- * are confirmed, preventing failed uploads from leaving dangling links. This
- * function mutates PostgreSQL and media storage; it does not mutate its input
- * parameters or the caller's normalized OTEL payload.
+ * Writes media bytes to object storage and upserts the `media` row. Dedupes by
+ * project + SHA-256. Does not create trace or dataset associations.
  */
-export async function uploadMediaForTrace(params: {
+async function storeMediaBytes(params: {
   projectId: string;
-  traceId: string;
-  observationId?: string;
-  field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;
   mediaBucket: string;
   mediaPrefix: string;
-  origin: MediaAssociationOrigin;
-}): Promise<UploadMediaForTraceResult> {
-  const {
-    projectId,
-    traceId,
-    observationId,
-    field,
-    contentType,
-    contentBytes,
-    mediaBucket,
-    mediaPrefix,
-    origin,
-  } = params;
+}): Promise<StoredMediaBytesResult> {
+  const { projectId, contentType, contentBytes, mediaBucket, mediaPrefix } =
+    params;
   const sha256Hash = createHash("sha256").update(contentBytes).digest("base64");
   const mediaId = getMediaId(sha256Hash);
   const existingMedia = await prisma.media.findUnique({
@@ -219,15 +211,11 @@ export async function uploadMediaForTrace(params: {
       existingMedia.uploadHttpStatus === 201) &&
     existingMedia.contentType === contentType
   ) {
-    await linkMediaToTraceOrObservation({
-      projectId,
-      traceId,
-      observationId,
+    return {
       mediaId: existingMedia.id,
-      field,
-      origin,
-    });
-    return { mediaId: existingMedia.id, outcome: "reused" };
+      outcome: "reused",
+      sha256Hash,
+    };
   }
 
   const bucketPath = getMediaBucketPath({
@@ -294,15 +282,6 @@ export async function uploadMediaForTrace(params: {
     throw error;
   }
 
-  await linkMediaToTraceOrObservation({
-    projectId,
-    traceId,
-    observationId,
-    mediaId,
-    field,
-    origin,
-  });
-
   recordIncrement("langfuse.media.upload_http_status", 1, {
     status_code: 200,
   });
@@ -310,5 +289,91 @@ export async function uploadMediaForTrace(params: {
     status_code: 200,
   });
 
-  return { mediaId, outcome: "uploaded" };
+  return { mediaId, outcome: "uploaded", sha256Hash };
+}
+
+/**
+ * Persists binary media and links it to a trace or observation.
+ *
+ * Content is deduplicated per project by its full SHA-256 hash. For new media,
+ * the link is created only after S3 upload and the media row's upload status
+ * are confirmed, preventing failed uploads from leaving dangling links. This
+ * function mutates PostgreSQL and media storage; it does not mutate its input
+ * parameters or the caller's normalized OTEL payload.
+ */
+export async function uploadMediaForTrace(params: {
+  projectId: string;
+  traceId: string;
+  observationId?: string;
+  field: MediaField;
+  contentType: MediaContentType;
+  contentBytes: Buffer;
+  mediaBucket: string;
+  mediaPrefix: string;
+  origin: MediaAssociationOrigin;
+}): Promise<UploadMediaForTraceResult> {
+  const {
+    projectId,
+    traceId,
+    observationId,
+    field,
+    contentType,
+    contentBytes,
+    mediaBucket,
+    mediaPrefix,
+    origin,
+  } = params;
+
+  const stored = await storeMediaBytes({
+    projectId,
+    contentType,
+    contentBytes,
+    mediaBucket,
+    mediaPrefix,
+  });
+
+  await linkMediaToTraceOrObservation({
+    projectId,
+    traceId,
+    observationId,
+    mediaId: stored.mediaId,
+    field,
+    origin,
+  });
+
+  return { mediaId: stored.mediaId, outcome: stored.outcome };
+}
+
+/**
+ * Persists binary media and declares a pending dataset-item association that is
+ * claimed when the item is written. Dedupes by project + SHA-256 like the
+ * trace upload path.
+ */
+export async function uploadMediaForDatasetItem(params: {
+  projectId: string;
+  datasetId: string;
+  datasetItemId: string;
+  field: DatasetItemMediaField;
+  contentType: MediaContentType;
+  contentBytes: Buffer;
+  mediaBucket: string;
+  mediaPrefix: string;
+}): Promise<UploadMediaForDatasetItemResult> {
+  const stored = await storeMediaBytes({
+    projectId: params.projectId,
+    contentType: params.contentType,
+    contentBytes: params.contentBytes,
+    mediaBucket: params.mediaBucket,
+    mediaPrefix: params.mediaPrefix,
+  });
+
+  await declarePendingDatasetItemMedia({
+    projectId: params.projectId,
+    datasetId: params.datasetId,
+    datasetItemId: params.datasetItemId,
+    field: params.field,
+    mediaId: stored.mediaId,
+  });
+
+  return stored;
 }

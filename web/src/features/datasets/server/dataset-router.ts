@@ -8,6 +8,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
+import { ingestDatasetItemMediaFromUrl } from "@/src/features/media/server/ingestDatasetItemMediaFromUrl";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
@@ -981,6 +982,31 @@ export const datasetRouter = createTRPCRouter({
       });
 
       return { success: true as const };
+    }),
+  ingestItemMediaFromUrl: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+        field: z.enum(datasetItemMediaFields),
+        url: z.url().max(2048),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      return ingestDatasetItemMediaFromUrl({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
+        datasetItemId: input.datasetItemId,
+        field: input.field,
+        url: input.url,
+      });
     }),
   // Resolve a saved dataset item version's media from dataset_item_media.
   // The create/edit forms instead derive media from the live JSON.

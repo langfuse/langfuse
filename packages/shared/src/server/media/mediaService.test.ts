@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   update: vi.fn(),
   uploadFile: vi.fn(),
+  datasetFindFirst: vi.fn(),
+  datasetItemMediaCreateMany: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({
@@ -18,6 +20,12 @@ vi.mock("../../db", () => ({
       findUnique: mocks.findUnique,
       updateMany: mocks.updateMany,
       update: mocks.update,
+    },
+    dataset: {
+      findFirst: mocks.datasetFindFirst,
+    },
+    datasetItemMedia: {
+      createMany: mocks.datasetItemMediaCreateMany,
     },
   },
 }));
@@ -33,7 +41,7 @@ import { MediaAssociationOrigin } from "@prisma/client";
 
 import { MediaContentType } from "../../domain/media";
 import { recordHistogram, recordIncrement } from "../instrumentation";
-import { uploadMediaForTrace } from "./mediaService";
+import { uploadMediaForDatasetItem, uploadMediaForTrace } from "./mediaService";
 
 const CONTENT_BYTES = Buffer.from("test-image");
 
@@ -184,5 +192,64 @@ describe("uploadMediaForTrace", () => {
     expect(mocks.queryRaw.mock.calls[0]).toContain(
       MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
     );
+  });
+});
+
+describe("uploadMediaForDatasetItem", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.datasetFindFirst.mockResolvedValue({ id: "dataset-id" });
+    mocks.datasetItemMediaCreateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("uploads new bytes and declares a pending dataset association", async () => {
+    mocks.findUnique.mockResolvedValue(null);
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.update.mockResolvedValue({});
+    mocks.uploadFile.mockResolvedValue(undefined);
+
+    const result = await uploadMediaForDatasetItem({
+      projectId: "project-id",
+      datasetId: "dataset-id",
+      datasetItemId: "item-id",
+      field: "input",
+      contentType: MediaContentType.PNG,
+      contentBytes: CONTENT_BYTES,
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+    });
+
+    expect(result.outcome).toBe("uploaded");
+    expect(result.mediaId).toBe("n-vgG9Qb-2loPinXEdit_8");
+    expect(result.sha256Hash).toEqual(expect.any(String));
+    expect(mocks.uploadFile).toHaveBeenCalledTimes(1);
+    expect(mocks.datasetItemMediaCreateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("reuses existing media and still declares a pending association", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "existing-media-id",
+      uploadHttpStatus: 200,
+      contentType: MediaContentType.PNG,
+    });
+
+    const result = await uploadMediaForDatasetItem({
+      projectId: "project-id",
+      datasetId: "dataset-id",
+      datasetItemId: "item-id",
+      field: "expectedOutput",
+      contentType: MediaContentType.PNG,
+      contentBytes: CONTENT_BYTES,
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+    });
+
+    expect(result).toMatchObject({
+      mediaId: "existing-media-id",
+      outcome: "reused",
+    });
+    expect(mocks.uploadFile).not.toHaveBeenCalled();
+    expect(mocks.datasetItemMediaCreateMany).toHaveBeenCalledTimes(1);
   });
 });

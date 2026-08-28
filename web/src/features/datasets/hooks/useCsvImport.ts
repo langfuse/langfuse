@@ -2,17 +2,22 @@ import { useState } from "react";
 import { type RouterInputs, api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MAX_FILE_SIZE_BYTES } from "@/src/features/datasets/components/UploadDatasetCsv";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import {
+  type BulkDatasetItemValidationError,
+  type DatasetItemMediaField,
+} from "@langfuse/shared";
 import chunk from "lodash/chunk";
 import {
   parseCsvClient,
   parseColumns,
   buildSchemaObject,
 } from "@/src/features/datasets/lib/csv/helpers";
+import { rewriteCsvFieldMedia } from "@/src/features/datasets/lib/csv/csvMedia";
 import type {
   CsvColumnPreview,
   FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
+import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 const MIN_CHUNK_SIZE = 1;
 const CHUNK_START_SIZE = 50;
@@ -65,6 +70,14 @@ type UseCsvImportOptions = {
   metadata: CsvColumnPreview[];
 };
 
+type ParsedCsvItem = {
+  id: string;
+  datasetId: string;
+  input: unknown;
+  expectedOutput: unknown;
+  metadata: unknown;
+};
+
 export function useCsvImport(options: UseCsvImportOptions) {
   const [progress, setProgress] = useState<ImportProgress>({
     totalItems: 0,
@@ -78,6 +91,8 @@ export function useCsvImport(options: UseCsvImportOptions) {
   const utils = api.useUtils();
   const mutCreateManyDatasetItems =
     api.datasets.createManyDatasetItems.useMutation({});
+  const ingestItemMediaFromUrl =
+    api.datasets.ingestItemMediaFromUrl.useMutation();
 
   const execute = async (wrapSingleColumn: boolean): Promise<boolean> => {
     const { csvFile, projectId, datasetId, input, expectedOutput, metadata } =
@@ -94,8 +109,7 @@ export function useCsvImport(options: UseCsvImportOptions) {
     let processedCount = 0;
     let headerMap: Map<string, number>;
 
-    const items: RouterInputs["datasets"]["createManyDatasetItems"]["items"] =
-      [];
+    const parsedItems: ParsedCsvItem[] = [];
 
     // Prepare mappings based on field type
     const inputMapping =
@@ -183,11 +197,12 @@ export function useCsvImport(options: UseCsvImportOptions) {
                   wrapSingleColumn,
                 }) ?? undefined;
 
-              items.push({
-                input: JSON.stringify(itemInput),
-                expectedOutput: JSON.stringify(itemExpected),
-                metadata: JSON.stringify(itemMetadata),
+              parsedItems.push({
+                id: safeRandomUUID(),
                 datasetId,
+                input: itemInput,
+                expectedOutput: itemExpected,
+                metadata: itemMetadata,
               });
             } catch (error) {
               throw new Error(
@@ -197,6 +212,54 @@ export function useCsvImport(options: UseCsvImportOptions) {
           },
         },
       });
+
+      setProgress({
+        totalItems: parsedItems.length,
+        processedItems: 0,
+        status: "processing",
+      });
+
+      const urlCache = new Map<string, Promise<string>>();
+
+      const items: RouterInputs["datasets"]["createManyDatasetItems"]["items"] =
+        [];
+
+      for (const parsed of parsedItems) {
+        const convertUrl = (url: string, field: DatasetItemMediaField) => {
+          let pending = urlCache.get(url);
+          if (!pending) {
+            pending = ingestItemMediaFromUrl
+              .mutateAsync({
+                projectId,
+                datasetId,
+                datasetItemId: parsed.id,
+                field,
+                url,
+              })
+              .then((result) => result.referenceString);
+            urlCache.set(url, pending);
+          }
+          return pending;
+        };
+
+        items.push({
+          id: parsed.id,
+          datasetId,
+          input: JSON.stringify(
+            await rewriteCsvFieldMedia(parsed.input, "input", convertUrl),
+          ),
+          expectedOutput: JSON.stringify(
+            await rewriteCsvFieldMedia(
+              parsed.expectedOutput,
+              "expectedOutput",
+              convertUrl,
+            ),
+          ),
+          metadata: JSON.stringify(
+            await rewriteCsvFieldMedia(parsed.metadata, "metadata", convertUrl),
+          ),
+        });
+      }
 
       const optimalChunkSize = getOptimalChunkSize(items, CHUNK_START_SIZE);
       const chunks = chunk(items, optimalChunkSize);
@@ -254,8 +317,8 @@ export function useCsvImport(options: UseCsvImportOptions) {
     utils.datasets.invalidate();
 
     setProgress({
-      totalItems: items.length,
-      processedItems: items.length,
+      totalItems: parsedItems.length,
+      processedItems: parsedItems.length,
       status: "complete",
     });
 
