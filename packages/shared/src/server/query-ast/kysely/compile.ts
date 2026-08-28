@@ -31,7 +31,7 @@ export type ClickhouseCompilable = {
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,
-  ctx?: ExecutionContext,
+  ctx: ExecutionContext,
 ): CompiledClickhouseQuery {
   const scope = requireExecutionContext(ctx);
   const stamped = query

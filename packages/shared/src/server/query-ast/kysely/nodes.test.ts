@@ -16,14 +16,33 @@ import { TenancyInjectionPlugin } from "./tenancy";
 const ctx = { projectId: "proj-1" };
 
 describe("tenancy injection", () => {
-  it("refuses to compile a query with no ExecutionContext", () => {
+  it("requires an ExecutionContext at compile time", () => {
     const qb = getClickhouseKysely()
       .selectFrom("traces")
       .select("environment")
       .where("project_id", "=", "proj-1");
 
+    // The mandatory `ctx` parameter is the primary guard: omitting it is a
+    // type error. The `@ts-expect-error` both documents and enforces that
+    // contract, and the runtime throw is the defense-in-depth backstop for
+    // callers that reach this through an `any` boundary.
+    // @ts-expect-error - ctx is required
     expect(() => compileClickhouseQuery(qb)).toThrow(QueryCompileError);
+    // @ts-expect-error - ctx is required
     expect(() => compileClickhouseQuery(qb)).toThrow(/no tenancy scope/);
+  });
+
+  it("refuses a context with an empty projectId", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("traces")
+      .select("environment")
+      .where("project_id", "=", "proj-1");
+
+    // Type-valid but semantically empty: the type system cannot express
+    // "non-empty string", so the runtime check earns its keep here.
+    expect(() => compileClickhouseQuery(qb, { projectId: "" })).toThrow(
+      /no tenancy scope/,
+    );
   });
 
   it("refuses kysely.compile() when the tenancy pass did not run", () => {
