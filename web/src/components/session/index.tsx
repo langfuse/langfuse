@@ -15,7 +15,9 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerMenuButton } from "@/src/features/scores/components/AnnotateDrawerMenuButton";
+import { AnnotateDrawerToolbarButton } from "@/src/features/scores/components/AnnotateDrawerToolbarButton";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
@@ -594,7 +596,7 @@ export const SessionPage: React.FC<{
                 )}
               </CommentDrawerController>
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   projectId={projectId}
                   scoreTarget={{
                     type: "session",
@@ -605,8 +607,18 @@ export const SessionPage: React.FC<{
                     projectId: projectId,
                     environment: session.data?.environment,
                   }}
-                  buttonVariant="outline"
-                />
+                >
+                  {({ annotationCount, disabled, openDrawer }) => (
+                    <AnnotateDrawerToolbarButton
+                      annotationCount={annotationCount}
+                      buttonVariant="outline"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                      showAnnotationCount={false}
+                      size="default"
+                    />
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
@@ -690,7 +702,7 @@ export const SessionPage: React.FC<{
                   </Button>
                 )}
               </CommentDrawerController>
-              <AnnotateDrawer
+              <AnnotateDrawerController
                 projectId={projectId}
                 scoreTarget={{
                   type: "session",
@@ -701,9 +713,16 @@ export const SessionPage: React.FC<{
                   projectId: projectId,
                   environment: session.data?.environment,
                 }}
-                buttonVariant="outline"
-                layout="menu"
-              />
+              >
+                {({ annotationCount, disabled, openDrawer }) => (
+                  <AnnotateDrawerMenuButton
+                    annotationCount={annotationCount}
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    showAnnotationCount={false}
+                  />
+                )}
+              </AnnotateDrawerController>
               <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}
@@ -1568,7 +1587,7 @@ const LoadedSessionEventsPage: React.FC<{
                 )}
               </CommentDrawerController>
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   projectId={projectId}
                   scoreTarget={{
                     type: "session",
@@ -1579,9 +1598,18 @@ const LoadedSessionEventsPage: React.FC<{
                     projectId: projectId,
                     environment: session.environment,
                   }}
-                  buttonVariant="outline"
-                  showAnnotationCount={isModernSessionEnabled}
-                />
+                >
+                  {({ annotationCount, disabled, openDrawer }) => (
+                    <AnnotateDrawerToolbarButton
+                      annotationCount={annotationCount}
+                      buttonVariant="outline"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                      showAnnotationCount={isModernSessionEnabled}
+                      size="default"
+                    />
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={sessionId}
@@ -1687,7 +1715,7 @@ const LoadedSessionEventsPage: React.FC<{
                   </Button>
                 )}
               </CommentDrawerController>
-              <AnnotateDrawer
+              <AnnotateDrawerController
                 projectId={projectId}
                 scoreTarget={{
                   type: "session",
@@ -1698,10 +1726,16 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId: projectId,
                   environment: session.environment,
                 }}
-                buttonVariant="outline"
-                layout="menu"
-                showAnnotationCount={isModernSessionEnabled}
-              />
+              >
+                {({ annotationCount, disabled, openDrawer }) => (
+                  <AnnotateDrawerMenuButton
+                    annotationCount={annotationCount}
+                    disabled={disabled}
+                    onClick={openDrawer}
+                    showAnnotationCount={isModernSessionEnabled}
+                  />
+                )}
+              </AnnotateDrawerController>
               <AnnotationQueueItemDropdownMenuController
                 projectId={projectId}
                 objectId={sessionId}

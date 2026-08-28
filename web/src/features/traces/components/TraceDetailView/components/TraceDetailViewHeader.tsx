@@ -23,7 +23,9 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerMenuButton } from "@/src/features/scores/components/AnnotateDrawerMenuButton";
+import { AnnotateDrawerToolbarButton } from "@/src/features/scores/components/AnnotateDrawerToolbarButton";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -171,7 +173,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 />
                 {!isAnnotationMode && (
                   <>
-                    <AnnotateDrawer
+                    <AnnotateDrawerController
                       projectId={projectId}
                       scoreTarget={{
                         type: "trace",
@@ -182,8 +184,16 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         projectId: projectId,
                         environment: trace.environment,
                       }}
-                      layout="menu"
-                    />
+                    >
+                      {({ annotationCount, disabled, openDrawer }) => (
+                        <AnnotateDrawerMenuButton
+                          annotationCount={annotationCount}
+                          disabled={disabled}
+                          onClick={openDrawer}
+                          showAnnotationCount={false}
+                        />
+                      )}
+                    </AnnotateDrawerController>
                     <AnnotationQueueItemDropdownMenuController
                       projectId={projectId}
                       objectId={trace.id}
@@ -257,7 +267,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   key={"annotation-drawer-" + trace.id}
                   projectId={projectId}
                   scoreTarget={{
@@ -269,8 +279,18 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     projectId: projectId,
                     environment: trace.environment,
                   }}
-                  size="sm"
-                />
+                >
+                  {({ annotationCount, disabled, openDrawer }) => (
+                    <AnnotateDrawerToolbarButton
+                      annotationCount={annotationCount}
+                      buttonVariant="secondary"
+                      disabled={disabled}
+                      onClick={openDrawer}
+                      showAnnotationCount={false}
+                      size="sm"
+                    />
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={trace.id}

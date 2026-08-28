@@ -3,7 +3,8 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerToolbarButton } from "@/src/features/scores/components/AnnotateDrawerToolbarButton";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -46,7 +47,7 @@ export function SessionTraceActionButtons({
         size={size}
       />
       <div className="flex items-start">
-        <AnnotateDrawer
+        <AnnotateDrawerController
           key={`annotation-drawer-${traceId}`}
           projectId={projectId}
           scoreTarget={{
@@ -54,8 +55,6 @@ export function SessionTraceActionButtons({
             traceId,
           }}
           scores={scores}
-          buttonVariant="outline"
-          size={size}
           analyticsData={{
             type: "trace",
             source: "SessionDetail",
@@ -64,7 +63,18 @@ export function SessionTraceActionButtons({
             projectId,
             environment: environment ?? undefined,
           }}
-        />
+        >
+          {({ annotationCount, disabled, openDrawer }) => (
+            <AnnotateDrawerToolbarButton
+              annotationCount={annotationCount}
+              buttonVariant="outline"
+              disabled={disabled}
+              onClick={openDrawer}
+              showAnnotationCount={false}
+              size={size}
+            />
+          )}
+        </AnnotateDrawerController>
         <AnnotationQueueItemDropdownMenuController
           projectId={projectId}
           objectId={traceId}

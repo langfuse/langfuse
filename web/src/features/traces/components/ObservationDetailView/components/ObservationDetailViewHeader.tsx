@@ -21,7 +21,9 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerMenuButton } from "@/src/features/scores/components/AnnotateDrawerMenuButton";
+import { AnnotateDrawerToolbarButton } from "@/src/features/scores/components/AnnotateDrawerToolbarButton";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
@@ -252,7 +254,7 @@ export const ObservationDetailViewHeader = memo(
                           </DrawerContent>
                         </Drawer>
                       ) : (
-                        <AnnotateDrawer
+                        <AnnotateDrawerController
                           key={"annotation-drawer-menu-" + observation.id}
                           projectId={projectId}
                           scoreTarget={{
@@ -265,8 +267,16 @@ export const ObservationDetailViewHeader = memo(
                             projectId: projectId,
                             environment: observation.environment,
                           }}
-                          layout="menu"
-                        />
+                        >
+                          {({ annotationCount, disabled, openDrawer }) => (
+                            <AnnotateDrawerMenuButton
+                              annotationCount={annotationCount}
+                              disabled={disabled}
+                              onClick={openDrawer}
+                              showAnnotationCount={false}
+                            />
+                          )}
+                        </AnnotateDrawerController>
                       )}
                       <AnnotationQueueItemDropdownMenuController
                         projectId={projectId}
@@ -404,7 +414,7 @@ export const ObservationDetailViewHeader = memo(
                       </DrawerContent>
                     </Drawer>
                   ) : (
-                    <AnnotateDrawer
+                    <AnnotateDrawerController
                       key={"annotation-drawer-" + observation.id}
                       projectId={projectId}
                       scoreTarget={{
@@ -417,8 +427,18 @@ export const ObservationDetailViewHeader = memo(
                         projectId: projectId,
                         environment: observation.environment,
                       }}
-                      size="sm"
-                    />
+                    >
+                      {({ annotationCount, disabled, openDrawer }) => (
+                        <AnnotateDrawerToolbarButton
+                          annotationCount={annotationCount}
+                          buttonVariant="secondary"
+                          disabled={disabled}
+                          onClick={openDrawer}
+                          showAnnotationCount={false}
+                          size="sm"
+                        />
+                      )}
+                    </AnnotateDrawerController>
                   )}
                   <AnnotationQueueItemDropdownMenuController
                     projectId={projectId}
