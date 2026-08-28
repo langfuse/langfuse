@@ -61,7 +61,7 @@ tools:
 
 steps:
   - name: Setup pnpm
-    uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+    uses: pnpm/action-setup@v6.0.9
     with:
       run_install: false
 
