@@ -17,6 +17,7 @@ service:
         **Specification Compliance:**
         - Conforms to [OTLP/HTTP Trace Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)
         - Implements `ExportTraceServiceRequest` message format
+        - Response `Content-Type` matches the request (`application/json` or `application/x-protobuf`)
 
         **Documentation:**
         - Integration guide: https://langfuse.com/integrations/native/opentelemetry

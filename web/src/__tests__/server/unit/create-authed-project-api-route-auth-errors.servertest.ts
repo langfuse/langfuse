@@ -87,6 +87,8 @@ vi.mock("@/src/utils/exceptions", () => ({
 }));
 
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
+import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
   const validAuth = {
@@ -298,6 +300,36 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockLoggerDebug).toHaveBeenCalledExactlyOnceWith(
       "Request to route Sensitive Route projectId project-1",
     );
+  });
+
+  it("writes an OTLP protobuf success body when writeResponse is provided", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "OTel Traces",
+      querySchema: z.any(),
+      responseSchema: z.any(),
+      writeResponse: writeOtlpHttpResponse,
+      fn: async () => ({}),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        authorization: "Basic test",
+        "content-type": "application/x-protobuf",
+      },
+      query: {},
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
+    expect(
+      $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse.decode(
+        res._getBuffer(),
+      ).partialSuccess,
+    ).toBeNull();
   });
 
   it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {

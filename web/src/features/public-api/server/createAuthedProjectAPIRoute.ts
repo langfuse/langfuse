@@ -88,6 +88,16 @@ export type AuthedProjectAPIRouteConfig<
   rejectInEventsOnlyMode?: boolean;
   /** Stamps a top-level `_deprecation` object onto responses. */
   deprecation?: ApiDeprecationInfo;
+  /**
+   * When set, writes the handler result instead of `res.json`.
+   * Use this for routes whose wire format is not JSON (for example OTLP/HTTP).
+   */
+  writeResponse?: (params: {
+    req: NextApiRequest;
+    res: NextApiResponse;
+    body: z.infer<TResponse>;
+    statusCode: number;
+  }) => void;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -471,15 +481,27 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res.status(
+      const statusCode =
         // Check whether status code was already set inside handler to non default value
         res.statusCode !== 200
           ? res.statusCode
-          : routeConfig.successStatusCode || 200,
-      );
+          : routeConfig.successStatusCode || 200;
+      const payload = response || { message: "OK" };
+
+      if (routeConfig.writeResponse) {
+        routeConfig.writeResponse({
+          req,
+          res,
+          body: payload,
+          statusCode,
+        });
+        return;
+      }
+
+      res.status(statusCode);
 
       try {
-        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
+        res.json(attachDeprecation(payload, deprecation));
       } catch (error) {
         if (isJsonStringTooLargeError(error)) {
           throw new PayloadTooLargeError();

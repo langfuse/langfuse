@@ -21,6 +21,7 @@ import {
   OtelRequestBodyTooLargeError,
   readOtelRequestBody,
 } from "@/src/server/otel/otelRequestBody";
+import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
 
 export const config = {
   api: {
@@ -36,6 +37,7 @@ export default withMiddlewares({
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",
+    writeResponse: writeOtlpHttpResponse,
     fn: async ({ req, res, auth }) => {
       // Check if ingestion is suspended due to usage threshold
       if (auth.scope.isIngestionSuspended) {
