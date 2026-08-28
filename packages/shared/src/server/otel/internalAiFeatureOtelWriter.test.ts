@@ -4,7 +4,7 @@ import { buildInternalTraceEventInputs } from "../llm/internalTraceEvents";
 import {
   AI_FEATURE_OTEL_SDK_NAME,
   publishAiFeatureTraceViaOtelIngestion,
-} from "./aiFeatureOtelWriter";
+} from "./internalAiFeatureOtelWriter";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 const processorConstructor = vi.fn();
