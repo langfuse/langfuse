@@ -63,7 +63,7 @@ const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
   registryId: z
-    .enum(["events", "evaluationRules", "sessions"])
+    .enum(["events", "evaluationRules", "sessions", "experiments"])
     .default("events"),
   /** Existing bar query text, so the model refines the current filters. */
   currentQuery: z.string().max(4096).optional(),

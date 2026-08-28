@@ -57,7 +57,7 @@ export type FieldDef = {
 };
 
 export type FieldRegistry = {
-  id: "events" | "evaluationRules" | "sessions";
+  id: "events" | "evaluationRules" | "sessions" | "experiments";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;
