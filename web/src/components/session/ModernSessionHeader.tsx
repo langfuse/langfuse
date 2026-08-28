@@ -1,9 +1,13 @@
 import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Plus, Search, X } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import {
+  parseStoredHiddenSessionHeaderDetails,
+  sessionHeaderVisibilityStorageKey,
+} from "@/src/components/session/sessionHeaderVisibility";
 import {
   getMetadataJsonPathLabel,
   resolveMetadataJsonPath,
@@ -22,6 +26,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
@@ -58,6 +63,26 @@ type ModernSessionHeaderProps = {
   >;
 };
 
+type SessionHeaderDetailType =
+  | "cost"
+  | "environment"
+  | "latency"
+  | "metadata"
+  | "score"
+  | "tokens"
+  | "traces"
+  | "user";
+
+type SessionHeaderDetail = {
+  key: string;
+  searchText: string;
+  visibilityLabel: string;
+  type: SessionHeaderDetailType;
+  content: ReactNode;
+};
+
+const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
+
 const ChipValue = ({ children }: { children: React.ReactNode }) => (
   <span className="text-foreground">{children}</span>
 );
@@ -92,6 +117,38 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
     <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
   </ModernSessionHeaderPill>
 );
+
+const SessionHeaderDetailWithVisibilityControl = ({
+  detail,
+  isHidden,
+  onVisibilityChange,
+}: {
+  detail: SessionHeaderDetail;
+  isHidden: boolean;
+  onVisibilityChange: (detail: SessionHeaderDetail, isHidden: boolean) => void;
+}) => {
+  const action = isHidden ? "Show" : "Hide";
+  return (
+    <span className="group/detail flex items-center">
+      {detail.content}
+      <span className="-ml-1 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within/detail:ml-1 group-focus-within/detail:w-4 group-hover/detail:ml-1 group-hover/detail:w-4">
+        <button
+          type="button"
+          aria-label={`${action} ${detail.visibilityLabel} in session header`}
+          title={`${action} in session header`}
+          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within/detail:opacity-100 group-hover/detail:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+          onClick={() => onVisibilityChange(detail, !isHidden)}
+        >
+          {isHidden ? (
+            <Eye aria-hidden="true" className="h-3 w-3" />
+          ) : (
+            <EyeOff aria-hidden="true" className="h-3 w-3" />
+          )}
+        </button>
+      </span>
+    </span>
+  );
+};
 
 const resolveAgainstSource = (
   source: FirstVisibleObservationMetadataState,
@@ -271,6 +328,14 @@ export function ModernSessionHeader({
   scores,
 }: ModernSessionHeaderProps) {
   const capture = usePostHogClientCapture();
+  const [rawHiddenDetailKeys, setRawHiddenDetailKeys] =
+    useLocalStorage<unknown>(
+      sessionHeaderVisibilityStorageKey(projectId),
+      EMPTY_HIDDEN_SESSION_HEADER_DETAILS,
+    );
+  const hiddenDetailKeys =
+    parseStoredHiddenSessionHeaderDetails(rawHiddenDetailKeys);
+  const hiddenDetailKeySet = new Set(hiddenDetailKeys);
   const [search, setSearch] = useState("");
   const [visibleUserCount, setVisibleUserCount] = useState(
     SESSION_USERS_PER_PAGE,
@@ -296,6 +361,28 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
+  const changeDetailVisibility = (
+    detail: SessionHeaderDetail,
+    isHidden: boolean,
+  ) => {
+    if (hiddenDetailKeySet.has(detail.key) === isHidden) return;
+
+    setRawHiddenDetailKeys((current) => {
+      const currentKeys = parseStoredHiddenSessionHeaderDetails(current);
+      return isHidden
+        ? currentKeys.concat(detail.key)
+        : currentKeys.filter((key) => key !== detail.key);
+    });
+    capture("session_detail:header_detail_visibility_changed", {
+      action: isHidden ? "hide" : "show",
+      detailType: detail.type,
+      hiddenDetailCount: Math.max(
+        hiddenDetailKeys.length + (isHidden ? 1 : -1),
+        0,
+      ),
+      isV4: true,
+    });
+  };
   const latencies =
     traces.state === "loaded"
       ? traces.data.flatMap((trace) =>
@@ -311,33 +398,36 @@ export function ModernSessionHeader({
   const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
   const p95LatencyMs =
     latencies.length > 0 ? percentile(latencies, 0.95) : null;
-  const pills: Array<{ key: string; searchText: string; content: ReactNode }> =
-    [
-      {
-        key: "traces",
-        searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
-        content: (
-          <ModernSessionHeaderPill variant="display">
-            <span>
-              <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
-            </span>
-            {spanCount !== null ? (
-              <>
-                <ChipDot />
-                <span>
-                  <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
-                </span>
-              </>
-            ) : null}
-          </ModernSessionHeaderPill>
-        ),
-      },
-    ];
+  const pills: SessionHeaderDetail[] = [
+    {
+      key: "traces",
+      searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
+      visibilityLabel: "trace and span counts",
+      type: "traces",
+      content: (
+        <ModernSessionHeaderPill variant="display">
+          <span>
+            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+          </span>
+          {spanCount !== null ? (
+            <>
+              <ChipDot />
+              <span>
+                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
+              </span>
+            </>
+          ) : null}
+        </ModernSessionHeaderPill>
+      ),
+    },
+  ];
 
   if (p50LatencyMs !== null) {
     pills.push({
       key: "latency",
       searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
+      visibilityLabel: "latency percentiles",
+      type: "latency",
       content: (
         <ModernSessionHeaderPill variant="display">
           <span>
@@ -365,6 +455,8 @@ export function ModernSessionHeader({
     pills.push({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
+      visibilityLabel: "token usage",
+      type: "tokens",
       content: (
         <ModernSessionHeaderPill
           variant="display"
@@ -386,6 +478,8 @@ export function ModernSessionHeader({
   pills.push({
     key: "cost",
     searchText: `cost ${totalCost}`,
+    visibilityLabel: "cost",
+    type: "cost",
     content: (
       <ModernSessionHeaderPill
         variant="display"
@@ -409,6 +503,8 @@ export function ModernSessionHeader({
     pills.push({
       key: `score-${score.id}`,
       searchText: `score ${score.name} ${value}`,
+      visibilityLabel: "score",
+      type: "score",
       content: (
         <ModernSessionHeaderPill variant="display" title={score.name}>
           {isFraction ? (
@@ -427,6 +523,8 @@ export function ModernSessionHeader({
     pills.push({
       key: "environment",
       searchText: `environment env ${environment}`,
+      visibilityLabel: "environment",
+      type: "environment",
       content: (
         <ModernSessionHeaderPill variant="display">
           <span>
@@ -441,6 +539,8 @@ export function ModernSessionHeader({
     pills.push({
       key: `user-${user}`,
       searchText: `user ${user}`,
+      visibilityLabel: "user",
+      type: "user",
       content: <UserChip projectId={projectId} user={user} />,
     });
   });
@@ -454,6 +554,8 @@ export function ModernSessionHeader({
     pills.push({
       key: `metadata-${path}`,
       searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
+      visibilityLabel: "metadata",
+      type: "metadata",
       content: (
         <MetadataJsonPathPill
           display={display}
@@ -462,14 +564,28 @@ export function ModernSessionHeader({
       ),
     });
   });
+  const visiblePills = pills.filter(
+    (pill) => !hiddenDetailKeySet.has(pill.key),
+  );
+  const manuallyHiddenPills = pills.filter((pill) =>
+    hiddenDetailKeySet.has(pill.key),
+  );
 
   return (
     <div className="bg-header border-b px-4 py-2">
       <SingleLineOverflowList
-        items={pills}
-        additionalOverflowCount={remainingUsers.length}
+        items={visiblePills}
+        additionalOverflowCount={
+          remainingUsers.length + manuallyHiddenPills.length
+        }
         getKey={(pill) => pill.key}
-        renderItem={(pill) => pill.content}
+        renderItem={(pill) => (
+          <SessionHeaderDetailWithVisibilityControl
+            detail={pill}
+            isHidden={false}
+            onVisibilityChange={changeDetailVisibility}
+          />
+        )}
         trailingContent={
           <Popover
             open={isMetadataEditorOpen}
@@ -494,11 +610,19 @@ export function ModernSessionHeader({
         }
         renderOverflow={({ hiddenItems: hiddenPills, overflowItemCount }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
+          const overflowPillKeys = new Set(
+            hiddenPills
+              .map((pill) => pill.key)
+              .concat(manuallyHiddenPills.map((pill) => pill.key)),
+          );
+          const overflowPills = pills.filter((pill) =>
+            overflowPillKeys.has(pill.key),
+          );
           const filteredPills = normalizedSearch
-            ? hiddenPills.filter((pill) =>
+            ? overflowPills.filter((pill) =>
                 pill.searchText.toLocaleLowerCase().includes(normalizedSearch),
               )
-            : hiddenPills;
+            : overflowPills;
           const filteredUsers = normalizedSearch
             ? remainingUsers.filter((user) =>
                 user.toLocaleLowerCase().includes(normalizedSearch),
@@ -565,7 +689,12 @@ export function ModernSessionHeader({
                   {hasResults ? (
                     <>
                       {filteredPills.map((pill) => (
-                        <div key={pill.key}>{pill.content}</div>
+                        <SessionHeaderDetailWithVisibilityControl
+                          key={pill.key}
+                          detail={pill}
+                          isHidden={hiddenDetailKeySet.has(pill.key)}
+                          onVisibilityChange={changeDetailVisibility}
+                        />
                       ))}
                       {visibleUsers.map((user) => (
                         <UserChip
