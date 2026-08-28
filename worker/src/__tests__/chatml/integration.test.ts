@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { createHash } from "crypto";
 import { readFileSync, existsSync, writeFileSync, readdirSync } from "fs";
 import path from "path";
 
@@ -12,6 +13,7 @@ import {
 } from "@langfuse/shared/src/utils/chatml";
 
 import { deepParseJson } from "@langfuse/shared";
+import { OtelIngestionProcessor } from "@langfuse/shared/src/server";
 
 describe("ChatML Integration", () => {
   it("should handle OpenAI multimodal format", () => {
@@ -522,6 +524,177 @@ const tracesDir = path.resolve(__dirname, "framework-traces");
 const traceFiles = readdirSync(tracesDir).filter((f) =>
   f.endsWith(".trace.json"),
 );
+
+const otelReconstructionPrefixes = [
+  "gen_ai.prompt",
+  "gen_ai.completion",
+  "llm.input_messages",
+  "llm.output_messages",
+] as const;
+
+const expectedOtelReconstructionDigests = {
+  "agno-2025-06-11.trace.json:b38a82eaa62b551e:llm.input_messages":
+    "79dae2697161990380f3cc2409030d1e958b30706babd1a73613b10f5b807348",
+  "agno-2025-06-11.trace.json:ca136de468e156c9:llm.input_messages":
+    "b754777938eee8274ad8891da07446072ab8fe7898d99fd9430abb26aa278ec5",
+  "beeai-2025-08-01.trace.json:52df0f7f9dad6b23:llm.input_messages":
+    "9e09b39eafc8bf335608817d86dca4c7d6debbe8ff464bf68407388fc2be70c9",
+  "beeai-2025-08-01.trace.json:f50f7bbf13112df9:llm.output_messages":
+    "d874643405382404cadb4e70a9046f50357bdfb8bf5a4e44cc4d50a0216c101c",
+  "beeai-2025-08-01.trace.json:4c5c5a7936ca24bc:llm.input_messages":
+    "a736bdc132475ed501b72ecc14087aaa73bd01d54ed0b86f660f7059e93b6f4b",
+  "beeai-2025-08-01.trace.json:1f956cbea34725bd:llm.input_messages":
+    "f50c6ed16b46a5fd0c38aa5d1649759e6bd26bf3b279c058340ea4f2d1b5f17c",
+  "crewai-2025-07-11.trace.json:231c43964b7e7e63:llm.input_messages":
+    "090af8a41c384a74784270cecd1743fbe64b61af1344a7ad327eca06d5027bda",
+  "crewai-2025-07-11.trace.json:231c43964b7e7e63:llm.output_messages":
+    "5d2c3c0a6f1aafd174f5015efbda809a4bcddaf2cfd19c1b26ead101542f6e9d",
+  "google-adk-2025-08-28.trace.json:bded677884f031ce:llm.input_messages":
+    "077595470a234fdd1638cd54626bf6d9de33413b065f885d744d5384854c948d",
+  "google-adk-2025-08-28.trace.json:bded677884f031ce:llm.output_messages":
+    "f7c165eb9d7053e004498ff13be315d4c8dd1be1994854a14a3d1f2e2908b934",
+  "google-adk-2025-08-28.trace.json:f6e4c65297e40c96:llm.input_messages":
+    "a2c27fe417936852bb3ec99f8a5e333b56caf3658738bf133e8d1ec329f95e34",
+  "google-adk-2025-08-28.trace.json:f6e4c65297e40c96:llm.output_messages":
+    "3ec3d61cd82e7d8193ad0b9c4a4663fd19613afbe3014ec44f33399275400f71",
+  "google-gemini-2025-08-01.trace.json:b7a63ca7e1d083bc:llm.input_messages":
+    "02fb5023a8ab3234b69b0af60ef2fffe78e0443d452323ea733b10ba8d2e6757",
+  "google-gemini-2025-08-01.trace.json:b7a63ca7e1d083bc:llm.output_messages":
+    "9d51690e135533dbb44127193472d729d5afd48b2d69a16b1e79ccb68860470b",
+  "koog-2025-08-26.trace.json:e44e72cf2d221781:gen_ai.prompt":
+    "12541a8d701c9962ebcc381fbf54539d443a093a8c8cf3e22acd63f0ea146910",
+  "koog-2025-08-26.trace.json:e44e72cf2d221781:gen_ai.completion":
+    "41b2ea825990164dcecd9fe607a45ff5601fbd7d3146ce79b32dc69e9b2f1c6d",
+  "koog-2025-08-26.trace.json:042f9350c3729147:gen_ai.prompt":
+    "05dc418f9c1829e3b0c5d8d91086313dac3e6d7cc6d37655fe8d76ae082fab41",
+  "koog-2025-08-26.trace.json:042f9350c3729147:gen_ai.completion":
+    "d913abf5a058217e9436318ed64e54570a477063514aa499ef0941024ffdc6a5",
+  "openai-agents-2025-09-30.trace.json:90d94774e8e3724d:llm.input_messages":
+    "e7e0d957608131d91ff7486fff064b9455817f005b7b29d309a3bbc231742e1c",
+  "openai-agents-2025-09-30.trace.json:90d94774e8e3724d:llm.output_messages":
+    "0d1254e7d61fdf2126da1820a5be2c7146287fe69c8b10b686dc1c2d5b9f333d",
+  "openai-agents-2025-09-30.trace.json:98870087af69bf06:llm.input_messages":
+    "feb45e1214f1e634d58a5888f58438d2ebe3ebddad1e67a75d67e3539df77971",
+  "openai-agents-2025-09-30.trace.json:98870087af69bf06:llm.output_messages":
+    "f819f9144a675fd46f4e445ac29084941bee1f3404f99f291d5a8cd799b2c06c",
+  "vertex-ai-2025-08-01.trace.json:125abcbf5c41f4df:llm.input_messages":
+    "1ec974ca95d73babe518739e05965f4dafe17572a47cec6fe66d2653303d0492",
+  "vertex-ai-2025-08-01.trace.json:125abcbf5c41f4df:llm.output_messages":
+    "acf3c7eeb02edd9d558bd3e9138cf022926c40d9a87c4e917a1ec98e9a467cc4",
+};
+
+type StructuralValue =
+  | { type: "primitive"; value: unknown }
+  | { type: "array"; length: number; entries: [string, StructuralValue][] }
+  | { type: "object"; entries: [string, StructuralValue][] };
+
+const encodeStructure = (value: unknown): StructuralValue => {
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      length: value.length,
+      entries: Object.keys(value).map((key) => [
+        key,
+        encodeStructure((value as unknown as Record<string, unknown>)[key]),
+      ]),
+    };
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+    return {
+      type: "object",
+      entries: Object.keys(record).map((key) => [
+        key,
+        encodeStructure(record[key]),
+      ]),
+    };
+  }
+
+  return { type: "primitive", value };
+};
+
+const getStructuralDigest = (value: unknown): string =>
+  createHash("sha256")
+    .update(JSON.stringify(encodeStructure(value)))
+    .digest("hex");
+
+describe("OTel reconstruction compatibility against real observations", () => {
+  it("matches the output recorded from the pre-hardening implementation", () => {
+    const processor = new OtelIngestionProcessor({
+      projectId: "test-project",
+      publicKey: "pk-test",
+      sdkName: "test",
+      sdkVersion: "test",
+    });
+    const reconstruct = (
+      processor as unknown as {
+        convertKeyPathToNestedObject: (
+          input: Record<string, unknown>,
+          prefix: string,
+        ) => unknown;
+      }
+    ).convertKeyPathToNestedObject.bind(processor);
+    const actualDigests: Record<string, string> = {};
+    const relevantFiles = new Set<string>();
+    let relevantAttributeCount = 0;
+
+    for (const traceFile of [...traceFiles].sort()) {
+      const traceContent = readFileSync(
+        path.join(tracesDir, traceFile),
+        "utf-8",
+      );
+      const observations = JSON.parse(traceContent).observations as Array<{
+        id: string;
+        metadata?: string | { attributes?: Record<string, unknown> };
+      }>;
+
+      for (const observation of observations) {
+        if (!observation.metadata) continue;
+
+        const metadata =
+          typeof observation.metadata === "string"
+            ? (JSON.parse(observation.metadata) as {
+                attributes?: Record<string, unknown>;
+              })
+            : observation.metadata;
+        const attributes = metadata.attributes;
+        if (!attributes) continue;
+
+        for (const prefix of otelReconstructionPrefixes) {
+          const attributeKeys = Object.keys(attributes).filter((key) =>
+            key.startsWith(prefix),
+          );
+          if (attributeKeys.length === 0) continue;
+
+          relevantFiles.add(traceFile);
+          relevantAttributeCount += attributeKeys.length;
+          const prefixedAttributes = Object.fromEntries(
+            attributeKeys.map((key) => [key, attributes[key]]),
+          );
+          const caseId = `${traceFile}:${observation.id}:${prefix}`;
+          actualDigests[caseId] = getStructuralDigest(
+            reconstruct(prefixedAttributes, prefix),
+          );
+        }
+      }
+    }
+
+    expect([...relevantFiles]).toEqual([
+      "agno-2025-06-11.trace.json",
+      "beeai-2025-08-01.trace.json",
+      "crewai-2025-07-11.trace.json",
+      "google-adk-2025-08-28.trace.json",
+      "google-gemini-2025-08-01.trace.json",
+      "koog-2025-08-26.trace.json",
+      "openai-agents-2025-09-30.trace.json",
+      "vertex-ai-2025-08-01.trace.json",
+    ]);
+    expect(relevantAttributeCount).toBe(232);
+    expect(actualDigests).toEqual(expectedOtelReconstructionDigests);
+  });
+});
+
 // use this to update the expected mapping result when changing/fixing the mapping logic
 const updateExpectedFilesOnFailure = false;
 
