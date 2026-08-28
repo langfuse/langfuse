@@ -67,6 +67,7 @@ const authProviders: PageProps["authProviders"] = {
   auth0: false,
   clickhouseCloud: false,
   cognito: false,
+  jumpcloud: false,
   keycloak: false,
   workos: false,
   wordpress: false,
