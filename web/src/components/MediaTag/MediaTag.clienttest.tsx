@@ -14,6 +14,24 @@ const OFFICE_CONTENT_TYPES = [
 ] as const;
 
 describe("MediaTag", () => {
+  it("blocks the portaled preview from PostHog session recordings", () => {
+    const description = "customer-provided media description";
+
+    render(
+      <MediaTag
+        contentType="image/png"
+        description={description}
+        status="ready"
+        url="data:image/png;base64,"
+        open
+      />,
+    );
+
+    expect(screen.getByText(description).parentElement).toHaveClass(
+      "ph-no-capture",
+    );
+  });
+
   it("opens the preview on click", async () => {
     const onOpenChange = vi.fn();
 

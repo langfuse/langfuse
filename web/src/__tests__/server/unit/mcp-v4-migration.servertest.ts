@@ -15,7 +15,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 import {
   getV4MigrationDataTool,
   handleGetV4MigrationData,
-} from "@/src/features/mcp/features/v4Migration/tools/getV4MigrationData";
+} from "@/src/features/mcp/server/v4Migration/tools/getV4MigrationData";
 import { mockServerContext } from "@/src/__tests__/server/mcp-helpers";
 
 describe("getV4MigrationData MCP tool", () => {

@@ -57,48 +57,48 @@ import {
 import {
   DeleteDatasetRunMcpInput,
   PostDatasetItemMcpInput,
-} from "@/src/features/mcp/features/datasets/schema";
+} from "@/src/features/mcp/server/datasets/schema";
 
 // Import MCP tool handlers directly
-import { handleCreateTextPrompt } from "@/src/features/mcp/features/prompts/tools/createTextPrompt";
-import { handleCreateChatPrompt } from "@/src/features/mcp/features/prompts/tools/createChatPrompt";
-import { handleUpdatePromptLabels } from "@/src/features/mcp/features/prompts/tools/updatePromptLabels";
-import { handleCreateAnnotationQueue } from "@/src/features/mcp/features/annotationQueues/tools";
+import { handleCreateTextPrompt } from "@/src/features/mcp/server/prompts/tools/createTextPrompt";
+import { handleCreateChatPrompt } from "@/src/features/mcp/server/prompts/tools/createChatPrompt";
+import { handleUpdatePromptLabels } from "@/src/features/mcp/server/prompts/tools/updatePromptLabels";
+import { handleCreateAnnotationQueue } from "@/src/features/mcp/server/annotationQueues/tools";
 import {
   createEvaluatorTool,
   handleCreateEvaluator,
-} from "@/src/features/mcp/features/evals/tools/createEvaluator";
+} from "@/src/features/mcp/server/evals/tools/createEvaluator";
 import {
   updateEvaluatorTool,
   handleUpdateEvaluator,
-} from "@/src/features/mcp/features/evals/tools/updateEvaluator";
+} from "@/src/features/mcp/server/evals/tools/updateEvaluator";
 import {
   createEvaluationRuleTool,
   handleCreateEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
 import {
   updateEvaluationRuleTool,
   handleUpdateEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/updateEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/updateEvaluationRule";
 import {
   deleteEvaluationRuleTool,
   handleDeleteEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/deleteEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/deleteEvaluationRule";
 import {
   deleteEvaluatorTool,
   handleDeleteEvaluator,
-} from "@/src/features/mcp/features/evals/tools/deleteEvaluator";
-import { handleGetEvaluationRule } from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/deleteEvaluator";
+import { handleGetEvaluationRule } from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
   attachEvaluatorToEvaluationRuleTool,
   detachEvaluatorFromEvaluationRuleTool,
   handleAttachEvaluatorToEvaluationRule,
   handleDetachEvaluatorFromEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/manageEvaluationRuleEvaluators";
+} from "@/src/features/mcp/server/evals/tools/manageEvaluationRuleEvaluators";
 import {
   createDashboardWidgetTool,
   handleCreateDashboardWidget,
-} from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+} from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   handleAddDashboardPlacement,
   handleCreateDashboard,
@@ -110,7 +110,7 @@ import {
   handleUpdateDashboardPlacement,
   handleUpdateDashboard,
   handleUpdateDashboardWidget,
-} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
+} from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
