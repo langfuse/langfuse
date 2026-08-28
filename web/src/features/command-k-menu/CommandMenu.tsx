@@ -9,7 +9,7 @@ import {
   CommandSeparator,
 } from "@/src/components/ui/command";
 import { useRouter } from "next/router";
-import { useEffect, memo } from "react";
+import { useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -21,6 +21,59 @@ import { useAccountSettingsPages } from "@/src/pages/account/settings";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+
+type IdNavigationItem = {
+  type: "trace_id" | "observation_id";
+  title: string;
+  url: string;
+};
+
+const getIdType = (search: string): IdNavigationItem["type"] | null => {
+  const id = search.trim();
+  if (/^[0-9a-f]{32}$/i.test(id)) return "trace_id";
+  if (/^[0-9a-f]{16}$/i.test(id)) return "observation_id";
+  return null;
+};
+
+export const getIdNavigationItem = (
+  search: string,
+  projectId?: string,
+  isV4 = false,
+): IdNavigationItem | null => {
+  if (!projectId) return null;
+
+  const id = search.trim();
+  const encodedProjectId = encodeURIComponent(projectId);
+  const idType = getIdType(id);
+
+  if (idType === "trace_id") {
+    const filter = `${isV4 ? "traceId;string;;contains" : "id;string;;="};${encodeURIComponent(id)}`;
+    return {
+      type: "trace_id",
+      title: "Find trace by ID",
+      url: `/project/${encodedProjectId}/traces?filter=${encodeURIComponent(filter)}`,
+    };
+  }
+
+  if (idType === "observation_id") {
+    const filter = isV4
+      ? `id;string;;contains;${encodeURIComponent(id)}`
+      : `id;stringOptions;;any of;${encodeURIComponent(id)}`;
+    return {
+      type: "observation_id",
+      title: "Find observation by ID",
+      url: `/project/${encodedProjectId}/${isV4 ? "traces" : "observations"}?filter=${encodeURIComponent(filter)}`,
+    };
+  }
+
+  return null;
+};
+
+export const getSearchAnalytics = (search: string) => ({
+  queryLength: search.length,
+  queryType: getIdType(search) ?? "other",
+});
 
 function MainNavigationGroup({
   navItems,
@@ -284,12 +337,19 @@ function CommandMenuComponent({
 }) {
   const { open, setOpen } = useCommandMenu();
   const capture = usePostHogClientCapture();
+  const router = useRouter();
+  const { project } = useQueryProjectOrOrganization();
+  const { isBetaEnabled } = useV4Beta();
+  const [search, setSearch] = useState("");
+  const idNavigationItem = getIdNavigationItem(
+    search,
+    project?.id,
+    isBetaEnabled,
+  );
 
   const debouncedSearchChange = useDebounce(
     (value: string) => {
-      capture("cmd_k_menu:search_entered", {
-        search: value,
-      });
+      capture("cmd_k_menu:search_entered", getSearchAnalytics(value));
     },
     500,
     false,
@@ -323,7 +383,9 @@ function CommandMenuComponent({
             source: "cmd_k",
           });
         }
-        setOpen(!open);
+        const nextOpen = !open;
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
       }
     };
     document.addEventListener("keydown", down);
@@ -331,13 +393,17 @@ function CommandMenuComponent({
   }, [capture, setOpen, open]);
 
   const handleNavigate = () => {
+    setSearch("");
     setOpen(false);
   };
 
   return (
     <CommandDialog
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
       filter={(value, search, keywords) => {
         const extendValue = value + " " + keywords?.join(" ");
         const searchTerms = search.toLowerCase().split(" ");
@@ -351,10 +417,30 @@ function CommandMenuComponent({
       <CommandInput
         placeholder="Type a command or search..."
         className="border-none focus:border-none focus:ring-0 focus:ring-transparent focus:outline-hidden"
-        onValueChange={debouncedSearchChange}
+        value={search}
+        onValueChange={(value) => {
+          setSearch(value);
+          debouncedSearchChange(value);
+        }}
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+        {idNavigationItem ? (
+          <CommandGroup heading="Tracing">
+            <CommandItem
+              value={`${idNavigationItem.title} ${search}`}
+              onSelect={() => {
+                router.push(idNavigationItem.url);
+                capture("cmd_k_menu:navigated", {
+                  type: idNavigationItem.type,
+                });
+                handleNavigate();
+              }}
+            >
+              {idNavigationItem.title}
+            </CommandItem>
+          </CommandGroup>
+        ) : null}
         <MainNavigationGroup navItems={navItems} onNavigate={handleNavigate} />
         <ProjectsGroup onNavigate={handleNavigate} />
         <DashboardsGroup onNavigate={handleNavigate} />

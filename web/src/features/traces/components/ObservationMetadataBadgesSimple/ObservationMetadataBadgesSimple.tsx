@@ -4,7 +4,7 @@
  * Each badge handles its own null checks and returns null when data is unavailable
  */
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({
@@ -14,11 +14,7 @@ export function LatencyBadge({
 }) {
   if (latencySeconds == null) return null;
 
-  return (
-    <Badge variant="tertiary">
-      Latency: {formatIntervalSeconds(latencySeconds)}
-    </Badge>
-  );
+  return <Badge text={`Latency: ${formatIntervalSeconds(latencySeconds)}`} />;
 }
 
 export function TimeToFirstTokenBadge({
@@ -29,9 +25,9 @@ export function TimeToFirstTokenBadge({
   if (timeToFirstToken == null) return null;
 
   return (
-    <Badge variant="tertiary">
-      Time to first token: {formatIntervalSeconds(timeToFirstToken)}
-    </Badge>
+    <Badge
+      text={`Time to first token: ${formatIntervalSeconds(timeToFirstToken)}`}
+    />
   );
 }
 
@@ -42,7 +38,7 @@ export function EnvironmentBadge({
 }) {
   if (!environment) return null;
 
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+  return <Badge text={`Env: ${environment}`} />;
 }
 
 export function ReleaseBadge({
@@ -52,7 +48,7 @@ export function ReleaseBadge({
 }) {
   if (!release) return null;
 
-  return <Badge variant="tertiary">Release: {release}</Badge>;
+  return <Badge text={`Release: ${release}`} />;
 }
 
 export function VersionBadge({
@@ -62,23 +58,5 @@ export function VersionBadge({
 }) {
   if (!version) return null;
 
-  return <Badge variant="tertiary">Version: {version}</Badge>;
-}
-
-export function LevelBadge({ level }: { level: string | null | undefined }) {
-  if (!level || level === "DEFAULT") return null;
-
-  return (
-    <Badge
-      variant={
-        level === "ERROR"
-          ? "destructive"
-          : level === "WARNING"
-            ? "warning"
-            : "tertiary"
-      }
-    >
-      {level}
-    </Badge>
-  );
+  return <Badge text={`Version: ${version}`} />;
 }

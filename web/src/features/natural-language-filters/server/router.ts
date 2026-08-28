@@ -6,7 +6,6 @@ import { TRPCError } from "@trpc/server";
 import {
   type ChatMessage,
   ChatMessageType,
-  LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
@@ -133,8 +132,6 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
-                environment:
-                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "natural-language-filter",
                 projectId: ctx.session.projectId,
                 traceName: "natural-language-filter",

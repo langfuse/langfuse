@@ -15,10 +15,6 @@
  * is the one thing this timeline promises never to do.
  */
 
-import {
-  CLUSTER_ITEM_GAP_PX,
-  createClusterFitter,
-} from "../../fns/timeline/metricCluster";
 import { type Density } from "../../fns/timeline/density";
 import { type TextMeasurer } from "../../fns/timeline/textMeasurer";
 import { type PositionedNode } from "../../fns/timeline/layout";
@@ -37,6 +33,29 @@ import { type PositionedNode } from "../../fns/timeline/layout";
  * white for contrast. They belong somewhere that does not move: the tree, the
  * detail panel, or a fixed column of their own.
  */
+/**
+ * The cluster's own `gap-2`. A budget has to reserve the gap the cluster actually
+ * renders with, not a smaller one: five admitted items multiply a 2px
+ * under-reservation into a clipped last item.
+ */
+const CLUSTER_ITEM_GAP_PX = 8;
+
+/**
+ * Admit items into the room the lane has left, in priority order, charging each
+ * the gap the cluster renders with. The flex gap sits BETWEEN children, so the
+ * first item is charged none: billing it for a gap it does not have rejected
+ * content that renders perfectly well alone.
+ */
+function createClusterFitter(budgetPx: number, gapPx: number) {
+  let spentPx = 0;
+  return (widthPx: number): boolean => {
+    const next = spentPx + widthPx + (spentPx > 0 ? gapPx : 0);
+    if (next > budgetPx) return false;
+    spentPx = next;
+    return true;
+  };
+}
+
 export type RowMetrics = {
   /** Already formatted, e.g. `∑ $0.02`. */
   costText?: string | null;

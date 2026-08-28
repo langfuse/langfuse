@@ -35,6 +35,18 @@ const openApiPath = path.resolve(
 );
 
 const MESSAGE = "Use `GET /api/public/v2/observations?from=<from>` instead.";
+const UNSTABLE_EVALS_SUNSET_HUMAN = "September 4, 2026";
+const UNSTABLE_EVAL_OPERATIONS = new Set([
+  "POST /api/public/unstable/evaluators",
+  "GET /api/public/unstable/evaluators",
+  "GET /api/public/unstable/evaluators/{evaluatorId}",
+  "DELETE /api/public/unstable/evaluators/{evaluatorId}",
+  "POST /api/public/unstable/evaluation-rules",
+  "GET /api/public/unstable/evaluation-rules",
+  "GET /api/public/unstable/evaluation-rules/{evaluationRuleId}",
+  "PATCH /api/public/unstable/evaluation-rules/{evaluationRuleId}",
+  "DELETE /api/public/unstable/evaluation-rules/{evaluationRuleId}",
+]);
 
 /** Spec fixture in the shape `fern export` produces, aliased `security` included. */
 const SPEC = `openapi: 3.0.1
@@ -126,9 +138,12 @@ describe("OpenAPI deprecations", () => {
     for (const { method, endpointPath, message } of getFernDeprecatedOperations(
       definitionDirectory,
     )) {
-      expect(message, `${method.toUpperCase()} ${endpointPath}`).toContain(
-        `will be removed on ${V3_SUNSET_HUMAN}.`,
-      );
+      const operation = `${method.toUpperCase()} ${endpointPath}`;
+      const sunsetDate = UNSTABLE_EVAL_OPERATIONS.has(operation)
+        ? UNSTABLE_EVALS_SUNSET_HUMAN
+        : V3_SUNSET_HUMAN;
+
+      expect(message, operation).toContain(`will be removed on ${sunsetDate}.`);
     }
   });
 

@@ -1,10 +1,8 @@
 /* eslint-disable @repo/no-null-render */
 /**
- * The Compact Timeline renderer, shipped behind the `compactTimeline` feature
- * preview: `TraceTimelineCompact` measures a box and renders this inside it, and
- * the trace panel's Timeline view is this whenever the preview is on — by
- * default for the team, opt-in for everyone else. Real users read traces through
- * it, so a bug here is a bug in the product.
+ * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
+ * and the trace panel's Timeline view IS this — for everyone, on every device,
+ * with no flag in front of it. A bug here is a bug in the product.
  *
  * The question it started as a spike to answer, and still answers: in a narrow,
  * tall layout, does killing the names and the text and spending every pixel on

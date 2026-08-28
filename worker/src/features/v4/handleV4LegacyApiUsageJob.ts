@@ -230,7 +230,9 @@ bounded AS (
     classified.*,
     has(caller_candidates.caller_keys, tuple(sdk_name, sdk_version, user_agent)) AS retain_caller
   FROM classified
-  ANY INNER JOIN caller_candidates
+  -- Preserve every classified query row. caller_candidates is unique per join key,
+  -- so ALL cannot multiply matches.
+  ALL INNER JOIN caller_candidates
     ON classified.project_id = caller_candidates.project_id
     AND classified.legacy_route = caller_candidates.legacy_route
   WHERE classified.legacy_route IS NOT NULL

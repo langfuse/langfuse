@@ -79,6 +79,8 @@ export function CodeEvalTestRunCard({
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evalTemplates",
+    isV4: isBetaEnabled,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
     },
