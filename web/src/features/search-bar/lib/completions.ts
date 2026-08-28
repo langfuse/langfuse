@@ -750,9 +750,9 @@ function keyPathOptions(
       id: `key:${kind.canonical}${o.value}`,
       kind: "field" as const,
       label: `${kind.canonical}${o.value}`,
-      // The observed JSON type of the path (display-only — metadata filters
-      // always lower to stringObject regardless). Paths seen with multiple
-      // types carry no type hint; counts stay the fallback like other lists.
+      // The observed JSON type of the path is display-only. Equality and
+      // string ops still lower to stringObject; comparisons lower to
+      // numberObject. Paths seen with multiple types carry no type hint.
       detail: o.type ?? (o.count !== undefined ? String(o.count) : undefined),
       fieldId: keyText(o.value),
     }));
@@ -960,9 +960,18 @@ function valueStageSections(input: ValueStageInput): {
       }));
       const values = valueOptions(all, typed);
       const ops = typed.length > 0 ? matchOperatorOptions(typed, negated) : [];
+      const compareOps =
+        typed.length === 0 && !negated
+          ? numberOperatorOptions(
+              `${ref.namespace ?? "metadata"}.${quoteIfNeeded(ref.key)}`,
+              undefined,
+              "20",
+            )
+          : [];
       return {
         sections: [
           ...section(SECTION_VALUES, values),
+          ...section(SECTION_COMPARE_OPS, compareOps),
           ...section(SECTION_MATCH_OPS, ops),
           ...section(SECTION_PRESENCE, metadataPresence),
         ],

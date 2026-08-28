@@ -13,7 +13,7 @@ export const COMPATIBLE_FILTER_TYPES: Partial<
   datetime: ["datetime"],
   number: ["number"],
   boolean: ["boolean"],
-  stringObject: ["stringObject"],
+  stringObject: ["stringObject", "numberObject"],
   numberObject: ["numberObject"],
   booleanObject: ["booleanObject"],
   categoryOptions: ["categoryOptions", "stringOptions"],
