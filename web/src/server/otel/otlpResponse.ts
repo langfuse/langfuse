@@ -13,7 +13,7 @@ const OtlpStatusType = protobuf.Type.fromJSON("Status", {
   },
 });
 
-export function isOtlpProtobufContentType(
+function isOtlpProtobufContentType(
   contentType: string | string[] | undefined,
 ): boolean {
   const value = Array.isArray(contentType) ? contentType[0] : contentType;
@@ -24,7 +24,7 @@ export function isOtlpProtobufRequest(headers: IncomingHttpHeaders): boolean {
   return isOtlpProtobufContentType(headers["content-type"]);
 }
 
-export function encodeOtlpStatusMessage(message: string): Buffer {
+function encodeOtlpStatusMessage(message: string): Buffer {
   return Buffer.from(
     OtlpStatusType.encode(OtlpStatusType.create({ message })).finish(),
   );
