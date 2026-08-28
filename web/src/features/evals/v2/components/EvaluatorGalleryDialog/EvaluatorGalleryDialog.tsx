@@ -17,7 +17,7 @@ import {
   EVALUATOR_GALLERY_PREVIEW_SIZE,
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
 } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { api } from "@/src/utils/api";
 

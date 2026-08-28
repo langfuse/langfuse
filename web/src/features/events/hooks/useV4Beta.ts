@@ -2,7 +2,7 @@ import { useSession } from "next-auth/react";
 import { api } from "@/src/utils/api";
 import { useCallback, useState } from "react";
 import posthog from "posthog-js";
-import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics";
 import { setV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
 
 type SetV4EnabledOptions = {

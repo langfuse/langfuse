@@ -10,7 +10,7 @@ import {
   type ListEntry,
   useDetailPageLists,
 } from "@/src/features/navigate-detail-pages/context";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
 import { ArrowDown, ArrowUp } from "lucide-react";
