@@ -1,25 +1,22 @@
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
+import { LangfuseNotFoundError } from "../../index";
 import {
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
-  LangfuseNotFoundError,
-} from "../../index";
-import {
-  ChatMessageRole,
-  ChatMessageType,
-  LangfuseInternalTraceEnvironment,
-  logger,
-} from "../../server";
+} from "../../features/inAppAgent/types";
+import { ChatMessageRole, ChatMessageType, logger } from "../../server";
+import { isSettledInAppAgentRunStatus } from "../constants";
+import { recordRunTerminalOutcome } from "./runMetrics";
 import { Prisma } from "../../db";
 import type { InAppAgentConversation, PrismaClient } from "../../db";
 
-import { env } from "../../env";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "../../server/llm/langfuseAiCompletion";
+import { getInAppAgentModelConfig } from "./modelProvider";
 import { getProductBaseUrl } from "../../server/utils/baseUrl";
 import { truncate } from "../../utils/stringChecks";
 import { assertUnreachable } from "../../utils/typeChecks";
@@ -33,20 +30,33 @@ import {
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
 } from "../messages";
-import { assertConversationAccess } from "./access";
 import { compactPersistedEventDeltas } from "./eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import { safeJsonParse } from "../../utils/json";
 import {
   type CompletedInAppAgentMcpToolCall,
+  getInAppAgentSilentMcpOutputFilePath,
   getPublicInAppAgentMcpToolResultContent,
   getSandboxInAppAgentMcpToolResultContent,
-  IN_APP_AGENT_SANDBOX_TOOL_NAMES,
-} from "./tools";
+} from "./toolResults";
+import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./mcpPolicy";
 import { getToolFailureMessage } from "./toolErrors";
 
 export const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
+
+/** Owner-only authorization with a non-enumerating failure. */
+export function assertOwnedConversation(params: {
+  conversation: Pick<InAppAgentConversation, "createdByUserId" | "deletedAt">;
+  userId: string;
+}): void {
+  if (
+    params.conversation.deletedAt ||
+    params.conversation.createdByUserId !== params.userId
+  ) {
+    throw new LangfuseNotFoundError("Agent conversation not found");
+  }
+}
 
 export type SerializedInAppAgentConversation = {
   id: string;
@@ -99,7 +109,7 @@ export async function getOwnedConversationOrThrow(params: {
     throw new LangfuseNotFoundError("Agent conversation not found");
   }
 
-  assertConversationAccess({
+  assertOwnedConversation({
     conversation,
     userId: params.userId,
   });
@@ -123,7 +133,7 @@ export async function ensureOwnedConversation(params: {
   });
 
   if (existing) {
-    assertConversationAccess({
+    assertOwnedConversation({
       conversation: existing,
       userId: params.userId,
     });
@@ -157,7 +167,7 @@ export async function appendRunEvents(params: {
     errorMessage?: string;
   };
 }): Promise<boolean> {
-  return params.prisma.$transaction(async (tx) => {
+  const appended = await params.prisma.$transaction(async (tx) => {
     await lockConversationRow(tx, params.projectId, params.conversationId);
 
     if (params.finish) {
@@ -234,6 +244,22 @@ export async function appendRunEvents(params: {
 
     return true;
   });
+
+  // Emitted after the transaction commits so a rolled-back flush cannot inflate
+  // the outcome count. The fenced path returns false and is deliberately silent:
+  // whichever writer won the CAS already recorded that run's outcome.
+  if (
+    appended &&
+    params.finish &&
+    isSettledInAppAgentRunStatus(params.finish.status)
+  ) {
+    recordRunTerminalOutcome({
+      status: params.finish.status,
+      errorCode: params.finish.errorCode ?? null,
+    });
+  }
+
+  return appended;
 }
 
 export async function getConversationEvents(params: {
@@ -295,7 +321,10 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft?.createdAt ?? toolCall.createdAt)}_${draft?.toolName ?? toolCall.toolName}_${toolCall.toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(
+        draft?.toolName ?? toolCall.toolName,
+        toolCall.toolCallId,
+      ),
       content: JSON.stringify(
         {
           request: draft
@@ -370,7 +399,7 @@ export function createSandboxToolCallFileAccumulator(
     }
 
     files.push({
-      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
+      path: getInAppAgentSilentMcpOutputFilePath(draft.toolName, toolCallId),
       content: JSON.stringify(
         {
           request: parseSandboxToolCallValue(draft.request),
@@ -394,37 +423,12 @@ export function createSandboxToolCallFileAccumulator(
   };
 }
 
-export function getSandboxToolCallFiles(
-  events: readonly Omit<PersistedConversationEvent, "sequenceNumber">[],
-) {
-  return createSandboxToolCallFileAccumulator(events).getFiles();
-}
-
 export async function getConversationMessages(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
 }) {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
-}
-
-export async function getConversationMessagesForDisplay(params: {
-  prisma: PrismaClient;
-  projectId: string;
-  conversationId: string;
-}) {
-  return getConversationMessagesForDisplayFromEvents(
-    await getConversationEvents(params),
-  );
-}
-
-export function getConversationMessagesForDisplayFromEvents(
-  events: readonly PersistedConversationEvent[],
-) {
-  const messages = getMessagesFromPersistedEvents(events);
-  return redactSilentToolMessages(
-    dropEmptyAssistantMessages(dropUnpairedAssistantToolCalls(messages)),
-  );
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -444,10 +448,9 @@ export async function maybeInferAndPersistConversationTitle(params: {
   userId: string;
   aiTelemetryEnabled: boolean;
 }) {
-  const model =
-    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+  const modelConfig = getInAppAgentModelConfig();
 
-  if (!model) {
+  if (!modelConfig) {
     return;
   }
 
@@ -467,6 +470,10 @@ export async function maybeInferAndPersistConversationTitle(params: {
     }
 
     if (conversation.renamedByUserAt) {
+      return;
+    }
+
+    if (!isUnsetConversationTitle(conversation.title)) {
       return;
     }
 
@@ -536,11 +543,10 @@ ${JSON.stringify(transcript, null, 2)}
   `.trim(),
         },
       ],
-      model,
+      model: modelConfig.titleModelId,
       maxTokens: 1000,
       traceSinkParams: params.aiTelemetryEnabled
         ? getLangfuseAITraceSinkParams({
-            environment: LangfuseInternalTraceEnvironment.InAppAgent,
             feature: "in-app-agent-conversation-title",
             projectId: params.projectId,
             traceName: "in-app-agent-conversation-title",
@@ -583,16 +589,6 @@ ${JSON.stringify(transcript, null, 2)}
       conversationId: params.conversationId,
     });
   }
-}
-
-export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
-  const accumulator = createConversationMessageAccumulator([]);
-
-  for (const event of events) {
-    accumulator.processEvent(event);
-  }
-
-  return accumulator.getMessages();
 }
 
 function getMessagesFromPersistedEvents(
@@ -655,7 +651,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
   );
 }
 
-function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   eventsToAppend: AgUiEvent[];
   retainedEvents: AgUiEvent[];
 } {
@@ -1498,16 +1494,20 @@ function parseSandboxToolCallValue(
   return parsed === undefined ? value : parsed;
 }
 
-function formatSandboxToolCallTimestamp(date: Date) {
-  return date.toISOString().replaceAll(":", "-");
-}
-
 function getDefaultConversationTitle(date: Date) {
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `Chat on ${weekday} at ${hours}:${minutes}`;
+}
+
+function isUnsetConversationTitle(title: string | null) {
+  if (!title) {
+    return true;
+  }
+
+  return /^Chat on [A-Za-z]+ at \d{2}:\d{2}$/.test(title);
 }
 
 export function buildConversationTitleTranscript(

@@ -14,8 +14,8 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  processEventBatch,
   createIngestionAttribution,
   eventTypes,
   logger,
@@ -33,6 +33,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares(
   {
@@ -109,6 +110,35 @@ export default withMiddlewares(
           ).toISOString();
         }
 
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: effectiveFromTimestamp,
+        });
+        effectiveFromTimestamp =
+          dataAccessWindow.effectiveFromTimestamp?.toISOString();
+
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "timestamp",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toTimestamp
+                ? [
+                    {
+                      column: "timestamp",
+                      operator: "<" as const,
+                      value: new Date(query.toTimestamp),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
+
         // 3. Apply default fields if configured and no fields query param provided
         let effectiveFields = query.fields ?? undefined;
         if (!query.fields && env.LANGFUSE_API_TRACES_DEFAULT_FIELDS) {
@@ -142,12 +172,12 @@ export default withMiddlewares(
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
               orderBy: query.orderBy ?? null,
             }),
             getTracesCountFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
             }),
           ]);
 
@@ -169,12 +199,12 @@ export default withMiddlewares(
         const [items, count] = await Promise.all([
           generateTracesForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
             orderBy: query.orderBy ?? null,
           }),
           getTracesCountForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
           }),
         ]);
 

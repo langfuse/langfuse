@@ -1,14 +1,22 @@
 import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Search } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { ArrowUpRight, Plus, Search, X } from "lucide-react";
+import { type ReactNode, type SyntheticEvent, useState } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { ModernSessionHeaderPill } from "@/src/components/session/ModernSessionHeaderPill";
+import {
+  getMetadataJsonPathLabel,
+  resolveMetadataJsonPath,
+  type FirstVisibleObservationMetadataState,
+  type SessionMetadataJsonPathState,
+} from "@/src/components/session/sessionMetadataJsonPath";
 import {
   INITIAL_SESSION_USERS_DISPLAY_COUNT,
   SESSION_USERS_PER_PAGE,
 } from "@/src/components/session/sessionUsers";
 import { Input } from "@/src/components/ui/input";
+import { Button } from "@/src/components/ui/button";
+import { Label } from "@/src/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -16,7 +24,12 @@ import {
 } from "@/src/components/ui/popover";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  compactNumberFormatter,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ModernSessionHeaderProps = {
   projectId: string;
@@ -36,6 +49,7 @@ type ModernSessionHeaderProps = {
   totalCost: number;
   environment: string | null;
   users: readonly string[];
+  metadataJsonPaths: SessionMetadataJsonPathState;
   scores: ReadonlyArray<
     Pick<
       WithStringifiedMetadata<ScoreDomain>,
@@ -49,6 +63,9 @@ const ChipValue = ({ children }: { children: React.ReactNode }) => (
 );
 
 const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
+
+const compactTokenFormatter = (tokens: number) =>
+  compactNumberFormatter(tokens, 0).toLowerCase();
 
 const scoreChipValue = (
   score: Pick<WithStringifiedMetadata<ScoreDomain>, "stringValue" | "value">,
@@ -64,7 +81,6 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
   <ModernSessionHeaderPill
     variant="link"
     href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-    title={user}
   >
     user{" "}
     <span
@@ -77,6 +93,170 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
   </ModernSessionHeaderPill>
 );
 
+const resolveAgainstSource = (
+  source: FirstVisibleObservationMetadataState,
+  path: string,
+) => {
+  if (source.state === "ready") {
+    return resolveMetadataJsonPath(source.metadata, path);
+  }
+
+  const syntax = resolveMetadataJsonPath({}, path);
+  if (syntax.state === "invalid") return syntax;
+  return source;
+};
+
+const getConfiguredMetadataDisplay = (
+  path: string,
+  source: FirstVisibleObservationMetadataState,
+) => {
+  const resolution = resolveAgainstSource(source, path);
+  return {
+    path,
+    label: getMetadataJsonPathLabel(path),
+    displayValue:
+      resolution.state === "match"
+        ? resolution.displayValue
+        : resolution.state === "loading" || resolution.state === "idle"
+          ? "…"
+          : "—",
+  };
+};
+
+const MetadataJsonPathPill = ({
+  display,
+  onRemove,
+}: {
+  display: ReturnType<typeof getConfiguredMetadataDisplay>;
+  onRemove: (path: string) => void;
+}) => (
+  <span className="group flex items-center">
+    <ModernSessionHeaderPill variant="display">
+      <span className="max-w-40 truncate" title={display.path}>
+        {display.label}
+      </span>
+      <span
+        className="text-foreground max-w-56 truncate"
+        title={display.displayValue}
+      >
+        {display.displayValue}
+      </span>
+      <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
+        <button
+          type="button"
+          aria-label={`Remove metadata JSONPath ${display.path}`}
+          title="Remove metadata JSONPath"
+          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
+          onClick={() => onRemove(display.path)}
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </span>
+    </ModernSessionHeaderPill>
+  </span>
+);
+
+const MetadataJsonPathEditorContent = ({
+  metadataJsonPaths,
+  onClose,
+  onSave,
+}: {
+  metadataJsonPaths: SessionMetadataJsonPathState;
+  onClose: () => void;
+  onSave: (path: string) => void;
+}) => {
+  const [draftPath, setDraftPath] = useState("");
+  const normalizedDraftPath = draftPath.trim();
+  const draftResolution = resolveAgainstSource(
+    metadataJsonPaths.source,
+    draftPath,
+  );
+  const draftIsDuplicate =
+    metadataJsonPaths.paths.includes(normalizedDraftPath);
+  const draftIsValid =
+    normalizedDraftPath.length > 0 &&
+    draftResolution.state !== "invalid" &&
+    !draftIsDuplicate;
+
+  const handleSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!draftIsValid) return;
+    onSave(normalizedDraftPath);
+    onClose();
+  };
+
+  return (
+    <PopoverContent
+      align="end"
+      className="w-96"
+      aria-label="Add metadata JSONPath"
+    >
+      <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="session-metadata-jsonpath">Metadata JSONPath</Label>
+          <Input
+            id="session-metadata-jsonpath"
+            value={draftPath}
+            onChange={(event) => setDraftPath(event.target.value)}
+            placeholder="$.langfuse_user_email"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="bg-muted/40 flex min-h-14 flex-col gap-1 rounded-md border p-2 text-xs">
+          <span className="text-muted-foreground font-bold">Preview</span>
+          {normalizedDraftPath.length === 0 ? (
+            <span className="text-muted-foreground">
+              Enter a JSONPath to preview metadata.
+            </span>
+          ) : draftIsDuplicate ? (
+            <span className="text-muted-foreground">
+              This JSONPath is already shown.
+            </span>
+          ) : draftResolution.state === "match" ? (
+            <span className="font-mono break-all">
+              {draftResolution.displayValue}
+            </span>
+          ) : draftResolution.state === "invalid" ? (
+            <span className="text-destructive">{draftResolution.message}</span>
+          ) : draftResolution.state === "loading" ||
+            draftResolution.state === "idle" ? (
+            <span className="text-muted-foreground">
+              Loading first visible observation…
+            </span>
+          ) : draftResolution.state === "error" ? (
+            <span className="text-destructive">
+              Could not load the first visible observation.
+            </span>
+          ) : draftResolution.state === "empty" ? (
+            <span className="text-muted-foreground">
+              No observation matches the current view.
+            </span>
+          ) : (
+            <span className="text-muted-foreground">
+              No match on the first visible observation.
+            </span>
+          )}
+          {metadataJsonPaths.source.state === "ready" &&
+          metadataJsonPaths.source.metadataTruncated ? (
+            <span className="text-amber-600 dark:text-amber-500">
+              Metadata is truncated in this session preview.
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={!draftIsValid}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </PopoverContent>
+  );
+};
+
 export function ModernSessionHeader({
   projectId,
   countTraces,
@@ -87,12 +267,35 @@ export function ModernSessionHeader({
   totalCost,
   environment,
   users,
+  metadataJsonPaths,
   scores,
 }: ModernSessionHeaderProps) {
+  const capture = usePostHogClientCapture();
   const [search, setSearch] = useState("");
   const [visibleUserCount, setVisibleUserCount] = useState(
     SESSION_USERS_PER_PAGE,
   );
+  const [isMetadataEditorOpen, setIsMetadataEditorOpen] = useState(false);
+  const handleMetadataEditorOpenChange = (open: boolean) => {
+    setIsMetadataEditorOpen(open);
+    metadataJsonPaths.onEditorOpenChange(open);
+  };
+  const saveMetadataJsonPath = (path: string) => {
+    metadataJsonPaths.onSave(path);
+    capture("session_detail:metadata_jsonpath_config_changed", {
+      action: "add",
+      configuredPathCount: metadataJsonPaths.paths.length + 1,
+      isV4: true,
+    });
+  };
+  const removeMetadataJsonPath = (path: string) => {
+    metadataJsonPaths.onRemove(path);
+    capture("session_detail:metadata_jsonpath_config_changed", {
+      action: "remove",
+      configuredPathCount: Math.max(metadataJsonPaths.paths.length - 1, 0),
+      isV4: true,
+    });
+  };
   const latencies =
     traces.state === "loaded"
       ? traces.data.flatMap((trace) =>
@@ -158,16 +361,21 @@ export function ModernSessionHeader({
   }
 
   if (totalTokens > 0) {
+    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
     pills.push({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <ModernSessionHeaderPill
+          variant="display"
+          title={`tokens ${exactTokenCounts}`}
+        >
           <span>
             tokens{" "}
             <ChipValue>
-              {numberFormatter(tokensIn, 0)} → {numberFormatter(tokensOut, 0)}{" "}
-              (Σ {numberFormatter(totalTokens, 0)})
+              {compactTokenFormatter(tokensIn)} →{" "}
+              {compactTokenFormatter(tokensOut)} (Σ{" "}
+              {compactTokenFormatter(totalTokens)})
             </ChipValue>
           </span>
         </ModernSessionHeaderPill>
@@ -238,6 +446,23 @@ export function ModernSessionHeader({
   });
   const remainingUsers = users.slice(INITIAL_SESSION_USERS_DISPLAY_COUNT);
 
+  metadataJsonPaths.paths.forEach((path) => {
+    const display = getConfiguredMetadataDisplay(
+      path,
+      metadataJsonPaths.source,
+    );
+    pills.push({
+      key: `metadata-${path}`,
+      searchText: `metadata ${display.path} ${display.label} ${display.displayValue}`,
+      content: (
+        <MetadataJsonPathPill
+          display={display}
+          onRemove={removeMetadataJsonPath}
+        />
+      ),
+    });
+  });
+
   return (
     <div className="bg-header border-b px-4 py-2">
       <SingleLineOverflowList
@@ -245,6 +470,28 @@ export function ModernSessionHeader({
         additionalOverflowCount={remainingUsers.length}
         getKey={(pill) => pill.key}
         renderItem={(pill) => pill.content}
+        trailingContent={
+          <Popover
+            open={isMetadataEditorOpen}
+            onOpenChange={handleMetadataEditorOpenChange}
+          >
+            <PopoverTrigger asChild>
+              <ModernSessionHeaderPill
+                variant="button"
+                ariaLabel="Add metadata JSONPath"
+              >
+                <Plus className="h-3 w-3" />
+              </ModernSessionHeaderPill>
+            </PopoverTrigger>
+            {isMetadataEditorOpen ? (
+              <MetadataJsonPathEditorContent
+                metadataJsonPaths={metadataJsonPaths}
+                onClose={() => handleMetadataEditorOpenChange(false)}
+                onSave={saveMetadataJsonPath}
+              />
+            ) : null}
+          </Popover>
+        }
         renderOverflow={({ hiddenItems: hiddenPills, overflowItemCount }) => {
           const normalizedSearch = search.trim().toLocaleLowerCase();
           const filteredPills = normalizedSearch

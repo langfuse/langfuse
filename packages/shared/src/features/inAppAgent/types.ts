@@ -61,6 +61,11 @@ export enum InAppAgentRunErrorCode {
   APPROVAL_SUPERSEDED = "approval_superseded",
   /** Pending approval cancelled by the user (recorded on CANCELLED). */
   APPROVAL_CANCELLED = "approval_cancelled",
+  /**
+   * Loop hit maxSteps without a `stop` finish — the run completed the
+   * configured wall but did not produce a final answer.
+   */
+  STEP_LIMIT = "step_limit",
 }
 
 /**
@@ -97,3 +102,15 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type InAppAgentRunRequest = z.infer<typeof InAppAgentRunRequestSchema>;
+
+// Approval continuations inherit the root run's trace ids, so telemetry keyed
+// off a run must resolve the root first.
+export const resolveInAppAgentRootRunId = (
+  request: unknown,
+  runId: string,
+): string => {
+  const parsed = InAppAgentRunRequestSchema.safeParse(request);
+  return parsed.success && parsed.data.kind === "approvalDecision"
+    ? (parsed.data.rootRunId ?? parsed.data.parentRunId)
+    : runId;
+};

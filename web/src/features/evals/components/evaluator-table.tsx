@@ -10,7 +10,7 @@ import {
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
@@ -46,6 +46,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
@@ -172,14 +173,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         configList.map((evaluator) => ({ id: evaluator.id })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluators.isSuccess, evaluators.data]);
+  }, [evaluators.isSuccess, evaluators.data, setDetailPageList]);
 
   const columnHelper = createColumnHelper<EvaluatorDataRow>();
   const columns = [
     columnHelper.accessor("scoreName", {
       id: "scoreName",
       header: "Generated Score Name",
+      enableSorting: true,
       size: 320,
       cell: (row) => {
         const scoreName = row.getValue();
@@ -209,6 +210,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("status", {
       header: "Status",
       id: "status",
+      enableSorting: true,
       size: 80,
       loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
@@ -220,25 +222,24 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         );
       },
     }),
-    columnHelper.accessor("totalCost", {
+    createNumberTableColumn<EvaluatorDataRow>({
+      accessorKey: "totalCost",
       header: "Total Cost (7d)",
-      id: "totalCost",
+      enableSorting: false,
       size: 120,
-      cell: (row) => {
-        const totalCost = row.getValue();
+      emptyValue: "–",
+      formatter: (value) => usdFormatter(value, 2, 4),
+      getValue: (value, { row }) => {
+        if (row.original.isCostLoading) return { type: "loading" };
+        if (value === null || value === undefined) return undefined;
 
-        if (row.row.original.isCostLoading) {
-          return <Skeleton className="h-4 w-16" />;
-        }
-
-        if (totalCost != null) return usdFormatter(totalCost, 2, 4);
-
-        return "–";
+        return value;
       },
     }),
     columnHelper.accessor("result", {
       header: "Result",
       id: "result",
+      enableSorting: false,
       size: 150,
       cell: (row) => {
         const result = row.getValue();
@@ -253,6 +254,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("logs", {
       header: "Logs",
       id: "logs",
+      enableSorting: false,
       size: 150,
       loadingCell: <Skeleton className="h-6 w-16 rounded-md" />,
       cell: ({ row }) => {
@@ -265,7 +267,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             onClick={(e) => {
               e.stopPropagation();
               router.push(
-                `/project/${projectId}/evals/${encodeURIComponent(id)}`,
+                `/project/${projectId}/evals/legacy/${encodeURIComponent(id)}`,
               );
             }}
           >
@@ -278,6 +280,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("template", {
       id: "template",
       header: "Referenced Evaluator",
+      enableSorting: false,
       size: 200,
       loadingCell: (
         <div className="flex items-center gap-2">
@@ -314,6 +317,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "target",
       header: "Runs on",
       size: 150,
+      enableSorting: true,
       enableHiding: true,
       cell: (row) => {
         const targetObject = row.getValue();
@@ -327,6 +331,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "filter",
       header: "Filter",
       size: 200,
+      enableSorting: false,
       enableHiding: true,
       cell: (row) => {
         const filterState = row.getValue();
@@ -346,17 +351,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
           return filter;
         });
 
-        return (
-          <div className="flex h-full overflow-x-auto">
-            <InlineFilterState filterState={newFilterState} />
-          </div>
-        );
+        return <EvaluatorFilterCell filterState={newFilterState} />;
       },
     }),
     columnHelper.accessor("id", {
       header: "Id",
       id: "id",
       size: 100,
+      enableSorting: false,
       enableHiding: true,
       cell: (row) => {
         const id = row.getValue();
@@ -366,6 +368,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     columnHelper.accessor("actions", {
       header: "Actions",
       id: "actions",
+      enableSorting: false,
       size: 100,
       loadingCell: <TableIconButtonLoadingCell />,
       cell: ({ row }) => {
@@ -412,7 +415,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    tableName: evaluatorFilterConfig.tableName,
+    isV4: false,
+  });
 
   const peekConfig = useMemo(
     () => ({
@@ -490,6 +496,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         <TablePeekViewEvaluatorConfigDetail
           {...peekConfig}
           projectId={projectId}
+          readOnly={false}
         />
       </div>
       <Dialog

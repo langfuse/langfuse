@@ -11,7 +11,7 @@ RUN npm install turbo@2.10.5 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@11.10.0 --activate
+RUN corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
@@ -98,8 +98,11 @@ ARG NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_PUBLIC_BASE_PATH
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
-ARG NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT
-ENV NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT=$NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT
+# Origin serving this build's /_next/static/* output. Must be a build arg: the
+# bundler writes it into the client runtime's public path, so it cannot be
+# changed by a runtime environment variable.
+ARG NEXT_PUBLIC_ASSET_PREFIX
+ENV NEXT_PUBLIC_ASSET_PREFIX=$NEXT_PUBLIC_ASSET_PREFIX
 
 # Sentry already needs to be set on build time to upload sourcemaps
 # This must not be set for OSS releases as we would share our Sentry secret.

@@ -1,9 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import {
   Avatar,
   AvatarFallback,
@@ -12,7 +12,6 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { type RouterOutputs } from "@/src/utils/api";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
@@ -119,26 +118,20 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
       accessorKey: "action",
       header: "Action",
     },
-    {
+    createIOTableColumn<AuditLogRow>({
       accessorKey: "before",
       header: "Before",
       size: 300,
-      cell: (row) => {
-        const value = row.getValue() as string | null;
-        if (!value) return null;
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<AuditLogRow>({
       accessorKey: "after",
       header: "After",
       size: 300,
-      cell: (row) => {
-        const value = row.getValue() as string | null;
-        if (!value) return null;
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
   ];
 
   return (

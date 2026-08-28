@@ -17,8 +17,8 @@ import {
   type TraceRecordInsertType,
   type ObservationRecordInsertType,
   type EventRecordInsertType,
+  createTrace,
 } from "@langfuse/shared/src/server";
-import { createTrace } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 

@@ -1,9 +1,8 @@
 import { type Plan } from "@langfuse/shared";
 
 // Entitlements: Binary feature access
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const entitlements = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const entitlements = [
   // features
   "rbac-project-roles",
   "cloud-billing",
@@ -30,12 +29,12 @@ const cloudAllPlansEntitlements: Entitlement[] = [
 const selfHostedAllPlansEntitlements: Entitlement[] = [
   "trace-deletion",
   "scheduled-blob-exports",
+  "in-app-agent",
 ];
 
 // Entitlement Limits: Limits on the number of resources that can be created/used
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
-export const entitlementLimits = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
+const entitlementLimits = [
   "annotation-queue-count",
   "organization-member-count",
   "data-access-days",

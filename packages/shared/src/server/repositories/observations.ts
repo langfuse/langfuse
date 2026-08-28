@@ -523,6 +523,16 @@ export type ObservationTableQuery = {
   searchType?: TracingSearchType[];
   limit?: number;
   offset?: number;
+  /**
+   * Uses the stable observation tuple instead of OFFSET pagination. The flag
+   * is required because the first cursor page does not carry a cursor yet.
+   */
+  cursorPagination?: boolean;
+  cursor?: {
+    lastStartTimeTo: Date;
+    lastTraceId: string;
+    lastId: string;
+  };
   selectIOAndMetadata?: boolean;
   renderingProps?: RenderingProps;
   /**
@@ -597,7 +607,9 @@ export const getObservationsTableWithModelData = async (
             OR: [{ projectId: opts.projectId }, { projectId: null }],
           },
           include: {
-            Price: true,
+            Price: {
+              where: { pricingTier: { isDefault: true } },
+            },
           },
         })
       : [],
@@ -1743,7 +1755,7 @@ const buildObservationsForBlobStorageExportQuery = (
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
-    AND start_time <= {maxTimestamp: DateTime64(3)}
+    AND start_time < {maxTimestamp: DateTime64(3)}
     ${
       skipDedup
         ? ""
@@ -2037,7 +2049,7 @@ const getEvaluatorCostMetricsByIds = async <
       WHERE project_id = {projectId: String}
         AND metadata['job_configuration_id'] IN ({evaluatorIds: Array(String)})
         AND type = 'GENERATION'
-        AND start_time > today() - 7
+        AND start_time > now() - INTERVAL 7 DAY
       GROUP BY metadata['job_configuration_id']
     `,
     params: {

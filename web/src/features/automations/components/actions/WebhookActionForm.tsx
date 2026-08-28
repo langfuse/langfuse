@@ -60,8 +60,6 @@ export const webhookSchema = z.object({
   ),
 });
 
-export type WebhookFormValues = z.infer<typeof webhookSchema>;
-
 interface WebhookActionFormProps {
   form: UseFormReturn<any>;
   disabled: boolean;
@@ -308,7 +306,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
   );
 };
 
-export const RegenerateWebhookSecretButton = ({
+const RegenerateWebhookSecretButton = ({
   projectId,
   action,
 }: {

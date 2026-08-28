@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 type Accuracy = "day" | "hour" | "minute" | "second" | "millisecond";
 
 export const formatLocalIsoDate = (
@@ -34,25 +33,33 @@ export const formatLocalIsoDate = (
   return formatted;
 };
 
-export const LocalIsoDate = ({
+const prepareLocalIsoDate = ({
   date,
   accuracy = "second",
-  className,
 }: {
-  date: Date;
+  date: unknown;
   accuracy?: Accuracy;
-  className?: string;
 }) => {
   if (!(date instanceof Date) || isNaN(date.getTime())) {
     return null;
   }
 
-  const localDateString = formatLocalIsoDate(date, false, accuracy);
-  const utcDateString = formatLocalIsoDate(date, true, "millisecond");
+  return {
+    display: formatLocalIsoDate(date, false, accuracy),
+    title: `UTC: ${formatLocalIsoDate(date, true, "millisecond")}`,
+  };
+};
 
-  return (
-    <span title={`UTC: ${utcDateString}`} className={className}>
-      {localDateString}
-    </span>
-  );
+export const LocalIsoDate = ({
+  date,
+  accuracy,
+}: {
+  date: Date;
+  accuracy?: Accuracy;
+}) => {
+  const preparedDate = prepareLocalIsoDate({ date, accuracy });
+
+  return preparedDate ? (
+    <span title={preparedDate.title}>{preparedDate.display}</span>
+  ) : null;
 };

@@ -34,6 +34,7 @@ import {
   prepareIsolatedPoints,
 } from "@/src/features/widgets/chart-library/prepareDenseSeries";
 import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
@@ -327,6 +328,10 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
             interval={timeAxis.interval}
             tickFormatter={timeAxis.formatTick}
             {...timeAxis.tickProps}
+            {...temporalAxisTickProp(
+              timeAxis,
+              groupedData.at(-1)?.time_dimension,
+            )}
           />
           <YAxis
             type="number"

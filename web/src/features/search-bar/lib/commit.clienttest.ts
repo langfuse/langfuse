@@ -1,4 +1,27 @@
+// @vitest-environment node
+
 import { planCommit } from "@/src/features/search-bar/lib/commit";
+
+const experimentAndEvalExclusions = [
+  {
+    column: "environment",
+    type: "string",
+    operator: "does not contain",
+    value: "langfuse-",
+  },
+  {
+    column: "environment",
+    type: "stringOptions",
+    operator: "none of",
+    value: ["sdk-experiment"],
+  },
+  {
+    column: "experimentId",
+    type: "null",
+    operator: "is null",
+    value: "",
+  },
+] as const;
 
 describe("planCommit", () => {
   it("lowers a valid draft to filters + search + canonical text", () => {
@@ -35,6 +58,19 @@ describe("planCommit", () => {
     expect(r.filters).toEqual([]);
     expect(r.searchQuery).toBeNull();
     expect(r.canonical).toBe("");
+  });
+
+  it("commits the explicit experiment and evaluation exclusions", () => {
+    const r = planCommit(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
+    expect(r.status).toBe("committed");
+    if (r.status !== "committed") return;
+    expect(r.filters).toEqual(experimentAndEvalExclusions);
+    expect(r.searchQuery).toBeNull();
+    expect(r.canonical).toBe(
+      "-environment:*langfuse-* -environment:sdk-experiment -has:experimentId",
+    );
   });
 
   it("returns invalid with diagnostics for unrepresentable queries", () => {

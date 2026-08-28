@@ -1,27 +1,31 @@
-import type { EvalTemplate } from "@langfuse/shared/src/db";
-import type { FilterCondition, JobTimeScope } from "@langfuse/shared";
 import type {
-  JobConfiguration,
+  EvaluationRule,
+  EvaluationRuleEvaluatorAssignment,
+  Evaluator,
+  EvaluatorVersion,
   Prisma as PrismaNamespace,
   prisma,
 } from "@langfuse/shared/src/db";
 import type {
-  LegacyEvaluationRuleMappingType,
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
-  PublicEvaluationRuleMappingType,
-  PublicEvaluationRuleLegacyTargetType,
+  PromptVariableMappingReadType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
+  LegacyPromptVariableMappingType,
+  PublicEvaluationRuleLegacyTargetType,
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
-  PublicEvaluatorScopeType,
   PublicCodeEvaluatorSourceCodeLanguageType,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import type { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import type {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  FilterCondition,
+  JobTimeScope,
+} from "@langfuse/shared";
 
 export type PrismaClientLike =
   | typeof prisma
@@ -31,21 +35,30 @@ type ApiEvaluatorRecordBase = {
   id: string;
   name: string;
   version: number;
-  scope: PublicEvaluatorScopeType;
   variables: string[];
+  // Read shape: an evaluator default can be incomplete or name experiment-only sources.
+  mapping: PromptVariableMappingReadType[] | null;
   evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
 
-export type ApiLlmAsJudgeEvaluatorRecord = ApiEvaluatorRecordBase & {
+export type StoredPublicV2EvaluationRule = EvaluationRule & {
+  assignments: Array<
+    EvaluationRuleEvaluatorAssignment & {
+      evaluator: Evaluator & { versions: EvaluatorVersion[] };
+    }
+  >;
+};
+
+type ApiLlmAsJudgeEvaluatorRecord = ApiEvaluatorRecordBase & {
   type: typeof PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
   prompt: string;
   outputDefinition: PublicEvaluatorOutputDefinitionType;
   modelConfig: PublicEvaluatorModelConfigType | null;
 };
 
-export type ApiCodeEvaluatorRecord = ApiEvaluatorRecordBase & {
+type ApiCodeEvaluatorRecord = ApiEvaluatorRecordBase & {
   type: typeof PUBLIC_EVALUATOR_TYPE_CODE;
   variables: Array<(typeof CODE_EVAL_TEMPLATE_VARIABLES)[number]>;
   sourceCode: string;
@@ -59,7 +72,7 @@ export type ApiEvaluatorRecord =
 type ApiEvaluationRuleRecordBase = {
   id: string;
   name: string;
-  evaluator: PublicEvaluationRuleEvaluatorType;
+  evaluator: PublicEvaluationRuleEvaluatorType | null;
   enabled: boolean;
   status: PublicEvaluationRuleStatusType;
   pausedReason: string | null;
@@ -70,17 +83,25 @@ type ApiEvaluationRuleRecordBase = {
 };
 
 export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
+  evaluators: Array<{
+    evaluator: PublicEvaluationRuleEvaluatorType;
+    mapping: PromptVariableMappingReadType[] | null;
+  }>;
   target: PublicEvaluationRuleTargetType;
   filter: PublicEvaluationRuleFilterType[];
-  mapping: PublicEvaluationRuleMappingType[];
+  mapping: PromptVariableMappingReadType[];
 };
 
-export type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
+type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
+  evaluators: Array<{
+    evaluator: PublicEvaluationRuleEvaluatorType;
+    mapping: LegacyPromptVariableMappingType[] | null;
+  }>;
   target: PublicEvaluationRuleLegacyTargetType;
   delay: number;
   timeScope: JobTimeScope[];
   filter: FilterCondition[];
-  mapping: LegacyEvaluationRuleMappingType[];
+  mapping: LegacyPromptVariableMappingType[];
 };
 
 export type ApiEvaluationRuleRecord =
@@ -91,43 +112,20 @@ export type EvaluationRuleEvaluatorFamilyReference =
   PublicEvaluationRuleEvaluatorReferenceType;
 
 export type StoredPublicEvaluatorTemplate = Pick<
-  EvalTemplate,
-  | "id"
-  | "projectId"
-  | "name"
-  | "version"
-  | "prompt"
-  | "type"
-  | "partner"
-  | "provider"
-  | "model"
-  | "modelParams"
-  | "vars"
-  | "outputDefinition"
-  | "sourceCode"
-  | "sourceCodeLanguage"
-  | "createdAt"
-  | "updatedAt"
->;
-
-export type StoredPublicEvaluationRuleConfig = Pick<
-  JobConfiguration,
-  | "id"
-  | "projectId"
-  | "evalTemplateId"
-  | "scoreName"
-  | "targetObject"
-  | "filter"
-  | "variableMapping"
-  | "sampling"
-  | "delay"
-  | "timeScope"
-  | "status"
-  | "blockedAt"
-  | "blockReason"
-  | "blockMessage"
-  | "createdAt"
-  | "updatedAt"
-> & {
-  evalTemplate: Pick<EvalTemplate, "id" | "projectId" | "name" | "type"> | null;
-};
+  Evaluator,
+  "id" | "projectId" | "name" | "type" | "createdAt" | "updatedAt"
+> &
+  Pick<
+    EvaluatorVersion,
+    | "version"
+    | "prompt"
+    | "partner"
+    | "provider"
+    | "model"
+    | "modelParams"
+    | "vars"
+    | "outputDefinition"
+    | "sourceCode"
+    | "sourceCodeLanguage"
+    | "variableMapping"
+  >;

@@ -8,6 +8,7 @@ import React, {
   useRef,
   useEffect,
   type CSSProperties,
+  type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
@@ -19,6 +20,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import {
+  type DataTableCellBackground,
   type DataTableCellPadding,
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
@@ -61,6 +63,7 @@ import {
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
+  onScroll?: UIEventHandler<HTMLDivElement>;
   data: AsyncTableData<TData[]>;
   /**
    * A fetch is in flight while rows are already on screen (refresh, filter,
@@ -208,8 +211,18 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
   }
 };
 
+const cellBackgroundClassNames = {
+  gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green:
+    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+} satisfies Record<DataTableCellBackground, string>;
+
+const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
+  background ? cellBackgroundClassNames[background] : undefined;
+
 export function DataTable<TData extends object, TValue>({
   columns,
+  onScroll,
   data,
   isFetching = false,
   pagination,
@@ -436,6 +449,7 @@ export function DataTable<TData extends object, TValue>({
           // to the right, not a complete fix.
           className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
+          onScroll={onScroll}
         >
           {/* Zero-height so an arriving refetch never shifts the table. Sticky on
               BOTH axes: this box is only as wide as the visible area, so without
@@ -550,7 +564,7 @@ export function DataTable<TData extends object, TValue>({
                                 href={columnDef.headerTooltip.href}
                               />
                             )}
-                            {orderBy?.column === columnDef.id
+                            {sortingEnabled && orderBy?.column === columnDef.id
                               ? renderOrderingIndicator(orderBy)
                               : null}
 
@@ -840,6 +854,7 @@ function TableBodyComponent<TData>({
                     ),
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -914,6 +929,7 @@ function TableBodyComponent<TData>({
                     ),
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
                   )}
                   style={{
                     ...getCommonPinningStyles(cell.column),

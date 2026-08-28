@@ -3,7 +3,7 @@ import { addUserToSpan, instrumentAsync } from "@langfuse/shared/src/server";
 import { SpanKind, type Span } from "@opentelemetry/api";
 import { ZodError } from "zod";
 
-import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { StructuredPublicApiError } from "@/src/features/public-api";
 
 import { isUserInputError } from "./errors";
 import type { ServerContext } from "../types";
@@ -66,7 +66,7 @@ export const runMcpTool = async <TResult>({
         if (error instanceof BaseError) {
           span.setAttribute("mcp.error.http_code", error.httpCode);
         }
-        if (error instanceof UnstablePublicApiError) {
+        if (error instanceof StructuredPublicApiError) {
           span.setAttribute("mcp.error.code", error.code);
         }
         throw error;

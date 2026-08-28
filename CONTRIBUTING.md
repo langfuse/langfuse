@@ -117,7 +117,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.10.0
+- Pnpm v.11.22.0
 - Docker to run the database locally
 - Clickhouse client
 
@@ -180,10 +180,20 @@ endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
 in Cursor, never in repository files.
 
-After local verification, a Cursor agent should open a same-repo draft PR and
-test its `pr-<N>.preview.langfuse.com` deployment before marking it ready.
-Preview data and any attached artifacts must remain synthetic. Previews normally
-run Mon-Fri 08:00-24:00 Europe/Berlin and are not woken with Cursor credentials.
+After local verification, a Cursor agent should open a same-repo reviewable
+PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
+Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+When handing work to a human, give a one-sentence TL;DR, a preview URL with
+exact test steps (including how to seed or hit the same path on
+`http://localhost:3000`), and proof of the fix for user-visible changes
+posted on the GitHub PR (screenshot, video, or before/after — not only in
+chat). Cursor agents that comment as Cursor may also leave one PR comment
+with that proof plus what a reviewer should doubt; Claude Code and other
+tools that comment as the human author must not.
+Prefer one or two human actions at a time; if you need more, keep each
+point simple and super readable. Preview data and any attached artifacts
+must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
+Europe/Berlin and are not woken with Cursor credentials.
 
 ### Shared Agent Setup
 

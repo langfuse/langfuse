@@ -54,7 +54,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
-          version: 11.10.0
+          version: 11.22.0
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -124,9 +124,14 @@ jobs:
         with:
           script: |
             const marker = "<!-- storybook-preview -->";
-            const body = `${marker}\nStorybook preview: ${process.env.PREVIEW_URL}\n\nUpdated at: ${new Date().toISOString()}\nCommit: ${process.env.COMMIT_SHA}`;
             const { owner, repo } = context.repo;
             const issue_number = Number(process.env.PR_NUMBER);
+            // The link label ends in "preview" so Linear's GitHub integration
+            // picks it up as a custom preview link on every linked Linear
+            // issue; a bare URL is not matched. The AWS app preview comment
+            // uses the same shape, so a linked issue offers both.
+            const link = `[pr-${issue_number} storybook preview](${process.env.PREVIEW_URL})`;
+            const body = `${marker}\nStorybook preview: ${link}\n\nUpdated at: ${new Date().toISOString()}\nCommit: ${process.env.COMMIT_SHA}`;
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,

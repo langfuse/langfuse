@@ -7,6 +7,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { SESSIONS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -19,11 +20,17 @@ export default withMiddlewares({
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const { fromTimestamp, toTimestamp, limit, page, environment } = query;
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: fromTimestamp ?? undefined,
+      });
 
       const where = {
         projectId: auth.scope.projectId,
         createdAt: {
-          ...(fromTimestamp && { gte: new Date(fromTimestamp) }),
+          ...(dataAccessWindow.effectiveFromTimestamp && {
+            gte: dataAccessWindow.effectiveFromTimestamp,
+          }),
           ...(toTimestamp && { lt: new Date(toTimestamp) }),
         },
         environment: environment

@@ -18,6 +18,7 @@ import {
   deepParseJson,
   EvalTargetObject,
   type EvalTemplate,
+  getCodeEvalVariableMapping,
 } from "@langfuse/shared";
 import { ExternalLink, ListTree, Play, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -25,7 +26,6 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
-import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   isEventTarget,
   isExperimentTarget,
@@ -78,6 +78,8 @@ export function CodeEvalTestRunCard({
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evalTemplates",
+    isV4: isBetaEnabled,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
     },

@@ -3,7 +3,7 @@ import { LLMJSONSchema, LLMToolNameSchema } from "@langfuse/shared";
 
 export { LLMToolNameSchema } from "@langfuse/shared";
 
-export const LLMToolInput = z.object({
+const LLMToolInput = z.object({
   name: LLMToolNameSchema,
   description: z.string(),
   parameters: LLMJSONSchema,

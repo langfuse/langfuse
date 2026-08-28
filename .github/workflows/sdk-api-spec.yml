@@ -5,7 +5,10 @@ on:
     branches:
       - main
     paths:
+      - ".github/workflows/sdk-api-spec.yml"
       - "fern/**"
+      - "web/scripts/python-sdk/patch-generated-deprecations.ts"
+      - "web/scripts/typescript-sdk/patch-generated-deprecations.ts"
   workflow_dispatch:
 
 concurrency:
@@ -32,7 +35,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
-          version: 11.10.0
+          version: 11.22.0
 
       # Keep this secret-bearing job cache-cold to avoid exposing Fern
       # credentials to potentially poisoned shared package-manager state.
@@ -49,6 +52,20 @@ jobs:
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
         run: npx fern-api generate --api server --force
+
+      - name: Add Python SDK deprecation warnings
+        working-directory: web
+        run: >-
+          pnpm exec tsx scripts/python-sdk/patch-generated-deprecations.ts
+          --definition-root ../fern/apis/server/definition
+          --api-root ../generated/python
+
+      - name: Add TypeScript SDK deprecation warnings
+        working-directory: web
+        run: >-
+          pnpm exec tsx scripts/typescript-sdk/patch-generated-deprecations.ts
+          --definition-root ../fern/apis/server/definition
+          --api-root ../generated/typescript
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -75,7 +92,12 @@ jobs:
           # (could not find the right option to prevent this in generation step)
           rm -rf langfuse/api/tests
 
-          # Install dependencies, preserve backwards-compatible score creation aliases, and format
+          # Declare the PEP 702 decorator dependency when the SDK does not
+          # already own a constraint, then install dependencies, preserve
+          # backwards-compatible score creation aliases, and format.
+          if ! sed -n '/^dependencies = \[/,/^\]/p' pyproject.toml | grep -Eqi '^[[:space:]]*"typing[-_.]extensions([<>=!~;@[:space:]]|")'; then
+            uv add --no-sync "typing-extensions>=4.12.2,<5"
+          fi
           uv sync --all-extras --frozen
           uv run python scripts/patch_generated_score_compat.py
           uv run ruff format langfuse/api
@@ -137,7 +159,7 @@ jobs:
 
           # Install dependencies and format
           corepack enable
-          corepack prepare pnpm@11.10.0 --activate
+          corepack prepare pnpm@11.22.0 --activate
           pnpm install
           pnpm format
 

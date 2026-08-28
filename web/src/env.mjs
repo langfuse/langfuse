@@ -267,6 +267,10 @@ export const env = createEnv({
     AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
     AUTH_CUSTOM_ID_TOKEN: z.enum(["true", "false"]).optional().default("true"),
+    AUTH_CUSTOM_FETCH_USERINFO: z
+      .enum(["true", "false"])
+      .optional()
+      .default("false"),
     AUTH_WORKOS_CLIENT_ID: z.string().optional(),
     AUTH_WORKOS_CLIENT_SECRET: z.string().optional(),
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING: z.enum(["true", "false"]).optional(),
@@ -293,7 +297,7 @@ export const env = createEnv({
         "AUTH_SESSION_MAX_AGE must be > 5 as session JWT tokens are refreshed every 5 minutes",
       )
       .optional()
-      .default(30 * 24 * 60), // default to 30 days
+      .default(14 * 24 * 60), // default to 14 days
     AUTH_HTTP_PROXY: z.url().optional(),
     AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
@@ -415,6 +419,31 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
+    // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
+    // events to. Unset = no events are emitted. The ARN carries the bus region,
+    // so it is the only input needed; authentication is SigV4 from the task
+    // role, which infrastructure grants events:PutEvents on exactly this ARN.
+    CLICKHOUSE_BILLING_EVENT_BUS_ARN: z
+      .string()
+      .regex(
+        /^arn:aws:events:[a-z0-9-]+:\d{12}:event-bus\/.+$/,
+        "must be an EventBridge bus ARN (arn:aws:events:<region>:<account-id>:event-bus/<name>)",
+      )
+      .optional(),
+    // CHB REST API base url (checkout sessions, bundles, invoices). Unset, or
+    // any missing Auth0 credential below, makes the CHB billing service refuse
+    // to construct, so no half-configured calls go out.
+    CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+    // Auth0 client credentials for CHB's REST API: it verifies the bearer
+    // token's issuer, audience and signature against this tenant's JWKS, so a
+    // static shared secret is rejected. Not used for the event bus, which
+    // authenticates via IAM.
+    CLICKHOUSE_BILLING_AUTH0_DOMAIN: z.string().optional(),
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID: z.string().optional(),
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET: z.string().optional(),
+    // CHB's resource-server identifier. Defaulted because it is the same value
+    // in every CHB tenant, and overridable in case that stops being true.
+    CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -449,9 +478,41 @@ export const env = createEnv({
     SLACK_CLIENT_SECRET: z.string().optional(),
     SLACK_STATE_SECRET: z.string().optional(),
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
+    // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+    // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
+    // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
+    // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
+    // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
+    // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+    LANGFUSE_AI_MODEL: z.string().optional(),
+    LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+    LANGFUSE_AI_API_KEY: z.string().optional(),
+    LANGFUSE_AI_BASE_URL: z.string().optional(),
+    LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),
+    LANGFUSE_AI_EXTRA_HEADERS: z
+      .string()
+      .optional()
+      .refine(
+        (value) => {
+          if (value == null || value.trim() === "") {
+            return true;
+          }
+
+          try {
+            z.record(z.string(), z.string()).parse(JSON.parse(value));
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        {
+          message:
+            "LANGFUSE_AI_EXTRA_HEADERS must be a JSON object of string header names and values",
+        },
+      ),
+    LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -467,6 +528,12 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
+    // Maximum encoded and decompressed OTLP request body size in bytes.
+    LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES: z.coerce
+      .number()
+      .positive()
+      .int()
+      .default(512 * 1024 * 1024),
     // API Traces endpoint controls (may induce breaking changes on API when changed!)
     LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
       .number()
@@ -498,6 +565,15 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
+
+    // Character count above which trace/observation I/O is rendered as plain
+    // text instead of markdown. Served to the browser via the public tRPC
+    // router, so it works as a runtime env var on prebuilt Docker images.
+    LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(150_000),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -541,22 +617,16 @@ export const env = createEnv({
       }),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
-    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
-      .enum(["dangerous-docker", "lambda-microvm"])
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
-      .string()
-      .optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-      z.string().optional(),
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
-      .string()
-      .optional(),
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5),
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(20),
   },
 
   /**
@@ -575,6 +645,7 @@ export const env = createEnv({
       .optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -594,17 +665,21 @@ export const env = createEnv({
     NEXT_PUBLIC_PLAIN_APP_ID: z.string().optional(),
     NEXT_PUBLIC_BUILD_ID: z.string().optional(),
     NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+    // Origin that serves this build's `/_next/static/*` output, when it is
+    // fronted by a CDN on its own hostname. The app origin keeps serving the
+    // same files, so this only changes the URLs the browser is handed.
+    // Restricted to a bare origin: a path component would have to be mirrored
+    // by whatever fronts the hostname, and nothing here checks that it is.
+    NEXT_PUBLIC_ASSET_PREFIX: z
+      .url()
+      .refine((value) => new URL(value).pathname === "/", {
+        message: "NEXT_PUBLIC_ASSET_PREFIX must be an origin with no path",
+      })
+      .optional(),
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT: z
       .enum(["true", "false"])
       .optional()
       .default("true"),
-    // Content larger than this is rendered as plain text instead of markdown,
-    // as react-markdown is too slow for large payloads.
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(150_000),
   },
 
   /**
@@ -630,6 +705,8 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     NEXT_PUBLIC_PREVIEW_PR_URL: process.env.NEXT_PUBLIC_PREVIEW_PR_URL,
     NEXT_PUBLIC_PREVIEW_PR_AUTHOR: process.env.NEXT_PUBLIC_PREVIEW_PR_AUTHOR,
@@ -641,22 +718,10 @@ export const env = createEnv({
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
-    LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
-      process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
-      process.env
-        .LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN,
-    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:
-      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION,
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER:
+      process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_USER,
+    LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:
+      process.env.LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK:
       process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
@@ -828,6 +893,7 @@ export const env = createEnv({
     AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING:
       process.env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING,
     AUTH_CUSTOM_ID_TOKEN: process.env.AUTH_CUSTOM_ID_TOKEN,
+    AUTH_CUSTOM_FETCH_USERINFO: process.env.AUTH_CUSTOM_FETCH_USERINFO,
     AUTH_WORKOS_CLIENT_ID: process.env.AUTH_WORKOS_CLIENT_ID,
     AUTH_WORKOS_CLIENT_SECRET: process.env.AUTH_WORKOS_CLIENT_SECRET,
     AUTH_WORKOS_ALLOW_ACCOUNT_LINKING:
@@ -942,9 +1008,6 @@ export const env = createEnv({
     // Playground
     NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT:
       process.env.NEXT_PUBLIC_LANGFUSE_PLAYGROUND_STREAMING_ENABLED_DEFAULT,
-    // Markdown rendering
-    NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
-      process.env.NEXT_PUBLIC_LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     // EE License
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
@@ -961,6 +1024,17 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
+    CLICKHOUSE_BILLING_EVENT_BUS_ARN:
+      process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
+    CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
+    CLICKHOUSE_BILLING_AUTH0_DOMAIN:
+      process.env.CLICKHOUSE_BILLING_AUTH0_DOMAIN,
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_ID:
+      process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_ID,
+    CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET:
+      process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
+    CLICKHOUSE_BILLING_AUTH0_AUDIENCE:
+      process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
@@ -980,16 +1054,22 @@ export const env = createEnv({
     LANGFUSE_INIT_USER_NAME: process.env.LANGFUSE_INIT_USER_NAME,
     LANGFUSE_INIT_USER_PASSWORD: process.env.LANGFUSE_INIT_USER_PASSWORD,
     NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH,
+    NEXT_PUBLIC_ASSET_PREFIX: process.env.NEXT_PUBLIC_ASSET_PREFIX,
     LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT:
       process.env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
     SLACK_STATE_SECRET: process.env.SLACK_STATE_SECRET,
 
-    // AWS Bedrock for langfuse native AI feature such as natural language filters
-    LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
-    LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
-      process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
+    LANGFUSE_AI_PROVIDER: process.env.LANGFUSE_AI_PROVIDER,
+    LANGFUSE_AI_MODEL: process.env.LANGFUSE_AI_MODEL,
+    LANGFUSE_AI_SMALL_MODEL: process.env.LANGFUSE_AI_SMALL_MODEL,
+    LANGFUSE_AI_API_KEY: process.env.LANGFUSE_AI_API_KEY,
+    LANGFUSE_AI_BASE_URL: process.env.LANGFUSE_AI_BASE_URL,
+    LANGFUSE_AI_USE_RESPONSES_API: process.env.LANGFUSE_AI_USE_RESPONSES_API,
+    LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
+    LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
@@ -997,6 +1077,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
+    LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
+      process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
 
     // Natural Language Filters
     LANGFUSE_AI_FEATURES_PUBLIC_KEY:
@@ -1018,6 +1100,8 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
+      process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
@@ -1039,26 +1123,3 @@ export const env = createEnv({
   skipValidation: process.env.DOCKER_BUILD === "1",
   emptyStringAsUndefined: true, // https://env.t3.gg/docs/customization#treat-empty-strings-as-undefined
 });
-
-/**
- * @param {typeof env} parsed
- */
-const validateInAppAgentSandboxConfig = (parsed) => {
-  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
-    return;
-  }
-
-  if (
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
-    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
-  ) {
-    throw new Error(
-      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
-    );
-  }
-};
-
-if (typeof window === "undefined") {
-  validateInAppAgentSandboxConfig(env);
-}

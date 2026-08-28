@@ -5,9 +5,8 @@ import {
 import {
   IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
   IN_APP_AGENT_SANDBOX_TOOL_NAMES,
-} from "@langfuse/shared/in-app-agent/server/tools";
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import {
-  extractLangfuseDocsSources,
   getInAppAgentToolDisplayName,
   getInAppAgentActivityProgressLabel,
   getInAppAgentToolProgressLabel,
@@ -76,6 +75,7 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_getPrompt: "Inspecting prompt",
   langfuse_getScore: "Inspecting score",
   langfuse_getScoreConfig: "Inspecting score config",
+  langfuse_getV4MigrationData: "Inspecting v4 migration data",
   langfuse_listAlerts: "Browsing alerts",
   langfuse_listAnnotationQueueItems: "Browsing annotation queue items",
   langfuse_listAnnotationQueues: "Browsing annotation queues",
@@ -87,6 +87,8 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_listDatasets: "Browsing datasets",
   langfuse_listEvaluationRules: "Browsing evaluation rules",
   langfuse_listEvaluators: "Browsing evaluators",
+  langfuse_listManagedEvaluatorTemplates:
+    "Browsing managed evaluator templates",
   langfuse_listExperimentItems: "Browsing experiment items",
   langfuse_listExperiments: "Browsing experiments",
   langfuse_listModels: "Browsing models",
@@ -100,7 +102,12 @@ const ACCEPTED_AUTO_IN_APP_AGENT_PROGRESS_LABELS: Record<string, string> = {
   langfuse_updateScoreConfig: "Updating score config",
   langfuse_upsertDataset: "Saving dataset",
   langfuse_upsertDatasetItem: "Saving dataset item",
-  langfuse_upsertEvaluator: "Saving evaluator",
+  langfuse_createEvaluator: "Creating evaluator",
+  langfuse_updateEvaluator: "Updating evaluator",
+  langfuse_attachEvaluatorToEvaluationRule:
+    "Attach Evaluator To Evaluation Rule",
+  langfuse_detachEvaluatorFromEvaluationRule:
+    "Detach Evaluator From Evaluation Rule",
 };
 
 describe("getInAppAgentToolProgressLabel", () => {
@@ -251,135 +258,6 @@ describe("getInAppAgentError", () => {
       type: "generic",
       message,
     });
-  });
-});
-
-describe("extractLangfuseDocsSources", () => {
-  it("extracts and deduplicates document sources from docs tool results", () => {
-    const result = JSON.stringify({
-      _meta: {
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                content: [
-                  { type: "text", text: "Search result" },
-                  {
-                    type: "document",
-                    title: "Core Concepts",
-                    url: "https://langfuse.com/docs/evaluation/core-concepts",
-                  },
-                  {
-                    type: "document",
-                    title: "Scores",
-                    url: "https://langfuse.com/docs/evaluation/scores/overview",
-                  },
-                ],
-              }),
-            },
-          },
-          {
-            message: {
-              content: JSON.stringify({
-                content: [
-                  {
-                    type: "document",
-                    title: "Datasets",
-                    url: "https://langfuse.com/docs/datasets/overview",
-                  },
-                ],
-              }),
-            },
-          },
-          {
-            message: {
-              content: JSON.stringify({
-                content: [
-                  {
-                    type: "document",
-                    title: "Scores duplicate",
-                    url: "https://langfuse.com/docs/evaluation/scores/overview",
-                  },
-                ],
-              }),
-            },
-          },
-        ],
-      },
-    });
-
-    expect(
-      extractLangfuseDocsSources([
-        {
-          type: "tool",
-          name: "langfuseDocs_search",
-          args: "{}",
-          status: "succeeded",
-          result,
-        },
-        {
-          type: "tool",
-          name: "langfuse_queryMetrics",
-          args: "{}",
-          status: "succeeded",
-          result,
-        },
-      ]),
-    ).toEqual([
-      {
-        title: "Core Concepts",
-        url: "https://langfuse.com/docs/evaluation/core-concepts",
-        faviconUrl: "https://langfuse.com/favicon.ico",
-      },
-      {
-        title: "Scores",
-        url: "https://langfuse.com/docs/evaluation/scores/overview",
-        faviconUrl: "https://langfuse.com/favicon.ico",
-      },
-      {
-        title: "Datasets",
-        url: "https://langfuse.com/docs/datasets/overview",
-        faviconUrl: "https://langfuse.com/favicon.ico",
-      },
-    ]);
-  });
-
-  it("ignores malformed structured sources", () => {
-    const result = JSON.stringify({
-      _meta: {
-        choices: [
-          { message: { content: "not json" } },
-          { message: { content: JSON.stringify({ content: "not array" }) } },
-          {
-            message: {
-              content: JSON.stringify({
-                content: [
-                  { type: "document", title: "Missing URL" },
-                  { type: "document", title: "Blank URL", url: "   " },
-                  {
-                    type: "document",
-                    title: "Unsafe protocol",
-                    url: "javascript:alert(1)",
-                  },
-                ],
-              }),
-            },
-          },
-        ],
-      },
-    });
-
-    expect(
-      extractLangfuseDocsSources([
-        {
-          type: "tool",
-          name: "langfuseDocs_search",
-          args: "{}",
-          status: "succeeded",
-          result,
-        },
-      ]),
-    ).toEqual([]);
   });
 });
 

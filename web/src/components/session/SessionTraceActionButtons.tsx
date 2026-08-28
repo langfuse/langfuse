@@ -1,11 +1,21 @@
 /* eslint-disable @repo/no-style-props */
 import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { Button } from "@/src/components/ui/button";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { cn } from "@/src/utils/tailwind";
+import {
+  ChevronDown,
+  LockIcon,
+  MessageSquare,
+  MessageSquareOff,
+  SquarePen,
+} from "lucide-react";
 
 type TraceScores =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number]["scores"];
@@ -30,6 +40,7 @@ export function SessionTraceActionButtons({
   className?: string;
 }) {
   const size = density === "compact" ? "xs" : "default";
+  const commentCount = getNumberFromMap(traceCommentCounts, traceId);
 
   return (
     <div className={cn("flex flex-wrap items-start gap-2", className)}>
@@ -41,7 +52,7 @@ export function SessionTraceActionButtons({
         size={size}
       />
       <div className="flex items-start">
-        <AnnotateDrawer
+        <AnnotateDrawerController
           key={`annotation-drawer-${traceId}`}
           projectId={projectId}
           scoreTarget={{
@@ -49,8 +60,6 @@ export function SessionTraceActionButtons({
             traceId,
           }}
           scores={scores}
-          buttonVariant="outline"
-          size={size}
           analyticsData={{
             type: "trace",
             source: "SessionDetail",
@@ -59,23 +68,76 @@ export function SessionTraceActionButtons({
             projectId,
             environment: environment ?? undefined,
           }}
-        />
-        <CreateNewAnnotationQueueItem
+        >
+          {({ disabled, openDrawer }) => (
+            <Button
+              variant="outline"
+              size={size}
+              disabled={disabled}
+              className="rounded-r-none"
+              onClick={openDrawer}
+            >
+              {disabled ? (
+                <LockIcon className="mr-1.5 h-3 w-3" />
+              ) : (
+                <SquarePen className="mr-1.5 h-4 w-4" />
+              )}
+              <span>Annotate</span>
+            </Button>
+          )}
+        </AnnotateDrawerController>
+        <AnnotationQueueItemDropdownMenuController
           projectId={projectId}
           objectId={traceId}
           objectType="TRACE"
-          variant="outline"
-          size={size}
-        />
+        >
+          {({ disabled, totalCount }) => (
+            <Button
+              variant="outline"
+              size={size}
+              disabled={disabled !== undefined}
+              className="rounded-l-none rounded-r-md border-l-2"
+            >
+              <span className="relative mr-1 text-xs">
+                <ChevronDown className="h-3 w-3" />
+                <AnnotationQueueItemCountBadge
+                  totalCount={totalCount}
+                  layout="toolbar"
+                />
+              </span>
+            </Button>
+          )}
+        </AnnotationQueueItemDropdownMenuController>
       </div>
-      <CommentDrawerButton
+      <CommentDrawerController
         projectId={projectId}
-        variant="outline"
         objectId={traceId}
         objectType="TRACE"
-        count={getNumberFromMap(traceCommentCounts, traceId)}
-        size={size}
-      />
+        count={commentCount}
+      >
+        {({ disabled, openDrawer }) => (
+          <Button
+            type="button"
+            variant="outline"
+            size={size}
+            disabled={disabled}
+            onClick={openDrawer}
+            className="gap-1"
+          >
+            {disabled ? (
+              <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+            ) : (
+              <>
+                <MessageSquare className="h-4 w-4" />
+                <span>Add comment</span>
+                {!!commentCount ? (
+                  <ActionButtonCountBadge count={commentCount} />
+                ) : null}
+              </>
+            )}
+          </Button>
+        )}
+      </CommentDrawerController>
     </div>
   );
 }

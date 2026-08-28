@@ -15,7 +15,7 @@ import { TooltipProvider } from "../src/components/ui/tooltip";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
-import "../src/styles/globals.css";
+import "./storybook.css";
 import "./docs.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
 // (react18-json-view, streamdown markdown) render identically to the app.
@@ -174,8 +174,36 @@ export default definePreview({
       container: ThemedDocsContainer,
     },
     options: {
-      storySort: {
-        order: ["Design", "Playground"],
+      storySort: (a, b) => {
+        const sectionOrder = ["Design", "Playground"];
+        const designDocOrder = [
+          "Design/Overview",
+          "Design/Writing Good Stories",
+        ];
+        const aSectionIndex = sectionOrder.indexOf(a.title.split("/")[0] ?? "");
+        const bSectionIndex = sectionOrder.indexOf(b.title.split("/")[0] ?? "");
+        const sectionDifference =
+          (aSectionIndex === -1 ? sectionOrder.length : aSectionIndex) -
+          (bSectionIndex === -1 ? sectionOrder.length : bSectionIndex);
+        if (sectionDifference !== 0) return sectionDifference;
+
+        const aDesignDocIndex = designDocOrder.indexOf(a.title);
+        const bDesignDocIndex = designDocOrder.indexOf(b.title);
+        if (aDesignDocIndex !== bDesignDocIndex) {
+          if (aDesignDocIndex === -1) return 1;
+          if (bDesignDocIndex === -1) return -1;
+          return aDesignDocIndex - bDesignDocIndex;
+        }
+
+        // Returning 0 preserves Storybook's existing stable order. Only
+        // partition test stories when both entries belong to the same component.
+        if (a.title !== b.title) return 0;
+
+        const aIsTest = a.name.startsWith("(Test)");
+        const bIsTest = b.name.startsWith("(Test)");
+        if (aIsTest !== bIsTest) return aIsTest ? 1 : -1;
+
+        return 0;
       },
     },
   },

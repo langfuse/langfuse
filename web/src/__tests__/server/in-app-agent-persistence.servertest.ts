@@ -1,5 +1,7 @@
-vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
+  const actual = await vi.importActual(
+    "@langfuse/shared/src/server/llm/llmText",
+  );
   return {
     ...actual,
     generateLLMText: vi.fn(),
@@ -11,28 +13,32 @@ import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
+import waitForExpect from "wait-for-expect";
 
-import {
-  InAppAgentRunErrorCode,
-  InAppAgentRunStatus,
-  type Plan,
-} from "@langfuse/shared";
+import { type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
-  generateLLMText,
+  getScoreById,
 } from "@langfuse/shared/src/server";
+import { generateLLMText } from "@langfuse/shared/src/server/llm/llmText";
 import { env } from "@/src/env.mjs";
 import {
-  createInAppAgentConversationId,
-  createInAppAgentRunId,
-} from "@langfuse/shared/in-app-agent";
-import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  getInAppAgentInstrumentationObservationId,
+  getInAppAgentInstrumentationTraceId,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiEvent,
-  type InAppAgentWatchFrame,
+  type InAppAgentRunRequest,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
+import {
+  createInAppAgentConversationId,
+  createInAppAgentRunId,
+} from "@/src/features/in-app-agent/ids";
+import type { InAppAgentWatchFrame } from "@/src/features/in-app-agent/watchFrames";
 import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
@@ -49,9 +55,8 @@ import {
   toPersistableAgentEvent,
 } from "@langfuse/shared/in-app-agent/server/persistence";
 import { finishClaimedRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
-import { watchConversationFrames } from "@langfuse/shared/in-app-agent/server/watch";
+import { watchConversationFrames } from "@/src/features/in-app-agent/server/watch";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/in-app-agent";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
@@ -154,6 +159,7 @@ describe("in-app agent persistence", () => {
     conversationId: string;
     userId: string;
     runId?: string;
+    request?: InAppAgentRunRequest;
   }) => {
     const now = new Date();
 
@@ -168,6 +174,7 @@ describe("in-app agent persistence", () => {
         status: InAppAgentRunStatus.RUNNING,
         claimedAt: now,
         heartbeatAt: now,
+        ...(params.request ? { request: params.request } : {}),
       },
     });
   };
@@ -237,18 +244,16 @@ describe("in-app agent persistence", () => {
     });
   });
 
-  it("rejects users without the in-app agent entitlement", async () => {
+  it("allows oss-plan users to list conversations", async () => {
     const { caller, projectId } = await createCaller(
       `user-${randomUUID()}`,
       "oss",
     );
 
-    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
-      {
-        code: "FORBIDDEN",
-        message: expect.stringContaining("in-app-agent"),
-      },
-    );
+    await expect(caller.listConversations({ projectId })).resolves.toEqual({
+      conversations: [],
+      nextCursor: undefined,
+    });
   });
 
   const startCompactRun = async (params: {
@@ -551,7 +556,7 @@ describe("in-app agent persistence", () => {
   });
 
   it("does not overwrite user-renamed conversation titles", async () => {
-    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
 
@@ -562,7 +567,7 @@ describe("in-app agent persistence", () => {
     });
 
     try {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      (env as any).LANGFUSE_AI_SMALL_MODEL = "small-title-model";
 
       await maybeInferAndPersistConversationTitle({
         prisma,
@@ -583,12 +588,45 @@ describe("in-app agent persistence", () => {
       });
       expect(mockGenerateLLMText).not.toHaveBeenCalled();
     } finally {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+      (env as any).LANGFUSE_AI_SMALL_MODEL = originalBedrockSmallModel;
+    }
+  });
+
+  it("does not regenerate an already inferred conversation title", async () => {
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await prisma.inAppAgentConversation.update({
+      where: { id_projectId: { id: conversation.id, projectId } },
+      data: { title: "Cluster traces by tags" },
+    });
+
+    try {
+      (env as any).LANGFUSE_AI_SMALL_MODEL = "small-title-model";
+
+      await maybeInferAndPersistConversationTitle({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        aiTelemetryEnabled: false,
+      });
+
+      await expect(
+        prisma.inAppAgentConversation.findUniqueOrThrow({
+          where: { id_projectId: { id: conversation.id, projectId } },
+          select: { title: true },
+        }),
+      ).resolves.toEqual({ title: "Cluster traces by tags" });
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+    } finally {
+      (env as any).LANGFUSE_AI_SMALL_MODEL = originalBedrockSmallModel;
     }
   });
 
   it("keeps the default title when title generation fails", async () => {
-    const originalBedrockSmallModel = env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL;
+    const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const originalTitle = conversation.title;
@@ -606,7 +644,7 @@ describe("in-app agent persistence", () => {
     });
 
     try {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
+      (env as any).LANGFUSE_AI_SMALL_MODEL = "small-title-model";
       mockGenerateLLMText.mockRejectedValue(new Error("Bedrock failed"));
 
       await expect(
@@ -626,14 +664,14 @@ describe("in-app agent persistence", () => {
         }),
       ).resolves.toEqual({ title: originalTitle });
     } finally {
-      (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
+      (env as any).LANGFUSE_AI_SMALL_MODEL = originalBedrockSmallModel;
     }
   });
 
-  it("requires feedback run ids to match persisted assistant messages", async () => {
+  it("scores feedback on the approval-chain root run and rejects run id mismatches", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
-    const run = await createClaimedRunFixture({
+    const rootRun = await createClaimedRunFixture({
       projectId,
       conversationId: conversation.id,
       userId,
@@ -641,14 +679,39 @@ describe("in-app agent persistence", () => {
     const events = await startCompactRun({
       projectId,
       conversationId: conversation.id,
-      runId: run.id,
+      runId: rootRun.id,
       messageId: "feedback-user",
       content: "Answer me",
     });
     await appendAssistantText({
       projectId,
       conversationId: conversation.id,
-      runId: run.id,
+      runId: rootRun.id,
+      events,
+      messageId: "plain-assistant",
+      chunks: ["Answering directly"],
+    });
+    // The final answer comes from an approval continuation, but the trace it is
+    // recorded on belongs to the root run. The parent settles when it parks for
+    // approval, so only the continuation is active.
+    await finishConversationRun({ projectId, runId: rootRun.id });
+    const continuationRun = await createClaimedRunFixture({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      request: {
+        kind: "approvalDecision",
+        parentRunId: rootRun.id,
+        rootRunId: rootRun.id,
+        toolCallId: "tool-call-1",
+        approved: true,
+        context: [],
+      },
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: continuationRun.id,
       events,
       messageId: "feedback-assistant",
       chunks: ["Here is an answer"],
@@ -667,16 +730,59 @@ describe("in-app agent persistence", () => {
       "Feedback can only be submitted for persisted assistant messages",
     );
 
-    await expect(
-      caller.submitFeedback({
-        projectId,
-        conversationId: conversation.id,
-        messageId: "feedback-assistant",
-        runId: run.id,
-        value: null,
-        comment: null,
-      }),
-    ).resolves.toEqual({ feedback: null });
+    const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    try {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = projectId;
+
+      await expect(
+        caller.submitFeedback({
+          projectId,
+          conversationId: conversation.id,
+          messageId: "feedback-assistant",
+          runId: continuationRun.id,
+          value: "thumbs_up",
+          comment: null,
+        }),
+      ).resolves.toEqual({ feedback: { value: "thumbs_up", comment: null } });
+
+      await expect(
+        caller.submitFeedback({
+          projectId,
+          conversationId: conversation.id,
+          messageId: "plain-assistant",
+          runId: rootRun.id,
+          value: "thumbs_down",
+          comment: null,
+        }),
+      ).resolves.toEqual({ feedback: { value: "thumbs_down", comment: null } });
+
+      // Both the continuation's answer and the root run's own answer score onto
+      // the single trace the agent turn was recorded on.
+      await waitForExpect(async () => {
+        const [continuationScore, plainScore] = await Promise.all([
+          getScoreById({
+            projectId,
+            scoreId: `afbs_feedback-assistant_${userId}`,
+          }),
+          getScoreById({
+            projectId,
+            scoreId: `afbs_plain-assistant_${userId}`,
+          }),
+        ]);
+
+        for (const score of [continuationScore, plainScore]) {
+          expect(score?.traceId).toBe(
+            getInAppAgentInstrumentationTraceId(rootRun.id),
+          );
+          expect(score?.observationId).toBe(
+            getInAppAgentInstrumentationObservationId(rootRun.id),
+          );
+        }
+      });
+    } finally {
+      (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID =
+        originalAiFeaturesProjectId;
+    }
   });
 
   it("does not reduce partial assistant content before the end event", async () => {

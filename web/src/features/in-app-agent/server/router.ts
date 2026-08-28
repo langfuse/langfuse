@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   InvalidRequestError,
+  resolveInAppAgentRootRunId,
   ScoreDataTypeEnum,
   ScoreSourceEnum,
   TEXT_SCORE_MAX_LENGTH,
@@ -15,9 +16,13 @@ import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
 } from "@langfuse/shared/in-app-agent";
-import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/in-app-agent";
-import { assertInAppAgentAvailable } from "@/src/features/in-app-agent/server/availability";
+import { InAppAgentMessageFeedbackValueSchema } from "../schema";
+import {
+  assertInAppAgentAvailable,
+  assertInAppAgentModelConfigured,
+} from "@/src/features/in-app-agent/server/availability";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -91,7 +96,7 @@ const SubmitFeedbackInput = ConversationIdInput.extend({
 });
 
 const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
-const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
+const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = IN_APP_AGENT_PRODUCT_ENVIRONMENT;
 
 export const inAppAgentRouter = createTRPCRouter({
   // Each row carries its newest run summary for the activity poll and badges.
@@ -208,6 +213,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -229,7 +235,7 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });
     }),
@@ -267,6 +273,7 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      const modelConfig = assertInAppAgentModelConfigured();
 
       const rateLimitScope = getInAppAgentApiAccessScope(
         ctx.session.user,
@@ -294,7 +301,7 @@ export const inAppAgentRouter = createTRPCRouter({
         approved: input.approved,
         approvalScope: input.approvalScope,
         userId: ctx.session.user.id,
-        model: env.LANGFUSE_AWS_BEDROCK_MODEL,
+        model: modelConfig.modelId,
       });
     }),
 
@@ -400,15 +407,26 @@ export const inAppAgentRouter = createTRPCRouter({
       const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
       if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
+        // Approval continuations trace onto the root run, so score the root too.
+        const run = await ctx.prisma.inAppAgentRun.findUnique({
+          where: {
+            id_projectId: { id: input.runId, projectId: input.projectId },
+          },
+          select: { request: true },
+        });
+        const telemetryRunId = resolveInAppAgentRootRunId(
+          run?.request,
+          input.runId,
+        );
+
         await upsertScore({
           id: scoreId,
           timestamp: convertDateToClickhouseDateTime(now),
           project_id: scoreProjectId,
           environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: getInAppAgentInstrumentationTraceId(input.runId),
-          observation_id: getInAppAgentInstrumentationObservationId(
-            input.runId,
-          ),
+          trace_id: getInAppAgentInstrumentationTraceId(telemetryRunId),
+          observation_id:
+            getInAppAgentInstrumentationObservationId(telemetryRunId),
           session_id: input.conversationId,
           name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
           value: input.value === "thumbs_up" ? 1 : 0,

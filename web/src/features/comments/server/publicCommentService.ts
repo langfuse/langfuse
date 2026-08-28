@@ -51,7 +51,7 @@ const toPublicComment = (comment: {
   authorUserId: comment.authorUserId,
 });
 
-export const getCommentRecordOrThrow = async ({
+const getCommentRecordOrThrow = async ({
   projectId,
   commentId,
 }: GetCommentInput) => {

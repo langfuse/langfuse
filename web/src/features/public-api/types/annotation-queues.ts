@@ -2,8 +2,6 @@ import { z } from "zod";
 import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import {
   AnnotationQueueObjectType,
   AnnotationQueueStatus,
 } from "@langfuse/shared";
@@ -12,7 +10,7 @@ import {
  * Common Types
  */
 
-export const AnnotationQueueItemSchema = z
+const AnnotationQueueItemSchema = z
   .object({
     id: z.string(),
     queueId: z.string(),
@@ -25,7 +23,7 @@ export const AnnotationQueueItemSchema = z
   })
   .strict();
 
-export const AnnotationQueueSchema = z
+const AnnotationQueueSchema = z
   .object({
     id: z.string(),
     name: z.string(),
@@ -147,7 +145,7 @@ export const DeleteAnnotationQueueItemResponse = z
   .strict();
 
 // Assignment endpoints
-export const AnnotationQueueAssignmentSchema = z
+const AnnotationQueueAssignmentSchema = z
   .object({
     userId: z.string(),
     projectId: z.string(),

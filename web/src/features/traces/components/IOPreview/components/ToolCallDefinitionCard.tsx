@@ -146,7 +146,7 @@ function ToolGroupHoverContent({
               <div className="flex min-w-0 items-center gap-2">
                 <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                 <span
-                  className="text-foreground block truncate font-mono text-xs font-bold"
+                  className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
                   title={tool.name}
                 >
                   {toolDefinitionNumber !== undefined && (
@@ -341,7 +341,7 @@ function ToolDefinitionRow({
         <div className="flex min-w-0 items-center gap-2">
           <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
           <span
-            className="text-foreground block truncate font-mono text-xs font-bold"
+            className="ph-no-capture text-foreground block truncate font-mono text-xs font-bold"
             title={tool.name}
           >
             {toolDefinitionNumber !== undefined && (
@@ -394,7 +394,7 @@ function ToolDefinitionRow({
                   <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                     Description
                   </div>
-                  <div className="text-foreground text-sm">
+                  <div className="ph-no-capture text-foreground text-sm">
                     {tool.description}
                   </div>
                 </div>

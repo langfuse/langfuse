@@ -16,12 +16,12 @@ import {
 import {
   type MigrationActionState,
   type MigrationCountState,
+  V4_MIGRATION_LOOKBACK_DAYS,
 } from "./migrationData";
 import {
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
 } from "./sdkVersionStatus";
-import { V4_MIGRATION_LOOKBACK_DAYS } from "./migrationData";
 import { TABLE_AGGREGATION_OPTIONS } from "@langfuse/shared";
 import { rangeFromString } from "@/src/utils/date-range-utils";
 
@@ -151,7 +151,19 @@ const mocks = vi.hoisted(() => ({
         count: 42,
         lastSeen: "2026-07-23T10:37:00Z",
       },
-    ],
+    ] as {
+      endpoint: string;
+      count: number;
+      lastSeen: string;
+      callers?: {
+        sdkName?: "python" | "javascript";
+        sdkVersion?: string;
+        userAgent?: string;
+        isOther?: true;
+        count: number;
+        lastSeen: string;
+      }[];
+    }[],
     legacyIntegrations: ["PostHog", "Mixpanel", "Blob Storage"],
   },
   canToggleV4: true,
@@ -226,7 +238,7 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
-  useCanUseInAppAgent: () => true,
+  useIsInAppAgentLauncherVisible: () => true,
   useInAppAiAgent: () => ({
     openAssistant: mocks.openAssistant,
     submit: mocks.submitAgentMessage,
@@ -326,16 +338,18 @@ describe("V4MigrationDetailsContent", () => {
     expect(screen.queryByText("Legacy APIs")).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy Integrations")).not.toBeInTheDocument();
 
-    expect(
-      screen.getByRole("link", { name: "GET /api/public/traces" }),
-    ).toHaveAttribute(
+    const endpointLink = screen.getByRole("link", {
+      name: "GET /api/public/traces",
+    });
+    expect(endpointLink).toHaveAttribute(
       "href",
       "https://langfuse.com/faq/all/deprecated-api-migration",
     );
-    expect(screen.getByText(/42 calls · last seen/)).toHaveAttribute(
-      "title",
-      "Last seen at 2026-07-23T10:37:00Z",
-    );
+    expect(endpointLink).not.toHaveClass("font-bold");
+    expect(within(endpointLink).getByText("traces")).toHaveClass("font-bold");
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/42 calls · last seen/);
 
     const expectedIntegrationGuides = {
       PostHog:
@@ -381,9 +395,103 @@ describe("V4MigrationDetailsContent", () => {
 
     render(<V4MigrationDetailsContent projectId="project-1" />);
 
-    expect(screen.getByText(/57 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/5 calls · last seen/)).toBeInTheDocument();
-    expect(screen.getByText(/1 call · last seen/)).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/57 calls · last seen/);
+    expect(
+      screen.getByTitle("Last seen at 2026-07-22T10:37:00Z"),
+    ).toHaveTextContent(/5 calls · last seen/);
+    expect(
+      screen.getByTitle("Last seen at 2026-07-21T10:37:00Z"),
+    ).toHaveTextContent(/1 call · last seen/);
+  });
+
+  it("shows the caller and exact SDK migration action", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces/{id}",
+        count: 4,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            sdkName: "python" as const,
+            sdkVersion: "3.9.0",
+            userAgent: "langfuse-python/3.9.0",
+            count: 3,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+          {
+            userAgent: "codex-cli/1.2.3",
+            count: 1,
+            lastSeen: "2026-07-23T10:30:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(screen.getByText("Langfuse Python SDK 3.9.0")).toBeInTheDocument();
+    expect(screen.getByText("client.api.trace.get")).toBeInTheDocument();
+    expect(
+      screen.getByText("client.api.observations.get_many"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("4.0.0 or newer")).toBeInTheDocument();
+    expect(screen.getByText("Codex")).toBeInTheDocument();
+    expect(screen.getByText(/traffic from a coding agent/)).toBeInTheDocument();
+    expect(screen.queryByText("User-Agent:")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).not.toBeInTheDocument();
+
+    for (const callerName of ["Langfuse Python SDK 3.9.0", "Codex"]) {
+      const caller = screen.getByText(callerName).closest("li");
+      expect(caller).toHaveClass("bg-muted/50", "border-l-4", "p-2");
+      expect(caller?.firstElementChild).toHaveTextContent(callerName);
+      expect(caller?.firstElementChild).toHaveTextContent(/calls? · last seen/);
+      expect(
+        within(caller?.firstElementChild as HTMLElement).queryByRole("link"),
+      ).not.toBeInTheDocument();
+      const docsLink = within(caller!).getByRole("link", {
+        name: "See docs.",
+      });
+      expect(docsLink).toHaveAttribute(
+        "href",
+        "https://langfuse.com/faq/all/deprecated-api-migration",
+      );
+      expect(docsLink.parentElement).toHaveTextContent(/See docs\.$/);
+    }
+
+    fireEvent.click(screen.getAllByRole("link", { name: "See docs." })[0]!);
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:section_link_clicked",
+      { section: "apis", link: "deprecated_api_caller_docs" },
+    );
+  });
+
+  it("shows route totals without a caller section for unknown-only callers", () => {
+    mocks.migrationData.apiUsage = [
+      {
+        endpoint: "GET /api/public/traces",
+        count: 42,
+        lastSeen: "2026-07-23T10:37:00Z",
+        callers: [
+          {
+            isOther: true,
+            count: 42,
+            lastSeen: "2026-07-23T10:37:00Z",
+          },
+        ],
+      },
+    ];
+
+    render(<V4MigrationDetailsContent projectId="project-1" />);
+
+    expect(
+      screen.getByTitle("Last seen at 2026-07-23T10:37:00Z"),
+    ).toHaveTextContent(/42 calls · last seen/);
+    expect(screen.queryByText("Unknown callers")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("collapses clean sections into one up-to-date summary", () => {
@@ -396,7 +504,7 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(
       screen.getByText(
-        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.",
+        `SDK, instrumentation, experiment, and API checks cover activity from the last ${V4_MIGRATION_LOOKBACK_DAYS} days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.`,
       ),
     ).toBeInTheDocument();
     expect(
@@ -567,7 +675,7 @@ describe("V4MigrationDetailsContent", () => {
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write," +
           "ingestionSdkName;stringOptions;;any of;python," +
           "ingestionSdkVersion;stringOptions;;any of;2.60.3",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -691,7 +799,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;," +
           "ingestionSource;stringOptions;;any of;otel-dual-write",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -961,7 +1069,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -1220,6 +1328,22 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByRole("link", { name: "November 16, 2026" }),
     ).toHaveAttribute("href", "https://langfuse.com/docs/v4#timeline");
+  });
+
+  it("drops the dated deadline for self-hosted deployments", () => {
+    // The date is a Cloud commitment: a self-hosted deployment keeps its legacy
+    // surfaces until its own operator moves the write mode off dual.
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+    render(<V4MigrationHeaderContent readiness="action-needed" />);
+
+    expect(screen.getByText(/features may stop working/)).toHaveTextContent(
+      "Some features may stop working without an upgrade once your administrator disables the legacy mode.",
+    );
+    expect(screen.queryByText(/November 16, 2026/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "November 16, 2026" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reserves a close-button gutter on the title row when the host asks", () => {

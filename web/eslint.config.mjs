@@ -63,6 +63,13 @@ export default [
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
   {
+    name: "langfuse/web/storybook-test-story-names",
+    files: ["src/**/*.stories.{ts,tsx}"],
+    rules: {
+      "@repo/storybook-play-requires-test-name": "error",
+    },
+  },
+  {
     ...tailwindcssRecommendedConfig,
     settings: {
       tailwindcss: {
@@ -79,6 +86,8 @@ export default [
             "io-message-header",
             // Used by parent arbitrary selectors to tune IO preview body spacing and borders.
             "io-message-content",
+            // posthog-js block class: elements carrying it are excluded from session recordings.
+            "ph-no-capture",
             // Component-level selector hook for code block wrappers, not a Tailwind utility.
             "codeblock",
             // Sonner root hook used by group-[.toaster] descendant variants.
@@ -130,9 +139,10 @@ export default [
     },
   },
 
-  // Component APIs should expose explicit variants instead of className or style
-  // escape hatches. New file-level overrides are only acceptable for headless
-  // components that do not apply any internal styling themselves.
+  // Component APIs should expose explicit variants instead of className, style,
+  // or prefixed variants such as badgeClassName. New file-level overrides are
+  // only acceptable for headless components that do not apply any internal
+  // styling themselves.
   {
     name: "langfuse/web/no-style-props",
     files: ["src/**/*.{ts,tsx}"],

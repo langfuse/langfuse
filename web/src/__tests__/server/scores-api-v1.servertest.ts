@@ -6,8 +6,6 @@ import {
   createSessionScore,
   getScoresByIds,
   getScoreById,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
@@ -403,6 +401,45 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("GET /api/public/scores", () => {
+    it("clamps Hobby score access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = v4();
+      const recentId = v4();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: fixture.projectId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          id: oldId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+        }),
+        createTraceScore({
+          id: recentId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoresResponseV1,
+        "GET",
+        "/api/public/scores",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((score) => score.id)).toContain(recentId);
+      expect(response.body.data.map((score) => score.id)).not.toContain(oldId);
+    });
+
     it("#6396: should correctly list 100s of scores", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
 
