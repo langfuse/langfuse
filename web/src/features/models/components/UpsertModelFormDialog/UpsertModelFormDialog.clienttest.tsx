@@ -9,6 +9,8 @@ import {
 } from "@testing-library/react";
 
 import { type GetModelResult } from "@/src/features/models/validation";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
+import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
 
 const upsertMutateAsync = vi.fn().mockResolvedValue({
   id: "model-1",
@@ -44,9 +46,6 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
 vi.mock("@/src/components/editor", () => ({
   CodeMirrorEditor: () => null,
 }));
-
-import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 
 const defaultTier = {
   id: "tier-default",
