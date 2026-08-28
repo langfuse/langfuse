@@ -20,7 +20,7 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 vi.mock(
-  "@/src/components/design-system/Table/components/IOTableCell/IOTableCell",
+  "@/src/components/design-system/table/components/IOTableCell/IOTableCell",
   () => ({
     IOTableCell: () => <div>IO cell</div>,
   }),

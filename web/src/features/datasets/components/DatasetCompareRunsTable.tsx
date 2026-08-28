@@ -2,8 +2,8 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
-import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
@@ -111,6 +111,8 @@ function DatasetCompareRunsTableInternal(props: {
     // reader) so a stray param cannot pin the peek to a foreign trace
     // (LFE-11041).
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "datasetCompareRuns",
+    isV4: false,
     expandConfig: {
       basePath: `/project/${props.projectId}/traces`,
     },
@@ -121,6 +123,8 @@ function DatasetCompareRunsTableInternal(props: {
       itemType: "TRACE" as const,
       closePeek,
       expandPeek,
+      tableName: "datasetCompareRuns",
+      isV4: false,
       // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
     }),
     [closePeek, expandPeek],

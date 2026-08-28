@@ -6,11 +6,11 @@ import {
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import {
   createIOTableColumn,
   IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/Table/columns/createIOTableColumn";
+} from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";

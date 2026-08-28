@@ -7,14 +7,14 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
-import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
-import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "../../design-system/Table/components/IOTableCell/IOTableCell";
+import { IOTableCell } from "../../design-system/table/components/IOTableCell/IOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -239,6 +239,8 @@ export default function ScoresTable({
     // the peek to that trace instead of the one just clicked — matches the
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: scoresFilterConfig.tableName,
+    isV4: isBetaEnabled,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -1238,6 +1240,8 @@ export default function ScoresTable({
             closePeek={closeScorePeek}
             expandPeek={expandScorePeek}
             itemType="TRACE"
+            tableName={scoresFilterConfig.tableName}
+            isV4={isBetaEnabled}
             projectId={projectId}
           />
         )}

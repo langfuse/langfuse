@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,

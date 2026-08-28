@@ -24,6 +24,7 @@ import { stringifyValue } from "../../../utils/stringChecks";
 import { traceException } from "../../instrumentation";
 import { logger } from "../../logger";
 import { LangfuseOtelSpanAttributes } from "../../otel/attributes";
+import { AI_FEATURE_OTEL_SDK_NAME } from "../../otel/internalAiFeatureOtelWriter";
 import { publishInternalOtelSpans } from "../../otel/internalTraceOtelWriter";
 import type { InternalTraceExperimentContext } from "../internalTraceEvents";
 import type { TraceSinkParams } from "../types";
@@ -79,7 +80,8 @@ export type AiSdkTelemetryCapture = {
  * experiment observation evals.
  *
  * Returns `undefined` (no tracing) when the environment is not
- * langfuse-prefixed (the eval-loop safeguard) or when the trace ID is not a
+ * langfuse-prefixed (the eval-loop safeguard) unless this is an AI-feature
+ * product trace (`aiFeatureOtelIngestion`), or when the trace ID is not a
  * valid W3C trace ID.
  */
 export function createAiSdkTelemetryCapture(params: {
@@ -88,11 +90,19 @@ export function createAiSdkTelemetryCapture(params: {
   rootInput?: unknown;
 }): AiSdkTelemetryCapture | undefined {
   const { traceSinkParams, rootInput } = params;
+  const isAiFeatureProductTrace = Boolean(
+    traceSinkParams.aiFeatureOtelIngestion,
+  );
 
   // Safeguard: All internal traces must use LangfuseInternalTraceEnvironment enum values
   // This prevents infinite eval loops (user trace → eval → eval trace → another eval)
   // See corresponding check in worker/src/features/evaluation/evalService.ts createEvalJobs()
-  if (!traceSinkParams.environment?.startsWith("langfuse")) {
+  // AI-feature product traces are the exception: they use environment
+  // `production` so observation evals can match them.
+  if (
+    !isAiFeatureProductTrace &&
+    !traceSinkParams.environment?.startsWith("langfuse")
+  ) {
     logger.warn(
       "Skipping trace creation: internal traces must use LangfuseInternalTraceEnvironment enum",
       {
@@ -270,7 +280,10 @@ export function createAiSdkTelemetryCapture(params: {
       await publishInternalOtelSpans({
         spans: matchingSpans,
         projectId: traceSinkParams.targetProjectId,
-        sdkName: INTERNAL_SDK_NAME,
+        sdkName: isAiFeatureProductTrace
+          ? AI_FEATURE_OTEL_SDK_NAME
+          : INTERNAL_SDK_NAME,
+        isLangfuseInternal: !isAiFeatureProductTrace,
       });
     } catch (e) {
       traceException(e);

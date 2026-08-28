@@ -1,6 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
@@ -24,7 +24,6 @@ import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -43,7 +42,6 @@ const DatasetAggregateCellContent = ({
 }) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled: isV4 } = useV4Beta();
   const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
@@ -114,7 +112,8 @@ const DatasetAggregateCellContent = ({
       capture("peek:opened", {
         routePattern: router.pathname,
         wasOpen: router.query.peek !== undefined,
-        isV4,
+        isV4: false,
+        tableName: "datasetCompareRuns",
       });
     }
     const newQuery: Record<string, string | string[] | undefined> = {

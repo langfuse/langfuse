@@ -3,7 +3,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   createIOTableColumn,
   IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/Table/columns/createIOTableColumn";
+} from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,

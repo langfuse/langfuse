@@ -46,7 +46,7 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
@@ -415,7 +415,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       columns,
     );
 
-  const peekNavigationProps = usePeekNavigation();
+  const peekNavigationProps = usePeekNavigation({
+    tableName: evaluatorFilterConfig.tableName,
+    isV4: false,
+  });
 
   const peekConfig = useMemo(
     () => ({

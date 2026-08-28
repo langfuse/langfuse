@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
 

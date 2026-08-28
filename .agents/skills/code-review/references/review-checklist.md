@@ -59,7 +59,8 @@ This is the canonical shared review checklist for Langfuse.
   `validateBlobStorageEndpoint`, or a new wrapper around
   `validateOutboundUrlHost`) is a finding.
 - For changes that add a new integration, secret-bearing field, redirect
-  follower, or RBAC scope, run the rest of the
+  follower, RBAC scope, product analytics, browser monitoring, or session
+  replay, run the rest of the
   [`security-review/references/checklist.md`](../../security-review/references/checklist.md).
 - For changes that shape what a read route returns — a repository or domain
   converter, a `Safe*` type, a response projection — a catch-all branch that

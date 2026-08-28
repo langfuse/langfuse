@@ -28,6 +28,12 @@ import {
   BatchActionType,
 } from "@langfuse/shared";
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  itemRegressionFilterAppliedProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -35,11 +41,11 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
-import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import {
   createIOTableColumn,
   IO_TABLE_COLUMN_LOADING,
-} from "@/src/components/design-system/Table/columns/createIOTableColumn";
+} from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -55,7 +61,7 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
-import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -335,10 +341,11 @@ export default function ExperimentItemsTable({
 
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
+  const capture = usePostHogClientCapture();
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
     scoreFilterOptions,
-    { stateLocation: "url", loading: isFilterOptionsLoading },
+    { stateLocation: "url", loading: isFilterOptionsLoading, isV4: true },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -408,12 +415,31 @@ export default function ExperimentItemsTable({
       }
 
       // Update the target for this filter
+      if (toExperimentId !== _fromExperimentId) {
+        const props = itemRegressionFilterAppliedProps({
+          tableName: "experiment-items",
+          column: _filter.column,
+          operator: _filter.operator,
+          toExperimentId,
+          baselineId,
+          comparisonIds,
+        });
+        if (props) {
+          capture("experiment:item_regression_filter_applied", props);
+        }
+      }
       setFilterTargets((prev) => ({
         ...prev,
         [originalIndex]: toExperimentId,
       }));
     },
-    [filterTargets, defaultFilterTargetExperimentId],
+    [
+      filterTargets,
+      defaultFilterTargetExperimentId,
+      baselineId,
+      comparisonIds,
+      capture,
+    ],
   );
 
   // Handler for removing a filter via pill
@@ -902,6 +928,8 @@ export default function ExperimentItemsTable({
       "traceId",
       "peekExperimentId",
     ],
+    tableName: experimentItemsFilterConfig.tableName,
+    isV4: true,
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
       // Use the explicit baseline when present. Without one, use the first
       // selected experiment only as the primary trace for URL-compatible peek
@@ -1033,6 +1061,20 @@ export default function ExperimentItemsTable({
     [filtersByExperiment, orderByState, allExperimentIds],
   );
 
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiment-items",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
   const tableActions: TableAction[] = hasEvalAccess
     ? [
         {
@@ -1064,6 +1106,9 @@ export default function ExperimentItemsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={experimentItemsFilterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["datasetItemId"]}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}

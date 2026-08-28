@@ -3,7 +3,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import {
   Avatar,
   AvatarFallback,
