@@ -184,6 +184,30 @@ export function fieldRegistryFromColumns(
   });
 }
 
+export function extendFieldRegistryWithColumns(
+  registry: FieldRegistry,
+  columns: readonly ColumnDefinition[],
+): FieldRegistry {
+  const addedFields = fieldRegistryFromColumns(columns, {
+    id: registry.id,
+  }).fields;
+
+  return createFieldRegistry({
+    id: registry.id,
+    fields: [...registry.fields, ...addedFields],
+    columns: [...registry.columns, ...columns],
+    metadata: registry.metadata,
+    scores: registry.scores,
+    traceScores: registry.traceScores,
+    allowFreeText: registry.allowFreeText,
+    defaultTextField: registry.defaultTextField,
+    searchExamples: registry.searchExamples,
+    recentSearches: registry.recentSearches,
+    aiFilterPrompt: registry.aiFilterPrompt,
+    aiContextFields: registry.aiContextFields,
+  });
+}
+
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
   { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, label: "Observation ID", description: "Observation/span identifier" },

@@ -33,6 +33,11 @@ import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Tes
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
+import {
+  DATASET_NAME_COLUMN,
+  fromDatasetNameFilters,
+  toDatasetNameFilters,
+} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/datasetNameFilter";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -171,6 +176,20 @@ export function SampleObservationSelectorBase(
     mapObservedOptions,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId },
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+  const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
+  const searchableFilterState = useMemo(
+    () => toDatasetNameFilters(filterState, datasetOptions),
+    [datasetOptions, filterState],
+  );
   const reusableRuleFilters = useReusableRuleFilterPresets(
     projectId,
     activeRegistry,
@@ -222,26 +241,32 @@ export function SampleObservationSelectorBase(
     includeApproxCount: true,
     lazy: true,
   });
-  const observed = useMemo(
-    () =>
-      mapObservedOptions(
-        toObservedOptions(
-          options.filterOptions,
-          options.isFilterOptionsPending,
-        ),
-      ),
-    [mapObservedOptions, options.filterOptions, options.isFilterOptionsPending],
-  );
+  const observed = useMemo(() => {
+    const mapped = mapObservedOptions(
+      toObservedOptions(options.filterOptions, options.isFilterOptionsPending),
+    );
+    return {
+      ...(mapped ?? {}),
+      [DATASET_NAME_COLUMN]: datasetOptions.map((dataset) => ({
+        value: dataset.name,
+      })),
+    };
+  }, [
+    datasetOptions,
+    mapObservedOptions,
+    options.filterOptions,
+    options.isFilterOptionsPending,
+  ]);
   const search = useEventsSearchBar({
     projectId,
     tableName,
     enabled: true,
-    filterState,
+    filterState: searchableFilterState,
     searchQuery,
     searchType,
     observed,
     setFilterState: (next) => {
-      setFilters(next);
+      setFilters(fromDatasetNameFilters(next, datasetOptions));
     },
     setSearchQuery: (next) => {
       setSearchQuery(next);

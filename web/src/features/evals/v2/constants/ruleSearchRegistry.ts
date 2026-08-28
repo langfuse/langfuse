@@ -1,13 +1,14 @@
 import { eventsEvalFilterColumns } from "@langfuse/shared";
 
 import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import { DATASET_NAME_FILTER_COLUMN } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/datasetNameFilter";
 
 /**
  * Derived from the same columns the rule service validates. The overlay only
  * contains grammar-specific aliases and copy that ColumnDefinition does not.
  */
 export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
-  eventsEvalFilterColumns,
+  [...eventsEvalFilterColumns, DATASET_NAME_FILTER_COLUMN],
   {
     id: "evaluationRules",
     allowFreeText: false,
@@ -41,8 +42,8 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
         promptLabel: "calledToolNames",
       },
       {
-        observedOptionsKey: "experimentDatasetId",
-        promptLabel: "experimentDatasetId (dataset)",
+        observedOptionsKey: "experimentDatasetName",
+        promptLabel: "experimentDatasetName (dataset)",
       },
     ],
     fields: {
@@ -61,7 +62,6 @@ export const RULE_FIELD_REGISTRY = fieldRegistryFromColumns(
       tags: { aliases: ["tag", "tracetags", "trace_tags"] },
       experimentDatasetId: {
         aliases: [
-          "dataset",
           "datasetid",
           "dataset_id",
           "experimentdatasetid",
