@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildInternalTraceEventInputs } from "../llm/internalTraceEvents";
-import { LangfuseOtelSpanAttributes } from "./attributes";
 import {
   AI_FEATURE_OTEL_SDK_NAME,
-  publishAiFeatureTraceViaOtelIngestion,
-} from "./internalAiFeatureOtelWriter";
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
+import { publishAiFeatureTraceViaOtelIngestion } from "./internalAiFeatureOtelWriter";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 const processorConstructor = vi.fn();

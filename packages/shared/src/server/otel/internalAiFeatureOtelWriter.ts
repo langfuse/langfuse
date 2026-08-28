@@ -1,12 +1,11 @@
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { type ResourceSpan } from "./OtelIngestionProcessor";
+import { AI_FEATURE_OTEL_SDK_NAME } from "./attributes";
 import {
   internalTraceEventToOtelAttributes,
   publishOtelResourceSpans,
 } from "./internalTraceOtelWriter";
-import { AI_FEATURE_OTEL_SDK_NAME } from "./attributes";
 
-export { AI_FEATURE_OTEL_SDK_NAME };
 const AI_FEATURE_OTEL_SCOPE = "langfuse-ai-features-writer";
 const AI_FEATURE_SERVICE_NAME = "langfuse-ai-features";
 
