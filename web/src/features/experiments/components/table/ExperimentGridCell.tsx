@@ -1,3 +1,7 @@
+/* The experiment marker's colour is data — which run this is, out of the N
+   selected (`getExperimentColorStyles`) — so it arrives as a class rather than
+   as a variant, the same way `DiffLabel` takes one. */
+/* eslint-disable @repo/no-style-props */
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -287,24 +291,32 @@ const ScoreItem = ({
           </HoverCardContent>
         </HoverCard>
       </div>
-      <div className="flex items-center gap-1">
-        {displayValue === "-" ? (
-          <span className="text-muted-foreground text-xs">-</span>
-        ) : (
-          <Badge variant="secondary" className="text-xs">
-            {displayValue}
-          </Badge>
-        )}
-        {hasComment && (
-          <ScoreCommentPeek
-            comment={aggregate.comment!}
-            executionTraceId={aggregate.executionTraceId}
-            projectId={projectId}
-          />
-        )}
-        {hasMetadata && (
-          <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
-        )}
+      {/* The value never gives up width for the move chip beside it: a
+          clipped value reads as data, so the move wraps under it instead. */}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-1 gap-y-0.5">
+        <span className="flex max-w-full shrink-0 items-center gap-1">
+          {displayValue === "-" ? (
+            <span className="text-muted-foreground text-xs">-</span>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="min-w-0 truncate text-xs"
+              title={displayValue}
+            >
+              {displayValue}
+            </Badge>
+          )}
+          {hasComment && (
+            <ScoreCommentPeek
+              comment={aggregate.comment!}
+              executionTraceId={aggregate.executionTraceId}
+              projectId={projectId}
+            />
+          )}
+          {hasMetadata && (
+            <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
+          )}
+        </span>
         {diff && <DiffLabel diff={diff} formatValue={(v) => v.toFixed(2)} />}
       </div>
     </div>

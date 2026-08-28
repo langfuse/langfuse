@@ -984,8 +984,14 @@ export default function ExperimentItemsTable({
                       : null;
 
                   return (
-                    <div className="flex min-w-0 items-center gap-1">
-                      {renderedScore}
+                    // The value never gives up width for the chip beside it:
+                    // a clipped value reads as data, so the move wraps under
+                    // it instead. `max-w-full` keeps a pathological value
+                    // inside the cell, where its own truncation has a title.
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+                      <span className="flex max-w-full shrink-0 items-center">
+                        {renderedScore}
+                      </span>
                       {diff && (
                         <DiffLabel
                           diff={diff}
