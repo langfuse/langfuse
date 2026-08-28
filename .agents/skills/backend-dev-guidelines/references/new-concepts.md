@@ -1,5 +1,9 @@
 # Before Adding a New Concept
 
+- [Precedence](#precedence) — these rules yield to an explicit instruction
+- [`concept-reformulate-before-extending`](#concept-reformulate-before-extending)
+- [`concept-no-exemption-options`](#concept-no-exemption-options)
+
 A new concept is anything that adds vocabulary to shared backend code and that
 other people must then learn and maintain:
 
@@ -21,9 +25,11 @@ site becomes part of three runtimes' surface.
 Among designs whose correctness you can demonstrate, prefer in order:
 
 1. a change confined to your own declaration or call site;
-2. a new parameter available to every caller;
+2. a new parameter every caller may set, with one meaning on every path — the
+   cheapest form of new vocabulary;
 3. a change to shared behavior for all existing callers;
-4. a new concept in the vocabulary.
+4. any other new concept: one only some callers can use, or that others must
+   learn before they can read the abstraction correctly.
 
 Correctness outranks every rung — a tidier declaration that returns wrong
 numbers is the expensive option, not the cheap one. Otherwise justification
