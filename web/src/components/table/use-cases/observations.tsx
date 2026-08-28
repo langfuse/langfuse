@@ -72,6 +72,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
+  hasNonZeroUsageDetails,
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
@@ -901,6 +902,14 @@ export default function ObservationsTable({
         const aggregatedUsage = calculateAggregatedUsage(
           row.original.usageDetails,
         );
+        if (
+          !aggregatedUsage.input &&
+          !aggregatedUsage.output &&
+          !aggregatedUsage.total &&
+          !hasNonZeroUsageDetails(row.original.usageDetails)
+        ) {
+          return null;
+        }
         return (
           <BreakdownTooltip
             details={row.original.usageDetails}

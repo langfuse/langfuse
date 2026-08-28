@@ -49,3 +49,9 @@ export const calculateAggregatedUsage = (
 
   return { input, output, total };
 };
+
+export function hasNonZeroUsageDetails(
+  details: Record<string, number | undefined> | undefined,
+): details is Record<string, number> {
+  return Object.values(details ?? {}).some((value) => (value ?? 0) !== 0);
+}
