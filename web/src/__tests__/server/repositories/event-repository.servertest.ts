@@ -2871,6 +2871,135 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(result.length).toBe(0);
       });
+
+      it("matches a nested key on both flattened and migrated JSON metadata", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const flattenedId = randomUUID();
+        const migratedId = randomUUID();
+        const otherId = randomUUID();
+
+        await createEventsCh([
+          createEvent({
+            id: flattenedId,
+            span_id: flattenedId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "flattened-nested-metadata",
+            metadata_names: ["config.timeout"],
+            metadata_values: ["30"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: migratedId,
+            span_id: migratedId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "migrated-nested-metadata",
+            metadata_names: ["config"],
+            metadata_values: [JSON.stringify({ timeout: 30 })],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: otherId,
+            span_id: otherId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "other-metadata",
+            metadata_names: ["config.timeout"],
+            metadata_values: ["15"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "config.timeout",
+              value: "30",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.map((row) => row.name).sort()).toEqual([
+          "flattened-nested-metadata",
+          "migrated-nested-metadata",
+        ]);
+      });
+
+      it("does not treat a top-level JSON object as a match for a missing nested path", async () => {
+        const uniqueProjectId = randomUUID();
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const observationId = randomUUID();
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "legacy-without-nested-path",
+            metadata_names: ["config"],
+            metadata_values: [JSON.stringify({ retries: 3 })],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "does not contain",
+              key: "config.timeout",
+              value: "30",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
     });
 
     describe("Truncation-sensitive filters (must read events_full)", () => {

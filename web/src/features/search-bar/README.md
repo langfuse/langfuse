@@ -342,15 +342,13 @@ analysis is deferred (until CH26), so `metadata.` completions are fed
   not round-trip into a matching `=` filter), and a value longer than the cap
   is dropped entirely — a truncated suggestion would insert a filter that
   confidently matches nothing.
-- **Top-level keys only, never flattened dot-paths.** Metadata is stored as a
-  flat `Map(String, String)`: nested object values are JSON-encoded strings
-  under their top-level key, and `StringObjectFilter` matches the LITERAL
-  top-level key — a flattened `metadata.scope.name` suggestion would lower to
-  key `scope.name` and match nothing (the metadata view's filter shortcut
-  resolves the top-level key for the same reason). Dotted suggestions still
-  appear whenever producers use dotted top-level keys (the OTel-attribute
+- **Top-level keys only, never flattened suggestion paths.** Nested
+  `metadata.scope.name` filters match v4-flattened leaves and migrated JSON
+  under the top-level key, but autocomplete stays on observed top-level keys
+  so the dropdown does not explode into every nested path. Dotted suggestions
+  still appear whenever producers use dotted top-level keys (the OTel-attribute
   shape, `gen_ai.request.model`); object-valued keys are suggested with type
-  `object` and their nested content matches via contains
+  `object` and their nested content can also match via contains
   (`metadata.scope:*value*`).
 - **Types are display-only.** Metadata filters always lower to `stringObject`
   (numeric metadata comparisons are rejected by `operatorIssue`); a key

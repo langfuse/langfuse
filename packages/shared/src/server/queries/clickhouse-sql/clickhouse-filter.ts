@@ -35,6 +35,49 @@ const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
 
+/**
+ * Split a dotted metadata key into the legacy top-level segment and remaining
+ * JSON path. `events_full` stores nested metadata in two formats: v4-flattened
+ * leaf keys (`config.timeout` → `"30"`) and migrated top-level JSON
+ * (`config` → `'{"timeout":30}'`). Empty path segments are rejected so we never
+ * emit JSONExtract with a blank key.
+ */
+const splitLegacyMetadataPath = (
+  key: string,
+): { topLevelKey: string; jsonPath: string[] } | null => {
+  const firstDot = key.indexOf(".");
+  if (firstDot <= 0 || firstDot === key.length - 1) {
+    return null;
+  }
+  const jsonPath = key.slice(firstDot + 1).split(".");
+  if (jsonPath.some((segment) => segment.length === 0)) {
+    return null;
+  }
+  return { topLevelKey: key.slice(0, firstDot), jsonPath };
+};
+
+const metadataValuePredicate = (
+  accessor: string,
+  operator: (typeof filterOperators)["stringObject"][number] | FtsMatchOperator,
+  valueParam: string,
+): string => {
+  switch (operator) {
+    case "=":
+      return `${accessor} = ${valueParam}`;
+    case "contains":
+    case FTS_MATCH_OPERATOR:
+      return `position(${accessor}, ${valueParam}) > 0`;
+    case "does not contain":
+      return `position(${accessor}, ${valueParam}) = 0`;
+    case "starts with":
+      return `startsWith(${accessor}, ${valueParam})`;
+    case "ends with":
+      return `endsWith(${accessor}, ${valueParam})`;
+    default:
+      throw new Error(`Unsupported operator: ${operator}`);
+  }
+};
+
 export class StringFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -326,7 +369,8 @@ export class CategoryOptionsFilter implements Filter {
 // stringObject filter is used when we want to filter on a key value pair in metadata.
 // For observations/traces tables: uses Map column (metadata)
 // For events tables (events_core, events_full): uses Array columns (metadata_names/metadata_values)
-// We can only filter efficiently on the first level of a json obj.
+// Nested keys on events metadata match both v4-flattened leaves and migrated
+// top-level JSON values on the same table (no join to traces/observations).
 export class StringObjectFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -385,7 +429,6 @@ export class StringObjectFilter implements Filter {
       const ngramPrefilter = shouldUseNgramPrefilter
         ? `like(arrayStringConcat(${valuesColumn}), {${ngramPrefilterParamName}: String})`
         : undefined;
-      const ngramConjunct = ngramPrefilter ? ` AND ${ngramPrefilter}` : "";
 
       switch (this.operator) {
         case "=":
@@ -397,16 +440,16 @@ export class StringObjectFilter implements Filter {
           });
           break;
         case "contains":
-          query = `${hasKey}${ngramConjunct} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+          query = `${hasKey} AND (${metadataValuePredicate(valueAccessor, this.operator, valueParam)})`;
           break;
         case "does not contain":
-          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
+          query = `${hasKey} AND (${metadataValuePredicate(valueAccessor, this.operator, valueParam)})`;
           break;
         case "starts with":
-          query = `${hasKey}${ngramConjunct} AND (startsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey} AND (${metadataValuePredicate(valueAccessor, this.operator, valueParam)})`;
           break;
         case "ends with":
-          query = `${hasKey}${ngramConjunct} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey} AND (${metadataValuePredicate(valueAccessor, this.operator, valueParam)})`;
           break;
         case FTS_MATCH_OPERATOR:
           assertValidFtsMatchFilter({
@@ -428,46 +471,81 @@ export class StringObjectFilter implements Filter {
           throw new Error(`Unsupported operator: ${this.operator}`);
       }
 
-      if (ngramPrefilter) {
-        return {
-          query,
-          params: {
-            [varKeyName]: this.key,
-            [varValueName]: this.value,
-            [ngramPrefilterParamName]: `%${escapeSqlLikePattern(this.value)}%`,
-          },
-        };
-      }
-    } else {
-      // For observations/traces tables, use Map access: metadata[key]
-      const column = `${prefix}${this.field}`;
-      const valueAccessor = `${column}[{${varKeyName}: String}]`;
-      // A missing key resolves the Map access to the empty-string default,
-      // which would otherwise make `contains ""` (and every other operator's
-      // empty-value comparison) incorrectly match rows that never had the
-      // key. Require the key to exist first, mirroring the events-table fix
-      // in PR #13369.
-      const hasKey = `mapContains(${column}, {${varKeyName}: String})`;
+      const params: Record<string, string> = {
+        [varKeyName]: this.key,
+        [varValueName]: this.value,
+      };
 
-      switch (this.operator) {
-        case "=":
-          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
-          break;
-        case "contains":
-          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
-          break;
-        case "does not contain":
-          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
-          break;
-        case "starts with":
-          query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
-          break;
-        case "ends with":
-          query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
-          break;
-        default:
-          throw new Error(`Unsupported operator: ${this.operator}`);
+      // Nested keys on `metadata` also match migrated rows whose value is
+      // JSON under the top-level segment. Scoped to nested paths so flat
+      // filters stay on the cheaper canonical branch. Both sides keep an
+      // explicit `has()` so the names bloom filter can still prune granules.
+      const legacyPath = isFtsMetadataField(this.field)
+        ? splitLegacyMetadataPath(this.key)
+        : null;
+      if (legacyPath) {
+        const varLegacyKeyName = `stringObjectLegacyKeyFilter${clickhouseCompliantRandomCharacters()}`;
+        const legacyKeyParam = `{${varLegacyKeyName}: String}`;
+        const legacyRawAccessor = `${valuesColumn}[indexOf(${namesColumn}, ${legacyKeyParam})]`;
+        const pathParams = legacyPath.jsonPath.map((segment) => ({
+          name: `stringObjectLegacyPath${clickhouseCompliantRandomCharacters()}`,
+          segment,
+        }));
+        const pathPlaceholders = pathParams
+          .map((pathParam) => `{${pathParam.name}: String}`)
+          .join(", ");
+        const legacyHasKey = `has(${namesColumn}, ${legacyKeyParam})`;
+        const legacyHasPath = `JSONHas(${legacyRawAccessor}, ${pathPlaceholders})`;
+        const legacyAccessor = `JSONExtractString(${legacyRawAccessor}, ${pathPlaceholders})`;
+        const legacyQuery = `${legacyHasKey} AND ${legacyHasPath} AND (${metadataValuePredicate(
+          legacyAccessor,
+          this.operator,
+          valueParam,
+        )})`;
+        query = `((${query}) OR (${legacyQuery}))`;
+        params[varLegacyKeyName] = legacyPath.topLevelKey;
+        for (const pathParam of pathParams) {
+          params[pathParam.name] = pathParam.segment;
+        }
       }
+
+      if (ngramPrefilter) {
+        query = `${ngramPrefilter} AND ${query}`;
+        params[ngramPrefilterParamName] =
+          `%${escapeSqlLikePattern(this.value)}%`;
+      }
+
+      return { query, params };
+    }
+
+    // For observations/traces tables, use Map access: metadata[key]
+    const column = `${prefix}${this.field}`;
+    const valueAccessor = `${column}[{${varKeyName}: String}]`;
+    // A missing key resolves the Map access to the empty-string default,
+    // which would otherwise make `contains ""` (and every other operator's
+    // empty-value comparison) incorrectly match rows that never had the
+    // key. Require the key to exist first, mirroring the events-table fix
+    // in PR #13369.
+    const hasKey = `mapContains(${column}, {${varKeyName}: String})`;
+
+    switch (this.operator) {
+      case "=":
+        query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
+        break;
+      case "contains":
+        query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
+        break;
+      case "does not contain":
+        query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
+        break;
+      case "starts with":
+        query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
+        break;
+      case "ends with":
+        query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
+        break;
+      default:
+        throw new Error(`Unsupported operator: ${this.operator}`);
     }
 
     return {
