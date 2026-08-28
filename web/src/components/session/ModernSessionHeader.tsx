@@ -130,14 +130,14 @@ const SessionHeaderDetailWithVisibilityControl = ({
 }) => {
   const action = isHidden ? "Show" : "Hide";
   return (
-    <span className="group/detail flex items-center">
+    <span className="group flex items-center">
       {detail.content}
-      <span className="-ml-1 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within/detail:ml-1 group-focus-within/detail:w-4 group-hover/detail:ml-1 group-hover/detail:w-4 [@media(hover:none)]:ml-1 [@media(hover:none)]:w-4">
+      <span className="-ml-1 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-1 group-focus-within:w-4 group-hover:ml-1 group-hover:w-4 [@media(hover:none)]:ml-1 [@media(hover:none)]:w-4">
         <button
           type="button"
           aria-label={`${action} ${detail.visibilityLabel} in session header`}
           title={`${action} in session header`}
-          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within/detail:opacity-100 group-hover/detail:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
+          className="hover:bg-muted focus-visible:ring-ring inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
           onClick={() => onVisibilityChange(detail, !isHidden)}
         >
           {isHidden ? (
