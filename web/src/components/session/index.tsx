@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";

@@ -24,6 +24,12 @@ type ExperimentMetricsData = {
   experimentScores: ScoreAggregate; // Experiment-level scores
 };
 
+/**
+ * How many runs the empty-window fallback shows: enough to see what the last
+ * runs were, few enough that it reads as a fallback rather than a result set.
+ */
+const MOST_RECENT_FALLBACK_LIMIT = 10;
+
 type UseExperimentsTableDataParams = {
   projectId: string;
   filterState: FilterState;
@@ -67,43 +73,76 @@ export function useExperimentsTableData({
     ],
   );
 
+  // `projectId` is read from `router.query`, which Next.js populates only after
+  // hydration. Without this guard both queries fire with `projectId: undefined`
+  // on a cold load and the rejected zod input surfaces as a "Bad Request" toast.
+  const isProjectReady = Boolean(projectId);
+
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
+    enabled: isProjectReady,
     refetchOnWindowFocus: true,
   });
 
-  // Build metrics payload based on experiments data
+  // Fetch total count
+  const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
+    enabled: isProjectReady,
+    refetchOnWindowFocus: true,
+  });
+
+  // An empty time range hides runs that exist just outside it, which reads as
+  // "there are no experiments". Fall back to the most recent runs instead — on
+  // the first page only, so paging stays honest.
+  const isEmptyWindow =
+    totalCountQuery.data?.count === 0 && paginationState.page === 1;
+
+  const mostRecentQuery = api.experiments.mostRecent.useQuery(
+    { ...getCountPayload, limit: MOST_RECENT_FALLBACK_LIMIT },
+    {
+      enabled: isProjectReady && isEmptyWindow,
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  const fallbackRows = isEmptyWindow ? mostRecentQuery.data?.data : undefined;
+  const isShowingMostRecent = Boolean(fallbackRows?.length);
+
+  // The rows the table renders: the filtered page, or the fallback when the
+  // selected range holds nothing.
+  const coreRows = isShowingMostRecent
+    ? fallbackRows
+    : experimentsQuery.data?.data;
+
+  const totalCount = isShowingMostRecent
+    ? (fallbackRows?.length ?? null)
+    : (totalCountQuery.data?.count ?? null);
+
+  // Build metrics payload based on the rows in view
   const metricsPayload = useMemo(() => {
-    const experiments = experimentsQuery.data?.data;
-    if (!experiments || experiments.length === 0) {
+    if (!coreRows || coreRows.length === 0) {
       return null;
     }
 
     return {
       projectId,
-      experimentIds: experiments.map((e) => e.id),
+      experimentIds: coreRows.map((e) => e.id),
       filter: filterState,
     };
-  }, [experimentsQuery.data?.data, projectId, filterState]);
+  }, [coreRows, projectId, filterState]);
 
   // Fetch metrics
   const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
-    enabled: experimentsQuery.isSuccess && metricsPayload !== null,
+    enabled: isProjectReady && metricsPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
-  // Fetch total count
-  const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
-    refetchOnWindowFocus: true,
-  });
-
-  const totalCount = totalCountQuery.data?.count ?? null;
-
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (experimentsQuery.isLoading) {
+    // A disabled query is neither loading nor errored, so keep the table in its
+    // loading state until the project id arrives instead of flashing "no rows".
+    if (!isProjectReady || experimentsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -111,15 +150,23 @@ export function useExperimentsTableData({
       return { status: "error" as const, rows: undefined };
     }
 
+    // Don't render "no experiments" while the fallback is still in flight.
+    if (isEmptyWindow && mostRecentQuery.isLoading) {
+      return { status: "loading" as const, rows: undefined };
+    }
+
     // Success case - join the data
     return joinTableCoreAndMetrics<ExperimentCoreData, ExperimentMetricsData>(
-      experimentsQuery.data?.data,
+      coreRows,
       metricsQuery.data,
     );
   }, [
+    isProjectReady,
     experimentsQuery.isLoading,
     experimentsQuery.isError,
-    experimentsQuery.data?.data,
+    isEmptyWindow,
+    mostRecentQuery.isLoading,
+    coreRows,
     metricsQuery.data,
   ]);
 
@@ -130,5 +177,8 @@ export function useExperimentsTableData({
     dataUpdatedAt,
     totalCount,
     metricsLoading: metricsQuery.isLoading,
+    /** The rows shown are the most recent runs, not the selected time range. */
+    isShowingMostRecent,
+    mostRecentLimit: MOST_RECENT_FALLBACK_LIMIT,
   };
 }

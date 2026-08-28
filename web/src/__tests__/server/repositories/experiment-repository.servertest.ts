@@ -1275,17 +1275,21 @@ describe("Clickhouse Experiment Repository Test", () => {
         projectId: isolatedProjectId,
       });
 
+      // `startTime` (the run's first event) came with the recency ordering the
+      // comparison picker needs — the rows are otherwise unchanged.
       expect(result).toEqual(
         expect.arrayContaining([
           {
             experimentId: experimentIdA,
             experimentName: sharedName,
             datasetId: datasetIdA,
+            startTime: expect.any(Date),
           },
           {
             experimentId: experimentIdB,
             experimentName: sharedName,
             datasetId: datasetIdB,
+            startTime: expect.any(Date),
           },
         ]),
       );
@@ -1659,13 +1663,63 @@ describe("Clickhouse Experiment Repository Test", () => {
         obs_scores_avg: [],
         obs_score_categories: [],
         obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_columns: [],
         experiment_scores_avg: [],
         experiment_score_categories: [],
         experiment_score_columns: [],
       });
-      expect(result).not.toHaveProperty("trace_scores_avg");
-      expect(result).not.toHaveProperty("trace_score_categories");
-      expect(result).not.toHaveProperty("trace_score_columns");
+    });
+
+    it("should return trace-level score options", async () => {
+      const experimentId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: "exp-" + randomUUID(),
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: randomUUID(),
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: new Date().getTime() * 1000,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "trace_groundedness",
+          value: 0.42,
+          source: "API",
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const result = await getExperimentScoreOptions({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(result.trace_scores_avg).toContain("trace_groundedness");
+      expect(result.trace_score_columns).toContainEqual({
+        name: "trace_groundedness",
+        dataType: "NUMERIC",
+        source: "API",
+      });
     });
 
     it("should return experiment-run score filter options", async () => {
@@ -1718,6 +1772,58 @@ describe("Clickhouse Experiment Repository Test", () => {
           },
         ]),
       );
+    });
+  });
+  maybe("getExperimentNamesFromEvents", () => {
+    it("should return one option per run when two runs share a name", async () => {
+      // Own project so the assertion sees only the runs created here.
+      const ownProjectId = randomUUID();
+      const sharedName = "shared-name-" + randomUUID();
+      const datasetId = randomUUID();
+      const olderExperimentId = randomUUID();
+      const newerExperimentId = randomUUID();
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const eventFor = (experimentId: string, startTime: Date) => {
+        const rootSpanId = randomUUID();
+        return createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: ownProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: sharedName,
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: startTime.getTime() * 1000,
+        });
+      };
+
+      await createEventsCh([
+        eventFor(olderExperimentId, yesterday),
+        eventFor(newerExperimentId, now),
+      ]);
+
+      const options = await getExperimentNamesFromEvents({
+        projectId: ownProjectId,
+      });
+
+      expect(options).toHaveLength(2);
+      expect(options.map((option) => option.experimentId)).toEqual([
+        newerExperimentId,
+        olderExperimentId,
+      ]);
+      options.forEach((option) => {
+        expect(option.experimentName).toBe(sharedName);
+        expect(option.datasetId).toBe(datasetId);
+      });
     });
   });
 });

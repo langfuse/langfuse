@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 import { useState } from "react";
 import { Badge, badgeVariants } from "@/src/components/ui/badge";
 import {

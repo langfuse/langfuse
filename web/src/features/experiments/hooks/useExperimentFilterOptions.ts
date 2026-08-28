@@ -21,10 +21,18 @@ export function useExperimentFilterOptions({
   projectId: string;
   oldFilterState: FilterState;
 }) {
+  // `projectId` comes from `router.query`, which Next.js populates only after
+  // hydration; unguarded queries fire with `undefined` and the rejected zod
+  // input surfaces as a "Bad Request" toast.
+  const isProjectReady = Boolean(projectId);
+
   // Fetch datasets to get ID -> name mapping
-  const datasets = api.datasets.allDatasetMeta.useQuery({
-    projectId,
-  });
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    {
+      projectId,
+    },
+    { enabled: isProjectReady },
+  );
 
   // Extract start time filters for filter options query
   const startTimeFilters = useMemo(() => {
@@ -36,10 +44,14 @@ export function useExperimentFilterOptions({
   }, [oldFilterState]);
 
   // Fetch experiment-specific filter options (scores scoped to experiment events)
-  const filterOptions = api.experiments.filterOptions.useQuery({
-    projectId,
-    startTimeFilter: startTimeFilters.length > 0 ? startTimeFilters : undefined,
-  });
+  const filterOptions = api.experiments.filterOptions.useQuery(
+    {
+      projectId,
+      startTimeFilter:
+        startTimeFilters.length > 0 ? startTimeFilters : undefined,
+    },
+    { enabled: isProjectReady },
+  );
 
   const experimentFilterOptions = useMemo(() => {
     const experimentDatasetFilterOptions = datasets.data

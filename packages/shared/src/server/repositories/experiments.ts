@@ -636,6 +636,7 @@ type ExperimentItemScoreOptionsByLevel = {
 
 type ExperimentScoreOptionsByLevel = {
   observation: ProcessedScoreFilterOptions;
+  trace: ProcessedScoreFilterOptions;
   experiment: ProcessedScoreFilterOptions;
 };
 
@@ -721,6 +722,7 @@ const getExperimentScoreOptionsByLevel = async ({
   if (uniqueExperimentIds.length === 0) {
     return {
       observation: emptyScoreFilterOptions(),
+      trace: emptyScoreFilterOptions(),
       experiment: emptyScoreFilterOptions(),
     };
   }
@@ -731,15 +733,29 @@ const getExperimentScoreOptionsByLevel = async ({
     level: "observation",
   });
 
+  // Trace-level scores are where an LLM-as-judge on a dataset run writes, so
+  // they belong in the chart's metric list next to the other two levels.
+  const traceQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "trace",
+  });
+
   const runQuery = buildExperimentRunScoreFilterOptionsQuery({
     projectId,
     experimentIds: uniqueExperimentIds,
   });
 
-  const [obsResults, runResults] = await Promise.all([
+  const [obsResults, traceResults, runResults] = await Promise.all([
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
       params: obsQuery.params,
+      tags: { projectId },
+      preferredClickhouseService: "ReadOnly",
+    }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: traceQuery.query,
+      params: traceQuery.params,
       tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
@@ -753,6 +769,7 @@ const getExperimentScoreOptionsByLevel = async ({
 
   return {
     observation: processScoreFilterOptionsResults(obsResults),
+    trace: processScoreFilterOptionsResults(traceResults),
     experiment: processScoreFilterOptionsResults(runResults),
   };
 };
@@ -763,17 +780,23 @@ export const getExperimentScoreOptions = async (
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
   obs_score_columns: ScoreColumnDefinition[];
+  trace_scores_avg: string[];
+  trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_columns: ScoreColumnDefinition[];
   experiment_scores_avg: string[];
   experiment_score_categories: Array<{ label: string; values: string[] }>;
   experiment_score_columns: ScoreColumnDefinition[];
 }> => {
-  const { observation, experiment } =
+  const { observation, trace, experiment } =
     await getExperimentScoreOptionsByLevel(props);
 
   return {
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
     obs_score_columns: observation.scoreColumns,
+    trace_scores_avg: trace.numeric,
+    trace_score_categories: trace.categorical,
+    trace_score_columns: trace.scoreColumns,
     experiment_scores_avg: experiment.numeric,
     experiment_score_categories: experiment.categorical,
     experiment_score_columns: experiment.scoreColumns,
@@ -1277,16 +1300,27 @@ export const getExperimentItemsBatchIO = async (props: {
   });
 };
 
+/**
+ * Experiment options for the baseline / comparison pickers: one row per run,
+ * with the dataset it ran on and when it started so the UI can group by dataset
+ * and order by recency.
+ */
 export const getExperimentNamesFromEvents = async (props: {
   projectId: string;
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
+    // Grouped by experiment id: two runs sharing a name are two runs, not one
+    // option pointing at an arbitrary id.
     groupByColumn: "e.experiment_id",
-    selectExpression:
-      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
+    selectExpression: `any(e.experiment_name) as experimentName,
+    e.experiment_id as experimentId,
+    nullIf(any(e.experiment_dataset_id), '') as datasetId,
+    min(e.start_time) as startTime`,
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
+    // Keeps the bound meaningful: the newest 1000 runs, not an arbitrary 1000.
+    .orderBy("ORDER BY min(e.start_time) DESC")
     .limit(1000, 0);
 
   const { query, params } = queryBuilder.buildWithParams();
@@ -1295,6 +1329,7 @@ export const getExperimentNamesFromEvents = async (props: {
     experimentName: string;
     experimentId: string;
     datasetId: string | null;
+    startTime: string;
   }>({
     query,
     params,
@@ -1302,5 +1337,10 @@ export const getExperimentNamesFromEvents = async (props: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return res;
+  return res.map((row) => ({
+    experimentId: row.experimentId,
+    experimentName: row.experimentName,
+    datasetId: row.datasetId,
+    startTime: parseClickhouseUTCDateTimeFormat(row.startTime),
+  }));
 };

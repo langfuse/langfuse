@@ -4,6 +4,13 @@ import {
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnDefinition } from "@langfuse/shared";
 
+// The score levels are named after the evaluation context a score was created
+// in, matching the score-level vocabulary used everywhere else in the app.
+export const OBSERVATION_SCORES_TOOLTIP =
+  "Scores whose evaluation context was a single observation inside an experiment item's run.";
+export const TRACE_SCORES_TOOLTIP =
+  "Scores whose evaluation context was the whole trace of an experiment item's run.";
+
 // Temporary column definitions for experiments
 // TODO: Move to shared package once backend is implemented
 // Column definitions that match backend experimentCols mapping
@@ -83,25 +90,28 @@ export const experimentsTableCols: ColumnDefinition[] = [
   },
   // Observation-level scores (eos.* alias in backend)
   {
-    name: "Scores (numeric)",
+    name: "Observation Scores (numeric)",
     id: "obs_scores_avg",
     type: "numberObject",
     internal: "obs_scores_avg",
+    aliases: ["Scores (numeric)"],
   },
   {
-    name: "Scores (categorical)",
+    name: "Observation Scores (categorical)",
     id: "obs_score_categories",
     type: "categoryOptions",
     internal: "obs_score_categories",
     options: [],
     nullable: true,
+    aliases: ["Scores (categorical)"],
   },
   {
-    name: "Scores (boolean)",
+    name: "Observation Scores (boolean)",
     id: "obs_score_booleans",
     type: "booleanObject",
     internal: "obs_score_booleans",
     nullable: true,
+    aliases: ["Scores (boolean)"],
   },
   // Trace-level scores (ets.* alias in backend)
   {
@@ -164,32 +174,38 @@ export const experimentsFilterConfig: FilterConfig = {
       type: "keyValue" as const,
       column: "obs_score_categories",
       label: getExperimentsColumnName("obs_score_categories"),
+      tooltip: OBSERVATION_SCORES_TOOLTIP,
     },
     {
       type: "numericKeyValue" as const,
       column: "obs_scores_avg",
       label: getExperimentsColumnName("obs_scores_avg"),
+      tooltip: OBSERVATION_SCORES_TOOLTIP,
     },
     {
       type: "booleanKeyValue" as const,
       column: "obs_score_booleans",
       label: getExperimentsColumnName("obs_score_booleans"),
+      tooltip: OBSERVATION_SCORES_TOOLTIP,
     },
     // Trace-level scores
     {
       type: "keyValue" as const,
       column: "trace_score_categories",
       label: getExperimentsColumnName("trace_score_categories"),
+      tooltip: TRACE_SCORES_TOOLTIP,
     },
     {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: getExperimentsColumnName("trace_scores_avg"),
+      tooltip: TRACE_SCORES_TOOLTIP,
     },
     {
       type: "booleanKeyValue" as const,
       column: "trace_score_booleans",
       label: getExperimentsColumnName("trace_score_booleans"),
+      tooltip: TRACE_SCORES_TOOLTIP,
     },
   ],
 };

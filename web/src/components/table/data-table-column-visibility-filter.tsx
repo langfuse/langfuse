@@ -49,9 +49,18 @@ import {
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Separator } from "@/src/components/ui/separator";
 
+/**
+ * A whole column GROUP was shown or hidden at once (its "Select All" /
+ * "Deselect All"). Surfaces that care which family a group is — the experiments
+ * tables and their score levels — hook in here rather than having this generic
+ * picker know about them.
+ */
 export type ColumnGroupTogglePayload = {
+  /** The group column's accessorKey. */
   groupId: string;
+  /** Columns visible in the group after the toggle: all of them, or none. */
   enabledCount: number;
+  /** Columns in the group. */
   totalCount: number;
 };
 
@@ -62,10 +71,25 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
   triggerSize?: ComponentProps<typeof Button>["size"];
+  /** Defaults to "Columns"; overridden where the surrounding surface already
+   *  says "Columns" (the merged table-settings popover). */
+  triggerLabel?: string;
   tableName?: string;
   isV4?: boolean;
   onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
 }
+
+/**
+ * A column's name for the picker: its own label before its rendered header, so
+ * a column whose header carries more than its name still reads here.
+ */
+const getColumnLabel = <TData, TValue>(
+  column: LangfuseColumnDef<TData, TValue>,
+) =>
+  column.headerLabel ??
+  (typeof column.header === "string" && column.header
+    ? column.header
+    : column.accessorKey);
 
 const calculateColumnCounts = <TData, TValue>(
   columns: LangfuseColumnDef<TData, TValue>[],
@@ -157,9 +181,7 @@ function ColumnVisibilityListItem<TData, TValue>({
                 : undefined
           }
         >
-          {column.header && typeof column.header === "string"
-            ? column.header
-            : column.accessorKey}
+          {getColumnLabel(column)}
         </label>
         {column.headerTooltip && (
           <DocPopup
@@ -227,11 +249,7 @@ function GroupVisibilityHeader<TData, TValue>({
         >
           <div className="flex items-center gap-2">
             <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-bold">
-              {column.header && typeof column.header === "string"
-                ? column.header
-                : column.accessorKey}
-            </span>
+            <span className="text-sm font-bold">{getColumnLabel(column)}</span>
             <span className="text-muted-foreground text-xs">
               ({groupVisibleCount}/{groupTotalCount})
             </span>
@@ -309,6 +327,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   columnOrder,
   setColumnOrder,
   triggerSize,
+  triggerLabel = "Columns",
   tableName = "unknown",
   isV4 = false,
   onColumnGroupToggle,
@@ -333,21 +352,21 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
       // calculate target state outside of setState to make it idempotent
       const currentValue = columnVisibility[columnId];
       const targetValue = !currentValue;
-      setColumnVisibility((old: any) => {
-        const newColumnVisibility = {
-          ...old,
-          [columnId]: targetValue,
-        };
-        const selectedColumns = Object.keys(newColumnVisibility).filter(
-          (key) => newColumnVisibility[key],
-        );
-        capture("table:column_visibility_changed", {
-          selectedColumns: selectedColumns,
-          tableName,
-          isV4,
-        });
-        return newColumnVisibility;
+      // The event belongs to the click, not to the state updater: an updater
+      // must be pure, and React invokes it twice under StrictMode — which
+      // double-counted every toggle. Same payload, emitted once. (LFE-15720)
+      const nextVisibility = { ...columnVisibility, [columnId]: targetValue };
+      capture("table:column_visibility_changed", {
+        selectedColumns: Object.keys(nextVisibility).filter(
+          (key) => nextVisibility[key],
+        ),
+        tableName,
+        isV4,
       });
+      setColumnVisibility((old: any) => ({
+        ...old,
+        [columnId]: targetValue,
+      }));
     },
     // eslint disable is because we don't want the posthog capture as deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -418,7 +437,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
             size={triggerSize}
             title="Show/hide columns"
           >
-            <span>Columns</span>
+            <span>{triggerLabel}</span>
             <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
           </Button>
         </DrawerTrigger>

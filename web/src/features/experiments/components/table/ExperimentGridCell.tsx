@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-style-props */
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -38,10 +37,12 @@ import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { getScoreDataTypeExplanation } from "@/src/features/scores/lib/scoreColumns";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { NotRecordedMetric } from "./NotRecordedMetric";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -62,6 +63,8 @@ type ExperimentGridCellProps = {
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   isBaseline: boolean;
+  /** Whether this cell carries deltas against the baseline (the diff mode). */
+  showDiff?: boolean;
   baselineScores?: ScoreAggregate;
   baselineTraceScores?: ScoreAggregate;
   isLoading?: boolean;
@@ -275,6 +278,11 @@ const ScoreItem = ({
                 <span className="text-muted-foreground">Type:</span>
                 <span className="capitalize">{dataType.toLowerCase()}</span>
               </div>
+              {/* The side-by-side layout has no score column headers, so the
+                  type is explained here instead. (LFE-15711 / R5) */}
+              <p className="text-muted-foreground max-w-[260px]">
+                {getScoreDataTypeExplanation(dataType)}
+              </p>
             </div>
           </HoverCardContent>
         </HoverCard>
@@ -348,6 +356,179 @@ const MetadataItem = ({
   </div>
 );
 
+/** Metadata fields that used to be a line each inside the cell. */
+const METADATA_KEYS = [
+  "totalCost",
+  "latencyMs",
+  "level",
+  "itemId",
+  "observationId",
+  "traceId",
+  "startTime",
+] as const;
+
+const isMetadataFieldVisible = (
+  columnVisibility: VisibilityState,
+  key: (typeof METADATA_KEYS)[number],
+) => columnVisibility[key] !== false;
+
+export const hasVisibleCellMetadata = (columnVisibility: VisibilityState) =>
+  METADATA_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
+
+/**
+ * The item's identifiers, one hover away. They are the same on every row of a
+ * run and the peek view already carries them, so they don't earn a line each in
+ * a cell whose payload is the output — but they stay reachable here, including
+ * the link out to the execution trace. (LFE-15711)
+ */
+const CellIdentifiers = ({
+  data,
+  columnVisibility,
+}: {
+  data: GridCellData;
+  columnVisibility: VisibilityState;
+}) => {
+  const visible = (key: (typeof METADATA_KEYS)[number]) =>
+    isMetadataFieldVisible(columnVisibility, key);
+
+  const rows: Array<{ label: string; value: React.ReactNode }> = [
+    ...(visible("itemId")
+      ? [
+          {
+            label: "Item ID",
+            value: <span className="font-mono text-xs">{data.itemId}</span>,
+          },
+        ]
+      : []),
+    ...(visible("observationId")
+      ? [
+          {
+            label: "Observation",
+            value: (
+              <span className="font-mono text-xs">{data.observationId}</span>
+            ),
+          },
+        ]
+      : []),
+    ...(visible("traceId")
+      ? [
+          {
+            label: "Execution Trace",
+            value: (
+              <Link
+                href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
+                className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span
+                  className="truncate font-mono text-xs"
+                  title={data.traceId}
+                >
+                  {data.traceId}
+                </span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    ...(visible("startTime")
+      ? [
+          {
+            label: "Start Time",
+            value: (
+              <span className="text-xs">
+                <LocalIsoDate date={data.startTime} />
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  if (rows.length === 0) return null;
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground cursor-default text-[10px] font-bold uppercase underline decoration-dotted"
+          onClick={(event) => event.stopPropagation()}
+        >
+          IDs
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="left"
+        align="start"
+        className="flex w-auto max-w-96 flex-col gap-1 p-2"
+      >
+        {rows.map((row) => (
+          <MetadataItem key={row.label} label={row.label}>
+            {row.value}
+          </MetadataItem>
+        ))}
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
+
+/**
+ * One line of per-item metadata under the scores: the two metrics, the status,
+ * and the identifiers behind a hover. Replaces the five-line labelled block
+ * that made a comparison row ~380px of chrome around a 64px output.
+ */
+const CellMetadataFooter = ({
+  data,
+  columnVisibility,
+}: {
+  data: GridCellData;
+  columnVisibility: VisibilityState;
+}) => {
+  const visible = (key: (typeof METADATA_KEYS)[number]) =>
+    isMetadataFieldVisible(columnVisibility, key);
+
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+      {visible("totalCost") && (
+        <span className="inline-flex items-center gap-1">
+          {data.totalCost ? (
+            usdFormatter(data.totalCost, 2, 6)
+          ) : (
+            <NotRecordedMetric metric="cost" />
+          )}
+          {data.totalCostDiff && (
+            <DiffLabel
+              diff={data.totalCostDiff}
+              preferNegativeDiff
+              formatValue={(value) => usdFormatter(value, 2, 6)}
+            />
+          )}
+        </span>
+      )}
+      {visible("latencyMs") && (
+        <span className="inline-flex items-center gap-1">
+          {data.latencyMs != null ? (
+            latencyFormatter(data.latencyMs)
+          ) : (
+            <NotRecordedMetric metric="latency" />
+          )}
+          {data.latencyDiff && (
+            <DiffLabel
+              diff={data.latencyDiff}
+              preferNegativeDiff
+              formatValue={(value) => latencyFormatter(value)}
+            />
+          )}
+        </span>
+      )}
+      {visible("level") && <span>{data.level}</span>}
+      <CellIdentifiers data={data} columnVisibility={columnVisibility} />
+    </div>
+  );
+};
+
 /**
  * Renders a group section with header and content
  */
@@ -355,12 +536,23 @@ const GroupSection = ({
   header,
   children,
   markerClassName,
+  grow = false,
 }: {
   header?: string;
   children: React.ReactNode;
   markerClassName?: string;
+  /** Take the cell's spare vertical space instead of hugging its content. */
+  grow?: boolean;
 }) => (
-  <div className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
+  <div
+    className={cn(
+      "flex flex-col gap-1 px-2 py-1.5",
+      // `grow` takes the spare space but keeps its content's height as its
+      // base, so a cell with no spare space still shows the output rather than
+      // collapsing to its label and letting the output spill over the scores.
+      grow ? "shrink-0 grow" : "shrink-0",
+    )}
+  >
     {header && (
       <div className="flex items-center gap-1.5">
         {markerClassName !== undefined && (
@@ -402,6 +594,7 @@ export const ExperimentGridCell = ({
   observationScoreOrder,
   traceScoreOrder,
   isBaseline,
+  showDiff = true,
   baselineScores,
   baselineTraceScores,
   isLoading = false,
@@ -411,29 +604,33 @@ export const ExperimentGridCell = ({
 }: ExperimentGridCellProps) => {
   const scoreDiffs = useMemo(
     () =>
-      isBaseline || !baselineScores
+      !showDiff || isBaseline || !baselineScores
         ? undefined
         : computeScoreDiffs(scores, baselineScores),
-    [scores, baselineScores, isBaseline],
+    [scores, baselineScores, isBaseline, showDiff],
   );
 
   const traceScoreDiffs = useMemo(
     () =>
-      isBaseline || !baselineTraceScores
+      !showDiff || isBaseline || !baselineTraceScores
         ? undefined
         : computeScoreDiffs(traceScores, baselineTraceScores),
-    [traceScores, baselineTraceScores, isBaseline],
+    [traceScores, baselineTraceScores, isBaseline, showDiff],
   );
 
   const totalCostDiff = useMemo(
     () =>
-      isBaseline ? null : calculateNumericDiff(totalCost, baselineTotalCost),
-    [baselineTotalCost, isBaseline, totalCost],
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(totalCost, baselineTotalCost),
+    [baselineTotalCost, isBaseline, showDiff, totalCost],
   );
   const latencyDiff = useMemo(
     () =>
-      isBaseline ? null : calculateNumericDiff(latencyMs, baselineLatencyMs),
-    [baselineLatencyMs, isBaseline, latencyMs],
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(latencyMs, baselineLatencyMs),
+    [baselineLatencyMs, isBaseline, latencyMs, showDiff],
   );
 
   const orderedObservationKeys = useMemo(
@@ -506,109 +703,22 @@ export const ExperimentGridCell = ({
             : []),
         ],
       },
-      // Metadata group - itemId, observationId, level, startTime
-      {
-        accessorKey: "metadata",
-        header: "Metadata",
-        children: [
-          {
-            accessorKey: "itemId",
-            cell: ({ data }) => (
-              <MetadataItem label="Item ID">
-                <span className="font-mono text-xs">{data.itemId}</span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "observationId",
-            cell: ({ data }) => (
-              <MetadataItem label="Observation">
-                <span className="font-mono text-xs">{data.observationId}</span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "traceId",
-            cell: ({ data }) => (
-              <MetadataItem label="Execution Trace">
-                <Link
-                  href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
-                  className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <span
-                    className="truncate font-mono text-xs"
-                    title={data.traceId}
-                  >
-                    {data.traceId}
-                  </span>
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </Link>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "level",
-            cell: ({ data }) => (
-              <MetadataItem label="Status">
-                <span className="text-xs">{data.level}</span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "startTime",
-            cell: ({ data }) => (
-              <MetadataItem label="Start Time">
-                <span className="text-xs">
-                  <LocalIsoDate date={data.startTime} />
-                </span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "totalCost",
-            cell: ({ data }) => (
-              <MetadataItem label="Total Cost">
-                <span className="inline-flex items-center gap-1 text-xs">
-                  {data.totalCost != null ? (
-                    usdFormatter(data.totalCost, 2, 6)
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                  {data.totalCostDiff && (
-                    <DiffLabel
-                      diff={data.totalCostDiff}
-                      preferNegativeDiff
-                      formatValue={(value) => usdFormatter(value, 2, 6)}
-                    />
-                  )}
-                </span>
-              </MetadataItem>
-            ),
-          },
-          {
-            accessorKey: "latencyMs",
-            cell: ({ data }) => (
-              <MetadataItem label="Latency">
-                <span className="inline-flex items-center gap-1 text-xs">
-                  {data.latencyMs != null ? (
-                    latencyFormatter(data.latencyMs)
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                  {data.latencyDiff && (
-                    <DiffLabel
-                      diff={data.latencyDiff}
-                      preferNegativeDiff
-                      formatValue={(value) => latencyFormatter(value)}
-                    />
-                  )}
-                </span>
-              </MetadataItem>
-            ),
-          },
-        ],
-      },
+      // One compact line, replacing the five labelled metadata rows. The ids
+      // moved into its hover card; cost and latency stay visible because they
+      // are what a reader compares between runs.
+      ...(hasVisibleCellMetadata(columnVisibility)
+        ? ([
+            {
+              accessorKey: "metadata",
+              cell: ({ data }) => (
+                <CellMetadataFooter
+                  data={data}
+                  columnVisibility={columnVisibility}
+                />
+              ),
+            },
+          ] satisfies CellRowDef<GridCellData>[])
+        : []),
     ],
     [
       columnVisibility,
@@ -649,15 +759,18 @@ export const ExperimentGridCell = ({
         const isFirst = index === 0;
         const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for MemoizedIOTableCell
+        // Output section - special handling for MemoizedIOTableCell. It is the
+        // one section that grows, so a taller row shows more output rather than
+        // more chrome.
         if (row.accessorKey === "output" && row.cell) {
           return (
             <Fragment key={row.accessorKey}>
               <GroupSection
                 header={row.header}
                 markerClassName={isFirst ? markerClassName : undefined}
+                grow
               >
-                <div className="h-16 overflow-hidden">
+                <div className="min-h-16 flex-1 overflow-hidden">
                   {row.cell({ data: cellData })}
                 </div>
               </GroupSection>
@@ -681,6 +794,21 @@ export const ExperimentGridCell = ({
                     </div>
                   ))}
                 </div>
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
+
+        // Sections that render one cell of their own (the metadata footer).
+        if (row.cell) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+              >
+                {row.cell({ data: cellData })}
               </GroupSection>
               {!isLast && <Separator />}
             </Fragment>

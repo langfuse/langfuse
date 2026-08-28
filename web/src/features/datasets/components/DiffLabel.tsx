@@ -40,10 +40,22 @@ export function DiffLabel({
       </Badge>
     );
   }
-  if (diff.isDifferent)
+  if (diff.isDifferent) {
+    /* Name the move when both sides are a single value: a categorical
+       score going pass → fail is a diff, just not a number. */
+    const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
     return (
-      <Badge size="sm" variant="warning" className="font-bold">
-        Varies
+      <Badge
+        size="sm"
+        variant="warning"
+        // A named move can be longer than the cell it sits in, and the value it
+        // qualifies matters more than the move does — so shrink and ellipsise
+        // here rather than clipping mid-word, and keep the full move on hover.
+        className={cn("min-w-0 truncate font-bold", className)}
+        title={move}
+      >
+        {move}
       </Badge>
     );
+  }
 }

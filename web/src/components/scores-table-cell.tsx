@@ -19,8 +19,12 @@ import React from "react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 
+// Boolean scores render as `true`/`false`; the capitalised entries keep the same
+// treatment for categorical scores whose category happens to be True/False.
 const COLOR_MAP = new Map([
+  ["true", "bg-light-green p-0.5 text-dark-green"],
   ["True", "bg-light-green p-0.5 text-dark-green"],
+  ["false", "bg-light-red p-0.5 text-dark-red"],
   ["False", "bg-light-red p-0.5 text-dark-red"],
 ]);
 const COLLAPSE_CATEGORICAL_SCORES_AFTER = 2;

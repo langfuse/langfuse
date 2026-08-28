@@ -84,19 +84,27 @@ describe("ExperimentGridCell", () => {
     expect(screen.getByText("correctness")).toBeInTheDocument();
   });
 
-  it("renders the latency row when no latency value is available", () => {
+  it("keeps cost and latency on the metadata line", () => {
     renderGridCell(false, { output: false });
 
-    expect(screen.getByText("Latency")).toBeInTheDocument();
+    // Neither is recorded in this fixture, so both render the affordance.
+    expect(screen.getAllByText("not recorded")).toHaveLength(2);
   });
 
-  it("renders output in a fixed-height scroll area", () => {
+  it("keeps the ids reachable behind the metadata line instead of listing them", () => {
+    renderGridCell(false, { output: false });
+
+    expect(screen.queryByText("item-id")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "IDs" })).toBeInTheDocument();
+  });
+
+  it("lets the output section take the row's spare height", () => {
     renderGridCell(false, { metadata: false });
 
     const outputContent =
       screen.getByText("Output").parentElement?.nextElementSibling;
 
-    expect(outputContent).toHaveClass("h-16", "overflow-hidden");
+    expect(outputContent).toHaveClass("min-h-16", "flex-1", "overflow-hidden");
   });
 
   it("links evaluator score comments to their execution trace", async () => {

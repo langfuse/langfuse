@@ -1,5 +1,9 @@
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnDefinition, ObservationLevelType } from "@langfuse/shared";
+import {
+  OBSERVATION_SCORES_TOOLTIP,
+  TRACE_SCORES_TOOLTIP,
+} from "@/src/features/experiments/components/table/filter-config";
 
 /**
  * Column definitions for experiment items table.
@@ -64,25 +68,28 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Scores (numeric)",
+    name: "Observation Scores (numeric)",
     id: "obs_scores_avg",
     type: "numberObject",
     internal: "obs_scores_avg",
+    aliases: ["Scores (numeric)"],
   },
   {
-    name: "Scores (categorical)",
+    name: "Observation Scores (categorical)",
     id: "obs_score_categories",
     type: "categoryOptions",
     internal: "obs_score_categories",
     options: [],
     nullable: true,
+    aliases: ["Scores (categorical)"],
   },
   {
-    name: "Scores (boolean)",
+    name: "Observation Scores (boolean)",
     id: "obs_score_booleans",
     type: "booleanObject",
     internal: "obs_score_booleans",
     nullable: true,
+    aliases: ["Scores (boolean)"],
   },
   {
     name: "Trace Scores (numeric)",
@@ -156,31 +163,37 @@ export const experimentItemsFilterConfig: FilterConfig = {
       type: "keyValue" as const,
       column: "obs_score_categories",
       label: getExperimentItemsColumnName("obs_score_categories"),
+      tooltip: OBSERVATION_SCORES_TOOLTIP,
     },
     {
       type: "numericKeyValue" as const,
       column: "obs_scores_avg",
       label: getExperimentItemsColumnName("obs_scores_avg"),
+      tooltip: OBSERVATION_SCORES_TOOLTIP,
     },
     {
       type: "booleanKeyValue" as const,
       column: "obs_score_booleans",
       label: getExperimentItemsColumnName("obs_score_booleans"),
+      tooltip: OBSERVATION_SCORES_TOOLTIP,
     },
     {
       type: "keyValue" as const,
       column: "trace_score_categories",
       label: getExperimentItemsColumnName("trace_score_categories"),
+      tooltip: TRACE_SCORES_TOOLTIP,
     },
     {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: getExperimentItemsColumnName("trace_scores_avg"),
+      tooltip: TRACE_SCORES_TOOLTIP,
     },
     {
       type: "booleanKeyValue" as const,
       column: "trace_score_booleans",
       label: getExperimentItemsColumnName("trace_score_booleans"),
+      tooltip: TRACE_SCORES_TOOLTIP,
     },
   ],
 };

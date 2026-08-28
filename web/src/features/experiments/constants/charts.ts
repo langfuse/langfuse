@@ -11,8 +11,6 @@ export const BASE_CHART_IDS = {
   LATENCY: "base:latency",
 } as const;
 
-export const MAX_CHARTS = 4;
-
 export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
   "obs:numeric": {
     level: "obs",
@@ -25,6 +23,18 @@ export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
     dataType: "categorical",
     filterKey: "obs_score_categories",
     group: "Observation Scores",
+  },
+  "trace:numeric": {
+    level: "trace",
+    dataType: "numeric",
+    filterKey: "trace_scores_avg",
+    group: "Trace Scores",
+  },
+  "trace:categorical": {
+    level: "trace",
+    dataType: "categorical",
+    filterKey: "trace_score_categories",
+    group: "Trace Scores",
   },
   "experiment:numeric": {
     level: "experiment",
@@ -48,7 +58,9 @@ const BASE_EXPERIMENT_WIDGET_CONFIG = {
   // client-side in InlineWidget, so no query-side ordering is needed.
   orderBy: null,
   chartType: "LINE_TIME_SERIES",
-  chartConfig: { type: "LINE_TIME_SERIES" },
+  // A dot per experiment: on an entity axis a metric that only two runs
+  // recorded would otherwise draw one long line across every other run.
+  chartConfig: { type: "LINE_TIME_SERIES", show_data_point_dots: true },
   timeDimension: null,
   entityDimension: { field: "experimentName" },
   filters: [],
@@ -84,6 +96,9 @@ export const SCORE_LEVEL_ENTITY_DIMENSIONS: Record<
   { field: string }
 > = {
   obs: { field: "experimentName" },
+  // A trace-level score has no observation, so the experiment has to be read
+  // off the scored trace's root event rather than off the observation.
+  trace: { field: "traceExperimentName" },
   experiment: { field: "datasetRunId" },
 };
 
@@ -94,7 +109,7 @@ export const NUMERIC_SCORE_CHART_CONFIG = {
   metrics: [{ measure: "value", agg: "avg" }],
   filters: [],
   chartType: "LINE_TIME_SERIES",
-  chartConfig: { type: "LINE_TIME_SERIES" },
+  chartConfig: { type: "LINE_TIME_SERIES", show_data_point_dots: true },
 } as const;
 
 export const CATEGORICAL_SCORE_CHART_CONFIG = {
@@ -112,6 +127,14 @@ export const SCORE_LEVEL_FILTERS: Record<ScoreLevel, FilterCondition[]> = {
     {
       column: "observationId",
       operator: "is not null",
+      value: "",
+      type: "null",
+    },
+  ],
+  trace: [
+    {
+      column: "observationId",
+      operator: "is null",
       value: "",
       type: "null",
     },

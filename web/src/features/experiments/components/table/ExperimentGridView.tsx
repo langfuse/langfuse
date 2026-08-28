@@ -34,11 +34,15 @@ type ExperimentGridViewProps = {
   baselineExperimentId?: string;
   comparisonExperimentIds: string[];
   useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
   /** Render I/O cells as single-line text (true) or JSON tree (false). */
   singleLine: boolean;
   rows: ExperimentItemsTableRow[];
   isLoading: boolean;
   rowHeight: RowHeight;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
   observationScoreOrder: string[];
   traceScoreOrder: string[];
   showScoreLevelLabels: boolean;
@@ -66,10 +70,12 @@ export const ExperimentGridView = ({
   baselineExperimentId,
   comparisonExperimentIds,
   useExperimentColors = true,
+  showDiff,
   singleLine,
   rows,
   isLoading,
   rowHeight,
+  showExpectedOutput,
   observationScoreOrder,
   traceScoreOrder,
   showScoreLevelLabels,
@@ -173,6 +179,7 @@ export const ExperimentGridView = ({
               traceScoreOrder={traceScoreOrder}
               showScoreLevelLabels={showScoreLevelLabels}
               isBaseline={isBaseline}
+              showDiff={showDiff}
               baselineScores={baselineData?.observationScores}
               baselineTraceScores={baselineData?.traceScores}
               columnVisibility={columnVisibility}
@@ -192,8 +199,33 @@ export const ExperimentGridView = ({
     showScoreLevelLabels,
     columnVisibility,
     useExperimentColors,
+    showDiff,
     singleLine,
   ]);
+
+  const expectedOutputColumn: LangfuseColumnDef<ExperimentItemsTableRow> =
+    useMemo(
+      () => ({
+        accessorKey: "expectedOutput",
+        id: "expectedOutput",
+        header: "Expected Output",
+        size: 200,
+        cell: ({ row }) => {
+          const expectedOutput = row.original.expectedOutput;
+          // An empty expected output used to render as two literal quote characters.
+          if (!isLoading && !expectedOutput) return undefined;
+          return (
+            <MemoizedIOTableCell
+              isLoading={isLoading}
+              data={expectedOutput ?? null}
+              singleLine={singleLine}
+              className="bg-accent-light-green"
+            />
+          );
+        },
+      }),
+      [isLoading, singleLine],
+    );
 
   // Build all columns: Select, Input, Expected Output, then experiment columns
   const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = useMemo(
@@ -213,23 +245,17 @@ export const ExperimentGridView = ({
           />
         ),
       },
-      {
-        accessorKey: "expectedOutput",
-        id: "expectedOutput",
-        header: "Expected Output",
-        size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+      ...(showExpectedOutput ? [expectedOutputColumn] : []),
       ...experimentColumns,
     ],
-    [experimentColumns, isLoading, selectActionColumn, singleLine],
+    [
+      expectedOutputColumn,
+      experimentColumns,
+      isLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
   );
 
   return (
