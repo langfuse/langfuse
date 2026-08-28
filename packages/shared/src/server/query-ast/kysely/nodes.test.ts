@@ -189,9 +189,26 @@ describe("tenancy injection", () => {
       .where("project_id", "=", "proj-1");
 
     const { sql: compiled } = compileClickhouseQuery(qb, ctx);
-    // Both tenanted relations get their own qualified predicate injected.
     expect(compiled).toMatch(/o\.project_id/i);
     expect(compiled).toMatch(/t\.project_id/i);
+  });
+
+  it("scopes an aliased relation whose alias collides with another table's physical name", () => {
+    // `scores AS traces` aliases one tenanted table to the *physical name* of
+    // another tenanted table (`traces`). A qualified `traces.project_id`
+    // predicate scopes the alias only; the physically-`traces` relation
+    // (aliased `t`) must still get its own injected predicate. Regression for
+    // an alias/table-name collision that previously left `t` unscoped.
+    const qb = getClickhouseKysely()
+      .selectFrom("scores as traces")
+      .innerJoin("traces as t", (join) => join.onRef("traces.id", "=", "t.id"))
+      .select("t.environment")
+      .where("traces.project_id", "=", "proj-1");
+
+    const { sql: compiled } = compileClickhouseQuery(qb, ctx);
+    expect(compiled).toMatch(/t\.project_id/i);
+    const matches = compiled.match(/project_id/gi) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });
 

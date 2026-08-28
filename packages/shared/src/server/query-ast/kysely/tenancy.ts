@@ -290,7 +290,15 @@ function isProjectIdColumn(
     if (node.column.column.name !== PROJECT_ID_COLUMN) return false;
     if (!node.table) return !requireQualified;
     const referenced = tableNameOf(node.table);
-    return referenced === table.tableName || referenced === table.alias;
+    // Once a relation is aliased, its physical table name is no longer a valid
+    // SQL qualifier for it — only the alias is. Accepting the physical name
+    // here would let one relation's predicate "cover" a *different* relation
+    // whose physical name collides with this alias (e.g. `scores AS traces`
+    // joined to `traces AS t`), leaving the second relation unscoped. Mirror
+    // projectIdPredicate: alias when present, else the table name.
+    return table.alias
+      ? referenced === table.alias
+      : referenced === table.tableName;
   }
   return false;
 }
