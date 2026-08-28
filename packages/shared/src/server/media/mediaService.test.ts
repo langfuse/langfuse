@@ -39,6 +39,7 @@ vi.mock("../s3", () => ({
 
 import { MediaAssociationOrigin } from "@prisma/client";
 
+import { LangfuseNotFoundError } from "../../errors";
 import { MediaContentType } from "../../domain/media";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { uploadMediaForDatasetItem, uploadMediaForTrace } from "./mediaService";
@@ -223,6 +224,9 @@ describe("uploadMediaForDatasetItem", () => {
     expect(result.mediaId).toBe("n-vgG9Qb-2loPinXEdit_8");
     expect(result.sha256Hash).toEqual(expect.any(String));
     expect(mocks.uploadFile).toHaveBeenCalledTimes(1);
+    expect(mocks.datasetFindFirst.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.uploadFile.mock.invocationCallOrder[0]!,
+    );
     expect(mocks.datasetItemMediaCreateMany).toHaveBeenCalledTimes(1);
     expect(mocks.queryRaw).not.toHaveBeenCalled();
   });
@@ -251,5 +255,27 @@ describe("uploadMediaForDatasetItem", () => {
     });
     expect(mocks.uploadFile).not.toHaveBeenCalled();
     expect(mocks.datasetItemMediaCreateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not upload when the dataset is missing from the project", async () => {
+    mocks.datasetFindFirst.mockResolvedValue(null);
+
+    await expect(
+      uploadMediaForDatasetItem({
+        projectId: "project-id",
+        datasetId: "missing-dataset-id",
+        datasetItemId: "item-id",
+        field: "input",
+        contentType: MediaContentType.PNG,
+        contentBytes: CONTENT_BYTES,
+        mediaBucket: "media-bucket",
+        mediaPrefix: "media/",
+      }),
+    ).rejects.toBeInstanceOf(LangfuseNotFoundError);
+
+    expect(mocks.uploadFile).not.toHaveBeenCalled();
+    expect(mocks.findUnique).not.toHaveBeenCalled();
+    expect(mocks.executeRaw).not.toHaveBeenCalled();
+    expect(mocks.datasetItemMediaCreateMany).not.toHaveBeenCalled();
   });
 });
