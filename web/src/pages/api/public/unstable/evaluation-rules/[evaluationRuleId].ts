@@ -20,7 +20,7 @@ import {
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({
     name: "Get Unstable Evaluation Rule",
-    action: null,
+    action: "evalJob:read",
     querySchema: GetUnstableEvaluationRuleQuery,
     responseSchema: GetUnstableEvaluationRuleResponse,
     fn: async ({ query, auth }) =>
@@ -31,7 +31,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   PATCH: createUnstablePublicApiRoute({
     name: "Update Unstable Evaluation Rule",
-    action: null,
+    action: "evalJob:CUD",
     querySchema: PatchUnstableEvaluationRuleQuery,
     bodySchema: PatchUnstableEvaluationRuleBody,
     responseSchema: PatchUnstableEvaluationRuleResponse,
@@ -46,7 +46,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Evaluation Rule",
-    action: null,
+    action: "evalJob:CUD",
     querySchema: DeleteUnstableEvaluationRuleQuery,
     responseSchema: DeleteUnstableEvaluationRuleResponse,
     fn: async ({ query, auth }) => {

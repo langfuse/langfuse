@@ -16,7 +16,7 @@ import {
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({
     name: "List Unstable Evaluation Rules",
-    action: null,
+    action: "evalJob:read",
     querySchema: GetUnstableEvaluationRulesQuery,
     responseSchema: GetUnstableEvaluationRulesResponse,
     fn: async ({ query, auth }) =>
@@ -28,7 +28,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   POST: createUnstablePublicApiRoute({
     name: "Create Unstable Evaluation Rule",
-    action: null,
+    action: "evalJob:CUD",
     bodySchema: PostUnstableEvaluationRuleBody,
     responseSchema: PostUnstableEvaluationRuleResponse,
     fn: async ({ body, auth }) =>

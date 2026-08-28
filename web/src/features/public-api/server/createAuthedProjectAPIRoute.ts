@@ -50,10 +50,9 @@ export type AuthedProjectAPIRouteConfig<
   name: string;
   /**
    * The project action this route authorizes through the policy core. Required
-   * so a route cannot ship with no authorization; `null` is the greppable
-   * shadow opt-out for routes that intentionally skip the check.
+   * so a route cannot ship with no authorization.
    */
-  action: ProjectAction | null;
+  action: ProjectAction;
   querySchema?: TQuery;
   bodySchema?: TBody;
   responseSchema: TResponse;

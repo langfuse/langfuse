@@ -1,3 +1,5 @@
+import { type IncomingHttpHeaders } from "http";
+
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
@@ -7,6 +9,15 @@ import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { env } from "@/src/env.mjs";
+import { defaultAuthenticator } from "@/src/features/apiKey/auth";
+import { authorize } from "@/src/features/auth/policy/authorize";
+import {
+  diffResults,
+  legacyFromStatus,
+  recordCoverage,
+  type NewResult,
+} from "@/src/features/auth/policy/shadow";
 
 export default async function handler(
   req: NextApiRequest,
@@ -57,6 +68,25 @@ export default async function handler(
     });
   }
 
+  // Route the project:read decision through the policy core. Legacy skips the
+  // pipeline; shadow records parity without changing behavior; enforce gates.
+  if (env.API_AUTH_MIGRATION !== "legacy") {
+    const authz = await authorizeOrgProjectsRead(req.headers);
+    if (env.API_AUTH_MIGRATION === "shadow") {
+      recordCoverage("List Projects");
+      diffResults(authz, legacyFromStatus(200), {
+        seam: "org_route",
+        action: "project:read",
+      });
+    }
+    if (env.API_AUTH_MIGRATION === "enforce" && !authz.success) {
+      return res.status(403).json({
+        error:
+          "Invalid API key. Organization-scoped API key required for this operation.",
+      });
+    }
+  }
+
   const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
     authCheck.scope,
     "public-api",
@@ -77,4 +107,27 @@ export default async function handler(
       error: "Internal server error",
     });
   }
+}
+
+/** authorizeOrgProjectsRead resolves the request's context and checks project:read across the org's projects (vacuously allowing an org with none). */
+async function authorizeOrgProjectsRead(
+  headers: IncomingHttpHeaders,
+): Promise<NewResult> {
+  const authn = await defaultAuthenticator.auth({ headers });
+  if (!authn.success) {
+    return { success: false, error: { httpCode: authn.error.httpCode } };
+  }
+  const context = authn.context;
+  const orgProjectIds =
+    context.principal.kind === "apiKey"
+      ? context.principal.organizations.flatMap((o) => o.projectIds)
+      : [];
+  const allowed =
+    orgProjectIds.length === 0 ||
+    orgProjectIds.some(
+      (projectId) => authorize(context, "project:read", { projectId }).success,
+    );
+  return allowed
+    ? { success: true }
+    : { success: false, error: { httpCode: 403 } };
 }

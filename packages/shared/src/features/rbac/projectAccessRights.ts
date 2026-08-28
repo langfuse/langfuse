@@ -93,6 +93,7 @@ export const projectScopes = [
   "models:read",
   "experiments:read",
   "mcp:access",
+  "feedback:create",
 ] as const;
 
 // type string of all Resource:Action, e.g. "members:read"

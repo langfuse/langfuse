@@ -16,7 +16,7 @@ import {
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({
     name: "List Unstable Dashboard Widgets",
-    action: null,
+    action: "dashboards:read",
     querySchema: GetUnstableDashboardWidgetsQuery,
     responseSchema: GetUnstableDashboardWidgetsResponse,
     fn: ({ query, auth }) =>
@@ -24,7 +24,7 @@ export default withUnstablePublicApiMiddlewares({
   }),
   POST: createUnstablePublicApiRoute({
     name: "Create Unstable Dashboard Widget",
-    action: null,
+    action: "dashboards:CUD",
     bodySchema: PostUnstableDashboardWidgetBody,
     responseSchema: PostUnstableDashboardWidgetResponse,
     fn: async ({ body, auth }) =>

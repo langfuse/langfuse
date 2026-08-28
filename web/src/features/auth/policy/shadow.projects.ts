@@ -23,7 +23,7 @@ export async function verifyAuth(
 
   const authz = await enforceProjectAuth({
     headers: params.req.headers,
-    action: params.action ?? undefined,
+    action: params.action,
     allowInAppAgentKey: params.allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
   });
@@ -32,7 +32,7 @@ export async function verifyAuth(
     recordCoverage(params.name);
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: "project_route",
-      action: params.action ?? "none",
+      action: params.action,
     });
   }
   if (env.API_AUTH_MIGRATION === "enforce" && !authz.success) {
@@ -68,7 +68,7 @@ async function runLegacyAuth(
 export type VerifyAuthParams = {
   req: NextApiRequest;
   name: string;
-  action: ProjectAction | null;
+  action: ProjectAction;
   isAdminApiKeyAuthAllowed?: boolean;
   allowedAccessLevels?: Parameters<typeof legacyVerifyAuth>[2];
   allowInAppAgentKey?: boolean;
