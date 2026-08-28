@@ -1,8 +1,10 @@
 import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
-import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  EVALUATOR_FIELD_REGISTRY,
+  RULE_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
@@ -52,7 +54,7 @@ describe("dataset name search filters", () => {
     expect(toDatasetNameFilters(persisted, datasets)).toEqual(persisted);
   });
 
-  it("maps null checks to the persisted dataset ID column", () => {
+  it("round-trips dataset presence filters through the name column", () => {
     const searchable = [
       {
         column: "experimentDatasetName",
@@ -62,18 +64,24 @@ describe("dataset name search filters", () => {
       },
     ] satisfies FilterState;
 
-    expect(fromDatasetNameFilters(searchable, datasets)).toEqual([
+    const persisted = [
       {
         column: "experimentDatasetId",
         type: "null",
         operator: "is not null",
         value: "",
       },
-    ]);
+    ] satisfies FilterState;
+
+    expect(fromDatasetNameFilters(searchable, datasets)).toEqual(persisted);
+    expect(toDatasetNameFilters(persisted, datasets)).toEqual(searchable);
   });
 
   it("accepts dataset names in evaluator and rule search queries", () => {
-    for (const registry of [EVALUATOR_FIELD_REGISTRY, RULE_FIELD_REGISTRY]) {
+    for (const registry of [
+      EVALUATOR_FIELD_REGISTRY,
+      RULE_SAMPLE_FIELD_REGISTRY,
+    ]) {
       const result = planCommit(
         'experimentDatasetName:"Support conversations"',
         undefined,

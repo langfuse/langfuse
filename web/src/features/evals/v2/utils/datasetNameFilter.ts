@@ -26,12 +26,11 @@ export function toDatasetNameFilters(
   );
 
   return filters.map((filter) => {
-    if (
-      filter.column !== DATASET_ID_COLUMN ||
-      filter.type !== "stringOptions"
-    ) {
-      return filter;
+    if (filter.column !== DATASET_ID_COLUMN) return filter;
+    if (filter.type === "null") {
+      return { ...filter, column: DATASET_NAME_COLUMN };
     }
+    if (filter.type !== "stringOptions") return filter;
 
     const names = filter.value.map((id) => nameById.get(id));
     if (names.some((name) => name === undefined)) return filter;
