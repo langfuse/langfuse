@@ -194,7 +194,6 @@ async function createCaller() {
         },
       ],
       featureFlags: {
-        searchBar: false,
         templateFlag: false,
         excludeClickhouseRead: false,
         observationEvals: false,
