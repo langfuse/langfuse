@@ -617,9 +617,9 @@ function keyPathOptions(
       id: `key:metadata.${o.value}`,
       kind: "field" as const,
       label: `metadata.${o.value}`,
-      // The observed JSON type of the path (display-only — metadata filters
-      // always lower to stringObject regardless). Paths seen with multiple
-      // types carry no type hint; counts stay the fallback like other lists.
+      // The observed JSON type of the path is display-only. Equality and
+      // string ops still lower to stringObject; comparisons lower to
+      // numberObject. Paths seen with multiple types carry no type hint.
       detail: o.type ?? (o.count !== undefined ? String(o.count) : undefined),
       fieldId: keyText(o.value),
     }));
@@ -771,10 +771,19 @@ function valueStageSections(input: ValueStageInput): {
       }));
       const values = valueOptions(all, typed);
       const ops = typed.length > 0 ? matchOperatorOptions(typed, negated) : [];
-      if (values.length + ops.length === 0) return null;
+      const compareOps =
+        typed.length === 0 && !negated
+          ? numberOperatorOptions(
+              `metadata.${quoteIfNeeded(ref.key)}`,
+              undefined,
+              "20",
+            )
+          : [];
+      if (values.length + ops.length + compareOps.length === 0) return null;
       return {
         sections: [
           ...section(SECTION_VALUES, values),
+          ...section(SECTION_COMPARE_OPS, compareOps),
           ...section(SECTION_MATCH_OPS, ops),
         ],
         loading: false,

@@ -594,7 +594,34 @@ export class NumberObjectFilter implements Filter {
   apply(): ClickhouseFilter {
     const varKeyName = `numberObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `numberObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
-    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const prefix = this.tablePrefix ? `${this.tablePrefix}.` : "";
+
+    // Metadata is stored as strings (array columns on events_* , Map on
+    // traces/observations). Numeric comparison parses with toFloat64OrNull so
+    // non-numeric values and missing keys do not match. Scores stay on the
+    // Array(Tuple(name, Decimal)) path below.
+    if (isFtsMetadataField(this.field)) {
+      const keyParam = `{${varKeyName}: String}`;
+      const valueParam = `{${varValueName}: Float64}`;
+      let hasKey: string;
+      let valueAccessor: string;
+      if (isFtsEventsTable(this.clickhouseTable)) {
+        const namesColumn = `${prefix}${this.field}_names`;
+        const valuesColumn = `${prefix}${this.field}_values`;
+        hasKey = `has(${namesColumn}, ${keyParam})`;
+        valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, ${keyParam})]`;
+      } else {
+        const column = `${prefix}${this.field}`;
+        hasKey = `mapContains(${column}, ${keyParam})`;
+        valueAccessor = `${column}[${keyParam}]`;
+      }
+      return {
+        query: `${hasKey} AND (toFloat64OrNull(${valueAccessor}) ${this.operator} ${valueParam})`,
+        params: { [varKeyName]: this.key, [varValueName]: this.value },
+      };
+    }
+
+    const column = `${prefix}${this.field}`;
     return {
       query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },

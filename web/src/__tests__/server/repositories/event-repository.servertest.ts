@@ -2646,6 +2646,132 @@ describe("Clickhouse Events Repository Test", () => {
         expect(result[0].name).toBe("md1");
       });
 
+      it("should filter observations by numeric metadata comparison", async () => {
+        const traceId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        const events = [
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "timeout-high",
+            metadata_names: ["timeout", "source"],
+            metadata_values: ["30", "api"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "timeout-low",
+            metadata_names: ["timeout", "source"],
+            metadata_values: ["10", "api"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "timeout-non-numeric",
+            metadata_names: ["timeout"],
+            metadata_values: ["slow"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "timeout-missing",
+            metadata_names: ["source"],
+            metadata_values: ["api"],
+            start_time: now * 1000,
+          }),
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "nested-timeout",
+            metadata_names: ["config.timeout"],
+            metadata_values: ["25"],
+            start_time: now * 1000,
+          }),
+        ];
+
+        await createEventsCh(events);
+
+        const numericFilter = [
+          {
+            type: "numberObject" as const,
+            column: "metadata",
+            operator: ">" as const,
+            key: "timeout",
+            value: 20,
+          },
+          {
+            type: "datetime" as const,
+            column: "startTime",
+            operator: ">=" as const,
+            value: filterTime,
+          },
+          {
+            type: "string" as const,
+            column: "traceId",
+            operator: "=" as const,
+            value: traceId,
+          },
+        ];
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: numericFilter,
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.map((row) => row.name).sort()).toEqual(["timeout-high"]);
+
+        const nested = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "numberObject",
+              column: "metadata",
+              operator: ">",
+              key: "config.timeout",
+              value: 20,
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(nested.map((row) => row.name)).toEqual(["nested-timeout"]);
+      });
+
       it("should return the first value when metadata_names contains duplicates", async () => {
         const traceId = randomUUID();
         const observationId = randomUUID();

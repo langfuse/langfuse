@@ -31,6 +31,9 @@ describe("explainSegment", () => {
     expect(explain("metadata.region:eu")).toBe(
       'Metadata "region" is exactly "eu".',
     );
+    expect(explain("metadata.timeout:>20")).toBe(
+      'Metadata "timeout" is above 20.',
+    );
     expect(explain("level:ERROR")).toBe('Status is "ERROR".');
     expect(explain("statusMessage:chat*")).toBe(
       'Status message starts with "chat".',

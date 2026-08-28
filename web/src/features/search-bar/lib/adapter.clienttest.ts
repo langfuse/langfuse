@@ -186,7 +186,7 @@ describe("astToFilterState", () => {
     ]);
   });
 
-  it("lowers metadata paths to stringObject filters", () => {
+  it("lowers metadata paths to stringObject and numeric comparisons", () => {
     expect(lower("metadata.region:eu").filters).toEqual([
       {
         type: "stringObject",
@@ -205,7 +205,34 @@ describe("astToFilterState", () => {
         value: "eu",
       },
     ]);
-    expect(lower("metadata.region:>5").errors.length).toBeGreaterThan(0);
+    expect(lower("metadata.region:>5").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "region",
+        operator: ">",
+        value: 5,
+      },
+    ]);
+    expect(lower("-metadata.timeout:>20").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "metadata",
+        key: "timeout",
+        operator: "<=",
+        value: 20,
+      },
+    ]);
+    // Equality stays a string match even when the value looks numeric.
+    expect(lower("metadata.timeout:20").filters).toEqual([
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "timeout",
+        operator: "=",
+        value: "20",
+      },
+    ]);
     expect(lower("-metadata.region:eu").errors.length).toBeGreaterThan(0);
   });
 
@@ -941,6 +968,18 @@ describe("filterStateToQueryText", () => {
       value: "eu",
     };
     expect(filterStateToQueryText([eq]).text).toBe("metadata.region:eu");
+  });
+
+  it("serializes numeric metadata comparisons as metadata.key:>n", () => {
+    const cmp: FilterState[number] = {
+      type: "numberObject",
+      column: "metadata",
+      key: "timeout",
+      operator: ">",
+      value: 20,
+    };
+    expect(filterStateToQueryText([cmp]).text).toBe("metadata.timeout:>20");
+    expect(filterStateToQueryText([cmp]).skippedFilters).toHaveLength(0);
   });
 
   it("serializes a textSearch contains as the bare form, not *value*", () => {

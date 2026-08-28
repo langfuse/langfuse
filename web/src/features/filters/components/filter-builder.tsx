@@ -896,6 +896,45 @@ function FilterBuilderForm({
         onValueChange={(value) => {
           // protect against invalid empty operator values
           if (value === "") return;
+          const numericMetadataOperator =
+            column?.type === "stringObject" &&
+            (filterOperators.number as readonly string[]).includes(value) &&
+            value !== "=";
+          if (numericMetadataOperator) {
+            const numericValue =
+              typeof filter.value === "number"
+                ? filter.value
+                : Number(filter.value);
+            handleFilterChange(
+              {
+                ...filter,
+                type: "numberObject",
+                operator: value as (typeof filterOperators.number)[number],
+                value: Number.isFinite(numericValue) ? numericValue : undefined,
+              } as WipFilterCondition,
+              i,
+            );
+            return;
+          }
+          if (
+            column?.type === "stringObject" &&
+            filter.type === "numberObject"
+          ) {
+            handleFilterChange(
+              {
+                ...filter,
+                type: "stringObject",
+                operator:
+                  value as (typeof filterOperators.stringObject)[number],
+                value:
+                  filter.value === undefined || filter.value === null
+                    ? undefined
+                    : String(filter.value),
+              } as WipFilterCondition,
+              i,
+            );
+            return;
+          }
           handleFilterChange(
             {
               ...filter,
@@ -913,7 +952,13 @@ function FilterBuilderForm({
         </SelectTrigger>
         <SelectContent>
           {filter.type !== undefined
-            ? filterOperators[filter.type].map((option) => (
+            ? (column?.type === "stringObject"
+                ? [
+                    ...filterOperators.stringObject,
+                    ...filterOperators.number.filter((op) => op !== "="),
+                  ]
+                : filterOperators[filter.type]
+              ).map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>

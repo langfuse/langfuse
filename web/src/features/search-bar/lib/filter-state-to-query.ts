@@ -189,6 +189,11 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
+      if (registry.columnIdOf(filter.column) === "metadata") {
+        const key = `metadata.${quoteIfNeeded(filter.key)}`;
+        const op = filter.operator === "=" ? "=" : filter.operator;
+        return filterNode(key, op, [String(filter.value)]);
+      }
       const path = scorePathOf(filter.column, filter.key);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
