@@ -291,10 +291,10 @@ function buildTraceColumns(
       header: "Input",
       id: "input",
       size: 400,
+      cellBackground: "gray",
       loadingCell: () => (
         <IOTableCell
           isLoading
-          variant="input"
           singleLine={singleLine}
           renderMediaReference={renderMediaReference}
         />
@@ -302,7 +302,6 @@ function buildTraceColumns(
       cell: ({ row }) => (
         <IOTableCell
           data={row.original.input}
-          variant="input"
           singleLine={singleLine}
           enableExpandOnHover={singleLine}
           renderMediaReference={renderMediaReference}
@@ -1497,5 +1496,30 @@ export const PaginationControlsStayGrouped = meta.story({
     expect(
       canvas.queryByRole("button", { name: "Go to last page" }),
     ).toBeNull();
+  },
+});
+
+export const TestManualIOCellBackground = meta.story({
+  name: "(Test) Manual IO Cell Background",
+  render: () => (
+    <TracesTable
+      tableName="story-manual-io-background"
+      rowHeight="s"
+      cellPadding="compact"
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const headers = Array.from(canvasElement.querySelectorAll("thead th"));
+    const inputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Input",
+    );
+    const outputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Output",
+    );
+    const row = canvasElement.querySelector<HTMLTableRowElement>("tbody tr");
+    if (!row) throw new globalThis.Error("Row not found");
+
+    await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");
   },
 });

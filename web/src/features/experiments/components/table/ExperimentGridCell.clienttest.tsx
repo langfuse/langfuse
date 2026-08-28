@@ -19,12 +19,9 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock(
-  "@/src/components/design-system/table/components/IOTableCell/IOTableCell",
-  () => ({
-    IOTableCell: () => <div>IO cell</div>,
-  }),
-);
+vi.mock("@/src/components/table/ConnectedIOTableCell", () => ({
+  ConnectedIOTableCell: () => <div>IO cell</div>,
+}));
 
 const observationScoreKey = "quality-EVAL-NUMERIC";
 const traceScoreKey = "correctness-API-NUMERIC";

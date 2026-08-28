@@ -58,8 +58,7 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
-import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
-import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -193,11 +192,10 @@ const StackedOutputRow = ({
           markerClass,
         )}
       />
-      <IOTableCell
+      <ConnectedIOTableCell
         data={output}
         singleLine={singleLine}
         variant="output"
-        renderMediaReference={renderMediaReference}
       />
     </div>
   );
@@ -245,11 +243,7 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <IOTableCell
-                  isLoading
-                  singleLine={singleLine}
-                  renderMediaReference={renderMediaReference}
-                />
+                <ConnectedIOTableCell isLoading singleLine={singleLine} />
               </div>
             ) : out?.output ? (
               <StackedOutputRow

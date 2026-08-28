@@ -25,6 +25,7 @@ const DESIGN_COMPONENT_STORIES = [
   "Switch/Switch",
   "TextLink/TextLink",
   "Toggle/Toggle",
+  "table/components/IOTableCell/IOTableCell",
   "table/columns/createBadgeTableColumn",
   "table/columns/createDateTableColumn",
   "table/columns/createDurationTableColumn",
@@ -45,7 +46,11 @@ const DESIGN_COMPONENT_STORIES = [
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
   {
     directory: "src/components/design-system/table/columns",
-    titlePrefix: "Design/Components/Table",
+    titlePrefix: "Design/Components/Table/Columns",
+  },
+  {
+    directory: "src/components/design-system/table/components",
+    titlePrefix: "Design/Components/Table/Cells",
   },
   {
     directory: "src/features/evals/v2/components",

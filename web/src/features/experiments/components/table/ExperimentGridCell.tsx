@@ -1,6 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
-import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -482,18 +481,16 @@ export const ExperimentGridCell = ({
         header: "Output",
         cell: ({ data }) =>
           data.isLoading ? (
-            <IOTableCell
+            <ConnectedIOTableCell
               isLoading
               variant="output"
               singleLine={singleLine}
-              renderMediaReference={renderMediaReference}
             />
           ) : (
-            <IOTableCell
+            <ConnectedIOTableCell
               data={data.output ?? null}
               variant="output"
               singleLine={singleLine}
-              renderMediaReference={renderMediaReference}
             />
           ),
       },

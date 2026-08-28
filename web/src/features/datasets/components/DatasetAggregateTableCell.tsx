@@ -1,7 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
-import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
@@ -172,17 +171,12 @@ const DatasetAggregateCellContent = ({
             singleLine={false}
           />
         ) : isLoading || !data ? (
-          <IOTableCell
-            isLoading
-            variant="output"
-            renderMediaReference={renderMediaReference}
-          />
+          <ConnectedIOTableCell isLoading variant="output" />
         ) : (
-          <IOTableCell
+          <ConnectedIOTableCell
             data={data.output ?? "null"}
             variant="output"
             enableExpandOnHover
-            renderMediaReference={renderMediaReference}
           />
         )}
       </div>

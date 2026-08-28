@@ -5,7 +5,8 @@ import {
   type IOTableCellMediaRenderer,
   type IOTableCellVariant,
 } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
-import { renderMediaReference as renderResolvedMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { type DataTableCellBackground } from "@/src/components/table/types";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -13,15 +14,22 @@ import {
 
 type IOTableColumnCell<TValue> = TValue | { type: "loading" } | undefined;
 
+const ioCellBackgrounds = {
+  default: undefined,
+  input: "gray",
+  output: "green",
+} satisfies Record<IOTableCellVariant, DataTableCellBackground | undefined>;
+
 export function createIOTableColumn<TData extends RowData, TValue = unknown>({
   compact = false,
   enableExpandOnHover = false,
   getCell,
-  renderMediaReference = renderResolvedMediaReference,
+  renderMediaReference,
   singleLine = false,
   variant = "default",
   ...options
 }: TableColumnOptions<TData, TValue> & {
+  cellBackground?: never;
   compact?: boolean;
   enableExpandOnHover?: boolean;
   getCell?: (
@@ -36,19 +44,21 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
     enableExpandOnHover,
     singleLine,
     size: compact ? ("compact" as const) : ("default" as const),
-    variant,
   };
 
-  const loadingCell = (
+  const loadingCell = renderMediaReference ? (
     <IOTableCell
       {...cellProps}
       isLoading
       renderMediaReference={renderMediaReference}
     />
+  ) : (
+    <ConnectedIOTableCell {...cellProps} isLoading />
   );
 
   return createTableColumn<TData, TValue>({
     ...options,
+    cellBackground: ioCellBackgrounds[variant],
     loadingCell,
     renderCell: (value, context) => {
       let cell: IOTableColumnCell<TValue>;
@@ -70,12 +80,14 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
         return loadingCell;
       }
 
-      return (
+      return renderMediaReference ? (
         <IOTableCell
           {...cellProps}
           data={cell}
           renderMediaReference={renderMediaReference}
         />
+      ) : (
+        <ConnectedIOTableCell {...cellProps} data={cell} />
       );
     },
   });

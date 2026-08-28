@@ -14,8 +14,7 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "../../design-system/table/components/IOTableCell/IOTableCell";
-import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -700,11 +699,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          singleLine={rowHeight === "s"}
-          renderMediaReference={renderMediaReference}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -1278,20 +1273,10 @@ const ScoresMetadataCell = ({
     },
   );
   if (score.isPending) {
-    return (
-      <IOTableCell
-        isLoading
-        singleLine={singleLine}
-        renderMediaReference={renderMediaReference}
-      />
-    );
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
   }
 
   return (
-    <IOTableCell
-      data={score.data?.metadata}
-      singleLine={singleLine}
-      renderMediaReference={renderMediaReference}
-    />
+    <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
   );
 };

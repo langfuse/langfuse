@@ -34,20 +34,26 @@ const ioTableCellPaddingClassNames: Record<IOTableCellSize, string> = {
   compact: "px-1 py-1",
 };
 
-type IOTableCellProps = {
+type IOTableCellPresentationProps = {
   enableExpandOnHover?: boolean;
-  renderMediaReference: IOTableCellMediaRenderer;
   singleLine?: boolean;
   size?: IOTableCellSize;
   variant?: IOTableCellVariant;
-} & (
+};
+
+type IOTableCellState =
   | {
       /** Ingested IO is intentionally untrusted; stringifyJsonNode safely normalizes arbitrary values. */
       data: unknown;
       isLoading?: false;
     }
-  | { data?: never; isLoading: true }
-);
+  | { data?: never; isLoading: true };
+
+type IOTableCellProps = IOTableCellPresentationProps &
+  IOTableCellState & {
+    /** Injected so the base component stays API-free and Storybook can provide a pure renderer. */
+    renderMediaReference: IOTableCellMediaRenderer;
+  };
 
 function renderStringWithMediaReferences(
   value: string,
@@ -98,7 +104,7 @@ function renderStringWithMediaReferences(
 
 export const IOTableCell = memo(function IOTableCell({
   enableExpandOnHover = false,
-  // Inject media rendering so this component stays independent of the tRPC-backed resolver and remains usable in Storybook.
+  // Inject media rendering so this component stays independent of the tRPC-backed resolver
   renderMediaReference,
   singleLine = false,
   size = "default",

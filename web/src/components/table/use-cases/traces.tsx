@@ -56,8 +56,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "../../design-system/table/components/IOTableCell/IOTableCell";
-import { renderMediaReference } from "@/src/components/ui/media/MediaReferenceTag";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
@@ -695,13 +694,9 @@ export default function TracesTable({
       header: "Input",
       id: "input",
       size: 400,
+      cellBackground: "gray",
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          variant="input"
-          singleLine={rowHeight === "s"}
-          renderMediaReference={renderMediaReference}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -724,13 +719,9 @@ export default function TracesTable({
       header: "Output",
       id: "output",
       size: 400,
+      cellBackground: "green",
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          variant="output"
-          singleLine={rowHeight === "s"}
-          renderMediaReference={renderMediaReference}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -880,11 +871,7 @@ export default function TracesTable({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          singleLine={rowHeight === "s"}
-          renderMediaReference={renderMediaReference}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: (
@@ -1595,27 +1582,15 @@ const TracesDynamicCell = ({
         ? trace.data?.input
         : trace.data?.metadata;
 
-  const variant =
-    col === "input" ? "input" : col === "output" ? "output" : "default";
-
   if (trace.isPending) {
-    return (
-      <IOTableCell
-        isLoading
-        variant={variant}
-        singleLine={singleLine}
-        renderMediaReference={renderMediaReference}
-      />
-    );
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
   }
 
   return (
-    <IOTableCell
+    <ConnectedIOTableCell
       data={data}
-      variant={variant}
       singleLine={singleLine}
       enableExpandOnHover={singleLine}
-      renderMediaReference={renderMediaReference}
     />
   );
 };
