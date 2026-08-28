@@ -17,6 +17,7 @@ import {
   isFtsTextField,
   isFtsTextTarget,
   isNgramSubstringTarget,
+  isStringStoredMetadataField,
 } from "./fts";
 
 export type ClickhouseOperator =
@@ -717,11 +718,12 @@ export class NumberObjectFilter implements Filter {
     const varValueName = `numberObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const prefix = this.tablePrefix ? `${this.tablePrefix}.` : "";
 
-    // Metadata is stored as strings (array columns on events_* , Map on
-    // traces/observations). Numeric comparison parses with toFloat64OrNull so
-    // non-numeric values and missing keys do not match. Scores stay on the
-    // Array(Tuple(name, Decimal)) path below.
-    if (isFtsMetadataField(this.field)) {
+    // Metadata is stored as strings (array columns on events_* including
+    // experiment_metadata / experiment_item_metadata, Map on traces/observations).
+    // Numeric comparison parses with toFloat64OrNull so non-numeric values and
+    // missing keys do not match. Scores stay on the Array(Tuple(name, Decimal))
+    // path below.
+    if (isStringStoredMetadataField(this.field)) {
       const keyParam = `{${varKeyName}: String}`;
       const valueParam = `{${varValueName}: Float64}`;
       let hasKey: string;
