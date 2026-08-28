@@ -54,12 +54,19 @@ function inferClickHouseType(value: unknown): string {
 /**
  * ClickHouse SQL compiler. Identifier quoting is omitted so `clickhouse format`
  * matches the golden snapshots (unquoted identifiers). Parameters are named
- * `{pN:Type}` binds, interned by (type, value) so UNION branches that reuse
- * the same project_id collapse to one placeholder — matching today's named
- * `{projectId:String}` style after the golden harness's param normalizer.
+ * `{pN:Type}` binds, interned by (type, value) so repeated values collapse to
+ * one placeholder. Example: a UNION whose two branches both filter
+ * `project_id = 'p'` emits a single `{p1:String}` and reuses it in both
+ * branches, instead of separate `{p1:String}` / `{p2:String}` bound to the
+ * same value. This mirrors the existing named `{projectId:String}` style once
+ * the golden harness's param normalizer runs.
  *
- * ARRAY JOIN and LIMIT BY are read off extra fields on the select node; they
- * are real {@link ArrayJoinNode}/{@link LimitByNode}s, not raw SQL strings.
+ * ARRAY JOIN and LIMIT BY have no Kysely-native node, so they ride as extra
+ * fields on the select node. This is worth stating because they are real
+ * {@link ArrayJoinNode}/{@link LimitByNode} operation nodes visited like any
+ * other clause — identifier-escaped and parameter-bound — not spliced-in raw
+ * SQL strings, which is what a reader might otherwise assume for a
+ * ClickHouse-only clause.
  */
 export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   namedParameters: Record<string, unknown> = {};
@@ -68,10 +75,20 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   constructor() {
     super();
     // FRAGILE: `ArrayIndexNode` is not one of Kysely's closed `OperationNode`
-    // kinds, so the default visitor dispatch cannot reach it. We wrap the
-    // private `visitNode` and push/pop the private `nodeStack` to route it to
-    // `visitArrayIndex`. This couples to Kysely internals and must be
-    // re-verified on any Kysely upgrade (pinned at 0.28.17).
+    // kinds, so the default visitor dispatch cannot reach it, and Kysely
+    // exposes no public hook to register a new node kind. The only available
+    // seam is to wrap the private `visitNode` and drive the private `nodeStack`
+    // ourselves so the node routes to `visitArrayIndex`. The `as unknown as`
+    // casts below exist solely to reach those private members; the alternative
+    // is forking the compiler. Yes, patching a library's private methods is an
+    // anti-pattern — it is a deliberate, contained trade to avoid a fork.
+    //
+    // Because this couples us to Kysely internals, the version is pinned
+    // exactly (0.28.17, no caret), so it cannot move under us via a routine
+    // `pnpm install`. A deliberate bump that changes these internals will not
+    // fail silently or emit wrong SQL unnoticed: the metadata `indexOf` /
+    // array-index compile tests (extensions.test.ts, nodes.test.ts) assert the
+    // exact emitted SQL, so a broken route fails loudly in CI.
     const parentVisit = this.visitNode.bind(this);
     (
       this as unknown as { visitNode: (node: OperationNode) => void }
@@ -95,6 +112,10 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     return super.compileQuery(node, queryId);
   }
 
+  // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
+  // identifiers, so returning empty wrappers is what keeps raw compiler output
+  // byte-comparable with the golden snapshots. (Column/table names in this
+  // codebase are plain identifiers, so dropping the quotes is safe here.)
   protected override getLeftIdentifierWrapper(): string {
     return "";
   }
@@ -108,8 +129,10 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
-   * ClickHouse `IN` takes a single `Array(T)` bind, not a parenthesized value
-   * list. Emitting `({p:Array(String)})` is what the golden scores query uses.
+   * ClickHouse `IN` takes a single `Array(T)` bind, not a parenthesized list of
+   * scalar binds. So `col IN (1, 2, 3)` compiles to `col IN ({p:Array(Int64)})`
+   * — one array parameter — which is also the shape the existing production SQL
+   * (e.g. the scores list query) already relies on.
    */
   protected override visitPrimitiveValueList(
     node: PrimitiveValueListNode,
@@ -134,6 +157,16 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     super.visitValueList(node);
   }
 
+  /**
+   * Wholesale copy of Kysely's `DefaultQueryCompiler.visitSelectQuery` (kept in
+   * sync with the pinned 0.28.17) with two ClickHouse-only insertions:
+   *   - the ARRAY JOIN block, emitted after JOINs and before WHERE (line ~193)
+   *   - the LIMIT BY block, emitted before LIMIT (line ~225)
+   * Both read extra fields off {@link ClickHouseSelectQueryNode}. Every other
+   * clause mirrors the parent verbatim. We override the whole method rather
+   * than call `super` because the parent emits clauses in a fixed order and
+   * offers no hook to inject a clause between JOIN and WHERE.
+   */
   protected override visitSelectQuery(node: SelectQueryNode): void {
     const wrapInParens =
       this.parentNode !== undefined &&
@@ -278,6 +311,12 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   private bindValue(value: unknown, type?: string): string {
+    // `type` is the caller-known ClickHouse type; when omitted we infer the
+    // widest canonical type from the JS value (Int64 / Float64 / String /
+    // DateTime64(3)). Inference only types the bind *placeholder* — ClickHouse
+    // still coerces it to the compared column's type — so the widening cases we
+    // emit are safe. Pass `type` explicitly where exact width or precision
+    // matters (e.g. a Decimal column, where inferred Float64 could round).
     const inferred = type ?? inferClickHouseType(value);
     const key = `${inferred}:${canonicalParamValue(value)}`;
     const existing = this.intern.get(key);

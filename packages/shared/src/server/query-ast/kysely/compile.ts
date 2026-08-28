@@ -25,9 +25,13 @@ export type ClickhouseCompilable = {
 
 /**
  * The choke point. Every query that should produce ClickHouse SQL goes
- * through here: ExecutionContext is mandatory, tenancy is injected, the
- * dialect compiler refuses to emit SQL unless the tree was identity-stamped
- * by that pass (a copied property is not enough).
+ * through here: the `ctx` parameter is required, so a caller cannot compile
+ * without a tenancy scope — omitting it is a compile-time type error. Tenancy
+ * is injected from that scope, and the dialect compiler refuses to emit SQL
+ * unless the tree was identity-stamped by that pass (a copied property is not
+ * enough). The runtime `requireExecutionContext` guard remains as
+ * defense-in-depth for the one case the type cannot express (an empty
+ * `projectId`) and for callers reaching this through an `any` boundary.
  */
 export function compileClickhouseQuery(
   query: ClickhouseCompilable,

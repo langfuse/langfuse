@@ -44,10 +44,16 @@ describe("ARRAY JOIN composition across nesting positions", () => {
       .select("environment");
 
     const { sql } = compileClickhouseQuery(qb, ctx);
-    // The outer query has no ARRAY JOIN, so its presence proves the clause
-    // survived being embedded as a CTE body rather than being dropped.
-    expect(sql).toMatch(/array join/i);
     expect(sql).toMatch(/with aj as/i);
+    // The ARRAY JOIN must live inside the CTE body and not leak into the outer
+    // query. Split on the outer query (the `) select ... from aj` that closes
+    // the CTE): the clause must appear before the split and be absent after it.
+    const outerStart = sql.toLowerCase().search(/\)\s*select[\s\S]*from aj/i);
+    expect(outerStart).toBeGreaterThan(-1);
+    const cteBody = sql.slice(0, outerStart);
+    const outerQuery = sql.slice(outerStart);
+    expect(cteBody).toMatch(/array join/i);
+    expect(outerQuery).not.toMatch(/array join/i);
   });
 
   it("keeps ARRAY JOIN when applied inside a subquery", () => {
