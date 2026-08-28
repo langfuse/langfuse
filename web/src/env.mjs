@@ -257,6 +257,7 @@ export const env = createEnv({
     AUTH_JUMPCLOUD_CHECKS: zAuthChecks,
     AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG: zIdTokenAlg,
     AUTH_JUMPCLOUD_SCOPE: z.string().optional(),
+    AUTH_JUMPCLOUD_NAME: z.string().optional(),
     AUTH_CUSTOM_CLIENT_ID: z.string().optional(),
     AUTH_CUSTOM_CLIENT_SECRET: z.string().optional(),
     AUTH_CUSTOM_ISSUER: z.url().optional(),
@@ -879,6 +880,7 @@ export const env = createEnv({
     AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG:
       process.env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
     AUTH_JUMPCLOUD_SCOPE: process.env.AUTH_JUMPCLOUD_SCOPE,
+    AUTH_JUMPCLOUD_NAME: process.env.AUTH_JUMPCLOUD_NAME,
     AUTH_CUSTOM_CLIENT_ID: process.env.AUTH_CUSTOM_CLIENT_ID,
     AUTH_CUSTOM_CLIENT_SECRET: process.env.AUTH_CUSTOM_CLIENT_SECRET,
     AUTH_CUSTOM_ISSUER: process.env.AUTH_CUSTOM_ISSUER,

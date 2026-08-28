@@ -36,7 +36,7 @@ import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegio
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
-import { Code, Key } from "lucide-react";
+import { Cloud, Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { reportError } from "@/src/utils/reportError";
 import {
@@ -81,7 +81,11 @@ export type PageProps = {
     auth0: boolean;
     clickhouseCloud: boolean;
     cognito: boolean;
-    jumpcloud: boolean;
+    jumpcloud:
+      | {
+          name: string;
+        }
+      | boolean;
     keycloak:
       | {
           name: string;
@@ -162,7 +166,11 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         jumpcloud:
           env.AUTH_JUMPCLOUD_CLIENT_ID !== undefined &&
           env.AUTH_JUMPCLOUD_CLIENT_SECRET !== undefined &&
-          env.AUTH_JUMPCLOUD_ISSUER !== undefined,
+          env.AUTH_JUMPCLOUD_ISSUER !== undefined
+            ? env.AUTH_JUMPCLOUD_NAME !== undefined
+              ? { name: env.AUTH_JUMPCLOUD_NAME }
+              : true
+            : false,
         keycloak:
           env.AUTH_KEYCLOAK_CLIENT_ID !== undefined &&
           env.AUTH_KEYCLOAK_CLIENT_SECRET !== undefined &&
@@ -410,8 +418,12 @@ export function SSOButtons({
           )}
           {authProviders.jumpcloud && (
             <AuthProviderButton
-              icon={<TbBrandOauth className="mr-3" size={18} />}
-              label="JumpCloud"
+              icon={<Cloud className="mr-3" size={18} />}
+              label={
+                typeof authProviders.jumpcloud === "object"
+                  ? authProviders.jumpcloud.name
+                  : "JumpCloud"
+              }
               onClick={() => {
                 capture("sign_in:button_click", { provider: "jumpcloud" });
                 onProviderSelect?.("jumpcloud");
