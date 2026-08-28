@@ -15,16 +15,12 @@ import { experimentsFilterConfig } from "@/src/features/experiments/components/t
 function facetColumns(config: FilterConfig) {
   const exposed = new Set(config.facets.map((facet) => facet.column));
   return config.columnDefinitions.filter(
-    (column) => exposed.has(column.id) && !SCORE_COLUMN_IDS.has(column.id),
+    (column) => exposed.has(column.id) && !EXCLUDED_COLUMN_IDS.has(column.id),
   );
 }
 
 const AI_CONTEXT_FIELDS = [
   { observedOptionsKey: "name", promptLabel: "name" },
-  {
-    observedOptionsKey: "experimentDatasetId",
-    promptLabel: "experimentDatasetId (dataset)",
-  },
 ] as const;
 
 /**
@@ -41,7 +37,15 @@ const AI_CONTEXT_FIELDS = [
  * helper's keyed-score exclusion does not catch it and it would otherwise
  * surface as a bogus keyless field.
  */
-const SCORE_COLUMN_IDS: ReadonlySet<string> = new Set([
+const EXCLUDED_COLUMN_IDS: ReadonlySet<string> = new Set([
+  // `experimentDatasetId` holds the dataset ID while the sidebar's picker shows
+  // the dataset NAME (`displayValue`). A text query bar can only show what the
+  // query text contains, so offering it here would put `dataset:cmtc1z…` in a
+  // pill next to a sidebar that says `legal-answer-quality`. Making the bar
+  // speak names would require the derived committed text to depend on
+  // async-loaded options, which breaks the one invariant every bar surface
+  // relies on. Dataset filtering stays in the sidebar.
+  "experimentDatasetId",
   "obs_scores_avg",
   "obs_score_categories",
   "obs_score_booleans",
@@ -60,11 +64,6 @@ const EXPERIMENT_FIELD_OVERLAY = {
     aliases: ["experimentname", "experiment_name", "experiment"],
     label: "Experiment name",
     description: "Experiment name",
-  },
-  experimentDatasetId: {
-    aliases: ["dataset", "datasetid", "dataset_id", "experimentdatasetid"],
-    label: "Dataset",
-    description: "Dataset the experiment ran against",
   },
 };
 

@@ -542,7 +542,7 @@ const experimentsView: RegistryUnderTest = {
   registry: EXPERIMENTS_FIELD_REGISTRY,
   extraKeys: ["metadata.owner", 'metadata."my key"'],
   scoreContexts: [],
-  fieldValues: ["x", "my-evals", "5", "0.8", "a b"],
+  fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
   freeTextValues: ["hello", "run 12", "or", "!important"],
 };
 
@@ -564,9 +564,11 @@ describe("search bar invariants — experiments registry", () => {
 
   it("exposes only the sidebar facets whose columns are actually filterable", () => {
     expect(EXPERIMENTS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
-      "experimentDatasetId",
       "name",
     ]);
+    // The dataset column holds an ID while the sidebar shows the name, so the
+    // bar would contradict it — see the registry's EXCLUDED_COLUMN_IDS note.
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("dataset")).toBeNull();
   });
 
   it("keeps score dot-paths closed until the columns are unified", () => {
