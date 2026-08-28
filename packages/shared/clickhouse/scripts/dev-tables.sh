@@ -35,7 +35,7 @@ if [ -z "${CLICKHOUSE_USER}" ]; then
 fi
 
 # Check if CLICKHOUSE_PASSWORD is set
-if [ -z "${CLICKHOUSE_PASSWORD+x}" ]; then
+if [ -z "${CLICKHOUSE_PASSWORD}" ]; then
   echo "Error: CLICKHOUSE_PASSWORD is not set."
   echo "Please set CLICKHOUSE_PASSWORD in your environment variables."
   exit 1
