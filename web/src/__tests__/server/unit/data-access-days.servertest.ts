@@ -35,6 +35,21 @@ describe("clampToDataAccessDays", () => {
     ).toEqual(new Date("2026-07-29T12:00:00.000Z"));
   });
 
+  it.each([
+    ["cloud:hobby", "2026-08-21T12:00:00.000Z"],
+    ["cloud:core", "2026-06-28T12:00:00.000Z"],
+  ] as const)(
+    "preserves a requested timestamp inside the %s window",
+    (plan, requested) => {
+      expect(
+        clampToDataAccessDays({ plan, fromTimestamp: requested, now: NOW }),
+      ).toMatchObject({
+        effectiveFromTimestamp: new Date(requested),
+        wasClamped: false,
+      });
+    },
+  );
+
   it("preserves a timestamp exactly on the boundary", () => {
     const boundary = new Date("2026-07-29T12:00:00.000Z");
 
