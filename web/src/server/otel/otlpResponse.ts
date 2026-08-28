@@ -40,11 +40,11 @@ export function decodeOtlpStatusMessage(bytes: Uint8Array): {
 
 function otlpErrorMessage(body: unknown): string {
   if (body && typeof body === "object") {
-    if ("error" in body && typeof body.error === "string") {
-      return body.error;
-    }
     if ("message" in body && typeof body.message === "string") {
       return body.message;
+    }
+    if ("error" in body && typeof body.error === "string") {
+      return body.error;
     }
   }
 

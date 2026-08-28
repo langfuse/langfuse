@@ -31,6 +31,7 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -373,7 +374,12 @@ export const createAuthedProjectAPIRoute = <
           );
         }
 
-        res.status(503).json({ message: "Service Unavailable" });
+        writeOtlpHttpResponse({
+          req,
+          res,
+          statusCode: 503,
+          body: { message: "Service Unavailable" },
+        });
         return;
       }
 
@@ -387,7 +393,12 @@ export const createAuthedProjectAPIRoute = <
         );
       }
 
-      res.status(statusCode).json({ message });
+      writeOtlpHttpResponse({
+        req,
+        res,
+        statusCode,
+        body: { message },
+      });
 
       return;
     }
@@ -402,6 +413,7 @@ export const createAuthedProjectAPIRoute = <
       return rateLimitResponse.sendRestResponseIfLimited(res, {
         errorContract: routeConfig.errorContract,
         upgradePath: routeConfig.rateLimitUpgradePath,
+        req,
       });
     }
 

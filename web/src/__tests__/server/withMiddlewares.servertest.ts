@@ -6,6 +6,7 @@ import {
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import {
   BaseError,
+  ForbiddenError,
   LangfuseNotFoundError,
   UnauthorizedError,
   ServiceUnavailableError,
@@ -18,6 +19,7 @@ import {
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { decodeOtlpStatusMessage } from "@/src/server/otel/otlpResponse";
 
 // Mock the logger and traceException
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -94,6 +96,33 @@ describe("withMiddlewares error handling", () => {
       expect(logger.warn).toHaveBeenCalledWith(error);
       expect(logger.error).not.toHaveBeenCalled();
       expect(traceException).not.toHaveBeenCalled();
+    });
+
+    it("returns a protobuf Status when a protobuf request throws", async () => {
+      const error = new ForbiddenError(
+        "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+      );
+
+      const handler = withMiddlewares({
+        POST: async () => {
+          throw error;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        headers: {
+          "content-type": "application/x-protobuf",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(403);
+      expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
+      expect(decodeOtlpStatusMessage(res._getBuffer()).message).toContain(
+        "Ingestion suspended",
+      );
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {

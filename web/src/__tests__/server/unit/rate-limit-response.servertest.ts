@@ -149,6 +149,22 @@ describe("sendRateLimitResponse", () => {
     expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
+  it("returns a protobuf Status for protobuf OTLP requests", () => {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        "content-type": "application/x-protobuf",
+      },
+    });
+
+    sendRateLimitResponse(res, rateLimitResult, { req });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
+    expect(res.getHeader("Retry-After")).toBe(3);
+    expect(mockSendStructuredPublicApiErrorResponse).not.toHaveBeenCalled();
+  });
+
   it("returns upgrade guidance for stable responses with an upgrade path", () => {
     const res = createResponse();
 

@@ -16,7 +16,11 @@ import {
   redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { type NextApiResponse } from "next";
+import { type NextApiRequest, type NextApiResponse } from "next";
+import {
+  isOtlpProtobufRequest,
+  writeOtlpHttpResponse,
+} from "@/src/server/otel/otlpResponse";
 import {
   createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
@@ -29,6 +33,7 @@ export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 export type RateLimitResponseOptions = {
   errorContract?: PublicApiErrorContract | undefined;
   upgradePath?: RateLimitUpgradePath | undefined;
+  req?: NextApiRequest;
 };
 
 export type RateLimitResponseOptionsInput =
@@ -217,10 +222,25 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  return sendStructuredPublicApiErrorResponse(
-    res,
-    createStructuredPublicApiRateLimitError(rateLimitRes, responseOptions),
+  const error = createStructuredPublicApiRateLimitError(
+    rateLimitRes,
+    responseOptions,
   );
+
+  if (
+    responseOptions.req &&
+    isOtlpProtobufRequest(responseOptions.req.headers)
+  ) {
+    writeOtlpHttpResponse({
+      req: responseOptions.req,
+      res,
+      statusCode: error.httpCode,
+      body: { message: error.message },
+    });
+    return;
+  }
+
+  return sendStructuredPublicApiErrorResponse(res, error);
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {

@@ -87,7 +87,10 @@ vi.mock("@/src/utils/exceptions", () => ({
 }));
 
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
+import {
+  decodeOtlpStatusMessage,
+  writeOtlpHttpResponse,
+} from "@/src/server/otel/otlpResponse";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
@@ -155,6 +158,36 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     return res;
   }
+
+  it("returns a protobuf Status for invalid credentials on protobuf requests", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: false,
+      error: "Invalid credentials",
+    });
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "OTel Traces",
+      querySchema: z.any(),
+      responseSchema: z.any(),
+      writeResponse: writeOtlpHttpResponse,
+      fn: async () => ({}),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: {
+        authorization: "Basic test",
+        "content-type": "application/x-protobuf",
+      },
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(401);
+    expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
+    expect(decodeOtlpStatusMessage(res._getBuffer()).message).toBe(
+      "Invalid credentials",
+    );
+  });
 
   it("returns 401 for invalid credentials", async () => {
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
@@ -230,10 +263,13 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     const res = await callRoute();
 
     expect(res.statusCode).toBe(429);
-    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
-      errorContract: undefined,
-      upgradePath: undefined,
-    });
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(
+      res,
+      expect.objectContaining({
+        errorContract: undefined,
+        upgradePath: undefined,
+      }),
+    );
   });
 
   it("passes upgrade guidance to the shared rate limit response", async () => {
@@ -259,10 +295,13 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
 
     expect(res.statusCode).toBe(429);
-    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
-      errorContract: undefined,
-      upgradePath,
-    });
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(
+      res,
+      expect.objectContaining({
+        errorContract: undefined,
+        upgradePath,
+      }),
+    );
   });
 
   it("does not include request query or body data in debug logs", async () => {
