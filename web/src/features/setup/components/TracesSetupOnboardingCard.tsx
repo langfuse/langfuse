@@ -3,8 +3,10 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
-import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import {
+  ApiKeyDetailContent,
+  useLangfuseBaseUrl,
+} from "@/src/features/public-api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";

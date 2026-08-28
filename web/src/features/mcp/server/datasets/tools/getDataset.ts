@@ -1,4 +1,4 @@
-import { GetDatasetV2Response } from "@/src/features/public-api/types/datasets";
+import { GetDatasetV2Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

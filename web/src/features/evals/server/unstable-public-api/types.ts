@@ -6,21 +6,21 @@ import type {
   Prisma as PrismaNamespace,
   prisma,
 } from "@langfuse/shared/src/db";
-import type {
-  PublicEvaluationRuleEvaluatorReferenceType,
-  PublicEvaluationRuleEvaluatorType,
-  PublicEvaluationRuleFilterType,
-  PromptVariableMappingReadType,
-  PublicEvaluationRuleStatusType,
-  PublicEvaluationRuleTargetType,
-  LegacyPromptVariableMappingType,
-  PublicEvaluationRuleLegacyTargetType,
-  PublicEvaluatorModelConfigType,
-  PublicEvaluatorOutputDefinitionType,
-  PublicCodeEvaluatorSourceCodeLanguageType,
-  PUBLIC_EVALUATOR_TYPE_CODE,
-  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-} from "@/src/features/public-api/types/unstable-public-evals-contract";
+import {
+  type PublicEvaluationRuleEvaluatorReferenceType,
+  type PublicEvaluationRuleEvaluatorType,
+  type PublicEvaluationRuleFilterType,
+  type PromptVariableMappingReadType,
+  type PublicEvaluationRuleStatusType,
+  type PublicEvaluationRuleTargetType,
+  type LegacyPromptVariableMappingType,
+  type PublicEvaluationRuleLegacyTargetType,
+  type PublicEvaluatorModelConfigType,
+  type PublicEvaluatorOutputDefinitionType,
+  type PublicCodeEvaluatorSourceCodeLanguageType,
+  type PUBLIC_EVALUATOR_TYPE_CODE,
+  type PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+} from "@/src/features/public-api/server";
 import type {
   CODE_EVAL_TEMPLATE_VARIABLES,
   FilterCondition,

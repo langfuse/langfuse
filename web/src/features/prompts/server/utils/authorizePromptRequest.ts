@@ -1,4 +1,4 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import { type NextApiRequest } from "next";
 import { UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
