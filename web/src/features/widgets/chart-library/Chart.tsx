@@ -64,6 +64,7 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  colorBarsByCategory,
   emptyState,
 }: {
   chartType: DashboardWidgetChartType;
@@ -103,6 +104,11 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Colour each bar of a categorical axis and name it in a legend below the
+   * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
+   */
+  colorBarsByCategory?: boolean;
   /**
    * Replaces the default "No data" card when the chart has nothing to draw.
    * For a chart in a band too short for that card (the table strips), where it
@@ -232,6 +238,7 @@ const ChartComponent = ({
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
+            colorBarsByCategory={colorBarsByCategory}
           />
         );
       case "PIE":

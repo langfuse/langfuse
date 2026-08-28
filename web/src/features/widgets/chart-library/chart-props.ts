@@ -150,4 +150,14 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Give each bar of a categorical (entity) axis its own palette colour, plus a
+   * legend below the plot that names it. Off by default: a dashboard bar chart
+   * shows its categories on the axis and needs neither. Opt in where the axis
+   * labels are hidden and the bars are entities rather than buckets — the
+   * experiments strip, one bar per run. Colours and legend both come from
+   * `prepareCategoryBars`, which also decides when there are too many bars for
+   * the bounded palette to identify any of them. (LFE-15711)
+   */
+  colorBarsByCategory?: boolean;
 }

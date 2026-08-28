@@ -83,6 +83,13 @@ export interface WidgetContentProps {
    */
   hideXAxisLabels?: boolean;
   /**
+   * Colour each bar of a categorical (entity) axis and name it in a legend
+   * below the plot. Off by default; opt in on an entity-dimension bar chart
+   * whose axis labels are hidden (the experiments strip). See
+   * `prepareCategoryBars`.
+   */
+  colorBarsByCategory?: boolean;
+  /**
    * Replaces the chart's default "No data" card — for a widget in a band too
    * short for it. Pass a stable node (see `Chart`).
    */
@@ -133,6 +140,7 @@ export function WidgetContent({
   className,
   entityDimensionLabelMap,
   hideXAxisLabels,
+  colorBarsByCategory,
   emptyState,
 }: WidgetContentProps) {
   const { isBetaEnabled } = useV4Beta();
@@ -409,6 +417,7 @@ export function WidgetContent({
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
+        colorBarsByCategory={colorBarsByCategory}
         emptyState={emptyState}
       />
       <ChartLoadingState
