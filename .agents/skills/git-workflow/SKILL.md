@@ -54,8 +54,10 @@ operations.
 - Prefer non-interactive Git and GitHub commands where possible.
 - Keep PRs narrow enough to review without unrelated refactors.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
-- When the PR is ready for a human, post one last comment that names what
-  to doubt in review (risky edges, not a summary of the diff).
+- When the PR is ready for a human, post one last comment that includes
+  proof of user-visible work on the PR itself (screenshot, video, or
+  before/after — not only in chat) and what to doubt in review (risky
+  edges, not a summary of the diff).
 - Claude, Greptile, or Codex review comments (`claude[bot]`, Claude Code,
   security-review action, `greptile-apps[bot]`,
   `chatgpt-codex-connector[bot]`): do not reply. Keep the thread open until

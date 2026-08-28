@@ -46,8 +46,9 @@ evaluating, and debugging AI applications.
 - For product or UI changes, give a preview URL
   (`pr-<N>.preview.langfuse.com`) and exact click-path test steps, including
   the seed command or sandbox URL (`http://localhost:3000`) to reproduce
-  the data. Attach proof of the fix (screenshot, short video, or
-  before/after). Humans can ask for more detail.
+  the data. Post proof of the fix on the GitHub PR (screenshot, short
+  video, or before/after) — not only in chat. Humans can ask for more
+  detail.
 - After opening a PR, leave a short last comment on what a reviewer should
   doubt — the curious, questionable parts — not a changelog.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
