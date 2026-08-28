@@ -63,26 +63,33 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     internal: "latency_ms",
     nullable: true,
   },
+  // Level-agnostic scores: one filter per data type that matches a score
+  // whether it was recorded on the item's root span or on its trace. The
+  // `obs_*` ids are aliases so existing links and saved views keep resolving -
+  // and start matching trace-level scores, which is the fix.
   {
-    name: "Scores (numeric)",
-    id: "obs_scores_avg",
+    name: "Numeric Scores",
+    id: "scores_avg",
     type: "numberObject",
-    internal: "obs_scores_avg",
+    internal: "scores_avg",
+    aliases: ["obs_scores_avg"],
   },
   {
-    name: "Scores (categorical)",
-    id: "obs_score_categories",
+    name: "Categorical Scores",
+    id: "score_categories",
     type: "categoryOptions",
-    internal: "obs_score_categories",
+    internal: "score_categories",
     options: [],
     nullable: true,
+    aliases: ["obs_score_categories"],
   },
   {
-    name: "Scores (boolean)",
-    id: "obs_score_booleans",
+    name: "Boolean Scores",
+    id: "score_booleans",
     type: "booleanObject",
-    internal: "obs_score_booleans",
+    internal: "score_booleans",
     nullable: true,
+    aliases: ["obs_score_booleans"],
   },
   {
     name: "Trace Scores (numeric)",
@@ -154,33 +161,18 @@ export const experimentItemsFilterConfig: FilterConfig = {
     },
     {
       type: "keyValue" as const,
-      column: "obs_score_categories",
-      label: getExperimentItemsColumnName("obs_score_categories"),
+      column: "score_categories",
+      label: getExperimentItemsColumnName("score_categories"),
     },
     {
       type: "numericKeyValue" as const,
-      column: "obs_scores_avg",
-      label: getExperimentItemsColumnName("obs_scores_avg"),
+      column: "scores_avg",
+      label: getExperimentItemsColumnName("scores_avg"),
     },
     {
       type: "booleanKeyValue" as const,
-      column: "obs_score_booleans",
-      label: getExperimentItemsColumnName("obs_score_booleans"),
-    },
-    {
-      type: "keyValue" as const,
-      column: "trace_score_categories",
-      label: getExperimentItemsColumnName("trace_score_categories"),
-    },
-    {
-      type: "numericKeyValue" as const,
-      column: "trace_scores_avg",
-      label: getExperimentItemsColumnName("trace_scores_avg"),
-    },
-    {
-      type: "booleanKeyValue" as const,
-      column: "trace_score_booleans",
-      label: getExperimentItemsColumnName("trace_score_booleans"),
+      column: "score_booleans",
+      label: getExperimentItemsColumnName("score_booleans"),
     },
   ],
 };
