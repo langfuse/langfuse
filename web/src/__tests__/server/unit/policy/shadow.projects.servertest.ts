@@ -10,7 +10,7 @@ const {
   mockDiffResults,
   mockRecordCoverage,
 } = vi.hoisted(() => ({
-  env: { PUBLIC_API_AUTHZ_MIGRATION: "legacy" as string },
+  env: { API_AUTH_MIGRATION: "legacy" as string },
   mockLegacyVerifyAuth: vi.fn(),
   mockEnforceProjectAuth: vi.fn(),
   mockDiffResults: vi.fn(),
@@ -56,7 +56,7 @@ describe("project seam verifyAuth", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    env.PUBLIC_API_AUTHZ_MIGRATION = "legacy";
+    env.API_AUTH_MIGRATION = "legacy";
   });
 
   describe("legacy mode never runs the new pipeline", () => {
@@ -75,7 +75,7 @@ describe("project seam verifyAuth", () => {
 
   describe("shadow mode keeps responses byte-identical to legacy", () => {
     beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "shadow";
+      env.API_AUTH_MIGRATION = "shadow";
     });
 
     it("returns the legacy scope even when the new pipeline denies", async () => {
@@ -105,7 +105,7 @@ describe("project seam verifyAuth", () => {
 
   describe("enforce mode gates on the new decision", () => {
     beforeEach(() => {
-      env.PUBLIC_API_AUTHZ_MIGRATION = "enforce";
+      env.API_AUTH_MIGRATION = "enforce";
     });
 
     it("returns the legacy scope when the new pipeline allows", async () => {

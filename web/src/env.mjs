@@ -359,10 +359,8 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
-    // public-api authorization migration; self-host and default stay legacy
-    PUBLIC_API_AUTHZ_MIGRATION: z
-      .enum(["legacy", "shadow", "enforce"])
-      .default("legacy"),
+    // auth migration; self-host and default stay legacy
+    API_AUTH_MIGRATION: z.enum(["legacy", "shadow", "enforce"]).default("legacy"),
 
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
@@ -1033,7 +1031,7 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
-    PUBLIC_API_AUTHZ_MIGRATION: process.env.PUBLIC_API_AUTHZ_MIGRATION,
+    API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

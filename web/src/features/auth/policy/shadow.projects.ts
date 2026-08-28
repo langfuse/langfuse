@@ -16,7 +16,7 @@ export async function verifyAuth(
   const legacy = await runLegacyAuth(params);
 
   // legacy mode skips the new pipeline entirely so self-host does no extra auth work
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "legacy") {
+  if (env.API_AUTH_MIGRATION === "legacy") {
     if (!legacy.ok) throw legacy.error;
     return legacy.auth;
   }
@@ -28,14 +28,14 @@ export async function verifyAuth(
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,
   });
 
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "shadow") {
+  if (env.API_AUTH_MIGRATION === "shadow") {
     recordCoverage(params.name);
     diffResults(authz, legacyFromStatus(legacy.status), {
       seam: "project_route",
       action: params.action ?? "none",
     });
   }
-  if (env.PUBLIC_API_AUTHZ_MIGRATION === "enforce" && !authz.success) {
+  if (env.API_AUTH_MIGRATION === "enforce" && !authz.success) {
     throw { status: authz.error.httpCode, message: authz.error.message };
   }
   if (!legacy.ok) throw legacy.error;
