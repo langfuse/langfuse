@@ -20,7 +20,7 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromTraceOrObservation } from "@/src/features/datasets/components/NewDatasetItemFromTraceOrObservation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -208,7 +208,7 @@ export const ObservationDetailViewHeader = memo(
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
                   {observationWithIO && (
-                    <NewDatasetItemFromExistingObject
+                    <NewDatasetItemFromTraceOrObservation
                       traceId={traceId}
                       observationId={observation.id}
                       projectId={projectId}
@@ -376,7 +376,7 @@ export const ObservationDetailViewHeader = memo(
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
-                <NewDatasetItemFromExistingObject
+                <NewDatasetItemFromTraceOrObservation
                   traceId={traceId}
                   observationId={observation.id}
                   projectId={projectId}

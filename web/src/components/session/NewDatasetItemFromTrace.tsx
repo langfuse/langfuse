@@ -1,5 +1,5 @@
 import { type ButtonProps } from "@/src/components/ui/button";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromTraceOrObservation } from "@/src/features/datasets/components/NewDatasetItemFromTraceOrObservation";
 import { api } from "@/src/utils/api";
 
 export const NewDatasetItemFromTraceId = (props: {
@@ -30,7 +30,7 @@ export const NewDatasetItemFromTraceId = (props: {
   if (!trace.data) return null;
 
   return (
-    <NewDatasetItemFromExistingObject
+    <NewDatasetItemFromTraceOrObservation
       projectId={props.projectId}
       traceId={props.traceId}
       input={trace.data.input ?? null}

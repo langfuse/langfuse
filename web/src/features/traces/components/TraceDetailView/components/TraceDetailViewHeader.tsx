@@ -22,7 +22,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { NewDatasetItemFromTraceOrObservation } from "@/src/features/datasets/components/NewDatasetItemFromTraceOrObservation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -163,7 +163,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 forceMount
                 className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
               >
-                <NewDatasetItemFromExistingObject
+                <NewDatasetItemFromTraceOrObservation
                   traceId={trace.id}
                   projectId={projectId}
                   input={trace.input}
@@ -263,7 +263,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            <NewDatasetItemFromExistingObject
+            <NewDatasetItemFromTraceOrObservation
               traceId={trace.id}
               projectId={projectId}
               input={trace.input}

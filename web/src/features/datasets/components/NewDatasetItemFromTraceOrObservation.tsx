@@ -17,14 +17,10 @@ import { type Prisma } from "@langfuse/shared";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 
-/**
- * Component for creating a new dataset item from an existing object.
- *
- * Creates a dataset item using data from a trace or observation.
- */
-export const NewDatasetItemFromExistingObject = (props: {
+/** Creates a dataset item using data from a trace or observation. */
+export const NewDatasetItemFromTraceOrObservation = (props: {
   projectId: string;
-  traceId?: string;
+  traceId: string;
   observationId?: string;
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
@@ -41,51 +37,47 @@ export const NewDatasetItemFromExistingObject = (props: {
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
     props.projectId,
   );
-  const observationInDatasets =
+  const existingDatasetItems =
     api.datasets.datasetItemsBasedOnTraceOrObservation.useQuery(
       {
         projectId: props.projectId,
-        traceId: props.traceId as string,
+        traceId: props.traceId,
         observationId: props.observationId,
       },
       {
-        enabled: isAuthenticatedAndProjectMember && !!props.traceId,
+        enabled: isAuthenticatedAndProjectMember,
       },
-    );
+    ).data;
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
   const capture = usePostHogClientCapture();
-  const buttonVariant = props.buttonVariant || "secondary";
-  const buttonSize = props.size || "default";
+  const buttonVariant = isMenu ? "ghost" : (props.buttonVariant ?? "secondary");
+  const buttonSize = isMenu ? "sm" : (props.size ?? "default");
+  const buttonClassName = isMenu
+    ? "w-full justify-start gap-2 font-normal"
+    : undefined;
 
   return (
     <NewDatasetItemFromExistingObjectDialogController {...props}>
       {({ Trigger }) => {
-        if (
-          observationInDatasets.data &&
-          observationInDatasets.data.length > 0
-        ) {
+        if (existingDatasetItems && existingDatasetItems.length > 0) {
           return (
             <div>
               <DropdownMenu open={hasAccess ? undefined : false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant={isMenu ? "ghost" : "secondary"}
-                    size={isMenu ? "sm" : buttonSize}
+                    size={buttonSize}
                     disabled={!hasAccess}
-                    className={
-                      isMenu
-                        ? "w-full justify-start gap-2 font-normal"
-                        : undefined
-                    }
+                    className={buttonClassName}
                   >
                     {isMenu ? (
                       <PlusIcon className="h-4 w-4" aria-hidden="true" />
                     ) : null}
                     <span className={isMenu ? "text-sm" : undefined}>
-                      {`In ${observationInDatasets.data.length} dataset(s)`}
+                      {`In ${existingDatasetItems.length} dataset(s)`}
                     </span>
                     <ChevronDown
                       className={isMenu ? "ml-auto h-3 w-3" : "ml-2 h-3 w-3"}
@@ -93,7 +85,7 @@ export const NewDatasetItemFromExistingObject = (props: {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {observationInDatasets.data.map(
+                  {existingDatasetItems.map(
                     ({ id: datasetItemId, datasetName, datasetId }) => (
                       <DropdownMenuItem
                         key={datasetItemId}
@@ -129,12 +121,10 @@ export const NewDatasetItemFromExistingObject = (props: {
                   object: props.observationId ? "observation" : "trace",
                 });
               }}
-              variant={isMenu ? "ghost" : buttonVariant}
-              size={isMenu ? "sm" : buttonSize}
+              variant={buttonVariant}
+              size={buttonSize}
               disabled={!hasAccess}
-              className={
-                isMenu ? "w-full justify-start gap-2 font-normal" : undefined
-              }
+              className={buttonClassName}
             >
               {hasAccess ? (
                 <PlusIcon
