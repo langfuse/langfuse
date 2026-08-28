@@ -3,6 +3,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { GetScoresQueryV3, GetScoresResponseV3 } from "@langfuse/shared";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
 import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const GetScoresV3Query = GetScoresQueryV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
@@ -101,7 +102,18 @@ export default withMiddlewares({
     name: "Get Scores V3",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, res }) => {
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp,
+      });
+      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
+        res.setHeader(
+          "X-Langfuse-Data-Access-From",
+          dataAccessWindow.accessFloor.toISOString(),
+        );
+      }
+
       const result = await listScoresV3ForPublicApi({
         projectId: auth.scope.projectId,
         limit: query.limit,
@@ -122,7 +134,7 @@ export default withMiddlewares({
         sessionId: query.sessionId,
         observationId: query.observationId,
         experimentId: query.experimentId,
-        fromTimestamp: query.fromTimestamp,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp,
         toTimestamp: query.toTimestamp,
       });
 

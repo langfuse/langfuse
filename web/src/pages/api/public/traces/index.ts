@@ -33,6 +33,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares(
   {
@@ -84,7 +85,7 @@ export default withMiddlewares(
       deprecation: TRACES_DEPRECATION,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
-      fn: async ({ query, auth }) => {
+      fn: async ({ query, auth, res }) => {
         // Api-performance controls.
         // 1. Reject if no date range and rejection is enabled
         if (
@@ -108,6 +109,41 @@ export default withMiddlewares(
             referenceDateMs - defaultDateRangeDays * 24 * 60 * 60 * 1000,
           ).toISOString();
         }
+
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: effectiveFromTimestamp,
+        });
+        effectiveFromTimestamp =
+          dataAccessWindow.effectiveFromTimestamp?.toISOString();
+        if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
+          res.setHeader(
+            "X-Langfuse-Data-Access-From",
+            dataAccessWindow.accessFloor.toISOString(),
+          );
+        }
+
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "timestamp",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toTimestamp
+                ? [
+                    {
+                      column: "timestamp",
+                      operator: "<" as const,
+                      value: new Date(query.toTimestamp),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
 
         // 3. Apply default fields if configured and no fields query param provided
         let effectiveFields = query.fields ?? undefined;
@@ -142,12 +178,12 @@ export default withMiddlewares(
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
               orderBy: query.orderBy ?? null,
             }),
             getTracesCountFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
             }),
           ]);
 
@@ -169,12 +205,12 @@ export default withMiddlewares(
         const [items, count] = await Promise.all([
           generateTracesForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
             orderBy: query.orderBy ?? null,
           }),
           getTracesCountForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
           }),
         ]);
 

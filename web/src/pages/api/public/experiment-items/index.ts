@@ -8,6 +8,7 @@ import {
   GetExperimentItemsV1Response,
 } from "@/src/features/public-api/types/experiments";
 import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -15,16 +16,32 @@ export default withMiddlewares({
     querySchema: GetExperimentItemsV1Query,
     responseSchema: GetExperimentItemsV1Response,
     allowInAppAgentKey: true,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, res }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
           "The experiment items API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
       }
 
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromStartTime,
+      });
+      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
+        res.setHeader(
+          "X-Langfuse-Data-Access-From",
+          dataAccessWindow.accessFloor.toISOString(),
+        );
+      }
+
       return listExperimentItemsForPublicApi({
         projectId: auth.scope.projectId,
-        query,
+        query: {
+          ...query,
+          fromStartTime:
+            dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+            query.fromStartTime,
+        },
       });
     },
   }),

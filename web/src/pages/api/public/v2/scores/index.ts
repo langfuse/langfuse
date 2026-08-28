@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -16,7 +17,7 @@ export default withMiddlewares({
     responseSchema: GetScoresResponseV2,
     deprecation: SCORES_DEPRECATION,
     rejectInEventsOnlyMode: true,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, res }) => {
       // Validate that trace filters are not used when trace field is excluded
       const requestedFields = query.fields ?? ["score", "trace"];
 
@@ -33,6 +34,38 @@ export default withMiddlewares({
         );
       }
 
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp ?? undefined,
+      });
+      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
+        res.setHeader(
+          "X-Langfuse-Data-Access-From",
+          dataAccessWindow.accessFloor.toISOString(),
+        );
+      }
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "timestamp",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toTimestamp
+              ? [
+                  {
+                    column: "timestamp",
+                    operator: "<" as const,
+                    value: new Date(query.toTimestamp),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
+
       const scoreParams = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -47,7 +80,7 @@ export default withMiddlewares({
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
         dataType: query.dataType ?? undefined,
-        fromTimestamp: query.fromTimestamp ?? undefined,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
         source: query.source ?? undefined,
@@ -55,7 +88,7 @@ export default withMiddlewares({
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
         fields: query.fields ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
       };
       const scoresApiService = new ScoresApiService("v2");
       const [items, count] = await Promise.all([

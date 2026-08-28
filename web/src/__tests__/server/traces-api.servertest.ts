@@ -2442,6 +2442,101 @@ describe("/api/public/traces API Endpoint", () => {
     }
   });
 
+  describe("data-access-days enforcement", () => {
+    it("intersects advanced timestamp filters with the Hobby access floor", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldTrace = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+      });
+      const recentTrace = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      await createTracesCh([oldTrace, recentTrace]);
+
+      const filter = encodeURIComponent(
+        JSON.stringify([
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(
+              Date.now() - 365 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        ]),
+      );
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${filter}`,
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((trace) => trace.id)).toContain(
+        recentTrace.id,
+      );
+      expect(response.body.data.map((trace) => trace.id)).not.toContain(
+        oldTrace.id,
+      );
+    });
+
+    it("preserves stricter from and to bounds alongside advanced filters", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const beforeFrom = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      });
+      const withinRange = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
+      });
+      const afterTo = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      await createTracesCh([beforeFrom, withinRange, afterTo]);
+
+      const filter = encodeURIComponent(
+        JSON.stringify([
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(
+              Date.now() - 365 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        ]),
+      );
+      const fromTimestamp = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const toTimestamp = new Date(
+        Date.now() - 2 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}&filter=${filter}`,
+        undefined,
+        fixture.auth,
+      );
+      const ids = response.body.data.map((trace) => trace.id);
+
+      expect(ids).toContain(withinRange.id);
+      expect(ids).not.toContain(beforeFrom.id);
+      expect(ids).not.toContain(afterTo.id);
+    });
+  });
+
   describe.skip("GET /api/public/traces env var controls", () => {
     const originalRejectNoDateRange =
       env.LANGFUSE_API_TRACES_REJECT_NO_DATE_RANGE;

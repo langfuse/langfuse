@@ -10,6 +10,7 @@ import {
   GetObservationsV2Response,
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -17,7 +18,7 @@ export default withMiddlewares({
     allowInAppAgentKey: true,
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, res }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
           "The observations v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
@@ -27,6 +28,37 @@ export default withMiddlewares({
       // Extract field groups and metadata expansion keys
       const fieldGroups = query.fields ?? undefined;
       const expandMetadataKeys = query.expandMetadata ?? undefined;
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromStartTime ?? undefined,
+      });
+      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
+        res.setHeader(
+          "X-Langfuse-Data-Access-From",
+          dataAccessWindow.accessFloor.toISOString(),
+        );
+      }
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "startTime",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toStartTime
+              ? [
+                  {
+                    column: "startTime",
+                    operator: "<" as const,
+                    value: new Date(query.toStartTime),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
 
       const filterProps = {
         projectId: auth.scope.projectId,
@@ -41,10 +73,10 @@ export default withMiddlewares({
         environment: query.environment ?? undefined,
         parentObservationId: query.parentObservationId ?? undefined,
         isRootObservation: query.isRootObservation,
-        fromStartTime: query.fromStartTime ?? undefined,
+        fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
         cursor: query.cursor ?? undefined,
         fields: fieldGroups,
         expandMetadataKeys,

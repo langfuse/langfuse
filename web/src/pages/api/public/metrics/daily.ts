@@ -9,6 +9,7 @@ import {
   getDailyMetricsCount,
 } from "@/src/features/public-api/server/dailyMetrics";
 import { METRICS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -20,7 +21,18 @@ export default withMiddlewares({
     // Aggregates over the legacy traces and observations tables without an
     // events_full fallback.
     rejectInEventsOnlyMode: true,
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, res }) => {
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp ?? undefined,
+      });
+      if (dataAccessWindow.wasClamped && dataAccessWindow.accessFloor) {
+        res.setHeader(
+          "X-Langfuse-Data-Access-From",
+          dataAccessWindow.accessFloor.toISOString(),
+        );
+      }
+
       const filterProps = {
         projectId: auth.scope.projectId,
         page: query.page ?? undefined,
@@ -31,7 +43,7 @@ export default withMiddlewares({
         // We need to map environment to both keys to propagate the filter to all tables.
         traceEnvironment: query.environment ?? undefined,
         observationEnvironment: query.environment ?? undefined,
-        fromTimestamp: query.fromTimestamp ?? undefined,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toTimestamp: query.toTimestamp ?? undefined,
       };
 
