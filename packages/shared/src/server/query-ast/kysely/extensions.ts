@@ -1,3 +1,19 @@
+/**
+ * ClickHouse-specific query-builder extensions for the Kysely dialect.
+ *
+ * Kysely has no native representation for several ClickHouse constructs, so
+ * this file supplies them in three forms:
+ *   - Plugins ({@link ArrayJoinPlugin}, {@link LimitByPlugin}) that attach a
+ *     custom operation node (`ArrayJoinNode` / `LimitByNode`) onto the select
+ *     node during query transformation; the ClickHouse compiler renders them.
+ *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}) that apply those
+ *     plugins while extending the builder's output row type, so produced
+ *     aliases are type-checked and misspelled references are compile errors.
+ *   - Typed expression helpers ({@link mapKeys}, {@link mapValues},
+ *     {@link metadataValue}) that build ClickHouse map/array function calls and
+ *     `metadata[key]` subscripts as real, parameter-bound nodes — never raw SQL
+ *     strings — so they escape and compose like any other expression.
+ */
 import {
   ColumnNode,
   ExpressionWrapper,

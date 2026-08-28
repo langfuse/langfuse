@@ -34,6 +34,13 @@ describe("schema-typed selection (condition 7)", () => {
 });
 
 describe("metadata indexOf access (condition 7b)", () => {
+  // These tests use a two-layer strategy. This first test inspects the AST
+  // itself (serialized to JSON) to prove `metadata[key]` is *lowered* to real
+  // operation nodes — an `ArrayIndexNode` subscript around an `indexOf(...)`
+  // `FunctionNode` — and never a `RawNode` (a raw SQL string). The sibling
+  // tests below assert the SQL the compiler then emits. Separating them
+  // isolates "the builder produced the right tree" (composable, escaped,
+  // parameter-bound) from "the compiler rendered that tree correctly".
   it("lowers metadata[key] to ArrayIndexNode + indexOf FunctionNode, not RawNode", () => {
     const qb = getClickhouseKysely()
       .selectFrom("events_core as e")
@@ -48,6 +55,8 @@ describe("metadata indexOf access (condition 7b)", () => {
     expect(json).toContain('"func":"indexOf"');
     expect(json).not.toMatch(/"kind":"RawNode"/);
 
+    // `.as("a")` wraps the expression in an AliasNode, so the first selection's
+    // inner node must be that AliasNode rather than the bare ArrayIndexNode.
     const selections = (
       node as { selections?: { selection?: { kind: string } }[] }
     ).selections;
