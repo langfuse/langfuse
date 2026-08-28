@@ -7,16 +7,9 @@ import {
 } from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
-import {
-  BracesIcon,
-  MessageCircleMoreIcon,
-  ExternalLinkIcon,
-} from "lucide-react";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import Link from "next/link";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
+import { scoreLevelFromScore } from "@/src/components/score-tag";
+import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 
 /**
  * Bucket scores by name, the way the badges group them. Exported so a caller that
@@ -49,109 +42,6 @@ const partitionScores = <
   const visibleScores = sortedScores.slice(0, maxVisible);
   const hiddenScores = sortedScores.slice(maxVisible);
   return { visibleScores, hiddenScores };
-};
-
-const hasMetadata = (
-  score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
-) => {
-  if (!score.metadata) return false;
-  try {
-    const metadata =
-      typeof score.metadata === "string"
-        ? JSON.parse(score.metadata)
-        : score.metadata;
-    return Object.keys(metadata).length > 0;
-  } catch {
-    return false;
-  }
-};
-
-const ExecutionTraceLink = ({
-  executionTraceId,
-}: {
-  executionTraceId: string;
-}) => {
-  const projectId = useProjectIdFromURL();
-  if (!projectId) return null;
-
-  return (
-    <Link
-      href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
-      className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-      target="_blank"
-    >
-      <ExternalLinkIcon className="h-3 w-3" />
-      View execution trace
-    </Link>
-  );
-};
-
-const ScoreGroupBadge = <
-  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
->({
-  name,
-  scores,
-  compact,
-  showLevels,
-}: {
-  name: string;
-  scores: T[];
-  compact?: boolean;
-  /** Render this group's level tag(s). Set by GroupedScoreBadges only when
-   *  the whole selection mixes levels (LFE-10596). */
-  showLevels?: boolean;
-}) => {
-  // Score-level color coding (LFE-10596): one full tag per distinct level in
-  // the group (a name can exist at both trace and observation level). Full
-  // pill, not the compact dot — the level must be readable without hovering.
-  const levels = showLevels
-    ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
-    : [];
-  const text = `${name}: ${scores
-    .map((score) => score.stringValue ?? score.value?.toFixed(2) ?? "")
-    .join(", ")}`;
-
-  return (
-    <span className="inline-flex max-w-full min-w-0 items-center gap-1">
-      {levels.map((level) => (
-        <ScoreTag key={level} level={level} />
-      ))}
-      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
-        <span className="truncate" title={text}>
-          {text}
-        </span>
-        {scores.map((score, index) => (
-          <span key={index} className="inline-flex shrink-0 items-center gap-1">
-            {score.comment && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block shrink-0">
-                  <MessageCircleMoreIcon className="mb-0.25 size-3!" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                  <p className="whitespace-pre-wrap">{score.comment}</p>
-                  {"executionTraceId" in score && score.executionTraceId && (
-                    <ExecutionTraceLink
-                      executionTraceId={score.executionTraceId}
-                    />
-                  )}
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            {hasMetadata(score) && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block shrink-0">
-                  <BracesIcon className="mb-0.25 size-3!" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-                  <JSONView codeClassName="rounded-md!" json={score.metadata} />
-                </HoverCardContent>
-              </HoverCard>
-            )}
-          </span>
-        ))}
-      </BadgeShell>
-    </span>
-  );
 };
 
 export const GroupedScoreBadges = <
@@ -204,7 +94,7 @@ export const GroupedScoreBadges = <
   return (
     <>
       {visibleScores.map(([name, scores]) => (
-        <ScoreGroupBadge
+        <ScoreBadge
           key={name}
           name={name}
           scores={scores}
@@ -244,7 +134,7 @@ export const GroupedScoreBadges = <
           <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
             <div className="flex flex-wrap gap-1">
               {hiddenScores.map(([name, scores]) => (
-                <ScoreGroupBadge
+                <ScoreBadge
                   key={name}
                   name={name}
                   scores={scores}

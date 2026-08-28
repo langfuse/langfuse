@@ -63,11 +63,30 @@ export const WithOverflow = meta.story({
 
 export const DetailsInsideBadge = meta.story({
   name: "(Test) Details Inside Badge",
-  args: { scores },
+  args: {
+    scores: [
+      scores[0],
+      {
+        ...scores[1],
+        id: "quality-with-details",
+        name: "quality",
+      },
+    ],
+  },
   play: async ({ canvasElement }) => {
-    const label = canvasElement.querySelector('[title="helpfulness: 0.81"]');
+    const value = canvasElement.querySelector('[title="0.81"]');
 
-    await expect(label).not.toBeNull();
-    await expect(label?.parentElement?.querySelectorAll("svg")).toHaveLength(2);
+    await expect(value).not.toBeNull();
+    await expect(value?.parentElement?.querySelectorAll("svg")).toHaveLength(2);
+    await expect(
+      value?.parentElement?.querySelector(
+        '[aria-label="View comment for quality: 0.81"]',
+      ),
+    ).not.toBeNull();
+    await expect(
+      value?.parentElement?.querySelector(
+        '[aria-label="View metadata for quality: 0.81"]',
+      ),
+    ).not.toBeNull();
   },
 });

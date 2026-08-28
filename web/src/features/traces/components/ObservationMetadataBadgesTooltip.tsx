@@ -4,10 +4,7 @@
  */
 
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import {
-  Badge,
-  BadgeShell,
-} from "@/src/components/design-system/Badge/Badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
   type PriceSource,
