@@ -43,7 +43,7 @@ import { randomUUID } from "crypto";
 import {
   createObservation,
   createObservationsCh,
-  createOrgProjectAndApiKey,
+  createOrgProjectAndApiKey as createOrgProjectAndApiKeyNow,
   createTraceScore,
   createSessionScore,
   createDatasetRunScore,
@@ -69,6 +69,24 @@ import {
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
+
+const PROJECT_HISTORY_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Tests often set lastSyncAt / exportStartDate in the past on a freshly
+// created project. Flooring the export start at project.createdAt would
+// otherwise clamp those windows to "now" and skip the run. Age the project
+// so the fixtures predate the export cursor.
+const createOrgProjectAndApiKey = async (
+  props?: Parameters<typeof createOrgProjectAndApiKeyNow>[0],
+) => {
+  const result = await createOrgProjectAndApiKeyNow(props);
+  const createdAt = new Date(Date.now() - PROJECT_HISTORY_MS);
+  await prisma.project.update({
+    where: { id: result.projectId },
+    data: { createdAt },
+  });
+  return { ...result, project: { ...result.project, createdAt } };
+};
 
 // Skip tests that use Azurite in Azure mode due to known Azurite limitations
 // with multipart uploads. These tests use MinIO explicitly or are skipped.
