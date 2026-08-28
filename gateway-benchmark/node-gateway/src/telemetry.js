@@ -21,14 +21,14 @@ export class BoundedCapture {
   }
 
   add(value) {
-    let buffer;
-    if (Buffer.isBuffer(value)) {
-      buffer = value;
-    } else if (typeof value === "string") {
-      buffer = Buffer.from(value);
-    } else {
-      throw new TypeError("capture value must be bytes or a string");
+    if (!(value instanceof Uint8Array)) {
+      throw new TypeError("capture value must be bytes");
     }
+    const buffer = Buffer.from(
+      value.buffer,
+      value.byteOffset,
+      value.byteLength,
+    );
     this.totalBytes += buffer.length;
     const remaining = this.limitBytes - this.#capturedBytes;
     if (remaining <= 0) return;

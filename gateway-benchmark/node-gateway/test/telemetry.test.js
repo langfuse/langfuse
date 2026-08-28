@@ -14,9 +14,9 @@ import {
 
 function telemetryFacts(text) {
   const input = new BoundedCapture(1024);
-  input.add(JSON.stringify({ model: "benchmark-model", text }));
+  input.add(Buffer.from(JSON.stringify({ model: "benchmark-model", text })));
   const output = new BoundedCapture(1024);
-  output.add(`data: ${text}\n\n`);
+  output.add(Buffer.from(`data: ${text}\n\n`));
   return createTelemetryFacts({
     context: createTelemetryContext({
       mode: "native",
@@ -76,7 +76,7 @@ test("serializes multiple spans into one OTLP envelope", () => {
 
 test("transfers captured buffers into a telemetry snapshot", () => {
   const capture = new BoundedCapture(4);
-  capture.add("abcdef");
+  capture.add(Buffer.from("abcdef"));
 
   const snapshot = capture.takeSnapshot();
 

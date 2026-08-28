@@ -57,11 +57,16 @@ app.post(
     let telemetryContext;
     let telemetryFinalized = false;
 
-    if (!Buffer.isBuffer(request.body)) {
+    const rawBody = request.body;
+    if (!(rawBody instanceof Uint8Array)) {
       response.status(400).json({ error: "request body must be bytes" });
       return;
     }
-    let requestBody = request.body;
+    let requestBody = Buffer.from(
+      rawBody.buffer,
+      rawBody.byteOffset,
+      rawBody.byteLength,
+    );
 
     const modeHeader = request.get("x-benchmark-mode") || "native";
     const mode = modeHeader === "translate" ? "translate" : "native";
@@ -110,7 +115,9 @@ app.post(
         response.status(statusCode).json({
           error: "x-benchmark-mode must be native or translate",
         });
-        output.add(JSON.stringify({ error: "invalid benchmark mode" }));
+        output.add(
+          Buffer.from(JSON.stringify({ error: "invalid benchmark mode" })),
+        );
         return;
       }
 
