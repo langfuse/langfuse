@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Preview the pull requests, or create them when the live switch is enabled"
+        description: "Preview the pull requests, or create them in live mode"
         required: false
         default: staged
         type: choice
@@ -22,7 +22,9 @@ permissions:
 environment: github-agent-workflows
 
 env:
-  DEPENDABOT_SECURITY_MAINTAINER_STAGED: ${{ vars.DEPENDABOT_SECURITY_MAINTAINER_LIVE != 'enabled' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live') }}
+  DEPENDABOT_SECURITY_MAINTAINER_STAGED: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live' }}
+  # DEPENDABOT_SECURITY_MAINTAINER_STAGED: ${{ vars.DEPENDABOT_SECURITY_MAINTAINER_LIVE != 'enabled' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live') }}
+
 
 concurrency:
   group: dependabot-security-maintainer
@@ -81,10 +83,9 @@ steps:
       jq -e 'type == "array"' "$ALERTS_PATH" >/dev/null
 
 safe-outputs:
-  # New installations preview only. Set the repository variable
-  # DEPENDABOT_SECURITY_MAINTAINER_LIVE=enabled to permit real PRs. A manual
-  # staged run always remains a preview.
-  staged: ${{ vars.DEPENDABOT_SECURITY_MAINTAINER_LIVE != 'enabled' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live') }}
+  # Manual staged runs preview pull requests. Scheduled and manual live runs
+  # create them.
+  staged: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live' }}
   report-failure-as-issue: false
   report-incomplete:
     max: 1
