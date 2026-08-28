@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { ServerPosthog } from "@/src/features/posthog-analytics/server";
+import { ServerPosthog } from "@/src/features/posthog-analytics";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
