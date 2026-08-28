@@ -359,7 +359,7 @@ export const TestHidesAndRevealsDetails = meta.story({
     );
     await expect(visibleTraceDetail).toBeInTheDocument();
     await userEvent.hover(visibleTraceDetail!);
-    await expect(hideTraceDetail).toBeVisible();
+    await waitFor(() => expect(hideTraceDetail).toBeVisible());
     await userEvent.click(hideTraceDetail);
     await expect(
       canvas.queryByRole("button", {
@@ -380,6 +380,7 @@ export const TestHidesAndRevealsDetails = meta.story({
       name: "Show trace and span counts in session header",
     });
     await userEvent.hover(showTraceDetail);
+    await waitFor(() => expect(showTraceDetail).toBeVisible());
     await userEvent.click(showTraceDetail);
 
     await expect(
