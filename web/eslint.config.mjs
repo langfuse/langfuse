@@ -153,9 +153,21 @@ export default [
       "src/__e2e__/**",
       "src/**/*.clienttest.{ts,tsx}",
       "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
     ],
     rules: {
       "@repo/no-null-render": "error",
+    },
+  },
+
+  // Next.js pages are the route composition root: the router, not a parent
+  // component, owns whether they mount. Returning null for auth, missing
+  // params, or SSR is a page-level concern, so this rule does not apply.
+  {
+    name: "langfuse/web/no-null-render-pages",
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-null-render": "off",
     },
   },
 

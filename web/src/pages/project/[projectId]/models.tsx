@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 

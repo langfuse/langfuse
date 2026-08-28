@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
