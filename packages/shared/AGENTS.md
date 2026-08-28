@@ -73,7 +73,9 @@
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
-  `@langfuse/shared/src/utils/chatml`.
+  `@langfuse/shared/src/utils/chatml`. The experimental
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe but **do not
+  use it yet**; its public contract is still being validated.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in
