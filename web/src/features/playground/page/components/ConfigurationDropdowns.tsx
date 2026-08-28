@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
@@ -9,13 +9,26 @@ import {
 } from "@/src/components/ui/popover";
 import { usePlaygroundContext } from "../context";
 import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
-import { PlaygroundTools, PlaygroundToolsPopover } from "./PlaygroundTools";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { CreateOrEditLLMToolDialog } from "./CreateOrEditLLMToolDialog";
+import {
+  PlaygroundTools,
+  PlaygroundToolsPopover,
+  usePlaygroundToolActions,
+  type ToolDialogTarget,
+} from "./PlaygroundTools";
 import {
   StructuredOutputSchemaSection,
   StructuredOutputSchemaPopover,
 } from "./StructuredOutputSchemaSection";
 import { Variables } from "./Variables";
 import { MessagePlaceholders } from "./MessagePlaceholders";
+
+type ToolDialogState = ToolDialogTarget & {
+  open: boolean;
+  /** Bumped on every open so the dialog remounts with a pristine form. */
+  instance: number;
+};
 
 export const ConfigurationDropdowns: React.FC = () => {
   const { containerRef, width, isVeryCompact, isCompact } =
@@ -26,6 +39,39 @@ export const ConfigurationDropdowns: React.FC = () => {
     promptVariables,
     messagePlaceholders,
   } = usePlaygroundContext();
+
+  const projectId = useProjectIdFromURL();
+  const { handleSelectTool, handleRemoveTool } = usePlaygroundToolActions();
+
+  const [toolsPopoverOpen, setToolsPopoverOpen] = useState(false);
+  const [toolDialog, setToolDialog] = useState<ToolDialogState>({
+    open: false,
+    instance: 0,
+  });
+  // Saving or deleting is a committed action, so we don't bounce the user back
+  // into the picker afterwards — only a cancelled dialog reopens it.
+  const toolDialogCommittedRef = useRef(false);
+
+  // The popover must close BEFORE the dialog opens: Radix unmounts
+  // PopoverContent on close, which is why the dialog is rendered as a sibling of
+  // the Popover rather than inside it (see the overlay lifecycle note in
+  // web/AGENTS.md).
+  const openToolDialog = useCallback((target: ToolDialogTarget) => {
+    toolDialogCommittedRef.current = false;
+    setToolsPopoverOpen(false);
+    setToolDialog((prev) => ({
+      ...target,
+      open: true,
+      instance: prev.instance + 1,
+    }));
+  }, []);
+
+  const handleToolDialogOpenChange = useCallback((open: boolean) => {
+    setToolDialog((prev) => ({ ...prev, open }));
+    if (!open && !toolDialogCommittedRef.current) {
+      setToolsPopoverOpen(true);
+    }
+  }, []);
 
   const toolsCount = tools.length;
   const hasSchema = structuredOutputSchema ? 1 : 0;
@@ -62,7 +108,7 @@ export const ConfigurationDropdowns: React.FC = () => {
     <div ref={containerRef} className="bg-muted/25 shrink-0 border-b px-3 py-2">
       <div className="flex items-center justify-start gap-2">
         {/* Tools Dropdown */}
-        <Popover>
+        <Popover open={toolsPopoverOpen} onOpenChange={setToolsPopoverOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Tools", Wrench)}
@@ -87,7 +133,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             </div>
             {toolsCount > 0 ? (
               <div className="mb-3">
-                <PlaygroundTools />
+                <PlaygroundTools onOpenToolDialog={openToolDialog} />
               </div>
             ) : (
               <div className="mb-3">
@@ -97,10 +143,33 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             )}
             <div className="border-t pt-3">
-              <PlaygroundToolsPopover />
+              <PlaygroundToolsPopover onOpenToolDialog={openToolDialog} />
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* Dialog lives OUTSIDE the PopoverContent so closing the popover does
+            not unmount it (see openToolDialog). */}
+        <CreateOrEditLLMToolDialog
+          key={toolDialog.instance}
+          open={toolDialog.open}
+          onOpenChange={handleToolDialogOpenChange}
+          projectId={projectId as string}
+          existingLlmTool={toolDialog.existingLlmTool}
+          defaultValues={toolDialog.defaultValues}
+          onSave={(llmTool) => {
+            toolDialogCommittedRef.current = true;
+            handleSelectTool(llmTool);
+          }}
+          onDelete={
+            toolDialog.removeToolId
+              ? () => {
+                  toolDialogCommittedRef.current = true;
+                  handleRemoveTool(toolDialog.removeToolId as string);
+                }
+              : undefined
+          }
+        />
 
         {/* Structured Output Dropdown */}
         <Popover>

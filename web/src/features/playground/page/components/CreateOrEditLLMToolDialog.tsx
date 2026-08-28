@@ -1,5 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowUpRight } from "lucide-react";
@@ -14,7 +13,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
   Form,
@@ -43,7 +41,14 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 type CreateOrEditLLMToolDialog = {
-  children: React.ReactNode;
+  /**
+   * Controlled open state. This dialog renders no trigger of its own: it must be
+   * mounted as a SIBLING of whatever opens it, so a dropdown/popover trigger can
+   * close before the dialog opens without unmounting it. See the overlay
+   * lifecycle note in web/AGENTS.md.
+   */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   projectId: string;
   onSave: (llmTool: LlmTool) => void;
   onDelete?: (llmTool: LlmTool) => void;
@@ -58,14 +63,12 @@ type CreateOrEditLLMToolDialog = {
 export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
   props,
 ) => {
-  const { children, projectId, onSave, existingLlmTool } = props;
+  const { open, onOpenChange, projectId, onSave, existingLlmTool } = props;
 
   const utils = api.useUtils();
   const createLlmTool = api.llmTools.create.useMutation();
   const updateLlmTool = api.llmTools.update.useMutation();
   const deleteLlmTool = api.llmTools.delete.useMutation();
-
-  const [open, setOpen] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -118,7 +121,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
     await utils.llmTools.getAll.invalidate({ projectId });
 
     onSave(result);
-    setOpen(false);
+    onOpenChange(false);
   }
 
   async function handleDelete() {
@@ -132,7 +135,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
     props.onDelete?.(existingLlmTool);
 
     await utils.llmTools.getAll.invalidate({ projectId });
-    setOpen(false);
+    onOpenChange(false);
   }
 
   const prettifyJson = () => {
@@ -151,14 +154,8 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild onClick={(e) => e.stopPropagation()}>
-        {children}
-      </DialogTrigger>
-      <DialogContent
-        className="flex flex-col sm:min-w-128 md:min-w-160"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex flex-col sm:min-w-128 md:min-w-160">
         <DialogHeader>
           <DialogTitle>
             {existingLlmTool ? "Edit LLM Tool" : "Create LLM Tool"}
@@ -283,7 +280,7 @@ export const CreateOrEditLLMToolDialog: React.FC<CreateOrEditLLMToolDialog> = (
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setOpen(false)}
+                    onClick={() => onOpenChange(false)}
                   >
                     Cancel
                   </Button>
