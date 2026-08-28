@@ -2,7 +2,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
 import {
@@ -12,8 +12,8 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createUserTableColumn } from "@/src/components/design-system/Table/columns/createUserTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { BatchActionStatus } from "@langfuse/shared";
 
 type BatchActionRow = {

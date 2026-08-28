@@ -24,15 +24,15 @@ const DESIGN_COMPONENT_STORIES = [
   "Spinner/Spinner",
   "Switch/Switch",
   "Toggle/Toggle",
-  "Table/columns/createBadgeTableColumn",
-  "Table/columns/createDateTableColumn",
-  "Table/columns/createDurationTableColumn",
-  "Table/columns/createIdTableColumn",
-  "Table/columns/createItemBadgeTableColumn",
-  "Table/columns/createNumberTableColumn",
-  "Table/columns/createStatusTableColumn",
-  "Table/columns/createTagsTableColumn",
-  "Table/columns/createTextTableColumn",
+  "table/columns/createBadgeTableColumn",
+  "table/columns/createDateTableColumn",
+  "table/columns/createDurationTableColumn",
+  "table/columns/createIdTableColumn",
+  "table/columns/createItemBadgeTableColumn",
+  "table/columns/createNumberTableColumn",
+  "table/columns/createStatusTableColumn",
+  "table/columns/createTagsTableColumn",
+  "table/columns/createTextTableColumn",
 ] as const;
 // Design-system reference pages that sit directly under Design (not
 // Design/Components): the token reference, one single-leaf page per element.
@@ -43,7 +43,7 @@ const DESIGN_COMPONENT_STORIES = [
 // explicit story titles are rejected by the title plugin.
 const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
   {
-    directory: "src/components/design-system/Table/columns",
+    directory: "src/components/design-system/table/columns",
     titlePrefix: "Design/Components/Table",
   },
   {

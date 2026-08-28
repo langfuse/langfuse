@@ -4,7 +4,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { type BackgroundMigration } from "@langfuse/shared";
 import { RetryBackgroundMigrationPopoverController } from "@/src/features/background-migrations/components/retry-background-migration";
-import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { RotateCcw } from "lucide-react";
