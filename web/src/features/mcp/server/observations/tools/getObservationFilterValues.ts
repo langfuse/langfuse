@@ -15,6 +15,7 @@ import {
   ObservationLimitSchema,
   type ObservationMcpFilterColumn,
 } from "../schema";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",
@@ -174,8 +175,12 @@ export const [
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: context.plan,
+          fromTimestamp: input.fromStartTime,
+        });
         const startTimeFilter = buildStartTimeFilter({
-          fromStartTime: input.fromStartTime,
+          fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
           toStartTime: input.toStartTime,
         });
 
