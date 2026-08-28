@@ -32,6 +32,7 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { useMemo } from "react";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 export type PromptVersionTableRow = {
   version: number;
@@ -302,9 +303,8 @@ export default function PromptVersionTable({
         ) : null;
       },
     },
-    {
+    createTextTableColumn<PromptVersionTableRow>({
       accessorKey: "lastUsed",
-      id: "lastUsed",
       header: "Last used",
       enableHiding: true,
       size: 150,
@@ -312,17 +312,11 @@ export default function PromptVersionTable({
         description:
           "This is calculated based on the selected date range, not the full usage history.",
       },
-      cell: ({ row }) => {
-        const value: number | undefined | null = row.getValue("lastUsed");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-        return !!value ? <span>{value}</span> : undefined;
-      },
-    },
-    {
+      mapValue: (value) =>
+        promptMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
+    createTextTableColumn<PromptVersionTableRow>({
       accessorKey: "firstUsed",
-      id: "firstUsed",
       header: "First used",
       size: 150,
       enableHiding: true,
@@ -330,14 +324,9 @@ export default function PromptVersionTable({
         description:
           "This is calculated based on the selected date range, not the full usage history.",
       },
-      cell: ({ row }) => {
-        const value: number | undefined | null = row.getValue("firstUsed");
-        if (!promptMetrics.isSuccess) {
-          return <Skeleton className="h-3 w-1/2" />;
-        }
-        return !!value ? <span>{value}</span> : undefined;
-      },
-    },
+      mapValue: (value) =>
+        promptMetrics.isSuccess ? (value ?? undefined) : { type: "loading" },
+    }),
   ];
 
   const [columnVisibility, setColumnVisibilityState] =

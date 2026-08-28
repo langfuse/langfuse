@@ -14,6 +14,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
@@ -76,13 +77,12 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         return undefined;
       },
     }),
-    {
+    createTextTableColumn<RowData>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       enableHiding: true,
       size: 200,
-    },
+    }),
     createNumberTableColumn<RowData>({
       accessorKey: "countCompletedItems",
       header: "Completed Items",
