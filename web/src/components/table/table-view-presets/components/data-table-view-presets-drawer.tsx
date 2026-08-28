@@ -53,6 +53,8 @@ import {
   type FilterState,
   type TableViewPresetTableName,
   type TableViewPresetState,
+  buildCurrentPageSavedViewPermalink,
+  tableViewPresetPermalinkUsesCurrentPath,
 } from "@langfuse/shared";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
@@ -100,6 +102,23 @@ const SYSTEM_PRESET_ID_PREFIX = "__langfuse_";
 /** Check if a view ID is a system preset (defined in code, not stored in DB) */
 export const isSystemPresetId = (id: string | undefined | null): boolean =>
   !!id?.startsWith(SYSTEM_PRESET_ID_PREFIX);
+
+const copyPermalinkAndToast = (href: string) => {
+  copyTextToClipboard(href)
+    .then(() =>
+      showSuccessToast({
+        title: "Permalink copied to clipboard",
+        description: "You can now share the permalink with others",
+      }),
+    )
+    .catch(() =>
+      showErrorToast(
+        "Failed to copy permalink",
+        "Could not write to the clipboard. Please copy the page URL manually.",
+        "WARNING",
+      ),
+    );
+};
 
 /** Recursively remove undefined values for consistent comparison */
 function normalizeForComparison<T>(obj: T): T {
@@ -520,20 +539,27 @@ function TableViewPresetsDrawerContentBody({
     ) {
       // Toast on the clipboard write's resolution: a permission failure must
       // surface an error instead of falsely reporting success.
-      copyTextToClipboard(window.location.href)
-        .then(() =>
-          showSuccessToast({
-            title: "Permalink copied to clipboard",
-            description: "You can now share the permalink with others",
-          }),
-        )
-        .catch(() =>
-          showErrorToast(
-            "Failed to copy permalink",
-            "Could not write to the clipboard. Please copy the page URL manually.",
-            "WARNING",
-          ),
-        );
+      copyPermalinkAndToast(window.location.href);
+      return;
+    }
+
+    // Session detail (and any future resource-scoped table) cannot be
+    // expressed as `/project/:id/<table>?viewId=…` — the session id lives
+    // in the path. Build that on the client instead of hitting the server,
+    // which would 400 (and previously 500'd as a generic Error).
+    if (
+      tableViewPresetPermalinkUsesCurrentPath(tableName) &&
+      typeof window !== "undefined" &&
+      window.location?.origin &&
+      window.location?.pathname
+    ) {
+      copyPermalinkAndToast(
+        buildCurrentPageSavedViewPermalink({
+          origin: window.location.origin,
+          pathname: window.location.pathname,
+          viewId,
+        }),
+      );
       return;
     }
 

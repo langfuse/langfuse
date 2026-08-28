@@ -25,7 +25,7 @@ import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
@@ -212,51 +212,28 @@ export function DatasetItemsTable({
       size: 150,
       enableHiding: true,
     }),
-    {
+    createIOTableColumn<RowData>({
       accessorKey: "input",
       header: "Input",
-      id: "input",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const input = row.getValue("input") as RowData["input"];
-        return input !== null ? (
-          <IOTableCell data={input} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
-    {
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<RowData>({
       accessorKey: "expectedOutput",
       header: "Expected Output",
-      id: "expectedOutput",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const expectedOutput = row.getValue(
-          "expectedOutput",
-        ) as RowData["expectedOutput"];
-        return expectedOutput !== null ? (
-          <IOTableCell
-            data={expectedOutput}
-            className="bg-accent-light-green"
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
-    },
-    {
+      singleLine: rowHeight === "s",
+      variant: "output",
+    }),
+    createIOTableColumn<RowData>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const metadata = row.getValue("metadata") as RowData["metadata"];
-        return metadata !== null ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",

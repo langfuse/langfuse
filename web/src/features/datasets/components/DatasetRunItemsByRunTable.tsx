@@ -193,6 +193,7 @@ export function DatasetRunItemsByRunTable(props: {
       id: "input",
       size: 200,
       enableHiding: true,
+      cellBackground: "gray",
       cell: ({ row }) => {
         const trace: DatasetRunItemByRunRowData["trace"] =
           row.getValue("trace");
@@ -216,6 +217,7 @@ export function DatasetRunItemsByRunTable(props: {
       id: "output",
       size: 200,
       enableHiding: true,
+      cellBackground: "green",
       cell: ({ row }) => {
         const trace: DatasetRunItemByRunRowData["trace"] =
           row.getValue("trace");
@@ -239,6 +241,7 @@ export function DatasetRunItemsByRunTable(props: {
       id: "expectedOutput",
       size: 200,
       enableHiding: true,
+      cellBackground: "green",
       cell: ({ row }) => {
         const datasetItemId: string = row.getValue("datasetItemId");
         return datasetItemId ? (

@@ -11,6 +11,7 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { GetScoresResponseV3 } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 
 describe("/api/public/v3/scores API Endpoint", () => {
@@ -1662,6 +1663,44 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.some((s) => s.id === oldId)).toBe(true);
       expect(res.body.data.some((s) => s.id === newId)).toBe(false);
+    });
+
+    it("clamps Hobby score access to the last 30 days", async () => {
+      const hobbyFixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = v4();
+      const recentId = v4();
+
+      try {
+        await createScoresCh([
+          createTraceScore({
+            id: oldId,
+            project_id: hobbyFixture.projectId,
+            timestamp: new Date(
+              Date.now() - 100 * 24 * 60 * 60 * 1000,
+            ).getTime(),
+          }),
+          createTraceScore({
+            id: recentId,
+            project_id: hobbyFixture.projectId,
+            timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).getTime(),
+          }),
+        ]);
+
+        const res = await makeZodVerifiedAPICall(
+          GetScoresResponseV3,
+          "GET",
+          "/api/public/v3/scores",
+          undefined,
+          hobbyFixture.auth,
+        );
+
+        expect(res.body.data.map((score) => score.id)).toContain(recentId);
+        expect(res.body.data.map((score) => score.id)).not.toContain(oldId);
+      } finally {
+        await prisma.organization.delete({
+          where: { id: hobbyFixture.orgId },
+        });
+      }
     });
 
     it("combines multiple filters with AND semantics", async () => {

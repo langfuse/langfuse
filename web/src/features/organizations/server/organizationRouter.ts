@@ -14,6 +14,7 @@ import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   getLastTraceTimestampsByProjects,
+  isLangfuseAITracingConfigured,
   redis,
 } from "@langfuse/shared/src/server";
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
@@ -315,15 +316,22 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:update",
       });
 
-      if (
-        input.aiTelemetryEnabled !== undefined &&
-        !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "AI telemetry controls are only available on Langfuse Cloud.",
-        });
+      if (input.aiTelemetryEnabled !== undefined) {
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available on Langfuse Cloud.",
+          });
+        }
+
+        if (!isLangfuseAITracingConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available when the AI-features project is configured.",
+          });
+        }
       }
 
       const beforeOrganization = await ctx.prisma.organization.findFirst({

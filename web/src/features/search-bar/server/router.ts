@@ -22,7 +22,6 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
-  LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
@@ -224,8 +223,6 @@ export const searchBarRouter = createTRPCRouter({
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 traceId,
-                environment:
-                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "search-bar-filter",
                 projectId: ctx.session.projectId,
                 traceName: "search-bar-filter",

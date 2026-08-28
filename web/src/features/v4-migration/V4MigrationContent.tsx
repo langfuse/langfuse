@@ -79,6 +79,8 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Headline form of the deadline; the year is noise in a title.
+const V4_MIGRATION_DEADLINE_SHORT = "November 16";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -1207,14 +1209,26 @@ export function V4MigrationDocsLink() {
   );
 }
 
+/**
+ * Headline for the migration surfaces. It names the compatibility deadline
+ * rather than a version: the app shell already shows a v4 build number, so a
+ * "upgrade to v4" title reads as a contradiction to users whose integrations,
+ * not their deployment, are the thing left to update.
+ */
+export function useV4MigrationTitle(): string {
+  return useHasV4MigrationDeadline()
+    ? `Ensure compatibility after ${V4_MIGRATION_DEADLINE_SHORT}`
+    : "Ensure compatibility";
+}
+
 export function V4MigrationDeadlineNote() {
   const hasDeadline = useHasV4MigrationDeadline();
 
   if (!hasDeadline) {
     return (
       <p>
-        Some features may stop working without an upgrade once your
-        administrator disables the legacy mode.
+        Some features may stop working if you don&apos;t update integrations
+        before your administrator disables the legacy mode.
       </p>
     );
   }
@@ -1228,7 +1242,7 @@ export function V4MigrationDeadlineNote() {
       >
         {V4_MIGRATION_DEADLINE}
       </ExternalLink>{" "}
-      some features may stop working without a v4 upgrade.
+      some features may stop working if you don&apos;t update integrations.
     </p>
   );
 }
@@ -1248,6 +1262,7 @@ export function V4MigrationHeaderContent({
   readiness?: ProjectMigrationReadiness;
 }) {
   const actionNeeded = readiness === "action-needed";
+  const title = useV4MigrationTitle();
 
   return (
     <>
@@ -1257,7 +1272,7 @@ export function V4MigrationHeaderContent({
           titleRowClassName,
         )}
       >
-        <p className="min-w-0 text-lg font-bold">Upgrade to v4</p>
+        <p className="min-w-0 text-lg font-bold">{title}</p>
       </div>
       <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
         <p>
@@ -1300,7 +1315,7 @@ export function V4MigrationHeaderContent({
           </ExternalLink>
           .
           {actionNeeded
-            ? " Complete the action items below to switch this project over."
+            ? " Complete the action items below to avoid disruption."
             : ""}{" "}
           <V4MigrationDocsLink />
         </p>
