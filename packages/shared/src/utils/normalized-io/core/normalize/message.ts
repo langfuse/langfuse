@@ -205,8 +205,9 @@ export function normalizeMessage(
   }
 
   const nestedContent = asRecord(value.content);
+  const recognizedRole = normalizeRole(value);
   let role =
-    normalizeRole(value) ??
+    recognizedRole ??
     (nestedContent ? normalizeRole(nestedContent) : undefined) ??
     fallbackRole;
 
@@ -233,20 +234,18 @@ export function normalizeMessage(
     asRecord(value.response_metadata), // langchain
   );
 
-  // Unrecognized declared roles (e.g. LangGraph putting the tool name in the
-  // role field) collapse to "unknown" — keep the raw string as the name so
-  // the information survives.
-  const declaredRole =
-    typeof value.role === "string" ? optionalString(value.role) : undefined;
+  // Sender identity: an explicit participant name, or — for unrecognized
+  // declared roles (e.g. LangGraph putting the agent name in the role field)
+  // — the raw role string, so the identity survives the role fallback.
+  const declaredRole = optionalString(value.role ?? value.author);
+  const senderName =
+    optionalString(value.name) ??
+    (recognizedRole === undefined ? declaredRole : undefined);
 
   return parts.length > 0
     ? {
         ...(optionalString(value.id) ? { id: String(value.id) } : {}),
-        ...(optionalString(value.name)
-          ? { name: String(value.name) }
-          : role === "unknown" && declaredRole
-            ? { name: declaredRole }
-            : {}),
+        ...(senderName ? { senderName } : {}),
         role,
         parts,
         ...(finishReason ? { finishReason } : {}),

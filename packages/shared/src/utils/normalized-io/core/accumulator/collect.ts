@@ -18,10 +18,6 @@ export type ParsedIOValue = {
   messages?: unknown[];
 };
 
-type CollectContext =
-  | { kind: "io"; parserContext: ParserContext }
-  | { kind: "metadata" };
-
 function collectToolDefinitionsFromRecord(
   record: Record<string, unknown>,
   accumulator: NormalizedIOAccumulator,

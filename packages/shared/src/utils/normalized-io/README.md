@@ -112,14 +112,16 @@ core never changes. The pipeline:
    envelope with the role derived from the class path, GenAI choice events
    `{index, message, finish_reason}`), then Python-repr message strings
    (agno). Roles normalize to
-   `system | developer | user | assistant | tool | unknown` with deliberate
+   `system | user | assistant | tool` with deliberate
    coercions: `model → assistant`, deprecated `function → tool` (name becomes
    the tool name), role-less Responses reasoning items → `assistant` (model
    output even in replayed input history), user messages consisting solely of
    tool results → `tool`, tool-labeled turns without a `tool_call_id` →
    assistant call batches or tool-results (the content _is_ the tool's
-   response), unrecognized declared roles → `unknown` with the raw string
-   preserved as `name`.
+   response), unrecognized declared roles (multi-agent frameworks putting the
+   agent name in the role field) → the contextual fallback role with the raw
+   string preserved as `senderName`. `senderName` otherwise carries an
+   explicit participant `name` (OpenAI/LangChain).
 4. **Part normalization.** Per message: content arrays/parts run through the
    part parser; string content splits into interleaved text and file parts
    around embedded media tokens; JSON-string arrays of tool shapes parse into
@@ -199,6 +201,10 @@ or the fixture documents it.
   provider convention that owns it (`ai.prompt.tools` — AI SDK,
   `gen_ai.tool.definitions` / `llm.tools.N.…` — GenAI,
   `model_request_parameters.function_tools` — Pydantic AI).
+- **Role** Unrecognized declared roles fall back to the contextual role (`user`
+  on` input, assistant on output) with the raw string preserved as senderName.
+  The parser does not correlate role strings with known tool names, so such
+  turns surface as regular messages, not tool turns.
 
 ### Intentional losses
 

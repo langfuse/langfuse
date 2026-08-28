@@ -127,10 +127,7 @@ export type NormalizedMessageRole =
   | "developer"
   | "user"
   | "assistant"
-  | "tool"
-  // unknown = declared but unrecognized (eg. role: "agent_7"). Consider if
-  // this is the best mapping.
-  | "unknown";
+  | "tool";
 
 /**
  * How the model's turn ended, canonicalized across providers so consumers
@@ -153,7 +150,13 @@ export type FinishReason = {
 export type NormalizedMessage = {
   id?: string;
   role: NormalizedMessageRole;
-  name?: string;
+  /**
+   * Sender identity beyond the canonical role: an explicit participant name
+   * (OpenAI/LangChain `name`, e.g. `alice` or `example_user`) or the raw
+   * declared role when it is not a recognized role (e.g. multi-agent frameworks
+   * putting the agent name in the role field)
+   */
+  senderName?: string;
   parts: NormalizedMessagePart[];
   // Turn metadata, not conversation content — a message field rather than a
   // part so text extraction, rendering, and tool-column paths stay untouched.

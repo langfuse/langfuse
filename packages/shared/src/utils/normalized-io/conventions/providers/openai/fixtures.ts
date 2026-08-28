@@ -31,7 +31,14 @@ export const openAiChatCompletionToolSequenceFixture = {
         },
       ],
       messages: [
-        { role: "user", content: "What is the weather in Zurich?" },
+        // `name` differentiates same-role participants — carried as the
+        // message's senderName (unlike the function-role `name` below,
+        // which is a tool name).
+        {
+          role: "user",
+          name: "alice",
+          content: "What is the weather in Zurich?",
+        },
         {
           role: "assistant",
           content: "",
@@ -71,6 +78,7 @@ export const openAiChatCompletionToolSequenceFixture = {
     messages: [
       {
         role: "user",
+        senderName: "alice",
         parts: [{ type: "text", text: "What is the weather in Zurich?" }],
         source: "input",
       },

@@ -19,7 +19,10 @@ export function normalizeRole(
       if (role) return role;
     }
     if (CANONICAL_ROLES.has(lowered)) return lowered as NormalizedMessageRole;
-    return "unknown";
+    // Unrecognized strings are identities, not roles (e.g. LangGraph agent
+    // names): the caller falls back to the contextual role and preserves the
+    // raw string as `senderName`.
+    return undefined;
   }
 
   if (typeof message.type !== "string") return undefined;

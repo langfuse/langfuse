@@ -7,8 +7,8 @@ import type { NormalizedIOFixture } from "../../fixture-types";
  * - Koog/TraceLoop turns labeled `tool` without a tool_call_id: a JSON-string
  *   array of calls is a mislabeled assistant turn; plain text is the tool's
  *   response (tool-result), not conversation text.
- * - LangGraph putting the tool name in the role field (unknown role, raw
- *   string preserved as name).
+ * - LangGraph putting the tool name in the role field (falls back to the
+ *   contextual role, raw string preserved as senderName).
  * - Non-message payloads (function-span args/results) becoming data parts
  *   instead of being dropped.
  * - GenAI choice-event envelopes ({index, message, finish_reason}) unwrapping
@@ -86,8 +86,8 @@ export const looseProviderMessageShapesFixture = {
         source: "input",
       },
       {
-        role: "unknown",
-        name: "get_weather",
+        role: "user",
+        senderName: "get_weather",
         parts: [{ type: "text", text: "Sunny, 22 degrees (echo)" }],
         source: "input",
       },

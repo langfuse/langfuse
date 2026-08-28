@@ -1,5 +1,4 @@
 import { registeredProviders } from "../../conventions";
-import type { ToolDefinitionSource } from "../../conventions/io-convention";
 import {
   asRecord,
   compact,
@@ -130,15 +129,6 @@ export function normalizeToolDefinitionValue(
     if (normalized) definitions.push(normalized);
   }
   return definitions;
-}
-
-/** Normalizes every located source and flattens the results in order. */
-function normalizeToolDefinitionSources(
-  sources: ToolDefinitionSource[],
-): ToolDefinition[] {
-  return sources.flatMap((source) =>
-    normalizeToolDefinitionValue(source.value, source.options),
-  );
 }
 
 export type ToolDefinitionFields = {
