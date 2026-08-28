@@ -19,7 +19,7 @@ import {
   BatchActionType,
   BatchExportTableName,
 } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
@@ -416,19 +416,13 @@ export function DatasetsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createIOTableColumn<DatasetTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",

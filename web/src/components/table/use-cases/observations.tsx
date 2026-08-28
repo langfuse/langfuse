@@ -59,7 +59,7 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "../../ui/IOTableCell";
+import { IOTableCell } from "../../design-system/Table/components/IOTableCell/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
@@ -729,12 +729,7 @@ export default function ObservationsTable({
       id: "input",
       size: 300,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={rowHeight === "s"}
-        />
+        <IOTableCell isLoading variant="input" singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -758,10 +753,9 @@ export default function ObservationsTable({
       header: "Output",
       size: 300,
       loadingCell: () => (
-        <MemoizedIOTableCell
+        <IOTableCell
           isLoading
-          data={undefined}
-          className="bg-accent-light-green"
+          variant="output"
           singleLine={rowHeight === "s"}
         />
       ),
@@ -978,11 +972,7 @@ export default function ObservationsTable({
       header: "Metadata",
       size: 300,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <IOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -1652,15 +1642,12 @@ const GenerationsDynamicCell = ({
         ? observation.data?.input
         : observation.data?.metadata;
 
-  return (
-    <MemoizedIOTableCell
-      isLoading={observation.isPending}
-      data={data}
-      className={cn(
-        col === "output" && "bg-accent-light-green",
-        col === "input" && "bg-muted/50",
-      )}
-      singleLine={singleLine}
-    />
-  );
+  const variant =
+    col === "input" ? "input" : col === "output" ? "output" : "default";
+
+  if (observation.isPending) {
+    return <IOTableCell isLoading variant={variant} singleLine={singleLine} />;
+  }
+
+  return <IOTableCell data={data} variant={variant} singleLine={singleLine} />;
 };

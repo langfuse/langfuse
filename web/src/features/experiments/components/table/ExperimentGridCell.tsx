@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -480,12 +480,17 @@ export const ExperimentGridCell = ({
         accessorKey: "output",
         header: "Output",
         cell: ({ data }) => (
-          <MemoizedIOTableCell
-            isLoading={data.isLoading}
-            data={data.output ?? null}
-            className="bg-accent-light-green min-h-8"
-            singleLine={singleLine}
-          />
+          <div className="min-h-8">
+            {data.isLoading ? (
+              <IOTableCell isLoading variant="output" singleLine={singleLine} />
+            ) : (
+              <IOTableCell
+                data={data.output ?? null}
+                variant="output"
+                singleLine={singleLine}
+              />
+            )}
+          </div>
         ),
       },
       // Keep all score levels together. Individual score visibility still
@@ -649,7 +654,7 @@ export const ExperimentGridCell = ({
         const isFirst = index === 0;
         const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for MemoizedIOTableCell
+        // Output section - special handling for IOTableCell
         if (row.accessorKey === "output" && row.cell) {
           return (
             <Fragment key={row.accessorKey}>

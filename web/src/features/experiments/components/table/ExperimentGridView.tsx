@@ -1,6 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  createIOTableColumn,
+  IO_TABLE_COLUMN_LOADING,
+} from "@/src/components/design-system/Table/columns/createIOTableColumn";
 import { Badge } from "@/src/components/ui/badge";
 import {
   ExperimentGridCell,
@@ -200,33 +203,23 @@ export const ExperimentGridView = ({
     () => [
       // Include select column if provided
       ...(selectActionColumn ? [selectActionColumn] : []),
-      {
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.input ?? null}
-            singleLine={singleLine}
-          />
-        ),
-      },
-      {
+        getCell: (value) =>
+          isLoading ? IO_TABLE_COLUMN_LOADING : (value ?? null),
+        singleLine,
+      }),
+      createIOTableColumn<ExperimentItemsTableRow>({
         accessorKey: "expectedOutput",
-        id: "expectedOutput",
         header: "Expected Output",
         size: 200,
-        cell: ({ row }) => (
-          <MemoizedIOTableCell
-            isLoading={isLoading}
-            data={row.original.expectedOutput ?? null}
-            singleLine={singleLine}
-            className="bg-accent-light-green"
-          />
-        ),
-      },
+        getCell: (value) =>
+          isLoading ? IO_TABLE_COLUMN_LOADING : (value ?? null),
+        singleLine,
+        variant: "output",
+      }),
       ...experimentColumns,
     ],
     [experimentColumns, isLoading, selectActionColumn, singleLine],

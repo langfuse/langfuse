@@ -56,7 +56,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "../../ui/IOTableCell";
+import { IOTableCell } from "../../design-system/Table/components/IOTableCell/IOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
@@ -695,12 +695,7 @@ export default function TracesTable({
       id: "input",
       size: 400,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={rowHeight === "s"}
-        />
+        <IOTableCell isLoading variant="input" singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -724,10 +719,9 @@ export default function TracesTable({
       id: "output",
       size: 400,
       loadingCell: () => (
-        <MemoizedIOTableCell
+        <IOTableCell
           isLoading
-          data={undefined}
-          className="bg-accent-light-green"
+          variant="output"
           singleLine={rowHeight === "s"}
         />
       ),
@@ -879,11 +873,7 @@ export default function TracesTable({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <IOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: (
@@ -1590,14 +1580,17 @@ const TracesDynamicCell = ({
         ? trace.data?.input
         : trace.data?.metadata;
 
+  const variant =
+    col === "input" ? "input" : col === "output" ? "output" : "default";
+
+  if (trace.isPending) {
+    return <IOTableCell isLoading variant={variant} singleLine={singleLine} />;
+  }
+
   return (
-    <MemoizedIOTableCell
-      isLoading={trace.isPending}
+    <IOTableCell
       data={data}
-      className={cn(
-        col === "output" && "bg-accent-light-green",
-        col === "input" && "bg-muted/50",
-      )}
+      variant={variant}
       singleLine={singleLine}
       enableExpandOnHover={singleLine}
     />

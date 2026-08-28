@@ -19,9 +19,12 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/components/ui/IOTableCell", () => ({
-  MemoizedIOTableCell: () => <div>IO cell</div>,
-}));
+vi.mock(
+  "@/src/components/design-system/Table/components/IOTableCell/IOTableCell",
+  () => ({
+    IOTableCell: () => <div>IO cell</div>,
+  }),
+);
 
 const observationScoreKey = "quality-EVAL-NUMERIC";
 const traceScoreKey = "correctness-API-NUMERIC";

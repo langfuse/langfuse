@@ -4,7 +4,7 @@ import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -101,25 +101,15 @@ export const AutomationExecutionsTable: React.FC<
         );
       },
     },
-    {
+    createIOTableColumn<ActionExecutionRow>({
       accessorKey: "input",
       header: "Input",
-      id: "input",
-      cell: ({ row }) => {
-        const value = row.getValue("input");
-        return <IOTableCell data={value} />;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<ActionExecutionRow>({
       accessorKey: "output",
       header: "Output",
-      id: "output",
-      cell: ({ row }) => {
-        const value = row.getValue("output");
-        if (!value) return <span className="text-muted-foreground">-</span>;
-        return <IOTableCell data={value} />;
-      },
-    },
+      variant: "output",
+    }),
     {
       accessorKey: "error",
       header: "Error",

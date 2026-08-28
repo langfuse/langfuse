@@ -3,6 +3,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
 import {
@@ -10,7 +11,6 @@ import {
   type Prisma,
   type ScoreConfigCategoryDomain,
 } from "@langfuse/shared";
-import { IOTableCell } from "../../ui/IOTableCell";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
   isBooleanDataType,
@@ -112,33 +112,20 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       size: 80,
       enableHiding: true,
     },
-    {
-      accessorKey: "range",
+    createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
+      accessorFn: getConfigRange,
       header: "Range",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const range = getConfigRange(row.original);
-
-        return !!range ? (
-          <IOTableCell data={range} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
-    {
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ScoreConfigTableRow>({
       accessorKey: "description",
-      id: "description",
       header: "Description",
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.original.description;
-
-        return !!value ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      singleLine: rowHeight === "s",
+    }),
     {
       accessorKey: "id",
       id: "id",

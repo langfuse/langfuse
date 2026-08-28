@@ -36,6 +36,10 @@ import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
+import {
+  createIOTableColumn,
+  IO_TABLE_COLUMN_LOADING,
+} from "@/src/components/design-system/Table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -51,7 +55,7 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
 import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
@@ -185,12 +189,7 @@ const StackedOutputRow = ({
           markerClass,
         )}
       />
-      <MemoizedIOTableCell
-        isLoading={false}
-        data={output}
-        singleLine={singleLine}
-        className="bg-accent-light-green"
-      />
+      <IOTableCell data={output} singleLine={singleLine} variant="output" />
     </div>
   );
 };
@@ -237,11 +236,7 @@ const StackedOutputCell = ({
             {isLoading ? (
               <div className="flex min-w-0 items-start">
                 <span className="bg-muted mt-0.5 mr-2 block h-4 w-0.5 shrink-0 rounded-full" />
-                <MemoizedIOTableCell
-                  isLoading={true}
-                  data={null}
-                  singleLine={singleLine}
-                />
+                <IOTableCell isLoading singleLine={singleLine} />
               </div>
             ) : out?.output ? (
               <StackedOutputRow
@@ -823,39 +818,24 @@ export default function ExperimentItemsTable({
         );
       },
     },
-    {
+    createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "input",
-      id: "input",
       header: "Input",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.input ?? null}
-            singleLine={ioSingleLine}
-          />
-        );
-      },
-    },
-    {
+      getCell: (value) =>
+        ioLoading ? IO_TABLE_COLUMN_LOADING : (value ?? null),
+      singleLine: ioSingleLine,
+    }),
+    createIOTableColumn<ExperimentItemsTableRow>({
       accessorKey: "expectedOutput",
-      id: "expectedOutput",
       header: "Expected Output",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        return (
-          <MemoizedIOTableCell
-            isLoading={ioLoading}
-            data={row.original.expectedOutput ?? ""}
-            singleLine={ioSingleLine}
-            className="bg-accent-light-green"
-          />
-        );
-      },
-    },
+      getCell: (value) => (ioLoading ? IO_TABLE_COLUMN_LOADING : (value ?? "")),
+      singleLine: ioSingleLine,
+      variant: "output",
+    }),
     {
       accessorKey: "output",
       id: "output",

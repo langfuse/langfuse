@@ -24,11 +24,12 @@ import { createFolderKeyTableColumn } from "@/src/components/design-system/Table
 import { createIdTableColumn } from "@/src/components/design-system/Table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/Table/columns/createIOTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/Table/components/IOTableCell/IOTableCell";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   LevelCountsDisplay,
@@ -230,7 +231,7 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
-// cells use the same MemoizedIOTableCell with the same bg classes + the
+// cells use the same IOTableCell variants + the
 // `singleLine = rowHeight === "s"` rule the real table applies.
 
 function buildTraceColumns(
@@ -285,44 +286,25 @@ function buildTraceColumns(
       id: "input",
       size: 400,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={singleLine}
-        />
+        <IOTableCell isLoading variant="input" singleLine={singleLine} />
       ),
       cell: ({ row }) => (
-        <MemoizedIOTableCell
+        <IOTableCell
           data={row.original.input}
-          className="bg-muted/50"
+          variant="input"
           singleLine={singleLine}
           enableExpandOnHover={singleLine}
         />
       ),
     },
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "output",
       header: "Output",
-      id: "output",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.output}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
+      singleLine,
+      enableExpandOnHover: singleLine,
+      variant: "output",
+    }),
     {
       accessorKey: "levelCounts",
       id: "levelCounts",
@@ -433,26 +415,13 @@ function buildTraceColumns(
       },
       shouldWrap: rowHeight !== "s",
     }),
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.metadata}
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
+      singleLine,
+      enableExpandOnHover: singleLine,
+    }),
     {
       accessorKey: "userId",
       header: "User",
