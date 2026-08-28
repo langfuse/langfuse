@@ -15,8 +15,8 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import {
+  AnnotateDrawerController,
   AnnotateDrawerMenuButton,
   AnnotateDrawerToolbarButton,
 } from "@/src/features/scores/components/AnnotateDrawerController";
