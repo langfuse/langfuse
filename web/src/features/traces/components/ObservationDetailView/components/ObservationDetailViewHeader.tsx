@@ -20,7 +20,9 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { NewDatasetItemFromTraceOrObservation } from "@/src/features/datasets/components/NewDatasetItemFromTraceOrObservation";
+import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -59,6 +61,7 @@ import {
   MessageSquare,
   MessageSquareOff,
   MoreHorizontal,
+  PlusIcon,
   SquarePen,
   Terminal,
 } from "lucide-react";
@@ -134,6 +137,18 @@ export const ObservationDetailViewHeader = memo(
       projectId,
       scope: "scores:CUD",
     });
+    const {
+      existingDatasetItems,
+      hasAccess: hasDatasetAccess,
+      captureNewDatasetItemFormOpen,
+    } = useDatasetItemFromTraceOrObservation({
+      projectId,
+      traceId,
+      observationId: observation.id,
+      enabled: Boolean(observationWithIO),
+    });
+    const datasetCount = existingDatasetItems.length;
+    const hasExistingDatasetItems = datasetCount > 0;
 
     // Format cost and usage values
     const totalCost = observation.totalCost;
@@ -208,15 +223,63 @@ export const ObservationDetailViewHeader = memo(
                   className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
                 >
                   {observationWithIO && (
-                    <NewDatasetItemFromTraceOrObservation
+                    <NewDatasetItemFromExistingObjectDialogController
                       traceId={traceId}
                       observationId={observation.id}
                       projectId={projectId}
                       input={observationWithIO.input}
                       output={observationWithIO.output}
                       metadata={observationWithIO.metadata}
-                      layout="menu"
-                    />
+                    >
+                      {({ openDialog }) => (
+                        <ExistingDatasetItemsDropdownMenuController
+                          projectId={projectId}
+                          datasetItems={existingDatasetItems}
+                          disabled={!hasDatasetAccess}
+                          onOpenDialog={openDialog}
+                        >
+                          {({ Anchor, openDropdown }) => (
+                            <Anchor>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!hasDatasetAccess}
+                                className="w-full justify-start gap-2 font-normal"
+                                onClick={() => {
+                                  if (hasExistingDatasetItems) {
+                                    openDropdown();
+                                    return;
+                                  }
+
+                                  captureNewDatasetItemFormOpen();
+                                  openDialog();
+                                }}
+                              >
+                                {hasExistingDatasetItems || hasDatasetAccess ? (
+                                  <PlusIcon
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ) : null}
+                                <span className="text-sm">
+                                  {hasExistingDatasetItems
+                                    ? `In ${datasetCount} dataset(s)`
+                                    : "Add to datasets"}
+                                </span>
+                                {hasExistingDatasetItems ? (
+                                  <ChevronDown className="ml-auto h-3 w-3" />
+                                ) : !hasDatasetAccess ? (
+                                  <LockIcon
+                                    className="ml-auto h-3 w-3"
+                                    aria-hidden="true"
+                                  />
+                                ) : null}
+                              </Button>
+                            </Anchor>
+                          )}
+                        </ExistingDatasetItemsDropdownMenuController>
+                      )}
+                    </NewDatasetItemFromExistingObjectDialogController>
                   )}
                   {!isAnnotationMode && (
                     <>
@@ -376,7 +439,7 @@ export const ObservationDetailViewHeader = memo(
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
-                <NewDatasetItemFromTraceOrObservation
+                <NewDatasetItemFromExistingObjectDialogController
                   traceId={traceId}
                   observationId={observation.id}
                   projectId={projectId}
@@ -384,8 +447,53 @@ export const ObservationDetailViewHeader = memo(
                   output={observationWithIO.output}
                   metadata={observationWithIO.metadata}
                   key={observation.id}
-                  size="sm"
-                />
+                >
+                  {({ openDialog }) => (
+                    <ExistingDatasetItemsDropdownMenuController
+                      projectId={projectId}
+                      datasetItems={existingDatasetItems}
+                      disabled={!hasDatasetAccess}
+                      onOpenDialog={openDialog}
+                    >
+                      {({ Anchor, openDropdown }) => (
+                        <Anchor>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={!hasDatasetAccess}
+                            onClick={() => {
+                              if (hasExistingDatasetItems) {
+                                openDropdown();
+                                return;
+                              }
+
+                              captureNewDatasetItemFormOpen();
+                              openDialog();
+                            }}
+                          >
+                            {!hasExistingDatasetItems && hasDatasetAccess ? (
+                              <PlusIcon
+                                className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            {hasExistingDatasetItems
+                              ? `In ${datasetCount} dataset(s)`
+                              : "Add to datasets"}
+                            {hasExistingDatasetItems ? (
+                              <ChevronDown className="ml-2 h-3 w-3" />
+                            ) : !hasDatasetAccess ? (
+                              <LockIcon
+                                className="ml-1.5 h-3 w-3"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                          </Button>
+                        </Anchor>
+                      )}
+                    </ExistingDatasetItemsDropdownMenuController>
+                  )}
+                </NewDatasetItemFromExistingObjectDialogController>
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
