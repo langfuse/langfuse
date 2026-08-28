@@ -13,12 +13,28 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { type QueryType } from "@langfuse/shared/query";
 import type { MetricOption } from "@/src/features/experiments/types/charts";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { cn } from "@/src/utils/tailwind";
+import {
+  MetricStripBand,
+  MetricStripHeaderRow,
+  MetricStripMessage,
+  METRIC_STRIP_PLOT_HEIGHT_CLASS,
+  type MetricStripStatus,
+} from "@/src/components/metric-strip/MetricStripBand";
+import {
+  METRIC_STRIP_TRIGGER_CLASS,
+  metricStripTriggerClasses,
+} from "@/src/components/metric-strip/MetricStripTrigger";
 import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
+
+/**
+ * Stable node: `Chart` is memoized, so a fresh element on every render would
+ * defeat it. Says which half is missing — the metric, not the experiments.
+ */
+const EMPTY_PLOT = <MetricStripMessage message="No values for this metric" />;
 
 const AXIS_EXPLANATION =
   "One point per experiment in view, oldest on the left and newest on the right, so a metric that improved over time rises. The table below stays newest-first; filtering it changes which experiments are plotted, not their left-to-right order. Experiments with no value for this metric are left out, and hovering a point names the experiment.";
@@ -218,50 +234,63 @@ export function ExperimentMetricStrip({
 
   const isChartEnabled =
     Boolean(selectedMetricOption) && orderedExperiments.length > 0;
-  const isStripLoading = isExternalLoading || isLoading;
+  const status: MetricStripStatus =
+    isExternalLoading || isLoading
+      ? "loading"
+      : isChartEnabled
+        ? "ready"
+        : "empty";
 
   return (
-    // Ruled top and bottom so the strip reads as its own band between the
-    // toolbar and the table header.
-    <div className="shrink-0 border-y px-3 pt-2 pb-1">
-      <div className="flex items-baseline gap-1.5">
-        <Select value={metricId} onValueChange={handleMetricChange}>
-          <SelectTrigger
-            aria-label={`Chart metric: ${selectedLabel}`}
-            className="text-foreground hover:text-muted-foreground h-auto w-auto gap-0.5 border-0 bg-transparent p-0 text-[13px] leading-none font-bold shadow-none focus:ring-0 focus:ring-offset-0"
-            hideDownIcon
-          >
-            <SelectValue placeholder="Select metric...">
-              {selectedLabel}
-            </SelectValue>
-            <ChevronDown className="h-2.5 w-2.5" />
-          </SelectTrigger>
-          <SelectContent>
-            {Array.from(groupedOptions.entries()).map(([group, options]) => (
-              <SelectGroup key={group}>
-                <SelectLabel className="text-xs font-bold">{group}</SelectLabel>
-                {options.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-muted-foreground flex items-baseline text-xs leading-none">
-          oldest to newest
-          <DocPopup description={AXIS_EXPLANATION} />
-        </span>
-      </div>
-
-      {/* 64px of canvas — the events table's outlier strip budget. */}
-      <div className="mt-1.5 flex h-16 flex-col">
-        {isStripLoading ? (
-          <Skeleton className="h-full w-full" />
-        ) : !isChartEnabled || !query || !widgetConfig ? (
-          <NoDataOrLoading isLoading={false} className="h-full" />
-        ) : (
+    <MetricStripBand
+      status={status}
+      header={
+        <MetricStripHeaderRow>
+          <Select value={metricId} onValueChange={handleMetricChange}>
+            <SelectTrigger
+              aria-label={`Chart metric: ${selectedLabel}`}
+              // The band's own bold trigger (`MetricStripTrigger`), on a
+              // Select rather than a DropdownMenu: this list is grouped and
+              // long (every score name, at three levels), so it needs the
+              // scrolling and type-to-find a Select brings.
+              className={cn(
+                METRIC_STRIP_TRIGGER_CLASS,
+                metricStripTriggerClasses.metric,
+                "h-auto w-auto border-0 bg-transparent p-0 shadow-none focus:ring-0 focus:ring-offset-0",
+              )}
+              hideDownIcon
+            >
+              <SelectValue placeholder="Select metric...">
+                {selectedLabel}
+              </SelectValue>
+              <ChevronDown className="h-2.5 w-2.5" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from(groupedOptions.entries()).map(([group, options]) => (
+                <SelectGroup key={group}>
+                  <SelectLabel className="text-xs font-bold">
+                    {group}
+                  </SelectLabel>
+                  {options.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-muted-foreground flex items-baseline text-xs leading-none">
+            oldest to newest
+            <DocPopup description={AXIS_EXPLANATION} />
+          </span>
+        </MetricStripHeaderRow>
+      }
+    >
+      <div
+        className={cn("mt-1.5 flex flex-col", METRIC_STRIP_PLOT_HEIGHT_CLASS)}
+      >
+        {query && widgetConfig && (
           <WidgetContent
             projectId={projectId}
             query={query}
@@ -275,13 +304,16 @@ export function ExperimentMetricStrip({
             isExternalLoading={isExternalLoading}
             layoutHint="tight"
             entityDimensionLabelMap={entityDimensionLabelMap}
-            // Experiment names are far too long for a 64px band; the table
-            // below carries identity (the axis is its order) and the tooltip
+            // The band is 63px: the chart's own "No data" card is taller than
+            // that and clips its own text inside it.
+            emptyState={EMPTY_PLOT}
+            // Experiment names are far too long for the band; the table below
+            // carries identity (the axis is its order) and the tooltip
             // carries the exact name.
             hideXAxisLabels
           />
         )}
       </div>
-    </div>
+    </MetricStripBand>
   );
 }

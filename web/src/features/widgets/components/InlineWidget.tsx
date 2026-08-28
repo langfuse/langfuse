@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -82,6 +82,11 @@ export interface WidgetContentProps {
    * charts (experiments) whose long names clutter the axis.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Replaces the chart's default "No data" card — for a widget in a band too
+   * short for it. Pass a stable node (see `Chart`).
+   */
+  emptyState?: ReactNode;
 }
 
 // ============================================================================
@@ -128,6 +133,7 @@ export function WidgetContent({
   className,
   entityDimensionLabelMap,
   hideXAxisLabels,
+  emptyState,
 }: WidgetContentProps) {
   const { isBetaEnabled } = useV4Beta();
   const [retryCount, setRetryCount] = useState(0);
@@ -391,6 +397,7 @@ export function WidgetContent({
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
+        emptyState={emptyState}
       />
       <ChartLoadingState
         isLoading={chartLoadingState.isLoading}
