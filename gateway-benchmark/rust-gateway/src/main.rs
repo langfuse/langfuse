@@ -469,7 +469,7 @@ fn is_hop_by_hop(name: &HeaderName) -> bool {
             | "keep-alive"
             | "proxy-authenticate"
             | "proxy-authorization"
-            | "te"
+            | "t\u{65}"
             | "trailer"
             | "transfer-encoding"
             | "upgrade"

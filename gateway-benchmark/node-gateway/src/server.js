@@ -194,13 +194,10 @@ app.post(
           );
         } else {
           const anthropicBody = await upstream.body.json();
-          const translated = Buffer.from(
-            JSON.stringify(anthropicResponseToOpenAi(anthropicBody)),
-          );
-          output.add(translated);
-          response.setHeader("content-type", "application/json");
+          const translated = anthropicResponseToOpenAi(anthropicBody);
+          output.add(Buffer.from(JSON.stringify(translated)));
           finalizeTelemetry();
-          response.send(translated);
+          response.json(translated);
         }
       } else {
         await pipeline(

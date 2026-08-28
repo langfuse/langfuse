@@ -901,12 +901,12 @@ mod tests {
 data: {"type":"message_start","message":{"id":"msg_1","model":"claude-test"}}
 
 event: content_block_delta
-data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"hel"#,
+data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"hell"#,
             )
             .unwrap();
         let second = translator
             .push(
-                br#"lo"}}
+                br#"o"}}
 
 event: message_delta
 data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}
