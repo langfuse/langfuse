@@ -1,7 +1,7 @@
 import { eventsEvalFilterColumns } from "@langfuse/shared";
 
 import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
-import { DATASET_NAME_FILTER_COLUMN } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/datasetNameFilter";
+import { DATASET_NAME_FILTER_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
 
 /**
  * Derived from the same columns the rule service validates. The overlay only

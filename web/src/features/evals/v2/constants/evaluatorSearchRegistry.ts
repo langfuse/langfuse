@@ -1,4 +1,4 @@
-import { DATASET_NAME_FILTER_COLUMN } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/datasetNameFilter";
+import { DATASET_NAME_FILTER_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import {
   EVENTS_FIELD_REGISTRY,
   extendFieldRegistryWithColumns,
