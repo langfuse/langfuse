@@ -118,6 +118,10 @@ class LimitByPlugin implements KyselyPlugin {
   }
 }
 
+// Kysely parses `"table.column"` at the expression-builder layer (`eb.ref`),
+// but these plugins/helpers build raw OperationNodes where no ExpressionBuilder
+// is in scope, and Kysely does not export its string-reference parser. So we
+// split the dotted name into the node primitives ourselves.
 function columnRef(name: string): OperationNode {
   const parts = name.split(".");
   if (parts.length === 2) {
