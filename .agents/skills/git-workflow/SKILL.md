@@ -55,9 +55,10 @@ operations.
 - Keep PRs narrow enough to review without unrelated refactors.
 - Open PRs as reviewable, not as drafts, unless a human asks for a draft.
 - Do not post GitHub PR comments as the human author. Cursor agents that
-  comment as Cursor should leave one last "what to doubt" comment when the
-  PR is ready; see `cursor-agents-workflow`. Claude Code and other tools
-  that comment as the user must skip that comment.
+  comment as Cursor should leave one last comment with proof of user-visible
+  work (screenshot, video, or before/after on the PR, not only in chat) and
+  what to doubt in review; see `cursor-agents-workflow`. Claude Code and
+  other tools that comment as the user must skip that comment.
 - Claude, Greptile, or Codex review comments (`claude[bot]`, Claude Code,
   security-review action, `greptile-apps[bot]`,
   `chatgpt-codex-connector[bot]`): do not reply. Keep the thread open until
