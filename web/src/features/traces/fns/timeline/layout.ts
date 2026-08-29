@@ -108,7 +108,7 @@ export type PositionedNode<TNode extends LayoutNode = LayoutNode> = {
   endMs: number;
 };
 
-export type Tick = { realMs: number; x: number; label: string };
+type Tick = { realMs: number; x: number; label: string };
 
 type GapMarker = {
   x: number;
@@ -175,7 +175,7 @@ const TICK_LABEL_PADDING_PX = 16;
 /** The tick line itself — a `border-l`, which the label is positioned inside of. */
 const TICK_LINE_PX = 1;
 /** The gap between that line and its label. */
-export const TICK_LABEL_GAP_PX = 4;
+const TICK_LABEL_GAP_PX = 4;
 /**
  * What a label costs to the right of its tick's `x`: the line, then the gap.
  * Derived rather than written down, and exported, because the renderer positions
@@ -188,7 +188,7 @@ export const TICK_LABEL_GAP_PX = 4;
  * then gets truncated by its clamp. A reservation that does not match the render
  * is wrong even when it errs safely, because nothing says which way it errs next.
  */
-export const TICK_LABEL_INSET_PX = TICK_LINE_PX + TICK_LABEL_GAP_PX;
+const TICK_LABEL_INSET_PX = TICK_LINE_PX + TICK_LABEL_GAP_PX;
 
 // Nice tick steps in ms. Above a minute they land on time-nice boundaries so
 // hour-scale traces get clean labels instead of "1500s".

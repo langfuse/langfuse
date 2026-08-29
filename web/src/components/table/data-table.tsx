@@ -20,6 +20,7 @@ import {
 } from "@/src/components/table/data-table-row-height-switch";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import {
+  type DataTableCellBackground,
   type DataTableCellPadding,
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
@@ -209,6 +210,15 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
       return "px-1";
   }
 };
+
+const cellBackgroundClassNames = {
+  gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green:
+    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+} satisfies Record<DataTableCellBackground, string>;
+
+const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
+  background ? cellBackgroundClassNames[background] : undefined;
 
 export function DataTable<TData extends object, TValue>({
   columns,
@@ -844,6 +854,7 @@ function TableBodyComponent<TData>({
                     ),
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -918,6 +929,7 @@ function TableBodyComponent<TData>({
                     ),
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
                   )}
                   style={{
                     ...getCommonPinningStyles(cell.column),
