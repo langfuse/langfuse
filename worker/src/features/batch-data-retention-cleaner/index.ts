@@ -34,7 +34,7 @@ export type BatchDataRetentionTable =
 
 const METRIC_PREFIX = "langfuse.batch_data_retention_cleaner";
 
-export const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
+const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
   "langfuse:batch-data-retention-cleaner";
 
 export const TIMESTAMP_COLUMN_MAP: Record<BatchDataRetentionTable, string> = {

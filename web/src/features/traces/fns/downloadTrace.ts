@@ -5,7 +5,7 @@ export interface ServerTraceDownloadParams {
   projectId: string;
 }
 
-export function buildTraceDownloadUrl({
+function buildTraceDownloadUrl({
   traceId,
   projectId,
 }: ServerTraceDownloadParams): string {

@@ -24,24 +24,27 @@ export const Default = meta.story({
   },
 });
 
-export const Chat = meta.story({
+export const LongSystemPrompt = meta.story({
   args: {
     input: {
       messages: [
         {
           role: "system",
-          content: "Answer questions using the product documentation.",
+          content: Array.from(
+            { length: 12 },
+            (_, i) =>
+              `system-prompt-line-${i + 1} lorem ipsum dolor sit amet consectetur adipiscing elit`,
+          ).join("\n"),
         },
         {
           role: "user",
-          content: "How can I inspect a slow trace?",
+          content: "Summarize the constraints above.",
         },
       ],
     },
     output: {
       role: "assistant",
-      content:
-        "Open the trace detail and compare the **latency** of each observation.",
+      content: "Stay within the listed role and constraints.",
     },
   },
 });

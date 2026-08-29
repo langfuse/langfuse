@@ -71,7 +71,7 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
  * 4. Executes the evaluator-specific implementation
  * 5. Completes the eval execution with shared score persistence
  */
-export type ObservationEvalExecutionType =
+type ObservationEvalExecutionType =
   | typeof EvalTemplateType.LLM_AS_JUDGE
   | typeof EvalTemplateType.CODE;
 

@@ -101,7 +101,11 @@ export function EventsSearchBarRow({
   const { organization } = useQueryProject();
   // Mirror the legacy wand gate: org-level AI features. The server
   // enforces it too, so this only governs whether the affordance is offered.
-  const aiAvailable = Boolean(organization?.aiFeaturesEnabled);
+  // Org entitlement AND a prompt written for this view — see
+  // FieldRegistry.aiFilterPrompt. Without the second half a new surface silently
+  // inherits the events prompt.
+  const aiAvailable =
+    Boolean(organization?.aiFeaturesEnabled) && registry.aiFilterPrompt;
 
   const activateAi = React.useCallback(() => {
     // Ground the model on real project values: lazily request the AI columns so

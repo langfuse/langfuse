@@ -1,0 +1,606 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+types:
+  EvaluatorType:
+    docs: |
+      The evaluator type.
+
+      The public API supports LLM-as-a-judge and code evaluators.
+    enum:
+      - llm_as_judge
+      - code
+
+  CodeEvaluatorSourceCodeLanguage:
+    docs: Code evaluator runtime language.
+    enum:
+      - PYTHON
+      - TYPESCRIPT
+
+  PromptVariableMappingSource:
+    docs: |
+      Source field used to populate a prompt variable.
+
+      Use these values when mapping evaluator prompt variables to live data.
+
+      Source semantics:
+      - `input`: the observation input payload
+      - `output`: the observation output payload
+      - `metadata`: the observation metadata object. Combine with `jsonPath` when you need one nested field instead of the whole object.
+      - `tool_calls`: the tool calls recorded on the observation, as an array of `{id, name, arguments, type, index}` objects in the order the model emitted them. Combine with `jsonPath` (for example `$[*].name`) to select parts of each call.
+      - `expected_output`: the experiment item's expected output when the observation belongs to an experiment.
+      - `experiment_item_metadata`: the experiment item's metadata when the observation belongs to an experiment.
+    enum:
+      - input
+      - output
+      - metadata
+      - tool_calls
+      - expected_output
+      - experiment_item_metadata
+
+  EvaluatorOutputScoreType:
+    docs: |
+      Structured score type returned by an evaluator.
+
+      This controls the type of score value Langfuse stores for evaluation results:
+      - `NUMERIC`: a numeric score such as `0.82`
+      - `BOOLEAN`: a boolean score such as `true`
+      - `CATEGORICAL`: one or more category labels from a fixed list
+    enum:
+      - NUMERIC
+      - BOOLEAN
+      - CATEGORICAL
+
+  EvaluatorOutputDefinition:
+    docs: |
+      Flat structured output definition used when creating or updating an evaluator.
+
+      - `dataType` is required.
+      - `scoreReasoningInstructions` and `scoreValueInstructions` are optional instructions.
+      - `minValue` and `maxValue` apply only to `NUMERIC` outputs. If both are set, `minValue` must not exceed `maxValue`.
+      - `categories` and `shouldAllowMultipleMatches` apply only to `CATEGORICAL` outputs.
+      - Do not send `version`; that is an internal storage detail.
+    discriminant: dataType
+    union:
+      NUMERIC:
+        type: PublicEvaluatorNumericScore
+      BOOLEAN:
+        type: PublicEvaluatorBooleanScore
+      CATEGORICAL:
+        type: PublicEvaluatorCategoricalScore
+    examples:
+      - name: Numeric
+        value:
+          dataType: NUMERIC
+          minValue: 0
+          maxValue: 1
+      - name: Boolean
+        value:
+          dataType: BOOLEAN
+          scoreValueInstructions: Return true if the output satisfies the requirement, otherwise false.
+      - name: Categorical
+        value:
+          dataType: CATEGORICAL
+          scoreReasoningInstructions: Explain which category best fits the output.
+          scoreValueInstructions: Choose the best category.
+          categories:
+            - correct
+            - partially_correct
+            - incorrect
+          shouldAllowMultipleMatches: false
+
+  EvaluatorOutputDefinitionBase:
+    properties:
+      scoreReasoningInstructions:
+        type: optional<string>
+        docs: Optional instructions for deriving the reasoning returned with the score.
+      scoreValueInstructions:
+        type: optional<string>
+        docs: Optional instructions for deriving the score value.
+
+  PublicEvaluatorNumericScore:
+    extends: EvaluatorOutputDefinitionBase
+    properties:
+      dataType:
+        type: literal<"NUMERIC">
+        docs: Numeric score output.
+      minValue:
+        type: optional<double>
+        docs: Optional inclusive minimum value.
+      maxValue:
+        type: optional<double>
+        docs: Optional inclusive maximum value.
+
+  PublicEvaluatorBooleanScore:
+    extends: EvaluatorOutputDefinitionBase
+    properties:
+      dataType:
+        type: literal<"BOOLEAN">
+        docs: Boolean score output.
+
+  PublicEvaluatorCategoricalScore:
+    extends: EvaluatorOutputDefinitionBase
+    properties:
+      dataType:
+        type: literal<"CATEGORICAL">
+        docs: Categorical score output.
+      categories:
+        type: list<string>
+        docs: Allowed category values. At least two unique values are required.
+      shouldAllowMultipleMatches:
+        type: boolean
+        docs: Whether the evaluator may return more than one category.
+
+  PublicEvaluatorOutputDefinition:
+    docs: |
+      Flat evaluator output definition returned by the public API.
+
+      This response always includes `dataType` and never includes an internal output-definition `version`.
+      Optional empty descriptions from legacy definitions are omitted.
+    discriminant: dataType
+    union:
+      NUMERIC:
+        type: PublicEvaluatorNumericScore
+      BOOLEAN:
+        type: PublicEvaluatorBooleanScore
+      CATEGORICAL:
+        type: PublicEvaluatorCategoricalScore
+    examples:
+      - name: PublicNumeric
+        value:
+          dataType: NUMERIC
+          minValue: 0
+          maxValue: 1
+      - name: PublicCategorical
+        value:
+          dataType: CATEGORICAL
+          scoreReasoningInstructions: Explain which label best fits the output.
+          scoreValueInstructions: Choose the best label.
+          categories:
+            - correct
+            - partially_correct
+            - incorrect
+          shouldAllowMultipleMatches: false
+
+  EvaluationRuleStringFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: Contains
+        value: contains
+      - name: DoesNotContain
+        value: does not contain
+      - name: StartsWith
+        value: starts with
+      - name: EndsWith
+        value: ends with
+
+  EvaluationRuleNumberFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: GreaterThan
+        value: ">"
+      - name: LessThan
+        value: "<"
+      - name: GreaterThanOrEqual
+        value: ">="
+      - name: LessThanOrEqual
+        value: "<="
+
+  EvaluationRuleOptionsFilterOperator:
+    enum:
+      - name: AnyOf
+        value: any of
+      - name: NoneOf
+        value: none of
+
+  EvaluationRuleArrayOptionsFilterOperator:
+    enum:
+      - name: AnyOf
+        value: any of
+      - name: NoneOf
+        value: none of
+      - name: AllOf
+        value: all of
+
+  EvaluationRuleBooleanFilterOperator:
+    enum:
+      - name: Equals
+        value: "="
+      - name: NotEquals
+        value: "<>"
+
+  EvaluationRuleNullFilterOperator:
+    enum:
+      - name: IsNull
+        value: is null
+      - name: IsNotNull
+        value: is not null
+
+  DateTimeEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleNumberFilterOperator
+        docs: Comparison operator for datetime values.
+      value:
+        type: datetime
+        docs: Datetime value to compare against.
+
+  StringEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleStringFilterOperator
+      value:
+        type: string
+
+  NumberEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleNumberFilterOperator
+      value:
+        type: double
+
+  StringOptionsEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleOptionsFilterOperator
+      value:
+        type: list<string>
+        docs: One or more allowed string values.
+
+  ArrayOptionsEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleArrayOptionsFilterOperator
+      value:
+        type: list<string>
+        docs: One or more array elements to match.
+
+  StringObjectEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Object-valued column to filter on. Currently only `metadata` is supported.
+      key:
+        type: string
+        docs: Top-level key inside the object-valued column to filter on.
+      operator:
+        type: EvaluationRuleStringFilterOperator
+      value:
+        type: string
+
+  NumberObjectEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Object-valued column to filter on.
+      key:
+        type: string
+        docs: Key inside the object-valued column to filter on.
+      operator:
+        type: EvaluationRuleNumberFilterOperator
+      value:
+        type: double
+
+  CategoryOptionsEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Object-valued column to filter on.
+      key:
+        type: string
+        docs: Key inside the object-valued column to filter on.
+      operator:
+        type: EvaluationRuleOptionsFilterOperator
+      value:
+        type: list<string>
+
+  BooleanEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on.
+      operator:
+        type: EvaluationRuleBooleanFilterOperator
+      value:
+        type: boolean
+
+  NullEvaluationRuleFilter:
+    properties:
+      column:
+        type: string
+        docs: Column to filter on, for example `parentObservationId`.
+      operator:
+        type: EvaluationRuleNullFilterOperator
+      value:
+        type: literal<"">
+        docs: Required empty-string placeholder used by the runtime filter contract.
+
+  PromptVariableMappingInput:
+    docs: |
+      Connects one prompt variable to data from an observation or experiment.
+
+      Manual mappings are used for `llm_as_judge` evaluators. `code` evaluators use a fixed runtime mapping managed by Langfuse.
+
+      How to build a valid mapping list:
+      1. Create the evaluator or fetch it with `GET /evaluators/{id}`.
+      2. Read the evaluator `variables` array.
+      3. Add exactly one mapping object for each variable in that array.
+      4. Use the variable name exactly as returned, without braces such as `{{` or `}}`.
+      5. Choose the source field that should populate the variable.
+
+      `jsonPath` is optional. Use it only when the selected source is a JSON object and you want to extract one nested field before inserting it into the evaluator prompt.
+
+      Invalid, missing, or duplicate mappings return a validation error. Malformed JSONPath expressions are also rejected.
+    properties:
+      variable:
+        type: string
+        docs: |
+          Prompt variable name without braces.
+
+          Example: for the prompt `Judge {{input}} against {{output}}`, use `input` and `output`.
+      source:
+        type: PromptVariableMappingSource
+        docs: |
+          Source field that should populate the prompt variable.
+
+          Available sources are `input`, `output`, `metadata`, `tool_calls`, `expected_output`, and `experiment_item_metadata`.
+      jsonPath:
+        type: optional<string>
+        docs: |
+          Optional JSONPath selector applied to the selected source before it is passed to the evaluator prompt.
+
+          Requirements:
+          - Must start with `$`
+          - Must be a syntactically valid JSONPath expression
+          - Most useful with `source=metadata`
+    examples:
+      - name: BasicObservationMapping
+        value:
+          variable: input
+          source: input
+      - name: MetadataProjectionMapping
+        value:
+          variable: customer_tier
+          source: metadata
+          jsonPath: "$.customer.tier"
+      - name: ExperimentExpectedOutputMapping
+        value:
+          variable: expected_output
+          source: expected_output
+
+  PromptVariableMappingRead:
+    docs: |
+      Connects one prompt variable to source data.
+
+      `source` is `null` when the mapping is incomplete.
+    properties:
+      variable:
+        type: string
+        docs: Prompt variable name without braces.
+      source:
+        type: nullable<string>
+        docs: Stored source field populating the variable, or `null` when the mapping is incomplete.
+      jsonPath:
+        type: optional<string>
+        docs: Optional JSONPath selector applied to the selected source.
+    examples:
+      - name: ConfiguredReadMapping
+        value:
+          variable: input
+          source: input
+      - name: IncompleteReadMapping
+        value:
+          variable: input
+          source: null
+
+  PromptVariableMapping:
+    docs: Connects one prompt variable to source data.
+    discriminated: false
+    union:
+      - PromptVariableMappingRead
+      - LegacyPromptVariableMapping
+
+  LegacyPromptVariableMapping:
+    docs: |
+      **Deprecated:** Connects one prompt variable to data from a legacy trace or dataset evaluation rule.
+
+      `langfuseObject` selects the object kind. `objectName` separately selects a named observation and is `null` for trace and dataset-item mappings.
+    properties:
+      mappingType:
+        type: literal<"legacy">
+        docs: Explicitly marks this as a legacy mapping.
+      variable:
+        type: string
+        docs: Prompt variable name without braces.
+      langfuseObject:
+        type: LegacyEvaluationObject
+        docs: Legacy object kind selected as the mapping source.
+      objectName:
+        type: nullable<string>
+        docs: Observation name to match, or `null` when `langfuseObject` is `trace` or `dataset_item`.
+      source:
+        type: string
+        docs: Field selected from the legacy object.
+      jsonPath:
+        type: optional<string>
+        docs: Optional JSONPath selector applied to the selected field.
+    examples:
+      - name: LegacyTraceInput
+        value:
+          mappingType: legacy
+          variable: input
+          langfuseObject: trace
+          objectName: null
+          source: input
+      - name: LegacyNamedGenerationOutput
+        value:
+          mappingType: legacy
+          variable: output
+          langfuseObject: generation
+          objectName: answer-generation
+          source: output
+          jsonPath: "$.answer"
+
+  LegacyEvaluationObject:
+    docs: "**Deprecated:** Legacy Langfuse object kind used by trace and dataset evaluation rules."
+    enum:
+      - trace
+      - span
+      - generation
+      - event
+      - agent
+      - tool
+      - chain
+      - retriever
+      - evaluator
+      - embedding
+      - guardrail
+      - dataset_item
+
+  EvaluationRuleFilter:
+    docs: |
+      One filter condition used to decide whether a live-ingested observation should be evaluated.
+
+      All filters must be satisfied for the rule to run. Experiment scope is expressed with filters rather than a separate target field:
+      - `isExperimentItemRootSpan = true` limits execution to experiment item roots.
+      - `datasetId` limits execution to experiments for the selected datasets. Use dataset IDs from `GET /api/public/v2/datasets`.
+
+      Pick the filter `type` first, as it determines the required fields and value shape. Use `key` only for object filters such as `metadata`.
+
+      Operator quick reference by filter `type`:
+      - `string`: `"="`, `contains`, `does not contain`, `starts with`, `ends with`
+      - `number`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+      - `datetime`: `"="`, `">"`, `"<"`, `">="`, `"<="`
+      - `stringOptions`: `any of`, `none of`
+      - `arrayOptions`: `any of`, `none of`, `all of`
+      - `stringObject`: same operators as `string`
+      - `boolean`: `"="`, `"<>"`
+      - `null`: `is null`, `is not null`
+
+      Supported columns. Each column accepts exactly one filter `type`; sending a column with a different `type` is rejected with `400`.
+      - `type`: `stringOptions`, values `SPAN`, `EVENT`, `GENERATION`, `AGENT`, `TOOL`, `CHAIN`, `RETRIEVER`, `EVALUATOR`, `EMBEDDING`, `GUARDRAIL`
+      - `name`: `stringOptions`
+      - `environment`: `stringOptions`
+      - `level`: `stringOptions`, values `DEBUG`, `DEFAULT`, `WARNING`, `ERROR`
+      - `version`: `string`
+      - `traceName`: `stringOptions`
+      - `userId`: `string`
+      - `sessionId`: `string`
+      - `tags`: `arrayOptions`
+      - `metadata`: `stringObject`, requires `key`
+      - `isRootObservation`: `boolean`; true when the observation has no parent or is explicitly marked as an application root
+      - `parentObservationId`: `null`
+      - `experimentId`: `stringOptions`
+      - `isExperimentItemRootSpan`: `boolean`
+      - `calledToolNames`: `arrayOptions`
+      - `toolCalls`: `number`, the number of tool calls on the observation
+      - `datasetId`: `stringOptions`. Use dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
+    discriminant: type
+    union:
+      "datetime":
+        type: DateTimeEvaluationRuleFilter
+      "string":
+        type: StringEvaluationRuleFilter
+      "number":
+        type: NumberEvaluationRuleFilter
+      "stringOptions":
+        type: StringOptionsEvaluationRuleFilter
+      "categoryOptions":
+        type: CategoryOptionsEvaluationRuleFilter
+      "arrayOptions":
+        type: ArrayOptionsEvaluationRuleFilter
+      "stringObject":
+        type: StringObjectEvaluationRuleFilter
+      "numberObject":
+        type: NumberObjectEvaluationRuleFilter
+      "boolean":
+        type: BooleanEvaluationRuleFilter
+      "null":
+        type: NullEvaluationRuleFilter
+    examples:
+      - name: ObservationTypeFilter
+        value:
+          type: stringOptions
+          column: type
+          operator: any of
+          value:
+            - GENERATION
+      - name: ObservationMetadataFilter
+        value:
+          type: stringObject
+          column: metadata
+          key: customerTier
+          operator: "="
+          value: enterprise
+      - name: ObservationRootOnlyFilter
+        value:
+          type: "null"
+          column: parentObservationId
+          operator: is null
+          value: ""
+      - name: ObservationLogicalRootFilter
+        value:
+          type: boolean
+          column: isRootObservation
+          operator: "="
+          value: true
+      - name: ObservationTagsFilter
+        value:
+          type: arrayOptions
+          column: tags
+          operator: any of
+          value:
+            - production
+      - name: ExperimentDatasetFilter
+        value:
+          type: stringOptions
+          column: datasetId
+          operator: any of
+          value:
+            - "550e8400-e29b-41d4-a716-446655440000"
+
+  EvaluationRuleReadFilterBase:
+    docs: Stored filter returned verbatim by evaluation-rule read endpoints.
+    properties:
+      type:
+        type: string
+        docs: Stored filter type. This is not broken down into separate public response types.
+      column:
+        type: string
+      operator:
+        type: string
+      value:
+        type: optional<unknown>
+        docs: Stored filter value. Its shape depends on the filter type.
+
+  EvaluationRuleReadFilterWithKey:
+    extends: EvaluationRuleReadFilterBase
+    properties:
+      key:
+        type: string
+        docs: Stored object or legacy filter key.
+
+  EvaluationRuleReadFilter:
+    docs: |
+      Filter returned verbatim by evaluation-rule read endpoints.
+
+      Filters with a stored `key` use the keyed shape. All other filters use the base shape. Response filters are intentionally not broken down by their internal `type` value.
+    discriminated: false
+    union:
+      - EvaluationRuleReadFilterWithKey
+      - EvaluationRuleReadFilterBase

@@ -102,7 +102,7 @@ const appendPlainTextSection = (
 const getDataRegion = (): string =>
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ?? "self-hosted";
 
-export const isHipaaCloudRegion = (): boolean =>
+const isHipaaCloudRegion = (): boolean =>
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA";
 
 // Product feedback is intentionally unavailable in HIPAA: Slack delivery is

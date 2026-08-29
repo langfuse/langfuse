@@ -6,10 +6,8 @@ import { addMinutes, format } from "date-fns";
 // existing web import surface.
 export {
   TIME_RANGES,
-  type TimeRangePresets,
   TABLE_AGGREGATION_OPTIONS,
   type TableDateRangeAggregationOption,
-  type RelativeTimeRange,
   type AbsoluteTimeRange,
   type TimeRange,
   getAbbreviatedTimeRange,
@@ -30,7 +28,6 @@ const ABBREVIATION_TO_KEY = new Map(
 
 export const DEFAULT_DASHBOARD_AGGREGATION_SELECTION = "last1Day" as const;
 export const DASHBOARD_AGGREGATION_PLACEHOLDER = "custom" as const;
-export const TABLE_AGGREGATION_PLACEHOLDER = "custom" as const;
 
 export const DASHBOARD_AGGREGATION_OPTIONS = [
   "last5Minutes",
@@ -57,7 +54,7 @@ export type DashboardDateRange = {
   to: Date;
 };
 
-export type DateRangeAggregationOption =
+type DateRangeAggregationOption =
   | DashboardDateRangeAggregationOption
   | TableDateRangeAggregationOption;
 
@@ -65,19 +62,10 @@ export type DashboardDateRangeOptions =
   | DashboardDateRangeAggregationOption
   | typeof DASHBOARD_AGGREGATION_PLACEHOLDER;
 
-export type TableDateRangeOptions =
-  | TableDateRangeAggregationOption
-  | typeof TABLE_AGGREGATION_PLACEHOLDER;
-
 export type DashboardDateRangeAggregationSettings = Record<
   DashboardDateRangeAggregationOption,
   TimeRangeDefinition
 >;
-
-export const dateTimeAggregationOptions = [
-  ...TABLE_AGGREGATION_OPTIONS,
-  ...DASHBOARD_AGGREGATION_OPTIONS,
-] as const;
 
 export const dashboardDateRangeAggregationSettings: DashboardDateRangeAggregationSettings =
   Object.fromEntries(
@@ -126,21 +114,6 @@ const TABLE_DATE_RANGE_AGGREGATION_SETTINGS = new Map<
   ]),
 );
 
-export const isTableDataRangeOptionAvailable = ({
-  option,
-  limitDays,
-}: {
-  option: TableDateRangeAggregationOption;
-  limitDays: number | false;
-}) => {
-  if (limitDays === false) return true;
-
-  const durationMinutes = TABLE_DATE_RANGE_AGGREGATION_SETTINGS.get(option);
-  if (!durationMinutes) return false;
-
-  return limitDays >= durationMinutes / (24 * 60);
-};
-
 export const getDateFromOption = (
   selectedTimeOption: SelectedTimeOption,
 ): Date | undefined => {
@@ -164,21 +137,7 @@ export const getDateFromOption = (
   return undefined;
 };
 
-export function isValidDashboardDateRangeAggregationOption(
-  value?: string,
-): value is DashboardDateRangeAggregationOption {
-  if (!value) return false;
-  return (DASHBOARD_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
-
-export function isValidTableDateRangeAggregationOption(
-  value?: string,
-): value is TableDateRangeAggregationOption {
-  if (!value) return false;
-  return (TABLE_AGGREGATION_OPTIONS as readonly string[]).includes(value);
-}
-
-export function getFullTimeRangeFromAbbreviated(
+function getFullTimeRangeFromAbbreviated(
   abbreviated: string,
 ): DateRangeAggregationOption | null {
   return (
@@ -210,14 +169,14 @@ export const findClosestDashboardInterval = (
 };
 
 // Helper function to check if time represents full day
-export const isFullDay = (date: Date) => {
+const isFullDay = (date: Date) => {
   return (
     date.getHours() === 0 && date.getMinutes() === 0 && date.getSeconds() === 0
   );
 };
 
 // Helper function to check if date range represents full days
-export const isFullDayRange = (from: Date, to: Date) => {
+const isFullDayRange = (from: Date, to: Date) => {
   return (
     isFullDay(from) &&
     to.getHours() === 23 &&
@@ -256,13 +215,7 @@ export const formatDateRange = (from: Date, to: Date) => {
 /**
  * Supported interval units for time series aggregation
  */
-export type IntervalUnit =
-  | "second"
-  | "minute"
-  | "hour"
-  | "day"
-  | "month"
-  | "year";
+type IntervalUnit = "second" | "minute" | "hour" | "day" | "month" | "year";
 
 /**
  * Interval configuration with count and unit
@@ -277,7 +230,7 @@ export type IntervalConfig = {
  * Allowed intervals - only "clean" values to avoid crooked numbers
  * These are the only intervals that can be selected by the algorithm
  */
-export const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
+const ALLOWED_INTERVALS: readonly IntervalConfig[] = [
   // Seconds
   { count: 1, unit: "second" },
   { count: 5, unit: "second" },
@@ -418,69 +371,6 @@ export function getOptimalInterval(
   }
 
   return bestInterval;
-}
-
-/**
- * Determines the optimal interval for score analytics based on time range.
- * Maps time ranges to appropriate intervals for ClickHouse aggregation.
- *
- * Target: 20-50 data points for optimal visualization
- *
- * @param timeRange - The time range (relative or absolute)
- * @returns Interval suitable for score analytics API ("hour" | "day" | "week" | "month")
- */
-export function getScoreAnalyticsInterval(
-  timeRange: TimeRange,
-): "hour" | "day" | "week" | "month" {
-  // Handle preset ranges
-  if ("range" in timeRange) {
-    const preset = TIME_RANGES[timeRange.range as keyof typeof TIME_RANGES];
-
-    if (!preset) {
-      return "day"; // Fallback
-    }
-
-    // Map dateTrunc to interval (note: API doesn't support "minute")
-    switch (preset.dateTrunc) {
-      case "minute":
-      case "hour":
-        return "hour";
-      case "day":
-        return "day";
-      case "week":
-        return "week";
-      case "month":
-        return "month";
-      default:
-        return "day"; // Fallback
-    }
-  }
-
-  // Handle custom ranges
-  const absoluteRange = toAbsoluteTimeRange(timeRange);
-  if (!absoluteRange) {
-    return "day"; // Fallback
-  }
-
-  const durationMs = absoluteRange.to.getTime() - absoluteRange.from.getTime();
-  const durationMinutes = durationMs / (1000 * 60);
-
-  // Calculate based on duration to get ~20-50 data points
-  // < 7 days → hour (yields 1-168 points)
-  if (durationMinutes < 7 * 24 * 60) {
-    return "hour";
-  }
-  // 7-90 days → day (yields 7-90 points)
-  else if (durationMinutes < 90 * 24 * 60) {
-    return "day";
-  }
-  // 90 days - 1 year → week (yields 13-52 points)
-  else if (durationMinutes < 365 * 24 * 60) {
-    return "week";
-  }
-  // > 1 year → month (yields 12+ points)
-
-  return "month";
 }
 
 /**
@@ -673,4 +563,3 @@ export function getChartTooltipFormat(
 }
 
 // Re-export fillTimeSeriesGaps from its own module
-export { fillTimeSeriesGaps } from "./fill-time-series-gaps";

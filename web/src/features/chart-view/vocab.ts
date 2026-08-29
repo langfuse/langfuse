@@ -141,9 +141,7 @@ export const getMetric = (key: MetricKey): MetricDef =>
 export const getDimension = (key: DimensionKey): DimensionDef =>
   DIMENSIONS.find((d) => d.key === key) ?? DIMENSIONS[0];
 
-export const getChartType = (
-  value: DashboardWidgetChartType,
-): ChartTypeOption =>
+const getChartType = (value: DashboardWidgetChartType): ChartTypeOption =>
   CHART_TYPES.find((c) => c.value === value) ?? CHART_TYPES[0];
 
 export const isTimeSeriesChartType = (

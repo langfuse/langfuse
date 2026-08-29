@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { PriceUnit } from "@/src/features/models/validation";
 
-export const multiplierMap: Record<PriceUnit, number> = {
+const multiplierMap: Record<PriceUnit, number> = {
   [PriceUnit.PerUnit]: 1,
   [PriceUnit.Per1KUnits]: 1e3,
   [PriceUnit.Per1MUnits]: 1e6,

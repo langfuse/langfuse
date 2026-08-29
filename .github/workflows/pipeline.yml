@@ -455,7 +455,41 @@ jobs:
       - name: generate prisma client
         run: pnpm --filter=shared run db:generate
       - name: run shared tests
+        # The clickhouse binary isn't installed yet, so the SQL-equivalence
+        # tests skip here (they run for real in the dedicated step below); every
+        # other shared test hard-fails as usual.
         run: pnpm --filter @langfuse/shared run test
+      - name: Install ClickHouse binary for SQL-equivalence tests
+        # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
+        # the equivalence snapshots. Its output is version-specific, so pin the
+        # exact version and regenerate snapshots on any bump; keep in sync with
+        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
+        # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
+        # mirror just skips the tests, never blocks (timeout-minutes bounds a
+        # hang, which continue-on-error alone would not).
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          CLICKHOUSE_VERSION: 26.4.5.143
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key \
+            | gpg --dearmor \
+            | sudo tee /etc/apt/keyrings/clickhouse.gpg >/dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/clickhouse.gpg] https://packages.clickhouse.com/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/clickhouse.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install --allow-downgrades -y \
+            "clickhouse-common-static=${CLICKHOUSE_VERSION}"
+          clickhouse --version
+      - name: run SQL-equivalence tests (non-blocking)
+        # Non-blocking: a snapshot drift or an intentional SQL change emits a
+        # warning but must not fail the job (`|| echo` swallows the exit code).
+        # Make it a required check once the suite has proven stable.
+        run: |
+          pnpm --filter @langfuse/shared run test .golden.test \
+            || echo "::warning title=SQL-equivalence tests failed::Query-AST SQL-equivalence snapshots drifted or the tests failed (non-blocking). Regenerate with: pnpm --filter @langfuse/shared run test .golden.test -u"
 
   test-docker-build:
     name: test-docker-build (${{ matrix.component }})

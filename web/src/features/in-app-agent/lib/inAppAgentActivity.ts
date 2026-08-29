@@ -37,7 +37,7 @@ export type InAppAgentActivityAcknowledgement = {
   activityKey: string;
 };
 
-export type InAppAgentActivityEntry = {
+type InAppAgentActivityEntry = {
   activityKey: string;
   runId: string;
   title: string | null;
@@ -52,8 +52,8 @@ export type InAppAgentActivityByConversationId = Map<
   InAppAgentActivityEntry
 >;
 
-export const IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION = 1;
-export const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
+const IN_APP_AGENT_ACTIVITY_RECEIPTS_VERSION = 1;
+const IN_APP_AGENT_DELIVERED_RECEIPTS_VERSION = 1;
 
 /**
  * Activity polls the newest N conversations only (same page as the drawer list
@@ -136,7 +136,7 @@ function getActivityEntry(params: {
 }
 
 /** Drop ledger keys for conversations no longer in the activity window. */
-export function pruneInAppAgentReceiptRecord(
+function pruneInAppAgentReceiptRecord(
   record: Record<string, string>,
   liveConversationIds: ReadonlySet<string>,
 ): { record: Record<string, string>; changed: boolean } {

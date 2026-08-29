@@ -92,7 +92,7 @@ const GetEventMetadataValuesInput = zodSchema.object({
   startTimeFilter: zodSchema.array(timeFilter).optional(),
 });
 
-export const BatchIOInput = zodSchema.object({
+const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
   observations: zodSchema
     .array(
@@ -116,7 +116,7 @@ export const BatchIOInput = zodSchema.object({
   traceId: zodSchema.string().optional(),
 });
 
-export type BatchIOInput = z.infer<typeof BatchIOInput>;
+type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -492,7 +492,7 @@ export const eventsRouter = createTRPCRouter({
     }),
 });
 
-export const addAttributesToSpan = ({
+const addAttributesToSpan = ({
   span,
   input,
   orderBy,
@@ -534,6 +534,6 @@ export const addAttributesToSpan = ({
   }
 };
 
-export const dateDiff = (date1: Date, date2: Date) => {
+const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };

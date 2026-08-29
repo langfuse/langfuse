@@ -8,6 +8,7 @@ import {
   GetExperimentItemsV1Response,
 } from "@/src/features/public-api/types/experiments";
 import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -22,9 +23,19 @@ export default withMiddlewares({
         );
       }
 
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromStartTime,
+      });
+
       return listExperimentItemsForPublicApi({
         projectId: auth.scope.projectId,
-        query,
+        query: {
+          ...query,
+          fromStartTime:
+            dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+            query.fromStartTime,
+        },
       });
     },
   }),

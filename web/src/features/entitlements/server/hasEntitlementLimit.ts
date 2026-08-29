@@ -34,7 +34,7 @@ export const hasEntitlementLimit = (
   });
 };
 
-export const hasEntitlementLimitBasedOnPlan = ({
+const hasEntitlementLimitBasedOnPlan = ({
   plan,
   entitlementLimit,
 }: {
@@ -44,11 +44,55 @@ export const hasEntitlementLimitBasedOnPlan = ({
   return entitlementAccess[plan ?? "oss"].entitlementLimits[entitlementLimit];
 };
 
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export const clampToDataAccessDays = ({
+  plan,
+  fromTimestamp,
+  now = new Date(),
+}: {
+  plan: Plan | null;
+  fromTimestamp?: string | Date;
+  now?: Date;
+}): {
+  accessFloor?: Date;
+  effectiveFromTimestamp?: Date;
+  wasClamped: boolean;
+} => {
+  const limitDays = hasEntitlementLimitBasedOnPlan({
+    plan,
+    entitlementLimit: "data-access-days",
+  });
+  const requestedFromTimestamp = fromTimestamp
+    ? new Date(fromTimestamp)
+    : undefined;
+
+  if (limitDays === false) {
+    return {
+      accessFloor: undefined,
+      effectiveFromTimestamp: requestedFromTimestamp,
+      wasClamped: false,
+    };
+  }
+
+  const accessFloor = new Date(
+    now.getTime() - limitDays * MILLISECONDS_PER_DAY,
+  );
+  const wasClamped =
+    !requestedFromTimestamp || requestedFromTimestamp < accessFloor;
+
+  return {
+    accessFloor,
+    effectiveFromTimestamp: wasClamped ? accessFloor : requestedFromTimestamp,
+    wasClamped,
+  };
+};
+
 /**
  * Check if a specific usage is within the entitlement limit
  * @returns true if usage is allowed, false if it exceeds the limit
  */
-export const isWithinEntitlementLimit = (
+const isWithinEntitlementLimit = (
   p: HasEntitlementLimitParams & { currentUsage: number },
 ): boolean => {
   const limit = hasEntitlementLimit(p);

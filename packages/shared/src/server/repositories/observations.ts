@@ -1755,7 +1755,7 @@ const buildObservationsForBlobStorageExportQuery = (
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
-    AND start_time <= {maxTimestamp: DateTime64(3)}
+    AND start_time < {maxTimestamp: DateTime64(3)}
     ${
       skipDedup
         ? ""

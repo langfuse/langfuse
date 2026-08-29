@@ -155,7 +155,7 @@ export function JsonPathInput({
         onBlur={onBlur}
         placeholder={placeholder}
         className={cn(
-          "overflow-hidden rounded-md border text-sm",
+          "ph-no-capture overflow-hidden rounded-md border text-sm",
           displayError && "border-destructive",
           showWarning && "border-amber-500/50",
           className,

@@ -97,7 +97,7 @@ const toAnnotationQueueItemApi = (item: {
   updatedAt: item.updatedAt,
 });
 
-export const getAnnotationQueueRecordOrThrow = async ({
+const getAnnotationQueueRecordOrThrow = async ({
   projectId,
   queueId,
 }: {
@@ -347,7 +347,7 @@ export const listAnnotationQueueItemsForApi = async ({
   };
 };
 
-export const getAnnotationQueueItemRecordOrThrow = async ({
+const getAnnotationQueueItemRecordOrThrow = async ({
   projectId,
   queueId,
   itemId,

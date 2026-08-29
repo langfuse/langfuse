@@ -52,3 +52,6 @@ export enum LangfuseOtelSpanAttributes {
   EXPERIMENT_ITEM_ROOT_OBSERVATION_ID = "langfuse.experiment.item.root_observation_id",
   EXPERIMENT_ITEM_EXPECTED_OUTPUT = "langfuse.experiment.item.expected_output",
 }
+
+/** SDK name for internally published AI-feature product traces. */
+export const AI_FEATURE_OTEL_SDK_NAME = "langfuse-internal-ai-features";

@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExportLocalEvents, mockProcessEventBatch, mockWrite } = vi.hoisted(
-  () => ({
-    mockExportLocalEvents: vi.fn(),
-    mockProcessEventBatch: vi.fn(),
-    mockWrite: vi.fn(),
-  }),
-);
+const {
+  mockExportLocalEvents,
+  mockProcessEventBatch,
+  mockWrite,
+  mockPublishAiFeatureTrace,
+} = vi.hoisted(() => ({
+  mockExportLocalEvents: vi.fn(),
+  mockProcessEventBatch: vi.fn(),
+  mockWrite: vi.fn(),
+  mockPublishAiFeatureTrace: vi.fn(),
+}));
 
 vi.mock("langfuse", () => {
   return {
@@ -23,8 +27,16 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  "../../../../../packages/shared/src/server/otel/internalAiFeatureOtelWriter",
+  () => ({
+    publishAiFeatureTraceViaOtelIngestion: mockPublishAiFeatureTrace,
+  }),
+);
+
 import { getInternalTracingHandler } from "../../../../../packages/shared/src/server/llm/getInternalTracingHandler";
 import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
+import { env } from "../../../../../packages/shared/src/env";
 
 const traceId = "trace-123";
 const processedEventsFixture = [
@@ -80,6 +92,7 @@ describe("getInternalTracingHandler", () => {
       errors: [],
     });
     mockWrite.mockResolvedValue(undefined);
+    mockPublishAiFeatureTrace.mockResolvedValue(undefined);
   });
 
   it("disables staging propagation when direct event write is enabled", async () => {
@@ -131,5 +144,52 @@ describe("getInternalTracingHandler", () => {
       }),
     );
     expect(mockWrite).not.toHaveBeenCalled();
+  });
+
+  it("publishes AI-feature traces via OTel on v4 write modes", async () => {
+    const previousWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+
+    try {
+      const { processTracedEvents } = getInternalTracingHandler({
+        targetProjectId: "project-123",
+        traceId,
+        traceName: "agent-turn",
+        environment: "production",
+        aiFeatureOtelIngestion: true,
+      });
+
+      await processTracedEvents();
+
+      expect(mockProcessEventBatch).not.toHaveBeenCalled();
+      expect(mockPublishAiFeatureTrace).toHaveBeenCalledWith({
+        projectId: "project-123",
+        eventInputs: expect.any(Array),
+      });
+    } finally {
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previousWriteMode;
+    }
+  });
+
+  it("keeps processEventBatch for AI-feature traces in legacy write mode", async () => {
+    const previousWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+
+    try {
+      const { processTracedEvents } = getInternalTracingHandler({
+        targetProjectId: "project-123",
+        traceId,
+        traceName: "agent-turn",
+        environment: "production",
+        aiFeatureOtelIngestion: true,
+      });
+
+      await processTracedEvents();
+
+      expect(mockProcessEventBatch).toHaveBeenCalled();
+      expect(mockPublishAiFeatureTrace).not.toHaveBeenCalled();
+    } finally {
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE = previousWriteMode;
+    }
   });
 });

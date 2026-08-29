@@ -1,6 +1,6 @@
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
 
-export const isSessionStartTimeFilter = (
+const isSessionStartTimeFilter = (
   filter: FilterState[number],
 ): filter is TimeFilter =>
   (filter.column === "Start Time" || filter.column === "startTime") &&

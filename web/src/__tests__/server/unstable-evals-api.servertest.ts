@@ -26,7 +26,7 @@ import {
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { ApiKeyScope } from "@prisma/client";
-import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { StructuredPublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import type { z } from "zod";
 import { encrypt } from "@langfuse/shared/encryption";
 
@@ -71,11 +71,11 @@ const expectUnstableError = (
   response: Awaited<ReturnType<typeof makeAPICall>>,
   params: {
     status: number;
-    code: z.infer<typeof UnstablePublicApiErrorResponse>["code"];
+    code: z.infer<typeof StructuredPublicApiErrorResponse>["code"];
   },
 ) => {
   expect(response.status).toBe(params.status);
-  const body = UnstablePublicApiErrorResponse.parse(response.body);
+  const body = StructuredPublicApiErrorResponse.parse(response.body);
   expect(body.code).toBe(params.code);
   return body;
 };

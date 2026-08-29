@@ -16,8 +16,8 @@ import { DeleteSpendAlertDialog } from "./DeleteSpendAlertDialog";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTextTableColumn } from "@/src/components/design-system/Table/columns/createTextTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { costFormatter } from "@/src/utils/numbers";
 
 interface SpendAlertsTableProps {

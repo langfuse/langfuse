@@ -51,10 +51,7 @@ export const parseDatasetItemInput = (
   }
 };
 
-export const fetchDatasetRun = async (
-  datasetRunId: string,
-  projectId: string,
-) => {
+const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
   return await prisma.datasetRuns.findFirst({
     where: {
       id: datasetRunId,
@@ -63,7 +60,7 @@ export const fetchDatasetRun = async (
   });
 };
 
-export const fetchPrompt = async (promptId: string, projectId: string) => {
+const fetchPrompt = async (promptId: string, projectId: string) => {
   const promptService = new PromptService(prisma, redis);
 
   const rawPrompt = await prisma.prompt.findUnique({

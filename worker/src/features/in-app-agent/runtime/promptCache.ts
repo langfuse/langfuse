@@ -25,7 +25,7 @@ const ANTHROPIC_CACHE_CONTROL = { type: "ephemeral" as const };
  * Three checkpoints, each for a different prefix:
  *
  * 1. Last leading system — tools + compiled system. Must stay byte-stable
- *    across turns (date, screen, and clock live on a trailing suffix that
+ *    across turns (user, screen, and clock live on a trailing suffix that
  *    is not persisted).
  * 2. Last conversation message — grows as this turn adds tool results so
  *    the next in-loop step can read it. A trailing `<current_time>` suffix

@@ -686,7 +686,7 @@ export const v4WritesToLegacyTables = (envValue: ParsedEnv): boolean =>
 export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR === "direct";
 
-export const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
+const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
 const validateV4Flags = (parsed: ParsedEnv): void => {

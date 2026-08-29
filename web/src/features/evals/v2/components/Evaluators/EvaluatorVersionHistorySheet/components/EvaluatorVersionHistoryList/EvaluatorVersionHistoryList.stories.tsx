@@ -16,6 +16,9 @@ const version = {
   prompt: "Judge whether the response answers {{query}}.",
   provider: "openai",
   model: "gpt-4.1-mini",
+  modelParams: null,
+  vars: [],
+  variableMapping: null,
   outputDefinition: null,
   createdByUser: { name: "Ada Lovelace", email: "ada@example.com" },
 } satisfies EvaluatorVersion;
@@ -54,6 +57,7 @@ const defaultArgs = {
   defaultModel: { provider: "OpenAI", model: "gpt-4.1-mini" },
   expandedVersionId: null,
   onExpandedVersionChange: fn(),
+  onRestoreVersion: fn(),
   isLoading: false,
 };
 

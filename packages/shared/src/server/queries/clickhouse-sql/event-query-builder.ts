@@ -57,7 +57,7 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
-export type OrderByColumnsOptions = {
+type OrderByColumnsOptions = {
   eventTableAlias?: string;
   /**
    * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the
@@ -589,7 +589,7 @@ const AGGREGATION_FIELD_SETS = {
  * // Use when you need to query across all projects (use with caution!)
  * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
  */
-export const NoProjectId = Symbol("NoProjectId");
+const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**

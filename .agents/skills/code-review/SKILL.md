@@ -19,8 +19,9 @@ feature.
 - If the review touches backend code, also use the shared
   `backend-dev-guidelines` skill where relevant.
 - If the change accepts a user-supplied URL, adds outbound HTTP, introduces a
-  new integration, or touches secrets, RBAC, or redirect handling, also use
-  the shared [`security-review`](../security-review/SKILL.md) skill. Run its
+  new integration, touches secrets, RBAC, redirect handling, product
+  analytics, browser monitoring, or session replay, also use the shared
+  [`security-review`](../security-review/SKILL.md) skill. Run its
   [`references/checklist.md`](../security-review/references/checklist.md)
   before signoff.
 

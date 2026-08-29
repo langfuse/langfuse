@@ -65,7 +65,7 @@ export type ScoreToAggregate =
  * Boolean scores are treated as categorical since they share the same
  * aggregation logic (value counting vs numeric averaging).
  */
-export const resolveAggregateType = (
+const resolveAggregateType = (
   dataType: ListableScoreDataType,
 ): "NUMERIC" | "CATEGORICAL" => {
   return dataType === "NUMERIC" ? "NUMERIC" : "CATEGORICAL";

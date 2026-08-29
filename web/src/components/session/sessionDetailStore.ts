@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-export type LoadedTraceIds = Record<string, true>;
+type LoadedTraceIds = Record<string, true>;
 
 export interface SessionDetailStoreState {
   loadedTraceIds: LoadedTraceIds;

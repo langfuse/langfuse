@@ -107,7 +107,7 @@ const RESPONSES_REQUEST_SIBLINGS = [
  * preprocessing consumes. Also used by extractAdditionalInput to hide `input`
  * from additional input only when it holds the conversation.
  */
-export function isOpenAIResponsesRequest(
+function isOpenAIResponsesRequest(
   data: unknown,
 ): data is Record<string, unknown> {
   if (!data || typeof data !== "object" || Array.isArray(data)) return false;

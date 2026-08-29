@@ -9,6 +9,9 @@ service:
   base-path: /api/public/unstable
   endpoints:
     create:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Create an evaluator in the authenticated project.
 
@@ -257,6 +260,9 @@ service:
               updatedAt: "2026-03-30T09:15:00.000Z"
 
     list:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         List the evaluators available to the authenticated project.
 
@@ -284,6 +290,9 @@ service:
         - errors.InternalServerError
 
     get:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Get one evaluator by `id`.
 
@@ -305,6 +314,9 @@ service:
         - errors.InternalServerError
 
     delete:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluators` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Delete an evaluator.
 
@@ -378,7 +390,7 @@ types:
 
           LLM evaluators require every variable to be mapped exactly once. Code evaluators always expose the fixed runtime payload fields and Langfuse maps them automatically.
       mapping:
-        type: nullable<list<commons.EvaluationRuleReadMapping>>
+        type: nullable<list<commons.PromptVariableMappingRead>>
         docs: |
           Default variable mapping for this evaluator version, or `null` when no default is configured.
 
@@ -462,7 +474,7 @@ types:
         type: optional<nullable<commons.EvaluatorModelConfig>>
         docs: Optional explicit model configuration. Omit or set to `null` to use the project default evaluation model.
       mapping:
-        type: optional<list<commons.EvaluationRuleMapping>>
+        type: optional<list<commons.PromptVariableMappingInput>>
         docs: Optional default variable mapping inherited by rule assignments that do not provide an override.
 
   CreateCodeEvaluatorRequest:

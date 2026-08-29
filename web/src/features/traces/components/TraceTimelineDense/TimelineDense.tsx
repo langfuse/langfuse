@@ -1,9 +1,7 @@
 /**
- * The Compact Timeline renderer, shipped behind the `compactTimeline` feature
- * preview: `TraceTimelineCompact` measures a box and renders this inside it, and
- * the trace panel's Timeline view is this whenever the preview is on — by
- * default for the team, opt-in for everyone else. Real users read traces through
- * it, so a bug here is a bug in the product.
+ * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
+ * and the trace panel's Timeline view IS this — for everyone, on every device,
+ * with no flag in front of it. A bug here is a bug in the product.
  *
  * The question it started as a spike to answer, and still answers: in a narrow,
  * tall layout, does killing the names and the text and spending every pixel on
@@ -64,6 +62,7 @@ import {
   type TooltipPlacement,
 } from "../../fns/timeline/tooltipPlacement";
 import { Layer } from "@/src/components/ui/layer";
+import { TimelineRowMetrics, type RowMetrics } from "./TimelineRowMetrics";
 import { cn } from "@/src/utils/tailwind";
 import { type Density, type PointerModality } from "../../fns/timeline/density";
 import {
@@ -269,7 +268,14 @@ export type TimelineDenseProps = {
    * live with the app. At this density hover is how a row is read at all, so it
    * should say what a tree row says.
    */
-  factsOf?: (nodeId: string) => string[];
+  /**
+   * What a row has to say about itself — cost, scores, comments, and the
+   * heat-map classes for its metrics. Supplied rather than derived, so this
+   * renderer keeps deciding only what FITS.
+   */
+  metricsOf?: (nodeId: string) => RowMetrics;
+  /** The view-options duration toggle; the tree honours the same one. */
+  showDuration?: boolean;
   /**
    * The trace playhead, handed in rather than read from context: this renderer
    * takes data and nothing implicit, which is what lets Storybook mount it at
@@ -325,7 +331,8 @@ export function TimelineDense({
   onHover,
   activeIds,
   playhead,
-  factsOf,
+  metricsOf,
+  showDuration = true,
 }: TimelineDenseProps) {
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [pointerPos, setPointerPos] = useState<{
@@ -1338,13 +1345,16 @@ export function TimelineDense({
         onPointerMove={onAxisPointerMove}
         data-testid="timeline-dense-axis"
       >
-        {/* Font probe for the measurer: a label's own size, invisible and out of
-            flow so it costs no layout. */}
+        {/* Font probe for the measurer, at the size a label ACTUALLY renders in —
+            `density.labelFontPx`, the same value the metrics set themselves in.
+            Probing one size and rendering another under-prices every string by
+            the difference, which is the direction that clips. Invisible and out
+            of flow, so it costs no layout. */}
         <span
           ref={labelProbeRef}
           aria-hidden
           className="invisible absolute"
-          style={{ fontSize: "10px" }}
+          style={{ fontSize: `${density.labelFontPx}px` }}
         >
           0
         </span>
@@ -1527,56 +1537,41 @@ export function TimelineDense({
                         height: `${barHeight}px`,
                       }}
                       data-testid="timeline-dense-bar"
-                    />
+                    >
+                      {/* Where the first token arrived: a divider rather than the
+                          wide timeline's second shade, because a shade needs a
+                          bar tall enough to read one and these are 1px at the
+                          floor. It also keeps the label's contrast decision on a
+                          single colour. */}
+                      {node.firstTokenX == null ? null : (
+                        <div
+                          className="bg-background/70 absolute inset-y-0 w-px"
+                          style={{
+                            left: `${Math.min(Math.max(node.firstTokenX - node.x, 0), node.width)}px`,
+                          }}
+                          data-testid="timeline-dense-first-token"
+                        />
+                      )}
+                    </div>
                   )}
                   {/* Text comes back on its own as the rows grow — and it goes
                       on whichever side layout() measured room for, rather than
                       always after the bar, which clipped a full-width bar's
                       label at the lane edge. */}
-                  {presentation === "labelled" &&
-                  node.label &&
-                  !node.offscreen &&
-                  node.labelPlacement !== "hidden" ? (
-                    <span
-                      className={cn(
-                        "absolute overflow-hidden whitespace-nowrap",
-                        // A label drawn ON the bar contrasts with the BAR, not
-                        // with the page, so it takes white or black from that
-                        // bar's own luminance — see fns/timeline/barContrast.ts.
-                        // A chip of page-coloured ground read as a hole punched
-                        // in the bar; this reads as a label on it.
-                        node.labelPlacement !== "inside"
-                          ? "text-muted-foreground"
-                          : barTones[barClass] === "dark"
-                            ? "text-black/85"
-                            : "text-white/95",
-                      )}
-                      data-testid="timeline-dense-duration"
-                      data-placement={node.labelPlacement}
-                      style={{
-                        // A `before` label is anchored by its RIGHT edge, so its
-                        // gap from the bar is exact no matter what the measurer
-                        // thought the text was worth. Positioning it from the
-                        // left needs `left = x - gap - measuredWidth`, and any
-                        // under-measure is subtracted straight out of the gap:
-                        // measured 6px narrow and the label sat flush against
-                        // the bar. `after` never had the bug — it grows away
-                        // from its anchor rather than toward it.
-                        ...(node.labelPlacement === "before"
-                          ? {
-                              right: `${Math.max(laneWidth - node.labelX - node.labelWidth, 0)}px`,
-                              maxWidth: `${Math.max(node.labelX + node.labelWidth, 0)}px`,
-                            }
-                          : {
-                              left: `${node.labelX}px`,
-                              maxWidth: `${Math.max(laneWidth - node.labelX, 0)}px`,
-                            }),
-                        top: `${Math.max((rowHeight - 12) / 2, 0)}px`,
-                        fontSize: "10px",
-                      }}
-                    >
-                      {node.label}
-                    </span>
+                  {presentation === "labelled" && !node.offscreen ? (
+                    <TimelineRowMetrics
+                      row={node}
+                      laneWidth={laneWidth}
+                      measurer={measurer}
+                      density={density}
+                      metrics={metricsOf?.(node.id) ?? {}}
+                      showDuration={showDuration}
+                      toneClass={
+                        barTones[barClass] === "dark"
+                          ? "text-black/85"
+                          : "text-white/95"
+                      }
+                    />
                   ) : null}
                 </div>
               </div>
@@ -1712,9 +1707,9 @@ export function TimelineDense({
                     ? "—"
                     : formatDurationMs(focused.durationMs)}
                 </span>
-                {factsOf?.(focused.id).map((fact) => (
-                  <span key={fact}>{fact}</span>
-                ))}
+                {metricsOf?.(focused.id)?.costText ? (
+                  <span>{metricsOf(focused.id).costText}</span>
+                ) : null}
               </span>
             </div>
           </Layer>

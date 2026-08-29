@@ -19,7 +19,7 @@ export type LegacyEvalOutputDefinition = z.infer<
 >;
 
 const EvalOutputFieldDefinitionSchema = z.object({
-  description: z.string().trim().min(1),
+  description: z.string().trim().default(""),
 });
 
 export const MinimumCategoricalCategoryCount = 2;
@@ -81,68 +81,66 @@ const NumericEvalOutputScoreDefinitionSchema =
     },
   );
 
-export const NumericEvalOutputDefinitionV2Schema = z.object({
-  version: z.literal(2),
+const NumericEvalOutputDefinitionSchema = z.object({
   dataType: z.literal(ScoreDataTypeEnum.NUMERIC),
   reasoning: EvalOutputFieldDefinitionSchema,
   score: NumericEvalOutputScoreDefinitionSchema,
 });
-export type NumericEvalOutputDefinitionV2 = z.infer<
-  typeof NumericEvalOutputDefinitionV2Schema
->;
 
-export const BooleanEvalOutputDefinitionV2Schema = z.object({
-  version: z.literal(2),
+const BooleanEvalOutputDefinitionSchema = z.object({
   dataType: z.literal(ScoreDataTypeEnum.BOOLEAN),
   reasoning: EvalOutputFieldDefinitionSchema,
   score: EvalOutputFieldDefinitionSchema,
 });
-export type BooleanEvalOutputDefinitionV2 = z.infer<
-  typeof BooleanEvalOutputDefinitionV2Schema
->;
 
-export const CategoricalEvalOutputDefinitionV2Schema = z
+function validateCategoricalOutputDefinition(
+  value: { score: { categories: string[] } },
+  ctx: z.RefinementCtx,
+) {
+  getCategoricalCategoryRuleViolations(value.score.categories).forEach(
+    (violation) => {
+      switch (violation.type) {
+        case "minimum_count":
+          ctx.addIssue({
+            code: "custom",
+            message: getMinimumCategoricalCategoriesMessage(),
+            path: ["score", "categories"],
+          });
+          return;
+        case "duplicate_value":
+          ctx.addIssue({
+            code: "custom",
+            message: "Categories must be unique",
+            path: ["score", "categories", violation.index],
+          });
+          return;
+      }
+    },
+  );
+}
+
+const CategoricalEvalOutputDefinitionSchema = z
   .object({
-    version: z.literal(2),
     dataType: z.literal(ScoreDataTypeEnum.CATEGORICAL),
     reasoning: EvalOutputFieldDefinitionSchema,
     score: z.object({
-      description: z.string().trim().min(1),
+      description: z.string().trim().default(""),
       categories: z.array(EvalCategoricalCategorySchema),
       shouldAllowMultipleMatches: z.boolean().default(false),
     }),
   })
-  .superRefine((value, ctx) => {
-    getCategoricalCategoryRuleViolations(value.score.categories).forEach(
-      (violation) => {
-        switch (violation.type) {
-          case "minimum_count":
-            ctx.addIssue({
-              code: "custom",
-              message: getMinimumCategoricalCategoriesMessage(),
-              path: ["score", "categories"],
-            });
-            return;
-          case "duplicate_value":
-            ctx.addIssue({
-              code: "custom",
-              message: "Categories must be unique",
-              path: ["score", "categories", violation.index],
-            });
-            return;
-        }
-      },
-    );
-  });
-export type CategoricalEvalOutputDefinitionV2 = z.infer<
-  typeof CategoricalEvalOutputDefinitionV2Schema
->;
+  .superRefine(validateCategoricalOutputDefinition);
+
+export const EvalOutputDefinitionSchema = z.union([
+  NumericEvalOutputDefinitionSchema,
+  BooleanEvalOutputDefinitionSchema,
+  CategoricalEvalOutputDefinitionSchema,
+]);
+export type EvalOutputDefinition = z.infer<typeof EvalOutputDefinitionSchema>;
 
 export const PersistedEvalOutputDefinitionSchema = z.union([
   LegacyEvalOutputDefinitionSchema,
-  NumericEvalOutputDefinitionV2Schema,
-  BooleanEvalOutputDefinitionV2Schema,
-  CategoricalEvalOutputDefinitionV2Schema,
+  EvalOutputDefinitionSchema,
 ]);
 export type PersistedEvalOutputDefinition = z.infer<
   typeof PersistedEvalOutputDefinitionSchema
@@ -196,7 +194,7 @@ export type EvalOutputResult =
 export function resolvePersistedEvalOutputDefinition(
   outputDefinition: PersistedEvalOutputDefinition,
 ): ResolvedEvalOutputDefinition {
-  if (!("version" in outputDefinition)) {
+  if (!("dataType" in outputDefinition)) {
     return {
       dataType: ScoreDataTypeEnum.NUMERIC,
       reasoningDescription: outputDefinition.reasoning,
@@ -238,8 +236,7 @@ export function createNumericEvalOutputDefinition(params: {
   minValue?: number;
   maxValue?: number;
 }) {
-  return NumericEvalOutputDefinitionV2Schema.parse({
-    version: 2,
+  return NumericEvalOutputDefinitionSchema.parse({
     dataType: ScoreDataTypeEnum.NUMERIC,
     reasoning: {
       description: params.reasoningDescription,
@@ -256,8 +253,7 @@ export function createBooleanEvalOutputDefinition(params: {
   reasoningDescription: string;
   scoreDescription: string;
 }) {
-  return BooleanEvalOutputDefinitionV2Schema.parse({
-    version: 2,
+  return BooleanEvalOutputDefinitionSchema.parse({
     dataType: ScoreDataTypeEnum.BOOLEAN,
     reasoning: {
       description: params.reasoningDescription,
@@ -274,8 +270,7 @@ export function createCategoricalEvalOutputDefinition(params: {
   categories: string[];
   shouldAllowMultipleMatches?: boolean;
 }) {
-  return CategoricalEvalOutputDefinitionV2Schema.parse({
-    version: 2,
+  return CategoricalEvalOutputDefinitionSchema.parse({
     dataType: ScoreDataTypeEnum.CATEGORICAL,
     reasoning: {
       description: params.reasoningDescription,

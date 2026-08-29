@@ -70,6 +70,16 @@ restate them here so the security sweep stays self-contained.
   `web/src/features/blobstorage-integration/blobstorage-integration-router.ts`
   and similar routers.
 
+## Client Telemetry and Session Replay
+
+- Can analytics, browser monitoring, replay, logs, or network capture transmit
+  customer-controlled values or identifiers to a third party?
+  - If yes, see
+    [client-telemetry-privacy.md](client-telemetry-privacy.md). Required: an
+    explicit data boundary, deployment/compliance allowlisting, protection at
+    shared render boundaries including portals and attributes, negative tests,
+    and inspection of the emitted payload.
+
 ## Negative Tests
 
 - Does the change include tests that prove **blocked** inputs are rejected

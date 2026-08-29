@@ -185,7 +185,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
  * @param filters - Array of filter conditions to evaluate
  * @returns true if any filter requires DRI metrics, false if using basic dataset run data is sufficient
  */
-export const requiresClickhouseLookups = (filters: FilterState): boolean => {
+const requiresClickhouseLookups = (filters: FilterState): boolean => {
   if (filters.length === 0) {
     return false;
   }

@@ -19,7 +19,7 @@ type Organization =
  * Individual filter functions - each handles one concern
  * Exported for testing and composition
  */
-export const filters = {
+const filters = {
   /**
    * Filter routes that require a project ID when none is available
    */

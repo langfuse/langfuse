@@ -34,7 +34,7 @@ import {
 import { aggregateEvents } from "../lib/aggregate";
 import { MockEventsTable } from "./MockEventsTable";
 
-export type ChartViewAffordance = "inline" | "panel";
+type ChartViewAffordance = "inline" | "panel";
 
 export interface ChartViewPrototypeProps {
   events: PrototypeEvent[];

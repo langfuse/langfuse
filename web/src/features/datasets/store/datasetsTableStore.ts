@@ -37,7 +37,7 @@ type DatasetsTableScope = {
   searchQuery: string | null;
 };
 
-export interface DatasetsTableStoreState extends TableSelectionStoreState {
+interface DatasetsTableStoreState extends TableSelectionStoreState {
   actions: TableSelectionStoreState["actions"] & {
     syncPageRows: (payload: {
       pageRowIds: string[];

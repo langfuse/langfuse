@@ -22,7 +22,7 @@ export function getCreateEvaluatorHref(params: {
     : `/project/${projectId}/evals?gallery=open`;
 }
 
-export function stringifyPreviewValue(value: unknown): string {
+function stringifyPreviewValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (

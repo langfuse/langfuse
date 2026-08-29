@@ -3,7 +3,6 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { renderLevelIcon } from "@/src/components/level-colors";
 
@@ -16,18 +15,10 @@ export const getEventsColumnName = (id: string): string => {
   return column.name;
 };
 
-/**
- * Maps frontend column IDs to backend-expected column IDs for events table
- * Events table uses different naming conventions than observations table
- */
-export const OBSERVATION_EVENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  // No mapping needed currently - events table column names align with UI
-};
-
 const isBooleanEqualityOperator = (operator: string): operator is "=" | "<>" =>
   operator === "=" || operator === "<>";
 
-export const migrateLegacyRootObservationFilters = (
+const migrateLegacyRootObservationFilters = (
   filters: FilterState,
 ): FilterState => {
   const hasRootObservationFilter = filters.some(
@@ -88,30 +79,10 @@ export const observationEventsFilterConfig: FilterConfig = {
 
   defaultExpanded: ["environment", "name", "isRootObservation", "type"],
 
-  // Top 15 facets by real usage — 60 days of PostHog `filters:applied` on
-  // this table: they cover ~98% of sidebar filter applies per project on
-  // average, ~95% at the 10th percentile. The rest folds behind
-  // "Show N more".
-  commonFacets: [
-    "isRootObservation",
-    "name",
-    "type",
-    "environment",
-    "traceName",
-    "metadata",
-    "traceTags",
-    "sessionId",
-    "userId",
-    "traceId",
-    "level",
-    "providedModelName",
-    "promptName",
-    "latency",
-    "scores_avg",
-  ],
-
   migrateFilterState: migrateLegacyRootObservationFilters,
 
+  // Observation-table facet order follows real sidebar usage (PostHog
+  // `filters:applied`): the most-applied columns sit at the top.
   facets: [
     {
       type: "boolean" as const,

@@ -68,7 +68,7 @@ export function getInAppAgentApiAccessScope(
   };
 }
 
-export async function checkInAppAgentRateLimit(
+async function checkInAppAgentRateLimit(
   scope: ApiAccessScope,
   resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
 ): Promise<RateLimitResult | undefined> {

@@ -91,7 +91,7 @@ const chbConfig = (
   clickhouse: {
     organizationId: CH_ORG_ID,
     bundleId: BUNDLE_ID,
-    planCode: "pro",
+    planCode: "LANGFUSE_PRO",
     ...overrides,
   },
 });
@@ -194,7 +194,7 @@ describe("chbBillingService", () => {
         scheduled: {
           type: "downgrade",
           when: "billing_cycle_end",
-          planCode: "core",
+          planCode: "LANGFUSE_CORE",
           startDate: "2026-09-05T00:00:00Z",
         },
       });
@@ -206,7 +206,7 @@ describe("chbBillingService", () => {
         scheduleId: `chb:${BUNDLE_ID}`,
         // An explicit startDate wins over the period end.
         switchAt: Date.parse("2026-09-05T00:00:00Z") / 1000,
-        newProductId: productIdFor("core"),
+        newProductId: productIdFor("LANGFUSE_CORE"),
         message: null,
       });
     });
@@ -245,7 +245,7 @@ describe("chbBillingService", () => {
 
   describe("createCheckoutSession", () => {
     const session = {
-      url: "https://pay.example.com/c/1",
+      checkoutUrl: "https://pay.example.com/c/1",
       organizationId: CH_ORG_ID,
     };
 
@@ -255,17 +255,17 @@ describe("chbBillingService", () => {
 
       const url = await service().createCheckoutSession(
         ORG_ID,
-        productIdFor("pro"),
+        productIdFor("LANGFUSE_PRO"),
         "op-checkout",
       );
 
-      expect(url).toBe(session.url);
+      expect(url).toBe(session.checkoutUrl);
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith({
         organizationId: undefined,
         email: "user@example.com",
-        planCode: "pro",
+        planCode: "LANGFUSE_PRO",
         returnUrl: `https://cloud.langfuse.com/organization/${ORG_ID}/settings/billing`,
-        idempotencyKey: `chb.checkout.create:orgId=${ORG_ID}:planCode=pro:op=op-checkout`,
+        idempotencyKey: `chb.checkout.create:orgId=${ORG_ID}:planCode=LANGFUSE_PRO:op=op-checkout`,
       });
       // Claimed with the guarded statement, never a blind read-then-write.
       expect(executeRaw).toHaveBeenCalledTimes(1);
@@ -281,13 +281,13 @@ describe("chbBillingService", () => {
       withOrg(null);
       await service().createCheckoutSession(
         ORG_ID,
-        productIdFor("core"),
+        productIdFor("LANGFUSE_CORE"),
         "op-1",
       );
       withOrg(null);
       await service().createCheckoutSession(
         ORG_ID,
-        productIdFor("team"),
+        productIdFor("LANGFUSE_PRO_TEAMS"),
         "op-1",
       );
 
@@ -301,7 +301,10 @@ describe("chbBillingService", () => {
       withOrg(null);
       clientMock.createCheckoutSession.mockResolvedValue(session);
 
-      await service().createCheckoutSession(ORG_ID, productIdFor("pro"));
+      await service().createCheckoutSession(
+        ORG_ID,
+        productIdFor("LANGFUSE_PRO"),
+      );
 
       // Matches makeIdempotencyKey's contract: no client opId, no claim.
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith(
@@ -313,13 +316,16 @@ describe("chbBillingService", () => {
       withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
       clientMock.createCheckoutSession.mockResolvedValue(session);
 
-      await service().createCheckoutSession(ORG_ID, productIdFor("team"));
+      await service().createCheckoutSession(
+        ORG_ID,
+        productIdFor("LANGFUSE_PRO_TEAMS"),
+      );
 
       // A retry must recover the same CH org instead of orphaning one.
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith(
         expect.objectContaining({
           organizationId: CH_ORG_ID,
-          planCode: "team",
+          planCode: "LANGFUSE_PRO_TEAMS",
         }),
       );
       // Already stored, so the retry claims nothing.
@@ -330,7 +336,7 @@ describe("chbBillingService", () => {
     it("refuses when a retry comes back with a different CH organization", async () => {
       withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
       clientMock.createCheckoutSession.mockResolvedValue({
-        url: session.url,
+        checkoutUrl: session.checkoutUrl,
         organizationId: "11111111-2222-4333-8444-555555555555",
       });
 
@@ -338,7 +344,10 @@ describe("chbBillingService", () => {
       // the org at a bundle it never bought.
       expect(
         await trpcCode(
-          service().createCheckoutSession(ORG_ID, productIdFor("team")),
+          service().createCheckoutSession(
+            ORG_ID,
+            productIdFor("LANGFUSE_PRO_TEAMS"),
+          ),
         ),
       ).toBe("INTERNAL_SERVER_ERROR");
       expect(executeRaw).not.toHaveBeenCalled();
@@ -347,7 +356,7 @@ describe("chbBillingService", () => {
     it("refuses to persist an id the stored schema rejects", async () => {
       withOrg(null);
       clientMock.createCheckoutSession.mockResolvedValue({
-        url: session.url,
+        checkoutUrl: session.checkoutUrl,
         organizationId: "not-a-uuid",
       });
 
@@ -356,7 +365,11 @@ describe("chbBillingService", () => {
       // make parseDbOrg null the whole cloudConfig on every later read.
       expect(
         await trpcCode(
-          service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
+          service().createCheckoutSession(
+            ORG_ID,
+            productIdFor("LANGFUSE_PRO"),
+            "op-1",
+          ),
         ),
       ).toBe("INTERNAL_SERVER_ERROR");
       expect(executeRaw).not.toHaveBeenCalled();
@@ -371,7 +384,11 @@ describe("chbBillingService", () => {
       // resolves to a CH org the Langfuse row no longer points at.
       expect(
         await trpcCode(
-          service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
+          service().createCheckoutSession(
+            ORG_ID,
+            productIdFor("LANGFUSE_PRO"),
+            "op-1",
+          ),
         ),
       ).toBe("CONFLICT");
       expect(mocks.auditLog).not.toHaveBeenCalled();
@@ -388,7 +405,11 @@ describe("chbBillingService", () => {
       );
 
       await expect(
-        service().createCheckoutSession(ORG_ID, productIdFor("pro"), "op-1"),
+        service().createCheckoutSession(
+          ORG_ID,
+          productIdFor("LANGFUSE_PRO"),
+          "op-1",
+        ),
       ).rejects.toThrow();
       expect(executeRaw).not.toHaveBeenCalled();
       expect(update).not.toHaveBeenCalled();
@@ -399,7 +420,7 @@ describe("chbBillingService", () => {
 
       expect(
         await trpcCode(
-          service().createCheckoutSession(ORG_ID, productIdFor("pro")),
+          service().createCheckoutSession(ORG_ID, productIdFor("LANGFUSE_PRO")),
         ),
       ).toBe("INTERNAL_SERVER_ERROR");
       expect(clientMock.createCheckoutSession).not.toHaveBeenCalled();
@@ -413,7 +434,7 @@ describe("chbBillingService", () => {
 
       expect(
         await trpcCode(
-          service().createCheckoutSession(ORG_ID, productIdFor("pro")),
+          service().createCheckoutSession(ORG_ID, productIdFor("LANGFUSE_PRO")),
         ),
       ).toBe("INTERNAL_SERVER_ERROR");
       // An org bills through exactly one provider.
@@ -432,30 +453,38 @@ describe("chbBillingService", () => {
 
   describe("changePlan", () => {
     it("applies an upgrade immediately", async () => {
-      withOrg(chbConfig({ planCode: "core" }));
+      withOrg(chbConfig({ planCode: "LANGFUSE_CORE" }));
 
-      await service().changePlan(ORG_ID, productIdFor("team"), "op-1");
+      await service().changePlan(
+        ORG_ID,
+        productIdFor("LANGFUSE_PRO_TEAMS"),
+        "op-1",
+      );
 
       expect(clientMock.setScheduledChange).toHaveBeenCalledWith({
         chOrganizationId: CH_ORG_ID,
         bundleId: BUNDLE_ID,
-        change: { type: "upgrade", when: "immediate", planCode: "team" },
+        change: {
+          type: "upgrade",
+          when: "immediate",
+          planCode: "LANGFUSE_PRO_TEAMS",
+        },
         idempotencyKey:
-          "chb.bundle.scheduled.set:bundleId=bundle_1:to=team:op=op-1",
+          "chb.bundle.scheduled.set:bundleId=bundle_1:to=LANGFUSE_PRO_TEAMS:op=op-1",
       });
     });
 
     it("defers a downgrade to the end of the billing cycle", async () => {
-      withOrg(chbConfig({ planCode: "team" }));
+      withOrg(chbConfig({ planCode: "LANGFUSE_PRO_TEAMS" }));
 
-      await service().changePlan(ORG_ID, productIdFor("core"), "op-2");
+      await service().changePlan(ORG_ID, productIdFor("LANGFUSE_CORE"), "op-2");
 
       expect(clientMock.setScheduledChange).toHaveBeenCalledWith(
         expect.objectContaining({
           change: {
             type: "downgrade",
             when: "billing_cycle_end",
-            planCode: "core",
+            planCode: "LANGFUSE_CORE",
           },
         }),
       );
@@ -464,13 +493,17 @@ describe("chbBillingService", () => {
     it("treats an org with no stored plan code as upgrading", async () => {
       withOrg(chbConfig({ planCode: null }));
 
-      await service().changePlan(ORG_ID, productIdFor("core"));
+      await service().changePlan(ORG_ID, productIdFor("LANGFUSE_CORE"));
 
       // Nothing to compare against, so apply now rather than stranding the org
       // on its current tier until the cycle ends.
       expect(clientMock.setScheduledChange).toHaveBeenCalledWith(
         expect.objectContaining({
-          change: { type: "upgrade", when: "immediate", planCode: "core" },
+          change: {
+            type: "upgrade",
+            when: "immediate",
+            planCode: "LANGFUSE_CORE",
+          },
           // No opId → no key, matching makeIdempotencyKey's contract.
           idempotencyKey: undefined,
         }),
@@ -484,7 +517,9 @@ describe("chbBillingService", () => {
       );
 
       expect(
-        await trpcCode(service().changePlan(ORG_ID, productIdFor("team"))),
+        await trpcCode(
+          service().changePlan(ORG_ID, productIdFor("LANGFUSE_PRO_TEAMS")),
+        ),
       ).toBe("PRECONDITION_FAILED");
       expect(mocks.auditLog).not.toHaveBeenCalled();
     });
@@ -495,7 +530,7 @@ describe("chbBillingService", () => {
       clientMock.setScheduledChange.mockRejectedValue(boom);
 
       await expect(
-        service().changePlan(ORG_ID, productIdFor("team")),
+        service().changePlan(ORG_ID, productIdFor("LANGFUSE_PRO_TEAMS")),
       ).rejects.toBe(boom);
     });
 
@@ -507,7 +542,9 @@ describe("chbBillingService", () => {
       withOrg(cloudConfig);
 
       expect(
-        await trpcCode(service().changePlan(ORG_ID, productIdFor("team"))),
+        await trpcCode(
+          service().changePlan(ORG_ID, productIdFor("LANGFUSE_PRO_TEAMS")),
+        ),
       ).toBe("INTERNAL_SERVER_ERROR");
       expect(clientMock.setScheduledChange).not.toHaveBeenCalled();
     });

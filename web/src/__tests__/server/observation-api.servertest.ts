@@ -5,6 +5,7 @@ import {
   createTracesCh,
   createEventsCh,
   createObservationsCh,
+  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
@@ -77,6 +78,41 @@ const insertObservations = async (
 };
 
 describe("/api/public/observations API Endpoint", () => {
+  it("clamps Hobby observation access to the last 30 days", async () => {
+    const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+    const oldId = uuidv4();
+    const recentId = uuidv4();
+    await createObservationsCh([
+      createObservation({
+        id: oldId,
+        project_id: fixture.projectId,
+        trace_id: uuidv4(),
+        start_time: Date.now() - 100 * 24 * 60 * 60 * 1000,
+      }),
+      createObservation({
+        id: recentId,
+        project_id: fixture.projectId,
+        trace_id: uuidv4(),
+        start_time: Date.now() - 24 * 60 * 60 * 1000,
+      }),
+    ]);
+
+    const response = await makeZodVerifiedAPICall(
+      GetObservationsV1Response,
+      "GET",
+      "/api/public/observations",
+      undefined,
+      fixture.auth,
+    );
+
+    expect(response.body.data.map((observation) => observation.id)).toContain(
+      recentId,
+    );
+    expect(
+      response.body.data.map((observation) => observation.id),
+    ).not.toContain(oldId);
+  });
+
   // Test suite factory to run tests against both implementations
   const runTestSuite = (useEventsTable: boolean) => {
     const suiteName = useEventsTable

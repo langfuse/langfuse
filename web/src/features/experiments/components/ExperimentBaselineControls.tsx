@@ -3,6 +3,8 @@ import { Combobox } from "@/src/components/ui/combobox";
 import { X } from "lucide-react";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {
   projectId: string;
@@ -19,6 +21,7 @@ export function ExperimentBaselineControls({
   onBaselineChange,
   onBaselineClear,
 }: ExperimentBaselineControlsProps) {
+  const capture = usePostHogClientCapture();
   const { experimentNames, isLoading } = useExperimentNames({
     projectId,
   });
@@ -33,7 +36,17 @@ export function ExperimentBaselineControls({
         <Combobox
           options={baselineOptions}
           value={baselineId}
-          onValueChange={onBaselineChange}
+          onValueChange={(id) => {
+            if (id === baselineId) return;
+            capture(
+              "experiment:baseline_changed",
+              baselineChangedProps({
+                tableName: "experiment-items",
+                source: "picker",
+              }),
+            );
+            onBaselineChange(id);
+          }}
           placeholder={baselineName ?? baselineId ?? "Select baseline..."}
           emptyText="No experiments found"
           searchPlaceholder="Search experiments..."
@@ -50,7 +63,16 @@ export function ExperimentBaselineControls({
           variant="outline"
           size="icon"
           className="-ml-px shrink-0 rounded-l-none"
-          onClick={onBaselineClear}
+          onClick={() => {
+            capture(
+              "experiment:baseline_changed",
+              baselineChangedProps({
+                tableName: "experiment-items",
+                source: "clear",
+              }),
+            );
+            onBaselineClear();
+          }}
           disabled={isLoading}
           title="Clear baseline"
           aria-label="Clear baseline"

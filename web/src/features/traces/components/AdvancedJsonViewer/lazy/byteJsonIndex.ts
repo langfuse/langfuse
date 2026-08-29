@@ -162,14 +162,14 @@ const DOUBLE_SAFE_SIG_DIGITS = 15;
 // WASM seam: low-level byte scanner
 // ============================================================================
 
-export interface ScanResult {
+interface ScanResult {
   /** Exclusive end byte offset of the scanned value. */
   end: number;
   /** Compact type tag (T_*). */
   type: number;
 }
 
-export interface ScannedContainer {
+interface ScannedContainer {
   isObject: boolean;
   /** Start byte offset of each child value (Uint32 => docs up to 4GB). */
   starts: Uint32Array;
@@ -245,7 +245,7 @@ class U8Builder {
 /**
  * Pure-TS UTF-8 byte scanner. This is the piece a WASM module would replace.
  */
-export class JsByteScanner implements ByteScanner {
+class JsByteScanner implements ByteScanner {
   readonly bytes: Uint8Array;
   private readonly decoder = new TextDecoder();
 

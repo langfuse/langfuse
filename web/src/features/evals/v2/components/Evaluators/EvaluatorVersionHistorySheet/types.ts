@@ -1,6 +1,7 @@
 import type {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
+  ModelConfig,
 } from "@langfuse/shared";
 
 export type EvaluatorVersion = {
@@ -13,6 +14,9 @@ export type EvaluatorVersion = {
   prompt: string | null;
   provider: string | null;
   model: string | null;
+  modelParams: ModelConfig | null;
+  vars: string[];
+  variableMapping: unknown;
   outputDefinition: unknown;
   createdByUser: { name: string | null; email: string | null } | null;
 };

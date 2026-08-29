@@ -192,24 +192,19 @@ describe("getInAppAgentModelConfig", () => {
     expect(getInAppAgentModelConfig()).toBeUndefined();
   });
 
-  it("leaves the Bedrock region undefined when LANGFUSE_AI_AWS_BEDROCK_REGION is unset", () => {
+  it("treats an unset LANGFUSE_AI_PROVIDER as unconfigured even when model vars are set", () => {
     Object.assign(env, {
       LANGFUSE_AI_PROVIDER: undefined,
       LANGFUSE_AI_MODEL: "eu.anthropic.claude-opus-5",
-      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_SMALL_MODEL: "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
       LANGFUSE_AI_API_KEY: undefined,
       LANGFUSE_AI_BASE_URL: undefined,
       LANGFUSE_AI_EXTRA_HEADERS: undefined,
-      LANGFUSE_AI_AWS_BEDROCK_REGION: undefined,
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU",
     });
 
-    expect(getInAppAgentModelConfig()).toEqual({
-      provider: "bedrock",
-      modelId: "eu.anthropic.claude-opus-5",
-      titleModelId: "eu.anthropic.claude-opus-5",
-      region: undefined,
-    });
+    expect(getInAppAgentModelConfig()).toBeUndefined();
   });
 });
 

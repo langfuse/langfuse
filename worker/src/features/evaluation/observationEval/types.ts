@@ -16,12 +16,7 @@ import type { EvalTargetObject, FilterState } from "@langfuse/shared";
  *
  * @see packages/shared/src/features/evals/observationForEval.ts for schema definition
  */
-export {
-  type ObservationForEval,
-  observationForEvalSchema,
-  observationEvalFilterColumns,
-  observationEvalVariableColumns,
-} from "@langfuse/shared";
+export { type ObservationForEval } from "@langfuse/shared";
 
 /**
  * Observation eval job configuration.

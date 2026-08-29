@@ -5,7 +5,7 @@ import {
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Form,
   FormControl,
@@ -538,15 +538,9 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <KeyboardShortcut
-                    className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50"
-                    keys={
-                      typeof navigator !== "undefined" &&
-                      navigator.userAgent.includes("Macintosh")
-                        ? ["⌘", "F"]
-                        : ["Ctrl", "F"]
-                    }
-                  />
+                  <span className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 md:inline-flex">
+                    <KeyboardShortcut keys={["Mod", "F"]} />
+                  </span>
                 )}
               </div>
             </div>
@@ -804,7 +798,9 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <KeyboardShortcut keys={["⌘", "Enter"]} />
+                          <span className="hidden md:inline-flex">
+                            <KeyboardShortcut keys={["Mod", "Enter"]} />
+                          </span>
                         </div>
                       </HoverCardContent>
                     </HoverCard>

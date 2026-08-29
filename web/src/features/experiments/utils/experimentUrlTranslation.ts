@@ -42,16 +42,3 @@ export function singleRunToExperimentsUrl(
 ): string {
   return `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(runId)}`;
 }
-
-/**
- * Parse experiments results URL params.
- */
-export function parseExperimentsResultsParams(query: {
-  baseline?: string;
-  c?: string;
-}): { baseline: string | null; comparisons: string[] } {
-  const baseline = query.baseline ?? null;
-  const comparisons = query.c ? query.c.split(",").filter(Boolean) : [];
-
-  return { baseline, comparisons };
-}

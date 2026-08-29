@@ -36,6 +36,7 @@ export type ParsedMediaReferenceType = z.infer<
   typeof ParsedMediaReferenceSchema
 >;
 
+// TODO: move to parser
 // Matches the format parsed by MediaReferenceStringSchema. Non-greedy, so
 // consecutive references in one string are separate matches.
 export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:.+?@@@/g;
@@ -47,6 +48,7 @@ export const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:.+?@@@/g;
  * Note: This schema uses transforms that can throw errors during validation
  * if the magic string format is invalid. Always use with try-catch or safeParse.
  */
+// TODO: move to parser
 export const MediaReferenceStringSchema = z
   .string()
   .transform((str, ctx) => {

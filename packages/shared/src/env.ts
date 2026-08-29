@@ -522,6 +522,8 @@ const EnvSchema = z.object({
     .positive()
     .default(DEFAULT_LLM_COMPLETION_TIMEOUT_MS), // 2 minutes
 
+  // LANGFUSE_AI_PROVIDER is optional at boot. Unset means unconfigured;
+  // bedrock requires LANGFUSE_AI_PROVIDER=bedrock.
   // LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
   // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
   // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.

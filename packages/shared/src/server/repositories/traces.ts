@@ -1222,7 +1222,7 @@ const buildTracesForBlobStorageExportQuery = (
     FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND timestamp < {maxTimestamp: DateTime64(3)}
   `;
 
   return {

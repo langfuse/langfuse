@@ -23,12 +23,12 @@ import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
-  createUnstablePublicApiAuthError,
-  createUnstablePublicApiRequestValidationError,
-  sendUnstablePublicApiErrorResponse,
-  unstablePublicEvalsErrorContract,
+  createStructuredPublicApiAuthError,
+  createStructuredPublicApiRequestValidationError,
+  sendStructuredPublicApiErrorResponse,
+  structuredPublicApiErrorContract,
   type PublicApiErrorContract,
-} from "@/src/features/public-api/server/unstable-public-api-error-contract";
+} from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 
@@ -353,10 +353,10 @@ export const createAuthedProjectAPIRoute = <
       if (isPrismaException(error)) {
         traceException(error);
 
-        if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
-          return sendUnstablePublicApiErrorResponse(
+        if (routeConfig.errorContract === structuredPublicApiErrorContract) {
+          return sendStructuredPublicApiErrorResponse(
             res,
-            createUnstablePublicApiAuthError({
+            createStructuredPublicApiAuthError({
               statusCode: 503,
               message: "Service Unavailable",
             }),
@@ -370,10 +370,10 @@ export const createAuthedProjectAPIRoute = <
       const statusCode = error.status ?? 401;
       const message = error.message ?? "Authentication failed";
 
-      if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
-        return sendUnstablePublicApiErrorResponse(
+      if (routeConfig.errorContract === structuredPublicApiErrorContract) {
+        return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiAuthError({ statusCode, message }),
+          createStructuredPublicApiAuthError({ statusCode, message }),
         );
       }
 
@@ -406,12 +406,12 @@ export const createAuthedProjectAPIRoute = <
         : ({} as z.infer<TQuery>);
     } catch (error) {
       if (
-        routeConfig.errorContract === unstablePublicEvalsErrorContract &&
+        routeConfig.errorContract === structuredPublicApiErrorContract &&
         isZodError(error)
       ) {
-        return sendUnstablePublicApiErrorResponse(
+        return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiRequestValidationError({
+          createStructuredPublicApiRequestValidationError({
             error,
             requestPart: "query",
           }),
@@ -428,12 +428,12 @@ export const createAuthedProjectAPIRoute = <
         : ({} as z.infer<TBody>);
     } catch (error) {
       if (
-        routeConfig.errorContract === unstablePublicEvalsErrorContract &&
+        routeConfig.errorContract === structuredPublicApiErrorContract &&
         isZodError(error)
       ) {
-        return sendUnstablePublicApiErrorResponse(
+        return sendStructuredPublicApiErrorResponse(
           res,
-          createUnstablePublicApiRequestValidationError({
+          createStructuredPublicApiRequestValidationError({
             error,
             requestPart: "body",
           }),

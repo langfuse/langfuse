@@ -158,7 +158,7 @@ export async function executeInAppAgentRun(params: {
   // The uncovered durability window: an approved mutation may have started
   // but its result never persisted. Never generically retried. Hoisted to
   // function scope because both the loop callbacks and the outer catch can
-  // record the terminal state (failStream races the drain rejection).
+  // record the terminal state.
   const failureCode = () =>
     isApprovedContinuation && !approvedToolResultPersisted
       ? {
@@ -168,9 +168,9 @@ export async function executeInAppAgentRun(params: {
         }
       : undefined;
 
-  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup): the
-  // loop's onFinish and the outer catch can invoke this concurrently because
-  // failStream errors the stream without awaiting its onError/onFinish chain.
+  // Single-flight (same shape as web's withInAppAgentMcpApiKeyCleanup):
+  // onFinish cleans up before the stream errors, then the outer catch
+  // runs after drainStream rejects and may call this again.
   const cleanupMcpApiKey = (): Promise<void> => {
     if (!mcpApiKey) return Promise.resolve();
     const keyId = mcpApiKey.id;
@@ -629,12 +629,12 @@ export async function executeInAppAgentRun(params: {
     await drainStream(stream);
   } catch (error) {
     // Two classes land here: pre-loop failures (revalidation, input build,
-    // key minting) and loop failures surfaced through the errored stream —
-    // failStream fires the loop's onError without awaiting it and errors the
-    // stream synchronously, so this catch can RACE that onError and win the
-    // terminal CAS. Both writers therefore classify identically: the
-    // durability check first, then agent_error for loop-phase failures and
-    // init_failed only before the loop existed.
+    // key minting) and loop failures surfaced through the errored stream
+    // after tracing flush, onError, and onFinish. finishClaimedRun is
+    // idempotent, so a second write is a no-op if onError already recorded
+    // FAILED. Both writers classify identically: the durability check first,
+    // then agent_error for loop-phase failures and init_failed only before
+    // the loop existed.
     await finishClaimedRun({
       prisma,
       projectId,
@@ -768,7 +768,6 @@ function buildTracingConfig(params: {
   }
 
   const traceSinkParams = getLangfuseAITraceSinkParams({
-    environment: "langfuse-in-app-agent",
     feature: "in-app-agent",
     projectId: params.projectId,
     traceId: getInAppAgentInstrumentationTraceId(params.runId),

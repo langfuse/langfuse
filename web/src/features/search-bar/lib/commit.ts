@@ -104,7 +104,7 @@ export type SearchErrorReason =
  * between-conditions OR, so we recurse through those; a `filter`'s within-field
  * OR lives in `valueOp`, so we never descend into it.
  */
-export function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
+function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
   if (ast === null) return false;
   switch (ast.kind) {
     case "or":

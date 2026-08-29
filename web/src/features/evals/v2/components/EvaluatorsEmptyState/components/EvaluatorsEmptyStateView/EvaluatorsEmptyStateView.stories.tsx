@@ -22,7 +22,6 @@ const startingPoints = [
         prompt: "Classify {{input}}.",
         variables: [{ name: "input", defaultMapping: { field: "input" } }],
         outputDefinition: {
-          version: 2,
           dataType: "CATEGORICAL",
           score: {
             description: "Topic.",
@@ -54,7 +53,6 @@ const startingPoints = [
           { name: "last_user_message", defaultMapping: { field: "input" } },
         ],
         outputDefinition: {
-          version: 2,
           dataType: "BOOLEAN",
           score: { description: "True if disagreement is present." },
           reasoning: { description: "One sentence." },

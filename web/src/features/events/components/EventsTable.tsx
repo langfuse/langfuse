@@ -37,12 +37,13 @@ import {
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import { createBadgeTableColumn } from "@/src/components/design-system/Table/columns/createBadgeTableColumn";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
-import { createDurationTableColumn } from "@/src/components/design-system/Table/columns/createDurationTableColumn";
-import { createItemBadgeTableColumn } from "@/src/components/design-system/Table/columns/createItemBadgeTableColumn";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
-import { createTagsTableColumn } from "@/src/components/design-system/Table/columns/createTagsTableColumn";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -102,7 +103,6 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
 import {
   useAppRootDefault,
@@ -118,7 +118,6 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 // } from "@/src/features/events/hooks/useEventsViewMode";
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
-import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
@@ -1159,109 +1158,38 @@ export default function ObservationsEventsTable({
         return value ?? undefined;
       },
     },
-    {
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "input",
       header: getEventsColumnName("input"),
-      id: "input",
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("input");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
       enableHiding: true,
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "output",
-      id: "output",
       header: getEventsColumnName("output"),
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("output");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            className="bg-accent-light-green"
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
+      variant: "output",
       enableHiding: true,
-    },
-    {
+    }),
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
       size: 300,
-      loadingCell: () => (
-        <JsonSkeleton
-          numRows={rowHeight === "s" ? 1 : undefined}
-          borderless
-          className="h-full w-full overflow-hidden px-2 py-1"
-        />
-      ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
         href: "https://langfuse.com/docs/observability/features/metadata",
       },
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("metadata");
-        if (isIoPending(row.original.id)) {
-          return (
-            <JsonSkeleton
-              numRows={rowHeight === "s" ? 1 : undefined}
-              borderless
-              className="h-full w-full overflow-hidden px-2 py-1"
-            />
-          );
-        }
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : null;
-      },
+      getCell: (value, { row }) =>
+        isIoPending(row.original.id) ? { type: "loading" } : value || undefined,
+      singleLine: rowHeight === "s",
       enableHiding: true,
-    },
+    }),
     {
       accessorKey: "level",
       id: "level",
@@ -1289,10 +1217,9 @@ export default function ObservationsEventsTable({
       },
       enableSorting,
     },
-    {
+    createIOTableColumn<EventsTableRow>({
       accessorKey: "statusMessage",
       header: getEventsColumnName("statusMessage"),
-      id: "statusMessage",
       size: 150,
       headerTooltip: {
         description:
@@ -1301,17 +1228,9 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("statusMessage");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     createDurationTableColumn<EventsTableRow>({
       accessorKey: "latency",
       header: getEventsColumnName("latency"),
@@ -1655,6 +1574,8 @@ export default function ObservationsEventsTable({
 
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: eventsFilterConfig.tableName,
+    isV4: true,
     paramsToMirrorPeekValue: ["observation"],
     extractParamsValuesFromRow: (row: EventsTableRow) => ({
       traceId: row.traceId || "",
@@ -1870,6 +1791,8 @@ export default function ObservationsEventsTable({
                     updateQuery={setSearchQuery}
                     tableAllowsFullTextSearch
                     metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                    tableName={eventsFilterConfig.tableName}
+                    isV4
                   />
                 )
               }
@@ -1987,6 +1910,8 @@ export default function ObservationsEventsTable({
               columns={columns}
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
+              tableName={eventsFilterConfig.tableName}
+              isV4={true}
               searchConfig={
                 // In search-bar mode full-text search (bare text +
                 // content:/input:/output:) lives inline in the bar, so the

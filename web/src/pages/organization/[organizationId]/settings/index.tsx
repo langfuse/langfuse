@@ -1,13 +1,14 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/ui/button";
 import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
 import { MembersTable } from "@/src/features/rbac/components/MembersTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
+import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
-import { DeleteOrganizationButton } from "@/src/features/organizations/components/DeleteOrganizationButton";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -108,7 +109,19 @@ export const getOrganizationSettingsPages = ({
               title: "Delete this organization",
               description:
                 "Once you delete an organization, there is no going back. Please be certain.",
-              button: <DeleteOrganizationButton />,
+              button: (
+                <DeleteOrganizationDialogController>
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      Delete Organization
+                    </Button>
+                  )}
+                </DeleteOrganizationDialogController>
+              ),
             },
           ]}
         />

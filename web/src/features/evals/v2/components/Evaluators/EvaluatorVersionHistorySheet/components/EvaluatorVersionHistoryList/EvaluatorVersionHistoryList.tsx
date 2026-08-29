@@ -1,7 +1,9 @@
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
+import { RotateCcw } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 import {
@@ -44,6 +46,7 @@ export function EvaluatorVersionHistoryList({
   defaultModel,
   expandedVersionId,
   onExpandedVersionChange,
+  onRestoreVersion,
   isLoading,
 }: {
   versions: EvaluatorVersion[];
@@ -52,6 +55,7 @@ export function EvaluatorVersionHistoryList({
   /** The version whose definition is open; null collapses them all. */
   expandedVersionId: string | null;
   onExpandedVersionChange: (versionId: string | null) => void;
+  onRestoreVersion: (version: EvaluatorVersion) => void;
   isLoading: boolean;
 }) {
   if (isLoading) {
@@ -118,7 +122,22 @@ export function EvaluatorVersionHistoryList({
                 </span>
               </>
             }
-            actions={null}
+            actions={
+              version.id === currentVersionId ? null : (
+                <span className="flex shrink-0 items-center pr-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Restore version ${version.version}`}
+                    title={`Restore version ${version.version}`}
+                    onClick={() => onRestoreVersion(version)}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              )
+            }
           >
             <div className="p-3">
               <EvaluatorDefinitionView

@@ -19,6 +19,7 @@ vi.hoisted(() => {
   delete process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER;
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ??= "DEV";
   process.env.NEXTAUTH_URL ??= "http://localhost:3000";
+  process.env.LANGFUSE_AI_PROVIDER ??= "bedrock";
   process.env.LANGFUSE_AI_AWS_BEDROCK_REGION ??= "eu-central-1";
   process.env.LANGFUSE_AI_MODEL ??= "test-bedrock-model";
 });

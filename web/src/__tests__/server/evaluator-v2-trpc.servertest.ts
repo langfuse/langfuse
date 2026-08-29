@@ -34,13 +34,9 @@ let session: Session & { user: NonNullable<Session["user"]> };
 const definition = {
   type: "LLM_AS_JUDGE" as const,
   prompt: "Judge {{output}}",
-  provider: null,
-  model: null,
-  modelParams: null,
-  vars: ["output"],
+  modelConfig: null,
   variableMapping: [{ templateVariable: "output", selectedColumnId: "output" }],
   outputDefinition: {
-    version: 2 as const,
     dataType: "NUMERIC" as const,
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },

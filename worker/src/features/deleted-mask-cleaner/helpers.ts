@@ -62,7 +62,7 @@ export const DELETED_MASK_CLEANER_WORK_QUERY = `
   LIMIT 1 BY table
 `;
 
-export function isDeletedMaskCleanerTable(table: string): boolean {
+function isDeletedMaskCleanerTable(table: string): boolean {
   return DELETED_MASK_CLEANER_TABLE_SET.has(table);
 }
 

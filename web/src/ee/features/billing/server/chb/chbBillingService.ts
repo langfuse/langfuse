@@ -16,6 +16,7 @@ import {
   type ChbBundle,
   ChbPaymentRequiredError,
 } from "./chbApiClient";
+import { backfillChbProjectEvents } from "./chbProjectEvents";
 import {
   isChbUpgrade,
   mapChbPlanCodeToStripeProductId,
@@ -249,6 +250,13 @@ export class ChbBillingService {
           "Cannot initialize ClickHouse Billing checkout for a Stripe-billed organization",
       });
     }
+    if (parsedOrg.cloudConfig?.clickhouse?.bundleId) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "Organization already has an active bundle; use changePlan instead of checkout",
+      });
+    }
 
     const planCode = mapStripeProductIdToChbPlanCode(stripeProductId);
     if (!planCode) {
@@ -345,7 +353,7 @@ export class ChbBillingService {
             "ClickHouse Billing returned a different organization for this checkout",
         });
       }
-      return session.url;
+      return session.checkoutUrl;
     }
 
     // First checkout for this org: the CH organization id is the one thing
@@ -386,7 +394,27 @@ export class ChbBillingService {
       },
     });
 
-    return session.url;
+    // Persisting the CH organization id above is the first moment CHB can
+    // attribute a project to this org, and project events are suppressed until
+    // then, so the projects the org already has have never been sent. Mirror
+    // them once. Only the first checkout reaches this line -- a retry against
+    // an org that already has a CH organization returned above -- so there is
+    // no second backfill resending the same list.
+    //
+    // Not awaited: best-effort by design (it swallows its own failures and
+    // reports them through langfuse.billing_events.emit_failed), and the user
+    // is waiting on a redirect to the payment page.
+    backfillChbProjectEvents({ orgId }).catch((error) => {
+      // The backfill already reports its own per-project failures; reaching
+      // here means it rejected unexpectedly, which must still not surface as
+      // an unhandled rejection.
+      logger.error(
+        `chbBillingService.checkout.backfill.failed for org ${orgId}`,
+        error,
+      );
+    });
+
+    return session.checkoutUrl;
   }
 
   async changePlan(orgId: string, newProductId: string, opId?: string) {

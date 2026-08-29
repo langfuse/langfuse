@@ -6,7 +6,7 @@
  * remove fields; add new ones instead. See ../README.md.
  */
 
-export type ScenarioFlagType = "string" | "number" | "boolean";
+type ScenarioFlagType = "string" | "number" | "boolean";
 
 export type ScenarioFlag = {
   /** kebab-case CLI flag name, e.g. "observations-per-trace" */

@@ -6,7 +6,7 @@ type LangfuseKeys = {
   publicKey: string;
 };
 
-export function getLangfuseBaseUrl(baseUrl: string): string {
+function getLangfuseBaseUrl(baseUrl: string): string {
   return `${baseUrl}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 }
 

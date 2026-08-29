@@ -96,4 +96,16 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
     expect(screen.queryByTestId("json-view")).not.toBeInTheDocument();
   });
+
+  it("does not offer system-prompt collapse on a gated huge string", () => {
+    // The header collapse path must not split() the multi-MB string the
+    // large-string gate exists to keep off the main thread.
+    const huge = "x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
+    render(<PrettyJsonView json={huge} title="system" isSystemPrompt />);
+
+    expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /system prompt/i }),
+    ).not.toBeInTheDocument();
+  });
 });

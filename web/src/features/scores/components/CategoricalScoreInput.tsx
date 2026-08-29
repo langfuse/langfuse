@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/combobox";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
@@ -15,6 +15,7 @@ import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScor
 import { type AnalyticsData } from "@/src/features/scores/types";
 
 const CHAR_CUTOFF = 6;
+const DIGIT_SHORTCUTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 function shouldUseCombobox(
   categories: Pick<ScoreConfigCategoryDomain, "label">[],
@@ -136,14 +137,15 @@ export function CategoricalScoreInput({
                     {category.label}
                   </span>
                   {(() => {
-                    const digit =
-                      (config.categories?.findIndex(
+                    const categoryIndex =
+                      config.categories?.findIndex(
                         (c) => c.label === category.label,
-                      ) ?? -1) + 1;
-                    return digit >= 1 && digit <= 9 ? (
-                      <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:hidden md:group-focus-within:inline-flex">
-                        {digit}
-                      </KeyboardShortcut>
+                      ) ?? -1;
+                    const digitShortcut = DIGIT_SHORTCUTS[categoryIndex];
+                    return digitShortcut ? (
+                      <span className="ml-0.5 hidden md:group-focus-within:inline-flex">
+                        <KeyboardShortcut size="xs" keys={[digitShortcut]} />
+                      </span>
                     ) : null;
                   })()}
                 </ToggleGroupItem>

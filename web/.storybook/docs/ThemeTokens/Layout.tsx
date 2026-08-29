@@ -74,7 +74,7 @@ function RadiusSample({
 }
 
 /** The radius scale: one base token, derived sm / md / lg steps. */
-export function RadiiSection({ ctx, lightCtx, darkCtx }: RowContexts) {
+function RadiiSection({ ctx, lightCtx, darkCtx }: RowContexts) {
   const count = (radiusEntry ? 1 : 0) + inlineRadii.length;
   return (
     <TokenSection
@@ -142,7 +142,7 @@ function BannerSystemSample({ ctx }: { ctx: TokenContext }) {
 }
 
 /** The banner offset system used by fixed/sticky positioning. */
-export function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
+function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
   const count = bannerEntries.length + spacingTokens.length;
   return (
     <TokenSection
@@ -216,7 +216,7 @@ function LayerStack({
   );
 }
 
-export function LayeringSection({
+function LayeringSection({
   lightCtx,
   darkCtx,
 }: {
@@ -265,7 +265,7 @@ const LAYER_DESCRIPTIONS: Record<string, string> = {
  * code constants mapped to DOM containers in _document.tsx, not CSS tokens:
  * layers stack purely by DOM order.
  */
-export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
+function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
   return (
     <PageSection
       title="Overlay layers"
@@ -336,7 +336,7 @@ function animationSampleStyle(ctx: TokenContext, name: string): CSSProperties {
 }
 
 /** @theme inline animation tokens, collapsed (low traffic). */
-export function AnimationsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
+function AnimationsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
   return (
     <CollapsedSection
       title="Animations"
@@ -372,7 +372,7 @@ export function AnimationsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
 }
 
 /** Breakpoints are deliberately not tokenized; say so instead of inventing. */
-export function BreakpointsNote() {
+function BreakpointsNote() {
   return (
     <PageSection
       title="Breakpoints"

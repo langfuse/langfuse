@@ -839,7 +839,7 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
-export type InAppAgentWindowNotice = {
+type InAppAgentWindowNotice = {
   text: string;
   tone: "info" | "warning";
 };

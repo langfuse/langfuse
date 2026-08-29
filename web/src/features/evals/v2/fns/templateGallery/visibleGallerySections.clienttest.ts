@@ -22,7 +22,6 @@ const template = {
     prompt: "Rate relevance.",
     variables: [{ name: "query", defaultMapping: { field: "input" } }],
     outputDefinition: {
-      version: 2,
       dataType: "NUMERIC",
       score: { description: "Relevance." },
       reasoning: { description: "One sentence." },

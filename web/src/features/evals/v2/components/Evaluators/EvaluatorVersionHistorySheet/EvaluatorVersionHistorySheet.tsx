@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -8,6 +8,7 @@ import {
 } from "@/src/components/ui/sheet";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { EvaluatorVersionHistoryList } from "./components/EvaluatorVersionHistoryList/EvaluatorVersionHistoryList";
 import type { EvaluatorVersion } from "./types";
 
@@ -18,8 +19,9 @@ export function EvaluatorVersionHistorySheet({
   versions,
   currentVersionId,
   defaultModel,
-  expandedVersionId,
-  onExpandedVersionChange,
+  defaultExpandedVersionId = null,
+  onVersionExpansionChange,
+  onRestoreVersion,
   isLoading,
   hasMore,
   isLoadingMore,
@@ -31,13 +33,19 @@ export function EvaluatorVersionHistorySheet({
   versions: EvaluatorVersion[];
   currentVersionId: string;
   defaultModel: JudgeModel | null;
-  expandedVersionId: string | null;
-  onExpandedVersionChange: (versionId: string | null) => void;
+  defaultExpandedVersionId?: string | null;
+  onVersionExpansionChange: (versionId: string | null) => void;
+  onRestoreVersion: (version: EvaluatorVersion) => void;
   isLoading: boolean;
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
 }) {
+  const [versionToRestore, setVersionToRestore] =
+    useState<EvaluatorVersion | null>(null);
+  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(
+    defaultExpandedVersionId,
+  );
   const loadMoreSentinelRef = useCallback(
     (sentinel: HTMLDivElement | null) => {
       if (!sentinel?.parentElement) return;
@@ -61,13 +69,19 @@ export function EvaluatorVersionHistorySheet({
   const shouldObserveLoadMore = open && !isLoading && hasMore && !isLoadingMore;
 
   return (
-    <Sheet open={open} modal={false} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      modal={false}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && versionToRestore) return;
+        onOpenChange(nextOpen);
+      }}
+    >
       <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle>Evaluator versions</SheetTitle>
           <SheetDescription>
-            Saved definition versions for {evaluatorName}. Version history is
-            read-only.
+            Review or restore saved definition versions for {evaluatorName}.
           </SheetDescription>
         </SheetHeader>
         <EvaluatorVersionHistoryList
@@ -75,7 +89,11 @@ export function EvaluatorVersionHistorySheet({
           currentVersionId={currentVersionId}
           defaultModel={defaultModel}
           expandedVersionId={expandedVersionId}
-          onExpandedVersionChange={onExpandedVersionChange}
+          onExpandedVersionChange={(versionId) => {
+            setExpandedVersionId(versionId);
+            onVersionExpansionChange(versionId);
+          }}
+          onRestoreVersion={setVersionToRestore}
           isLoading={isLoading}
         />
         {hasMore || isLoadingMore ? (
@@ -92,6 +110,22 @@ export function EvaluatorVersionHistorySheet({
           </div>
         ) : null}
       </SheetContent>
+      <ConfirmDialog
+        open={versionToRestore !== null}
+        onOpenChange={(open) => {
+          if (!open) setVersionToRestore(null);
+        }}
+        title={`Restore version ${versionToRestore?.version}?`}
+        description={`This will replace the current evaluator definition with version ${versionToRestore?.version}. It won't be saved until you click "Save changes".`}
+        confirmLabel="Restore version"
+        confirmVariant="default"
+        onConfirm={() => {
+          if (!versionToRestore) return;
+          onRestoreVersion(versionToRestore);
+          setVersionToRestore(null);
+          onOpenChange(false);
+        }}
+      />
     </Sheet>
   );
 }

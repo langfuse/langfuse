@@ -14,3 +14,8 @@ The new data model is
 
 Traces captured during the eval executions in the past only captured `job_configuration_id`.
 Only new runs capture `evaluator_id` and `evaluation_rule_id`.
+
+## Testing
+
+- Do not write tautological React client tests or tests that assert pixel positioning.
+- Only add component tests when they enforce meaningful behavior.

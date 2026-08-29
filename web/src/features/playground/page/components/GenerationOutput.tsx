@@ -117,7 +117,7 @@ export const GenerationOutput = () => {
               <ThinkingBlock content={outputReasoning} />
             </div>
           )}
-          <pre className="text-xs wrap-break-word whitespace-break-spaces">
+          <pre className="ph-no-capture text-xs wrap-break-word whitespace-break-spaces">
             {isJson ? outputJson : output}
           </pre>
           {outputToolCalls.length > 0

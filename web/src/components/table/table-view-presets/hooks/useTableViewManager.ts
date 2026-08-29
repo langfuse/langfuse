@@ -26,7 +26,7 @@ import type { FilterStateMigration } from "@/src/features/filters/lib/filter-con
 /** How a saved view / preset apply was initiated — the `trigger` analytics
  * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
  * v4 category-chip toggle-off (applies the cleared/default state). */
-export type SavedViewApplyTrigger =
+type SavedViewApplyTrigger =
   | "select"
   | "permalink"
   | "default"
@@ -37,11 +37,6 @@ export type SavedViewApplyMeta = {
   trigger: SavedViewApplyTrigger;
   viewId?: string | null;
 };
-
-export type ApplyViewStateFn = (
-  viewData: TableViewPresetState,
-  meta?: SavedViewApplyMeta,
-) => void;
 
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;

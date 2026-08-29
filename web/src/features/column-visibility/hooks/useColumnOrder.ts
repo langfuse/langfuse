@@ -28,7 +28,7 @@ const readStoredColumnOrder = (localStorageKey: string): string[] => {
  * Migrations are entirely opt-in (passed per-call): tables that omit them keep
  * the previous behavior byte-for-byte.
  */
-export type ColumnOrderMigration = {
+type ColumnOrderMigration = {
   /**
    * localStorage key for the one-time guard flag. Should be unique per table +
    * migration, e.g. `experimentsColumnOrder-metadataReorder-v1-${projectId}`.

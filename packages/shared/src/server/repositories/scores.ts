@@ -2323,7 +2323,7 @@ const buildScoresForBlobStorageExportQuery = (
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND timestamp < {maxTimestamp: DateTime64(3)}
     AND data_type IN ({dataTypes: Array(String)})
   `;
 

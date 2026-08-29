@@ -247,7 +247,7 @@ function isOtelDirectWriteOrgCutoffConfigured(): boolean {
  * enqueued before that field existed resolve too. Returns false when the
  * project cannot be found, which keeps the batch on its existing path.
  */
-export async function isProjectOrgPastOtelDirectWriteCutoff(
+async function isProjectOrgPastOtelDirectWriteCutoff(
   projectId: string,
 ): Promise<boolean> {
   if (!isOtelDirectWriteOrgCutoffConfigured()) {

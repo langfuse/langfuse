@@ -50,7 +50,7 @@ export function presentationForRowHeight(rowHeight: number): RowPresentation {
   return "hairline";
 }
 
-export type RowWindow = {
+type RowWindow = {
   /** Index of the topmost visible row; fractional while panning. */
   start: number;
   /** How many rows are visible. */

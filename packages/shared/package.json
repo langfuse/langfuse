@@ -47,6 +47,10 @@
       "import": "./dist/src/utils/chatml/index.js",
       "require": "./dist/src/utils/chatml/index.js"
     },
+    "./src/utils/normalized-io": {
+      "import": "./dist/src/utils/normalized-io/index.js",
+      "require": "./dist/src/utils/normalized-io/index.js"
+    },
     "./encryption": {
       "import": "./dist/src/encryption/index.js",
       "require": "./dist/src/encryption/index.js"
@@ -189,6 +193,7 @@
     "ioredis": "^5.10.1",
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
+    "kysely": "0.28.17",
     "langfuse": "3.38.4",
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",

@@ -24,17 +24,17 @@ import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
-  LegacyEvaluationRuleMapping,
+  LegacyPromptVariableMapping,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   PublicEvaluationRuleFilter,
   type PublicEvaluationRuleFilterType,
-  type PublicEvaluationRuleMappingType,
-  type PublicEvaluationRuleReadMappingType,
+  type PromptVariableMappingInputType,
+  type PromptVariableMappingReadType,
   type PublicEvaluationRuleReadTargetType,
   type PublicEvaluationRuleStatusType,
   type PublicEvaluationRuleTargetType,
-  type LegacyEvaluationRuleMappingType,
+  type LegacyPromptVariableMappingType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
@@ -81,7 +81,7 @@ const INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET: Record<
 };
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
-  PublicEvaluationRuleMappingType["source"],
+  PromptVariableMappingInputType["source"],
   ObservationVariableMapping["selectedColumnId"]
 > = {
   input: "input",
@@ -94,7 +94,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
 
 const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   string,
-  PublicEvaluationRuleMappingType["source"]
+  PromptVariableMappingInputType["source"]
 > = {
   input: "input",
   output: "output",
@@ -121,7 +121,7 @@ export function deriveEvaluatorVariables(
 }
 
 export function toStoredVariableMappings(params: {
-  mappings: PublicEvaluationRuleMappingType[];
+  mappings: PromptVariableMappingInputType[];
   variables: string[];
   target: PublicEvaluationRuleTargetType;
 }) {
@@ -140,7 +140,7 @@ export function toStoredVariableMappings(params: {
  * elsewhere; prefer `toStoredVariableMappings` when they are.
  */
 export function toStoredMappingList(
-  mappings: PublicEvaluationRuleMappingType[],
+  mappings: PromptVariableMappingInputType[],
 ) {
   return observationVariableMappingList.parse(
     mappings.map((mapping) => ({
@@ -297,7 +297,7 @@ function toApiFilter(filter: z.infer<typeof singleFilter>) {
 
 export function toApiReadMappings(
   mappings: unknown,
-): PublicEvaluationRuleReadMappingType[] {
+): PromptVariableMappingReadType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -325,7 +325,7 @@ export function toApiReadMappings(
 
 export function toApiMappings(
   mappings: unknown,
-): PublicEvaluationRuleMappingType[] {
+): PromptVariableMappingInputType[] {
   return toApiReadMappings(mappings).map((mapping) => {
     if (mapping.source === null) {
       throw new InternalServerError("Evaluation rule mapping is corrupted");
@@ -337,7 +337,7 @@ export function toApiMappings(
 
 function toApiLegacyMappings(
   mappings: unknown,
-): LegacyEvaluationRuleMappingType[] {
+): LegacyPromptVariableMappingType[] {
   const parsed = variableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -355,7 +355,7 @@ function toApiLegacyMappings(
     ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
   }));
   const parsedPublicMappings = z
-    .array(LegacyEvaluationRuleMapping)
+    .array(LegacyPromptVariableMapping)
     .safeParse(publicMappings);
   if (!parsedPublicMappings.success) {
     logger.error("Failed to parse unstable public legacy rule mappings", {
@@ -369,7 +369,7 @@ function toApiLegacyMappings(
 function toDefaultLegacyMappings(
   mappings: unknown,
   target: "trace" | "dataset",
-): LegacyEvaluationRuleMappingType[] {
+): LegacyPromptVariableMappingType[] {
   return toApiMappings(mappings).map((mapping) => ({
     ...mapping,
     langfuseObject: target === "trace" ? "trace" : "dataset_item",
@@ -624,7 +624,7 @@ export function toEvaluationRuleInput(params: {
     enabled: boolean;
     sampling: number;
     filter: PublicEvaluationRuleFilterType[];
-    mapping?: PublicEvaluationRuleMappingType[];
+    mapping?: PromptVariableMappingInputType[];
   };
   evaluatorVariables: string[];
   evaluatorType: PublicEvaluatorTypeType;
@@ -667,7 +667,7 @@ export function toEvaluationRuleFields(input: {
 /** Stored mapping for one assignment. Code evaluators inherit their fixed evaluator mapping. */
 export function toStoredAssignmentMapping(params: {
   target: PublicEvaluationRuleTargetType;
-  mapping?: PublicEvaluationRuleMappingType[];
+  mapping?: PromptVariableMappingInputType[];
   evaluatorVariables: string[];
   evaluatorType: PublicEvaluatorTypeType;
 }) {

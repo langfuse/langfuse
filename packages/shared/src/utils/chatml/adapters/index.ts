@@ -39,7 +39,7 @@ function selectAdapter(ctx: NormalizerContext): ProviderAdapter {
 
 // Export selectAdapter and individual adapters for direct use
 export { selectAdapter };
-export type { NormalizerContext, ProviderAdapter } from "../types";
+export type { NormalizerContext } from "../types";
 export { langgraphAdapter } from "./langgraph";
 export { aisdkAdapter } from "./aisdk";
 export { openAIAdapter } from "./openai";

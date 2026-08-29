@@ -1,6 +1,6 @@
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { DeleteProjectButton } from "@/src/features/projects/components/DeleteProjectButton";
+import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { Button } from "@/src/components/ui/button";
@@ -14,7 +14,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
-import { TransferProjectButton } from "@/src/features/projects/components/TransferProjectButton";
+import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useRouter } from "next/router";
@@ -120,13 +120,41 @@ export const getProjectSettingsPages = ({
               title: "Transfer ownership",
               description:
                 "Transfer this project to another organization where you have the ability to create projects.",
-              button: <TransferProjectButton />,
+              button: (
+                <TransferProjectDialogController
+                  project={project}
+                  organization={organization}
+                >
+                  {({ disabled, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={disabled !== undefined}
+                      onClick={openDialog}
+                    >
+                      Transfer Project
+                    </Button>
+                  )}
+                </TransferProjectDialogController>
+              ),
             },
             {
               title: "Delete this project",
               description:
                 "Once you delete a project, there is no going back. Please be certain.",
-              button: <DeleteProjectButton />,
+              button: (
+                <DeleteProjectDialogController>
+                  {({ hasAccess, Trigger }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="destructive-secondary"
+                        disabled={!hasAccess}
+                      >
+                        Delete Project
+                      </Button>
+                    </Trigger>
+                  )}
+                </DeleteProjectDialogController>
+              ),
             },
           ]}
         />

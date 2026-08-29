@@ -19,7 +19,7 @@ export interface ActionConfig {
   component?: React.ReactNode;
 }
 
-export interface Step {
+interface Step {
   title: string;
   description?: string;
   badge?: React.ReactNode;

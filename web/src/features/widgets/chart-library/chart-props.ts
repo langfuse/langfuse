@@ -87,10 +87,10 @@ export type MetricFormatterFunction = (
 ) => FormattedMetric;
 
 /** ChartThresholdOperator picks the violation region a chart tints around a threshold. */
-export type ChartThresholdOperator = "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
+type ChartThresholdOperator = "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
 
 /** ChartThresholdColor is one of Tailwind's palette family names. */
-export type ChartThresholdColor = {
+type ChartThresholdColor = {
   [K in keyof typeof tailwindColors]: (typeof tailwindColors)[K] extends Record<
     string,
     string

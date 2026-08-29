@@ -2,7 +2,7 @@
 types:
   EvaluatorType:
     docs: |
-      The evaluator engine type.
+      The evaluator type.
 
       The unstable public API supports LLM-as-a-judge and code evaluators.
     enum:
@@ -41,7 +41,7 @@ types:
       - inactive
       - paused
 
-  EvaluationRuleMappingSource:
+  PromptVariableMappingSource:
     docs: |
       Source field used to populate a prompt variable.
 
@@ -422,9 +422,9 @@ types:
         type: optional<string>
         docs: Ignored placeholder value. Clients may omit it or send an empty string.
 
-  EvaluationRuleMapping:
+  PromptVariableMappingInput:
     docs: |
-      Maps one evaluator variable to one source field from the target object.
+      Connects one prompt variable to the available evaluation data.
 
       Manual mappings are used for `llm_as_judge` evaluators. `code` evaluators use a fixed runtime mapping managed by Langfuse.
 
@@ -439,8 +439,8 @@ types:
 
       Recovery guidance:
       - `invalid_variable_mapping`: the variable name is unknown for this evaluator, or the selected `source` is not valid for the chosen `target`
-      - `missing_variable_mapping`: one or more LLM-as-judge evaluator variables are not mapped yet
-      - `duplicate_variable_mapping`: the same evaluator variable appears more than once
+      - `missing_variable_mapping`: one or more LLM-as-judge prompt variables are not mapped yet
+      - `duplicate_variable_mapping`: the same prompt variable appears more than once
       - `invalid_json_path`: the JSONPath expression is malformed. Remove it or correct it.
     properties:
       variable:
@@ -450,7 +450,7 @@ types:
 
           Example: for the prompt `Judge {{input}} against {{output}}`, use `input` and `output`.
       source:
-        type: EvaluationRuleMappingSource
+        type: PromptVariableMappingSource
         docs: |
           Source field that should populate the prompt variable.
 
@@ -481,23 +481,17 @@ types:
           variable: expected_output
           source: expected_output
 
-  EvaluationRuleReadMapping:
+  PromptVariableMappingRead:
     docs: |
-      Maps an evaluator variable to target data, as returned by read endpoints.
+      Connects one prompt variable to data from a target.
 
-      Reads are more permissive than writes in two ways, so that data configured before a
-      migration stays readable and repairable:
-      - `source` is `null` when a mapping was never fully configured. Set a concrete `source` to fix it.
-      - every `source` value is allowed regardless of the rule `target`, because an evaluator's
-        default mapping is stored independently of the rules that use it.
-
-      Requests always require a concrete `source` that is valid for the selected `target`.
+      `source` is `null` when the mapping is incomplete.
     properties:
       variable:
         type: string
         docs: Prompt variable name without braces.
       source:
-        type: nullable<EvaluationRuleMappingSource>
+        type: nullable<PromptVariableMappingSource>
         docs: Source field populating the variable, or `null` when the mapping is incomplete.
       jsonPath:
         type: optional<string>

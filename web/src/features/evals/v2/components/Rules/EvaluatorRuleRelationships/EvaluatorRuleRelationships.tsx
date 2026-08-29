@@ -82,7 +82,7 @@ export function EvaluatorRuleRelationships({
   );
 }
 
-export function EvaluatorRuleRelationshipsSheet({
+function EvaluatorRuleRelationshipsSheet({
   projectId,
   evaluatorId,
   evaluatorName,

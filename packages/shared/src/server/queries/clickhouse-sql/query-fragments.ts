@@ -179,7 +179,7 @@ const scoreTimestampLowerBound = (
  * Observation level: Aggregates scores by (trace_id, observation_id), always uses nested structure
  * Trace level: Aggregates scores by (project_id, trace_id), filters observation_id IS NULL
  */
-export const buildScoresAggregationCTE = (
+const buildScoresAggregationCTE = (
   params: BaseScoresAggregationParams,
 ): { query: string; params: Record<string, any> } => {
   const queryParams: Record<string, any> = {

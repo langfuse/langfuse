@@ -4,7 +4,7 @@ import { useBillingInformation } from "@/src/ee/features/billing/components/useB
 import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
 
 export const BillingDiscountView = () => {
-  const { organization } = useBillingInformation();
+  const { organization, billingProvider } = useBillingInformation();
 
   const shouldRenderComponent = Boolean(
     organization?.cloudConfig?.stripe?.customerId,
@@ -30,6 +30,11 @@ export const BillingDiscountView = () => {
       return `${(value / 100).toFixed(2)} ${cur}`;
     }
   };
+
+  // No promotion-code API on the ClickHouse Billing path yet
+  if (billingProvider === "clickhouse") {
+    return null;
+  }
 
   // Hide promotion code view and button when user is on Hobby Plan
   // Hobby plan users don't have an active subscription ID

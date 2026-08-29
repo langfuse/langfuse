@@ -80,6 +80,6 @@ export async function verifyPassword(password: string, hashedPassword: string) {
   return isValid;
 }
 
-export function isValidPassword(password: string) {
+function isValidPassword(password: string) {
   return password.length >= 8;
 }

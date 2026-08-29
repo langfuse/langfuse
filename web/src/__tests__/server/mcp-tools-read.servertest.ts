@@ -70,7 +70,7 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/server/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
   getDashboardWidgetTool,
@@ -81,122 +81,122 @@ import {
   handleListDashboardWidgets,
   listDashboardsTool,
   listDashboardWidgetsTool,
-} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
+} from "@/src/features/mcp/server/dashboardWidgets/tools/dashboardCrud";
 
 // Import MCP tool handlers directly
 import {
   getObservationTool,
   handleGetObservation,
-} from "@/src/features/mcp/features/observations/tools/getObservation";
+} from "@/src/features/mcp/server/observations/tools/getObservation";
 import {
   getObservationFieldSchemaTool,
   handleGetObservationFieldSchema,
-} from "@/src/features/mcp/features/observations/tools/getObservationFieldSchema";
+} from "@/src/features/mcp/server/observations/tools/getObservationFieldSchema";
 import {
   getObservationFilterSchemaTool,
   handleGetObservationFilterSchema,
-} from "@/src/features/mcp/features/observations/tools/getObservationFilterSchema";
+} from "@/src/features/mcp/server/observations/tools/getObservationFilterSchema";
 import {
   getObservationFilterValuesTool,
   handleGetObservationFilterValues,
-} from "@/src/features/mcp/features/observations/tools/getObservationFilterValues";
+} from "@/src/features/mcp/server/observations/tools/getObservationFilterValues";
 import {
   listObservationsTool,
   handleListObservations,
-} from "@/src/features/mcp/features/observations/tools/listObservations";
+} from "@/src/features/mcp/server/observations/tools/listObservations";
 import {
   getMetricsSchemaTool,
   handleGetMetricsSchema,
-} from "@/src/features/mcp/features/metrics/tools/getMetricsSchema";
+} from "@/src/features/mcp/server/metrics/tools/getMetricsSchema";
 import {
   queryMetricsTool,
   handleQueryMetrics,
-} from "@/src/features/mcp/features/metrics/tools/queryMetrics";
+} from "@/src/features/mcp/server/metrics/tools/queryMetrics";
 import {
   getPromptTool,
   handleGetPrompt,
-} from "@/src/features/mcp/features/prompts/tools/getPrompt";
+} from "@/src/features/mcp/server/prompts/tools/getPrompt";
 import {
   getPromptUnresolvedTool,
   handleGetPromptUnresolved,
-} from "@/src/features/mcp/features/prompts/tools/getPromptUnresolved";
+} from "@/src/features/mcp/server/prompts/tools/getPromptUnresolved";
 import {
   listPromptsTool,
   handleListPrompts,
-} from "@/src/features/mcp/features/prompts/tools/listPrompts";
+} from "@/src/features/mcp/server/prompts/tools/listPrompts";
 import {
   createScoreConfigTool,
   handleCreateScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/createScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/createScoreConfig";
 import {
   createScoreTool,
   handleCreateScore,
-} from "@/src/features/mcp/features/scores/tools/createScore";
+} from "@/src/features/mcp/server/scores/tools/createScore";
 import {
   deleteScoreConfigTool,
   handleDeleteScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/deleteScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/deleteScoreConfig";
 import {
   getScoreTool,
   handleGetScore,
-} from "@/src/features/mcp/features/scores/tools/getScore";
+} from "@/src/features/mcp/server/scores/tools/getScore";
 import {
   getScoreConfigTool,
   handleGetScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/getScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/getScoreConfig";
 import {
   listScoreConfigsTool,
   handleListScoreConfigs,
-} from "@/src/features/mcp/features/scores/tools/listScoreConfigs";
+} from "@/src/features/mcp/server/scores/tools/listScoreConfigs";
 import {
   listScoresTool,
   handleListScores,
-} from "@/src/features/mcp/features/scores/tools/listScores";
+} from "@/src/features/mcp/server/scores/tools/listScores";
 import {
   updateScoreConfigTool,
   handleUpdateScoreConfig,
-} from "@/src/features/mcp/features/scores/tools/updateScoreConfig";
+} from "@/src/features/mcp/server/scores/tools/updateScoreConfig";
 import {
   getMediaTool,
   handleGetMedia,
-} from "@/src/features/mcp/features/media/tools/getMedia";
+} from "@/src/features/mcp/server/media/tools/getMedia";
 import {
   getEvaluatorTool,
   handleGetEvaluator,
-} from "@/src/features/mcp/features/evals/tools/getEvaluator";
+} from "@/src/features/mcp/server/evals/tools/getEvaluator";
 import {
   listEvaluatorsTool,
   handleListEvaluators,
-} from "@/src/features/mcp/features/evals/tools/listEvaluators";
+} from "@/src/features/mcp/server/evals/tools/listEvaluators";
 import {
   handleListManagedEvaluatorTemplates,
   listManagedEvaluatorTemplatesTool,
-} from "@/src/features/mcp/features/evals/tools/listManagedEvaluatorTemplates";
+} from "@/src/features/mcp/server/evals/tools/listManagedEvaluatorTemplates";
 import {
   getEvaluationRuleTool,
   handleGetEvaluationRule,
-} from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/getEvaluationRule";
 import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
-} from "@/src/features/mcp/features/evals/tools/listEvaluationRules";
-import { handleCreateEvaluator } from "@/src/features/mcp/features/evals/tools/createEvaluator";
-import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
+} from "@/src/features/mcp/server/evals/tools/listEvaluationRules";
+import { handleCreateEvaluator } from "@/src/features/mcp/server/evals/tools/createEvaluator";
+import { handleCreateEvaluationRule } from "@/src/features/mcp/server/evals/tools/createEvaluationRule";
 import {
   getMonitorTool,
   handleGetMonitor,
-} from "@/src/features/mcp/features/monitors/tools/getMonitor";
+} from "@/src/features/mcp/server/monitors/tools/getMonitor";
 import {
   listMonitorsTool,
   handleListMonitors,
-} from "@/src/features/mcp/features/monitors/tools/listMonitors";
+} from "@/src/features/mcp/server/monitors/tools/listMonitors";
 import {
   GetDatasetItemsMcpInput,
   GetDatasetMcpInput,
   GetDatasetRunMcpInput,
   GetDatasetRunsMcpInput,
   GetDatasetsMcpInput,
-} from "@/src/features/mcp/features/datasets/schema";
+} from "@/src/features/mcp/server/datasets/schema";
 
 const maybeEventsTable =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"

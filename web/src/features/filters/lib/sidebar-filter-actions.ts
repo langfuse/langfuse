@@ -16,7 +16,7 @@ export type TextFilterOperator = "contains" | "does not contain";
 
 /** Options as the sidebar hook receives them (per-column value lists, or
  *  nested key→values records for keyed facets). */
-export type SidebarFilterOptions = Record<
+type SidebarFilterOptions = Record<
   string,
   (string | SingleValueOption)[] | Record<string, string[]> | undefined
 >;

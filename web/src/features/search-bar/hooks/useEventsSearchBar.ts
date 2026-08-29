@@ -39,8 +39,8 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /** How a search-bar commit was triggered — the `trigger` analytics dimension. */
-export type SearchCommitTrigger = "enter" | "blur" | "pick";
-export type SearchCommitOptions = { replaceHidden?: boolean };
+type SearchCommitTrigger = "enter" | "blur" | "pick";
+type SearchCommitOptions = { replaceHidden?: boolean };
 export type SearchCommit = (
   trigger?: SearchCommitTrigger,
   options?: SearchCommitOptions,

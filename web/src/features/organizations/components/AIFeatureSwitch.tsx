@@ -22,9 +22,11 @@ import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 export default function AIFeatureSwitch() {
-  const { update: updateSession } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const aiFeaturesTracingConfigured =
+    session?.environment.aiFeaturesTracingConfigured === true;
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const aiFeaturesEnabled = organization?.aiFeaturesEnabled;
@@ -127,9 +129,9 @@ export default function AIFeatureSwitch() {
               <p className="text-sm">
                 This setting applies to all users and projects. Any data{" "}
                 <i>can</i> be sent to AWS Bedrock within the Langfuse data
-                region. Traces are sent to Langfuse Cloud in your data region.
-                Your data will not be used for training models. Applicable
-                HIPAA, SOC2, GDPR, and ISO 27001 compliance remains intact.{" "}
+                region. Your data will not be used for training models.
+                Applicable HIPAA, SOC2, GDPR, and ISO 27001 compliance remains
+                intact.{" "}
                 <a
                   href="https://langfuse.com/security/ai-features"
                   target="_blank"
@@ -161,31 +163,33 @@ export default function AIFeatureSwitch() {
             )}
           </div>
         </div>
-        {isLangfuseCloud && isAIFeatureSwitchEnabled && (
-          <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
-            <div className="flex flex-col gap-1">
-              <h4 className="font-bold">
-                AI Data Use for Product/Service Improvement
-              </h4>
-              <p className="text-sm">
-                Share data about your use of AI with Langfuse for product and
-                service improvement.
-              </p>
+        {isLangfuseCloud &&
+          isAIFeatureSwitchEnabled &&
+          aiFeaturesTracingConfigured && (
+            <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-bold">
+                  AI Data Use for Product/Service Improvement
+                </h4>
+                <p className="text-sm">
+                  Share data about your use of AI with Langfuse for product and
+                  service improvement.
+                </p>
+              </div>
+              <div className="relative">
+                <Switch
+                  checked={isAITelemetrySwitchEnabled}
+                  onCheckedChange={handleTelemetrySwitchChange}
+                  disabled={!hasAccess || updateAITelemetry.isPending}
+                />
+                {!hasAccess && (
+                  <span title="No access">
+                    <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="relative">
-              <Switch
-                checked={isAITelemetrySwitchEnabled}
-                onCheckedChange={handleTelemetrySwitchChange}
-                disabled={!hasAccess || updateAITelemetry.isPending}
-              />
-              {!hasAccess && (
-                <span title="No access">
-                  <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
-                </span>
-              )}
-            </div>
-          </div>
-        )}
+          )}
       </Card>
 
       <Dialog

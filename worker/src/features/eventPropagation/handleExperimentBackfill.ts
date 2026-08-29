@@ -118,7 +118,7 @@ export interface TraceProperties {
  * Fetch dataset run items created within a time window.
  * Deduplicates by (project_id, trace_id, observation_id) taking the most recent.
  */
-export async function getDatasetRunItemsSinceLastRun(
+async function getDatasetRunItemsSinceLastRun(
   lastRun: Date,
   upperBound: Date,
 ): Promise<DatasetRunItem[]> {
@@ -178,7 +178,7 @@ export async function getDatasetRunItemsSinceLastRun(
 /**
  * Fetch observations that belong to traces referenced by dataset run items.
  */
-export async function getRelevantObservations(
+async function getRelevantObservations(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
@@ -260,7 +260,7 @@ export async function getRelevantObservations(
 /**
  * Fetch traces that are referenced by dataset run items.
  */
-export async function getRelevantTraces(
+async function getRelevantTraces(
   projectIds: string[],
   traceIds: string[],
   minTime: Date,
@@ -661,7 +661,7 @@ export function convertEnrichedSpansToEventRecords(
  * Write enriched spans to the events_full table via the ClickhouseWriter
  * queue (buffered; flushed by the writer's interval).
  */
-export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
+function writeEnrichedSpans(spans: EnrichedSpan[]): void {
   if (spans.length === 0) {
     return;
   }
@@ -682,7 +682,7 @@ export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
  *
  * @returns The cutoff timestamp to use for backfill queries
  */
-export async function initializeBackfillCutoff(): Promise<Date> {
+async function initializeBackfillCutoff(): Promise<Date> {
   if (!redis) {
     logger.error(
       "[EXPERIMENT BACKFILL] Redis not available, using current time as cutoff",
@@ -741,7 +741,7 @@ export async function initializeBackfillCutoff(): Promise<Date> {
  *
  * @returns true if backfill should run (time threshold passed AND lock acquired), false otherwise
  */
-export async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
+async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
   // First check time-based throttle
   const now = new Date();
   const timeSinceLastRun = now.getTime() - lastRun.getTime();
@@ -798,7 +798,7 @@ export async function shouldRunBackfill(lastRun: Date): Promise<boolean> {
  * Update the experiment backfill timestamp after successful execution.
  * @param timestamp The timestamp to set (should be the upper bound used for the backfill)
  */
-export async function updateBackfillTimestamp(timestamp: Date): Promise<void> {
+async function updateBackfillTimestamp(timestamp: Date): Promise<void> {
   if (!redis) {
     logger.warn(
       "[EXPERIMENT BACKFILL] Redis not available, cannot update timestamp",

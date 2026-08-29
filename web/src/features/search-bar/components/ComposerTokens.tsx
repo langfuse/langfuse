@@ -38,7 +38,7 @@ export const WORD_JOINER = "⁠";
 // text caret to the inline box of the pill it sits in/next to, so taller pills
 // produce a caret that towers over the text. py-0.5 keeps the chip readable
 // while holding the Safari caret close to the text height.
-export const composerTokenVariants = cva("max-w-full", {
+const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter: "",

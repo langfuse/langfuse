@@ -26,7 +26,7 @@ import {
   type StateStorage,
 } from "zustand/middleware";
 
-export const GLOBAL_DATE_RANGE_STORAGE_KEY = "langfuse-global-date-range";
+const GLOBAL_DATE_RANGE_STORAGE_KEY = "langfuse-global-date-range";
 
 // No-op storage on the server; the real localStorage is used on the client.
 const noopStorage: StateStorage = {

@@ -30,7 +30,7 @@ import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavIt
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
@@ -284,10 +284,9 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <KeyboardShortcut
-        className="ml-auto"
-        keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "K"]}
-      />
+      <span className="ml-auto hidden md:inline-flex">
+        <KeyboardShortcut keys={["Mod", "K"]} />
+      </span>
     </SidebarMenuButton>
   );
 }

@@ -5,15 +5,13 @@
 // Find original shadcn/ui command component in /components/ui/command.tsx
 
 import * as React from "react";
-import { type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
-import { Dialog, DialogBody, DialogContent } from "@/src/components/ui/dialog";
 import {
   KeyboardShortcut,
   type KeyboardShortcutProps,
-} from "@/src/components/ui/keyboard-shortcut";
+} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { cn } from "@/src/utils/tailwind";
 
 const InputCommand = React.forwardRef<
@@ -30,25 +28,6 @@ const InputCommand = React.forwardRef<
   />
 ));
 InputCommand.displayName = CommandPrimitive.displayName;
-
-interface InputCommandDialogProps extends DialogProps {}
-
-const InputCommandDialog = ({
-  children,
-  ...props
-}: InputCommandDialogProps) => {
-  return (
-    <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0 shadow-lg">
-        <DialogBody>
-          <InputCommand className="**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-bold **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12 **:[[cmdk-item]]:px-2 **:[[cmdk-item]]:py-3">
-            {children}
-          </InputCommand>
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
-  );
-};
 
 const InputCommandInput = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive.Input>,
@@ -148,17 +127,24 @@ const InputCommandItem = React.forwardRef<
 
 InputCommandItem.displayName = CommandPrimitive.Item.displayName;
 
+type InputCommandShortcutProps = KeyboardShortcutProps & {
+  className?: string;
+};
+
 const InputCommandShortcut = ({
   className,
   ...props
-}: KeyboardShortcutProps) => {
-  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
+}: InputCommandShortcutProps) => {
+  return (
+    <span className={cn("ml-auto hidden md:inline-flex", className)}>
+      <KeyboardShortcut {...props} />
+    </span>
+  );
 };
 InputCommandShortcut.displayName = "CommandShortcut";
 
 export {
   InputCommand,
-  InputCommandDialog,
   InputCommandInput,
   InputCommandList,
   InputCommandEmpty,

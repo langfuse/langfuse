@@ -33,7 +33,7 @@ export const formatLocalIsoDate = (
   return formatted;
 };
 
-export const prepareLocalIsoDate = ({
+const prepareLocalIsoDate = ({
   date,
   accuracy = "second",
 }: {

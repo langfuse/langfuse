@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { UserFeaturePreviewsControl } from "./UserFeaturePreviewsPopover";
+import { featurePreviewFlags } from "../available-flags";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -122,7 +123,6 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: {
         allowed: false,
@@ -135,7 +135,11 @@ describe("UserFeaturePreviewsControl", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /0\/2 enabled/i }),
+      screen.getByRole("button", {
+        // Derived: the counter's denominator is the number of registered
+        // previews, so a new preview must not fail this test.
+        name: new RegExp(`0/${featurePreviewFlags.length} enabled`, "i"),
+      }),
     ).toBeDisabled();
   });
 
@@ -145,14 +149,13 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: { allowed: true },
     });
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline for user",
+        name: "Toggle Compact Session View for user",
       }),
     );
 
@@ -160,7 +163,7 @@ describe("UserFeaturePreviewsControl", () => {
       {
         orgId: "org-1",
         userId: "user-1",
-        flag: "compactTimeline",
+        flag: "modernSession",
         enabled: true,
       },
       expect.objectContaining({ onSettled: expect.any(Function) }),
@@ -170,7 +173,7 @@ describe("UserFeaturePreviewsControl", () => {
     });
     expect(mocks.capture).toHaveBeenCalledWith(
       "organization_settings:user_feature_flag_toggled",
-      { feature: "compactTimeline", isEnabled: true },
+      { feature: "modernSession", isEnabled: true },
     );
   });
 
@@ -181,21 +184,20 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: { allowed: true },
     });
 
-    const compactTimeline = screen.getByRole("checkbox", {
-      name: "Toggle Compact Timeline for user",
-    });
     const sessions = screen.getByRole("checkbox", {
       name: "Toggle Compact Session View for user",
     });
-    fireEvent.click(compactTimeline);
+    fireEvent.click(sessions);
 
-    expect(compactTimeline).toBeDisabled();
-    expect(sessions).not.toBeDisabled();
+    // Its own row only. The counterpart assertion — that every OTHER row stays
+    // interactive — needs a second registered preview, which the registry does
+    // not have between one preview reaching GA and the next one landing. Add it
+    // back with the next preview; `isToggling` is per-flag, not per-list.
+    expect(sessions).toBeDisabled();
   });
 
   it("refetches without capturing analytics when the mutation fails", async () => {
@@ -208,14 +210,13 @@ describe("UserFeaturePreviewsControl", () => {
       userId: "user-1",
       featurePreviews: {
         modernSession: false,
-        compactTimeline: false,
       },
       management: { allowed: true },
     });
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Toggle Compact Timeline for user",
+        name: "Toggle Compact Session View for user",
       }),
     );
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FeedbackTargetType = z.enum([
+const FeedbackTargetType = z.enum([
   "skill",
   "mcp-tool",
   "cli",

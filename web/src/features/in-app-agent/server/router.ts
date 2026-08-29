@@ -16,6 +16,7 @@ import {
   AgUiContextSchema,
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
+  IN_APP_AGENT_PRODUCT_ENVIRONMENT,
 } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
@@ -95,7 +96,7 @@ const SubmitFeedbackInput = ConversationIdInput.extend({
 });
 
 const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
-const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
+const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = IN_APP_AGENT_PRODUCT_ENVIRONMENT;
 
 export const inAppAgentRouter = createTRPCRouter({
   // Each row carries its newest run summary for the activity poll and badges.

@@ -9,6 +9,9 @@ service:
   base-path: /api/public/unstable
   endpoints:
     create:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Create an evaluation rule.
 
@@ -236,6 +239,9 @@ service:
               updatedAt: "2026-03-30T09:30:00.000Z"
 
     list:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         List evaluation rules in the authenticated project.
 
@@ -261,6 +267,9 @@ service:
         - errors.InternalServerError
 
     get:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Get one evaluation rule by its identifier.
 
@@ -282,6 +291,9 @@ service:
         - errors.InternalServerError
 
     update:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Update an evaluation rule.
 
@@ -323,6 +335,9 @@ service:
         - errors.InternalServerError
 
     delete:
+      availability:
+        status: deprecated
+        message: "On Langfuse Cloud, this unstable endpoint is deprecated and will be removed on September 4, 2026. Use the stable `/api/public/v2/evaluation-rules` API instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: |
         Delete an evaluation rule.
 
@@ -352,7 +367,7 @@ types:
       - which evaluator should be used
       - which target objects should trigger scoring
       - how often scoring should run
-      - which target fields should populate each evaluator variable
+      - which target fields should populate each prompt variable
       - whether the deployment is active, inactive, or paused
 
       Important status semantics:
@@ -414,7 +429,7 @@ types:
         type: list<commons.EvaluationRuleFilter>
         docs: List of filter conditions used to decide whether a target should be evaluated.
       mapping:
-        type: list<commons.EvaluationRuleReadMapping>
+        type: list<commons.PromptVariableMappingRead>
         docs: Deprecated compatibility alias containing the effective mapping for `evaluators[0]`.
     examples:
       - value:
@@ -456,9 +471,9 @@ types:
 
   LegacyEvaluationRule:
     docs: |
-      Legacy trace- or dataset-level evaluation rule returned by list and get for migration.
+      **Deprecated:** Legacy trace- or dataset-level evaluation rule returned by list and get for migration.
 
-      This resource is read-only through the unstable public API. Its mapping preserves the trace, dataset item, or named observation selected for each evaluator variable.
+      This resource is read-only through the unstable public API. Its mapping preserves the trace, dataset item, or named observation selected for each prompt variable.
     extends: EvaluationRuleBase
     properties:
       evaluators:
@@ -476,7 +491,7 @@ types:
         type: list<commons.EvaluationRuleFilter>
         docs: Stored filters used by the legacy trace or dataset rule.
       mapping:
-        type: list<LegacyEvaluationRuleMapping>
+        type: list<LegacyPromptVariableMapping>
         docs: Stored variable mappings, including the trace, dataset item, or named observation selected for each variable.
 
   ReadableEvaluationRule:
@@ -504,7 +519,7 @@ types:
       - reference an existing evaluator family by `evaluator.name` and `evaluator.type`
       - choose `target=observation` or `target=experiment`
       - if `target=experiment` and you want a dataset filter, call `GET /api/public/v2/datasets` first and use dataset `id` values in `filter[].value`
-      - for `llm_as_judge`, fetch or inspect the evaluator first and provide a complete variable mapping for every evaluator variable
+      - for `llm_as_judge`, fetch or inspect the evaluator first and provide a complete mapping for every prompt variable
       - for `code`, do not send variables or mappings; Langfuse stores the fixed code runtime mapping automatically
       - optionally narrow execution with `filter`
       - set `enabled=true` only when you want live execution immediately
@@ -564,12 +579,12 @@ types:
           Each filter object must use a column that is valid for that `target`.
           For `target=experiment`, `column=datasetId` expects dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
       mapping:
-        type: list<commons.EvaluationRuleMapping>
+        type: list<commons.PromptVariableMappingInput>
         docs: |
           LLM-as-judge variable mappings.
 
-          Every evaluator variable must appear exactly once.
-          Build this list from the evaluator `variables` array returned by the evaluator endpoints.
+          Every prompt variable must appear exactly once.
+          Build this list from the evaluator's `variables` array.
 
   CreateCodeEvaluationRuleRequest:
     properties:
@@ -612,7 +627,7 @@ types:
       - If you only want to rename the rule or change sampling, send just those fields.
       - To add, remove, or remap evaluators, send `evaluators`. It replaces the whole assignment set, so include every evaluator the rule should keep.
       - `evaluators` cannot be combined with the deprecated `evaluator`/`mapping` pair, which only ever addressed the first assignment.
-      - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping` unless you are certain the existing mapping still matches the evaluator variables.
+      - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping` unless you are certain the existing mapping still matches the prompt variables.
       - If you change `target` for an LLM-as-judge rule, usually send both `filter` and `mapping` in the same request.
       - For code evaluator rules, omit `mapping`; Langfuse stores the fixed code runtime mapping automatically.
       - If you change an experiment `datasetId` filter, call `GET /api/public/v2/datasets` and use dataset `id` values from that response.
@@ -650,7 +665,7 @@ types:
 
           For `target=experiment`, `column=datasetId` expects dataset `id` values from `GET /api/public/v2/datasets`, not dataset names.
       mapping:
-        type: optional<list<commons.EvaluationRuleMapping>>
+        type: optional<list<commons.PromptVariableMappingInput>>
         docs: |
           Updated LLM-as-judge variable mappings.
 
@@ -682,7 +697,7 @@ types:
         docs: Evaluator family name.
       type:
         type: optional<LlmAsJudgeEvaluatorType>
-        docs: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
+        docs: Evaluator type. Defaults to `llm_as_judge` when omitted.
 
   CodeEvaluationRuleEvaluatorReference:
     docs: Code evaluator family reference used when creating an evaluation rule.
@@ -713,22 +728,23 @@ types:
         docs: Evaluator family name.
       type:
         type: commons.EvaluatorType
-        docs: Evaluator engine type.
+        docs: Evaluator type.
 
   EvaluationRuleEvaluatorAssignment:
     properties:
       evaluator:
         type: EvaluationRuleEvaluator
       mapping:
-        type: nullable<list<commons.EvaluationRuleReadMapping>>
+        type: nullable<list<commons.PromptVariableMappingRead>>
         docs: Rule-specific override, or `null` to inherit the evaluator version's default mapping.
 
   LegacyEvaluationRuleEvaluatorAssignment:
+    docs: "**Deprecated:** Evaluator assignment on a legacy trace or dataset rule."
     properties:
       evaluator:
         type: EvaluationRuleEvaluator
       mapping:
-        type: nullable<list<LegacyEvaluationRuleMapping>>
+        type: nullable<list<LegacyPromptVariableMapping>>
 
   EvaluationRuleTimeScope:
     enum:
@@ -736,12 +752,13 @@ types:
       - EXISTING
 
   LegacyEvaluationRuleTarget:
+    docs: "**Deprecated:** Legacy trace or dataset evaluation target."
     enum:
       - trace
       - dataset
 
-  LegacyEvaluationRuleMapping:
-    docs: Maps one evaluator variable to a trace, dataset item, or field on a named observation in a legacy rule.
+  LegacyPromptVariableMapping:
+    docs: "**Deprecated:** Connects one prompt variable to data from a trace, dataset item, or named observation in a legacy rule."
     properties:
       variable:
         type: string
@@ -756,6 +773,7 @@ types:
         type: optional<string>
 
   LegacyEvaluationObject:
+    docs: "**Deprecated:** Legacy Langfuse object used by a trace or dataset evaluation rule."
     enum:
       - trace
       - span
@@ -775,7 +793,7 @@ types:
       evaluator:
         type: CreateEvaluationRuleEvaluatorReference
       mapping:
-        type: optional<list<commons.EvaluationRuleMapping>>
+        type: optional<list<commons.PromptVariableMappingInput>>
         docs: Optional rule-specific override. Omit to inherit the evaluator version's default mapping. Omit for code evaluators.
 
   CreateEvaluationRuleEvaluatorReference:

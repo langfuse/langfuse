@@ -17,7 +17,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(true);
-    expect(flags.compactTimeline).toBe(true);
   });
 
   it("enables feature previews by default for ClickHouse team members", () => {
@@ -27,7 +26,6 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(true);
-    expect(flags.compactTimeline).toBe(true);
   });
 
   it("does not enable feature previews by default for other users", () => {
@@ -37,18 +35,23 @@ describe("parseFlags", () => {
     });
 
     expect(flags.modernSession).toBe(false);
-    expect(flags.compactTimeline).toBe(false);
   });
 
   it("honors a Langfuse team member's explicit opt-out", () => {
-    const flags = parseFlags([getFeaturePreviewOptOutFlag("modernSession")], {
-      email: "team.member@langfuse.com",
-      v4BetaEnabled: true,
-    });
+    const flags = parseFlags(
+      [getFeaturePreviewOptOutFlag("modernSession"), "templateFlag"],
+      {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      },
+    );
 
     expect(flags.modernSession).toBe(false);
-    // Opting out of one preview leaves the others alone.
-    expect(flags.compactTimeline).toBe(true);
+    // Scoped to its own flag: the opt-out is a STRING match, so a matcher that
+    // is too loose would take neighbouring flags down with it. A non-preview
+    // flag stands in for that here, which keeps the guard alive no matter how
+    // many previews the registry happens to hold.
+    expect(flags.templateFlag).toBe(true);
   });
 
   it("honors an explicit opt-out for every user", () => {
@@ -64,19 +67,18 @@ describe("parseFlags", () => {
   });
 
   it("applies organization defaults without overriding a global opt-out", () => {
-    const enabled = parseFlagsWithOrganizationDefaults(
-      [],
-      ["compactTimeline"],
-      { email: "user@example.com", v4BetaEnabled: true },
-    );
+    const enabled = parseFlagsWithOrganizationDefaults([], ["modernSession"], {
+      email: "user@example.com",
+      v4BetaEnabled: true,
+    });
     const optedOut = parseFlagsWithOrganizationDefaults(
-      [getFeaturePreviewOptOutFlag("compactTimeline")],
-      ["compactTimeline"],
+      [getFeaturePreviewOptOutFlag("modernSession")],
+      ["modernSession"],
       { email: "user@example.com", v4BetaEnabled: true },
     );
 
-    expect(enabled.compactTimeline).toBe(true);
-    expect(optedOut.compactTimeline).toBe(false);
+    expect(enabled.modernSession).toBe(true);
+    expect(optedOut.modernSession).toBe(false);
   });
 
   it("selects flags from only the active project organization", () => {
@@ -84,7 +86,7 @@ describe("parseFlags", () => {
       email: "user@example.com",
       v4BetaEnabled: true,
     });
-    const enabledInFirstOrg = { ...personalFlags, compactTimeline: true };
+    const enabledInFirstOrg = { ...personalFlags, modernSession: true };
     const user = {
       featureFlags: personalFlags,
       organizations: [
@@ -103,15 +105,15 @@ describe("parseFlags", () => {
 
     expect(
       getContextualFeatureFlags(user, { projectId: "project-a" })
-        ?.compactTimeline,
+        ?.modernSession,
     ).toBe(true);
     expect(
       getContextualFeatureFlags(user, { projectId: "project-b" })
-        ?.compactTimeline,
+        ?.modernSession,
     ).toBe(false);
     expect(
       getContextualFeatureFlags(user, { organizationId: "org-a" })
-        ?.compactTimeline,
+        ?.modernSession,
     ).toBe(true);
   });
 });

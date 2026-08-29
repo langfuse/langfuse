@@ -76,7 +76,7 @@ export function EvaluatorSavedDialog({
         closeOnInteractionOutside
         onCloseAutoFocus={onCloseAnimationEnd}
       >
-        <DialogHeader>
+        <DialogHeader className="[&>div]:items-start [&>div>button]:-mt-1">
           <DialogTitle>Evaluator saved</DialogTitle>
           <DialogDescription>
             Would you like to run this evaluator on incoming observations?

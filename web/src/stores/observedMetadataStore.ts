@@ -29,7 +29,7 @@ import {
   type StoredKeyInfo,
 } from "@/src/fns/observedMetadata/metadataPaths";
 
-export const OBSERVED_METADATA_STORAGE_KEY = "langfuse-observed-metadata";
+const OBSERVED_METADATA_STORAGE_KEY = "langfuse-observed-metadata";
 
 const MAX_PROJECTS = 20;
 // A merge that changes nothing still refreshes the LRU stamp when it is older

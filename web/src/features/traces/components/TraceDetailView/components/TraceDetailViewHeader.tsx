@@ -23,7 +23,7 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -48,9 +48,11 @@ import {
   ChevronDown,
   EllipsisVertical,
   ListPlus,
+  LockIcon,
   MessageSquare,
   MessageSquareOff,
   MoreHorizontal,
+  SquarePen,
 } from "lucide-react";
 import {
   Popover,
@@ -171,7 +173,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 />
                 {!isAnnotationMode && (
                   <>
-                    <AnnotateDrawer
+                    <AnnotateDrawerController
                       projectId={projectId}
                       scoreTarget={{
                         type: "trace",
@@ -182,8 +184,24 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         projectId: projectId,
                         environment: trace.environment,
                       }}
-                      layout="menu"
-                    />
+                    >
+                      {({ disabled, openDrawer }) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={disabled}
+                          className="w-full justify-start gap-2 font-normal"
+                          onClick={openDrawer}
+                        >
+                          {disabled ? (
+                            <LockIcon className="h-3 w-3" />
+                          ) : (
+                            <SquarePen className="h-4 w-4" />
+                          )}
+                          <span className="text-sm">Annotate</span>
+                        </Button>
+                      )}
+                    </AnnotateDrawerController>
                     <AnnotationQueueItemDropdownMenuController
                       projectId={projectId}
                       objectId={trace.id}
@@ -257,7 +275,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   key={"annotation-drawer-" + trace.id}
                   projectId={projectId}
                   scoreTarget={{
@@ -269,8 +287,24 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     projectId: projectId,
                     environment: trace.environment,
                   }}
-                  size="sm"
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={disabled}
+                      className="rounded-r-none"
+                      onClick={openDrawer}
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      <span>Annotate</span>
+                    </Button>
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={trace.id}

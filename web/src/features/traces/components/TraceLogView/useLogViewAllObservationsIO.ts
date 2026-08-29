@@ -40,7 +40,7 @@ export interface ObservationIOData {
  * Build the tRPC query key for an observation.
  * Must match the format used by api.observations.byId.useQuery
  */
-export function getObservationQueryKey(
+function getObservationQueryKey(
   observationId: string,
   traceId: string,
   projectId: string,

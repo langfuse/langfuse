@@ -38,7 +38,6 @@ const llmDefinition = (
   vars: ["output"],
   variableMapping: null,
   outputDefinition: {
-    version: 2,
     dataType: "NUMERIC",
     score: { description: "Quality" },
     reasoning: { description: "Reasoning" },
@@ -262,7 +261,7 @@ describe("evaluator v2 repository", () => {
       });
     });
 
-    it("paginates evaluators in descending update order", async () => {
+    it("preserves default update order and supports explicit creation order", async () => {
       const [recentlyUpdated, newerButUnchanged] = await Promise.all([
         createEvaluator(),
         createEvaluator(),
@@ -306,6 +305,22 @@ describe("evaluator v2 repository", () => {
         }),
       ).resolves.toEqual({
         evaluators: [expect.objectContaining({ id: newerButUnchanged.id })],
+        totalItems: 2,
+      });
+
+      await expect(
+        evaluatorRepository.listEvaluators({
+          prisma,
+          projectId,
+          page: 1,
+          limit: 2,
+          orderBy: { column: "createdAt", order: "DESC" },
+        }),
+      ).resolves.toEqual({
+        evaluators: [
+          expect.objectContaining({ id: newerButUnchanged.id }),
+          expect.objectContaining({ id: recentlyUpdated.id }),
+        ],
         totalItems: 2,
       });
     });

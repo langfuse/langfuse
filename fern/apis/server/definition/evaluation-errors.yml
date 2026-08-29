@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+types:
+  PublicApiErrorCode:
+    docs: Stable machine-readable error code returned by the evaluators and evaluation-rules API.
+    enum:
+      - authentication_failed
+      - access_denied
+      - invalid_request
+      - invalid_query
+      - invalid_body
+      - resource_not_found
+      - conflict
+      - rate_limited
+      - method_not_allowed
+      - internal_error
+
+  PublicApiValidationIssue:
+    docs: One request validation issue.
+    properties:
+      code:
+        type: string
+        docs: Validator issue code.
+      message:
+        type: string
+        docs: Human-readable explanation.
+      path:
+        type: list<unknown>
+        docs: Path to the invalid request field.
+
+  PublicApiErrorDetails:
+    docs: Optional structured context for validation and rate-limit errors.
+    properties:
+      issues:
+        type: optional<list<PublicApiValidationIssue>>
+        docs: Validation issues for an invalid request body or query.
+      retryAfterSeconds:
+        type: optional<integer>
+        docs: Number of seconds to wait before retrying a rate-limited request.
+      limit:
+        type: optional<integer>
+        docs: Rate-limit request allowance.
+      remaining:
+        type: optional<integer>
+        docs: Remaining requests in the current rate-limit window.
+      resetAt:
+        type: optional<datetime>
+        docs: Time when the current rate-limit window resets.
+
+  PublicApiError:
+    docs: |
+      Standard error response for the stable evaluators and evaluation-rules API.
+
+      Use the HTTP status for the broad failure class and `code` for programmatic handling. `details` is included when field-level validation or retry information is available.
+    properties:
+      message:
+        type: string
+        docs: Human-readable description of the failure.
+      code:
+        type: PublicApiErrorCode
+        docs: Stable machine-readable error code.
+      details:
+        type: optional<PublicApiErrorDetails>
+        docs: Optional structured validation or rate-limit context.
+    examples:
+      - name: InvalidBody
+        value:
+          message: Invalid request body
+          code: invalid_body
+          details:
+            issues:
+              - code: invalid_type
+                message: Invalid input
+                path:
+                  - definition
+      - name: ResourceNotFound
+        value:
+          message: Evaluator not found
+          code: resource_not_found
+      - name: RateLimited
+        value:
+          message: Rate limit exceeded
+          code: rate_limited
+          details:
+            retryAfterSeconds: 60
+            limit: 1000
+            remaining: 0
+            resetAt: "2026-03-30T10:00:00.000Z"
+
+errors:
+  BadRequestError:
+    docs: Request validation failed or the requested state is invalid.
+    status-code: 400
+    type: PublicApiError
+  EvaluationUnauthorizedError:
+    docs: Authentication failed.
+    status-code: 401
+    type: PublicApiError
+  EvaluationAccessDeniedError:
+    docs: The caller is not allowed to access this resource.
+    status-code: 403
+    type: PublicApiError
+  EvaluationNotFoundError:
+    docs: The requested evaluator or evaluation rule was not found in the authenticated project.
+    status-code: 404
+    type: PublicApiError
+  EvaluationMethodNotAllowedError:
+    docs: The HTTP method is not supported by this endpoint.
+    status-code: 405
+    type: PublicApiError
+  ConflictError:
+    docs: The request conflicts with the current evaluator or evaluation-rule state.
+    status-code: 409
+    type: PublicApiError
+  PreconditionFailedError:
+    docs: The evaluator configuration cannot be used in its current form.
+    status-code: 412
+    type: PublicApiError
+  TooManyRequestsError:
+    docs: The project is rate limited. Use the response details to decide when to retry.
+    status-code: 429
+    type: PublicApiError
+  InternalServerError:
+    docs: An unexpected server-side error occurred.
+    status-code: 500
+    type: PublicApiError
