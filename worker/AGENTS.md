@@ -68,8 +68,9 @@
 - `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
   instrumentation, prompt loading, continuation handling, tools, skills, and
   sandbox providers.
-- Worker env owns queue concurrency, sandbox configuration, and the
-  development-only in-app-agent AWS profile. Enablement is
+- Worker env owns queue concurrency, sandbox configuration, the optional
+  per-step output-token cap (`LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS`), and
+  the development-only in-app-agent AWS profile. Enablement is
   `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
   `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
   `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role

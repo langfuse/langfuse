@@ -88,6 +88,7 @@ type MockedAgentConfig = {
       isFinal: boolean;
       finishReason: string;
     }) => unknown;
+    modelSettings?: { maxOutputTokens?: number };
   };
 };
 
@@ -1435,6 +1436,64 @@ describe("createAgUiStream", () => {
       maxSteps: IN_APP_AGENT_MAX_STEPS,
     });
     expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
+    expect(agentConfig?.defaultOptions).not.toHaveProperty("modelSettings");
+  });
+
+  it("caps output tokens per model step when configured", async () => {
+    const { createAgUiStream } = await import("./agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        { id: "user-message-1", role: "user" as const, content: "hello" },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        model: testBedrockModel("eu.anthropic.claude-opus-4-8"),
+        maxOutputTokens: 32_768,
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    expect(getLastAgentConfig()?.defaultOptions).toMatchObject({
+      modelSettings: { maxOutputTokens: 32_768 },
+    });
   });
 
   it("adds a run instruction when the persisted workspace is gone", async () => {

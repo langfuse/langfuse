@@ -665,6 +665,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(600_000),
+  // Per-step output budget (reasoning + text) for the Assistant model loop.
+  // Unset leaves the provider default, which on OpenAI is the model maximum.
+  LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()

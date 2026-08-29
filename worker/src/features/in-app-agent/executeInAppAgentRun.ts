@@ -107,6 +107,7 @@ export async function executeInAppAgentRun(params: {
 }): Promise<void> {
   const { projectId, runId } = params;
   const awsProfile = env.AWS_PROFILE ?? env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
+  const maxOutputTokens = env.LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS;
 
   // Claim CAS: zero rows means duplicate delivery or a run reconciled away
   // while queued. Reconcile then ack — Postgres owns correctness.
@@ -591,6 +592,7 @@ export async function executeInAppAgentRun(params: {
           await sandboxState?.onTurnEnded();
         },
         model: modelConfig,
+        ...(maxOutputTokens ? { maxOutputTokens } : {}),
         ...(awsProfile ? { awsProfile } : {}),
         langfuseMcp: {
           url: getLangfuseMcpUrl(),

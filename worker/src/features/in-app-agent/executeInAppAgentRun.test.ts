@@ -44,6 +44,7 @@ type AgentScenario = (ctx: {
       modelId: string;
     };
     awsProfile?: string;
+    maxOutputTokens?: number;
     langfuseClient?: unknown;
     useLocalPrompt: boolean;
     langfuseMcp: {
@@ -370,6 +371,29 @@ describe("executeInAppAgentRun", () => {
     } finally {
       workerEnv.AWS_PROFILE = originalAwsProfile;
       workerEnv.LANGFUSE_IN_APP_AGENT_AWS_PROFILE = originalConfiguredProfile;
+    }
+  });
+
+  it("threads the configured output-token cap into the agent stream", async () => {
+    const workerEnv = env as {
+      LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS?: number;
+    };
+    const originalMaxOutputTokens =
+      workerEnv.LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS;
+    workerEnv.LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS = 32_768;
+
+    const { projectId, run } = await seedBackgroundRun();
+    scenarioRef.current = async ({ options }) => {
+      expect(options.maxOutputTokens).toBe(32_768);
+      await options.onComplete();
+      await options.onFinish();
+    };
+
+    try {
+      await executeInAppAgentRun({ projectId, runId: run.id });
+    } finally {
+      workerEnv.LANGFUSE_IN_APP_AGENT_MAX_OUTPUT_TOKENS =
+        originalMaxOutputTokens;
     }
   });
 
