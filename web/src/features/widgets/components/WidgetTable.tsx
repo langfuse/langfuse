@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { resolveWidgetListOrderBy } from "@/src/features/dashboard/lib/resolveDashboardListOrderBy";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
@@ -254,7 +255,7 @@ export function DashboardWidgetTable() {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      orderBy: orderByState,
+      orderBy: resolveWidgetListOrderBy(orderByState),
     },
     {
       enabled: Boolean(projectId),

@@ -26,6 +26,7 @@ import {
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
+import { resolveDashboardListOrderBy } from "@/src/features/dashboard/lib/resolveDashboardListOrderBy";
 import { useRouter } from "next/router";
 
 type DashboardTableRow = {
@@ -193,7 +194,7 @@ export function DashboardTable() {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      orderBy: orderByState,
+      orderBy: resolveDashboardListOrderBy(orderByState),
     },
     {
       enabled: Boolean(projectId),
