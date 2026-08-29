@@ -605,6 +605,22 @@ export type BackgroundRunNotice = {
 
 const STEP_LIMIT_NOTICE =
   "The assistant had to stop before finishing this answer. Too many steps in one turn. Send another message to continue.";
+const OUTPUT_LIMIT_NOTICE =
+  "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
+
+/** Notices for SUCCEEDED runs cut short before a final answer, by error code. */
+const TRUNCATION_NOTICES: Partial<Record<string, string>> = {
+  [InAppAgentRunErrorCode.STEP_LIMIT]: STEP_LIMIT_NOTICE,
+  [InAppAgentRunErrorCode.OUTPUT_LIMIT]: OUTPUT_LIMIT_NOTICE,
+};
+
+function getTruncationNotice(
+  run: BackgroundExecutionRunView,
+): string | undefined {
+  return run.status === InAppAgentRunStatus.SUCCEEDED && run.errorCode
+    ? TRUNCATION_NOTICES[run.errorCode]
+    : undefined;
+}
 
 export function getBackgroundRunNotice(
   run: BackgroundExecutionRunView | null,
@@ -624,11 +640,9 @@ export function getBackgroundRunNotice(
     };
   }
 
-  if (
-    run.status === InAppAgentRunStatus.SUCCEEDED &&
-    run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT
-  ) {
-    return { text: STEP_LIMIT_NOTICE, tone: "warning" };
+  const truncationNotice = getTruncationNotice(run);
+  if (truncationNotice !== undefined) {
+    return { text: truncationNotice, tone: "warning" };
   }
 
   return null;
@@ -644,8 +658,7 @@ export function getSettledActivityOutcome(
   }
 
   if (
-    (run.status === InAppAgentRunStatus.SUCCEEDED &&
-      run.errorCode === InAppAgentRunErrorCode.STEP_LIMIT) ||
+    getTruncationNotice(run) !== undefined ||
     run.status === InAppAgentRunStatus.CANCELLED
   ) {
     return "stopped";

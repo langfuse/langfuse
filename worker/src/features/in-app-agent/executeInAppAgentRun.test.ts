@@ -55,7 +55,11 @@ type AgentScenario = (ctx: {
     };
     onEvent: (event: unknown) => Promise<void> | void;
     onApprovedToolCallExecuted?: () => Promise<void> | void;
-    onComplete: (outcome?: { truncatedByStepLimit?: boolean }) => Promise<void>;
+    onComplete: (outcome?: {
+      reachedStepLimit?: boolean;
+      truncatedByStepLimit?: boolean;
+      truncatedByOutputLimit?: boolean;
+    }) => Promise<void>;
     onAbort: () => Promise<void>;
     onError: (error: unknown) => Promise<void>;
     onFinish: () => Promise<void>;
@@ -563,6 +567,47 @@ describe("executeInAppAgentRun", () => {
     expect(finished.status).toBe("SUCCEEDED");
     expect(finished.errorCode).toBe("step_limit");
     expect(finished.errorMessage).toMatch(/step limit/i);
+  });
+
+  it("records output_limit on SUCCEEDED when the last step ends with a length finish", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("Here is the beginning of a long"));
+      await options.onComplete({
+        reachedStepLimit: false,
+        truncatedByStepLimit: false,
+        truncatedByOutputLimit: true,
+      });
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.errorCode).toBe("output_limit");
+    expect(finished.errorMessage).toMatch(/output-token limit/i);
+  });
+
+  it("prefers output_limit over step_limit when both truncations apply", async () => {
+    const { projectId, run } = await seedBackgroundRun();
+
+    scenarioRef.current = async ({ options }) => {
+      await options.onEvent(textChunk("Still going"));
+      await options.onComplete({
+        reachedStepLimit: true,
+        truncatedByStepLimit: true,
+        truncatedByOutputLimit: true,
+      });
+      await options.onFinish();
+    };
+
+    await executeInAppAgentRun({ projectId, runId: run.id });
+
+    const finished = await getRun(projectId, run.id);
+    expect(finished.status).toBe("SUCCEEDED");
+    expect(finished.errorCode).toBe("output_limit");
   });
 
   it("acknowledges duplicate delivery without executing (claim CAS returns no row)", async () => {
