@@ -1,37 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
-import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import { numberFormatter } from "@/src/utils/numbers";
 import { type Observation } from "@langfuse/shared";
-
-export const AggUsageBadge = (props: {
-  observations: ObservationReturnType[];
-  rightIcon?: React.ReactNode;
-  variant?:
-    | "default"
-    | "secondary"
-    | "destructive"
-    | "outline-solid"
-    | "tertiary";
-}) => {
-  const usage = {
-    inputUsage: props.observations
-      .map((o) => o.inputUsage)
-      .reduce((a, b) => a + b, 0),
-    outputUsage: props.observations
-      .map((o) => o.outputUsage)
-      .reduce((a, b) => a + b, 0),
-    totalUsage: props.observations
-      .map((o) => o.totalUsage)
-      .reduce((a, b) => a + b, 0),
-  };
-  return (
-    <TokenUsageBadge
-      {...usage}
-      rightIcon={props.rightIcon}
-      variant={props.variant}
-    />
-  );
-};
 
 export const TokenUsageBadge = (
   props: (

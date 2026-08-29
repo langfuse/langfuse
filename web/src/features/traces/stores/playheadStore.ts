@@ -25,7 +25,7 @@ import { type TreeNode } from "../types/treeNode";
 /** Activation window of one observation, in seconds from the timeline origin. */
 export type NodeWindow = { id: string; startSec: number; endSec: number };
 
-export const EMPTY_ACTIVE_IDS: ReadonlySet<string> = new Set();
+const EMPTY_ACTIVE_IDS: ReadonlySet<string> = new Set();
 
 // Playback compresses to at most this many wall-clock seconds: traces shorter
 // than this play in real time; anything longer scales so the whole trace always
@@ -41,7 +41,7 @@ const END_EPSILON_SECONDS = 0.05;
 // span × the playback rate).
 const MIN_GLOW_WALL_SECONDS = 0.2;
 
-export interface PlayheadState {
+interface PlayheadState {
   /** Total trace span in seconds (0 = no timeline to play). */
   traceDuration: number;
   /** Padded activation windows for every node in the tree. */

@@ -12,40 +12,29 @@ import {
   timeFilter,
   experimentEvalFilterColumns,
   booleanFilter,
+  CODE_EVAL_SOURCE_MAX_BYTES,
   langfuseObjects,
 } from "@langfuse/shared";
-import { CODE_EVAL_SOURCE_MAX_BYTES } from "@langfuse/shared/src/server";
 import { z } from "zod";
-export {
-  UnstablePublicApiErrorCode,
-  UnstablePublicApiErrorDetails,
-  UnstablePublicApiErrorResponse,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
-import type {
-  UnstablePublicApiErrorCodeType,
-  UnstablePublicApiErrorDetailsType,
-} from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+export { StructuredPublicApiErrorResponse } from "./structuredPublicApiErrorSchema";
 
-export const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
+const PUBLIC_EVALUATOR_TYPES = ["llm_as_judge", "code"] as const;
 export const [PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE, PUBLIC_EVALUATOR_TYPE_CODE] =
   PUBLIC_EVALUATOR_TYPES;
 
 export const PublicEvaluatorType = z.enum(PUBLIC_EVALUATOR_TYPES);
-export const PublicCodeEvaluatorSourceCodeLanguage = z.enum([
-  "PYTHON",
-  "TYPESCRIPT",
-]);
+const PublicCodeEvaluatorSourceCodeLanguage = z.enum(["PYTHON", "TYPESCRIPT"]);
 
 export const PublicEvaluatorModelConfig = z.object({
   provider: z.string().min(1),
   model: z.string().min(1),
 });
 
-export const PublicEvaluatorOutputFieldDefinition = z.object({
+const PublicEvaluatorOutputFieldDefinition = z.object({
   description: z.string().trim().min(1),
 });
 
-export const PublicNumericEvaluatorOutputScoreDefinition =
+const PublicNumericEvaluatorOutputScoreDefinition =
   PublicEvaluatorOutputFieldDefinition.extend({
     minValue: z.number().optional(),
     maxValue: z.number().optional(),
@@ -57,25 +46,25 @@ export const PublicNumericEvaluatorOutputScoreDefinition =
     },
   );
 
-export const PublicNumericEvaluatorOutputDefinition = z.object({
+const PublicNumericEvaluatorOutputDefinition = z.object({
   dataType: z.literal("NUMERIC"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
   score: PublicNumericEvaluatorOutputScoreDefinition,
 });
 
-export const PublicBooleanEvaluatorOutputDefinition = z.object({
+const PublicBooleanEvaluatorOutputDefinition = z.object({
   dataType: z.literal("BOOLEAN"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
   score: PublicEvaluatorOutputFieldDefinition,
 });
 
-export const PublicCategoricalEvaluatorOutputScoreDefinition = z.object({
+const PublicCategoricalEvaluatorOutputScoreDefinition = z.object({
   description: z.string().trim().min(1),
   categories: z.array(z.string().trim().min(1)).min(2),
   shouldAllowMultipleMatches: z.boolean(),
 });
 
-export const PublicCategoricalEvaluatorOutputDefinition = z.object({
+const PublicCategoricalEvaluatorOutputDefinition = z.object({
   dataType: z.literal("CATEGORICAL"),
   reasoning: PublicEvaluatorOutputFieldDefinition,
   score: PublicCategoricalEvaluatorOutputScoreDefinition,
@@ -92,7 +81,7 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
 
 export const PublicEvaluationRuleTarget = z.enum(["observation", "experiment"]);
 export const PublicEvaluationRuleLegacyTarget = z.enum(["trace", "dataset"]);
-export const PublicEvaluationRuleReadTarget = z.union([
+const _PublicEvaluationRuleReadTarget = z.union([
   PublicEvaluationRuleTarget,
   PublicEvaluationRuleLegacyTarget,
 ]);
@@ -125,14 +114,14 @@ export const PublicEvaluationRuleEvaluator =
     id: z.string(),
   });
 
-export const ObservationEvaluationRuleMappingSource = z.enum([
+export const ObservationPromptVariableMappingSource = z.enum([
   "input",
   "output",
   "metadata",
   "tool_calls",
 ]);
 
-export const ExperimentEvaluationRuleMappingSource = z.enum([
+export const ExperimentPromptVariableMappingSource = z.enum([
   "input",
   "output",
   "metadata",
@@ -158,28 +147,28 @@ function createMappingSchema<
   });
 }
 
-export const ObservationEvaluationRuleMapping = createMappingSchema(
-  ObservationEvaluationRuleMappingSource,
+export const ObservationPromptVariableMappingInput = createMappingSchema(
+  ObservationPromptVariableMappingSource,
 );
 
-export const ExperimentEvaluationRuleMapping = createMappingSchema(
-  ExperimentEvaluationRuleMappingSource,
+export const ExperimentPromptVariableMappingInput = createMappingSchema(
+  ExperimentPromptVariableMappingSource,
 );
 
-export const PublicEvaluationRuleMapping = z.union([
-  ObservationEvaluationRuleMapping,
-  ExperimentEvaluationRuleMapping,
+const _PromptVariableMappingInput = z.union([
+  ObservationPromptVariableMappingInput,
+  ExperimentPromptVariableMappingInput,
 ]);
 
-// Read responses preserve incomplete legacy mappings so callers can repair
-// them. Write schemas remain strict and require a concrete source.
-export const PublicEvaluationRuleReadMapping = z.object({
+// This shape preserves incomplete mappings so callers can repair them.
+// Mapping inputs remain strict and require a concrete source.
+export const PromptVariableMappingRead = z.object({
   variable: z.string().min(1),
-  source: ExperimentEvaluationRuleMappingSource.nullable(),
+  source: ExperimentPromptVariableMappingSource.nullable(),
   jsonPath: z.string().min(1).optional(),
 });
 
-export const LegacyEvaluationRuleMapping = z
+export const LegacyPromptVariableMapping = z
   .object({
     variable: z.string().min(1),
     langfuseObject: z.enum(langfuseObjects),
@@ -293,7 +282,7 @@ export type PublicEvaluationRuleLegacyTargetType = z.infer<
   typeof PublicEvaluationRuleLegacyTarget
 >;
 export type PublicEvaluationRuleReadTargetType = z.infer<
-  typeof PublicEvaluationRuleReadTarget
+  typeof _PublicEvaluationRuleReadTarget
 >;
 export type PublicEvaluationRuleStatusType = z.infer<
   typeof PublicEvaluationRuleStatus
@@ -304,26 +293,18 @@ export type PublicEvaluationRuleEvaluatorReferenceType = z.infer<
 export type PublicEvaluationRuleEvaluatorType = z.infer<
   typeof PublicEvaluationRuleEvaluator
 >;
-export type PublicEvaluationRuleMappingType = z.infer<
-  typeof PublicEvaluationRuleMapping
+export type PromptVariableMappingInputType = z.infer<
+  typeof _PromptVariableMappingInput
 >;
-export type PublicEvaluationRuleReadMappingType = z.infer<
-  typeof PublicEvaluationRuleReadMapping
+export type PromptVariableMappingReadType = z.infer<
+  typeof PromptVariableMappingRead
 >;
-export type PublicObservationEvaluationRuleMappingType = z.infer<
-  typeof ObservationEvaluationRuleMapping
->;
-export type LegacyEvaluationRuleMappingType = z.infer<
-  typeof LegacyEvaluationRuleMapping
+export type LegacyPromptVariableMappingType = z.infer<
+  typeof LegacyPromptVariableMapping
 >;
 export type PublicEvaluationRuleFilterType = z.infer<
   typeof PublicEvaluationRuleFilter
 >;
-export type {
-  UnstablePublicApiErrorCodeType,
-  UnstablePublicApiErrorDetailsType,
-};
-
 export const UnstablePublicApiPaginationQuery = z.object({
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),

@@ -22,7 +22,7 @@ export interface ClickhouseDdlTarget {
   clusterName: string;
 }
 
-export function clickhouseDdlTarget(): ClickhouseDdlTarget {
+function clickhouseDdlTarget(): ClickhouseDdlTarget {
   return {
     database: env.CLICKHOUSE_DB,
     clusterEnabled: env.CLICKHOUSE_CLUSTER_ENABLED === "true",

@@ -1,7 +1,10 @@
 /* eslint-disable @repo/no-style-props */
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import {
+  DataTableColumnVisibilityFilter,
+  type ColumnGroupTogglePayload,
+} from "@/src/components/table/data-table-column-visibility-filter";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
@@ -146,6 +149,10 @@ interface DataTableToolbarProps<TData, TValue> {
    * already supply it via `viewConfig.tableName`; tables WITHOUT one (users,
    * dataset runs/items) must pass this so the event isn't labeled "unknown". */
   tableName?: string;
+  /** Surface dimension for table:* events. Forward from the owning table —
+   * do not rely on the default. v4 events / experiments = true; v3 traces = false. */
+  isV4?: boolean;
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
   filterWithAI?: boolean;
   className?: string;
   rowClassName?: string;
@@ -219,6 +226,8 @@ export function DataTableToolbar<TData, TValue>({
   orderByState,
   viewConfig,
   tableName,
+  isV4,
+  onColumnGroupToggle,
   filterWithAI = false,
   viewModeToggle,
   leadingControls,
@@ -228,6 +237,10 @@ export function DataTableToolbar<TData, TValue>({
   );
 
   const capture = usePostHogClientCapture();
+  const analyticsTableName = tableName ?? viewConfig?.tableName ?? "unknown";
+  const analyticsIsV4 =
+    isV4 ??
+    viewConfig?.tableName === TableViewPresetTableName.ObservationsEvents;
   const showSearchTypeSelector = Boolean(
     searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
   );
@@ -308,7 +321,10 @@ export function DataTableToolbar<TData, TValue>({
                 }
               }}
               onSubmit={(value) => {
-                capture("table:search_submit");
+                capture("table:search_submit", {
+                  tableName: analyticsTableName,
+                  isV4: analyticsIsV4,
+                });
                 submitSearch(value);
               }}
               dropdown={
@@ -447,11 +463,8 @@ export function DataTableToolbar<TData, TValue>({
             // filters via the grammar bar (it omits filterColumnDefinition here,
             // so this popover is a v3/legacy surface); derive isV4 from the
             // ObservationsEvents view for consistency + future-proofing.
-            tableName={tableName ?? viewConfig?.tableName ?? "unknown"}
-            isV4={
-              viewConfig?.tableName ===
-              TableViewPresetTableName.ObservationsEvents
-            }
+            tableName={analyticsTableName}
+            isV4={analyticsIsV4}
           />
         )}
 
@@ -463,12 +476,17 @@ export function DataTableToolbar<TData, TValue>({
               setColumnVisibility={setColumnVisibility}
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
+              tableName={analyticsTableName}
+              isV4={analyticsIsV4}
+              onColumnGroupToggle={onColumnGroupToggle}
             />
           )}
           {!!rowHeight && !!setRowHeight && (
             <DataTableRowHeightSwitch
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              tableName={analyticsTableName}
+              isV4={analyticsIsV4}
             />
           )}
           {actionButtons}

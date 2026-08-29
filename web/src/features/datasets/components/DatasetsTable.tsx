@@ -1,6 +1,5 @@
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
@@ -20,16 +19,16 @@ import {
   BatchActionType,
   BatchExportTableName,
 } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   createDatasetsTableStore,
@@ -316,33 +315,32 @@ export function DatasetsTable(props: { projectId: string }) {
 
   const columns: LangfuseColumnDef<DatasetTableRow>[] = [
     selectActionColumn,
-    {
+    createFolderKeyTableColumn<DatasetTableRow, DatasetTableRow["key"]>({
       accessorKey: "key",
       header: "Name",
-      id: "key",
       size: 150,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const key: DatasetTableRow["key"] = row.getValue("key");
+      getCell: (key, { row }) => {
+        if (!key) return undefined;
         const rowData = row.original;
 
         if (rowData.isFolder) {
-          return (
-            <FolderBreadcrumbLink
-              name={key.name}
-              onClick={() => navigateToFolder(rowData.folderPath)}
-            />
-          );
+          return {
+            type: "folder",
+            name: key.name,
+            onClick: () => navigateToFolder(rowData.folderPath),
+          };
         }
 
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}/items`}
-            value={key.name}
-          />
-        );
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}/items`,
+            value: key.name,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "description",
       header: "Description",
@@ -418,19 +416,14 @@ export function DatasetsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createIOTableColumn<DatasetTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",

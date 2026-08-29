@@ -10,7 +10,7 @@ import {
   ActivationCostEstimatesSchema,
   CreateEvaluatorSchema,
   DeleteEvaluatorsSchema,
-  EvaluatorDefinitionSchema,
+  EvaluatorDefinitionInputSchema,
   EvaluatorIdSchema,
   EvaluatorIdsSchema,
   EvaluatorOptionsSchema,
@@ -26,7 +26,7 @@ import { getActivationCostEstimates } from "./activationCostService";
 const TestEvaluatorSchema = z.object({
   projectId: z.string(),
   evaluatorId: z.string(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
   observationId: z.string(),
   traceId: z.string(),
   startTime: z.coerce.date(),

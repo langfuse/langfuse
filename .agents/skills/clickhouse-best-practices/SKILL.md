@@ -46,13 +46,21 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   repository layer then reads baggage via `normalizeClickHouseQueryTags(...)`
   and writes it to `log_comment`. Prefer setting attribution at entry points
   rather than passing tags through every repository call.
-- Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
-  more than one `ALTER` on the same table must end every metadata `ALTER`
-  (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
-  and every mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`)
-  with `SETTINGS mutations_sync = 2`. The matching `unclustered/` file runs
-  against plain `MergeTree` and does not need (and should not duplicate)
-  these settings.
+- In `packages/shared/clickhouse/migrations/clustered/**`, every metadata
+  `ALTER` (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) must end with
+  `SETTINGS alter_sync = 2`, and every mutation-creating `ALTER`
+  (`MATERIALIZE …`, `UPDATE`, `DELETE`) with `SETTINGS mutations_sync = 2`.
+  This applies to a file holding a single `ALTER` too — the race is across
+  migration files, not within one. `alter_sync` defaults to `1`, so the
+  statement returns as soon as the initiating replica has bumped the table's
+  metadata version in Keeper; golang-migrate then opens the next file
+  immediately, and its first `ALTER` on that table can land on a replica still
+  on the previous version. ClickHouse refuses to queue it and aborts the whole
+  run with `code 517 … metadata version on replica is N, while common metadata
+  is N+1`. Note that `mutations_sync` does not substitute for `alter_sync`: it
+  governs when mutations finish, not metadata propagation. The matching
+  `unclustered/` file runs against plain `MergeTree` and does not need (and
+  should not duplicate) these settings.
 - Never use `CREATE OR REPLACE VIEW` (nor `CREATE OR REPLACE TABLE` /
   `EXCHANGE TABLES`) in ClickHouse migrations. The atomic replace requires
   `renameat2` filesystem support, which NFS-backed self-hosted deployments
@@ -103,7 +111,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 - [ ] LowCardinality applied to appropriate string columns
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
-- [ ] Clustered migration files with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`); unclustered mirror has none
+- [ ] Every metadata ALTER in a clustered migration ends with `SETTINGS alter_sync = 2` — including files with a single ALTER, since the next migration file is what breaks — and every `MATERIALIZE …` / `UPDATE` / `DELETE` with `SETTINGS mutations_sync = 2`; `mutations_sync` is not a substitute for `alter_sync`; unclustered mirror has none
 - [ ] No `CREATE OR REPLACE VIEW/TABLE` or `EXCHANGE TABLES` in migrations (breaks NFS/EFS self-hosting); plain views are redefined via `DROP VIEW IF EXISTS` + `CREATE VIEW` in the same file
 - [ ] Materialized views are never dropped and recreated while their source table takes inserts; SELECT changes go through `ALTER TABLE <mv> MODIFY QUERY` after the target-table `ALTER`s
 

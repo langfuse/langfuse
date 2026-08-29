@@ -92,23 +92,40 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  getPostHogClientConfig,
+  isPostHogClientEnabled,
+  isProductAnalyticsAvailable,
+} from "@/src/features/posthog-analytics/productAnalyticsAvailability";
 
-// Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
-if (
-  typeof window !== "undefined" &&
-  process.env.NEXT_PUBLIC_POSTHOG_KEY &&
-  process.env.NEXT_PUBLIC_POSTHOG_HOST
-) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.posthog.com",
+// Session replay is a Langfuse Cloud feature, so self-hosted never records.
+// The product-analytics gate makes this redundant in HIPAA (PostHog is not
+// initialized there at all); it stays in the expression as defense in depth for
+// a compliance-sensitive flag.
+const isPostHogSessionRecordingEnabled =
+  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined &&
+  isProductAnalyticsAvailable();
+
+// Check that PostHog is client-side (used to handle Next.js SSR), that env vars
+// are set, and that the deployment region runs product analytics at all.
+const postHogClientConfig = getPostHogClientConfig();
+if (typeof window !== "undefined" && postHogClientConfig) {
+  posthog.init(postHogClientConfig.key, {
+    api_host: postHogClientConfig.host,
     ui_host: "https://eu.posthog.com",
     // Enable debug mode in development
     loaded: (posthog) => {
       if (process.env.NODE_ENV === "development") posthog.debug();
     },
+    disable_session_recording: !isPostHogSessionRecordingEnabled,
     session_recording: {
       maskAllInputs: true,
-      maskTextSelector: "*",
+      // Custom editors and the trace search composer render customer text in
+      // contenteditable elements, which maskAllInputs does not cover.
+      maskTextSelector: '[contenteditable="true"]',
+      // Trace/observation payload renderers use this class so recordings show
+      // the surrounding UI without capturing customer input/output values.
+      blockClass: "ph-no-capture",
       maskCapturedNetworkRequestFn(request) {
         request.requestBody = request.requestBody ? "REDACTED" : undefined;
         request.responseBody = request.responseBody ? "REDACTED" : undefined;
@@ -132,7 +149,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
-    if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+    if (isPostHogClientEnabled()) {
       const handleRouteChange = () => {
         posthog.capture("$pageview");
       };
@@ -235,7 +252,7 @@ function UserTracking() {
     ) {
       lastIdentifiedUser.current = JSON.stringify(sessionUser);
       // PostHog
-      if (env.NEXT_PUBLIC_POSTHOG_KEY && env.NEXT_PUBLIC_POSTHOG_HOST) {
+      if (isPostHogClientEnabled()) {
         posthog.identify(sessionUser.id ?? undefined, {
           environment: process.env.NODE_ENV,
           email: sessionUser.email ?? undefined,

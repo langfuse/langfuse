@@ -2,13 +2,7 @@ import type { RefObject } from "react";
 import type { DatasetFormRef } from "@/src/features/datasets/components/DatasetForm";
 
 // Re-export base types from shared
-export type {
-  SourceField,
-  MappingMode,
-  MappingTarget,
-  RootMappingConfig,
-  AddToDatasetMapping,
-} from "@langfuse/shared";
+export type { SourceField, MappingMode, MappingTarget } from "@langfuse/shared";
 
 import type {
   SourceField,
@@ -128,14 +122,6 @@ export type FinalPreviewStepProps = {
   observationData: ObservationPreviewData | null;
   totalCount: number;
   onEditStep: (step: DialogStep) => void;
-};
-
-export type StatusStepProps = {
-  projectId: string;
-  batchActionId: string;
-  dataset: { id: string; name: string };
-  expectedCount: number;
-  onClose: () => void;
 };
 
 // Dataset info for selection/creation

@@ -62,19 +62,6 @@ export function ControlledFeaturePreviewModal({
       onToggle: onToggle("modernSession"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    compactTimeline: {
-      enabled:
-        authSession.data?.user?.featureFlags.compactTimeline === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      disabled:
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason:
-        authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("compactTimeline"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
   };
 
   return (

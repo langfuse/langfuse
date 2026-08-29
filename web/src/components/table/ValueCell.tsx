@@ -36,7 +36,7 @@ export type MetadataFilterActions = {
 };
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
-export const MAX_CELL_DISPLAY_CHARS = 2000;
+const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
