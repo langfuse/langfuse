@@ -2,6 +2,7 @@ import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useEffect, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { resolveWidgetListOrderBy } from "@/src/features/dashboard/lib/resolveDashboardListOrderBy";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
@@ -243,17 +244,33 @@ export function DashboardWidgetTable() {
     column: "updatedAt",
     order: "DESC",
   });
+  const resolvedOrderBy = resolveWidgetListOrderBy(orderByState);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  useEffect(() => {
+    if (
+      orderByState?.column !== resolvedOrderBy.column ||
+      orderByState?.order !== resolvedOrderBy.order
+    ) {
+      setOrderByState(resolvedOrderBy);
+    }
+  }, [
+    orderByState?.column,
+    orderByState?.order,
+    resolvedOrderBy.column,
+    resolvedOrderBy.order,
+    setOrderByState,
+  ]);
 
   const widgets = api.dashboardWidgets.all.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      orderBy: orderByState,
+      orderBy: resolvedOrderBy,
     },
     {
       enabled: Boolean(projectId),
@@ -367,7 +384,7 @@ export function DashboardWidgetTable() {
                 data: widgets.data?.widgets ?? [],
               }
       }
-      orderBy={orderByState}
+      orderBy={resolvedOrderBy}
       setOrderBy={setOrderByState}
       cellPadding="comfortable"
       pagination={{

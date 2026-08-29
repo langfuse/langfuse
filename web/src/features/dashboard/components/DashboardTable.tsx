@@ -20,6 +20,7 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DeleteDialogDashboardContent } from "@/src/features/dashboard/components/DeleteDialogDashboardContent";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { resolveDashboardListOrderBy } from "@/src/features/dashboard/lib/resolveDashboardListOrderBy";
 import { useRouter } from "next/router";
 import { DialogController } from "@/src/components/ui/dialog";
 
@@ -58,17 +59,33 @@ export function DashboardTable() {
     column: "updatedAt",
     order: "DESC",
   });
+  const resolvedOrderBy = resolveDashboardListOrderBy(orderByState);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
   });
+
+  useEffect(() => {
+    if (
+      orderByState?.column !== resolvedOrderBy.column ||
+      orderByState?.order !== resolvedOrderBy.order
+    ) {
+      setOrderByState(resolvedOrderBy);
+    }
+  }, [
+    orderByState?.column,
+    orderByState?.order,
+    resolvedOrderBy.column,
+    resolvedOrderBy.order,
+    setOrderByState,
+  ]);
 
   const dashboards = api.dashboard.allDashboards.useQuery(
     {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      orderBy: orderByState,
+      orderBy: resolvedOrderBy,
     },
     {
       enabled: Boolean(projectId),
@@ -284,7 +301,7 @@ export function DashboardTable() {
                             ),
                           }
                   }
-                  orderBy={orderByState}
+                  orderBy={resolvedOrderBy}
                   setOrderBy={setOrderByState}
                   pagination={{
                     totalCount: dashboards.data?.totalCount ?? null,

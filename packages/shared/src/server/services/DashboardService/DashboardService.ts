@@ -7,6 +7,10 @@ import {
 import { InvalidRequestError } from "../../../errors";
 import { env } from "../../../env";
 import {
+  toDashboardPrismaOrderBy,
+  toDashboardWidgetPrismaOrderBy,
+} from "./listOrderBy";
+import {
   CreateWidgetInput,
   WidgetDomain,
   WidgetListResponse,
@@ -116,9 +120,7 @@ export class DashboardService {
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
         where,
-        orderBy: orderBy
-          ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
-          : [{ updatedAt: "desc" }],
+        orderBy: toDashboardPrismaOrderBy(orderBy),
         skip,
         take,
       }),
@@ -330,9 +332,7 @@ export class DashboardService {
         where: {
           projectId,
         },
-        orderBy: orderBy
-          ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
-          : [{ updatedAt: "desc" }],
+        orderBy: toDashboardWidgetPrismaOrderBy(orderBy),
         skip,
         take,
       }),
