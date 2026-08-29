@@ -272,6 +272,26 @@ export class OtelIngestionProcessor {
 
   private static readonly METADATA_DROP_WARN_CAP = 10;
   private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
+  private static readonly THIRD_PARTY_UNMASKED_WARN_CAP = 10;
+
+  private static readonly LANGFUSE_IO_ATTRIBUTES = new Set([
+    LangfuseOtelSpanAttributes.OBSERVATION_INPUT,
+    LangfuseOtelSpanAttributes.OBSERVATION_OUTPUT,
+    LangfuseOtelSpanAttributes.TRACE_INPUT,
+    LangfuseOtelSpanAttributes.TRACE_OUTPUT,
+  ]);
+
+  // PII-prone attribute keys commonly emitted by third-party instrumentors.
+  // Used for bounded warning when a third-party span carries such keys without
+  // server-side masking. This is observability only, not redaction.
+  private static readonly PII_LIKE_ATTRIBUTE_PREFIXES = [
+    "input.value",
+    "output.value",
+    "llm.",
+    "gen_ai.",
+    "traceloop.",
+    "openinference.",
+  ];
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
@@ -280,6 +300,7 @@ export class OtelIngestionProcessor {
     ReconstructedAttributeDropReason,
     number
   >();
+  private thirdPartyUnmaskedWarnCount = 0;
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -310,6 +331,79 @@ export class OtelIngestionProcessor {
     this.ingestionVersion = config.ingestionVersion;
     this.isLangfuseInternal = config.isLangfuseInternal;
     this.fileKey = config.fileKey;
+  }
+
+  private hasLangfuseIOAttributes(
+    attributes: Record<string, unknown>,
+  ): boolean {
+    for (const key of OtelIngestionProcessor.LANGFUSE_IO_ATTRIBUTES) {
+      if (key in attributes) return true;
+    }
+    return false;
+  }
+
+  private hasPiiLikeAttributes(
+    attributes: Record<string, unknown>,
+  ): boolean {
+    for (const key of Object.keys(attributes)) {
+      for (const prefix of OtelIngestionProcessor.PII_LIKE_ATTRIBUTE_PREFIXES) {
+        if (key === prefix || key.startsWith(prefix)) return true;
+      }
+      // Exact match for some common keys
+      if (key === "input" || key === "output") return true;
+    }
+    return false;
+  }
+
+  /**
+   * Determines whether a span should be treated as third-party.
+   * Scope name is a hint, but when a third-party instrumentor reuses
+   * `langfuse._otel_tracer` (common via `openlit.init(tracer=langfuse._otel_tracer)`),
+   * the scope stays `langfuse-sdk` yet the span lacks Langfuse IO attributes.
+   * In that case we treat it as third-party to avoid silently dropping
+   * `filteredAttributes` and to surface the masking gap.
+   * Native SDK spans always carry `langfuse.observation.input/output` or
+   * `langfuse.trace.input/output` when they have content; empty native
+   * observations lacking those keys are conservatively treated as non-PII
+   * and will not trigger the warning (see `hasPiiLikeAttributes` gate).
+   */
+  private isThirdPartySpan(
+    attributes: Record<string, unknown>,
+    scopeName: string | undefined,
+  ): boolean {
+    const isLangfuseScope = scopeName?.startsWith("langfuse-sdk") ?? false;
+    if (!isLangfuseScope) return true;
+    // Wired-tracer case: langfuse-sdk scope but no Langfuse IO attributes.
+    return !this.hasLangfuseIOAttributes(attributes);
+  }
+
+  private maybeWarnForThirdPartyUnmasked(
+    attributes: Record<string, unknown>,
+    scopeName: string | undefined,
+  ): void {
+    if (!this.hasPiiLikeAttributes(attributes)) return;
+    if (!this.isThirdPartySpan(attributes, scopeName)) return;
+    if (
+      this.thirdPartyUnmaskedWarnCount >=
+      OtelIngestionProcessor.THIRD_PARTY_UNMASKED_WARN_CAP
+    )
+      return;
+    this.thirdPartyUnmaskedWarnCount++;
+    recordIncrement(
+      "langfuse.ingestion.otel.third_party_unmasked_span",
+      1,
+    );
+    logger.warn(
+      "OTEL third-party span contains PII-like attributes without Langfuse IO; " +
+        "SDK `mask` does not cover raw OTel span attributes - use `mask_otel_spans` or configure ingestion masking. " +
+        "See https://langfuse.com/docs/observability/features/masking",
+      {
+        scopeName: scopeName ?? "",
+        projectId: this.projectId,
+        fileKey: this.fileKey ?? "",
+        attributeKeys: Object.keys(attributes).slice(0, 20),
+      },
+    );
   }
 
   /**
@@ -409,8 +503,17 @@ export class OtelIngestionProcessor {
                     endTimeUnixNano: span.endTimeUnixNano,
                   });
 
-                const isLangfuseSDKSpans =
-                  scopeSpan.scope?.name?.startsWith("langfuse-sdk") ?? false;
+                // Detect third-party spans that reuse the Langfuse tracer but lack
+                // Langfuse IO attributes (see `isThirdPartySpan`).
+                const isThirdParty = this.isThirdPartySpan(
+                  spanAttributes,
+                  scopeSpan.scope?.name,
+                );
+                const isLangfuseSDKSpans = !isThirdParty;
+                this.maybeWarnForThirdPartyUnmasked(
+                  spanAttributes,
+                  scopeSpan.scope?.name,
+                );
 
                 // Extract metadata from different sources
                 const spanMetadata = this.extractMetadata(
@@ -968,6 +1071,18 @@ export class OtelIngestionProcessor {
   ): IngestionEventType[] {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
+    // Refine SDK vs third-party detection per span: wired-tracer case carries
+    // langfuse-sdk scope but no Langfuse IO attributes.
+    const effectiveIsLangfuseSDKSpans = !this.isThirdPartySpan(
+      attributes,
+      scopeSpan?.scope?.name,
+    );
+    // Use refined flag for downstream metadata handling.
+    isLangfuseSDKSpans = effectiveIsLangfuseSDKSpans;
+    this.maybeWarnForThirdPartyUnmasked(
+      attributes,
+      scopeSpan?.scope?.name,
+    );
 
     const traceId = this.parseId(span.traceId?.data ?? span.traceId);
     const parentObservationId = span?.parentSpanId
