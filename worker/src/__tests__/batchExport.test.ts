@@ -10,6 +10,8 @@ import {
   createTrace,
   createTracesCh,
   createManyDatasetItems,
+  createDatasetRunItem,
+  createDatasetRunItemsCh,
   applyCommentFilters,
   createEvent,
   createEventsCh,
@@ -5211,5 +5213,148 @@ maybeDescribe("getEventsForBlobStorageExport", () => {
     expect(Object.keys(rows[0]).sort()).toEqual(expectedColumns);
     expect(rows[0].input).toBe("hello");
     expect(rows[0].output).toBe("world");
+  });
+  it("should export dataset runs with aggregated metrics", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    // Create two datasets to verify datasetId scoping of the export
+    const datasetId = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: "test-dataset-runs-export",
+        projectId,
+      },
+    });
+    const datasetId2 = randomUUID();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId2,
+        name: "test-dataset-runs-export-2",
+        projectId,
+      },
+    });
+
+    const runCreatedAt = new Date(Date.now() - 1000 * 60 * 60);
+    const runTimestamp = runCreatedAt.getTime();
+
+    // Observations backing the run items' traces (trace-level metrics:
+    // run items carry observation_id = null). 5s latency and 0.5 cost each.
+    const traceId1 = randomUUID();
+    const traceId2 = randomUUID();
+    await createObservationsCh([
+      createObservation({
+        project_id: projectId,
+        trace_id: traceId1,
+        type: "GENERATION",
+        start_time: runTimestamp,
+        end_time: runTimestamp + 5000,
+        total_cost: 0.5,
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        start_time: runTimestamp,
+        end_time: runTimestamp + 5000,
+        total_cost: 0.5,
+      }),
+    ]);
+
+    const runId = randomUUID();
+    await createDatasetRunItemsCh([
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: datasetId,
+        dataset_run_id: runId,
+        dataset_item_id: randomUUID(),
+        trace_id: traceId1,
+        observation_id: null,
+        dataset_run_name: "test-run",
+        dataset_run_description: "test run description",
+        dataset_run_metadata: { purpose: "testing" },
+        dataset_run_created_at: runTimestamp,
+        created_at: runTimestamp,
+        updated_at: runTimestamp,
+        event_ts: runTimestamp,
+      }),
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: datasetId,
+        dataset_run_id: runId,
+        dataset_item_id: randomUUID(),
+        trace_id: traceId2,
+        observation_id: null,
+        dataset_run_name: "test-run",
+        dataset_run_description: "test run description",
+        dataset_run_metadata: { purpose: "testing" },
+        dataset_run_created_at: runTimestamp,
+        created_at: runTimestamp,
+        updated_at: runTimestamp,
+        event_ts: runTimestamp,
+      }),
+      // Run in the other dataset — must not be exported
+      createDatasetRunItem({
+        project_id: projectId,
+        dataset_id: datasetId2,
+        dataset_run_id: randomUUID(),
+        dataset_item_id: randomUUID(),
+        trace_id: randomUUID(),
+        observation_id: null,
+        dataset_run_name: "other-run",
+        dataset_run_created_at: runTimestamp,
+        created_at: runTimestamp,
+        updated_at: runTimestamp,
+        event_ts: runTimestamp,
+      }),
+    ]);
+
+    const stream = await getDatabaseReadStreamPaginated({
+      projectId,
+      tableName: BatchExportTableName.DatasetRuns,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "string",
+          operator: "=",
+          column: "datasetId",
+          value: datasetId,
+        },
+      ],
+      orderBy: { column: "createdAt", order: "DESC" },
+    });
+
+    const rows: any[] = [];
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        id: runId,
+        name: "test-run",
+        description: "test run description",
+        metadata: { purpose: "testing" },
+        countRunItems: 2,
+      }),
+    );
+    expect(Number(rows[0].avgLatency)).toBeCloseTo(5);
+    expect(Number(rows[0].avgTotalCost)).toBeCloseTo(0.5);
+    expect(Number(rows[0].totalCost)).toBeCloseTo(1);
+  });
+
+  it("should fail dataset runs export without datasetId filter", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    await expect(
+      getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.DatasetRuns,
+        cutoffCreatedAt: new Date(),
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+      }),
+    ).rejects.toThrow("dataset_runs export requires a datasetId filter");
   });
 });
