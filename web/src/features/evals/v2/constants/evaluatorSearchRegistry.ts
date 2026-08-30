@@ -14,8 +14,8 @@ const withDatasetNameAiContext = (
       ({ observedOptionsKey }) => observedOptionsKey !== "experimentDatasetId",
     )
     .concat({
-      observedOptionsKey: "experimentDatasetName",
-      promptLabel: "experimentDatasetName (dataset)",
+      observedOptionsKey: "datasetName",
+      promptLabel: "datasetName",
     });
 
 export const EVALUATOR_FIELD_REGISTRY = {

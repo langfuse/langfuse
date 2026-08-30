@@ -8,11 +8,17 @@ export type DatasetFilterOption = {
 };
 
 const DATASET_ID_COLUMN = "experimentDatasetId";
-export const DATASET_NAME_COLUMN = "experimentDatasetName";
+export const DATASET_NAME_COLUMN = "datasetName";
 export const DATASET_NAME_FILTER_COLUMN: ColumnDefinition = {
-  name: "Experiment dataset name",
+  name: "Dataset name",
   id: DATASET_NAME_COLUMN,
-  aliases: ["dataset", "datasetname", "dataset_name"],
+  aliases: [
+    "dataset",
+    "datasetname",
+    "dataset_name",
+    "experimentdatasetname",
+    "experiment_dataset_name",
+  ],
   type: "stringOptions",
   internal: "experiment_dataset_id",
   options: [],

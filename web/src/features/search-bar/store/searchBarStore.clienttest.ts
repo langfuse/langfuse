@@ -247,18 +247,16 @@ describe("searchBarStore (draft-only)", () => {
   it("revalidates drafts against the latest dynamic registry", () => {
     let registry = withFieldAllowedValues(
       EVALUATOR_FIELD_REGISTRY,
-      "experimentDatasetName",
+      "datasetName",
       new Set(),
     );
     const store = createSearchBarStore(undefined, () => registry);
-    store
-      .getState()
-      .actions.setDraft('experimentDatasetName:"Filter QA Dataset"');
+    store.getState().actions.setDraft('datasetName:"Filter QA Dataset"');
     expect(store.getState().draftValid).toBe(false);
 
     registry = withFieldAllowedValues(
       EVALUATOR_FIELD_REGISTRY,
-      "experimentDatasetName",
+      "datasetName",
       new Set(["Filter QA Dataset"]),
     );
     store.getState().actions.revalidate();

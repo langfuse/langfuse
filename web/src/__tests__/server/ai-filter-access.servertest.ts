@@ -199,7 +199,7 @@ describe("Ask AI filter generation access", () => {
         text: JSON.stringify([
           {
             type: "stringOptions",
-            column: "experimentDatasetName",
+            column: "datasetName",
             operator: "any of",
             value: ["Filter QA Dataset"],
           },
@@ -217,7 +217,7 @@ describe("Ask AI filter generation access", () => {
           filters: [
             {
               type: "stringOptions",
-              column: "experimentDatasetName",
+              column: "datasetName",
               operator: "any of",
               value: ["Filter QA Dataset"],
             },

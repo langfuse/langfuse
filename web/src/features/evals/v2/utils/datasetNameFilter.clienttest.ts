@@ -26,8 +26,8 @@ describe("dataset name search filters", () => {
       aiFilterPrompt: true,
       aiContextFields: expect.arrayContaining([
         {
-          observedOptionsKey: "experimentDatasetName",
-          promptLabel: "experimentDatasetName (dataset)",
+          observedOptionsKey: "datasetName",
+          promptLabel: "datasetName",
         },
       ]),
     });
@@ -36,8 +36,8 @@ describe("dataset name search filters", () => {
       aiFilterPrompt: true,
       aiContextFields: expect.arrayContaining([
         {
-          observedOptionsKey: "experimentDatasetName",
-          promptLabel: "experimentDatasetName (dataset)",
+          observedOptionsKey: "datasetName",
+          promptLabel: "datasetName",
         },
       ]),
     });
@@ -46,7 +46,7 @@ describe("dataset name search filters", () => {
   it("preserves the search bar's pending observed-options state", () => {
     expect(addDatasetNameObservedOptions(undefined, datasets)).toBeUndefined();
     expect(addDatasetNameObservedOptions({}, datasets)).toMatchObject({
-      experimentDatasetName: [
+      datasetName: [
         { value: "Support conversations" },
         { value: "Billing: escalations" },
       ],
@@ -67,7 +67,7 @@ describe("dataset name search filters", () => {
 
     expect(searchable).toEqual([
       {
-        column: "experimentDatasetName",
+        column: "datasetName",
         type: "stringOptions",
         operator: "any of",
         value: ["Support conversations", "Billing: escalations"],
@@ -92,7 +92,7 @@ describe("dataset name search filters", () => {
   it("round-trips dataset presence filters through the name column", () => {
     const searchable = [
       {
-        column: "experimentDatasetName",
+        column: "datasetName",
         type: "null",
         operator: "is not null",
         value: "",
@@ -119,11 +119,11 @@ describe("dataset name search filters", () => {
     ]) {
       const registryWithDatasets = withFieldAllowedValues(
         registry,
-        "experimentDatasetName",
+        "datasetName",
         new Set(datasets.map((dataset) => dataset.name)),
       );
       const result = planCommit(
-        'experimentDatasetName:"Support conversations"',
+        'datasetName:"Support conversations"',
         undefined,
         registryWithDatasets,
       );
@@ -145,11 +145,11 @@ describe("dataset name search filters", () => {
   it("rejects unresolved dataset names instead of persisting them as IDs", () => {
     const registry = withFieldAllowedValues(
       EVALUATOR_FIELD_REGISTRY,
-      "experimentDatasetName",
+      "datasetName",
       new Set(datasets.map((dataset) => dataset.name)),
     );
     const result = planCommit(
-      'experimentDatasetName:"Missing dataset"',
+      'datasetName:"Missing dataset"',
       undefined,
       registry,
     );
@@ -159,7 +159,7 @@ describe("dataset name search filters", () => {
       expect(result.diagnostics).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            message: '"Missing dataset" is not a valid experiment dataset name',
+            message: '"Missing dataset" is not a valid dataset name',
           }),
         ]),
       );
@@ -167,7 +167,7 @@ describe("dataset name search filters", () => {
 
     const unresolved = [
       {
-        column: "experimentDatasetName",
+        column: "datasetName",
         type: "stringOptions",
         operator: "any of",
         value: ["Missing dataset"],
@@ -191,6 +191,19 @@ describe("dataset name search filters", () => {
 
     expect(
       filterStateToQueryText(searchable, {}, EVALUATOR_FIELD_REGISTRY).text,
-    ).toBe('experimentDatasetName:"Billing: escalations"');
+    ).toBe('datasetName:"Billing: escalations"');
+  });
+
+  it("keeps experimentDatasetName as a backward-compatible alias", () => {
+    const result = planCommit(
+      'experimentDatasetName:"Support conversations"',
+      undefined,
+      EVALUATOR_FIELD_REGISTRY,
+    );
+
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [{ column: "datasetName" }],
+    });
   });
 });
