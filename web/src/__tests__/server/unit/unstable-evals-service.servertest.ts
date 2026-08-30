@@ -476,7 +476,7 @@ describe("unstable public evaluation-rule service", () => {
         orgId: "org",
         projectId: "project",
         evaluationRuleId: "rule",
-        input: { name: "Renamed rule" },
+        input: { name: "Renamed rule", target: "observation" },
       }),
     ).resolves.toMatchObject({
       name: "Renamed rule",

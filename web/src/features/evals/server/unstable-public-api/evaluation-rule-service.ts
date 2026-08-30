@@ -595,7 +595,8 @@ export async function updatePublicEvaluationRule(params: {
     });
   }
   const updatesFilterOrTarget =
-    suppliedFilter !== undefined || suppliedTarget !== undefined;
+    suppliedFilter !== undefined ||
+    (suppliedTarget !== undefined && suppliedTarget !== existingPublic.target);
   const parsedExistingFilter = PublicEvaluationRuleFilter.array().safeParse(
     existingPublic.filter,
   );
@@ -734,6 +735,7 @@ export async function updatePublicEvaluationRule(params: {
     replacementAssignments,
     patchedFirstAssignment,
     effectiveAssignmentCount: effectiveAssignments.length,
+    updatesFilterOrTarget,
   });
   const evaluationRule = toApiReadableV2EvaluationRule(updated);
   if (params.auditScope) {
@@ -774,6 +776,7 @@ async function updateRuleWithRuleService(params: {
   replacementAssignments: PreparedAssignment[] | null;
   patchedFirstAssignment: PreparedAssignment | null;
   effectiveAssignmentCount: number;
+  updatesFilterOrTarget: boolean;
 }) {
   const firstAssignment = params.existing.assignments[0];
   const evaluatorMappings = params.replacementAssignments
@@ -807,7 +810,9 @@ async function updateRuleWithRuleService(params: {
       projectId: params.projectId,
       ruleId: params.evaluationRuleId,
       targetObject:
-        "target" in params.input ? params.fields.targetObject : undefined,
+        params.updatesFilterOrTarget && "target" in params.input
+          ? params.fields.targetObject
+          : undefined,
       name: params.input.name,
       enabled:
         params.input.enabled === undefined
@@ -815,10 +820,9 @@ async function updateRuleWithRuleService(params: {
           : params.effectiveAssignmentCount > 0 &&
             params.fields.status === JobConfigState.ACTIVE,
       sampling: params.input.sampling,
-      filter:
-        "filter" in params.input || "target" in params.input
-          ? (params.fields.filter as FilterState)
-          : undefined,
+      filter: params.updatesFilterOrTarget
+        ? (params.fields.filter as FilterState)
+        : undefined,
       evaluatorMappings,
     }),
   );
