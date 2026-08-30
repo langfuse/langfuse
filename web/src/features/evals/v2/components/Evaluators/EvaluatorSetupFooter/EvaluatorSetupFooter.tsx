@@ -84,7 +84,7 @@ export function EvaluatorSetupFooter({
 
   return (
     <EvaluatorSetupFooterView mode="create" {...sharedProps}>
-      Next: attach a rule to run this evaluator on incoming traffic.
+      Next: attach a rule to run this evaluator on incoming observations.
     </EvaluatorSetupFooterView>
   );
 }

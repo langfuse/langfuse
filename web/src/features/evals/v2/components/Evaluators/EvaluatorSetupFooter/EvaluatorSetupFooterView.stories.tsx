@@ -6,7 +6,7 @@ import { EvaluatorSetupFooterView } from "./EvaluatorSetupFooterView";
 const meta = preview.meta({ component: EvaluatorSetupFooterView });
 
 const createNextStep =
-  "Next: attach a rule to run this evaluator on incoming traffic.";
+  "Next: attach a rule to run this evaluator on incoming observations.";
 
 export const Default = meta.story({
   args: {
