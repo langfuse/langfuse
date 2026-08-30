@@ -24,8 +24,10 @@ if [ -z "${CLICKHOUSE_USER}" ]; then
   exit 1
 fi
 
-# Check if CLICKHOUSE_PASSWORD is set
-if [ -z "${CLICKHOUSE_PASSWORD}" ]; then
+# Check if CLICKHOUSE_PASSWORD is set. An explicitly empty value is accepted
+# to support instances whose user has no password (matches the application,
+# which validates the password as a plain string and allows "").
+if [ -z "${CLICKHOUSE_PASSWORD+x}" ]; then
   echo "Error: CLICKHOUSE_PASSWORD is not set."
   echo "Please set CLICKHOUSE_PASSWORD in your environment variables."
   exit 1
