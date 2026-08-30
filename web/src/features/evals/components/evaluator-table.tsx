@@ -126,7 +126,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
   // Deprecated evaluators are read-only where new legacy setups are not
   // allowed (cloud); self-hosted deployments keep editing them.
   const { allowLegacy } = useEvalCapabilities(projectId);

@@ -161,7 +161,7 @@ export function EvaluatorSetupPage(
   const capture = usePostHogClientCapture();
   const canReactivate = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
