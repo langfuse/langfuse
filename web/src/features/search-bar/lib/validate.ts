@@ -159,29 +159,33 @@ function incompleteFieldTokenDiagnostics(
   }
 }
 
-function allowedValueDiagnostics(
+function labeledOptionValueDiagnostics(
   node: ASTNode,
   textLength: number,
   out: Diagnostic[],
   registry: FieldRegistry,
 ): void {
   if (node.kind === "not") {
-    allowedValueDiagnostics(node.child, textLength, out, registry);
+    labeledOptionValueDiagnostics(node.child, textLength, out, registry);
     return;
   }
   if (node.kind === "and" || node.kind === "or") {
     for (const child of node.children) {
-      allowedValueDiagnostics(child, textLength, out, registry);
+      labeledOptionValueDiagnostics(child, textLength, out, registry);
     }
     return;
   }
   if (node.kind !== "filter") return;
 
   const ref = registry.resolveField(node.key);
-  if (ref?.type !== "field" || ref.field.allowedValues === undefined) return;
+  if (
+    ref?.type !== "field" ||
+    ref.field.filterValueByDisplayValue === undefined
+  )
+    return;
 
   for (const value of node.values) {
-    if (ref.field.allowedValues.has(value)) continue;
+    if (ref.field.filterValueByDisplayValue.has(value)) continue;
     const span = nodeSpan(node, textLength);
     out.push({
       from: span.from,
@@ -205,7 +209,7 @@ export function semanticDiagnostics(
   // filter, not free text — checked over the WHOLE tree (not per top-level
   // node) so the adjacency scoping can see each text node's siblings.
   incompleteFieldTokenDiagnostics(ast, out, registry);
-  allowedValueDiagnostics(ast, textLength, out, registry);
+  labeledOptionValueDiagnostics(ast, textLength, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same

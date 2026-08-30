@@ -57,9 +57,6 @@ export type FieldDef = {
    * `exactOption`; only set this on `textSearch` fields that should suggest.
    */
   suggestObservedValues?: boolean;
-  /** Optional exact-value allowlist for virtual option fields whose values
-   * must resolve before they can be lowered to a persisted filter. */
-  allowedValues?: ReadonlySet<string>;
   /** Canonical FilterState column emitted for this display-oriented field. */
   filterColumn?: string;
   /** Display/query value → canonical FilterState value for labeled options. */
@@ -182,7 +179,6 @@ export function fieldRegistryFromColumns(
         nullable: column.nullable,
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
-        allowedValues: fieldOverlay?.allowedValues,
         filterColumn: fieldOverlay?.filterColumn,
         filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
         displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
@@ -256,7 +252,6 @@ export function withFieldOptions(
       field.id === fieldId
         ? {
             ...field,
-            allowedValues: new Set(filterValueByDisplayValue.keys()),
             filterValueByDisplayValue,
             displayValueByFilterValue,
           }
