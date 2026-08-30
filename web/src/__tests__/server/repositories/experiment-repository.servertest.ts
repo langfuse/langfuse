@@ -5,6 +5,7 @@ import {
   createEventsCh,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getDatasetExperimentMetricsFromEvents,
   getExperimentMetricsFromEvents,
   getExperimentItemsFilterOptions,
   getExperimentNamesFromEvents,
@@ -37,6 +38,85 @@ describe("Clickhouse Experiment Repository Test", () => {
       });
 
       expect(count).toBe(0);
+    });
+
+    it("should return experiment count and latest start time per dataset", async () => {
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const experimentId1 = randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentId3 = randomUUID();
+      const olderStart = new Date("2026-08-27T10:00:00.000Z");
+      const latestStart = new Date("2026-08-29T12:00:00.000Z");
+
+      const makeEvent = ({
+        datasetId,
+        experimentId,
+        startTime,
+      }: {
+        datasetId: string;
+        experimentId: string;
+        startTime: Date;
+      }) => {
+        const spanId = randomUUID();
+        return createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentId,
+          experiment_name: `experiment-${experimentId}`,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: spanId,
+          start_time: startTime.getTime() * 1000,
+        });
+      };
+
+      await createEventsCh([
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId1,
+          startTime: olderStart,
+        }),
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId2,
+          startTime: latestStart,
+        }),
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId2,
+          startTime: new Date(latestStart.getTime() + 60_000),
+        }),
+        makeEvent({
+          datasetId: datasetId2,
+          experimentId: experimentId3,
+          startTime: olderStart,
+        }),
+      ]);
+
+      const result = await getDatasetExperimentMetricsFromEvents({
+        projectId,
+        datasetIds: [datasetId1, datasetId2],
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            datasetId: datasetId1,
+            countDatasetRuns: 2,
+            lastRunAt: latestStart,
+          },
+          {
+            datasetId: datasetId2,
+            countDatasetRuns: 1,
+            lastRunAt: olderStart,
+          },
+        ]),
+      );
     });
 
     it("should return one experiment row with two item rows", async () => {
