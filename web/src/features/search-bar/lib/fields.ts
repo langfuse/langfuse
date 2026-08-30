@@ -16,7 +16,11 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
-import { eventsTableCols, type ColumnDefinition } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  type ColumnDefinition,
+  type SingleValueOption,
+} from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
@@ -25,7 +29,8 @@ type FieldKind = "text" | "number" | "datetime" | "boolean";
 type SyncMode = "exactOption" | "arrayOption" | "textSearch";
 
 export type FieldDef = {
-  /** Canonical field id; also the filter `column` sent to the API. */
+  /** Canonical query field id; defaults to the FilterState column unless
+   * `filterColumn` maps a display-oriented field to canonical storage. */
   id: string;
   /** Lowercase aliases accepted by the grammar (canonical id always works too). */
   aliases: string[];
@@ -55,6 +60,12 @@ export type FieldDef = {
   /** Optional exact-value allowlist for virtual option fields whose values
    * must resolve before they can be lowered to a persisted filter. */
   allowedValues?: ReadonlySet<string>;
+  /** Canonical FilterState column emitted for this display-oriented field. */
+  filterColumn?: string;
+  /** Display/query value → canonical FilterState value for labeled options. */
+  filterValueByDisplayValue?: ReadonlyMap<string, string>;
+  /** Canonical FilterState value → display/query value for labeled options. */
+  displayValueByFilterValue?: ReadonlyMap<string, string>;
   /** Nullable-only columns participate in `has:` but are not direct filters. */
   directFilter?: boolean;
 };
@@ -172,6 +183,9 @@ export function fieldRegistryFromColumns(
         directFilter: column.type !== "null",
         suggestObservedValues: fieldOverlay?.suggestObservedValues,
         allowedValues: fieldOverlay?.allowedValues,
+        filterColumn: fieldOverlay?.filterColumn,
+        filterValueByDisplayValue: fieldOverlay?.filterValueByDisplayValue,
+        displayValueByFilterValue: fieldOverlay?.displayValueByFilterValue,
         unit: fieldOverlay?.unit,
         negatedLabel: fieldOverlay?.negatedLabel,
       };
@@ -196,9 +210,11 @@ export function fieldRegistryFromColumns(
 export function extendFieldRegistryWithColumns(
   registry: FieldRegistry,
   columns: readonly ColumnDefinition[],
+  fieldOverlays?: Readonly<Record<string, FieldOverlay>>,
 ): FieldRegistry {
   const addedFields = fieldRegistryFromColumns(columns, {
     id: registry.id,
+    fields: fieldOverlays,
   }).fields;
 
   return createFieldRegistry({
@@ -217,15 +233,34 @@ export function extendFieldRegistryWithColumns(
   });
 }
 
-export function withFieldAllowedValues(
+export function withFieldOptions(
   registry: FieldRegistry,
   fieldId: string,
-  allowedValues: ReadonlySet<string>,
+  options: readonly SingleValueOption[],
 ): FieldRegistry {
+  const filterValueByDisplayValue = new Map(
+    options.map((option) => [
+      option.displayValue ?? option.value,
+      option.value,
+    ]),
+  );
+  const displayValueByFilterValue = new Map(
+    options.map((option) => [
+      option.value,
+      option.displayValue ?? option.value,
+    ]),
+  );
   return createFieldRegistry({
     id: registry.id,
     fields: registry.fields.map((field) =>
-      field.id === fieldId ? { ...field, allowedValues } : field,
+      field.id === fieldId
+        ? {
+            ...field,
+            allowedValues: new Set(filterValueByDisplayValue.keys()),
+            filterValueByDisplayValue,
+            displayValueByFilterValue,
+          }
+        : field,
     ),
     columns: registry.columns,
     metadata: registry.metadata,
@@ -372,6 +407,11 @@ function createFieldRegistry({
     columnIds.set(column.name.toLowerCase(), column.id);
     for (const alias of column.aliases ?? []) {
       columnIds.set(alias.toLowerCase(), column.id);
+    }
+  }
+  for (const field of fields) {
+    if (field.filterColumn) {
+      columnIds.set(field.filterColumn.toLowerCase(), field.id);
     }
   }
 
@@ -584,6 +624,9 @@ export function operatorIssue(
       const f = ref.field;
       if (f.directFilter === false) {
         return `"${f.id}" only supports presence checks (has:${f.id} or -has:${f.id})`;
+      }
+      if (f.filterColumn && (op === "~" || op === "^" || op === "$")) {
+        return `"${f.id}" maps labeled options to exact stored values and does not support ${label(op)}`;
       }
       if (f.kind === "number") {
         if (op === "~" || op === "^" || op === "$") {

@@ -55,7 +55,7 @@ import {
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
-import { EVENTS_FIELD_REGISTRY, withFieldAllowedValues } from "../lib/fields";
+import { EVENTS_FIELD_REGISTRY, withFieldOptions } from "../lib/fields";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -143,7 +143,7 @@ export const searchBarRouter = createTRPCRouter({
           isSampleRegistry
             ? ctx.prisma.dataset.findMany({
                 where: { projectId: input.projectId },
-                select: { name: true },
+                select: { id: true, name: true },
               })
             : Promise.resolve([]),
         ]);
@@ -163,10 +163,13 @@ export const searchBarRouter = createTRPCRouter({
         }
 
         const registry = isSampleRegistry
-          ? withFieldAllowedValues(
+          ? withFieldOptions(
               baseRegistry,
               DATASET_NAME_COLUMN,
-              new Set(datasets.map((dataset) => dataset.name)),
+              datasets.map((dataset) => ({
+                value: dataset.id,
+                displayValue: dataset.name,
+              })),
             )
           : baseRegistry;
 

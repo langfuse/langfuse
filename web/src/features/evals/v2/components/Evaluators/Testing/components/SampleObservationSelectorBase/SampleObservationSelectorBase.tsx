@@ -21,7 +21,7 @@ import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   type FieldRegistry,
   EVENTS_FIELD_REGISTRY,
-  withFieldAllowedValues,
+  withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
 import {
   observedScoreNamesFromOptions,
@@ -38,8 +38,6 @@ import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluat
 import {
   DATASET_NAME_COLUMN,
   addDatasetNameObservedOptions,
-  fromDatasetNameFilters,
-  toDatasetNameFilters,
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
 import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -191,16 +189,15 @@ export function SampleObservationSelectorBase(
   const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
   const searchRegistry = useMemo(
     () =>
-      withFieldAllowedValues(
+      withFieldOptions(
         activeRegistry,
         DATASET_NAME_COLUMN,
-        new Set(datasetOptions.map((dataset) => dataset.name)),
+        datasetOptions.map((dataset) => ({
+          value: dataset.id,
+          displayValue: dataset.name,
+        })),
       ),
     [activeRegistry, datasetOptions],
-  );
-  const searchableFilterState = useMemo(
-    () => toDatasetNameFilters(filterState, datasetOptions),
-    [datasetOptions, filterState],
   );
   const reusableRuleFilters = useReusableRuleFilterPresets(
     projectId,
@@ -268,12 +265,12 @@ export function SampleObservationSelectorBase(
     projectId,
     tableName,
     enabled: !datasets.isPending,
-    filterState: searchableFilterState,
+    filterState,
     searchQuery,
     searchType,
     observed,
     setFilterState: (next) => {
-      setFilters(fromDatasetNameFilters(next, datasetOptions));
+      setFilters(next);
     },
     setSearchQuery: (next) => {
       setSearchQuery(next);

@@ -73,15 +73,32 @@ function lowerSingle(
   switch (filter.type) {
     case "stringOptions":
     case "arrayOptions": {
-      const id = registry.columnIdOf(filter.column);
+      let id = registry.columnIdOf(filter.column);
       if (id === null || filter.value.length === 0) return null;
+      let values = filter.value;
+      let ref = registry.resolveField(id);
+      if (
+        ref?.type === "field" &&
+        ref.field.displayValueByFilterValue !== undefined
+      ) {
+        const displayValues = filter.value.map((value) =>
+          ref.field.displayValueByFilterValue!.get(value),
+        );
+        if (displayValues.every((value) => value !== undefined)) {
+          values = displayValues as string[];
+        } else {
+          // A deleted option has no label mapping. Keep its canonical field and
+          // value so the filter remains visible and round-trips losslessly.
+          id = filter.column;
+          ref = registry.resolveField(id);
+        }
+      }
       // A stringOptions/arrayOptions filter is EXACT-set semantics. On a
       // `textSearch` field (id/name) the bar reads a bare single value as
       // `contains`, so a single-value any-of/none-of would silently flip
       // exact→substring on the next commit. The single-value forms therefore use
       // the explicit exact operator (`name:=abc` / `-name:=abc`); the grouped
       // multi-value forms already reparse to exact any-of/none-of.
-      const ref = registry.resolveField(id);
       const isTextSearch =
         ref?.type === "field" && ref.field.syncMode === "textSearch";
       if (filter.operator === "none of") {
@@ -90,9 +107,9 @@ function lowerSingle(
         // none-of — NOT the bare `-name:abc`, which is does-not-contain
         // (substring). The grouped/option forms use the bare `=` any-of shape.
         if (isTextSearch && filter.value.length === 1) {
-          return negate(filterNode(id, "exact", filter.value));
+          return negate(filterNode(id, "exact", values));
         }
-        return negate(filterNode(id, "=", filter.value));
+        return negate(filterNode(id, "=", values));
       }
       if (filter.operator === "all of") {
         // A single-value all-of has no distinct grammar form — `(a)` reparses
@@ -100,15 +117,15 @@ function lowerSingle(
         // the next commit. Skip it (preserved via skippedFilters) rather than
         // rewrite; multi-value all-of serializes to the `(a AND b)` group.
         if (filter.value.length < 2) return null;
-        return filterNode(id, "=", filter.value, "and");
+        return filterNode(id, "=", values, "and");
       }
       // Single-value any-of on a textSearch field: emit the explicit exact form
       // (`id:=abc`) so it round-trips to `{string,=}` (exact preserved), not the
       // bare `id:abc` that would re-lower to `contains`.
       if (isTextSearch && filter.value.length === 1) {
-        return filterNode(id, "exact", filter.value);
+        return filterNode(id, "exact", values);
       }
-      return filterNode(id, "=", filter.value);
+      return filterNode(id, "=", values);
     }
     case "string": {
       const id = registry.columnIdOf(filter.column);

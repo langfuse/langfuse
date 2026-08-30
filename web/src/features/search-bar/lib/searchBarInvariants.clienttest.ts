@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { EVENTS_FIELD_REGISTRY } from "./fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+  withFieldOptions,
+} from "./fields";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import {
   EVALUATOR_FIELD_REGISTRY,
@@ -103,16 +107,35 @@ const evaluationRulesView: RegistryUnderTest = {
   freeTextValues: [],
 };
 
+const withInvariantDatasetOptions = (
+  registry: FieldRegistry,
+  values: string[],
+) =>
+  withFieldOptions(
+    registry,
+    "datasetName",
+    values.map((displayValue, index) => ({
+      value: `dataset-${index}`,
+      displayValue,
+    })),
+  );
+
 const sampleFilterViews: RegistryUnderTest[] = [
   {
     ...eventsView,
     name: "evaluator sample filters",
-    registry: EVALUATOR_FIELD_REGISTRY,
+    registry: withInvariantDatasetOptions(
+      EVALUATOR_FIELD_REGISTRY,
+      eventsView.fieldValues,
+    ),
   },
   {
     ...evaluationRulesView,
     name: "rule sample filters",
-    registry: RULE_SAMPLE_FIELD_REGISTRY,
+    registry: withInvariantDatasetOptions(
+      RULE_SAMPLE_FIELD_REGISTRY,
+      evaluationRulesView.fieldValues,
+    ),
   },
 ];
 

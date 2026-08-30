@@ -19,17 +19,21 @@ const withDatasetNameAiContext = (
     });
 
 export const EVALUATOR_FIELD_REGISTRY = {
-  ...extendFieldRegistryWithColumns(EVENTS_FIELD_REGISTRY, [
-    DATASET_NAME_FILTER_COLUMN,
-  ]),
+  ...extendFieldRegistryWithColumns(
+    EVENTS_FIELD_REGISTRY,
+    [DATASET_NAME_FILTER_COLUMN],
+    { datasetName: { filterColumn: "experimentDatasetId" } },
+  ),
   id: "evaluatorSamples" as const,
   aiContextFields: withDatasetNameAiContext(EVENTS_FIELD_REGISTRY),
 };
 
 export const RULE_SAMPLE_FIELD_REGISTRY = {
-  ...extendFieldRegistryWithColumns(RULE_FIELD_REGISTRY, [
-    DATASET_NAME_FILTER_COLUMN,
-  ]),
+  ...extendFieldRegistryWithColumns(
+    RULE_FIELD_REGISTRY,
+    [DATASET_NAME_FILTER_COLUMN],
+    { datasetName: { filterColumn: "experimentDatasetId" } },
+  ),
   id: "ruleSamples" as const,
   aiContextFields: withDatasetNameAiContext(RULE_FIELD_REGISTRY),
 };

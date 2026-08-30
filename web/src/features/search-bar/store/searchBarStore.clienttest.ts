@@ -1,6 +1,6 @@
 import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { withFieldAllowedValues } from "@/src/features/search-bar/lib/fields";
+import { withFieldOptions } from "@/src/features/search-bar/lib/fields";
 
 describe("searchBarStore (draft-only)", () => {
   it("validates the draft on setDraft", () => {
@@ -245,20 +245,18 @@ describe("searchBarStore (draft-only)", () => {
   });
 
   it("revalidates drafts against the latest dynamic registry", () => {
-    let registry = withFieldAllowedValues(
+    let registry = withFieldOptions(
       EVALUATOR_FIELD_REGISTRY,
       "datasetName",
-      new Set(),
+      [],
     );
     const store = createSearchBarStore(undefined, () => registry);
     store.getState().actions.setDraft('datasetName:"Filter QA Dataset"');
     expect(store.getState().draftValid).toBe(false);
 
-    registry = withFieldAllowedValues(
-      EVALUATOR_FIELD_REGISTRY,
-      "datasetName",
-      new Set(["Filter QA Dataset"]),
-    );
+    registry = withFieldOptions(EVALUATOR_FIELD_REGISTRY, "datasetName", [
+      { value: "dataset-id", displayValue: "Filter QA Dataset" },
+    ]);
     store.getState().actions.revalidate();
 
     expect(store.getState().draftValid).toBe(true);

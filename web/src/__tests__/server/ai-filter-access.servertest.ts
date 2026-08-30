@@ -217,9 +217,9 @@ describe("Ask AI filter generation access", () => {
           filters: [
             {
               type: "stringOptions",
-              column: "datasetName",
+              column: "experimentDatasetId",
               operator: "any of",
-              value: ["Filter QA Dataset"],
+              value: ["ai-filter-dataset"],
             },
           ],
         });

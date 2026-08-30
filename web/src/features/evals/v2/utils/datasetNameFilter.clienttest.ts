@@ -6,18 +6,26 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { withFieldAllowedValues } from "@/src/features/search-bar/lib/fields";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
-  addDatasetNameObservedOptions,
-  fromDatasetNameFilters,
-  toDatasetNameFilters,
-} from "./datasetNameFilter";
+  type FieldRegistry,
+  withFieldOptions,
+} from "@/src/features/search-bar/lib/fields";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { addDatasetNameObservedOptions } from "./datasetNameFilter";
 
 const datasets = [
   { id: "dataset-id-1", name: "Support conversations" },
   { id: "dataset-id-2", name: "Billing: escalations" },
 ];
+const withDatasets = (registry: FieldRegistry) =>
+  withFieldOptions(
+    registry,
+    "datasetName",
+    datasets.map((dataset) => ({
+      value: dataset.id,
+      displayValue: dataset.name,
+    })),
+  );
 
 describe("dataset name search filters", () => {
   it("uses dedicated AI-aware sample-filter registries", () => {
@@ -63,17 +71,20 @@ describe("dataset name search filters", () => {
       },
     ] satisfies FilterState;
 
-    const searchable = toDatasetNameFilters(persisted, datasets);
-
-    expect(searchable).toEqual([
-      {
-        column: "datasetName",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["Support conversations", "Billing: escalations"],
-      },
-    ]);
-    expect(fromDatasetNameFilters(searchable, datasets)).toEqual(persisted);
+    const query = filterStateToQueryText(
+      persisted,
+      {},
+      withDatasets(EVALUATOR_FIELD_REGISTRY),
+    );
+    expect(query.text).toBe(
+      'datasetName:("Support conversations" OR "Billing: escalations")',
+    );
+    const result = planCommit(
+      query.text,
+      undefined,
+      withDatasets(EVALUATOR_FIELD_REGISTRY),
+    );
+    expect(result).toMatchObject({ status: "committed", filters: persisted });
   });
 
   it("keeps filters for deleted datasets lossless", () => {
@@ -86,19 +97,16 @@ describe("dataset name search filters", () => {
       },
     ] satisfies FilterState;
 
-    expect(toDatasetNameFilters(persisted, datasets)).toEqual(persisted);
+    const registry = withDatasets(EVALUATOR_FIELD_REGISTRY);
+    const query = filterStateToQueryText(persisted, {}, registry);
+    expect(query.text).toBe("-experimentDatasetId:deleted-dataset-id");
+    expect(planCommit(query.text, undefined, registry)).toMatchObject({
+      status: "committed",
+      filters: persisted,
+    });
   });
 
   it("round-trips dataset presence filters through the name column", () => {
-    const searchable = [
-      {
-        column: "datasetName",
-        type: "null",
-        operator: "is not null",
-        value: "",
-      },
-    ] satisfies FilterState;
-
     const persisted = [
       {
         column: "experimentDatasetId",
@@ -108,8 +116,12 @@ describe("dataset name search filters", () => {
       },
     ] satisfies FilterState;
 
-    expect(fromDatasetNameFilters(searchable, datasets)).toEqual(persisted);
-    expect(toDatasetNameFilters(persisted, datasets)).toEqual(searchable);
+    const registry = withDatasets(EVALUATOR_FIELD_REGISTRY);
+    expect(filterStateToQueryText(persisted, {}, registry).text).toBe(
+      "has:datasetName",
+    );
+    const result = planCommit("has:datasetName", undefined, registry);
+    expect(result).toMatchObject({ status: "committed", filters: persisted });
   });
 
   it("accepts dataset names in evaluator and rule search queries", () => {
@@ -117,11 +129,7 @@ describe("dataset name search filters", () => {
       EVALUATOR_FIELD_REGISTRY,
       RULE_SAMPLE_FIELD_REGISTRY,
     ]) {
-      const registryWithDatasets = withFieldAllowedValues(
-        registry,
-        "datasetName",
-        new Set(datasets.map((dataset) => dataset.name)),
-      );
+      const registryWithDatasets = withDatasets(registry);
       const result = planCommit(
         'datasetName:"Support conversations"',
         undefined,
@@ -131,7 +139,7 @@ describe("dataset name search filters", () => {
       expect(result.status).toBe("committed");
       if (result.status !== "committed") continue;
 
-      expect(fromDatasetNameFilters(result.filters, datasets)).toEqual([
+      expect(result.filters).toEqual([
         {
           column: "experimentDatasetId",
           type: "stringOptions",
@@ -143,11 +151,7 @@ describe("dataset name search filters", () => {
   });
 
   it("rejects unresolved dataset names instead of persisting them as IDs", () => {
-    const registry = withFieldAllowedValues(
-      EVALUATOR_FIELD_REGISTRY,
-      "datasetName",
-      new Set(datasets.map((dataset) => dataset.name)),
-    );
+    const registry = withDatasets(EVALUATOR_FIELD_REGISTRY);
     const result = planCommit(
       'datasetName:"Missing dataset"',
       undefined,
@@ -164,33 +168,32 @@ describe("dataset name search filters", () => {
         ]),
       );
     }
+  });
 
-    const unresolved = [
-      {
-        column: "datasetName",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["Missing dataset"],
-      },
-    ] satisfies FilterState;
-    expect(fromDatasetNameFilters(unresolved, datasets)).toEqual(unresolved);
+  it("rejects partial-match operators for dataset names", () => {
+    const registry = withFieldOptions(EVALUATOR_FIELD_REGISTRY, "datasetName", [
+      { value: "dataset-id", displayValue: "Support" },
+    ]);
+
+    expect(
+      planCommit("datasetName:*Support*", undefined, registry).status,
+    ).toBe("invalid");
   });
 
   it("quotes dataset names containing grammar characters", () => {
-    const searchable = toDatasetNameFilters(
-      [
-        {
-          column: "experimentDatasetId",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["dataset-id-2"],
-        },
-      ],
-      datasets,
-    );
-
     expect(
-      filterStateToQueryText(searchable, {}, EVALUATOR_FIELD_REGISTRY).text,
+      filterStateToQueryText(
+        [
+          {
+            column: "experimentDatasetId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["dataset-id-2"],
+          },
+        ],
+        {},
+        withDatasets(EVALUATOR_FIELD_REGISTRY),
+      ).text,
     ).toBe('datasetName:"Billing: escalations"');
   });
 
@@ -198,12 +201,17 @@ describe("dataset name search filters", () => {
     const result = planCommit(
       'experimentDatasetName:"Support conversations"',
       undefined,
-      EVALUATOR_FIELD_REGISTRY,
+      withDatasets(EVALUATOR_FIELD_REGISTRY),
     );
 
     expect(result).toMatchObject({
       status: "committed",
-      filters: [{ column: "datasetName" }],
+      filters: [
+        {
+          column: "experimentDatasetId",
+          value: ["dataset-id-1"],
+        },
+      ],
     });
   });
 });
