@@ -12,6 +12,8 @@ const parserImplementations = [
     name: "legacy",
     parse: (input: unknown, output: unknown) =>
       parseChatML(input, output, undefined, undefined),
+    // Legacy passes arguments through as the wire carried them.
+    expectedArguments: (raw: string): unknown => raw,
   },
   {
     name: "normalized",
@@ -20,13 +22,16 @@ const parserImplementations = [
         normalizeSpanIO({ input, output, metadata: undefined }),
         input,
       ),
+    // The normalized parser canonicalizes: JSON-string arguments are decoded
+    // once, so consumers always receive the parsed value.
+    expectedArguments: (raw: string): unknown => JSON.parse(raw),
   },
 ] as const;
 
 describe("useChatMLParser", () => {
   it.each(parserImplementations)(
     "$name parser groups output-side tool call arguments by tool name",
-    ({ parse }) => {
+    ({ parse, expectedArguments }) => {
       const input = {
         messages: [
           {
@@ -90,13 +95,13 @@ describe("useChatMLParser", () => {
         {
           id: "call-grep-1",
           name: "grep",
-          arguments: '{"query":"first"}',
+          arguments: expectedArguments('{"query":"first"}'),
           invocationNumber: 1,
         },
         {
           id: "call-grep-2",
           name: "grep",
-          arguments: '{"query":"second"}',
+          arguments: expectedArguments('{"query":"second"}'),
           invocationNumber: 3,
         },
       ]);
@@ -104,7 +109,7 @@ describe("useChatMLParser", () => {
         {
           id: "call-write-1",
           name: "write_file",
-          arguments: '{"path":"todos.md"}',
+          arguments: expectedArguments('{"path":"todos.md"}'),
           invocationNumber: 2,
         },
       ]);

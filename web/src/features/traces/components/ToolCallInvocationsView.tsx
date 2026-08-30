@@ -11,6 +11,20 @@ interface ToolCallInvocationsViewProps {
   className?: string;
 }
 
+/**
+ * Projection-only extras on tool-call entries. The normalized-parser
+ * projection (`toIOPreview`) builds messages without schema validation and
+ * supplies decoded `arguments` plus a paired `response`; the wire schema
+ * (`ToolCallSchema`) deliberately stays untouched so legacy validation is
+ * unchanged. Legacy messages never carry `response`.
+ */
+type ToolCallEntry = NonNullable<
+  z.infer<typeof ChatMlMessageSchema>["tool_calls"]
+>[number] & {
+  arguments: unknown;
+  response?: { output: unknown; isError?: boolean } | null;
+};
+
 /** Tool outputs are frequently JSON serialized as a string; show the
  * structure when it parses, the raw string otherwise. */
 function parseIfJsonString(value: unknown): unknown {
@@ -27,7 +41,7 @@ export function ToolCallInvocationsView({
   toolCallNumbers,
   className,
 }: ToolCallInvocationsViewProps) {
-  const toolCalls = message.tool_calls;
+  const toolCalls = message.tool_calls as ToolCallEntry[] | undefined;
 
   if (!toolCalls || !Array.isArray(toolCalls) || toolCalls.length === 0) {
     return null;

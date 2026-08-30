@@ -42,6 +42,8 @@ export function useIOPreviewParser(
       : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
 
   return useMemo(() => {
+    // Precomputed results win regardless of parser mode; surfaces that supply
+    // one disable the normalized-beta tab (see IOPreview) so labels stay honest.
     if (preParsedResult) return preParsedResult;
 
     const parseLegacy = () =>
@@ -55,8 +57,6 @@ export function useIOPreviewParser(
         output: parsedOutput,
         metadata: parsedMetadata,
       });
-      // TODO: temporary debug output while the normalized parser is validated.
-      console.log("[normalized-io]", normalized);
       return toIOPreview(normalized, parsedInput);
     } catch {
       return parseLegacy();

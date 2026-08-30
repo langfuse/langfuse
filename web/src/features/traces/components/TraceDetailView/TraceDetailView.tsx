@@ -286,7 +286,9 @@ export function TraceDetailView({
                   <Tabs
                     className="ml-auto h-fit px-2 py-0.5"
                     value={
-                      selectedTab === "log" && isLogViewVirtualized
+                      selectedTab === "log" &&
+                      (isLogViewVirtualized ||
+                        selectedViewTab === "pretty-beta")
                         ? "pretty"
                         : selectedViewTab
                     }
@@ -303,7 +305,9 @@ export function TraceDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
-                      {showPrettyBeta && (
+                      {/* Log view never runs the normalized parser, so the
+                          beta tab only renders on the preview tab. */}
+                      {showPrettyBeta && selectedTab !== "log" && (
                         <TabsTrigger
                           value="pretty-beta"
                           className="h-fit px-1 text-xs"

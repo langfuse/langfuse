@@ -19,10 +19,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
 
-function stringifyJsonValue(value: JsonValue): string {
-  return JSON.stringify(value);
-}
-
 function toMediaReference(file: FilePart): string | undefined {
   if (file.content.kind !== "reference") return undefined;
 
@@ -293,6 +289,9 @@ export function toIOPreview(
   return {
     canDisplayAsChat: allMessages.length > 0,
     allMessages,
+    // computes additionalInput via the legacy extractAdditionalInput(parsedInput) helper, which strips
+    // only the top-level keys the OLD provider adapters used to populate. This projection must be
+    // updated to manage only the keys that are additional in the context of the new provider adapters.
     additionalInput: extractAdditionalInput(parsedInput),
     inputMessageCount,
     ...bookkeeping,

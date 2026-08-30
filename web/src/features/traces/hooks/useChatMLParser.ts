@@ -11,7 +11,7 @@ import {
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 
 // ChatML message type from schema
-type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
+export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
 // Tool definition extracted from messages
 interface ToolDefinition {
