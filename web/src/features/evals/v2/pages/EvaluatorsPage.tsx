@@ -599,6 +599,10 @@ export default function EvaluatorsPage() {
                 }}
                 onConfigureProviders={projectDefaultModel.openProviderSettings}
                 onConfigureModel={() => setDefaultModelConfigurationOpen(true)}
+                hasModelConfiguration={Boolean(
+                  defaultModelConfig &&
+                  Object.keys(defaultModelConfig.modelParams).length > 0,
+                )}
               >
                 <PopoverTrigger asChild>
                   <JudgeModelPickerTrigger
