@@ -1991,9 +1991,20 @@ export class IngestionService {
           "completionStartTime" in obs.body && obs.body.completionStartTime
             ? this.getMillisecondTimestamp(obs.body.completionStartTime)
             : undefined,
-        metadata: obs.body.metadata
-          ? convertJsonSchemaToRecord(obs.body.metadata)
-          : {},
+        metadata: (() => {
+          const base = obs.body.metadata
+            ? convertJsonSchemaToRecord(obs.body.metadata)
+            : {} as Record<string, string>;
+          if ("trustScore" in obs.body && (obs.body as any).trustScore != null) {
+            base["trust_score"] = String((obs.body as any).trustScore);
+          }
+          if ("provenance" in obs.body && (obs.body as any).provenance != null) {
+            const prov = (obs.body as any).provenance;
+            base["provenance"] =
+              typeof prov === "string" ? prov : JSON.stringify(prov);
+          }
+          return base;
+        })(),
         provided_model_name: "model" in obs.body ? obs.body.model : undefined,
         model_parameters:
           "modelParameters" in obs.body
