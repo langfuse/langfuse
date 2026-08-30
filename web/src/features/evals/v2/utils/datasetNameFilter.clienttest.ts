@@ -20,9 +20,27 @@ const datasets = [
 ];
 
 describe("dataset name search filters", () => {
-  it("keeps AI disabled until sample-filter registries are supported server-side", () => {
-    expect(EVALUATOR_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
-    expect(RULE_SAMPLE_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
+  it("uses dedicated AI-aware sample-filter registries", () => {
+    expect(EVALUATOR_FIELD_REGISTRY).toMatchObject({
+      id: "evaluatorSamples",
+      aiFilterPrompt: true,
+      aiContextFields: expect.arrayContaining([
+        {
+          observedOptionsKey: "experimentDatasetName",
+          promptLabel: "experimentDatasetName (dataset)",
+        },
+      ]),
+    });
+    expect(RULE_SAMPLE_FIELD_REGISTRY).toMatchObject({
+      id: "ruleSamples",
+      aiFilterPrompt: true,
+      aiContextFields: expect.arrayContaining([
+        {
+          observedOptionsKey: "experimentDatasetName",
+          promptLabel: "experimentDatasetName (dataset)",
+        },
+      ]),
+    });
   });
 
   it("preserves the search bar's pending observed-options state", () => {
