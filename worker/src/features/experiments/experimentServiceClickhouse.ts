@@ -231,7 +231,7 @@ async function processLLMCall(
     ...llmParams,
     messages: providerMessages,
     traceInput: traceMessages,
-    maxRetries: 0,
+    maxRetries: 1,
     // Setup rejects the unsupported tools + structured-output combination.
     ...(config.structuredOutputSchema
       ? { output: createLLMOutput(config.structuredOutputSchema) }

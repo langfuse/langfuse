@@ -144,6 +144,7 @@ describe("testEvaluator", () => {
     );
     expect(generateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
+        maxRetries: 1,
         messages: [
           expect.objectContaining({
             role: "system",

@@ -128,7 +128,7 @@ async function testLlmEvaluator(params: {
           messages: providerMessages,
           traceInput: traceMessages,
           output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
-          maxRetries: 0,
+          maxRetries: 1,
           trace: {
             targetProjectId: params.projectId,
             traceId: executionTraceId,

@@ -88,6 +88,7 @@ describe("createProductionEvalExecutionDeps", () => {
     );
     expect(mockGenerateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
+        maxRetries: 1,
         trace: expect.objectContaining({
           traceId: "trace-123",
           environment: "langfuse-llm-as-a-judge",
@@ -105,6 +106,23 @@ describe("createProductionEvalExecutionDeps", () => {
     const messages = [
       { role: "user", type: "user", content: "Judge this answer" },
     ];
+    const providerMessages = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Judge this answer" },
+          {
+            type: "file",
+            data: new Uint8Array([1, 2, 3]),
+            mediaType: "image/png",
+          },
+        ],
+      },
+    ];
+    mockCompileLangfuseMediaMessages.mockResolvedValueOnce({
+      providerMessages,
+      traceMessages: messages,
+    });
     // Production passes a Zod schema, not a plain object.
     const structuredOutputSchema = z.object({
       reasoning: z.string().describe("why this score was given"),
@@ -130,8 +148,15 @@ describe("createProductionEvalExecutionDeps", () => {
       },
     });
 
+    const serializedProviderMessages = JSON.stringify(
+      providerMessages,
+      (_key, value) =>
+        value instanceof Uint8Array
+          ? Buffer.from(value).toString("base64")
+          : value,
+    );
     const expectedBytes =
-      Buffer.byteLength(JSON.stringify(messages), "utf8") +
+      Buffer.byteLength(serializedProviderMessages, "utf8") +
       Buffer.byteLength(
         JSON.stringify(z.toJSONSchema(structuredOutputSchema)),
         "utf8",

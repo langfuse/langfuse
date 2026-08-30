@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mediaStorageMocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   getSignedUrl: vi.fn(),
+  downloadBytes: vi.fn(),
 }));
 
 vi.mock("../../db", () => ({
@@ -11,6 +12,7 @@ vi.mock("../../db", () => ({
 vi.mock("../s3", () => ({
   getS3MediaStorageClient: () => ({
     getSignedUrl: mediaStorageMocks.getSignedUrl,
+    downloadBytes: mediaStorageMocks.downloadBytes,
   }),
 }));
 
@@ -138,6 +140,48 @@ describe("compileLangfuseMediaMessages", () => {
     );
   });
 
+  it("loads default inline media directly from internal storage", async () => {
+    mediaStorageMocks.findUnique.mockResolvedValueOnce({
+      uploadHttpStatus: 200,
+      contentType: "image/jpeg",
+      bucketName: "media",
+      bucketPath: "project-1/image-1.jpeg",
+      contentLength: 3n,
+    });
+    mediaStorageMocks.getSignedUrl.mockResolvedValueOnce(
+      "https://browser-facing.example/image-1?signature=secret",
+    );
+    mediaStorageMocks.downloadBytes.mockResolvedValueOnce(
+      new Uint8Array([1, 2, 3]),
+    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const result = await compileLangfuseMediaMessages({
+      projectId: "project-1",
+      messages: [userMessage(imageRef)],
+      adapter: LLMAdapter.OpenAI,
+      transport: "inline",
+    });
+
+    expect(result.providerMessages).toEqual([
+      {
+        role: "user",
+        content: [
+          {
+            type: "file",
+            data: new Uint8Array([1, 2, 3]),
+            mediaType: "image/jpeg",
+          },
+        ],
+      },
+    ]);
+    expect(mediaStorageMocks.downloadBytes).toHaveBeenCalledWith(
+      "project-1/image-1.jpeg",
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
   it("rejects declared inline media above the byte limit before download", async () => {
     const fetchMedia = vi.fn();
 
@@ -255,6 +299,7 @@ describe("compileLangfuseMediaMessages", () => {
 
   it.each([
     [ChatMessageRole.System, ChatMessageType.System],
+    [ChatMessageRole.Developer, ChatMessageType.Developer],
     [ChatMessageRole.Assistant, ChatMessageType.AssistantText],
   ])(
     "rejects supported media in %s messages before resolution",
@@ -354,6 +399,8 @@ describe("resolveProjectMedia", () => {
       url: "https://signed.example/image-1?signature=secret",
       mediaType: "image/jpeg",
       contentLength: 3,
+      bucketName: "media",
+      bucketPath: "project-1/image-1.jpeg",
     });
     expect(mediaStorageMocks.getSignedUrl).toHaveBeenCalledWith(
       "project-1/image-1.jpeg",

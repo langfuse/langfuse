@@ -143,6 +143,12 @@ function serializeSchemaForEgress(schema: unknown): string {
   }
 }
 
+function serializeProviderMessagesForEgress(messages: unknown): string {
+  return JSON.stringify(messages, (_key, value) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString("base64") : value,
+  );
+}
+
 /**
  * Creates the production implementation of eval execution dependencies.
  * This is the default implementation used in production code.
@@ -219,16 +225,6 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      // llmaj egress: serialized request body (messages + schema), uncompressed.
-      const bytes =
-        Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
-        (params.structuredOutputSchema
-          ? Buffer.byteLength(
-              serializeSchemaForEgress(params.structuredOutputSchema),
-              "utf8",
-            )
-          : 0);
-
       const modelParams = {
         provider: params.modelConfig.provider,
         model: params.modelConfig.model,
@@ -246,12 +242,27 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           messages: params.messages,
           adapter,
         });
+
+      // llmaj egress: provider-bound messages (including base64-expanded inline
+      // media) plus schema, uncompressed.
+      const bytes =
+        Buffer.byteLength(
+          serializeProviderMessagesForEgress(providerMessages),
+          "utf8",
+        ) +
+        (params.structuredOutputSchema
+          ? Buffer.byteLength(
+              serializeSchemaForEgress(params.structuredOutputSchema),
+              "utf8",
+            )
+          : 0);
+
       const result = await generateLLMText({
         ...llmParams,
         messages: providerMessages,
         traceInput: traceMessages,
         output: createLLMOutput(params.structuredOutputSchema),
-        maxRetries: 0,
+        maxRetries: 1,
         trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,

@@ -69,6 +69,8 @@ type ResolvedMedia = {
   url: string;
   mediaType: string;
   contentLength?: number;
+  bucketName?: string;
+  bucketPath?: string;
 };
 export type EvaluatorMediaResolver = (params: {
   projectId: string;
@@ -115,6 +117,8 @@ export const resolveProjectMedia: EvaluatorMediaResolver = async ({
     url,
     mediaType: storedMediaType,
     contentLength: Number(media.contentLength),
+    bucketName: media.bucketName,
+    bucketPath: media.bucketPath,
   };
 };
 
@@ -269,7 +273,12 @@ export async function compileLangfuseMediaMessages(params: {
             ) {
               throw new Error("Media object exceeds the inline byte limit");
             }
-            data = await fetchMedia(resolved.url);
+            data =
+              !params.fetchMedia && resolved.bucketName && resolved.bucketPath
+                ? await getS3MediaStorageClient(
+                    resolved.bucketName,
+                  ).downloadBytes(resolved.bucketPath)
+                : await fetchMedia(resolved.url);
             if (data.byteLength > maxInlineMediaBytes) {
               throw new Error("Media download exceeds the inline byte limit");
             }
@@ -316,6 +325,7 @@ function assertMediaOnlyInUserMessages(
   for (const message of messages) {
     if (
       (message.role === ChatMessageRole.System ||
+        message.role === ChatMessageRole.Developer ||
         message.role === ChatMessageRole.Assistant) &&
       typeof message.content === "string" &&
       (supportedReferencesByContent.get(message.content)?.length ?? 0) > 0

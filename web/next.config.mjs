@@ -17,7 +17,9 @@ import { renamedRouteRedirects } from "./redirects.mjs";
 // official Docker images, so static wildcards cover the common providers and
 // the local Docker Compose MinIO endpoint too.
 const mediaUploadConnectSrc = (() => {
-  const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
+  const endpoint =
+    env.LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT ??
+    env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
   if (!endpoint) return "";
   try {
     const url = new URL(endpoint);
