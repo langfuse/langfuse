@@ -135,6 +135,13 @@ export const promptVersionProcessor = async (
  * Enqueue an automation action for a prompt version change.
  * Handles both webhook and Slack actions by enqueueing to the same webhook queue.
  */
+// Worst-case retry window for the entity-change job (5 attempts, exponential
+// backoff from 5s) is well under 2 minutes. A PENDING execution older than
+// this was left behind by a worker that died between creating the row and
+// enqueueing/erroring it, not a delivery still in flight, so it must not
+// permanently block a fresh attempt.
+const STALE_PENDING_EXECUTION_MS = 5 * 60 * 1000;
+
 async function enqueueAutomationAction({
   promptData,
   action,
@@ -163,19 +170,31 @@ async function enqueueAutomationAction({
   }
 
   // Guard against duplicate deliveries when BullMQ retries this job after a
-  // partial failure: skip triggers that already have a non-errored execution
-  // for this exact source and event action instead of creating a second one
-  // and re-enqueuing. Filtering on `action` too matters because the same
-  // trigger can legitimately fire for multiple event actions (e.g. "created"
-  // then "deleted") against the same prompt id.
+  // partial failure: skip triggers that already have a completed (or still
+  // in-flight) execution for this exact source and event action instead of
+  // creating a second one and re-enqueuing. Filtering on `action` too matters
+  // because the same trigger can legitimately fire for multiple event actions
+  // (e.g. "created" then "deleted") against the same prompt id. A PENDING
+  // execution only blocks a retry while it's recent; a stale one is treated
+  // as abandoned so it doesn't lose the delivery forever.
   const existingExecution = await prisma.automationExecution.findFirst({
     where: {
       projectId,
       triggerId,
       actionId,
       sourceId: promptData.id,
-      status: { not: ActionExecutionStatus.ERROR },
       input: { path: ["action"], equals: action },
+      OR: [
+        {
+          status: {
+            notIn: [ActionExecutionStatus.ERROR, ActionExecutionStatus.PENDING],
+          },
+        },
+        {
+          status: ActionExecutionStatus.PENDING,
+          createdAt: { gt: new Date(Date.now() - STALE_PENDING_EXECUTION_MS) },
+        },
+      ],
     },
   });
 
