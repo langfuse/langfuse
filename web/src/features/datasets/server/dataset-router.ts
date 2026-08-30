@@ -492,7 +492,7 @@ export const datasetRouter = createTRPCRouter({
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       const [runsMetrics, itemsCounts] = await Promise.all([
-        ctx.session.user.v4BetaEnabled
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
           ? getDatasetExperimentMetricsFromEvents({
               projectId: input.projectId,
               datasetIds: input.datasetIds,
