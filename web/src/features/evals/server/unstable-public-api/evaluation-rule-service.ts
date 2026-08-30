@@ -2,6 +2,7 @@ import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   JobConfigState,
+  InternalServerError,
   LangfuseNotFoundError,
   EvalTargetObject,
   type FilterCondition,
@@ -23,6 +24,7 @@ import type {
   PostUnstableEvaluationRuleBodyType,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
+  PublicEvaluationRuleFilter,
   type PromptVariableMappingInputType,
   type PromptVariableMappingReadType,
   type PublicEvaluationRuleTargetType,
@@ -274,6 +276,17 @@ async function findPublicWritableV2EvaluationRuleOrThrow(params: {
     );
   }
   return rule;
+}
+
+function toApiReadableV2EvaluationRule(rule: StoredPublicV2EvaluationRule) {
+  const evaluationRule = toApiV2EvaluationRule(rule);
+  if (
+    evaluationRule.target !== "observation" &&
+    evaluationRule.target !== "experiment"
+  ) {
+    throw new InternalServerError("Evaluation rule target is corrupted");
+  }
+  return evaluationRule;
 }
 
 export async function listPublicEvaluationRules(params: {
@@ -564,7 +577,7 @@ export async function updatePublicEvaluationRule(params: {
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const existing = await findPublicWritableV2EvaluationRuleOrThrow(params);
-  const existingPublic = toApiWritableV2EvaluationRule(existing);
+  const existingPublic = toApiReadableV2EvaluationRule(existing);
   const nextEnabled = params.input.enabled ?? existingPublic.enabled;
   if (nextEnabled && existingPublic.status !== "active") {
     await assertActivePublicApiEvaluationRuleLimitNotExceeded(params.projectId);
@@ -583,6 +596,22 @@ export async function updatePublicEvaluationRule(params: {
   }
   const updatesFilterOrTarget =
     suppliedFilter !== undefined || suppliedTarget !== undefined;
+  const parsedExistingFilter = PublicEvaluationRuleFilter.array().safeParse(
+    existingPublic.filter,
+  );
+  if (
+    updatesFilterOrTarget &&
+    suppliedFilter === undefined &&
+    !parsedExistingFilter.success
+  ) {
+    throw createStructuredPublicApiError({
+      httpCode: 400,
+      code: "invalid_body",
+      message:
+        "The stored filter is no longer accepted for writes. Provide a target-compatible filter with this update.",
+      details: { field: "filter" },
+    });
+  }
   const ruleFields = toEvaluationRuleFields({
     name: params.input.name ?? existingPublic.name,
     target: nextTarget,
@@ -590,7 +619,7 @@ export async function updatePublicEvaluationRule(params: {
     sampling: params.input.sampling ?? existingPublic.sampling,
     // Target changes must also validate the effective filter against the new target.
     filter: updatesFilterOrTarget
-      ? (suppliedFilter ?? existingPublic.filter)
+      ? (suppliedFilter ?? parsedExistingFilter.data ?? [])
       : [],
   });
 
@@ -706,7 +735,7 @@ export async function updatePublicEvaluationRule(params: {
     patchedFirstAssignment,
     effectiveAssignmentCount: effectiveAssignments.length,
   });
-  const evaluationRule = toApiWritableV2EvaluationRule(updated);
+  const evaluationRule = toApiReadableV2EvaluationRule(updated);
   if (params.auditScope) {
     await auditLog({
       action: "update",
@@ -831,7 +860,7 @@ export async function deletePublicEvaluationRule(params: {
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const existing = await findPublicWritableV2EvaluationRuleOrThrow(params);
-  const existingPublic = toApiWritableV2EvaluationRule(existing);
+  const existingPublic = toApiReadableV2EvaluationRule(existing);
   await runRuleServiceMutation(() =>
     ruleService.delete(params.projectId, params.evaluationRuleId),
   );
