@@ -182,7 +182,7 @@ function EvaluatorRuleRelationshipsSheet({
             <SheetDescription>
               {assignments.isPending
                 ? "Loading attached rules…"
-                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to another rule or remove an existing connection.`}
+                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to a rule to run the evaluator on incoming observations.`}
             </SheetDescription>
           </SheetHeader>
 
