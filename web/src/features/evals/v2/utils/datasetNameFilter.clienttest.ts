@@ -9,6 +9,7 @@ import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { withFieldAllowedValues } from "@/src/features/search-bar/lib/fields";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
+  addDatasetNameObservedOptions,
   fromDatasetNameFilters,
   toDatasetNameFilters,
 } from "./datasetNameFilter";
@@ -19,6 +20,21 @@ const datasets = [
 ];
 
 describe("dataset name search filters", () => {
+  it("keeps AI disabled until sample-filter registries are supported server-side", () => {
+    expect(EVALUATOR_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
+    expect(RULE_SAMPLE_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
+  });
+
+  it("preserves the search bar's pending observed-options state", () => {
+    expect(addDatasetNameObservedOptions(undefined, datasets)).toBeUndefined();
+    expect(addDatasetNameObservedOptions({}, datasets)).toMatchObject({
+      experimentDatasetName: [
+        { value: "Support conversations" },
+        { value: "Billing: escalations" },
+      ],
+    });
+  });
+
   it("projects dataset IDs to names and resolves names back to IDs", () => {
     const persisted = [
       {

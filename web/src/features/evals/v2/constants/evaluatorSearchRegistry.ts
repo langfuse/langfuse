@@ -5,12 +5,16 @@ import {
   extendFieldRegistryWithColumns,
 } from "@/src/features/search-bar/lib/fields";
 
-export const EVALUATOR_FIELD_REGISTRY = extendFieldRegistryWithColumns(
-  EVENTS_FIELD_REGISTRY,
-  [DATASET_NAME_FILTER_COLUMN],
-);
+export const EVALUATOR_FIELD_REGISTRY = {
+  ...extendFieldRegistryWithColumns(EVENTS_FIELD_REGISTRY, [
+    DATASET_NAME_FILTER_COLUMN,
+  ]),
+  aiFilterPrompt: false,
+};
 
-export const RULE_SAMPLE_FIELD_REGISTRY = extendFieldRegistryWithColumns(
-  RULE_FIELD_REGISTRY,
-  [DATASET_NAME_FILTER_COLUMN],
-);
+export const RULE_SAMPLE_FIELD_REGISTRY = {
+  ...extendFieldRegistryWithColumns(RULE_FIELD_REGISTRY, [
+    DATASET_NAME_FILTER_COLUMN,
+  ]),
+  aiFilterPrompt: false,
+};

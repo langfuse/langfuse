@@ -13,6 +13,7 @@ import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-tab
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -36,6 +37,7 @@ import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evalu
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
 import {
   DATASET_NAME_COLUMN,
+  addDatasetNameObservedOptions,
   fromDatasetNameFilters,
   toDatasetNameFilters,
 } from "@/src/features/evals/v2/utils/datasetNameFilter";
@@ -255,12 +257,7 @@ export function SampleObservationSelectorBase(
     const mapped = mapObservedOptions(
       toObservedOptions(options.filterOptions, options.isFilterOptionsPending),
     );
-    return {
-      ...(mapped ?? {}),
-      [DATASET_NAME_COLUMN]: datasetOptions.map((dataset) => ({
-        value: dataset.name,
-      })),
-    };
+    return addDatasetNameObservedOptions(mapped, datasetOptions);
   }, [
     datasetOptions,
     mapObservedOptions,
@@ -270,7 +267,7 @@ export function SampleObservationSelectorBase(
   const search = useEventsSearchBar({
     projectId,
     tableName,
-    enabled: true,
+    enabled: !datasets.isPending,
     filterState: searchableFilterState,
     searchQuery,
     searchType,
@@ -500,22 +497,26 @@ export function SampleObservationSelectorBase(
           tooltip={filterTooltip}
           trailing={null}
         />
-        <EventsSearchBarRow
-          projectId={projectId}
-          tableName={tableName}
-          store={search.store}
-          commit={search.commit}
-          observed={observed}
-          erroredColumns={options.erroredColumns}
-          registry={searchRegistry}
-          onApplyFilters={search.applyFilters}
-          onRequestColumns={options.requestColumns}
-          presetSections={reusableRuleFilters.sections}
-          onQueryPresetPick={onQueryPresetPick}
-          aiDataContext={aiDataContext}
-          aiScoreNames={aiScoreNames}
-          className="p-0"
-        />
+        {datasets.isPending ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <EventsSearchBarRow
+            projectId={projectId}
+            tableName={tableName}
+            store={search.store}
+            commit={search.commit}
+            observed={observed}
+            erroredColumns={options.erroredColumns}
+            registry={searchRegistry}
+            onApplyFilters={search.applyFilters}
+            onRequestColumns={options.requestColumns}
+            presetSections={reusableRuleFilters.sections}
+            onQueryPresetPick={onQueryPresetPick}
+            aiDataContext={aiDataContext}
+            aiScoreNames={aiScoreNames}
+            className="p-0"
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
             <Button
