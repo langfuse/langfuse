@@ -11,10 +11,10 @@ import {
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 
 // ChatML message type from schema
-export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
+type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
 // Tool definition extracted from messages
-export interface ToolDefinition {
+interface ToolDefinition {
   name: string;
   description?: string;
   parameters?: Record<string, unknown>;
@@ -271,4 +271,3 @@ export function useChatMLParser(
 }
 
 // Re-export for use in ChatMessage
-export { parseToolCallsFromMessage };

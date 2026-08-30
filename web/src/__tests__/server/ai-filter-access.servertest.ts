@@ -145,6 +145,7 @@ describe("Ask AI filter generation access", () => {
     const originalBedrockModel = env.LANGFUSE_AI_MODEL;
     const originalBedrockSmallModel = env.LANGFUSE_AI_SMALL_MODEL;
     const originalSharedBedrockModel = sharedEnv.LANGFUSE_AI_MODEL;
+    const originalSharedProvider = sharedEnv.LANGFUSE_AI_PROVIDER;
     const originalAiFeaturesProjectId =
       sharedEnv.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
@@ -156,6 +157,8 @@ describe("Ask AI filter generation access", () => {
       undefined;
     (sharedEnv as { LANGFUSE_AI_MODEL?: string }).LANGFUSE_AI_MODEL =
       "test-model";
+    (sharedEnv as { LANGFUSE_AI_PROVIDER?: string }).LANGFUSE_AI_PROVIDER =
+      "bedrock";
     (
       sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
     ).LANGFUSE_AI_FEATURES_PROJECT_ID = undefined;
@@ -195,6 +198,8 @@ describe("Ask AI filter generation access", () => {
         originalBedrockSmallModel;
       (sharedEnv as { LANGFUSE_AI_MODEL?: string }).LANGFUSE_AI_MODEL =
         originalSharedBedrockModel;
+      (sharedEnv as { LANGFUSE_AI_PROVIDER?: string }).LANGFUSE_AI_PROVIDER =
+        originalSharedProvider;
       (
         sharedEnv as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;

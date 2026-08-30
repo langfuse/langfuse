@@ -35,7 +35,7 @@ export type JsonViewPreference =
   | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
-export type TraceRenderContext = "fullscreen" | "peek" | "annotation";
+type TraceRenderContext = "fullscreen" | "peek" | "annotation";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;

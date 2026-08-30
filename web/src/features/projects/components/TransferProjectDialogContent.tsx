@@ -29,7 +29,7 @@ import { TriangleAlert } from "lucide-react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-export type TransferProjectDialogOrganization = {
+type TransferProjectDialogOrganization = {
   id: string;
   name: string;
 };

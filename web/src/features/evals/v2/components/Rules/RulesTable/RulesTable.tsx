@@ -44,7 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { api } from "@/src/utils/api";
+import { api, type RouterInputs } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
@@ -65,7 +65,9 @@ import {
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
 import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 function RelativeDate({ date }: { date: Date }) {
   return (
@@ -120,6 +122,10 @@ export function RulesTable({
   const utils = api.useUtils();
   const [selectionStore] = useState(createTableSelectionStore);
   const [pagination, setPagination] = usePaginationState(1, 50);
+  const [orderBy, setOrderBy] = useOrderByState({
+    column: "createdAt",
+    order: "DESC",
+  });
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "evaluationRulesV2",
     "s",
@@ -171,7 +177,10 @@ export function RulesTable({
     "rule",
     withDefault(StringParam, null),
   );
-  const legacyPeekNavigation = usePeekNavigation();
+  const legacyPeekNavigation = usePeekNavigation({
+    tableName: "evaluation-rules-v2",
+    isV4: true,
+  });
   const legacyPeekConfig = useMemo(
     () => ({
       itemType: "RUNNING_EVALUATOR" as const,
@@ -183,6 +192,9 @@ export function RulesTable({
   const rules = api.evalsV2.rules.list.useQuery({
     projectId,
     ...pagination,
+    orderBy: orderBy
+      ? (orderBy as RouterInputs["evalsV2"]["rules"]["list"]["orderBy"])
+      : undefined,
     search: searchQuery ?? undefined,
     filter: filterState,
   });
@@ -229,6 +241,7 @@ export function RulesTable({
         header: "Name",
         size: 260,
         isFixedPosition: true,
+        enableSorting: true,
         cell: ({ row }) => {
           const legacy = isLegacyEvalTarget(row.original.targetObject);
           const upgradeRequired = requiresLegacyMigrationAction({
@@ -267,6 +280,7 @@ export function RulesTable({
         header: "Enabled",
         size: 90,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => (
           <RuleActiveSwitchCell
             rule={row.original}
@@ -346,26 +360,17 @@ export function RulesTable({
         header: "Sampling",
         size: 100,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => `${Math.round(row.original.sampling * 100)}%`,
       },
-      {
+      createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
-        id: "createdByUser",
         header: "Created by",
         size: 180,
         enableHiding: true,
-        cell: ({ row }) => {
-          const creator =
-            row.original.createdByUser?.name ??
-            row.original.createdByUser?.email ??
-            "API";
-          return (
-            <span className="block truncate" title={creator}>
-              {creator}
-            </span>
-          );
-        },
-      },
+        variant: "text",
+        emptyValue: "API",
+      }),
       {
         accessorKey: "createdAt",
         id: "createdAt",
@@ -373,6 +378,7 @@ export function RulesTable({
         size: 180,
         enableHiding: true,
         defaultHidden: true,
+        enableSorting: true,
         cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
       },
       {
@@ -381,6 +387,7 @@ export function RulesTable({
         header: "Updated at",
         size: 180,
         enableHiding: true,
+        enableSorting: true,
         cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
       },
       {
@@ -487,6 +494,11 @@ export function RulesTable({
       },
       setColumnOrder,
       setColumnVisibility,
+      setOrderBy: (nextOrderBy) => {
+        setOrderBy(nextOrderBy);
+        setPagination({ page: 1, limit: pagination.limit });
+        selectionActions.clearSelection();
+      },
     },
     validationContext: {
       columns,
@@ -524,6 +536,7 @@ export function RulesTable({
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           filterState={filterState}
+          orderByState={orderBy}
           viewConfig={{
             tableName: TableViewPresetTableName.EvaluationRules,
             projectId,
@@ -560,6 +573,12 @@ export function RulesTable({
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
               rowHeight={rowHeight}
+              orderBy={orderBy}
+              setOrderBy={(nextOrderBy) => {
+                setOrderBy(nextOrderBy);
+                setPagination({ page: 1, limit: pagination.limit });
+                selectionActions.clearSelection();
+              }}
               pagination={{
                 totalCount: rules.data?.totalItems ?? null,
                 state: {

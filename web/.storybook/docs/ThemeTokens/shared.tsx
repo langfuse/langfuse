@@ -68,7 +68,7 @@ export type TokenContext = {
   color: (name: string) => string | undefined;
 };
 
-export function buildContext(dark: boolean): TokenContext {
+function buildContext(dark: boolean): TokenContext {
   const map = new Map<string, string>();
   for (const declaration of [
     ...parsed.fontTokens,
@@ -99,7 +99,7 @@ const subscribeToThemeClass = (callback: () => void) => {
   return () => observer.disconnect();
 };
 
-export const useIsDarkTheme = () =>
+const useIsDarkTheme = () =>
   useSyncExternalStore(
     subscribeToThemeClass,
     () => document.documentElement.classList.contains("dark"),
@@ -127,7 +127,7 @@ export type PageId = "color" | "typography" | "layout" | "charts";
 
 const rootNames = new Set(rootEntries.map((entry) => entry.name));
 
-export const PAGE_TOKEN_MATCHERS: Array<{
+const PAGE_TOKEN_MATCHERS: Array<{
   page: PageId;
   test: (name: string) => boolean;
 }> = [
@@ -147,7 +147,7 @@ export const PAGE_TOKEN_MATCHERS: Array<{
 ];
 
 /** Every distinct token name the parser extracted from globals.css. */
-export const allTokenNames: string[] = [
+const allTokenNames: string[] = [
   ...new Set(
     [
       ...parsed.fontTokens,
@@ -220,7 +220,7 @@ function TableHeader() {
   );
 }
 
-export function EmptyCell() {
+function EmptyCell() {
   return <span className="text-muted-foreground font-mono text-[11px]">—</span>;
 }
 

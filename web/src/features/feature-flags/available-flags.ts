@@ -1,9 +1,6 @@
 import { assertUnreachable } from "@langfuse/shared";
 
-export const featurePreviewFlags = [
-  "modernSession",
-  "compactTimeline",
-] as const;
+export const featurePreviewFlags = ["modernSession"] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
@@ -18,7 +15,6 @@ export const filterFeaturePreviewFlags = (
 
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
-  compactTimeline: "Compact Timeline",
 } satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -31,10 +27,6 @@ export const isFeaturePreviewAvailable = (
 ) => {
   if (flag === "modernSession") {
     return context.v4BetaEnabled;
-  }
-
-  if (flag === "compactTimeline") {
-    return true;
   }
 
   return assertUnreachable(flag);
