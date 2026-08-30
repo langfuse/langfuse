@@ -154,6 +154,8 @@ describe("OpenAI Responses request shape", () => {
     expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
     expect(calls[0]?.body.reasoning).toEqual({ summary: "auto" });
     expect(calls[0]?.body).not.toHaveProperty("reasoning_effort");
+    expect(calls[0]?.body.store).toBe(false);
+    expect(calls[0]?.body.include).toEqual(["reasoning.encrypted_content"]);
   });
 
   it("posts to /v1/responses when a custom URL opts into Responses", async () => {
