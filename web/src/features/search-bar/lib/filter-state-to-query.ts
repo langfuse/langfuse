@@ -77,12 +77,11 @@ function lowerSingle(
       if (id === null || filter.value.length === 0) return null;
       let values = filter.value;
       let ref = registry.resolveField(id);
-      if (
-        ref?.type === "field" &&
-        ref.field.displayValueByFilterValue !== undefined
-      ) {
+      const displayValueByFilterValue =
+        ref?.type === "field" ? ref.field.displayValueByFilterValue : undefined;
+      if (displayValueByFilterValue !== undefined) {
         const displayValues = filter.value.map((value) =>
-          ref.field.displayValueByFilterValue!.get(value),
+          displayValueByFilterValue.get(value),
         );
         if (displayValues.every((value) => value !== undefined)) {
           values = displayValues as string[];
@@ -128,7 +127,11 @@ function lowerSingle(
       return filterNode(id, "=", values);
     }
     case "string": {
-      const id = registry.columnIdOf(filter.column);
+      const directRef = registry.resolveField(filter.column);
+      const id =
+        directRef?.type === "field"
+          ? directRef.field.id
+          : registry.columnIdOf(filter.column);
       if (id === null) return null;
       if (filter.operator === "does not contain") {
         // Mirror the positive contains carve-out below: a textSearch field emits
