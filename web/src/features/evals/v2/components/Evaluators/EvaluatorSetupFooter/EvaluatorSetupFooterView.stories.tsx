@@ -5,10 +5,13 @@ import { EvaluatorSetupFooterView } from "./EvaluatorSetupFooterView";
 
 const meta = preview.meta({ component: EvaluatorSetupFooterView });
 
-export const Create = meta.story({
+const createNextStep =
+  "Next: attach a rule to run this evaluator on incoming traffic.";
+
+export const Default = meta.story({
   args: {
     mode: "create",
-    status: "Next: attach a rule to run this evaluator on incoming traffic.",
+    children: createNextStep,
     closeLabel: "Close",
     saveLabel: "Create evaluator",
     isSaving: false,
@@ -35,7 +38,7 @@ export const Editing = meta.story({
 export const Disabled = meta.story({
   args: {
     mode: "create",
-    status: "Next: attach a rule to run this evaluator on incoming traffic.",
+    children: createNextStep,
     closeLabel: "Close",
     saveLabel: "Create evaluator",
     isSaving: false,

@@ -5,9 +5,6 @@ import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutpu
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorSetupFooterView } from "./EvaluatorSetupFooterView";
 
-const EVALUATOR_SETUP_CREATE_NEXT_STEP =
-  "Next: attach a rule to run this evaluator on incoming traffic.";
-
 export function EvaluatorSetupFooter({
   store,
   initialSnapshot,
@@ -86,10 +83,8 @@ export function EvaluatorSetupFooter({
   }
 
   return (
-    <EvaluatorSetupFooterView
-      mode="create"
-      status={EVALUATOR_SETUP_CREATE_NEXT_STEP}
-      {...sharedProps}
-    />
+    <EvaluatorSetupFooterView mode="create" {...sharedProps}>
+      Next: attach a rule to run this evaluator on incoming traffic.
+    </EvaluatorSetupFooterView>
   );
 }
