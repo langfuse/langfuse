@@ -35,8 +35,9 @@ const events = {
     "graph_view_toggle",
     // Aggregated vs expanded graph build mode (LFE-10676).
     "graph_mode_switch",
-    // `source` distinguishes the inline expand/collapse button from the
-    // trace settings switch; `collapsed` is the new preference value.
+    // `source` distinguishes the inline expand/collapse button, the message
+    // header control, and the trace settings switch; `collapsed` is the new
+    // preference value.
     "system_prompt_collapse_toggle",
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
@@ -149,6 +150,7 @@ const events = {
     "inline_tools_toggled",
     "system_prompt_toggled",
     "metadata_jsonpath_config_changed",
+    "header_detail_visibility_changed",
   ],
   eval_config: [
     "new_form_submit",
@@ -283,6 +285,20 @@ const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Experiments UI (v4). Metadata only — counts/enums/booleans/field names;
+  // never experiment or dataset names, score values, or item content.
+  // `isV4` + `tableName` on every event. `source` on comparison/baseline
+  // distinguishes picker vs table-selection vs url (deep link / redirect).
+  experiment: [
+    "comparison_changed",
+    "comparison_picker_opened",
+    "baseline_changed",
+    "chart_metric_changed",
+    "charts_section_toggled",
+    "analytics_tab_opened",
+    "score_column_scope_toggled",
+    "item_regression_filter_applied",
+  ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No
   // props carry user content.
@@ -396,7 +412,6 @@ const events = {
     "facet_operator_toggled",
     "active_only_toggled",
     "facet_added",
-    "facet_fold_toggled",
     "facet_search",
     "facet_mode_switched",
     "sidebar_toggled",

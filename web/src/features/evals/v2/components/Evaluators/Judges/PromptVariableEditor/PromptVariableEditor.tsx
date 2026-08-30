@@ -291,11 +291,11 @@ export function PromptVariableEditor({
       {!collapsed &&
         (previewEnabled && preview ? (
           preview.status === "unavailable" ? (
-            <p className="bg-muted/50 text-muted-foreground min-h-[140px] rounded-b-md border px-3 py-2 text-sm">
+            <p className="ph-no-capture bg-muted/50 text-muted-foreground min-h-[140px] rounded-b-md border px-3 py-2 text-sm">
               {preview.message}
             </p>
           ) : (
-            <pre className="bg-muted/50 text-card-foreground max-h-[50dvh] min-h-[140px] overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm whitespace-pre-wrap">
+            <pre className="ph-no-capture bg-muted/50 text-card-foreground max-h-[50dvh] min-h-[140px] overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm whitespace-pre-wrap">
               {preview.fragments.map((fragment, index) => (
                 <Fragment key={index}>
                   {fragment.type === "text" ? (

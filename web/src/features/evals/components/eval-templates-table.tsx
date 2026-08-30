@@ -55,7 +55,7 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
-import { createNumberTableColumn } from "@/src/components/design-system/Table/columns/createNumberTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -148,7 +148,7 @@ const EvalTemplateRowActionsMenu = ({
   const utils = api.useUtils();
   const hasTemplateWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   return (
@@ -255,7 +255,10 @@ export default function EvalsTemplateTable({
     searchQuery: searchQuery,
   });
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:CUD",
+  });
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -480,6 +483,8 @@ export default function EvalsTemplateTable({
     );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "evalTemplates",
+    isV4: false,
     expandConfig: {
       basePath: `/project/${projectId}/evals/templates`,
     },

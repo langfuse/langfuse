@@ -15,6 +15,7 @@ export const UNKNOWN_INGESTION_SDK_VALUE = "unknown";
 export const INTERNAL_INGESTION_SDK_NAMES = [
   "langfuse-internal-ai-sdk",
   "langfuse-internal-otel-writer",
+  "langfuse-internal-ai-features",
 ] as const;
 
 export const LANGFUSE_SDK_LATEST_MAJOR = {

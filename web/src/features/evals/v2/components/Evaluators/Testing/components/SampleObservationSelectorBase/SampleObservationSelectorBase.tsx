@@ -6,13 +6,13 @@ import {
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
-import { createDateTableColumn } from "@/src/components/design-system/Table/columns/createDateTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -382,62 +382,47 @@ export function SampleObservationSelectorBase(
         defaultHidden: true,
         cell: ({ row }) => row.original.traceName ?? "—",
       },
-      {
+      createIOTableColumn<SampleObservation>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 300,
         enableHiding: true,
-        cell: ({ row }) => {
+        getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          return (
-            <MemoizedIOTableCell
-              isLoading={!io && observationIOPending}
-              data={io?.input}
-              className="bg-muted/50"
-              singleLine={rowHeight === "s"}
-              enableExpandOnHover={rowHeight === "s"}
-            />
-          );
+          if (!io && observationIOPending) return { type: "loading" };
+          return io?.input;
         },
-      },
-      {
+        singleLine: rowHeight === "s",
+        enableExpandOnHover: rowHeight === "s",
+        variant: "input",
+      }),
+      createIOTableColumn<SampleObservation>({
         accessorKey: "output",
-        id: "output",
         header: "Output",
         size: 300,
         enableHiding: true,
-        cell: ({ row }) => {
+        getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          return (
-            <MemoizedIOTableCell
-              isLoading={!io && observationIOPending}
-              data={io?.output}
-              className="bg-accent-light-green"
-              singleLine={rowHeight === "s"}
-              enableExpandOnHover={rowHeight === "s"}
-            />
-          );
+          if (!io && observationIOPending) return { type: "loading" };
+          return io?.output;
         },
-      },
-      {
+        singleLine: rowHeight === "s",
+        enableExpandOnHover: rowHeight === "s",
+        variant: "output",
+      }),
+      createIOTableColumn<SampleObservation>({
         accessorKey: "metadata",
-        id: "metadata",
         header: "Metadata",
         size: 300,
         enableHiding: true,
-        cell: ({ row }) => {
+        getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          return (
-            <MemoizedIOTableCell
-              isLoading={!io && observationIOPending}
-              data={io?.metadata}
-              singleLine={rowHeight === "s"}
-              enableExpandOnHover={rowHeight === "s"}
-            />
-          );
+          if (!io && observationIOPending) return { type: "loading" };
+          return io?.metadata;
         },
-      },
+        singleLine: rowHeight === "s",
+        enableExpandOnHover: rowHeight === "s",
+      }),
       {
         accessorKey: "environment",
         id: "environment",

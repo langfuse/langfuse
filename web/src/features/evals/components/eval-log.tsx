@@ -1,4 +1,4 @@
-import { createStatusTableColumn } from "@/src/components/design-system/Table/columns/createStatusTableColumn";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
   type CustomHeights,
@@ -11,8 +11,8 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { createLinkTableColumn } from "@/src/components/design-system/Table/columns/createLinkTableColumn";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -123,57 +123,21 @@ export default function EvalLogTable({
         return value;
       },
     }),
-    columnHelper.accessor("scoreComment", {
+    createIOTableColumn<JobExecutionRow>({
+      accessorKey: "scoreComment",
       header: "Score Comment",
-      id: "scoreComment",
       enableHiding: true,
       cellPadding: "none",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          padding="compact"
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: (row) => {
-        const value = row.getValue();
-        return (
-          value !== undefined && (
-            <IOTableCell
-              data={value}
-              padding="compact"
-              singleLine={rowHeight === "s"}
-            />
-          )
-        );
-      },
+      compact: true,
+      singleLine: rowHeight === "s",
     }),
-    columnHelper.accessor("error", {
-      id: "error",
+    createIOTableColumn<JobExecutionRow>({
+      accessorKey: "error",
       header: "Error",
       enableHiding: true,
       cellPadding: "none",
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          padding="compact"
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: (row) => {
-        const value = row.getValue();
-        return (
-          value !== undefined && (
-            <IOTableCell
-              data={value}
-              padding="compact"
-              singleLine={rowHeight === "s"}
-            />
-          )
-        );
-      },
+      compact: true,
+      singleLine: rowHeight === "s",
     }),
     createLinkTableColumn<JobExecutionRow>({
       accessorKey: "traceId",

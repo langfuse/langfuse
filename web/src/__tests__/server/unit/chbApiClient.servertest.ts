@@ -218,13 +218,13 @@ describe("chbApiClient", () => {
 
       onChb(
         jsonResponse(200, {
-          url: "https://pay.example.com/c/1",
+          checkoutUrl: "https://pay.example.com/c/1",
           organizationId: CH_ORG_ID,
         }),
       );
       await client().createCheckoutSession({
         email: "user@example.com",
-        planCode: "pro",
+        planCode: "LANGFUSE_PRO",
         returnUrl: "https://cloud.langfuse.com/back",
       });
       // Checkout creates the CH organization, so there is none to scope to yet.
@@ -241,7 +241,7 @@ describe("chbApiClient", () => {
         change: {
           type: "downgrade",
           when: "billing_cycle_end",
-          planCode: "core",
+          planCode: "LANGFUSE_CORE",
         },
       });
       const withBody = lastChbCall();
@@ -249,7 +249,7 @@ describe("chbApiClient", () => {
       expect(JSON.parse(withBody.init.body as string)).toEqual({
         type: "downgrade",
         when: "billing_cycle_end",
-        planCode: "core",
+        planCode: "LANGFUSE_CORE",
       });
 
       onChb(jsonResponse(202, {}));
@@ -293,7 +293,11 @@ describe("chbApiClient", () => {
         .setScheduledChange({
           chOrganizationId: CH_ORG_ID,
           bundleId: "bundle_1",
-          change: { type: "upgrade", when: "immediate", planCode: "team" },
+          change: {
+            type: "upgrade",
+            when: "immediate",
+            planCode: "LANGFUSE_PRO_TEAMS",
+          },
         })
         .catch((e) => e);
 
@@ -344,7 +348,11 @@ describe("chbApiClient", () => {
       onChb(
         jsonResponse(200, {
           id: "bundle_1",
-          plan: { planCode: "team", tierName: "Team", extra: true },
+          plan: {
+            planCode: "LANGFUSE_PRO_TEAMS",
+            tierName: "Team",
+            extra: true,
+          },
           period: { startDate: "2026-08-01T00:00:00Z" },
           payment: { status: "active", provider: { customerId: "cus_1" } },
           unknownTopLevel: { nested: 1 },
@@ -357,10 +365,30 @@ describe("chbApiClient", () => {
       });
 
       expect(bundle.id).toBe("bundle_1");
-      expect(bundle.plan?.planCode).toBe("team");
+      expect(bundle.plan?.planCode).toBe("LANGFUSE_PRO_TEAMS");
       expect(bundle.payment?.provider?.customerId).toBe("cus_1");
       // Nothing required beyond `id`, so a sparse bundle still parses.
       expect(bundle.scheduled).toBeUndefined();
+    });
+
+    it("reads the checkout URL from CHB's checkoutUrl field", async () => {
+      onChb(
+        jsonResponse(200, {
+          organizationId: CH_ORG_ID,
+          checkoutUrl: "https://pay.example.com/c/1",
+        }),
+      );
+
+      await expect(
+        client().createCheckoutSession({
+          email: "user@example.com",
+          planCode: "LANGFUSE_PRO",
+          returnUrl: "https://cloud.langfuse.com/back",
+        }),
+      ).resolves.toEqual({
+        organizationId: CH_ORG_ID,
+        checkoutUrl: "https://pay.example.com/c/1",
+      });
     });
 
     it("defaults the invoice list to empty when CHB omits the key", async () => {
@@ -379,7 +407,7 @@ describe("chbApiClient", () => {
       // uuid — rejecting here keeps a bad id from ever reaching the database.
       onChb(
         jsonResponse(200, {
-          url: "https://pay.example.com/c/1",
+          checkoutUrl: "https://pay.example.com/c/1",
           organizationId: "not-a-uuid",
         }),
       );
@@ -387,7 +415,7 @@ describe("chbApiClient", () => {
       await expect(
         client().createCheckoutSession({
           email: "user@example.com",
-          planCode: "pro",
+          planCode: "LANGFUSE_PRO",
           returnUrl: "https://cloud.langfuse.com/back",
         }),
       ).rejects.toThrow();

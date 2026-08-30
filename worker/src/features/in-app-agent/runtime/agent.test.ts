@@ -1196,7 +1196,7 @@ describe("createAgUiStream", () => {
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",
-        userContext: expect.stringContaining("<user_context>"),
+        userContext: "",
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
         ).join(", "),
@@ -1205,14 +1205,6 @@ describe("createAgUiStream", () => {
     expect(
       promptMocks.compile.mock.calls[0]?.[0].sandboxFilesystem,
     ).not.toContain("tool_calls");
-    expect(promptMocks.compile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userContext: expect.stringContaining('"user_name": "Ada Lovelace"'),
-      }),
-    );
-    expect(promptMocks.compile.mock.calls[0]?.[0].userContext).not.toContain(
-      '"current_url"',
-    );
 
     const processor = getLastAgentConfig()?.inputProcessors?.find(
       (item) => item.id === "current-time",
@@ -1227,11 +1219,13 @@ describe("createAgUiStream", () => {
       .at(-1)
       ?.content.find((part) => part.text)?.text;
 
+    expect(laterStepText).toContain("<current_time");
+    expect(laterStepText).toContain("<user_context>");
+    expect(laterStepText).toContain('"user_name": "Ada Lovelace"');
     expect(laterStepText).toContain("<screen_context>");
     expect(laterStepText).toContain(
       '"current_url": "https://cloud.langfuse.com/project/project-1/traces"',
     );
-    expect(laterStepText).not.toContain('"user_name"');
     const baseInstructions = vi.mocked(Agent).mock.calls[0]?.[0].instructions;
     expect(baseInstructions).toEqual(expect.any(Function));
     expect((baseInstructions as () => string)()).toBe(
@@ -1307,6 +1301,71 @@ describe("createAgUiStream", () => {
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
+  it("waits for tracing flush before finishing an aborted agent stream", async () => {
+    const { createAgUiStream } = await import("./agent");
+    let resolveFlush: (() => void) | undefined;
+    instrumentationMocks.instrumentation.flush.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveFlush = resolve;
+      }),
+    );
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-flush-abort",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    adapterEvents.items = [];
+    const onAbort = vi.fn();
+    const abortController = new AbortController();
+    abortController.abort("worker_shutdown");
+
+    const stream = await createAgUiStream({
+      input,
+      signal: abortController.signal,
+      options: {
+        onAbort,
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        langfuseTracing: createTestTracingConfig(),
+      },
+    });
+
+    const streamDone = readStream(stream);
+    await vi.waitFor(() => {
+      expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+    });
+    expect(onAbort).not.toHaveBeenCalled();
+
+    resolveFlush?.();
+    await streamDone;
+
+    expect(onAbort).toHaveBeenCalledOnce();
   });
 
   it("does not enable Bedrock reasoning for non-Claude models", async () => {

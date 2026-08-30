@@ -117,7 +117,7 @@ function EvaluatorRuleRelationshipsSheet({
   const isEstimating = activationConfirmation.estimate.status === "estimating";
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
   const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery(
     { projectId, evaluatorId },

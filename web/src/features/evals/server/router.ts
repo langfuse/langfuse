@@ -288,7 +288,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
       return env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT;
     }),
@@ -298,7 +298,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       return new LegacyEvalCompatibilityService(ctx.prisma).counts(
@@ -319,7 +319,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
       const result = await new LegacyEvalCompatibilityService(
         ctx.prisma,
@@ -356,7 +356,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       const config = await new LegacyEvalCompatibilityService(
@@ -389,7 +389,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       const service = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -417,7 +417,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       return new LegacyEvalCompatibilityService(
@@ -436,7 +436,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       return new LegacyEvalCompatibilityService(ctx.prisma).getTemplate(
@@ -457,7 +457,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       const service = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -492,7 +492,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:read",
+        scope: "evaluator:read",
       });
 
       const latestTemplates = await new LegacyEvalCompatibilityService(
@@ -520,7 +520,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       return {
@@ -541,7 +541,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       const targetObjects = Array.isArray(input.targetObject)
@@ -563,7 +563,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       return {
@@ -579,7 +579,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       });
 
       assertCanCreateLegacyEvalJob({
@@ -716,7 +716,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluator:CUD",
       });
 
       assertCodeEvalEnabled();
@@ -755,7 +755,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
 
       await validateEvalTemplateCreation(input);
@@ -829,7 +829,7 @@ export const evalRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: projectId,
-          scope: "evalJob:CUD",
+          scope: "evaluationRule:CUD",
         });
 
         const compatibility = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -898,7 +898,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       });
 
       const compatibility = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -1089,7 +1089,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       });
 
       const compatibility = new LegacyEvalCompatibilityService(ctx.prisma);
@@ -1133,7 +1133,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalJob:read",
+        scope: "evaluator:read",
       });
 
       return new LegacyEvalCompatibilityService(ctx.prisma).getTemplateUsage(
@@ -1148,7 +1148,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: projectId,
-        scope: "evalTemplate:CUD",
+        scope: "evaluator:CUD",
       });
 
       const deletedVersions = await new LegacyEvalCompatibilityService(
@@ -1279,7 +1279,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evaluationRule:read",
       });
 
       const { configs } = await new LegacyEvalCompatibilityService(
@@ -1311,7 +1311,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       if (input.evaluatorIds.length === 0) {
@@ -1366,7 +1366,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       const costs: Array<{ id: string; totalCost: number }> =
@@ -1402,7 +1402,7 @@ export const evalRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "evalJob:read",
+        scope: "evalJobExecution:read",
       });
 
       const costs =

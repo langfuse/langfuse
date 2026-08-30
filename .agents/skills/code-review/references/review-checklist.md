@@ -33,6 +33,10 @@ This is the canonical shared review checklist for Langfuse.
 - Highlight usage of `redis.call` invocations. Those may have suboptimal redis cluster routing and will raise errors. Instead, use the native call patterns.
   Example: `await redis?.call("SET", key, "1", "NX", "EX", TTLSeconds);` should use `await redis?.set(key, "1", "EX", TTLSeconds, "NX");` instead.
 
+## New Concepts in Shared Code
+
+- When a change adds vocabulary to shared backend code — a field on a shared schema or payload, an option on a shared signature, an enum member, an env toggle, a branch for one caller — or concludes that no change is needed, review it against [`new-concepts.md`](../../backend-dev-guidelines/references/new-concepts.md) in the [`backend-dev-guidelines`](../../backend-dev-guidelines/SKILL.md) skill.
+
 ## Langfuse Cloud
 
 - When attempting to confirm if the current environment is Langfuse Cloud in the frontend, use the `useLangfuseCloudRegion` hook and never environment variables directly.
@@ -59,7 +63,8 @@ This is the canonical shared review checklist for Langfuse.
   `validateBlobStorageEndpoint`, or a new wrapper around
   `validateOutboundUrlHost`) is a finding.
 - For changes that add a new integration, secret-bearing field, redirect
-  follower, or RBAC scope, run the rest of the
+  follower, RBAC scope, product analytics, browser monitoring, or session
+  replay, run the rest of the
   [`security-review/references/checklist.md`](../../security-review/references/checklist.md).
 - For changes that shape what a read route returns — a repository or domain
   converter, a `Safe*` type, a response projection — a catch-all branch that

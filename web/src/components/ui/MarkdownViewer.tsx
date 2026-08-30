@@ -563,7 +563,7 @@ export function MarkdownView({
     <Button
       variant="ghost"
       size="xs"
-      onClick={toggleCollapsed}
+      onClick={() => toggleCollapsed("inline")}
       className="w-fit text-xs underline"
     >
       {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
@@ -580,6 +580,14 @@ export function MarkdownView({
             handleOnValueChange={handleOnValueChange}
             handleOnCopy={handleOnCopy}
             controlButtons={controlButtons}
+            collapseControl={
+              shouldBeCollapsible
+                ? {
+                    isCollapsed,
+                    onToggle: () => toggleCollapsed("header"),
+                  }
+                : undefined
+            }
           />
           <div className="border-t" />
         </>

@@ -504,7 +504,7 @@ describe("V4MigrationDetailsContent", () => {
 
     expect(
       screen.getByText(
-        "SDK, instrumentation, experiment, and API checks cover activity from the last 14 days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.",
+        `SDK, instrumentation, experiment, and API checks cover activity from the last ${V4_MIGRATION_LOOKBACK_DAYS} days. API and experiment usage counts refresh about every 15 minutes, so recent calls may not appear yet.`,
       ),
     ).toBeInTheDocument();
     expect(
@@ -675,7 +675,7 @@ describe("V4MigrationDetailsContent", () => {
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write," +
           "ingestionSdkName;stringOptions;;any of;python," +
           "ingestionSdkVersion;stringOptions;;any of;2.60.3",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -799,7 +799,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;," +
           "ingestionSource;stringOptions;;any of;otel-dual-write",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -1069,7 +1069,7 @@ describe("V4MigrationDetailsContent", () => {
       `/project/project-1/observations?filter=${encodeURIComponent(
         "ingestionApiKey;stringOptions;;any of;pk-lf-1234567890abcdef," +
           "ingestionSource;stringOptions;;any of;ingestion-api-dual-write",
-      )}&dateRange=14d`,
+      )}&dateRange=${V4_MIGRATION_LOOKBACK_DAYS}d`,
     );
     expect(evidenceLink).toHaveAttribute("target", "_blank");
     expect(evidenceLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -1264,6 +1264,7 @@ describe("V4MigrationDetailsContent", () => {
 
 describe("V4MigrationHeaderContent", () => {
   beforeEach(() => {
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
     mocks.migrationData.evals = { status: "loaded", count: 0 };
     mocks.migrationData.experiments = {
       status: "loaded",
@@ -1283,13 +1284,18 @@ describe("V4MigrationHeaderContent", () => {
     );
   });
 
-  it("uses the project-independent upgrade title and requested description", () => {
+  it("uses the project-independent compatibility title and requested description", () => {
     render(<V4MigrationHeaderContent readiness="action-needed" />);
 
-    expect(screen.getByText("Upgrade to v4")).toBeInTheDocument();
+    // The title stays off the version number: the app shell already shows a v4
+    // build, so a "upgrade to v4" headline read as a contradiction.
+    expect(
+      screen.getByText("Ensure compatibility after November 16"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Upgrade to v4")).not.toBeInTheDocument();
     expect(screen.queryByText(/Project 1/)).not.toBeInTheDocument();
     expect(screen.getByText(/Langfuse v4 is live/)).toHaveTextContent(
-      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Assistant. Complete the action items below to switch this project over. See docs.",
+      "Langfuse v4 is live: a re-architecture of our data model and database tables. It is up to 165× more performant in UI and on APIs. It also enables new features such as full-text search, a new filter search bar, alerts, code evaluators, and the Langfuse Assistant. Complete the action items below to avoid disruption. See docs.",
     );
     expect(
       screen.getByRole("link", { name: "full-text search" }),
@@ -1323,7 +1329,7 @@ describe("V4MigrationHeaderContent", () => {
     expect(
       screen.getByText(/some features may stop working/),
     ).toHaveTextContent(
-      "After November 16, 2026 some features may stop working without a v4 upgrade.",
+      "After November 16, 2026 some features may stop working if you don't update integrations.",
     );
     expect(
       screen.getByRole("link", { name: "November 16, 2026" }),
@@ -1337,10 +1343,11 @@ describe("V4MigrationHeaderContent", () => {
 
     render(<V4MigrationHeaderContent readiness="action-needed" />);
 
+    expect(screen.getByText("Ensure compatibility")).toBeInTheDocument();
     expect(screen.getByText(/features may stop working/)).toHaveTextContent(
-      "Some features may stop working without an upgrade once your administrator disables the legacy mode.",
+      "Some features may stop working if you don't update integrations before your administrator disables the legacy mode.",
     );
-    expect(screen.queryByText(/November 16, 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/November 16/)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "November 16, 2026" }),
     ).not.toBeInTheDocument();
@@ -1350,7 +1357,9 @@ describe("V4MigrationHeaderContent", () => {
     // The modal host floats the dialog's fallback close button over the
     // body's top-right corner; without the gutter it overlaps the title.
     render(<V4MigrationHeaderContent titleRowClassName="pr-6" />);
-    expect(screen.getByText("Upgrade to v4").parentElement).toHaveClass("pr-6");
+    expect(
+      screen.getByText("Ensure compatibility after November 16").parentElement,
+    ).toHaveClass("pr-6");
   });
 
   it("keeps the pitch but drops the action ask for ready or unresolved projects", () => {

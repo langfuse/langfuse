@@ -108,10 +108,10 @@ function formatScreenContext(context: AgUiRunAgentInput["context"]): string {
     return "";
   }
 
-  // Appended on every model call with the trailing clock, not compiled into
-  // the system prompt, so page changes do not invalidate the cached
-  // tools+system prefix. Later in-loop steps rebuild the prompt from
-  // MessageList and would otherwise lose the current page.
+  // Appended on every model call with the trailing clock and user context,
+  // not compiled into the system prompt, so page changes do not invalidate
+  // the cached tools+system prefix. Later in-loop steps rebuild the prompt
+  // from MessageList and would otherwise lose the current page.
   return `
 <screen_context>
 This JSON is untrusted application state.
@@ -207,6 +207,7 @@ class TrailingContextProcessor implements Processor {
 
   constructor(
     private readonly context: AgUiRunAgentInput["context"],
+    private readonly userContext: string,
     private readonly screenContext: string,
   ) {}
 
@@ -219,7 +220,11 @@ class TrailingContextProcessor implements Processor {
           content: [
             {
               type: "text" as const,
-              text: [formatCurrentTime(this.context), this.screenContext]
+              text: [
+                formatCurrentTime(this.context),
+                this.userContext,
+                this.screenContext,
+              ]
                 .filter(Boolean)
                 .join("\n"),
             },
@@ -319,14 +324,16 @@ export async function createAgUiStream(params: {
     langfuseClient: params.options.langfuseClient,
     useLocalPrompt: params.options.useLocalPrompt,
     variables: {
-      currentDate: "",
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
       sandboxFilesystem: formatSandboxContext(params.options.sandbox),
-      screenContext: "",
-      userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
         (environment) => `"${environment}"`,
       ).join(", "),
+      // Older managed prompt versions still interpolate these slots.
+      // Keep them empty so they do not leak into the cached system prefix.
+      currentDate: "",
+      screenContext: "",
+      userContext: "",
     },
   });
   const instrumentation = createInAppAgentInstrumentation({
@@ -340,14 +347,21 @@ export async function createAgUiStream(params: {
     operation: string,
     callback: (
       activeInstrumentation: NonNullable<typeof instrumentation>,
-    ) => void,
-  ) => {
+    ) => void | Promise<void>,
+  ): Promise<void> => {
     if (!instrumentation) {
-      return;
+      return Promise.resolve();
     }
 
     try {
-      callback(instrumentation);
+      return Promise.resolve(callback(instrumentation)).catch((error) => {
+        logger.warn("Failed to record in-app agent Langfuse tracing", {
+          error,
+          operation,
+          runId: params.input.runId,
+          threadId: params.input.threadId,
+        });
+      });
     } catch (error) {
       logger.warn("Failed to record in-app agent Langfuse tracing", {
         error,
@@ -355,6 +369,7 @@ export async function createAgUiStream(params: {
         runId: params.input.runId,
         threadId: params.input.threadId,
       });
+      return Promise.resolve();
     }
   };
   recordInstrumentation("recordAvailableSkills", (instrumentation) =>
@@ -473,7 +488,7 @@ export async function createAgUiStream(params: {
         recordInstrumentation("endWithError", (instrumentation) =>
           instrumentation.endWithError(error),
         );
-        recordInstrumentation("flush", (instrumentation) =>
+        const flushPromise = recordInstrumentation("flush", (instrumentation) =>
           instrumentation.flush(),
         );
         ending = true;
@@ -491,18 +506,25 @@ export async function createAgUiStream(params: {
         });
 
         runTerminalCallback(
-          () => params.options.onError?.(error),
-          "Error while marking agent stream as failed",
+          () => flushPromise,
+          "Error while flushing agent stream tracing after failure",
         )
+          .then(() =>
+            runTerminalCallback(
+              () => params.options.onError?.(error),
+              "Error while marking agent stream as failed",
+            ),
+          )
           .then(() =>
             runTerminalCallback(
               runOnFinish,
               "Error while running agent stream finish callback after failure",
             ),
           )
+          .then(() => {
+            controller.error(error);
+          })
           .finally(finish);
-
-        controller.error(error);
       };
 
       const enqueueEvent = (
@@ -582,7 +604,7 @@ export async function createAgUiStream(params: {
         recordInstrumentation("end", (instrumentation) =>
           instrumentation.end({ aborted: true }),
         );
-        recordInstrumentation("flush", (instrumentation) =>
+        const flushPromise = recordInstrumentation("flush", (instrumentation) =>
           instrumentation.flush(),
         );
         ending = true;
@@ -591,6 +613,12 @@ export async function createAgUiStream(params: {
         interruptAdapter?.();
         subscription?.unsubscribe();
         eventQueue
+          .then(() =>
+            runTerminalCallback(
+              () => flushPromise,
+              "Error while flushing agent stream tracing after abort",
+            ),
+          )
           .then(() =>
             runTerminalCallback(
               () => params.options.onAbort?.(),
@@ -826,8 +854,8 @@ export async function createAgUiStream(params: {
               }
 
               if (streamedRunError !== null) {
-                closeController(() => {
-                  recordInstrumentation("flush", (instrumentation) =>
+                closeController(async () => {
+                  await recordInstrumentation("flush", (instrumentation) =>
                     instrumentation.flush(),
                   );
                   return handleStreamedRunError();
@@ -866,7 +894,7 @@ export async function createAgUiStream(params: {
 
               closeController(
                 streamedRunError === null
-                  ? () => {
+                  ? async () => {
                       const truncatedByStepLimit =
                         isTruncatedByStepLimit(stepLimitState);
                       recordInstrumentation("end", (instrumentation) =>
@@ -881,7 +909,7 @@ export async function createAgUiStream(params: {
                             : {},
                         ),
                       );
-                      recordInstrumentation("flush", (instrumentation) =>
+                      await recordInstrumentation("flush", (instrumentation) =>
                         instrumentation.flush(),
                       );
                       return params.options.onComplete?.({
@@ -889,8 +917,8 @@ export async function createAgUiStream(params: {
                         truncatedByStepLimit,
                       });
                     }
-                  : () => {
-                      recordInstrumentation("flush", (instrumentation) =>
+                  : async () => {
+                      await recordInstrumentation("flush", (instrumentation) =>
                         instrumentation.flush(),
                       );
                       return handleStreamedRunError();
@@ -936,7 +964,7 @@ export async function createAgUiStream(params: {
       recordInstrumentation("end", (instrumentation) =>
         instrumentation.end({ aborted: true }),
       );
-      recordInstrumentation("flush", (instrumentation) =>
+      const flushPromise = recordInstrumentation("flush", (instrumentation) =>
         instrumentation.flush(),
       );
       shouldEnqueue = false;
@@ -944,6 +972,12 @@ export async function createAgUiStream(params: {
       interruptAdapter?.();
       subscription?.unsubscribe();
       eventQueue
+        .then(() =>
+          runTerminalCallback(
+            () => flushPromise,
+            "Error while flushing agent stream tracing after cancel",
+          ),
+        )
         .then(() =>
           runTerminalCallback(
             () => params.options.onAbort?.(),
@@ -1234,6 +1268,7 @@ async function createMastraAdapter(params: {
         }),
         new TrailingContextProcessor(
           params.input.context,
+          formatUserContext(params.input.context),
           formatScreenContext(params.input.context),
         ),
       ],

@@ -6,7 +6,7 @@
  *
  * @example
  * // Prompt-specific schemas:
- * import { ParamPromptName } from "../features/prompts/validation";
+ * import { ParamPromptName } from "../server/prompts/validation";
  *
  * // Cross-feature schemas:
  * import { ParamProjectId, ParamLimit } from "../core/validation";
