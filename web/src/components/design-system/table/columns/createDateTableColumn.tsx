@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-design-system-external-components */
 import { type RowData } from "@tanstack/react-table";
 
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-design-system-external-components */
 import { type RowData } from "@tanstack/react-table";
 
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";

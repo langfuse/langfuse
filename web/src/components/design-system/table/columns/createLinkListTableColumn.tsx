@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-design-system-external-components */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";

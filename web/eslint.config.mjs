@@ -171,6 +171,7 @@ export default [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
       ],
+      "@repo/no-design-system-external-components": "error",
 
       // TODO: Expand to more of the codebase
       "no-nested-ternary": "error",

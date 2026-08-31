@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-design-system-external-components */
 "use client";
 
 import { cva } from "class-variance-authority";

@@ -31,6 +31,7 @@ Components are useful because they act as an encapsulated unit and therefore pro
 
 - No className / style props unless the component itself is a headless component that does not contain any styling or layout logic itself.
 - Internals such as cva classes or helper functions should not be exported
+- Design-system components (`src/components/design-system`) must not import from the outer `src/components` tree or from `src/features`. Features and app UI consume the design system, not the other way around.
 
 ## Ownership
 
