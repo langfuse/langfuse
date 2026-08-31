@@ -947,7 +947,6 @@ function TableViewPresetsDrawerContentBody({
                                       .concat("")
                                   : null
                               }
-                              fallbackBackground="tertiary"
                             />
                           </div>
                         )}

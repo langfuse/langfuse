@@ -6,7 +6,6 @@ import { Avatar } from "./Avatar";
 type ComponentProps = React.ComponentProps<typeof Avatar>;
 type Size = NonNullable<ComponentProps["size"]>;
 type Shape = NonNullable<ComponentProps["shape"]>;
-type FallbackBackground = NonNullable<ComponentProps["fallbackBackground"]>;
 
 const meta = preview.meta({
   component: Avatar,
@@ -23,11 +22,6 @@ const allShapes = Object.keys({
   rounded: true,
 } satisfies Record<Shape, true>) as Shape[];
 
-const allFallbackBackgrounds = Object.keys({
-  muted: true,
-  tertiary: true,
-} satisfies Record<FallbackBackground, true>) as FallbackBackground[];
-
 export const Default = meta.story({
   args: {
     alt: "Langfuse",
@@ -42,13 +36,6 @@ export const Fallback = meta.story({
   },
 });
 
-export const TertiaryFallback = meta.story({
-  args: {
-    fallback: "BB",
-    fallbackBackground: "tertiary",
-  },
-});
-
 export const VariantMatrix = meta.story({
   parameters: {
     controls: {
@@ -59,31 +46,26 @@ export const VariantMatrix = meta.story({
     <div
       className="grid items-center gap-4"
       style={{
-        gridTemplateColumns: `max-content repeat(${allShapes.length * allFallbackBackgrounds.length}, max-content)`,
+        gridTemplateColumns: `max-content repeat(${allShapes.length}, max-content)`,
       }}
     >
       <div />
-      {allShapes.map((shape) =>
-        allFallbackBackgrounds.map((fallbackBackground) => (
-          <div key={`${shape}-${fallbackBackground}`} className="text-sm">
-            {shape} / {fallbackBackground}
-          </div>
-        )),
-      )}
+      {allShapes.map((shape) => (
+        <div key={shape} className="text-sm">
+          {shape}
+        </div>
+      ))}
       {allSizes.map((size) => (
         <React.Fragment key={size}>
           <div className="text-sm">{size}</div>
-          {allShapes.map((shape) =>
-            allFallbackBackgrounds.map((fallbackBackground) => (
-              <Avatar
-                key={`${size}-${shape}-${fallbackBackground}`}
-                fallback="LF"
-                fallbackBackground={fallbackBackground}
-                shape={shape}
-                size={size}
-              />
-            )),
-          )}
+          {allShapes.map((shape) => (
+            <Avatar
+              key={`${size}-${shape}`}
+              fallback="LF"
+              shape={shape}
+              size={size}
+            />
+          ))}
         </React.Fragment>
       ))}
     </div>

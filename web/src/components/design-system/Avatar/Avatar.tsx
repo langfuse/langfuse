@@ -22,33 +22,17 @@ const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
   },
 });
 
-const avatarFallbackVariants = cva(
-  "flex h-full w-full items-center justify-center rounded-[inherit]",
-  {
-    variants: {
-      fallbackBackground: {
-        muted: "bg-muted",
-        tertiary: "bg-tertiary",
-      },
-    },
-    defaultVariants: {
-      fallbackBackground: "muted",
-    },
-  },
-);
-
 type AvatarProps = {
   "aria-hidden"?: boolean | "true" | "false";
   alt?: string;
   src?: string | Blob;
   fallback: React.ReactNode;
-} & VariantProps<typeof avatarVariants> &
-  VariantProps<typeof avatarFallbackVariants>;
+} & VariantProps<typeof avatarVariants>;
 
 const Avatar = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Root>,
   AvatarProps
->(({ src, alt, fallback, size, shape, fallbackBackground, ...props }, ref) => (
+>(({ src, alt, fallback, size, shape, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
     className={avatarVariants({ size, shape })}
@@ -61,11 +45,7 @@ const Avatar = React.forwardRef<
         className="aspect-square h-full w-full"
       />
     ) : null}
-    <AvatarPrimitive.Fallback
-      className={avatarFallbackVariants({
-        fallbackBackground,
-      })}
-    >
+    <AvatarPrimitive.Fallback className="bg-muted flex h-full w-full items-center justify-center rounded-[inherit]">
       {fallback}
     </AvatarPrimitive.Fallback>
   </AvatarPrimitive.Root>
