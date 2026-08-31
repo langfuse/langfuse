@@ -24,21 +24,20 @@ const alertVariants = cva(
         default: "",
         sm: "rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5 [&>[data-slot=alert-title]]:text-sm [&>[data-slot=alert-description]]:text-xs",
       },
-      dismissible: {
-        true: "pr-10",
+      actionPosition: {
+        "top-right": "pr-10",
       },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
-      dismissible: false,
     },
   },
 );
 
 type AlertProps = Pick<
   VariantProps<typeof alertVariants>,
-  "dismissible" | "size" | "variant"
+  "actionPosition" | "size" | "variant"
 > & {
   children: React.ReactNode;
 };
@@ -47,9 +46,12 @@ type AlertTitleProps = {
   className?: "text-base";
 };
 
-function Alert({ children, dismissible, size, variant }: AlertProps) {
+function Alert({ actionPosition, children, size, variant }: AlertProps) {
   return (
-    <div role="alert" className={alertVariants({ dismissible, size, variant })}>
+    <div
+      role="alert"
+      className={alertVariants({ actionPosition, size, variant })}
+    >
       {children}
     </div>
   );

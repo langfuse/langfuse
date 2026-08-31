@@ -28,6 +28,22 @@ const sizes = Object.keys({
 
 const dismiss = fn();
 
+const dismissibleChildren = (
+  <>
+    <button
+      type="button"
+      className="absolute top-2.5 right-2.5 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent"
+      aria-label="Dismiss alert"
+      onClick={dismiss}
+    >
+      <X className="size-4" aria-hidden="true" />
+    </button>
+    <AlertTriangle className="h-4 w-4" />
+    <AlertTitle>Review required</AlertTitle>
+    <AlertDescription>Check this warning before continuing.</AlertDescription>
+  </>
+);
+
 export const Default = meta.story({
   args: {
     children: (
@@ -68,29 +84,15 @@ export const VariantMatrix = meta.story({
 export const DismissAction = meta.story({
   name: "(Test) Dismiss Action",
   args: {
-    children: null,
-    dismissible: true,
+    actionPosition: "top-right",
+    children: dismissibleChildren,
     variant: "warning",
   },
-  render: (args) => (
-    <Alert {...args}>
-      <button
-        type="button"
-        className="absolute top-2.5 right-2.5 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent"
-        aria-label="Dismiss alert"
-        onClick={dismiss}
-      >
-        <X className="size-4" aria-hidden="true" />
-      </button>
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Review required</AlertTitle>
-      <AlertDescription>Check this warning before continuing.</AlertDescription>
-    </Alert>
-  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
 
-    await expect(canvas.getByRole("alert")).toBeInTheDocument();
+    await expect(alert).toHaveClass("pr-10");
     await userEvent.click(
       canvas.getByRole("button", { name: "Dismiss alert" }),
     );

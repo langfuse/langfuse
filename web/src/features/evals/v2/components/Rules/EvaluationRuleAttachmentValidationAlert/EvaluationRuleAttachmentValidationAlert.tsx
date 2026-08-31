@@ -16,7 +16,7 @@ export function EvaluationRuleAttachmentValidationAlert({
   onReview?: () => void;
 }) {
   return (
-    <Alert variant="warning" dismissible>
+    <Alert variant="warning" actionPosition="top-right">
       <button
         type="button"
         className="absolute top-2.5 right-2.5 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent"
