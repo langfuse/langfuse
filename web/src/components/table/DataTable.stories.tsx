@@ -25,14 +25,18 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import TableIdOrName from "@/src/components/table/table-id";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -40,20 +44,13 @@ import {
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { formatIntervalSeconds } from "@/src/utils/dates";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
   Folder,
   InfoIcon,
   ListTree,
-  MoreVertical,
   PlusCircle,
   Trash,
 } from "lucide-react";
@@ -86,10 +83,10 @@ const renderMediaReference = (descriptor: MediaDescriptor) => (
 // the standalone visual part with identical DOM/classes:
 //   - tags:      real TagList in the real `flex gap-x-2 gap-y-1` wrapper,
 //                instead of TagPromptPopover/TagManager (same visible children).
-//   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
-//                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
+//   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
+//                plain menu item instead of the tRPC-bound DeleteTraceButton.
 // Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, folder links, Skeleton, the
+// createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -344,33 +341,26 @@ function buildTraceColumns(
         ) : undefined;
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<TraceRow, TraceRow["usage"]>({
       id: "tokens",
+      accessorFn: (row) => row.usage,
+      header: "Tokens",
       size: 180,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value = row.original.usage;
-        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
-          return null;
-        }
-        return (
-          <BreakdownTooltip details={row.original.tokenDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage)}
-                outputUsage={Number(value.outputUsage)}
-                totalUsage={Number(value.totalUsage)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableSorting: true,
-    },
+      getCell: (value, { row }) => {
+        if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
+          return undefined;
+        }
+
+        return {
+          type: "usage",
+          inputUsage: Number(value.inputUsage),
+          outputUsage: Number(value.outputUsage),
+          totalUsage: Number(value.totalUsage),
+          details: row.original.tokenDetails,
+        };
+      },
+    }),
     {
       accessorKey: "totalCost",
       id: "totalCost",
@@ -449,31 +439,19 @@ function buildTraceColumns(
       defaultHidden: true,
       enableSorting: true,
     }),
-    {
-      accessorKey: "action",
-      header: "Action",
+    createDropdownTableColumn<TraceRow, string>({
       id: "action",
+      accessorFn: (row) => row.id,
+      header: "Action",
       size: 70,
       isFixedPosition: true,
-      // Real action menu: ghost MoreVertical trigger + dropdown. The destructive
-      // item is a plain menu item (the real one renders DeleteTraceButton, which
-      // needs tRPC) but the trigger DOM/spacing is identical.
-      cell: () => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem className="text-destructive">
-              <Trash className="mr-2 h-4 w-4" />
-              Delete trace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      renderMenu: () => (
+        <DropdownMenuItem className="text-destructive">
+          <Trash className="mr-2 h-4 w-4" />
+          Delete trace
+        </DropdownMenuItem>
       ),
-    },
+    }),
   ];
 }
 
@@ -1235,8 +1213,13 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     size: 200,
     cell: ({ row }) => {
       if (row.original.type === "folder") return null;
-      const createdAt = row.original.createdAt;
-      return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      const preparedDate = buildLocalIsoDatePresentation({
+        date: row.original.createdAt,
+      });
+
+      return preparedDate ? (
+        <span title={preparedDate.title}>{preparedDate.display}</span>
+      ) : null;
     },
   },
   {

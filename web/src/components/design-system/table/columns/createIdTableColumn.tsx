@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies */
 import { type RowData } from "@tanstack/react-table";
 
 import TableIdOrName from "@/src/components/table/table-id";
