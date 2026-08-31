@@ -817,6 +817,7 @@ describe("EvaluatorService", () => {
       expect.objectContaining({
         orgId,
         evaluatorId: newEvaluatorId,
+        includeEvaluatorLink: false,
         ...observation,
       }),
     );
@@ -824,6 +825,7 @@ describe("EvaluatorService", () => {
       expect.objectContaining({
         orgId,
         evaluatorId: evaluator.id,
+        includeEvaluatorLink: true,
         ...observation,
       }),
     );

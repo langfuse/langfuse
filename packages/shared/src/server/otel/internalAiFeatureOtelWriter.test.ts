@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createIngestionEventSchema } from "../ingestion/types";
 import { buildInternalTraceEventInputs } from "../llm/internalTraceEvents";
 import {
   AI_FEATURE_OTEL_SDK_NAME,
@@ -88,6 +89,8 @@ const processedEvents = [
       endTime: new Date(END_ISO),
       model: "claude-opus",
       usageDetails: { input: 10, output: 5, total: 15 },
+      promptName: "in-app-agent-system",
+      promptVersion: 3,
     },
   },
 ];
@@ -107,9 +110,7 @@ const spanAttributeMap = (span: {
     ]),
   );
 
-const processPublishedSpans = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
-  const resourceSpans = getPublishedResourceSpans();
-
+const createProcessor = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
   const { OtelIngestionProcessor } = await vi.importActual<
     typeof import("./OtelIngestionProcessor")
   >("./OtelIngestionProcessor");
@@ -120,7 +121,22 @@ const processPublishedSpans = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
     sdkVersion: "unknown",
     ingestionVersion: "4",
     isLangfuseInternal: false,
-  }).processToEvent(resourceSpans);
+  });
+};
+
+const processPublishedSpans = async (sdkName = AI_FEATURE_OTEL_SDK_NAME) => {
+  const resourceSpans = getPublishedResourceSpans();
+  return (await createProcessor(sdkName)).processToEvent(resourceSpans);
+};
+
+const processPublishedIngestionEvents = async () => {
+  const resourceSpans = getPublishedResourceSpans();
+  const processor = await createProcessor();
+  vi.spyOn(
+    processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },
+    "getSeenTracesSet",
+  ).mockResolvedValue(new Set());
+  return processor.processToIngestionEvents(resourceSpans);
 };
 
 const publishFixture = async () => {
@@ -193,6 +209,8 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
       modelName: "claude-opus",
       userId: "user-1",
       sessionId: "conversation-1",
+      promptName: "in-app-agent-system",
+      promptVersion: 3,
     });
     expect(tool).toMatchObject({
       traceId: TRACE_ID,
@@ -248,24 +266,7 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
   it("does not emit named trace-create rewrites from child spans", async () => {
     await publishFixture();
 
-    const resourceSpans = getPublishedResourceSpans();
-    const { OtelIngestionProcessor } = await vi.importActual<
-      typeof import("./OtelIngestionProcessor")
-    >("./OtelIngestionProcessor");
-    const processor = new OtelIngestionProcessor({
-      projectId: "project-1",
-      publicKey: "",
-      sdkName: AI_FEATURE_OTEL_SDK_NAME,
-      sdkVersion: "unknown",
-      ingestionVersion: "4",
-      isLangfuseInternal: false,
-    });
-    vi.spyOn(
-      processor as unknown as { getSeenTracesSet: () => Promise<Set<string>> },
-      "getSeenTracesSet",
-    ).mockResolvedValue(new Set());
-
-    const events = await processor.processToIngestionEvents(resourceSpans);
+    const events = await processPublishedIngestionEvents();
     const namedTraceCreates = events.filter(
       (event) =>
         event.type === "trace-create" &&
@@ -276,6 +277,22 @@ describe("publishAiFeatureTraceViaOtelIngestion", () => {
     expect(namedTraceCreates[0]?.body).toMatchObject({
       id: TRACE_ID,
       name: "agent-turn",
+    });
+  });
+
+  it("links the generation prompt as an integer version in legacy ingestion events", async () => {
+    await publishFixture();
+
+    const events = await processPublishedIngestionEvents();
+    const generation = events.find(
+      (event) => (event.body as { id?: string }).id === `${RUN_ID}-llm-0`,
+    );
+
+    const parsed = createIngestionEventSchema(false).safeParse(generation);
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    expect(parsed.data?.body).toMatchObject({
+      promptName: "in-app-agent-system",
+      promptVersion: 3,
     });
   });
 

@@ -728,7 +728,23 @@ export function DataTableControls({
         type="multiple"
         className="w-full"
         value={queryFilter.expanded}
-        onValueChange={queryFilter.onExpandedChange}
+        onValueChange={(next) => {
+          const prev = queryFilter.expanded;
+          queryFilter.onExpandedChange(next);
+          // One header click changes exactly one column. Expand-all, add
+          // filter, and AI apply call onExpandedChange directly and skip
+          // this handler, so they do not double-count as facet toggles.
+          const added = next.filter((column) => !prev.includes(column));
+          const removed = prev.filter((column) => !next.includes(column));
+          if (added.length + removed.length !== 1) return;
+          capture("filters:facet_toggled", {
+            tableName,
+            column: added[0] ?? removed[0],
+            expanded: added.length === 1,
+            layout,
+            isV4: queryFilter.isV4 ?? false,
+          });
+        }}
       >
         {/* ONE keyed child array — not two .map() slices: React can
             only match keys within the same array, so a facet crossing
@@ -1026,9 +1042,10 @@ export function DataTableControls({
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6"
-                  onClick={() =>
+                  onClick={() => {
+                    const expanded = expandedVisibleCount === 0;
                     queryFilter.onExpandedChange(
-                      expandedVisibleCount === 0
+                      expanded
                         ? [
                             ...new Set([
                               ...queryFilter.expanded,
@@ -1038,8 +1055,15 @@ export function DataTableControls({
                         : queryFilter.expanded.filter(
                             (column) => !visibleColumns.has(column),
                           ),
-                    )
-                  }
+                    );
+                    capture("filters:expand_all_toggled", {
+                      tableName,
+                      expanded,
+                      facetCount: visibleFilters.length,
+                      layout,
+                      isV4: queryFilter.isV4 ?? false,
+                    });
+                  }}
                   aria-label={
                     expandedVisibleCount === 0
                       ? "Expand all filters"

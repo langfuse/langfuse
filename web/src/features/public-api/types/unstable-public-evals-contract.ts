@@ -187,6 +187,20 @@ export const LegacyPromptVariableMapping = z
     },
   );
 
+const PublicEvaluationRuleReadFilterBase = z
+  .object({
+    type: z.string(),
+    column: z.string(),
+    operator: z.string(),
+    value: z.unknown().optional(),
+  })
+  .loose();
+
+export const PublicEvaluationRuleReadFilter = z.union([
+  PublicEvaluationRuleReadFilterBase.safeExtend({ key: z.string() }),
+  PublicEvaluationRuleReadFilterBase,
+]);
+
 const filterSchemaFactories = {
   datetime: (columnId: string) =>
     timeFilter.safeExtend({ column: z.literal(columnId) }),
@@ -304,6 +318,9 @@ export type LegacyPromptVariableMappingType = z.infer<
 >;
 export type PublicEvaluationRuleFilterType = z.infer<
   typeof PublicEvaluationRuleFilter
+>;
+export type PublicEvaluationRuleReadFilterType = z.infer<
+  typeof PublicEvaluationRuleReadFilter
 >;
 export const UnstablePublicApiPaginationQuery = z.object({
   page: z.preprocess(

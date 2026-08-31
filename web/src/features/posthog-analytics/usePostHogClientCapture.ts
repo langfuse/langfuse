@@ -414,6 +414,8 @@ const events = {
     "facet_added",
     "facet_search",
     "facet_mode_switched",
+    "expand_all_toggled",
+    "facet_toggled",
     "sidebar_toggled",
     "search_submitted",
     "search_error",

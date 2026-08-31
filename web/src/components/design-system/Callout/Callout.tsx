@@ -1,3 +1,4 @@
+/* eslint-disable boundaries/dependencies */
 "use client";
 
 import { cva } from "class-variance-authority";

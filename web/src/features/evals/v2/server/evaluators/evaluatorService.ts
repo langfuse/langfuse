@@ -551,7 +551,10 @@ export class EvaluatorService {
     if (!evaluator && !isPregeneratedEvaluatorId(params.evaluatorId)) {
       throw new LangfuseNotFoundError("Evaluator not found");
     }
-    return executeEvaluatorTest(params);
+    return executeEvaluatorTest({
+      ...params,
+      includeEvaluatorLink: Boolean(evaluator),
+    });
   }
 
   async suggestName(params: SuggestEvaluatorTextParams) {
