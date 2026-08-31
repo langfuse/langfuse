@@ -78,7 +78,8 @@ if [ -f "$DIR/build/index.js" ] && [ -d "$DIR/prisma-client" ]; then
 fi
 
 # @prisma/client generator output is build-time only.
-find "$DIR" -type d -path '*/node_modules/@prisma/client/generator-build' -exec rm -rf {} +
+find "$DIR" -type d -path '*/node_modules/@prisma/client/generator-build' \
+  -prune -exec rm -rf {} +
 
 # Postgres-only: drop query-engine / query-compiler blobs for databases
 # Prisma supports but Langfuse does not use.
