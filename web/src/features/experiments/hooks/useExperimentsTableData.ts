@@ -31,6 +31,13 @@ type UseExperimentsTableDataParams = {
     page: number;
     limit: number;
   };
+  /**
+   * Hold the queries while a filter value still needs translating. A dataset
+   * NAME reaches the query as an id, so firing before the name -> id map lands
+   * would query a bogus id and show "No experiments" before flipping to the
+   * real rows.
+   */
+  enabled?: boolean;
   orderByState: {
     column: string;
     order: "ASC" | "DESC";
@@ -42,6 +49,7 @@ export function useExperimentsTableData({
   filterState,
   paginationState,
   orderByState,
+  enabled = true,
 }: UseExperimentsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -70,6 +78,7 @@ export function useExperimentsTableData({
   // Fetch experiments
   const experimentsQuery = api.experiments.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
+    enabled,
   });
 
   // Build metrics payload based on experiments data
@@ -88,13 +97,14 @@ export function useExperimentsTableData({
 
   // Fetch metrics
   const metricsQuery = api.experiments.metrics.useQuery(metricsPayload!, {
-    enabled: experimentsQuery.isSuccess && metricsPayload !== null,
+    enabled: enabled && experimentsQuery.isSuccess && metricsPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Fetch total count
   const totalCountQuery = api.experiments.countAll.useQuery(getCountPayload, {
+    enabled,
     refetchOnWindowFocus: true,
   });
 
@@ -103,7 +113,7 @@ export function useExperimentsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (experimentsQuery.isLoading) {
+    if (!enabled || experimentsQuery.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -117,6 +127,7 @@ export function useExperimentsTableData({
       metricsQuery.data,
     );
   }, [
+    enabled,
     experimentsQuery.isLoading,
     experimentsQuery.isError,
     experimentsQuery.data?.data,

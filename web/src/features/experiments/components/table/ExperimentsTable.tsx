@@ -430,11 +430,19 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
+  // A dataset-name filter cannot be queried until the name -> id map lands.
+  const awaitsDatasetNames =
+    datasetIdByName.size === 0 &&
+    combinedFilterState.some(
+      (filter) => filter.column === "experimentDatasetName",
+    );
+
   const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
     projectId,
     filterState,
     orderByState,
     paginationState,
+    enabled: !awaitsDatasetNames,
   });
 
   useEffect(() => {
