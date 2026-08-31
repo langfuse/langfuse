@@ -26,8 +26,9 @@ const alertVariants = cva(
 type AlertProps = Omit<
   Pick<React.ComponentProps<"div">, "children" | "className"> &
     Pick<VariantProps<typeof alertVariants>, "variant">,
-  "className"
+  "children" | "className"
 > & {
+  children: React.ReactNode;
   className?:
     | "w-full max-w-3xl"
     | "mb-4"
@@ -41,8 +42,9 @@ type AlertProps = Omit<
 };
 type AlertTitleProps = Omit<
   Pick<React.ComponentProps<"h5">, "children" | "className">,
-  "className"
+  "children" | "className"
 > & {
+  children: React.ReactNode;
   className?: "text-base font-bold" | "text-base" | "mb-1 text-sm" | "pr-4";
 };
 
@@ -56,8 +58,9 @@ function Alert({ children, className, variant }: AlertProps) {
 
 type AlertDescriptionProps = Omit<
   Pick<React.ComponentProps<"div">, "children" | "className">,
-  "className"
+  "children" | "className"
 > & {
+  children: React.ReactNode;
   className?:
     | "flex items-center justify-between"
     | "mt-2 space-y-3"
