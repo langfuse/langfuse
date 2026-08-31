@@ -729,6 +729,8 @@ export class IngestionService {
         source: "api",
         domain: "score",
         projectId,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
       });
     }
 
