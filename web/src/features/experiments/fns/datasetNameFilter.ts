@@ -1,6 +1,6 @@
 import type { FilterState } from "@langfuse/shared";
 
-export const DATASET_NAME_COLUMN = "experimentDatasetName";
+const DATASET_NAME_COLUMN = "experimentDatasetName";
 const DATASET_ID_COLUMN = "experimentDatasetId";
 
 /**
