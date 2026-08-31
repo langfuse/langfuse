@@ -36,7 +36,7 @@ import {
   buildTracePath,
 } from "@langfuse/shared";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
@@ -44,6 +44,7 @@ import { createItemBadgeTableColumn } from "@/src/components/design-system/table
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -1109,7 +1110,7 @@ export default function ObservationsEventsTable({
       disabled: isSelectAllCountUnavailable,
       disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
-        scope: "evalJob:CUD",
+        scope: "evaluationRule:CUD",
       },
     },
   ];
@@ -1275,54 +1276,30 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.inputCost, row.type),
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.outputCost, row.type),
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     createNumberTableColumn<EventsTableRow>({
@@ -1369,7 +1346,7 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
       cell: () => {
         return observations.status === "loading" ? (
-          <TableTextLoadingCell />
+          <Skeleton className="h-4 w-1/2" />
         ) : null;
       },
       columns: [
@@ -1386,7 +1363,7 @@ export default function ObservationsEventsTable({
           id: "tokensPerSecond",
           header: "Tokens per second",
           size: 200,
-          formatter: String,
+          formatter: (value) => String(value),
           defaultHidden: true,
           enableHiding: true,
           enableSorting,
@@ -1482,7 +1459,7 @@ export default function ObservationsEventsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },

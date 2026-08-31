@@ -24,11 +24,11 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 
 type PromptTableRow = {
   id: string;
@@ -312,18 +312,19 @@ export function PromptTable() {
       enableSorting: true,
       size: 60,
     },
-    {
+    createDateTableColumn({
       accessorKey: "createdAt",
       header: "Latest Version Created At",
-      id: "createdAt",
       enableSorting: true,
       size: 200,
-      cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
-        const createdAt = getValue<Date | undefined>();
-        return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      getValue: (value, context) => {
+        if (context.row.original.type === "folder") {
+          return undefined;
+        }
+
+        return value ?? undefined;
       },
-    },
+    }),
     {
       accessorKey: "numberOfObservations",
       header: "Number of Observations (7d)",
