@@ -25,6 +25,7 @@ import {
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
   LangfuseInternalTraceEnvironment,
+  sanitizeSdkMetricTagValue,
 } from "../";
 
 import {
@@ -2510,9 +2511,11 @@ export class OtelIngestionProcessor {
     // survive the fallback and are counted by the parser itself.
     const primaryValue = attributes[metadataKeyPrefix];
     if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
+      const isString = typeof primaryValue === "string";
       this.recordMetadataDropped(
-        typeof primaryValue === "string" ? "parse_failure" : "primitive",
+        isString ? "parse_failure" : "primitive",
         { domain, attributeKey: metadataKeyPrefix, dropScope },
+        isString ? this.classifyParseFailure(primaryValue) : undefined,
       );
     }
 
@@ -3275,6 +3278,7 @@ export class OtelIngestionProcessor {
   private recordMetadataDropped(
     reason: string,
     context: MetadataDropContext,
+    kind?: string,
   ): void {
     const { domain, attributeKey, dropScope } = context;
     let seen = this.reportedMetadataDrops.get(dropScope);
@@ -3288,12 +3292,46 @@ export class OtelIngestionProcessor {
     }
     seen.add(dedupeKey);
 
-    recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+    // attributeKey is a closed set of Langfuse-defined attribute names
+    // (never a user-supplied key); sdkName/sdkVersion attribute the emitting
+    // client and are sanitized because they originate from raw request
+    // headers; kind sub-classifies parse_failure by the value's shape. None
+    // of these carry the dropped value itself.
+    const tags: Record<string, string> = {
       reason,
       source: "otel",
       domain,
       projectId: this.projectId,
-    });
+      attributeKey,
+      sdkName: sanitizeSdkMetricTagValue(this.sdkName),
+      sdkVersion: sanitizeSdkMetricTagValue(this.sdkVersion),
+    };
+    if (kind) {
+      tags.kind = kind;
+    }
+    recordIncrement("langfuse.ingestion.metadata_dropped", 1, tags);
+  }
+
+  // Sub-classifies a JSON.parse failure by the failing string's shape,
+  // reading only bounded head/tail windows — never re-parses or copies the
+  // (possibly multi-MB) value, and never logs its content. Slicing first
+  // keeps the trim/regex work off the full string.
+  private classifyParseFailure(value: string): string {
+    const head = value.slice(0, 64).trimStart();
+    if (head.length === 0) {
+      return "empty";
+    }
+    // Python `str(dict)` / `str(list)` — single-quoted, or bare True/False/None.
+    if (/^[{[]\s*'/.test(head) || /^(True|False|None)\b/.test(head)) {
+      return "python_repr";
+    }
+    const first = head[0];
+    if (first === "{" || first === "[") {
+      const expectedClose = first === "{" ? "}" : "]";
+      const last = value.slice(-64).trimEnd().slice(-1);
+      return last === expectedClose ? "loose_json" : "truncated_json";
+    }
+    return "unquoted_string";
   }
 
   private parseMetadataAttribute(
@@ -3313,7 +3351,11 @@ export class OtelIngestionProcessor {
         this.recordMetadataDropped("non_object_top_level", context);
         return {};
       } catch {
-        this.recordMetadataDropped("parse_failure", context);
+        this.recordMetadataDropped(
+          "parse_failure",
+          context,
+          this.classifyParseFailure(value),
+        );
         return {};
       }
     }
