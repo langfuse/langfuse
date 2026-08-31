@@ -54,7 +54,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 import { api } from "@/src/utils/api";
 
 // Extracted components
-import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader";
+import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";

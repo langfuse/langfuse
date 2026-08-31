@@ -36,13 +36,19 @@ import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
-} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
-import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/EvaluatorBadge/EvaluatorBadge";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "./ModelBadge";
-import { ModelParametersBadges } from "./ModelParametersBadges";
+import {
+  SessionBadge,
+  UserIdBadge,
+} from "@/src/features/traces/components/TraceMetadataBadges";
+import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
+import {
+  CostBadge,
+  UsageBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
+import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
