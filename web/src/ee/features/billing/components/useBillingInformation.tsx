@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { formatLocalIsoDate } from "@/src/utils/dates";
 import { type BillingProvider, type Plan, planLabels } from "@langfuse/shared";
 import { stripeProducts } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { mapChbPlanCodeToStripeProductId } from "@/src/ee/features/billing/utils/chbCatalogue";
