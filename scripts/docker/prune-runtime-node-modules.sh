@@ -63,17 +63,35 @@ if [ "$DROP_NEXT_TOOLCHAIN" -eq 1 ]; then
 fi
 
 if [ "$DROP_PRISMA_CLI" -eq 1 ]; then
-  # migrate deploy runs in the web image, not the worker.
+  # migrate deploy runs in the web image, not the worker. The generated
+  # Prisma client already ships libquery_engine next to itself.
   drop_pnpm_name 'prisma@*'
   rm -rf "$DIR/.bin/prisma" "$DIR/prisma"
   find "$DIR" -type f -name 'schema-engine-*' -delete
+  find "$DIR" -type f -path '*/node_modules/@prisma/engines/libquery_engine-*' -delete
 fi
 
-# Postgres-only: drop query-engine blobs for databases Prisma supports but
-# Langfuse does not use.
+# Prisma CLI layout: generate templates and Studio UI are not used by
+# `prisma migrate deploy` / `prisma db execute`.
+if [ -f "$DIR/build/index.js" ] && [ -d "$DIR/prisma-client" ]; then
+  rm -rf "$DIR/prisma-client" "$DIR/build/public"
+fi
+
+# @prisma/client generator output is build-time only.
+find "$DIR" -type d -path '*/node_modules/@prisma/client/generator-build' -exec rm -rf {} +
+
+# Postgres-only: drop query-engine / query-compiler blobs for databases
+# Prisma supports but Langfuse does not use.
 find "$DIR" -type f \( \
   -name 'query_engine_bg.mysql*' \
   -o -name 'query_engine_bg.sqlite*' \
   -o -name 'query_engine_bg.sqlserver*' \
   -o -name 'query_engine_bg.cockroachdb*' \
+  -o -name 'query_compiler_bg.mysql*' \
+  -o -name 'query_compiler_bg.sqlite*' \
+  -o -name 'query_compiler_bg.sqlserver*' \
+  -o -name 'query_compiler_bg.cockroachdb*' \
   \) -delete
+
+# Package source maps and generated .d.ts are not loaded at runtime.
+find "$DIR" -type f \( -name '*.map' -o -name '*.d.ts' \) -delete

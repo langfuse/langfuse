@@ -15,10 +15,13 @@ RUN corepack enable
 RUN corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# package managers and build-only CLIs only increase exposure to CVEs -> remove them
+# package managers, headers, and docs are not used at runtime
 RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
-            /root/.cache/node/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+            /root/.cache/node/corepack /opt/yarn-v1.22.22 /usr/local/include \
+            /usr/local/share && \
+    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx \
+          /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+          /usr/local/CHANGELOG.md /usr/local/README.md /usr/local/LICENSE
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -192,6 +195,7 @@ COPY --from=runtime-extras /extras/node_modules/ /app/node_modules/
 COPY scripts/docker/prune-runtime-node-modules.sh /tmp/prune-runtime-node-modules.sh
 RUN sh /tmp/prune-runtime-node-modules.sh --dir /app/node_modules && \
     sh /tmp/prune-runtime-node-modules.sh --dir /usr/local/lib/node_modules/prisma && \
+    find /app/web/.next -type f -name '*.nft.json' -delete && \
     rm -rf /tmp/prune-runtime-node-modules.sh /root/.npm /root/.cache /tmp/* /var/cache/apk \
            /usr/local/lib/node_modules/prisma/README.md
 

@@ -15,10 +15,13 @@ RUN corepack enable
 RUN corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# package managers and build-only CLIs only increase exposure to CVEs -> remove them
+# package managers, headers, and docs are not used at runtime
 RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
-            /root/.cache/node/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+            /root/.cache/node/corepack /opt/yarn-v1.22.22 /usr/local/include \
+            /usr/local/share && \
+    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx \
+          /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+          /usr/local/CHANGELOG.md /usr/local/README.md /usr/local/LICENSE
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
 
