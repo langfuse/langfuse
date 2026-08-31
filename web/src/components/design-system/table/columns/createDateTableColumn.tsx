@@ -2,7 +2,7 @@
 import { type RowData } from "@tanstack/react-table";
 
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -13,7 +13,7 @@ export function createDateTableColumn<TData extends RowData>(
 ) {
   return createTableColumn<TData, Date>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value) => (value ? <LocalIsoDate date={value} /> : null),
   });
 }

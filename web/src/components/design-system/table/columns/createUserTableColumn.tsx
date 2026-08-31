@@ -1,7 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import {
   Avatar,
   AvatarFallback,
@@ -49,10 +48,10 @@ export function createUserTableColumn<
     variant === "avatar" ? (
       <div className="flex items-center space-x-2">
         <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-        <TableTextLoadingCell />
+        <Skeleton className="h-4 w-1/2" />
       </div>
     ) : (
-      <TableTextLoadingCell />
+      <Skeleton className="h-4 w-1/2" />
     );
 
   return createTableColumn<TData, TValue>({
