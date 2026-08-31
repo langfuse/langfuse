@@ -13,7 +13,7 @@
  * either query can split by observationType.
  */
 
-export type IoFormatToggleIoField = "input" | "output" | "metadata";
+type IoFormatToggleIoField = "input" | "output" | "metadata";
 
 export type IoFormatToggleContext = {
   /** Observation type (GENERATION / SPAN / TOOL / …) or "trace". */
