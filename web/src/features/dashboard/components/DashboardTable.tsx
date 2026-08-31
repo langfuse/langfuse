@@ -8,21 +8,17 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createColumnHelper } from "@tanstack/react-table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Copy, Edit, MoreVertical, User as UserIcon } from "lucide-react";
+import { Copy, Edit, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { DeleteDashboardButton } from "@/src/components/deleteButton";
 import { EditDashboardDialog } from "@/src/features/dashboard/components/EditDashboardDialog";
 import { CloneFirstDialog } from "@/src/features/dashboard/components/CloneFirstDialog";
@@ -272,61 +268,51 @@ export function DashboardTable() {
       enableSorting: true,
       size: 150,
     }),
-    columnHelper.display({
+    createDropdownTableColumn<DashboardTableRow, string>({
       id: "actions",
+      accessorFn: (row) => row.id,
       header: "Actions",
       size: 70,
-      cell: (row) => {
-        const id = row.row.original.id;
-        const name = row.row.original.name;
-        const description = row.row.original.description;
-        const owner = row.row.original.owner;
+      renderMenu: (id, { row }) => {
+        if (!id) return null;
+        const { name, description, owner } = row.original;
         return (
-          <div onClick={(e) => e.stopPropagation()}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="xs" variant="ghost">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                {owner === "PROJECT" ? (
-                  <DropdownMenuItem asChild>
-                    <EditDashboardButton
-                      dashboardId={id}
-                      projectId={projectId}
-                      dashboardName={name}
-                      dashboardDescription={description}
-                    />
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem asChild>
-                    <LockedEditDashboardButton
-                      dashboardId={id}
-                      projectId={projectId}
-                      dashboardName={name}
-                    />
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem asChild>
-                  <CloneDashboardButton
-                    dashboardId={id}
-                    projectId={projectId}
-                    owner={owner}
-                  />
-                </DropdownMenuItem>
-                {owner === "PROJECT" && (
-                  <DropdownMenuItem asChild>
-                    <DeleteDashboardButton
-                      itemId={id}
-                      projectId={projectId}
-                      isTableAction
-                    />
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <>
+            {owner === "PROJECT" ? (
+              <DropdownMenuItem asChild>
+                <EditDashboardButton
+                  dashboardId={id}
+                  projectId={projectId}
+                  dashboardName={name}
+                  dashboardDescription={description}
+                />
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem asChild>
+                <LockedEditDashboardButton
+                  dashboardId={id}
+                  projectId={projectId}
+                  dashboardName={name}
+                />
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem asChild>
+              <CloneDashboardButton
+                dashboardId={id}
+                projectId={projectId}
+                owner={owner}
+              />
+            </DropdownMenuItem>
+            {owner === "PROJECT" ? (
+              <DropdownMenuItem asChild>
+                <DeleteDashboardButton
+                  itemId={id}
+                  projectId={projectId}
+                  isTableAction
+                />
+              </DropdownMenuItem>
+            ) : null}
+          </>
         );
       },
     }),

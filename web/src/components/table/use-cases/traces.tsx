@@ -7,6 +7,7 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -66,7 +67,7 @@ import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableC
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import { InfoIcon, MoreVertical } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -77,13 +78,7 @@ import {
   LevelCountsDisplay,
   type LevelCount,
 } from "@/src/components/level-counts-display";
-import {
-  DropdownMenuContent,
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import TableIdOrName from "@/src/components/table/table-id";
 import {
   type UseSidebarFilterStateOptions,
@@ -1213,38 +1208,25 @@ export default function TracesTable({
     },
     ...(hideControls
       ? []
-      : ([
-          {
-            accessorKey: "action",
+      : [
+          createDropdownTableColumn<TracesTableRow, TracesTableRow["id"]>({
+            id: "action",
+            accessorFn: (row) => row.id,
             header: "Action",
             size: 70,
             isFixedPosition: true,
-            cell: ({ row }) => {
-              const traceId: TracesTableRow["id"] = row.getValue("id");
-              return (
-                traceId &&
-                typeof traceId === "string" && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem asChild>
-                        <DeleteTraceButton
-                          itemId={traceId}
-                          projectId={projectId}
-                          isTableAction
-                        />
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )
-              );
-            },
-          },
-        ] satisfies LangfuseColumnDef<TracesTableRow>[])),
+            renderMenu: (traceId) =>
+              typeof traceId === "string" ? (
+                <DropdownMenuItem asChild>
+                  <DeleteTraceButton
+                    itemId={traceId}
+                    projectId={projectId}
+                    isTableAction
+                  />
+                </DropdownMenuItem>
+              ) : null,
+          }),
+        ]),
   ];
 
   const [columnVisibility, setColumnVisibility] =
