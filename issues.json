@@ -62,5 +62,35 @@
     ],
     "lastCheckedAt": "2026-08-24",
     "outcome": "Filed with no suggested diff. Best week on record (p50 198s, p90 284.6s vs baseline 396/522). No regression met the acting threshold. The one carried optimization candidate was verified in-sandbox, measured to deliver no win, and dropped. missing_tool filed for the absent issue-search capability."
+  },
+  {
+    "number": null,
+    "url": null,
+    "openedAt": "2026-08-31",
+    "title": "CI Runtime Report: 2026-08-25..08-31 (trailing 7 days)",
+    "note": "Number/url are null (same structural reason). Identify by label ci-performance, assignee wochinge, title prefix, opened 2026-08-31.",
+    "suggestedDiff": false,
+    "expectedImpact": null,
+    "baselineStats": {
+      "window": "2026-08-25..2026-08-31",
+      "mergeGroupRuns": 4,
+      "mergeGroupRunsSampledForTiming": 4,
+      "dataQualityWarning": "Only 4 successful merge_group runs, all on 2026-08-30. Days 08-25..08-29 and 08-31 had zero merge_group activity. Below the 10-run minimum for robust analysis.",
+      "perceivedP50": 201,
+      "perceivedP90": 204,
+      "weeklyMedianOfDailyMedians": {
+        "perceived": 201,
+        "execution": 187,
+        "runnerWait": 15,
+        "webBuildStep": 47,
+        "webRunTestsStep": 85,
+        "e2eTestsJob": 134
+      }
+    },
+    "appliedOnMain": false,
+    "appliedAt": null,
+    "followUps": [],
+    "lastCheckedAt": "2026-08-31",
+    "outcome": "Filed with no suggested diff. Data too thin (4 same-day runs vs 10+ multi-day minimum) for confident trend detection. Web runTests up 9.3% (77.8s → 85s), the only metric crossing ~10%, but does not meet the 'sustained 3+ days' bar. The one optimization candidate (score-comparison-analytics Promise.all batching) remains parked due to standing DB verification blocker. Zero flaky tests. Stable at 'best week on record' level, but lack of run density prevents stronger claims."
   }
 ]

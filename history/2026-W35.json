@@ -1,0 +1,131 @@
+{
+  "isoWeek": "2026-W35",
+  "kind": "trailing-7-days",
+  "analyzedAt": "2026-08-31",
+  "note": "Run 23. THIN DATA: only 4 successful merge_group runs, all on 2026-08-30. Days 08-25..08-29 and 08-31 had zero merge_group runs. Below the 10-run minimum for robust analysis. Metrics represent a single-day snapshot, not a weekly aggregate.",
+  "window": {
+    "from": "2026-08-25T00:00:00Z",
+    "to": "2026-08-31T23:59:59Z",
+    "kind": "trailing-7-days"
+  },
+  "population": {
+    "timingStatsFrom": "successful merge_group runs only",
+    "successfulMergeGroupRunsInWindow": {
+      "2026-08-30": 4,
+      "total": 4
+    },
+    "successfulPullRequestRunsInWindow": 13,
+    "sampleNote": "All 4 merge_group runs were on 2026-08-30. Per-day medians ARE the 4-run medians (no averaging across days)."
+  },
+  "merge_group": {
+    "perceivedByDay": {
+      "2026-08-30": 201
+    },
+    "executionByDay": {
+      "2026-08-30": 187
+    },
+    "runnerWaitByDay": {
+      "2026-08-30": 15,
+      "method": "median of per-run (perceived - execution); execution is the UNION of successful-job intervals, not their sum."
+    },
+    "segmentsByDay": {
+      "webBuildStepMed": {
+        "2026-08-30": 47
+      },
+      "webRunTestsStepMed": {
+        "2026-08-30": 85
+      },
+      "e2eTestsJobSec": {
+        "2026-08-30": 134
+      }
+    },
+    "pooledWeekly": {
+      "perceivedP50": 201,
+      "perceivedP90": 204,
+      "executionP50": 187,
+      "executionP90": 189,
+      "runnerWaitP50": 15,
+      "runnerWaitP90": 15,
+      "unit": "s",
+      "population": "all 4 runs (same day)"
+    },
+    "weeklyMedianOfDailyMedians": {
+      "perceived": 201,
+      "execution": 187,
+      "runnerWait": 15,
+      "webBuildStep": 47,
+      "webRunTestsStep": 85,
+      "e2eTestsJob": 134,
+      "unit": "s",
+      "note": "Only one populated day, so 'median of daily medians' = that day's median."
+    }
+  },
+  "comparisonToBaselineAndPriorCheckpoint": {
+    "baseline2026W28": { "perceivedP50": 396, "perceivedP90": 522 },
+    "prior2026W35partial0824": { "perceivedP50": 198, "perceivedP90": 284.6 },
+    "thisWindow": { "perceivedP50": 201, "perceivedP90": 204 },
+    "verdict": "Flat vs prior week (+1.5% perceived, +0.5% execution, -6.3% runner wait). Web runTests up 9.3% (77.8s → 85s), the only metric crossing ~10%, but 4 same-day runs cannot establish a sustained trend. E2e improved -15.4% (158.3s → 134s). Overall: stable at last week's 'best week on record' level, but thin data prevents confident trend claims."
+  },
+  "intraWeekShiftCheck": {
+    "result": "N/A — insufficient data",
+    "detail": "Only one populated day (2026-08-30). The shift-detection rule (>=50% step change across 3+ consecutive days) requires multi-day data and cannot apply here."
+  },
+  "flakyTests": [],
+  "flakyNote": "Zero retried tests detected in 2 sampled job logs (1 web server shard from run 33324982885, 1 worker shard from same run). No 'Retried tests' blocks emitted. unstable-evaluator-v2-api.servertest.ts (1 occurrence 08-23) and otelToObservationForEval.test.ts (2 occurrences 07-30, 08-13) did NOT recur.",
+  "slowestTests": {
+    "source": "run 33324982885 (2026-08-30), 2 job logs sampled",
+    "webServer": {
+      "topTests": [
+        ["score-comparison-analytics.servertest.ts > ... should skip FINAL and apply hash-based sampling", 2.90],
+        ["ingestion-api.servertest.ts > ... should create observations via the ingestion API (generation)", 1.44],
+        ["traces-api.servertest.ts > ... should return 422 if observations are too large when fetching single trace", 0.91]
+      ],
+      "topFiles": [
+        ["src/__tests__/server/repositories/event-repository.servertest.ts", 17.65, 92],
+        ["src/__tests__/server/score-comparison-analytics.servertest.ts", 15.90, 46],
+        ["src/__tests__/server/ingestion-api.servertest.ts", 12.90, 63],
+        ["src/__tests__/server/traces-api.servertest.ts", 12.45, 84],
+        ["src/__tests__/server/dataset-service.servertest.ts", 11.55, 35]
+      ]
+    },
+    "worker": {
+      "topTests": [
+        ["webhooks.test.ts > ... should reset failure count when webhook is re-enabled after being disabled", 7.20],
+        ["webhooks.test.ts > ... project-notification webhook: records ERROR rows on failure but never disables the trigger", 4.32],
+        ["webhooks.test.ts > ... should disable trigger after 5 consecutive failures and store lastFailingExecutionId", 3.62],
+        ["awsLambdaCodeEvalDispatcher.integration.test.ts > ... passes the payload and returns all score types for the PYTHON runner", 3.54],
+        ["awsLambdaCodeEvalDispatcher.integration.test.ts > ... passes the payload and returns all score types for the TYPESCRIPT runner", 3.44]
+      ],
+      "topFiles": [
+        ["src/__tests__/webhooks.test.ts", 23.39, 22],
+        ["src/__tests__/batchExport.test.ts", 9.90, 77],
+        ["src/__tests__/evalService.test.ts", 8.09, 108],
+        ["src/services/IngestionService/tests/IngestionService.integration.test.ts", 7.99, 59],
+        ["src/__tests__/traceBatchDeleteBatchAction.test.ts", 7.48, 7]
+      ]
+    }
+  },
+  "investigation": {
+    "parkedCandidateReEvaluated": {
+      "file": "web/src/__tests__/server/score-comparison-analytics.servertest.ts",
+      "originallyParkedOn": "2026-07-31 (run 11)",
+      "reEvaluatedOn": "2026-08-31 (run 23)",
+      "hypothesis": "insertLargeTraceLevelScorePairs (L112-161) uses 12 sequential `await createScoresCh(...)` calls. Promise.all should cut setup time proportionally.",
+      "webRunTestsShift": "77.8s (2026-08-24) → 85s (2026-08-30), +9.3%",
+      "stillParked": true,
+      "reason": "DB-backed verification remains standing-blocked (host.docker.internal → EAI_AGAIN, github/gh-aw#52140 and github/gh-aw-firewall#7268 open). The 9.3% shift is based on 4 same-day runs vs 6-day prior-week data — too thin to override the verification blocker. The rule forbids unverified diffs. Re-open only if DB access returns AND a ≥10% sustained (3+ day) webRunTests regression reappears."
+    }
+  },
+  "structuralObservations": [
+    "Thin data: 4 merge_group runs, all on 2026-08-30. Days 08-25..08-29 and 08-31 had zero merge_group activity.",
+    "Web runTests median at 85s, up 9.3% vs prior week's 77.8s, but 4 same-day runs cannot establish a sustained trend.",
+    "E2e median at 134s, down 15.4% vs prior week's 158.3s. One outlier at 175s in the 4-run sample.",
+    "No retried tests in sampled logs. Clean vitest runs.",
+    "Slowest files unchanged from prior weeks: webhooks.test.ts (23.39s), event-repository.servertest.ts (17.65s), score-comparison-analytics.servertest.ts (15.90s)."
+  ],
+  "toolingBlockers": [
+    "No issue-search/issue-read MCP tool exists (only actions_get, actions_list, get_job_logs, list_pull_requests, pull_request_read, search_pull_requests). The run checklist's 'backfill the previous run's issue number/url' step remains impossible; issues.json entries stay number:null, url:null.",
+    "DB connectivity via host.docker.internal remains standing-blocked (EAI_AGAIN since 08-03; github/gh-aw#52140, github/gh-aw-firewall#7268). All DB-backed candidates, including the parked score-comparison-analytics fix, remain unverifiable."
+  ],
+  "action": "No diff proposed. Data too thin (4 same-day runs vs 10+ multi-day minimum) for confident trend detection. The 9.3% webRunTests uptick (77.8s → 85s) does not meet the 'sustained 3+ days' bar. The one optimization candidate (score-comparison-analytics) remains parked due to standing DB verification blocker. Zero flaky tests. One issue filed with full report."
+}

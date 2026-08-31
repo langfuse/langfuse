@@ -1,0 +1,60 @@
+<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; }
+    .title { font-size: 14px; font-weight: 600; }
+    .axis-label { font-size: 11px; fill: #666; }
+    .legend { font-size: 11px; }
+  </style>
+
+  <!-- Title -->
+  <text x="300" y="20" class="title" text-anchor="middle">CI Pipeline Metrics: 2026-W35 (2026-08-30 only)</text>
+  <text x="300" y="38" class="axis-label" text-anchor="middle">Single-day snapshot — 4 merge_group runs</text>
+
+  <!-- Axes -->
+  <line x1="60" y1="320" x2="540" y2="320" stroke="#ccc" stroke-width="1"/>
+  <line x1="60" y1="80" x2="60" y2="320" stroke="#ccc" stroke-width="1"/>
+
+  <!-- Y-axis labels (0-250s) -->
+  <text x="50" y="324" class="axis-label" text-anchor="end">0</text>
+  <text x="50" y="260" class="axis-label" text-anchor="end">50</text>
+  <text x="50" y="196" class="axis-label" text-anchor="end">100</text>
+  <text x="50" y="132" class="axis-label" text-anchor="end">150</text>
+  <text x="50" y="84" class="axis-label" text-anchor="end">200</text>
+  <text x="20" y="200" class="axis-label" text-anchor="middle" transform="rotate(-90 20 200)">seconds</text>
+
+  <!-- X-axis label -->
+  <text x="300" y="355" class="axis-label" text-anchor="middle">08-30</text>
+
+  <!-- Data points (08-30 only, x=300) -->
+  <!-- perceived=201s, y = 320 - (201/250)*240 = 127.04 -->
+  <circle cx="300" cy="127" r="5" fill="#3987e5"/>
+  <!-- execution=187s, y = 320 - (187/250)*240 = 140.32 -->
+  <circle cx="300" cy="140" r="5" fill="#de5a20"/>
+  <!-- runnerWait=15s, y = 320 - (15/250)*240 = 305.6 -->
+  <circle cx="300" cy="306" r="5" fill="#8875e0"/>
+  <!-- runTests=85s, y = 320 - (85/250)*240 = 238.4 -->
+  <circle cx="300" cy="238" r="5" fill="#3987e5" opacity="0.6"/>
+  <!-- Build=47s, y = 320 - (47/250)*240 = 274.88 -->
+  <circle cx="300" cy="275" r="5" fill="#de5a20" opacity="0.6"/>
+  <!-- e2e=134s, y = 320 - (134/250)*240 = 191.28 -->
+  <circle cx="300" cy="191" r="5" fill="#8875e0" opacity="0.6"/>
+
+  <!-- Legend -->
+  <g transform="translate(80, 365)">
+    <text x="0" y="0" class="legend" font-weight="600">Pipeline totals:</text>
+    <circle cx="10" cy="15" r="4" fill="#3987e5"/>
+    <text x="20" y="19" class="legend">perceived (201s)</text>
+    <circle cx="120" cy="15" r="4" fill="#de5a20"/>
+    <text x="130" y="19" class="legend">execution (187s)</text>
+    <circle cx="245" cy="15" r="4" fill="#8875e0"/>
+    <text x="255" y="19" class="legend">runner wait (15s)</text>
+
+    <text x="380" y="0" class="legend" font-weight="600">Segments:</text>
+    <circle cx="390" cy="15" r="4" fill="#3987e5" opacity="0.6"/>
+    <text x="400" y="19" class="legend">run tests (85s)</text>
+    <circle cx="390" cy="30" r="4" fill="#de5a20" opacity="0.6"/>
+    <text x="400" y="34" class="legend">Build (47s)</text>
+    <circle cx="390" cy="45" r="4" fill="#8875e0" opacity="0.6"/>
+    <text x="400" y="49" class="legend">e2e (134s)</text>
+  </g>
+</svg>

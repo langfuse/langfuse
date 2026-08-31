@@ -126,6 +126,30 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 - The checkout WAS current this run (`HEAD..origin/main` = 0), which is
   what made verification possible at all. Check it first, every run.
 
+## 2026-08-31 (run 23) — exceptionally thin data, parked candidate re-evaluated
+
+- Window 2026-08-25..08-31 had **only 4 successful merge_group runs, all on
+  2026-08-30.** Days 08-25..08-29 and 08-31 had zero merge_group activity.
+  Below the 10-run minimum for robust weekly analysis. Metrics represent a
+  single-day snapshot, not a weekly aggregate.
+- Perceived/execution flat vs prior week (+1.5%, +0.5%). Web runTests up
+  9.3% (77.8s → 85s), the only metric crossing ~10%, but 4 same-day runs
+  cannot establish a sustained trend — does not meet the "sustained 3+
+  consecutive days" bar for intra-week acting.
+- E2e improved -15.4% (158.3s → 134s), but again single-day data.
+- Zero retried tests in 2 sampled job logs. Clean vitest runs.
+- **Parked candidate re-evaluated:**
+  `score-comparison-analytics.servertest.ts` `Promise.all` batching was
+  flagged 07-31 and parked due to DB verification blocker. The 9.3%
+  webRunTests shift (77.8s → 85s) could justify re-attempting if DB access
+  had returned, but the shift is too thin (4 same-day runs) to override
+  the standing blocker. Candidate stays **parked** — re-open only if DB
+  access returns AND a ≥10% sustained (3+ day) webRunTests regression
+  reappears.
+- Slowest files unchanged: webhooks.test.ts (23.39s),
+  event-repository.servertest.ts (17.65s),
+  score-comparison-analytics.servertest.ts (15.90s).
+
 ## Tooling notes (for future runs)
 
 - `list_workflow_runs` caps at ~30 runs/page, no `created` filter — filter
