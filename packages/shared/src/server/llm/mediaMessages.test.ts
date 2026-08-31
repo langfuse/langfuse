@@ -108,6 +108,37 @@ describe("compileLangfuseMediaMessages", () => {
     expect(original[0].content).toContain(imageRef);
   });
 
+  it("resolves media references in the same message concurrently", async () => {
+    let releaseFirst!: () => void;
+    const firstResolution = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const parallelResolveMedia = vi.fn(
+      async ({ mediaId }: { mediaId: string }) => {
+        if (mediaId === "image-1") await firstResolution;
+        return {
+          url: `https://signed.example/${mediaId}`,
+          mediaType: mediaId === "image-1" ? "image/jpeg" : "image/png",
+        };
+      },
+    );
+
+    const compilation = compileLangfuseMediaMessages({
+      projectId: "project-1",
+      messages: [userMessage(`${imageRef} ${secondImageRef}`)],
+      adapter: LLMAdapter.OpenAI,
+      transport: "url",
+      resolveMedia: parallelResolveMedia,
+    });
+
+    try {
+      expect(parallelResolveMedia).toHaveBeenCalledTimes(2);
+    } finally {
+      releaseFirst();
+      await compilation;
+    }
+  });
+
   it("sends media bytes inline without changing text and file order", async () => {
     const fetchMedia = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
 
@@ -308,28 +339,91 @@ describe("compileLangfuseMediaMessages", () => {
   );
 
   it.each([
-    [ChatMessageRole.System, ChatMessageType.System, "user"],
-    [ChatMessageRole.Developer, ChatMessageType.Developer, "user"],
-    [ChatMessageRole.Assistant, ChatMessageType.AssistantText, "user"],
+    [ChatMessageRole.System, ChatMessageType.System],
+    [ChatMessageRole.Developer, ChatMessageType.Developer],
+    [ChatMessageRole.Assistant, ChatMessageType.AssistantText],
   ])(
-    "leaves supported media in %s messages as plain text",
-    async (role, type, providerRole) => {
-      const resolver = vi.fn();
-
+    "expands supported media after the adapter normalizes a %s message to user",
+    async (role, type) => {
       await expect(
         compileLangfuseMediaMessages({
           projectId: "project-1",
           messages: [{ role, type, content: imageRef } as ChatMessage],
           adapter: LLMAdapter.GoogleAIStudio,
-          resolveMedia: resolver,
+          transport: "url",
+          resolveMedia,
         }),
       ).resolves.toEqual({
-        providerMessages: [{ role: providerRole, content: imageRef }],
-        traceMessages: [{ role: providerRole, content: imageRef }],
+        providerMessages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                data: new URL(
+                  "https://signed.example/image-1?signature=secret",
+                ),
+                mediaType: "image/jpeg",
+              },
+            ],
+          },
+        ],
+        traceMessages: [
+          {
+            role: "user",
+            content: [
+              { type: "file", data: imageRef, mediaType: "image/jpeg" },
+            ],
+          },
+        ],
       });
-      expect(resolver).not.toHaveBeenCalled();
+      expect(resolveMedia).toHaveBeenCalledOnce();
     },
   );
+
+  it("expands supported media in normalized assistant messages", async () => {
+    await expect(
+      compileLangfuseMediaMessages({
+        projectId: "project-1",
+        messages: [
+          userMessage("Describe the result"),
+          {
+            role: ChatMessageRole.Assistant,
+            type: ChatMessageType.AssistantText,
+            content: `result ${imageRef}`,
+          },
+        ],
+        adapter: LLMAdapter.OpenAI,
+        transport: "url",
+        resolveMedia,
+      }),
+    ).resolves.toEqual({
+      providerMessages: [
+        { role: "user", content: "Describe the result" },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "result " },
+            {
+              type: "file",
+              data: new URL("https://signed.example/image-1?signature=secret"),
+              mediaType: "image/jpeg",
+            },
+          ],
+        },
+      ],
+      traceMessages: [
+        { role: "user", content: "Describe the result" },
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "result " },
+            { type: "file", data: imageRef, mediaType: "image/jpeg" },
+          ],
+        },
+      ],
+    });
+  });
 
   it("fails locally when a project-scoped media reference cannot be resolved", async () => {
     const resolver = vi.fn().mockResolvedValue(null);
@@ -390,7 +484,7 @@ describe("resolveProjectMedia", () => {
     expect(mediaStorageMocks.getSignedUrl).not.toHaveBeenCalled();
   });
 
-  it("signs an uploaded project media object for sixty seconds without downloading it", async () => {
+  it("signs an uploaded project media object for two minutes without downloading it", async () => {
     mediaStorageMocks.findUnique.mockResolvedValueOnce({
       uploadHttpStatus: 200,
       contentType: "image/jpeg",
@@ -417,7 +511,7 @@ describe("resolveProjectMedia", () => {
     });
     expect(mediaStorageMocks.getSignedUrl).toHaveBeenCalledWith(
       "project-1/image-1.jpeg",
-      60,
+      120,
       false,
     );
   });

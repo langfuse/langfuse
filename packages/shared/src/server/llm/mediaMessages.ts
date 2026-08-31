@@ -1,4 +1,4 @@
-import type { FilePart, ModelMessage, UserContent } from "ai";
+import type { FilePart, ModelMessage } from "ai";
 
 import { env } from "../../env";
 import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "../../domain/media";
@@ -11,7 +11,9 @@ import { getS3MediaStorageClient } from "../s3";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
 import { LLMValidationError } from "./errors";
 import type { ChatMessage } from "./types";
-import { ChatMessageRole, LLMAdapter } from "./types";
+import { LLMAdapter } from "./types";
+
+const EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS = 120;
 
 const MEDIA_TYPE_ALIASES: Record<string, string> = {
   "image/jpg": "image/jpeg",
@@ -110,7 +112,7 @@ export const resolveProjectMedia: EvaluatorMediaResolver = async ({
 
   const url = await getS3MediaStorageClient(media.bucketName).getSignedUrl(
     media.bucketPath,
-    60,
+    EVALUATOR_MEDIA_SIGNED_URL_TTL_SECONDS,
     false,
   );
   return {
@@ -169,10 +171,11 @@ async function fetchMediaBytes(
 }
 
 /**
- * Maps Langfuse chat messages to AI SDK messages. URL and inline modes expand
- * supported media references in user text into ordered FileParts. References
- * in other roles remain plain text. Disabled mode leaves every reference as
- * plain text and performs no media lookup.
+ * Maps Langfuse chat messages to AI SDK messages. After adapter-specific role
+ * normalization, URL and inline modes expand supported media references in
+ * user and assistant text into ordered FileParts. Other roles remain plain
+ * text. Disabled mode leaves every reference as plain text and performs no
+ * media lookup.
  */
 export async function compileLangfuseMediaMessages(params: {
   projectId: string;
@@ -199,26 +202,8 @@ export async function compileLangfuseMediaMessages(params: {
     return { providerMessages: messages, traceMessages: messages };
   }
 
-  const supportedReferencesByContent = new Map<string, SupportedReference[]>();
-  for (const message of params.messages) {
-    if (
-      typeof message.content === "string" &&
-      !supportedReferencesByContent.has(message.content)
-    ) {
-      supportedReferencesByContent.set(
-        message.content,
-        getSupportedReferences(message.content),
-      );
-    }
-  }
-  const sourceRolesByContent = new Map<string, string[]>();
-  for (const message of params.messages) {
-    if (typeof message.content !== "string") continue;
-    const roles = sourceRolesByContent.get(message.content) ?? [];
-    roles.push(message.role);
-    sourceRolesByContent.set(message.content, roles);
-  }
-
+  // Normalize roles and tool messages before adding media parts so the final
+  // payload follows the selected adapter's message contract.
   const modelMessages = mapChatMessagesToModelMessages(params.messages, {
     adapter: params.adapter,
   });
@@ -229,18 +214,21 @@ export async function compileLangfuseMediaMessages(params: {
     params.fetchMedia ??
     ((url: string) => fetchMediaBytes(url, maxInlineMediaBytes));
 
+  // Compile independent messages concurrently. Media references within each
+  // message are also resolved in parallel below.
   const compiledMessages = await Promise.all(
     modelMessages.map(async (message) => {
       if (typeof message.content !== "string") {
         return { providerMessage: message, traceMessage: message };
       }
-      const sourceRole = sourceRolesByContent.get(message.content)?.shift();
-      if (message.role !== "user" || sourceRole !== ChatMessageRole.User) {
+      if (message.role !== "user" && message.role !== "assistant") {
         return { providerMessage: message, traceMessage: message };
       }
 
+      // Trace content retains Langfuse references, while supported references
+      // are expanded only in the provider-bound payload.
       const traceContent = buildTraceContent(message.content);
-      const matches = supportedReferencesByContent.get(message.content) ?? [];
+      const matches = getSupportedReferences(message.content);
       if (matches.length === 0) {
         return {
           providerMessage: message,
@@ -248,67 +236,89 @@ export async function compileLangfuseMediaMessages(params: {
         };
       }
 
-      const content: UserContent = [];
-      let cursor = 0;
-      for (const match of matches) {
-        if (match.index > cursor) {
-          const text = message.content.slice(cursor, match.index);
-          content.push({ type: "text", text });
-        }
-        const resolved = await resolveMedia({
-          projectId: params.projectId,
-          mediaId: match.id,
-          mediaType: match.mediaType,
-        });
-        if (!resolved) {
-          throw new LLMValidationError({
-            code: "invalid-request",
-            message: `Media asset ${match.id} was not found in this project`,
+      // Resolve and load independent media objects concurrently. Promise.all
+      // keeps the results in source order even if downloads finish out of order.
+      const resolvedFiles = await Promise.all(
+        matches.map(async (match) => {
+          const resolved = await resolveMedia({
+            projectId: params.projectId,
+            mediaId: match.id,
+            mediaType: match.mediaType,
           });
-        }
-        let data: URL | Uint8Array;
-        if (transport === "url") {
-          data = new URL(resolved.url);
-        } else {
-          try {
-            if (
-              resolved.contentLength !== undefined &&
-              resolved.contentLength > maxInlineMediaBytes
-            ) {
-              throw new Error("Media object exceeds the inline byte limit");
-            }
-            data =
-              !params.fetchMedia && resolved.bucketName && resolved.bucketPath
-                ? await getS3MediaStorageClient(
-                    resolved.bucketName,
-                  ).downloadBytes(resolved.bucketPath)
-                : await fetchMedia(resolved.url);
-            if (data.byteLength > maxInlineMediaBytes) {
-              throw new Error("Media download exceeds the inline byte limit");
-            }
-          } catch (cause) {
+          if (!resolved) {
             throw new LLMValidationError({
               code: "invalid-request",
-              message: `Media asset ${match.id} could not be loaded for inline model input`,
-              cause,
+              message: `Media asset ${match.id} was not found in this project`,
             });
           }
+
+          let data: URL | Uint8Array;
+          if (transport === "url") {
+            data = new URL(resolved.url);
+          } else {
+            try {
+              if (
+                resolved.contentLength !== undefined &&
+                resolved.contentLength > maxInlineMediaBytes
+              ) {
+                throw new Error("Media object exceeds the inline byte limit");
+              }
+              data =
+                !params.fetchMedia && resolved.bucketName && resolved.bucketPath
+                  ? await getS3MediaStorageClient(
+                      resolved.bucketName,
+                    ).downloadBytes(resolved.bucketPath)
+                  : await fetchMedia(resolved.url);
+              if (data.byteLength > maxInlineMediaBytes) {
+                throw new Error("Media download exceeds the inline byte limit");
+              }
+            } catch (cause) {
+              throw new LLMValidationError({
+                code: "invalid-request",
+                message: `Media asset ${match.id} could not be loaded for inline model input`,
+                cause,
+              });
+            }
+          }
+
+          return {
+            match,
+            file: {
+              type: "file",
+              data,
+              mediaType: normalizeEvaluatorMediaType(resolved.mediaType),
+            } satisfies FilePart,
+          };
+        }),
+      );
+
+      // Rebuild the mixed text/file content after loading so the original
+      // message order is independent of download completion order.
+      const content: Array<FilePart | { type: "text"; text: string }> = [];
+      let cursor = 0;
+      for (const { match, file } of resolvedFiles) {
+        if (match.index > cursor) {
+          content.push({
+            type: "text",
+            text: message.content.slice(cursor, match.index),
+          });
         }
-        content.push({
-          type: "file",
-          data,
-          mediaType: normalizeEvaluatorMediaType(resolved.mediaType),
-        } satisfies FilePart);
+        content.push(file);
         cursor = match.index + match.referenceString.length;
       }
       if (cursor < message.content.length) {
-        const text = message.content.slice(cursor);
-        content.push({ type: "text", text });
+        content.push({
+          type: "text",
+          text: message.content.slice(cursor),
+        });
       }
 
       return {
-        providerMessage: { role: "user" as const, content },
-        traceMessage: { role: "user", content: traceContent },
+        providerMessage:
+          message.role === "user"
+            ? ({ role: "user", content } satisfies ModelMessage)
+            : ({ role: "assistant", content } satisfies ModelMessage),
+        traceMessage: { role: message.role, content: traceContent },
       };
     }),
   );
