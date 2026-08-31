@@ -16,16 +16,21 @@ const alertVariants = cva(
         warning:
           "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow",
       },
+      size: {
+        default: "",
+        sm: "rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5 [&>[data-slot=alert-title]]:text-sm [&>[data-slot=alert-description]]:text-xs",
+      },
     },
     defaultVariants: {
       variant: "default",
+      size: "default",
     },
   },
 );
 
 type AlertProps = Omit<
   Pick<React.ComponentProps<"div">, "children" | "className"> &
-    Pick<VariantProps<typeof alertVariants>, "variant">,
+    Pick<VariantProps<typeof alertVariants>, "size" | "variant">,
   "children" | "className"
 > & {
   children: React.ReactNode;
@@ -37,7 +42,6 @@ type AlertProps = Omit<
     | "max-w-4xl"
     | "text-sm"
     | "max-w-sm"
-    | "rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5"
     | "pr-10";
 };
 type AlertTitleProps = Omit<
@@ -45,12 +49,15 @@ type AlertTitleProps = Omit<
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?: "text-base" | "text-sm" | "pr-4";
+  className?: "text-base" | "pr-4";
 };
 
-function Alert({ children, className, variant }: AlertProps) {
+function Alert({ children, className, size, variant }: AlertProps) {
   return (
-    <div role="alert" className={cn(alertVariants({ variant }), className)}>
+    <div
+      role="alert"
+      className={cn(alertVariants({ size, variant }), className)}
+    >
       {children}
     </div>
   );
@@ -66,13 +73,15 @@ type AlertDescriptionProps = Omit<
     | "mt-2 space-y-3"
     | "text-dark-yellow"
     | "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-    | "text-xs"
     | "flex flex-col items-start gap-1";
 };
 
 function AlertTitle({ children, className }: AlertTitleProps) {
   return (
-    <h5 className={cn("mb-1 leading-none font-bold tracking-tight", className)}>
+    <h5
+      data-slot="alert-title"
+      className={cn("mb-1 leading-none font-bold tracking-tight", className)}
+    >
       {children}
     </h5>
   );
@@ -80,7 +89,10 @@ function AlertTitle({ children, className }: AlertTitleProps) {
 
 function AlertDescription({ children, className }: AlertDescriptionProps) {
   return (
-    <div className={cn("text-sm [&_p]:leading-relaxed", className)}>
+    <div
+      data-slot="alert-description"
+      className={cn("text-sm [&_p]:leading-relaxed", className)}
+    >
       {children}
     </div>
   );
