@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import {
   Command,
   CommandEmpty,
@@ -93,11 +93,14 @@ export function MentionAutocomplete({
                       aria-selected={isSelected}
                       id={user.id}
                     >
-                      <Avatar size="sm" aria-hidden="true">
-                        <AvatarFallback textSize="xs">
-                          {user.name ? user.name[0] : user.email?.[0] || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Avatar
+                        size="sm"
+                        aria-hidden="true"
+                        fallback={
+                          user.name ? user.name[0] : user.email?.[0] || "U"
+                        }
+                        fallbackTextSize="xs"
+                      />
                       <div className="text-foreground flex-1 overflow-hidden">
                         <div className="truncate font-bold" title={userLabel}>
                           {userLabel}

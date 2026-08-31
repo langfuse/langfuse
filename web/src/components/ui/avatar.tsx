@@ -22,73 +22,77 @@ const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
   },
 });
 
-const Avatar = React.forwardRef<
-  React.ComponentRef<typeof AvatarPrimitive.Root>,
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
-    "aria-hidden" | "children"
-  > &
-    VariantProps<typeof avatarVariants>
->(({ size, shape, ...props }, ref) => (
-  <AvatarPrimitive.Root
-    ref={ref}
-    className={avatarVariants({ size, shape })}
-    {...props}
-  />
-));
-
-Avatar.displayName = AvatarPrimitive.Root.displayName;
-
-const AvatarImage = React.forwardRef<
-  React.ComponentRef<typeof AvatarPrimitive.Image>,
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>,
-    "alt" | "src"
-  >
->(({ ...props }, ref) => (
-  <AvatarPrimitive.Image
-    ref={ref}
-    className="aspect-square h-full w-full"
-    {...props}
-  />
-));
-
-AvatarImage.displayName = AvatarPrimitive.Image.displayName;
-
 const avatarFallbackVariants = cva(
   "flex h-full w-full items-center justify-center rounded-[inherit]",
   {
     variants: {
-      textSize: {
+      fallbackTextSize: {
         default: "",
         xs: "text-xs",
       },
-      background: {
+      fallbackBackground: {
         muted: "bg-muted",
         tertiary: "bg-tertiary",
       },
     },
     defaultVariants: {
-      textSize: "default",
-      background: "muted",
+      fallbackTextSize: "default",
+      fallbackBackground: "muted",
     },
   },
 );
 
-const AvatarFallback = React.forwardRef<
-  React.ComponentRef<typeof AvatarPrimitive.Fallback>,
+const Avatar = React.forwardRef<
+  React.ComponentRef<typeof AvatarPrimitive.Root>,
   Pick<
-    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>,
-    "children"
+    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
+    "aria-hidden"
   > &
+    Pick<
+      React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>,
+      "alt" | "src"
+    > & {
+      fallback: React.ReactNode;
+    } & VariantProps<typeof avatarVariants> &
     VariantProps<typeof avatarFallbackVariants>
->(({ textSize, background, ...props }, ref) => (
-  <AvatarPrimitive.Fallback
-    ref={ref}
-    className={avatarFallbackVariants({ textSize, background })}
-    {...props}
-  />
-));
-AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
+>(
+  (
+    {
+      src,
+      alt,
+      fallback,
+      size,
+      shape,
+      fallbackTextSize,
+      fallbackBackground,
+      ...props
+    },
+    ref,
+  ) => (
+    <AvatarPrimitive.Root
+      ref={ref}
+      className={avatarVariants({ size, shape })}
+      {...props}
+    >
+      {src ? (
+        <AvatarPrimitive.Image
+          src={src}
+          alt={alt}
+          className="aspect-square h-full w-full"
+        />
+      ) : null}
+      <AvatarPrimitive.Fallback
+        className={avatarFallbackVariants({
+          fallbackTextSize,
+          fallbackBackground,
+        })}
+      >
+        {fallback}
+      </AvatarPrimitive.Fallback>
+    </AvatarPrimitive.Root>
+  ),
+);
 
-export { Avatar, AvatarImage, AvatarFallback };
+Avatar.displayName = AvatarPrimitive.Root.displayName;
+
+export { Avatar };

@@ -30,11 +30,7 @@ import {
 } from "@/src/components/ui/command";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -938,21 +934,21 @@ function TableViewPresetsDrawerContentBody({
                         </DropdownMenu>
                         {!isSystemView && (
                           <div className="text-muted-foreground flex items-center text-xs">
-                            <Avatar size="sm">
-                              <AvatarImage
-                                src={view.createdByUser?.image ?? undefined}
-                                alt={view.createdByUser?.name ?? "User Avatar"}
-                              />
-                              <AvatarFallback background="tertiary">
-                                {view.createdByUser?.name
+                            <Avatar
+                              size="sm"
+                              src={view.createdByUser?.image ?? undefined}
+                              alt={view.createdByUser?.name ?? "User Avatar"}
+                              fallback={
+                                view.createdByUser?.name
                                   ? view.createdByUser?.name
                                       .split(" ")
                                       .map((word) => word[0])
                                       .slice(0, 2)
                                       .concat("")
-                                  : null}
-                              </AvatarFallback>
-                            </Avatar>
+                                  : null
+                              }
+                              fallbackBackground="tertiary"
+                            />
                           </div>
                         )}
                       </div>

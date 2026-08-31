@@ -4,11 +4,7 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import { cn } from "@/src/utils/tailwind";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -75,14 +71,14 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
           const user = actor.body;
           return (
             <div className="flex items-center gap-2">
-              <Avatar size="sm">
-                {user?.image && (
-                  <AvatarImage src={user.image} alt={user?.name ?? "User"} />
-                )}
-                <AvatarFallback>
-                  {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
-                </AvatarFallback>
-              </Avatar>
+              <Avatar
+                size="sm"
+                src={user?.image ?? undefined}
+                alt={user?.name ?? "User"}
+                fallback={
+                  user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"
+                }
+              />
               <span
                 className={cn(
                   "text-sm",

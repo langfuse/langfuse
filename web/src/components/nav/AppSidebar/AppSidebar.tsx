@@ -50,11 +50,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import {
   Card,
   CardContent,
@@ -489,10 +485,13 @@ function NavUser({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar size="lg" shape="rounded">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
+              <Avatar
+                size="lg"
+                shape="rounded"
+                src={user.avatar}
+                alt={user.name}
+                fallback={initials}
+              />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
                   {user.name}
@@ -512,10 +511,13 @@ function NavUser({
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar size="lg" shape="rounded">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
+                <Avatar
+                  size="lg"
+                  shape="rounded"
+                  src={user.avatar}
+                  alt={user.name}
+                  fallback={initials}
+                />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>
                     {user.name}

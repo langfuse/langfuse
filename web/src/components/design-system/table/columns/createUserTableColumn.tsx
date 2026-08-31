@@ -1,11 +1,7 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
@@ -82,10 +78,12 @@ export function createUserTableColumn<
 
       return (
         <div className="flex items-center space-x-2">
-          <Avatar size="md">
-            <AvatarImage src={image ?? undefined} alt={name ?? "User Avatar"} />
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
+          <Avatar
+            size="md"
+            src={image ?? undefined}
+            alt={name ?? "User Avatar"}
+            fallback={initials}
+          />
           <span>{label}</span>
         </div>
       );

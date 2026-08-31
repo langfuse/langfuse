@@ -4,11 +4,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,10 +50,13 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
         )}
         aria-label="Account menu"
       >
-        <Avatar size="lg">
-          <AvatarImage src={user.image ?? undefined} alt={name} />
-          <AvatarFallback textSize="xs">{initials}</AvatarFallback>
-        </Avatar>
+        <Avatar
+          size="lg"
+          src={user.image ?? undefined}
+          alt={name}
+          fallback={initials}
+          fallbackTextSize="xs"
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-56">
         <DropdownMenuLabel className="font-normal">

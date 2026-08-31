@@ -1,9 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/ui/avatar";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
@@ -569,18 +565,20 @@ export function CommentList({
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >
-                <Avatar size="sm">
-                  <AvatarImage src={comment.authorUserImage ?? undefined} />
-                  <AvatarFallback textSize="xs">
-                    {comment.authorUserName
+                <Avatar
+                  size="sm"
+                  src={comment.authorUserImage ?? undefined}
+                  fallback={
+                    comment.authorUserName
                       ? comment.authorUserName
                           .split(" ")
                           .map((word) => word[0])
                           .slice(0, 2)
                           .concat("")
-                      : (comment.authorUserId ?? "U")}
-                  </AvatarFallback>
-                </Avatar>
+                      : (comment.authorUserId ?? "U")
+                  }
+                  fallbackTextSize="xs"
+                />
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
