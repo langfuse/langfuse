@@ -73,6 +73,9 @@ jobs:
               per_page: 100,
             });
             const paths = files.map((file) => file.filename);
+            const existingLabels = new Set(
+              pr.labels.map((label) => label.name),
+            );
             const labels = [];
 
             const hasApiSpecChanges = paths.some(
@@ -113,15 +116,16 @@ jobs:
 
             // Events created with GITHUB_TOKEN do not trigger workflows for
             // newly added labels. workflow_dispatch is the supported exception,
-            // so start each matching preview explicitly on the PR branch.
+            // so start each newly enabled preview explicitly on the PR branch.
+            // Existing labels already make the pull_request event run the preview.
             const dispatches = [];
-            if (hasApiSpecChanges) {
+            if (hasApiSpecChanges && !existingLabels.has("api-spec")) {
               dispatches.push({
                 workflow_id: "api-spec-preview.yml",
                 inputs: { pr_number: String(pr.number) },
               });
             }
-            if (hasStorybookChanges) {
+            if (hasStorybookChanges && !existingLabels.has("storybook")) {
               dispatches.push({ workflow_id: "storybook-preview.yml" });
             }
 
