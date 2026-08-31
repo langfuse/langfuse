@@ -13,6 +13,7 @@ import {
   createTraceScore,
   createDatasetRunScore,
   createScoresCh,
+  stampExperimentAttributesOnTraceEvents,
 } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -38,6 +39,65 @@ describe("Clickhouse Experiment Repository Test", () => {
       });
 
       expect(count).toBe(0);
+    });
+
+    it("should list a run after stamping experiment attributes onto existing events", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "harness-run-" + randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+      const spanId = randomUUID();
+      const traceId = randomUUID();
+      const startTime = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "harness-generation",
+          environment: "default",
+          start_time: startTime * 1000,
+          end_time: (startTime + 50) * 1000,
+        }),
+      ]);
+
+      const before = await getExperimentsFromEvents({
+        projectId,
+        filter: [],
+        limit: 1000,
+        page: 0,
+      });
+      expect(before.find((e) => e.id === experimentId)).toBeUndefined();
+
+      const stamped = await stampExperimentAttributesOnTraceEvents({
+        projectId,
+        traceId,
+        rootSpanId: spanId,
+        experimentId,
+        experimentName,
+        experimentDescription: "custom eval harness",
+        experimentDatasetId: datasetId,
+        experimentItemId: itemId,
+      });
+      expect(stamped).toEqual({ stamped: true });
+
+      const after = await getExperimentsFromEvents({
+        projectId,
+        filter: [],
+        limit: 1000,
+        page: 0,
+      });
+      const experiment = after.find((e) => e.id === experimentId);
+      expect(experiment).toMatchObject({
+        id: experimentId,
+        name: experimentName,
+        description: "custom eval harness",
+        datasetId,
+        itemCount: 1,
+      });
     });
 
     it("should return experiment count and latest start time per dataset", async () => {

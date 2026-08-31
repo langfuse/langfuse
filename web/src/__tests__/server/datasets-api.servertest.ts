@@ -35,6 +35,8 @@ import {
   createObservationsCh,
   createTrace,
   createTracesCh,
+  createEvent,
+  createEventsCh,
   createOrgProjectAndApiKey,
   getDatasetRunItemsByDatasetIdCh,
   createDatasetRunItemsCh,
@@ -43,6 +45,7 @@ import {
   createDatasetItemFilterState,
   createDatasetItem,
   getDatasetItems,
+  getExperimentsFromEvents,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -1162,6 +1165,67 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         body: { datasetItemId: "does-not-exist", traceId, runName } as any,
       }),
     ).rejects.toThrow("Dataset item not found");
+  });
+
+  it("events_only stamps experiment attributes so the run appears in experiments queries", async () => {
+    const datasetId = v4();
+    await prisma.dataset.create({
+      data: { id: datasetId, name: "events-only-stamp-dataset", projectId },
+    });
+    const itemResult = await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { prompt: "hello" },
+      expectedOutput: { answer: "world" },
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+    if (!itemResult.success) throw new Error(itemResult.message);
+
+    const spanId = v4();
+    const eventTraceId = v4();
+    const startTimeMs = Date.now();
+    await createEventsCh([
+      createEvent({
+        id: spanId,
+        span_id: spanId,
+        trace_id: eventTraceId,
+        project_id: projectId,
+        name: "harness-generation",
+        type: "GENERATION",
+        environment: "staging",
+        start_time: startTimeMs * 1000,
+        end_time: (startTimeMs + 25) * 1000,
+      }),
+    ]);
+
+    const runName = "events-only-stamp-run";
+    const helperAuth = { scope: { projectId } } as any;
+    const runItem = await buildStableDatasetRunItemResponseEventsOnly({
+      auth: helperAuth,
+      body: {
+        datasetItemId: itemResult.datasetItem.id,
+        traceId: eventTraceId,
+        observationId: spanId,
+        runName,
+        runDescription: "custom harness",
+        metadata: { runner: "custom" },
+      } as any,
+    });
+
+    const experiments = await getExperimentsFromEvents({
+      projectId,
+      filter: [],
+      limit: 1000,
+      page: 0,
+    });
+    const experiment = experiments.find((e) => e.id === runItem.datasetRunId);
+    expect(experiment).toMatchObject({
+      id: runItem.datasetRunId,
+      name: runName,
+      description: "custom harness",
+      datasetId,
+      itemCount: 1,
+    });
   });
 
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
