@@ -146,6 +146,9 @@ const nextConfig = {
   compiler: {
     define: {
       "import.meta.vitest": "undefined",
+      __VUE_OPTIONS_API__: "true",
+      __VUE_PROD_DEVTOOLS__: "false",
+      __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
     },
   },
   turbopack: {
@@ -250,15 +253,6 @@ const nextConfig = {
       },
       // CSP header
       {
-        source: "/api/spec",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            value: apiSpecCspHeader.replace(/\n/g, ""),
-          },
-        ],
-      },
-      {
         source: "/:path((?!api).*)*",
         headers: [
           {
@@ -271,6 +265,15 @@ const nextConfig = {
           type: "host",
           value: host,
         })),
+      },
+      {
+        source: "/api/spec",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: apiSpecCspHeader.replace(/\n/g, ""),
+          },
+        ],
       },
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
