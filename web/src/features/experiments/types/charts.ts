@@ -14,7 +14,7 @@ export type ScoreFilterOptions = {
   experiment_score_booleans?: string[];
 };
 
-export type ScoreNameLevels = Record<string, ("observation" | "trace")[]>;
+type ScoreNameLevels = Record<string, ("observation" | "trace")[]>;
 
 /**
  * What the three score facets offer, plus the level(s) each offered name exists
