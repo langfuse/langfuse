@@ -21,6 +21,24 @@ const alertVariants = cva(
   },
 );
 
+type AlertProps = Omit<
+  Pick<React.ComponentProps<"div">, "children" | "className"> &
+    Pick<VariantProps<typeof alertVariants>, "variant">,
+  "className"
+> & {
+  className?:
+    | "w-full max-w-3xl"
+    | "border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow"
+    | "mb-4"
+    | "mt-4"
+    | "border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
+    | "border-dark-yellow bg-light-yellow max-w-4xl"
+    | "text-sm"
+    | "border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
+    | "max-w-sm"
+    | "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5"
+    | "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow pr-10";
+};
 type AlertTitleProps = Omit<
   Pick<React.ComponentProps<"h5">, "children" | "className">,
   "className"
@@ -33,12 +51,7 @@ type AlertTitleProps = Omit<
     | "pr-4";
 };
 
-function Alert({
-  children,
-  className,
-  variant,
-}: Pick<React.ComponentProps<"div">, "children" | "className"> &
-  Pick<VariantProps<typeof alertVariants>, "variant">) {
+function Alert({ children, className, variant }: AlertProps) {
   return (
     <div role="alert" className={cn(alertVariants({ variant }), className)}>
       {children}
