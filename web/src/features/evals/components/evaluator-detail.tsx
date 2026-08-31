@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
@@ -11,27 +10,11 @@ import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execu
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import {
   type EvalTargetObject,
-  type EvaluatorExecutionStatusCount,
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
-
-const JobExecutionCounts = ({
-  isLoading,
-  jobExecutionCounts,
-}: {
-  isLoading?: boolean;
-  jobExecutionCounts?: EvaluatorExecutionStatusCount[];
-}) => {
-  if (!isLoading && (!jobExecutionCounts || jobExecutionCounts.length === 0)) {
-    return null;
-  }
-
-  const counts = generateJobExecutionCounts(jobExecutionCounts);
-  return <LevelCountsDisplay counts={counts} isLoading={isLoading} />;
-};
 
 export const EvaluatorDetail = () => {
   const router = useRouter();
@@ -93,9 +76,6 @@ export const EvaluatorDetail = () => {
       : undefined;
   const displayStatus =
     lazyExecutionCounts.displayStatus ?? evaluator.data.displayStatus;
-  const shouldRenderExecutionCounts =
-    lazyExecutionCounts.isLoading ||
-    Boolean(lazyExecutionCounts.jobExecutionCounts?.length);
 
   return (
     <Page
@@ -113,12 +93,18 @@ export const EvaluatorDetail = () => {
 
         actionButtonsRight: (
           <>
-            {shouldRenderExecutionCounts && (
+            {(lazyExecutionCounts.isLoading ||
+              lazyExecutionCounts.jobExecutionCounts?.length) && (
               <div className="bg-muted-gray flex min-h-6 min-w-24 flex-col items-center justify-center rounded-md px-2">
-                <JobExecutionCounts
-                  isLoading={lazyExecutionCounts.isLoading}
-                  jobExecutionCounts={lazyExecutionCounts.jobExecutionCounts}
-                />
+                {lazyExecutionCounts.isLoading ? (
+                  <LevelCountsDisplay counts={[]} isLoading />
+                ) : (
+                  <LevelCountsDisplay
+                    counts={generateJobExecutionCounts(
+                      lazyExecutionCounts.jobExecutionCounts,
+                    )}
+                  />
+                )}
               </div>
             )}
             <StatusBadge type={displayStatus.toLowerCase()} isLive />
