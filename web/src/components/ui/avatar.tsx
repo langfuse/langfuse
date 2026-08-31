@@ -22,11 +22,15 @@ const Avatar = React.forwardRef<
     {...props}
   />
 ));
+
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
 const AvatarImage = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Image>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
+  Pick<
+    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>,
+    "alt" | "className" | "src"
+  >
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
