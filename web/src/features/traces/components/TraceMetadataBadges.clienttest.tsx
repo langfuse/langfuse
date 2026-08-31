@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
-import { LangfuseInternalTraceEnvironment } from "@langfuse/shared";
 import {
   EnvironmentBadge,
-  EvaluatorBadge,
   SessionBadge,
   TargetTraceBadge,
   UserIdBadge,
@@ -18,21 +16,6 @@ describe("TraceMetadataBadges session replay privacy", () => {
         <SessionBadge sessionId="customer-session" projectId="project" />
         <UserIdBadge userId="customer-user" projectId="project" />
         <TargetTraceBadge targetTraceId="target-trace" projectId="project" />
-        <EvaluatorBadge
-          evaluatorId="evaluator-id"
-          environment={LangfuseInternalTraceEnvironment.LLMJudge}
-          projectId="project"
-        />
-        <EvaluatorBadge
-          evaluatorId="user-metadata"
-          environment="production"
-          projectId="project"
-        />
-        <EvaluatorBadge
-          evaluatorId="managed:exact-match"
-          environment={LangfuseInternalTraceEnvironment.CodeEval}
-          projectId="project"
-        />
         <EnvironmentBadge environment="production" />
       </>,
     );
@@ -46,14 +29,6 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(
       screen.getByText("Target Trace: target-trace").closest("a"),
     ).toHaveClass("ph-no-capture");
-    expect(screen.getByRole("link", { name: "Evaluator" })).toHaveAttribute(
-      "href",
-      "/project/project/evals/v2/evaluator-id",
-    );
-    expect(screen.getByRole("link", { name: "Evaluator" })).toHaveClass(
-      "ph-no-capture",
-    );
-
     expect(
       screen.getByText("Session: customer-session").parentElement,
     ).toHaveClass("bg-primary");
@@ -63,9 +38,6 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(
       screen.getByText("Target Trace: target-trace").parentElement,
     ).toHaveClass("bg-primary");
-    expect(screen.getByText("Evaluator").parentElement).toHaveClass(
-      "bg-primary",
-    );
     expect(screen.getByText("Env: production").parentElement).toHaveClass(
       "bg-tertiary",
     );

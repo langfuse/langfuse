@@ -33,7 +33,6 @@ import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/
 import {
   SessionBadge,
   UserIdBadge,
-  EvaluatorBadge,
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
@@ -42,10 +41,7 @@ import {
 import { LatencyBadge } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
-import {
-  resolveEvalExecutionMetadata,
-  resolveEvaluatorIdMetadata,
-} from "@/src/features/traces/fns/resolveMetadata";
+import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -119,7 +115,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
       : null;
-  const evaluatorId = resolveEvaluatorIdMetadata(parsedMetadata);
 
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -490,11 +485,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             <LatencyBadge latencySeconds={trace.latency ?? null} />
             <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
             <UserIdBadge userId={trace.userId} projectId={projectId} />
-            <EvaluatorBadge
-              evaluatorId={evaluatorId}
-              environment={trace.environment}
-              projectId={projectId}
-            />
             <TargetTraceBadge
               targetTraceId={targetTraceId}
               projectId={projectId}

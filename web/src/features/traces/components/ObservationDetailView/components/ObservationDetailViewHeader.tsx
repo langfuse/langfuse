@@ -14,6 +14,7 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -38,6 +39,7 @@ import {
 } from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
+import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/EvaluatorBadge/EvaluatorBadge";
 import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
 import { ModelBadge } from "./ModelBadge";
 import { ModelParametersBadges } from "./ModelParametersBadges";
@@ -80,6 +82,8 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
+import { api } from "@/src/utils/api";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -155,6 +159,22 @@ export const ObservationDetailViewHeader = memo(
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+    const evaluatorId = resolveEvaluatorIdMetadata(
+      observationWithIO?.metadata ?? observation.metadata,
+    );
+    const isEvaluatorExecution =
+      observation.environment === LangfuseInternalTraceEnvironment.LLMJudge ||
+      observation.environment === LangfuseInternalTraceEnvironment.CodeEval;
+    const evaluator = api.evalsV2.get.useQuery(
+      { projectId, evaluatorId: evaluatorId ?? "" },
+      {
+        enabled: Boolean(
+          evaluatorId &&
+          isEvaluatorExecution &&
+          !evaluatorId.startsWith("managed:"),
+        ),
+      },
+    );
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -671,6 +691,12 @@ export const ObservationDetailViewHeader = memo(
               />
               <UserIdBadge
                 userId={observation.userId ?? null}
+                projectId={projectId}
+              />
+              <EvaluatorBadge
+                evaluatorId={evaluatorId}
+                evaluatorName={evaluator.data?.name}
+                environment={observation.environment}
                 projectId={projectId}
               />
               <EnvironmentBadge environment={observation.environment} />
