@@ -16,6 +16,11 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  // Base URL for the in-app agent's MCP calls. Defaults to NEXTAUTH_URL.
+  // Set this instead of redirecting NEXTAUTH_URL when the worker should reach
+  // web internally: NEXTAUTH_URL also builds user-facing links in emails and
+  // Slack messages, which must stay externally resolvable.
+  LANGFUSE_MCP_BASE_URL: z.url().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
