@@ -22,16 +22,7 @@ Do **not** include:
 
 ### Imports
 
-Design-system files may import other design-system files, shared utilities
-(`src/utils`, `src/hooks`), and third-party libraries.
-
-They must **not** import from:
-
-- The outer `src/components` tree (including `src/components/ui`)
-- `src/features`
-
-Features and app UI consume the design system, not the other way around.
-`boundaries/dependencies` enforces this.
+Design-system files may import other design-system files, shared utilities (`src/utils`, `src/hooks`), and third-party libraries. They must not import from the outer `src/components` tree or `src/features`.
 
 ---
 
