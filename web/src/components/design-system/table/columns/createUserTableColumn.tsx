@@ -82,7 +82,7 @@ export function createUserTableColumn<
 
       return (
         <div className="flex items-center space-x-2">
-          <Avatar className="h-7 w-7">
+          <Avatar size="md">
             <AvatarImage src={image ?? undefined} alt={name ?? "User Avatar"} />
             <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>

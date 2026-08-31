@@ -938,12 +938,12 @@ function TableViewPresetsDrawerContentBody({
                         </DropdownMenu>
                         {!isSystemView && (
                           <div className="text-muted-foreground flex items-center text-xs">
-                            <Avatar className="h-6 w-6">
+                            <Avatar size="sm">
                               <AvatarImage
                                 src={view.createdByUser?.image ?? undefined}
                                 alt={view.createdByUser?.name ?? "User Avatar"}
                               />
-                              <AvatarFallback className="bg-tertiary">
+                              <AvatarFallback background="tertiary">
                                 {view.createdByUser?.name
                                   ? view.createdByUser?.name
                                       .split(" ")

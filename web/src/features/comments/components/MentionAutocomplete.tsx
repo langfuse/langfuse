@@ -93,8 +93,8 @@ export function MentionAutocomplete({
                       aria-selected={isSelected}
                       id={user.id}
                     >
-                      <Avatar className="h-6 w-6" aria-hidden="true">
-                        <AvatarFallback className="text-xs">
+                      <Avatar size="sm" aria-hidden="true">
+                        <AvatarFallback textSize="xs">
                           {user.name ? user.name[0] : user.email?.[0] || "U"}
                         </AvatarFallback>
                       </Avatar>

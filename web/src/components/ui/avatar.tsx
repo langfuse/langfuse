@@ -1,24 +1,38 @@
-/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/src/utils/tailwind";
+const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
+  variants: {
+    size: {
+      sm: "h-6 w-6",
+      md: "h-7 w-7",
+      lg: "h-8 w-8",
+    },
+    shape: {
+      circle: "rounded-full",
+      rounded: "rounded-lg",
+    },
+  },
+  defaultVariants: {
+    size: "lg",
+    shape: "circle",
+  },
+});
 
 const Avatar = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Root>,
   Pick<
     React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
     "aria-hidden" | "children"
-  > & { className?: "h-8 w-8" | "h-6 w-6" | "h-8 w-8 rounded-lg" | "h-7 w-7" }
->(({ className, ...props }, ref) => (
+  > &
+    VariantProps<typeof avatarVariants>
+>(({ size, shape, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
-    className={cn(
-      "relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full",
-      className,
-    )}
+    className={avatarVariants({ size, shape })}
     {...props}
   />
 ));
@@ -41,19 +55,37 @@ const AvatarImage = React.forwardRef<
 
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
+const avatarFallbackVariants = cva(
+  "flex h-full w-full items-center justify-center rounded-[inherit]",
+  {
+    variants: {
+      textSize: {
+        default: "",
+        xs: "text-xs",
+      },
+      background: {
+        muted: "bg-muted",
+        tertiary: "bg-tertiary",
+      },
+    },
+    defaultVariants: {
+      textSize: "default",
+      background: "muted",
+    },
+  },
+);
+
 const AvatarFallback = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Fallback>,
   Pick<
     React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>,
     "children"
-  > & { className?: "text-xs" | "rounded-lg" | "bg-tertiary" }
->(({ className, ...props }, ref) => (
+  > &
+    VariantProps<typeof avatarFallbackVariants>
+>(({ textSize, background, ...props }, ref) => (
   <AvatarPrimitive.Fallback
     ref={ref}
-    className={cn(
-      "bg-muted flex h-full w-full items-center justify-center rounded-full",
-      className,
-    )}
+    className={avatarFallbackVariants({ textSize, background })}
     {...props}
   />
 ));

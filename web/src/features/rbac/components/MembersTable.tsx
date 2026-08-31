@@ -165,7 +165,7 @@ export function MembersTable({
         const { name, image } = row.getValue("user") as MembersTableRow["user"];
         return (
           <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
+            <Avatar size="md">
               <AvatarImage
                 src={image ?? undefined}
                 alt={name ?? "User Avatar"}

@@ -569,9 +569,9 @@ export function CommentList({
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >
-                <Avatar className="h-6 w-6">
+                <Avatar size="sm">
                   <AvatarImage src={comment.authorUserImage ?? undefined} />
-                  <AvatarFallback className="text-xs">
+                  <AvatarFallback textSize="xs">
                     {comment.authorUserName
                       ? comment.authorUserName
                           .split(" ")

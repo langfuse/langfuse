@@ -75,7 +75,7 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
           const user = actor.body;
           return (
             <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
+              <Avatar size="sm">
                 {user?.image && (
                   <AvatarImage src={user.image} alt={user?.name ?? "User"} />
                 )}

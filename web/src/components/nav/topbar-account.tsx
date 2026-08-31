@@ -54,9 +54,9 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
         )}
         aria-label="Account menu"
       >
-        <Avatar className="h-8 w-8">
+        <Avatar size="lg">
           <AvatarImage src={user.image ?? undefined} alt={name} />
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          <AvatarFallback textSize="xs">{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-56">
