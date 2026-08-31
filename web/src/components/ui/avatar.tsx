@@ -8,7 +8,10 @@ import { cn } from "@/src/utils/tailwind";
 
 const Avatar = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
+    "className"
+  > & { className?: "h-8 w-8" | "h-6 w-6" | "h-8 w-8 rounded-lg" | "h-7 w-7" }
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Root
     ref={ref}
