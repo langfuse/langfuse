@@ -48,6 +48,53 @@ describe("Microsoft Agent Framework Adapter", () => {
       ).toBe(true);
     });
 
+    it("should detect Microsoft.Extensions.AI via flattened scope.name", () => {
+      expect(
+        microsoftAgentAdapter.detect({
+          metadata: {
+            "scope.name": "Experimental.Microsoft.Extensions.AI",
+          },
+        }),
+      ).toBe(true);
+    });
+
+    it("should claim wrapped {messages, tools} input when scope.name is flattened", () => {
+      const input = {
+        messages: [
+          {
+            role: "system",
+            parts: [{ type: "text", content: "You are helpful." }],
+          },
+          {
+            role: "user",
+            parts: [{ type: "text", content: "What's the weather?" }],
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "get_weather",
+              description: "Get the weather for a given location.",
+            },
+          },
+        ],
+      };
+      const ctx = {
+        metadata: {
+          "scope.name": "Experimental.Microsoft.Extensions.AI",
+        },
+      };
+
+      expect(selectAdapter({ ...ctx, data: input }).id).toBe("microsoft-agent");
+
+      const result = normalizeInput(input, ctx);
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe("You are helpful.");
+      expect(result.data?.[1].content).toBe("What's the weather?");
+      expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+    });
+
     it("should detect Microsoft Agent format with parts array", () => {
       const input = [
         {
