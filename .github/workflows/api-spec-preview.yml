@@ -1,13 +1,19 @@
 name: API Spec Preview
 
 on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number for the selected branch
+        required: true
+        type: string
   pull_request:
     types: [opened, reopened, synchronize, labeled]
 
 permissions: {}
 
 concurrency:
-  group: api-spec-preview-${{ github.event.pull_request.number }}
+  group: api-spec-preview-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'api-spec' }}
 
 jobs:
@@ -15,9 +21,10 @@ jobs:
     name: Deploy API spec preview
     runs-on: blacksmith-4vcpu-ubuntu-2404
     if: >-
-      contains(github.event.pull_request.labels.*.name, 'api-spec') &&
+      github.event_name == 'workflow_dispatch' ||
+      (contains(github.event.pull_request.labels.*.name, 'api-spec') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event.action != 'labeled' || github.event.label.name == 'api-spec')
+      (github.event.action != 'labeled' || github.event.label.name == 'api-spec'))
     permissions:
       contents: read
       issues: write
@@ -63,7 +70,7 @@ jobs:
       - name: Deploy preview to Vercel
         id: publish
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           VERCEL_ORG_ID: ${{ secrets.STORYBOOK_VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.STORYBOOK_VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.STORYBOOK_VERCEL_TOKEN }}
@@ -101,8 +108,8 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PREVIEW_URL: ${{ steps.publish.outputs.url }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         with:
           script: |
             const marker = "<!-- api-spec-preview -->";
