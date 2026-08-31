@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { Check, Save } from "lucide-react";
 import { useRouter } from "next/router";
 import { useState } from "react";
@@ -183,7 +184,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   );
 };
 
-export function Divider() {
+function Divider() {
   return (
     <div className="my-3 flex flex-row justify-center align-middle">
       <div className="flex flex-1 flex-col">

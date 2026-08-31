@@ -22,7 +22,7 @@ export const NotFoundCard = ({
 
   return (
     <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-sm p-3">
-      <h2 className="mb-1.5 text-sm font-semibold">Not found</h2>
+      <h2 className="mb-1.5 text-sm font-bold">Not found</h2>
       <p className="text-muted-foreground max-w-xs text-center text-xs">
         The {itemType} is either still being processed or has been deleted.
       </p>

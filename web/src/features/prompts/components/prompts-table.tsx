@@ -5,7 +5,8 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
@@ -23,12 +24,11 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 
 type PromptTableRow = {
   id: string;
@@ -267,34 +267,33 @@ export function PromptTable() {
   }, [prompts.isSuccess, prompts.data]);
 
   const promptColumns: LangfuseColumnDef<PromptTableRow>[] = [
-    {
+    createFolderKeyTableColumn<PromptTableRow>({
       accessorKey: "name",
       header: "Name",
-      id: "name",
       enableSorting: true,
       size: 250,
-      cell: ({ getValue, row }) => {
-        const name = getValue<string>();
+      getCell: (name, { row }) => {
+        if (!name) return undefined;
         const rowData = row.original;
 
         if (rowData.type === "folder") {
-          return (
-            <FolderBreadcrumbLink
-              name={name}
-              onClick={() => navigateToFolder(rowData.fullPath)}
-            />
-          );
+          return {
+            type: "folder",
+            name,
+            onClick: () => navigateToFolder(rowData.fullPath),
+          };
         }
 
-        return name ? (
-          <TableLink
-            path={`/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`}
-            value={name}
-            title={rowData.fullPath} // Show full prompt path on hover
-          />
-        ) : undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/prompts/${encodeURIComponent(rowData.fullPath)}`,
+            value: name,
+            title: rowData.fullPath,
+          },
+        };
       },
-    },
+    }),
     {
       accessorKey: "version",
       header: "Versions",
@@ -313,18 +312,19 @@ export function PromptTable() {
       enableSorting: true,
       size: 60,
     },
-    {
+    createDateTableColumn({
       accessorKey: "createdAt",
       header: "Latest Version Created At",
-      id: "createdAt",
       enableSorting: true,
       size: 200,
-      cell: ({ getValue, row }) => {
-        if (row.original.type === "folder") return null;
-        const createdAt = getValue<Date | undefined>();
-        return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      getValue: (value, context) => {
+        if (context.row.original.type === "folder") {
+          return undefined;
+        }
+
+        return value ?? undefined;
       },
-    },
+    }),
     {
       accessorKey: "numberOfObservations",
       header: "Number of Observations (7d)",
@@ -341,10 +341,12 @@ export function PromptTable() {
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
+        const displayValue = numberOfObservations?.toLocaleString() ?? "";
         return (
-          <TableLink
+          <TextLink
             path={`/project/${projectId}/observations?filter=${numberOfObservations ? filter : ""}`}
-            value={numberOfObservations?.toLocaleString() ?? ""}
+            value={displayValue}
+            title={displayValue}
           />
         );
       },
@@ -445,7 +447,7 @@ export function PromptTable() {
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"prompts"}
+              tableName="prompts"
               columns={promptColumns}
               data={
                 prompts.isLoading

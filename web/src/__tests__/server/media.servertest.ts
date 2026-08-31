@@ -15,6 +15,7 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
+  MediaAssociationOrigin,
   type Media,
   type ObservationMedia,
   prisma,
@@ -45,26 +46,36 @@ describe("Media Upload API", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: "Test Project",
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
       ],
       featureFlags: {
+        searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
     environment: {} as any,
   };
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Read the image file once and reuse it for all tests
@@ -175,7 +186,7 @@ describe("Media Upload API", () => {
         getUploadUrlResponse.body.uploadUrl,
         {
           method: "PUT",
-          body: fileBytes,
+          body: fileBytes as BodyInit,
           headers: {
             "Content-Type": contentType,
             "X-Amz-Checksum-Sha256": sha256Hash,
@@ -309,6 +320,7 @@ describe("Media Upload API", () => {
         traceId,
         mediaId: result.mediaRecord?.id,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
       expect(result.observationMediaRecord).toBeNull();
       expect(result.fetchMediaAssetResponse?.status).toBe(200);
@@ -362,6 +374,7 @@ describe("Media Upload API", () => {
         observationId,
         mediaId: result.mediaRecord?.id,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
       expect(result.fetchMediaAssetResponse?.status).toBe(200);
       expect(result.fetchMediaAssetResponse?.headers.get("content-type")).toBe(

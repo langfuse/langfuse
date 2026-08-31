@@ -1,11 +1,13 @@
 import Page from "@/src/components/layouts/page";
-import { BreadcrumbSeparator } from "@/src/components/ui/breadcrumb";
-import { BreadcrumbPage } from "@/src/components/ui/breadcrumb";
-import { BreadcrumbItem } from "@/src/components/ui/breadcrumb";
+import {
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+  BreadcrumbItem,
+  BreadcrumbList,
+  Breadcrumb,
+} from "@/src/components/ui/breadcrumb";
 import { Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { BreadcrumbList } from "@/src/components/ui/breadcrumb";
-import { Breadcrumb } from "@/src/components/ui/breadcrumb";
 import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
 import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-form";
@@ -25,9 +27,9 @@ import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 // Multi-step setup process
-// 1. Select Evaluator: /project/:projectId/evals/new
-// 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/new?evaluator=:evaluatorId
-// 3. Configure Evaluator: /project/:projectId/evals/new?evaluator=:evaluatorId
+// 1. Select Evaluator: /project/:projectId/evals/legacy/new
+// 2. Set up LLM connection (only after selecting an evaluator that needs it): /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
+// 3. Configure Evaluator: /project/:projectId/evals/legacy/new?evaluator=:evaluatorId
 export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
@@ -49,12 +51,17 @@ export default function NewEvaluatorPage() {
   const hasDefaultModel =
     !!defaultModelQuery.data || defaultModelConfiguredInFlow;
 
-  const hasAccess = useHasProjectAccess({
+  const hasEvaluatorReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:read",
   });
+  const hasEvaluationRuleWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
+  const hasAccess = hasEvaluatorReadAccess && hasEvaluationRuleWriteAccess;
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     {
       projectId,
       limit: 500,
@@ -65,11 +72,26 @@ export default function NewEvaluatorPage() {
     },
   );
 
-  const currentTemplate = evalTemplates.data?.templates
-    .filter((template) =>
-      shouldShowEvalTemplate(template, codeEvalCapabilities),
-    )
-    .find((t) => t.id === evaluatorId);
+  // resolve by id (not via the latest-only list) so deep links to older
+  // template versions keep working and trigger the "use updated" banner
+  const currentTemplateQuery = api.evals.templateById.useQuery(
+    { projectId, id: evaluatorId as string },
+    { enabled: hasAccess && !!evaluatorId },
+  );
+  const currentTemplate =
+    currentTemplateQuery.data &&
+    shouldShowEvalTemplate(currentTemplateQuery.data, codeEvalCapabilities)
+      ? currentTemplateQuery.data
+      : undefined;
+
+  // deep links may reference an older version that the latest-only list
+  // does not contain; include it so the form can still render it
+  const latestEvalTemplates = evalTemplates.data?.templates ?? [];
+  const formEvalTemplates =
+    currentTemplate &&
+    !latestEvalTemplates.some((template) => template.id === currentTemplate.id)
+      ? [...latestEvalTemplates, currentTemplate]
+      : latestEvalTemplates;
 
   const templatesForCurrentName = api.evals.allTemplatesForName.useQuery(
     {
@@ -147,7 +169,7 @@ export default function NewEvaluatorPage() {
         breadcrumb: [
           {
             name: "Running Evaluators",
-            href: `/project/${projectId}/evals`,
+            href: `/project/${projectId}/evals/legacy`,
           },
         ],
       }}
@@ -156,13 +178,15 @@ export default function NewEvaluatorPage() {
         <BreadcrumbList>
           <BreadcrumbItem
             className="hover:cursor-pointer"
-            onClick={() => router.push(`/project/${projectId}/evals/new`)}
+            onClick={() =>
+              router.push(`/project/${projectId}/evals/legacy/new`)
+            }
           >
             <BreadcrumbPage
               className={cn(
                 step !== "select"
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               1. Select Evaluator
@@ -176,7 +200,7 @@ export default function NewEvaluatorPage() {
             <BreadcrumbPage
               className={cn(
                 isProviderStepActive
-                  ? "text-foreground font-semibold"
+                  ? "text-foreground font-bold"
                   : "text-muted-foreground",
               )}
             >
@@ -192,7 +216,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 step !== "run"
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               <div className="flex flex-row">
@@ -260,7 +284,7 @@ export default function NewEvaluatorPage() {
             <RunEvaluatorForm
               projectId={projectId}
               evaluatorId={evaluatorId}
-              evalTemplates={evalTemplates.data?.templates ?? []}
+              evalTemplates={formEvalTemplates}
             />
           </div>
         )

@@ -1,6 +1,15 @@
 import { AST_NODE_TYPES, type TSESTree } from "@typescript-eslint/utils";
 
 import { createComponentRootElementVisitors } from "../react-components.js";
+import {
+  getStaticPropertyKeyValue,
+  getStaticStringValue,
+} from "../rule-helpers/ast.js";
+import {
+  extractTailwindUtilityTokens,
+  normalizeTailwindToken,
+  stripTailwindVariants,
+} from "../rule-helpers/tailwind.js";
 import { createRule } from "../util.js";
 
 const FORBIDDEN_STYLE_PROPERTIES = new Set([
@@ -27,7 +36,6 @@ const FORBIDDEN_STYLE_PROPERTIES = new Set([
   "margin-top",
 ]);
 
-const TAILWIND_TOKEN_RE = /\S+/g;
 const MARGIN_UTILITY_RE = /^(-?m[trblxyse]?)-(.+)$/;
 const ZERO_CSS_VALUE_RE = /^-?0(?:\.0+)?(?:%|[a-z]+)?$/i;
 const DEFAULT_CLASS_NAME_FUNCTIONS = ["cn", "clsx"];
@@ -35,30 +43,12 @@ const DEFAULT_CLASS_NAME_FUNCTIONS = ["cn", "clsx"];
 type Options = [{ classNameFunctions: string[] }];
 type MessageIds = "unexpectedClassName" | "unexpectedStyle";
 
-function normalizeTailwindToken(token: string): string {
-  return token.replace(/^!|!$/g, "");
-}
-
-function stripVariants(token: string): string {
-  let depth = 0;
-  let lastSeparator = -1;
-
-  for (let i = 0; i < token.length; i++) {
-    const ch = token[i];
-    if (ch === "[") depth++;
-    else if (ch === "]") depth = Math.max(0, depth - 1);
-    else if (ch === ":" && depth === 0) lastSeparator = i;
-  }
-
-  return lastSeparator === -1 ? token : token.slice(lastSeparator + 1);
-}
-
 function isZeroCssValue(value: string): boolean {
   return ZERO_CSS_VALUE_RE.test(value.trim());
 }
 
 function getReportableMarginUtility(rawToken: string): string | null {
-  const utility = normalizeTailwindToken(stripVariants(rawToken));
+  const utility = normalizeTailwindToken(stripTailwindVariants(rawToken));
   const match = MARGIN_UTILITY_RE.exec(utility);
   if (!match) return null;
 
@@ -70,45 +60,10 @@ function getReportableMarginUtility(rawToken: string): string | null {
 
   return utility;
 }
-
-function getStaticStringValue(
-  node: TSESTree.Expression | TSESTree.SpreadElement,
-): string | null {
-  if (node.type === AST_NODE_TYPES.Literal && typeof node.value === "string") {
-    return node.value;
-  }
-
-  if (
-    node.type === AST_NODE_TYPES.TemplateLiteral &&
-    node.expressions.length === 0
-  ) {
-    return node.quasis[0].value.cooked;
-  }
-
-  return null;
-}
-
 function getCallExpressionName(node: TSESTree.CallExpression): string | null {
   return node.callee.type === AST_NODE_TYPES.Identifier
     ? node.callee.name
     : null;
-}
-
-function getStaticPropertyKeyValue(
-  key: TSESTree.PropertyName | TSESTree.PrivateIdentifier,
-): string | null {
-  if (key.type === AST_NODE_TYPES.Literal && typeof key.value === "string") {
-    return key.value;
-  }
-
-  if (
-    key.type === AST_NODE_TYPES.TemplateLiteral &&
-    key.expressions.length === 0
-  ) {
-    return key.quasis[0].value.cooked;
-  }
-
-  return null;
 }
 
 function findReportableMarginUtilityInExpression(
@@ -238,8 +193,8 @@ function isZeroStyleValue(node: TSESTree.Node): boolean {
 }
 
 function findReportableMarginUtility(value: string): string | null {
-  for (const match of value.matchAll(TAILWIND_TOKEN_RE)) {
-    const utility = getReportableMarginUtility(match[0]);
+  for (const token of extractTailwindUtilityTokens(value)) {
+    const utility = getReportableMarginUtility(token);
     if (utility) return utility;
   }
   return null;

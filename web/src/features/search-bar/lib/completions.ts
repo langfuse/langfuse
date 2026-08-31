@@ -20,21 +20,18 @@ import {
   termAt,
 } from "./langQ";
 import {
-  FIELDS,
-  nullableFields,
-  resolveField,
+  EVENTS_FIELD_REGISTRY,
+  SCORE_COLUMNS,
   type FieldDef,
+  type FieldRegistry,
   type FieldRef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import { validateQuery } from "./validate";
+import { rankFilter } from "./rank";
 import type { ObservedOptions } from "./observed-options";
 
-export type CompletionStage =
-  | "empty"
-  | "field"
-  | "value"
-  | "operator"
-  | "recent";
+type CompletionStage = "empty" | "field" | "value" | "operator" | "recent";
 
 export type CompletionOption =
   | {
@@ -43,6 +40,9 @@ export type CompletionOption =
       label: string;
       detail?: string;
       fieldId: string;
+      /** Score-name options only: the level(s) the name exists at, rendered as
+       *  ScoreTag(s) in the listbox (global score-level coding, LFE-10596). */
+      scoreLevels?: readonly ("observation" | "trace")[];
     }
   | {
       id: string;
@@ -70,9 +70,26 @@ export type CompletionOption =
        *  the token under the caret. */
       replaceSpan?: { from: number; to: number };
     }
-  | { id: string; kind: "recent"; label: string; query: string };
+  | { id: string; kind: "recent"; label: string; query: string }
+  | {
+      id: string;
+      kind: "preset";
+      label: string;
+      detail?: string;
+      query: string;
+    };
 
-export type CompletionSection = { title: string; options: CompletionOption[] };
+type CompletionSection = { title: string; options: CompletionOption[] };
+
+export type QueryPresetSection = {
+  title: string;
+  options: Array<{
+    id: string;
+    label: string;
+    detail?: string;
+    query: string;
+  }>;
+};
 
 export type CompletionPlan = {
   stage: CompletionStage;
@@ -82,6 +99,13 @@ export type CompletionPlan = {
   sections: CompletionSection[];
   /** Value stage waiting on observed values (popover shows a loading row). */
   loading: boolean;
+  /**
+   * Lazy filter-options: the option columns this stage needs but does not yet
+   * have in `observed`. The composer relays these to the table so it requests
+   * just those facets on demand (e.g. typing `userId:` loads the userId values).
+   * Always valid filter-options column ids; empty/absent when nothing is needed.
+   */
+  requestColumns?: readonly string[];
   /** Defaults to false; useful for incomplete grouped value entry. */
   keepOpenOnPick?: boolean;
   /**
@@ -93,19 +117,21 @@ export type CompletionPlan = {
   autoHighlight?: boolean;
 };
 
-export const SECTION_SUGGESTIONS = "Suggestions";
+const SECTION_SUGGESTIONS = "Suggestions";
 export const SECTION_FIELDS = "Fields";
+export const SECTION_MATCHING_FILTERS = "Matching filters";
 export const SECTION_VALUES = "Observed values";
-export const SECTION_OPERATORS = "Operators";
-export const SECTION_PATTERNS = "Patterns";
+const SECTION_OPERATORS = "Operators";
+const SECTION_PATTERNS = "Patterns";
 export const SECTION_RECENT = "Recent searches";
 export const SECTION_MATCH_OPS = "Match operators";
 export const SECTION_COMPARE_OPS = "Comparisons";
-export const SECTION_KEYS = "Observed keys";
-export const SECTION_SCORE_NAMES = "Score names";
-export const SECTION_SEARCH_IN = "Full-text search";
+const SECTION_KEYS = "Observed keys";
+const SECTION_SCORE_NAMES = "Score names";
+const SECTION_SEARCH_IN = "Full-text search";
 
 const MAX_RECENTS_SHOWN = 5;
+const MAX_PRESETS_SHOWN = 10;
 
 // Operators insert with a trailing space so they tokenize out of the input
 // immediately; patterns are complete expressions and merge on accept.
@@ -161,44 +187,37 @@ const PATTERN_OPTIONS: CompletionOption[] = [
   },
 ];
 
-/** Case-insensitive match; prefix matches rank before substring matches. */
-function filterRank(label: string, query: string): number | null {
-  if (query.length === 0) return 0;
-  const l = label.toLowerCase();
-  const q = query.toLowerCase();
-  if (l.startsWith(q)) return 0;
-  if (l.includes(q)) return 1;
-  return null;
-}
+// Ranking (prefix-before-substring) lives in ./rank so the filter sidebar's
+// per-facet value search can share it — see that module's header.
 
-function rankFilter<T extends { label: string }>(
-  options: T[],
-  query: string,
-): T[] {
-  return options
-    .map((o) => ({ o, rank: filterRank(o.label, query) }))
-    .filter((x): x is { o: T; rank: number } => x.rank !== null)
-    .sort((a, b) => a.rank - b.rank)
-    .map((x) => x.o);
-}
-
-function fieldOptions(includeVirtual = true): CompletionOption[] {
-  const opts: CompletionOption[] = FIELDS.map((f: FieldDef) => ({
-    id: `field:${f.id}`,
-    kind: "field",
-    label: f.id,
-    detail: f.description,
-    fieldId: f.id,
-  }));
-  if (includeVirtual) {
+function fieldOptions(
+  registry: FieldRegistry,
+  includeVirtual = true,
+): CompletionOption[] {
+  const opts: CompletionOption[] = registry.fields
+    .filter((field) => field.directFilter !== false)
+    .map((f: FieldDef) => ({
+      id: `field:${f.id}`,
+      kind: "field",
+      label: f.id,
+      detail: f.description,
+      fieldId: f.id,
+    }));
+  if (includeVirtual && registry.metadata) {
+    opts.push({
+      id: "field:metadata.",
+      kind: "field",
+      label: "metadata.",
+      detail: "metadata key path, e.g. metadata.region:eu",
+      fieldId: "metadata.",
+    });
+  }
+  if (includeVirtual && registry.scores) {
     opts.push(
-      {
-        id: "field:metadata.",
-        kind: "field",
-        label: "metadata.",
-        detail: "metadata key path, e.g. metadata.region:eu",
-        fieldId: "metadata.",
-      },
+      // `scores.` is level-agnostic (LFE-10596): one entry point for every
+      // score. The legacy `traceScores.` namespace still parses and lowers
+      // (saved queries/URLs keep working) but is no longer offered — two
+      // score entry points confused users.
       {
         id: "field:scores.",
         kind: "field",
@@ -207,23 +226,49 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
           "score by name, e.g. scores.accuracy:>0.8 or scores.feedback:positive",
         fieldId: "scores.",
       },
-      {
-        id: "field:traceScores.",
-        kind: "field",
-        label: "traceScores.",
-        detail: "trace-level score by name, e.g. traceScores.nps:>8",
-        fieldId: "traceScores.",
-      },
-      {
-        id: "field:has",
-        kind: "field",
-        label: "has",
-        detail: "field has a value, e.g. has:endTime (-has: for missing)",
-        fieldId: "has",
-      },
     );
   }
+  if (includeVirtual) {
+    // The example names one of THIS view's nullable fields; `has:endTime` on a
+    // view without endTime advertises a filter that cannot resolve.
+    const example = registry.nullableFields()[0]?.id;
+    opts.push({
+      id: "field:has",
+      kind: "field",
+      label: "has",
+      detail: example
+        ? `field has a value, e.g. has:${example} (-has: for missing)`
+        : "field has a value (-has: for missing)",
+      fieldId: "has",
+    });
+  }
   return opts;
+}
+
+/**
+ * Move the option for `fieldId` to the front of `options`. When it is absent
+ * (rank-filtering dropped it) and `pool` is given, prepend it from the pool
+ * instead — used to guarantee an exactly-named field is always offered.
+ */
+function hoistFieldOption(
+  options: CompletionOption[],
+  fieldId: string,
+  pool?: CompletionOption[],
+): CompletionOption[] {
+  const index = options.findIndex(
+    (o) => o.kind === "field" && o.fieldId === fieldId,
+  );
+  if (index !== -1) {
+    return [
+      options[index]!,
+      ...options.slice(0, index),
+      ...options.slice(index + 1),
+    ];
+  }
+  const fromPool = pool?.find(
+    (o) => o.kind === "field" && o.fieldId === fieldId,
+  );
+  return fromPool ? [fromPool, ...options] : options;
 }
 
 // Ready-to-run query suggestions for the empty state: the top observed value
@@ -232,10 +277,12 @@ const SUGGESTION_FIELDS = ["level", "type", "environment", "name"];
 
 function querySuggestionOptions(
   observed: ObservedOptions | undefined,
+  registry: FieldRegistry,
 ): CompletionOption[] {
   if (observed === undefined) return [];
   const out: CompletionOption[] = [];
   for (const fieldId of SUGGESTION_FIELDS) {
+    if (registry.resolveField(fieldId) === null) continue;
     const top = observed[fieldId]?.[0];
     if (top === undefined) continue;
     const insert = `${fieldId}:${serializeValue(top.value)}`;
@@ -248,6 +295,79 @@ function querySuggestionOptions(
     });
   }
   return out;
+}
+
+// ---- contextual facet-value matches for a bare typed term ----
+//
+// Typing `mcp` should not ONLY offer full-text search: when an already-loaded
+// facet contains a matching value (say toolNames has `mcp`), the concrete
+// `toolNames:mcp` filter is almost always what the user is reaching for. This
+// scans the observed map — LOADED columns only, by design: suggestions mirror
+// what the facet sidebar can currently show, and typing must never fan out
+// on-demand option fetches (the lazy-column mechanism exists to avoid exactly
+// that) — and surfaces the best few as ready-to-run rewrites of the free-text
+// run, exactly parallel to the input:/output: scope switches.
+
+/** Fields whose observed values are meaningful bare-term match targets: the
+ *  option-backed columns plus textSearch fields that keep a value picker
+ *  (id/name). Booleans/numbers/datetimes never match here — their observed
+ *  lists are empty or non-enumerated. */
+/** A 1-char term matches half the dataset; require a real prefix. */
+const MIN_VALUE_MATCH_LENGTH = 2;
+/** Popover budget: the section competes with fields + full-text, keep it tight. */
+const MAX_VALUE_MATCHES = 3;
+
+/**
+ * Ready-to-run `field:value` rewrites of the free-text run, drawn from loaded
+ * observed values. Exact value matches rank above prefix matches above
+ * substring matches; ties prefer the higher observed count, then registry
+ * order (sort is stable). Replaces the WHOLE run via replaceSpan, like the
+ * scope switches — the suggestion converts the visual free-text block the user
+ * sees, not one word of it.
+ */
+function matchingFilterOptions(
+  typed: string,
+  observed: ObservedOptions | undefined,
+  span: { from: number; to: number },
+  registry: FieldRegistry,
+): CompletionOption[] {
+  if (observed === undefined || typed.length < MIN_VALUE_MATCH_LENGTH)
+    return [];
+  const q = typed.toLowerCase();
+  const ranked: Array<{
+    rank: number;
+    count: number;
+    option: CompletionOption;
+  }> = [];
+  const valueMatchFields = registry.fields.filter(
+    (field) =>
+      field.directFilter !== false &&
+      (field.syncMode === "exactOption" ||
+        field.syncMode === "arrayOption" ||
+        field.suggestObservedValues === true),
+  );
+  for (const f of valueMatchFields) {
+    for (const o of observedValues(observed, f.id)) {
+      const v = o.value.toLowerCase();
+      const rank = v === q ? 0 : v.startsWith(q) ? 1 : v.includes(q) ? 2 : null;
+      if (rank === null) continue;
+      const insert = `${f.id}:${serializeValue(o.value)}`;
+      ranked.push({
+        rank,
+        count: o.count ?? 0,
+        option: {
+          id: `match:${insert}`,
+          kind: "pattern",
+          label: insert,
+          detail: f.description,
+          insert,
+          replaceSpan: span,
+        },
+      });
+    }
+  }
+  ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
+  return ranked.slice(0, MAX_VALUE_MATCHES).map((m) => m.option);
 }
 
 /**
@@ -275,16 +395,45 @@ function valueOptions(
 function recentOptions(
   recents: string[],
   currentQueryText: string,
+  registry: FieldRegistry,
 ): CompletionOption[] {
-  return recents
-    .filter((q) => q !== currentQueryText.trim())
-    .slice(0, MAX_RECENTS_SHOWN)
-    .map((q, i) => ({
-      id: `recent:${i}:${q}`,
-      kind: "recent" as const,
-      label: q,
-      query: q,
-    }));
+  return (
+    recents
+      .filter((q) => q !== currentQueryText.trim())
+      // Recents are stored per PROJECT, not per view, so a query typed on another
+      // table can be offered here. Picking one that names a field this view does
+      // not have would insert a query that cannot commit, so offer only the ones
+      // that are valid against THIS registry.
+      .filter((q) => validateQuery(q, undefined, registry).valid)
+      .slice(0, MAX_RECENTS_SHOWN)
+      .map((q, i) => ({
+        id: `recent:${i}:${q}`,
+        kind: "recent" as const,
+        label: q,
+        query: q,
+      }))
+  );
+}
+
+function queryPresetSections(
+  presetSections: QueryPresetSection[],
+  currentQueryText: string,
+): CompletionSection[] {
+  const current = currentQueryText.trim();
+  const seenIds = new Set<string>();
+  let remaining = MAX_PRESETS_SHOWN;
+  return presetSections.flatMap((presetSection) => {
+    if (remaining === 0) return [];
+    const options: CompletionOption[] = [];
+    for (const option of presetSection.options) {
+      if (option.query === current || seenIds.has(option.id)) continue;
+      seenIds.add(option.id);
+      options.push({ ...option, kind: "preset" });
+      remaining--;
+      if (remaining === 0) break;
+    }
+    return section(presetSection.title, options);
+  });
 }
 
 function section(
@@ -430,9 +579,13 @@ const PATH_PREFIXES: PathKind[] = [
 
 function pathKindOf(
   keyPart: string,
+  registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
   for (const kind of PATH_PREFIXES) {
+    if (kind.canonical === "metadata." && !registry.metadata) continue;
+    if (kind.canonical === "scores." && !registry.scores) continue;
+    if (kind.canonical === "traceScores." && !registry.traceScores) continue;
     if (lower.startsWith(kind.prefix)) {
       return { kind, typedKey: keyPart.slice(kind.prefix.length) };
     }
@@ -464,7 +617,10 @@ function keyPathOptions(
       id: `key:metadata.${o.value}`,
       kind: "field" as const,
       label: `metadata.${o.value}`,
-      detail: o.count !== undefined ? String(o.count) : undefined,
+      // The observed JSON type of the path (display-only — metadata filters
+      // always lower to stringObject regardless). Paths seen with multiple
+      // types carry no type hint; counts stay the fallback like other lists.
+      detail: o.type ?? (o.count !== undefined ? String(o.count) : undefined),
       fieldId: keyText(o.value),
     }));
     return {
@@ -473,9 +629,17 @@ function keyPathOptions(
     };
   }
   const numericColumn =
-    kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.numeric
+      : SCORE_COLUMNS.observation.numeric;
   const categoricalColumn =
-    kind.level === "trace" ? "trace_score_categories" : "score_categories";
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.categorical
+      : SCORE_COLUMNS.observation.categorical;
+  const booleanColumn =
+    kind.level === "trace"
+      ? SCORE_COLUMNS.trace.boolean
+      : SCORE_COLUMNS.observation.boolean;
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
     seen.set(o.value, "numeric score");
@@ -485,12 +649,44 @@ function keyPathOptions(
       seen.has(o.value) ? "numeric + categorical score" : "categorical score",
     );
   }
+  for (const o of observedValues(observed, booleanColumn)) {
+    seen.set(
+      o.value,
+      seen.has(o.value)
+        ? `${seen.get(o.value)} + boolean score`
+        : "boolean score",
+    );
+  }
+  // Level provenance for the ScoreTag on each option (LFE-10596): the
+  // `traceScores.` namespace is trace-only by construction; `scores.` is
+  // level-agnostic, so tag the level(s) the name actually exists at (from the
+  // per-data-type `score_name_levels_*` payloads — absent levels mean no tag,
+  // never a guess). One suggestion covers every data type the name has, so
+  // its tags are the union across those type-scoped maps.
+  const levelsOf = (
+    name: string,
+  ): readonly ("observation" | "trace")[] | undefined => {
+    if (kind.level === "trace") return ["trace"];
+    const levels = [
+      ...observedValues(observed, `score_name_levels_numeric.${name}`),
+      ...observedValues(observed, `score_name_levels_categorical.${name}`),
+      ...observedValues(observed, `score_name_levels_boolean.${name}`),
+    ]
+      .map((o) => o.value)
+      .filter((v) => v === "observation" || v === "trace") as (
+      | "observation"
+      | "trace"
+    )[];
+    const unique = Array.from(new Set(levels));
+    return unique.length > 0 ? unique : undefined;
+  };
   const options = [...seen.entries()].map(([name, detail]) => ({
     id: `key:${kind.canonical}${name}`,
     kind: "field" as const,
     label: `${kind.canonical}${name}`,
     detail,
     fieldId: keyText(name),
+    scoreLevels: levelsOf(name),
   }));
   return {
     title: SECTION_SCORE_NAMES,
@@ -505,19 +701,45 @@ type ValueStageInput = {
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — settle those to empty (not
+   *  loading), per column, without blocking others. */
+  erroredColumns?: ReadonlySet<string>;
   /** Whole-token span, for rewrites that replace the entire `key:value`. */
   tokenSpan: { from: number; to: number };
   /** The token carries a leading `-` (a negated filter). Scope rewrites must be
    *  suppressed: tokenSpan covers the `-`, so a rewrite would splice it away and
    *  silently flip `does not contain` → `contains` (the complement). */
   negated: boolean;
+  registry: FieldRegistry;
 };
 
 /** Sections for the caret-in-value context, or null when free-form entry. */
-function valueStageSections(
-  input: ValueStageInput,
-): { sections: CompletionSection[]; loading: boolean } | null {
-  const { ref, typed, valuePrefix, observed, tokenSpan, negated } = input;
+function valueStageSections(input: ValueStageInput): {
+  sections: CompletionSection[];
+  loading: boolean;
+  requestColumns?: readonly string[];
+} | null {
+  const {
+    ref,
+    typed,
+    valuePrefix,
+    observed,
+    erroredColumns,
+    tokenSpan,
+    negated,
+    registry,
+  } = input;
+
+  // A loadable option column is "pending" when its key is absent from the
+  // observed map (lazy mode: requested but not yet streamed in). An empty list
+  // ([]) means loaded-but-no-values, which is NOT loading. `observed` itself
+  // being undefined is the initial bulk-load — everything is pending.
+  // A column whose fetch terminally errored is never pending: it settles to the
+  // empty state (no loading row, no further request) exactly like the sidebar
+  // facet — but PER COLUMN, so a different column can still load on demand.
+  const columnPending = (column: string): boolean =>
+    !erroredColumns?.has(column) &&
+    (observed === undefined || !(column in observed));
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -525,7 +747,7 @@ function valueStageSections(
   switch (ref.type) {
     case "pseudo": {
       // `has` is the only pseudo-field: suggest the nullable fields it can name.
-      const all = nullableFields().map((f) => ({
+      const all = registry.nullableFields().map((f) => ({
         id: `value:${f.id}`,
         kind: "value" as const,
         label: f.id,
@@ -560,11 +782,31 @@ function valueStageSections(
     }
 
     case "scores": {
-      if (observed === undefined) return { sections: [], loading: true };
       const numericColumn =
-        ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.numeric
+          : SCORE_COLUMNS.observation.numeric;
       const categoricalColumn =
-        ref.level === "trace" ? "trace_score_categories" : "score_categories";
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.categorical
+          : SCORE_COLUMNS.observation.categorical;
+      const booleanColumn =
+        ref.level === "trace"
+          ? SCORE_COLUMNS.trace.boolean
+          : SCORE_COLUMNS.observation.boolean;
+      // Routing a `scores.<name>:` value needs all three score-name columns;
+      // request and show a loading row while any is still streaming in.
+      if (
+        columnPending(numericColumn) ||
+        columnPending(categoricalColumn) ||
+        columnPending(booleanColumn)
+      ) {
+        return {
+          sections: [],
+          loading: true,
+          requestColumns: [numericColumn, categoricalColumn, booleanColumn],
+        };
+      }
       // Quoted for the example shown in the compare-op tooltip — a spaced score
       // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
       // form. (The data lookups above use the unquoted column names.)
@@ -575,11 +817,31 @@ function valueStageSections(
       const isNumeric = observedValues(observed, numericColumn).some(
         (o) => o.value === ref.key,
       );
+      const isBoolean = observedValues(observed, booleanColumn).some(
+        (o) => o.value === ref.key,
+      );
       const categories = observedValues(
         observed,
         `${categoricalColumn}.${ref.key}`,
       );
       const sections: CompletionSection[] = [];
+      if (isBoolean) {
+        const all = [
+          {
+            id: "value:true",
+            kind: "value" as const,
+            label: "true",
+            value: "true",
+          },
+          {
+            id: "value:false",
+            kind: "value" as const,
+            label: "false",
+            value: "false",
+          },
+        ];
+        sections.push(...section(SECTION_VALUES, valueOptions(all, typed)));
+      }
       if (categories.length > 0) {
         const all = categories.map((o) => ({
           id: `value:${o.value}`,
@@ -590,7 +852,11 @@ function valueStageSections(
         }));
         sections.push(...section(SECTION_VALUES, valueOptions(all, typed)));
       }
-      if ((isNumeric || categories.length === 0) && typed.length === 0) {
+      if (
+        !isBoolean &&
+        (isNumeric || categories.length === 0) &&
+        typed.length === 0
+      ) {
         sections.push(
           ...section(
             SECTION_COMPARE_OPS,
@@ -673,6 +939,16 @@ function valueStageSections(
       // Observed-value picker: exactOption/arrayOption fields, plus textSearch
       // fields flagged `suggestObservedValues` (id/name — they search as
       // substring but still suggest existing values).
+      // Lazy mode: an option-backed field (exactOption/arrayOption) whose values
+      // have not loaded yet shows a loading row and requests its column. Its `id`
+      // IS the filter-options column id. textSearch fields (id/name) are not
+      // lazily loaded — `name` is eager and `id` has no server option list — so
+      // they fall through to the picker, which is empty when nothing is observed.
+      const isOptionColumn =
+        f.syncMode === "exactOption" || f.syncMode === "arrayOption";
+      if (isOptionColumn && columnPending(f.id)) {
+        return { sections: [], loading: true, requestColumns: [f.id] };
+      }
       if (observed === undefined) return { sections: [], loading: true };
       const all = observedValues(observed, f.id).map((o) => ({
         id: `value:${o.value}`,
@@ -764,7 +1040,18 @@ export type InputCompletionContext = {
   caret: number;
   /** Observed facet values; undefined = still loading. */
   observed: ObservedOptions | undefined;
+  /**
+   * Columns whose lazy filter-options fetch terminally errored. For those the
+   * planner suppresses the "Loading values…" row and the on-demand request, so a
+   * failed fetch settles to the empty state (matching the sidebar's per-column
+   * skeleton) instead of pinning loading forever with no auto-retry — but PER
+   * COLUMN, so an unrelated column can still load on demand.
+   */
+  erroredColumns?: ReadonlySet<string>;
   recents: string[];
+  /** Complete queries supplied by a host view, shown at every blank top-level
+   * term. Picking one replaces the full draft. */
+  presetSections?: QueryPresetSection[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
 };
@@ -888,6 +1175,7 @@ function scopeSwitchOptions(
  */
 export function planInputCompletions(
   ctx: InputCompletionContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CompletionPlan | null {
   const { input, caret } = ctx;
 
@@ -914,11 +1202,20 @@ export function planInputCompletions(
         to,
         loading: false,
         sections: [
-          ...section(SECTION_SUGGESTIONS, querySuggestionOptions(ctx.observed)),
-          ...section(SECTION_FIELDS, fieldOptions()),
+          ...queryPresetSections(
+            ctx.presetSections ?? [],
+            ctx.currentQueryText,
+          ),
+          ...section(
+            SECTION_SUGGESTIONS,
+            querySuggestionOptions(ctx.observed, registry),
+          ),
+          ...section(SECTION_FIELDS, fieldOptions(registry)),
           ...section(
             SECTION_RECENT,
-            recentOptions(ctx.recents, ctx.currentQueryText),
+            registry.recentSearches
+              ? recentOptions(ctx.recents, ctx.currentQueryText, registry)
+              : [],
           ),
         ],
       };
@@ -929,8 +1226,36 @@ export function planInputCompletions(
     const keyPart = colon === -1 ? tokenBody : tokenBody.slice(0, colon);
 
     // Dot paths (metadata./scores./traceScores.) suggest observed keys.
-    const path = pathKindOf(keyPart);
+    const path = pathKindOf(keyPart, registry);
     if (path !== null) {
+      // Score-name suggestions need all three score-name columns; request and
+      // show a loading row while they stream in (lazy mode). Metadata keys are
+      // not server-enumerated — they come from the client-side observed-metadata
+      // map (lib/metadata-paths.ts) — so there is nothing to request there.
+      if (path.kind.canonical !== "metadata.") {
+        const scoreColumns =
+          path.kind.level === "trace"
+            ? SCORE_COLUMNS.trace
+            : SCORE_COLUMNS.observation;
+        const scoreNameColumns = [
+          scoreColumns.numeric,
+          scoreColumns.categorical,
+          scoreColumns.boolean,
+        ];
+        const scorePending = (column: string): boolean =>
+          !ctx.erroredColumns?.has(column) &&
+          (ctx.observed === undefined || !(column in ctx.observed));
+        if (scoreNameColumns.some(scorePending)) {
+          return {
+            stage: "field",
+            from: bodyStart,
+            to,
+            loading: true,
+            sections: [],
+            requestColumns: scoreNameColumns,
+          };
+        }
+      }
       const { title, options } = keyPathOptions(
         path.kind,
         path.typedKey,
@@ -956,32 +1281,39 @@ export function planInputCompletions(
       };
     }
 
-    const resolvedKey = colon === -1 ? null : resolveField(keyPart);
+    const resolvedKey = colon === -1 ? null : registry.resolveField(keyPart);
     // The COMPLETE key of an existing filter is a switcher (like a complete
     // value): offer every field, current one first, and leave Enter unarmed.
-    // A partial key prefix-filters and arms Enter-to-complete.
-    const allFields = fieldOptions();
+    // A partial key prefix-filters and arms Enter-to-complete — and a bare word
+    // that EXACTLY names a field (id or alias) always surfaces that field
+    // first: an alias need not be a substring of its field id (`ttft` →
+    // timeToFirstToken, `model` → providedModelName), so label ranking alone
+    // can bury or drop the very field the user named while the exact match
+    // arms Enter — which must pick IT, not whatever happened to rank first.
+    const allFields = fieldOptions(registry);
     const fields =
       resolvedKey !== null
-        ? (() => {
-            const currentId =
-              resolvedKey.type === "field" ? resolvedKey.field.id : keyPart;
-            const index = allFields.findIndex(
-              (o) => o.kind === "field" && o.fieldId === currentId,
-            );
-            return index === -1
-              ? allFields
-              : [
-                  allFields[index]!,
-                  ...allFields.slice(0, index),
-                  ...allFields.slice(index + 1),
-                ];
-          })()
-        : rankFilter(allFields, keyPart);
+        ? hoistFieldOption(
+            allFields,
+            resolvedKey.type === "field" ? resolvedKey.field.id : keyPart,
+          )
+        : (() => {
+            const ranked = rankFilter(allFields, keyPart);
+            const exact = registry.resolveField(keyPart);
+            const exactId =
+              exact?.type === "field"
+                ? exact.field.id
+                : exact?.type === "pseudo"
+                  ? exact.id
+                  : null;
+            return exactId === null
+              ? ranked
+              : hoistFieldOption(ranked, exactId, allFields);
+          })();
     const operators =
       colon === -1 ? rankFilter(OPERATOR_OPTIONS, tokenBody) : [];
     const patterns =
-      colon === -1
+      colon === -1 && registry.allowFreeText
         ? rankFilter(PATTERN_OPTIONS, tokenBody).filter(
             // The term already starts with `-`; the negation pattern carries
             // its own `-`, so suggesting it would splice `--environment:`.
@@ -998,8 +1330,28 @@ export function planInputCompletions(
       colon === -1 && !negated
         ? freeTextRun(ctx.currentQueryText, caret)
         : null;
+    // A view with no full-text lane offers the one rewrite it does support, so
+    // the bare-word canonicalization is visible BEFORE Enter, not after it.
+    const defaultTextRewrite: CompletionOption[] =
+      run !== null && !registry.allowFreeText && registry.defaultTextField
+        ? (() => {
+            const ref = registry.resolveField(registry.defaultTextField);
+            if (ref?.type !== "field") return [];
+            const insert = `${ref.field.id}:${serializeValue(run.text)}`;
+            return [
+              {
+                id: "scope:defaultTextField",
+                kind: "pattern" as const,
+                label: insert,
+                detail: `${ref.field.label.toLowerCase()} contains "${run.text}"`,
+                insert,
+                replaceSpan: { from: run.from, to: run.to },
+              },
+            ];
+          })()
+        : [];
     const searchScopes: CompletionOption[] =
-      run !== null
+      run !== null && registry.allowFreeText
         ? scopeSwitchOptions(
             "default",
             // run.text is already the logical (unquoted) phrase; serializeValue
@@ -1011,10 +1363,28 @@ export function planInputCompletions(
             { keepCurrentFirst: true },
           )
         : [];
+    // Contextual facet matches share the run gate (and its span) with the scope
+    // switches: both rewrite the whole free-text block the user sees, and the
+    // gate already excludes negated terms and existing `key:` tokens.
+    // The default-text rewrite IS a matching filter (`id:chat`), not a full-text
+    // scope, so it joins that section after the observed-value matches.
+    const matchingFilters: CompletionOption[] =
+      run !== null
+        ? [
+            ...matchingFilterOptions(
+              run.text,
+              ctx.observed,
+              { from: run.from, to: run.to },
+              registry,
+            ),
+            ...defaultTextRewrite,
+          ]
+        : [];
     if (
       fields.length +
         operators.length +
         patterns.length +
+        matchingFilters.length +
         searchScopes.length ===
       0
     )
@@ -1033,10 +1403,15 @@ export function planInputCompletions(
       // unchanged.
       autoHighlight:
         colon === -1
-          ? resolveField(keyPart) !== null
+          ? registry.resolveField(keyPart) !== null
           : resolvedKey === null && fields.length > 0,
       sections: [
+        // Fields stay first: options[0] must remain the field so the
+        // exact-alias autoHighlight (Enter → `level:`) keeps picking it.
+        // Concrete facet matches beat the generic operator/pattern syntax help
+        // and the full-text fallback.
         ...section(SECTION_FIELDS, fields),
+        ...section(SECTION_MATCHING_FILTERS, matchingFilters),
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
         ...section(SECTION_SEARCH_IN, searchScopes),
@@ -1046,7 +1421,7 @@ export function planInputCompletions(
 
   // Value stage: complete the comma segment under the caret.
   const keyRaw = tokenBody.slice(0, colon);
-  const ref = resolveField(keyRaw);
+  const ref = registry.resolveField(keyRaw);
   if (ref === null) return null;
 
   const valuePart = tokenBody.slice(colon + 1);
@@ -1082,9 +1457,17 @@ export function planInputCompletions(
   // Drop quotes so the typed text matches observed values (both the grouped
   // and non-grouped value segments go through the same helper). For a glob
   // value the typed text is the bare core inside the `*`s.
-  const typed = stripValueQuotes(
+  const typedRaw = stripValueQuotes(
     glob !== null ? glob.core : activeValueText.slice(valuePrefix.length),
   );
+  // An empty OR whitespace-only value is "no value typed yet": normalize it to
+  // "" so the value stage stays a plain, unarmed list — no active value, no
+  // autoHighlight, no match-op refinements. Without this, a lone space typed
+  // between empty quotes (`traceName:" "`) ranked every observed value that
+  // CONTAINS a space and armed the first for Enter, committing an unwanted
+  // value (LFE-10501 BUG B). A value with real content plus surrounding spaces
+  // (`"foo "`) still counts as typed.
+  const typed = typedRaw.trim().length === 0 ? "" : typedRaw;
   const groupedPlanAttrs =
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
@@ -1093,8 +1476,10 @@ export function planInputCompletions(
     typed,
     valuePrefix,
     observed: ctx.observed,
+    erroredColumns: ctx.erroredColumns,
     tokenSpan: { from: start, to: term?.to ?? caret },
     negated,
+    registry,
   });
   if (staged === null) return null;
   if (staged.loading) {
@@ -1104,6 +1489,9 @@ export function planInputCompletions(
       to: segTo,
       loading: true,
       sections: [],
+      ...(staged.requestColumns
+        ? { requestColumns: staged.requestColumns }
+        : {}),
       ...groupedPlanAttrs,
     };
   }
@@ -1124,6 +1512,94 @@ export function planInputCompletions(
     sections: staged.sections,
     ...groupedPlanAttrs,
   };
+}
+
+/**
+ * Apply a picked completion option to the draft — the pure text/caret half of
+ * the composer's `pickOption` (the composer keeps the DOM/selection side
+ * effects and whole-query `recent`/`preset` replacements, which is why those
+ * are excluded here). Returns the rewritten draft, the caret offset to place inside
+ * it, and whether the popover should stay open.
+ *
+ * The classification is the crux: an option that INVITES MORE INPUT leaves the
+ * caret where it lands — a `field:` key awaiting a value, a `metadata.` prefix,
+ * an open `tags:(` group, and a comparison/logical OPERATOR awaiting its value.
+ * An option that COMPLETES a filter at the END of the draft appends a trailing
+ * space and drops the caret AFTER it (outside the finished pill), reopening
+ * field suggestions for the next filter.
+ */
+export function applyPick(
+  option: Exclude<CompletionOption, { kind: "recent" | "preset" }>,
+  current: string,
+  plan: CompletionPlan,
+): { next: string; caret: number; keepOpen: boolean } {
+  let insert: string;
+  let keepOpen: boolean;
+  let replaceFrom = plan.from;
+  let replaceTo = plan.to;
+  if (option.kind === "field") {
+    // Replacing the key of an existing filter: the span ends AT the colon, so
+    // the insert must not bring its own.
+    const colonFollows = current.slice(plan.to).startsWith(":");
+    insert = option.fieldId.endsWith(".")
+      ? option.fieldId
+      : colonFollows
+        ? option.fieldId
+        : `${option.fieldId}:`;
+    keepOpen = true;
+    // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
+    // partial key. When an existing `:value` follows, consume the whole term so
+    // the user re-picks the key from observed options instead.
+    if (option.fieldId.endsWith(".") && colonFollows) {
+      replaceTo = termAt(current, plan.from)?.to ?? plan.to;
+    }
+  } else if (option.kind === "value") {
+    insert = serializeValue(option.value);
+    keepOpen = plan.keepOpenOnPick ?? false;
+  } else {
+    insert = option.insert;
+    // A scope rewrite carries its own span (the whole coalesced free-text run),
+    // so it replaces that, not just the token under the caret.
+    if (option.kind === "pattern" && option.replaceSpan) {
+      replaceFrom = option.replaceSpan.from;
+      replaceTo = option.replaceSpan.to;
+    }
+    // A trailing `:`, ` `, or `(` drops the caret into an interactive context
+    // (value stage, next field, or an open `tags:(` group) — keep the popover
+    // open so the next pick is immediate.
+    keepOpen =
+      option.insert.endsWith(":") ||
+      option.insert.endsWith(" ") ||
+      option.insert.endsWith("(");
+  }
+
+  const grouped = plan.keepOpenOnPick ?? false;
+  const invitesMoreInput =
+    option.kind === "field" || // a `field:` key always needs a value next
+    // A comparison (`>`, `>=`, …) or logical (AND/NOT) OPERATOR awaits its
+    // value next, so keep the caret in the block instead of appending a space
+    // and jumping outside it. Without this, a `latency:` → `>` pick landed
+    // `latency:> ` with the caret after the space, so the number typed OUTSIDE
+    // the filter (LFE-10501 BUG A). AND/NOT already carry a trailing space, so
+    // this only changes the value-stage comparison operators.
+    option.kind === "operator" ||
+    insert.endsWith(":") ||
+    insert.endsWith(" ") ||
+    insert.endsWith("(");
+  const completesFilterAtEnd =
+    !grouped &&
+    !invitesMoreInput &&
+    current.slice(replaceTo).trim().length === 0;
+  if (completesFilterAtEnd) {
+    insert += " ";
+    // Consume any existing trailing whitespace so the space never doubles.
+    replaceTo = current.length;
+    keepOpen = true;
+  }
+
+  const next =
+    current.slice(0, replaceFrom) + insert + current.slice(replaceTo);
+  return { next, caret: replaceFrom + insert.length, keepOpen };
 }
 
 /** Flat option list in render order (keyboard navigation walks this). */

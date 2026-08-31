@@ -1,8 +1,9 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import * as React from "react";
 import { Calendar as CalendarIcon, X, ChevronDown } from "lucide-react";
-import { addMinutes } from "date-fns";
+import { addMinutes, format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
 import { Calendar } from "@/src/components/ui/calendar";
 import {
@@ -12,7 +13,6 @@ import {
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
 import { type DateRange as RDPDateRange } from "react-day-picker";
-import { format } from "date-fns";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { setBeginningOfDay, setEndOfDay } from "@/src/utils/dates";
 import { TimePicker } from "@/src/components/ui/time-picker";
@@ -47,7 +47,7 @@ export function DatePicker({
       <Popover>
         <PopoverTrigger asChild>
           <Button
-            variant={"outline"}
+            variant="outline"
             disabled={disabled}
             className={cn(
               "justify-start text-left font-normal",
@@ -228,7 +228,7 @@ export function DatePickerWithRange({
         <PopoverTrigger asChild>
           <Button
             id="date"
-            variant={"outline"}
+            variant="outline"
             className={cn(
               "w-[330px] justify-start text-left font-normal",
               !internalDateRange && "text-muted-foreground",
@@ -273,7 +273,7 @@ export function DatePickerWithRange({
           {internalDateRange?.from && internalDateRange.to && (
             <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
               <div className="px-3">
-                <p className="px-1 text-sm font-medium">
+                <p className="px-1 text-sm font-bold">
                   Start<span className="hidden sm:inline"> time</span>
                 </p>
                 <TimePicker
@@ -283,7 +283,7 @@ export function DatePickerWithRange({
                 />
               </div>
               <div className="px-3">
-                <p className="px-1 text-sm font-medium">
+                <p className="px-1 text-sm font-bold">
                   End<span className="hidden sm:inline"> time</span>
                 </p>
                 <TimePicker
@@ -309,12 +309,22 @@ export type TimeRangePickerProps = {
   onTimeRangeChange: (timeRange: TimeRange) => void;
   timeRangePresets: readonly string[];
   className?: string;
+  /** Extra classes for the trigger button (e.g. tighter padding in the header). */
+  triggerClassName?: string;
+  /**
+   * Space-tight variant (e.g. the mobile Filters sheet header): the named-range
+   * trigger drops the abbreviation badge and shows just the label, truncating
+   * instead of pushing the row wide. Custom/none branches are unchanged.
+   */
+  compact?: boolean;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
 };
 
 export function TimeRangePicker({
   className,
+  triggerClassName,
+  compact,
   timeRange,
   timeRangePresets,
   onTimeRangeChange,
@@ -491,20 +501,41 @@ export function TimeRangePicker({
 
   const getDisplayContent = () => {
     if (rangeType === "custom") {
+      const customLabel = dateRange
+        ? formatDateRange(dateRange.from, dateRange.to)
+        : "Select from calendar";
+      // Compact: drop the icon and truncate, like the named branch — a custom
+      // range's long formatted string would otherwise overflow the tight
+      // mobile Filters header.
+      if (compact) {
+        return (
+          <span className="min-w-0 truncate" title={customLabel}>
+            {customLabel}
+          </span>
+        );
+      }
       // Custom range - show calendar icon and date range
       return (
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4" />
-          <span>
-            {dateRange
-              ? formatDateRange(dateRange.from, dateRange.to)
-              : "Select from calendar"}
-          </span>
+          <span>{customLabel}</span>
         </div>
       );
     } else if (rangeType === "named") {
       // Preset range - show badge with abbreviation and label
       const setting = TIME_RANGES[namedRangeValue as keyof typeof TIME_RANGES];
+      if (compact) {
+        // Compact: just the label, truncating. The abbreviation badge is the
+        // first thing to drop when the header is tight.
+        return (
+          <span
+            className="min-w-0 truncate"
+            title={setting?.label || namedRangeValue || undefined}
+          >
+            {setting?.label || namedRangeValue}
+          </span>
+        );
+      }
       return (
         <div className="flex items-center gap-2">
           <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
@@ -515,6 +546,13 @@ export function TimeRangePicker({
       );
     }
     // No time range selected
+    if (compact) {
+      return (
+        <span className="min-w-0 truncate" title="Select time range">
+          Select time range
+        </span>
+      );
+    }
     return (
       <div className="flex items-center gap-2">
         <CalendarIcon className="h-4 w-4" />
@@ -532,11 +570,19 @@ export function TimeRangePicker({
             className={cn(
               "hover:bg-accent hover:text-accent-foreground w-fit justify-start text-left font-normal",
               !timeRange && "text-muted-foreground",
+              // Let the trigger shrink below content so the label truncates in
+              // a tight header instead of widening the row.
+              compact && "min-w-0",
+              triggerClassName,
             )}
           >
-            <div className="flex items-center gap-2">
+            <div
+              className={cn("flex items-center gap-2", compact && "min-w-0")}
+            >
               {getDisplayContent()}
-              <ChevronDown className="h-4 w-4 opacity-50" />
+              <ChevronDown
+                className={cn("h-4 w-4 opacity-50", compact && "shrink-0")}
+              />
             </div>
           </Button>
         </PopoverTrigger>
@@ -562,7 +608,7 @@ export function TimeRangePicker({
               {internalDateRange?.from && internalDateRange.to && (
                 <div className="flex flex-col gap-3 border-t p-3">
                   <div className="flex flex-col gap-1">
-                    <p className="px-1 text-sm font-medium">Start time</p>
+                    <p className="px-1 text-sm font-bold">Start time</p>
                     <TimePicker
                       date={internalDateRange?.from}
                       setDate={onStartTimeSelection}
@@ -570,7 +616,7 @@ export function TimeRangePicker({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <p className="px-1 text-sm font-medium">End time</p>
+                    <p className="px-1 text-sm font-bold">End time</p>
                     <TimePicker
                       date={internalDateRange?.to}
                       setDate={onEndTimeSelection}

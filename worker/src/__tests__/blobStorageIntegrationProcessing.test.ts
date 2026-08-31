@@ -19,13 +19,22 @@ const originalCloudRegion = vi.hoisted(() => {
 // per-stage timing metrics are assertable.
 const mockRecordIncrement = vi.hoisted(() => vi.fn());
 const mockRecordHistogram = vi.hoisted(() => vi.fn());
+// Stubbable endpoint preflight — the customer-fault tests reject it to drive an
+// in-try failure without infra. Defaults to the real impl for other tests.
+const mockValidateBlobStorageEndpoint = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  if (mockValidateBlobStorageEndpoint.getMockImplementation() === undefined) {
+    mockValidateBlobStorageEndpoint.mockImplementation(
+      actual.validateBlobStorageEndpoint,
+    );
+  }
   return {
     ...actual,
     recordIncrement: mockRecordIncrement,
     recordHistogram: mockRecordHistogram,
+    validateBlobStorageEndpoint: mockValidateBlobStorageEndpoint,
   };
 });
 
@@ -51,10 +60,13 @@ import { Job } from "bullmq";
 import {
   handleBlobStorageIntegrationProjectJob,
   BLOB_STORAGE_LAG_BUFFER_MS,
+  BLOB_STORAGE_REMAINDER_COALESCE_MS,
 } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCustomerFaultError";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
@@ -121,19 +133,18 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     s3Prefix = null;
   });
 
-  // LFE-10296: a persisted enriched export source on a deployment without the
-  // enriched export path (e.g. after a V4-preview rollback) must fail the job
-  // loudly instead of silently exporting from unpopulated tables.
+  // A persisted enriched export source on a deployment that does not write the
+  // v4 events table must fail the job loudly instead of silently exporting
+  // from unpopulated tables.
   describe("enriched export source guard", () => {
-    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
     afterEach(() => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
-        originalV4Preview;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
     });
 
-    it("fails the job and persists lastError when the enriched export path is unavailable", async () => {
-      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+    it("fails the job and persists lastError when an enriched source runs on legacy", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
 
@@ -173,6 +184,414 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       // Nothing was exported.
       const files = await storageService.listFiles(s3Prefix);
       expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
+  // LFE-10148: a persisted legacy export source on an events_only deployment
+  // reads the v3 traces/observations tables, which are no longer written — the
+  // job must fail loudly instead of exporting stale/empty data.
+  describe("legacy export source guard on events_only", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("fails the job and persists lastError when a legacy source runs on events_only", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow(/events_only/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toMatch(/events_only/i);
+      expect(row.lastErrorAt).not.toBeNull();
+
+      // Nothing was exported.
+      const files = await storageService.listFiles(s3Prefix);
+      expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
+  // A classified customer fault disables the integration on its first
+  // occurrence and resolves the job; everything else keeps retrying as before.
+  describe("customer-fault disable", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    // Minimal AWS SDK v3 S3 AccessDenied shape (high-confidence customer fault).
+    const accessDeniedError = (): Error => {
+      const err = new Error("Access Denied");
+      err.name = "AccessDenied";
+      Object.assign(err, {
+        Code: "AccessDenied",
+        $metadata: { httpStatusCode: 403 },
+      });
+      return err;
+    };
+
+    // endpoint must be non-null so the handler runs the preflight we stub.
+    const createIntegration = async (projectId: string) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: "https://customer-bucket.s3.example.com",
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+    };
+
+    const runAttempt = (projectId: string, attemptsMade: number) =>
+      handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+        attemptsMade,
+        opts: { attempts: 5 },
+      } as Job);
+
+    // The notification runs fire-and-forget after the handler rejects; give
+    // it time to land (or prove it never fires) before negative assertions.
+    const settleBackgroundTasks = () =>
+      new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Resolving is the point: the queue's failure counter is incremented per
+    // failed attempt, so a throw here would light the processing-failures
+    // monitor for a fault that no retry can clear.
+    it("disables the integration and resolves on the first customer-fault attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 0)).resolves.toBeUndefined();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/access denied/i);
+      expect(row.lastErrorAt).not.toBeNull();
+      // The "disabled" email bypasses the cooldown, so it must not claim it.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+      // Tagged by reason so an SSRF/abuse disable stays separable from a
+      // misconfiguration one.
+      expect(mockRecordIncrement).toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        1,
+        { reason: "credentials" },
+      );
+    });
+
+    it("still disables and resolves when the fault first appears on the final attempt", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+
+      await expect(runAttempt(projectId, 4)).resolves.toBeUndefined();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+
+    it("does not disable on the final attempt of a non-customer-fault ('other') error", async () => {
+      // Enriched source on the legacy write mode => the guard throws a plain
+      // Error, which the classifier treats as "other".
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(/enriched/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // "other" errors stay enabled and keep retrying on the next scheduled
+      // run — but the run is exhausted, so the cooldown-gated informational
+      // notification fires (observable via its atomic cooldown claim).
+      expect(row.enabled).toBe(true);
+      await vi.waitFor(async () => {
+        const notified = await prisma.blobStorageIntegration.findUniqueOrThrow({
+          where: { projectId },
+        });
+        expect(notified.lastFailureNotificationSentAt).not.toBeNull();
+      });
+    });
+
+    it("suppresses the informational email when the integration was disabled mid-run", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      // Simulate a concurrent worker's customer-fault disable (or a user
+      // toggle) landing mid-run, followed by a non-customer-fault failure:
+      // "will retry at the next scheduled export" would be false.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.updateMany({
+          where: { projectId },
+          data: { enabled: false },
+        });
+        throw new Error("connection refused");
+      });
+
+      await expect(runAttempt(projectId, 4)).rejects.toThrow(
+        /connection refused/i,
+      );
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/connection refused/i);
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+
+    // A concurrent run (distinct jobId, so not queue-deduped) can win the
+    // disable claim first. The loser must stay silent: the winner already sent
+    // the terminal "disabled" email, and the loser's only fallback is the
+    // informational "will retry at the next scheduled export" variant, which is
+    // false for an integration that is now off.
+    it("does not notify when a concurrent run won the customer-fault disable claim", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      // Land the winner's disable between the handler's enabled check and the
+      // terminal catch, then raise the same fault the winner disabled on.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.updateMany({
+          where: { projectId },
+          data: { enabled: false },
+        });
+        throw accessDeniedError();
+      });
+
+      await expect(runAttempt(projectId, 4)).resolves.toBeUndefined();
+      await settleBackgroundTasks();
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.enabled).toBe(false);
+      expect(row.lastError).toMatch(/access denied/i);
+      // Null proves the loser suppressed its email: the informational fallback
+      // would have taken the cooldown claim and stamped this.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+      // Only the worker that actually flipped enabled true->false counts it.
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    // When the failure can't even be written down (Postgres unavailable), the
+    // run knows nothing about the row's state, so it must not claim the fault is
+    // handled: it stays on the retry path and sends no email. `update` is only
+    // called on this terminal path, so spying on it isolates the persistence
+    // failure from the export itself.
+    it("keeps retrying without notifying when persisting the failure fails", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      mockValidateBlobStorageEndpoint.mockRejectedValueOnce(
+        accessDeniedError(),
+      );
+      const updateSpy = vi
+        .spyOn(prisma.blobStorageIntegration, "update")
+        .mockRejectedValueOnce(new Error("database unavailable"));
+
+      try {
+        await expect(runAttempt(projectId, 4)).rejects.toThrow(
+          /access denied/i,
+        );
+        await settleBackgroundTasks();
+      } finally {
+        updateSpy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // Nothing was written, so the fault is invisible to the row and the
+      // integration keeps running — even though this was a classified fault
+      // that would otherwise have disabled it.
+      expect(row.enabled).toBe(true);
+      expect(row.lastError).toBeNull();
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+      // No email either: its "will retry at the next scheduled export" text is
+      // the only thing we can still vouch for, and the rethrow delivers that.
+      expect(row.lastFailureNotificationSentAt).toBeNull();
+    });
+  });
+
+  // LFE-14894: an integration deleted mid-run makes the job obsolete — it must
+  // complete quietly instead of failing on the now-missing row (P2025) and
+  // paging on a config that no longer exists.
+  describe("integration deleted mid-run", () => {
+    // endpoint must be non-null so the handler runs the preflight we stub —
+    // that stub is the seam to delete the row after the initial load.
+    const createIntegration = async (
+      projectId: string,
+      overrides: { exportFrequency?: string; lastSyncAt?: Date } = {},
+    ) => {
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: projectId,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: "https://customer-bucket.s3.example.com",
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: overrides.exportFrequency ?? "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt:
+            overrides.lastSyncAt ??
+            new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+    };
+
+    it("drops the obsolete job instead of failing when the row is gone before the error is persisted", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      await createIntegration(projectId);
+      mockRecordIncrement.mockClear();
+      // Customer fault on the final attempt — normally disable + notify — but
+      // the row vanishes before the catch block can persist anything.
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.delete({ where: { projectId } });
+        const err = new Error("Access Denied");
+        err.name = "AccessDenied";
+        Object.assign(err, {
+          Code: "AccessDenied",
+          $metadata: { httpStatusCode: 403 },
+        });
+        throw err;
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+          attemptsMade: 4,
+          opts: { attempts: 5 },
+        } as Job),
+      ).resolves.toBeUndefined();
+
+      // Give fire-and-forget notification paths time to (not) run.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(mockRecordIncrement).not.toHaveBeenCalledWith(
+        BLOB_INTEGRATION_DISABLED_METRIC,
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("drops the obsolete job instead of failing when the row is gone after a successful export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      // Recent lastSyncAt keeps the window non-empty while staying caught up.
+      await createIntegration(projectId, {
+        exportFrequency: "hourly",
+        lastSyncAt: new Date(
+          Date.now() - BLOB_STORAGE_LAG_BUFFER_MS - 30 * 60 * 1000,
+        ),
+      });
+      mockValidateBlobStorageEndpoint.mockImplementationOnce(async () => {
+        await prisma.blobStorageIntegration.delete({ where: { projectId } });
+      });
+      const getInstanceSpy = vi
+        .spyOn(StorageServiceFactory, "getInstance")
+        .mockReturnValue({
+          uploadFile: vi.fn().mockResolvedValue(undefined),
+          uploadFileBuffered: vi.fn().mockResolvedValue(undefined),
+          deleteFiles: vi.fn().mockResolvedValue(undefined),
+          listFiles: vi.fn().mockResolvedValue([]),
+        } as unknown as StorageService);
+
+      try {
+        await expect(
+          handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job),
+        ).resolves.toBeUndefined();
+      } finally {
+        getInstanceSpy.mockRestore();
+      }
     });
   });
 
@@ -267,7 +686,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.blobstorage.table_export.count",
       1,
-      expect.objectContaining({ outcome: "failure", projectId }),
+      expect.objectContaining({ outcome: "failure" }),
     );
 
     // All four stage timers emitted with outcome=failure...
@@ -321,6 +740,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           enabled: true,
           exportFrequency: "hourly",
           exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          // Explicit CSV: this test asserts on text content, and the column
+          // default is now PARQUET (binary).
+          fileType: BlobStorageIntegrationFileType.CSV,
           nextSyncAt: twoHoursAgo,
           lastSyncAt: twoHoursAgo,
           compressed: false,
@@ -449,16 +871,35 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           expect(mockRecordIncrement).toHaveBeenCalledWith(
             "langfuse.blobstorage.table_export.count",
             1,
-            { outcome, table, projectId },
+            { outcome, table },
           );
         }
       }
 
       const files = await s3StorageService.listFiles(s3Prefix);
-      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const projectFiles = files.filter(
+        (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+      );
 
       // Should have 4 files (traces, observations, scores, events)
       expect(projectFiles).toHaveLength(4);
+
+      const manifestFile = files.find((f) => f.file.includes("/manifests/"));
+      expect(manifestFile).toBeDefined();
+      const manifest = JSON.parse(
+        await s3StorageService.download(manifestFile!.file),
+      );
+      expect(manifest.version).toBe(1);
+      expect(manifest.projectId).toBe(projectId);
+      expect(manifest.exportSource).toBe("TRACES_OBSERVATIONS_EVENTS");
+      expect(new Set(manifest.tables)).toEqual(
+        new Set(["traces", "observations", "scores", "observations_v2"]),
+      );
+      expect(manifest.files).toHaveLength(4);
+      expect(
+        new Set(manifest.files.map((f: { key: string }) => f.key)),
+      ).toEqual(new Set(projectFiles.map((f) => f.file)));
+      expect(manifest.window.maxTimestamp).toBe(manifest.maxTimestamp);
 
       // Check file paths follow the expected pattern
       const traceFile = projectFiles.find((f) => f.file.includes("/traces/"));
@@ -865,7 +1306,10 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         // Get files for this file type
         const files = await s3StorageService.listFiles(prefix);
         const projectFiles = files.filter(
-          (f) => f.file.includes(projectId) && f.file.includes(fileTypePrefix),
+          (f) =>
+            f.file.includes(projectId) &&
+            f.file.includes(fileTypePrefix) &&
+            !f.file.includes("/manifests/"),
         );
 
         // Should have 4 files (traces, observations, scores, events)
@@ -1348,6 +1792,86 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
     });
 
+    it("should coalesce a sub-second remainder instead of emitting a colliding chunk", async () => {
+      // Regression for the silent object-key collision: a caught-up run whose
+      // full-interval chunk ends only a sub-second before the frontier used to
+      // re-enqueue a tiny remainder chunk. Both keys truncate to the same
+      // wall-clock second, so the remainder overwrote the full window. Position
+      // lastSyncAt so the interval-capped maxTimestamp lands just below the
+      // frontier (remainder < BLOB_STORAGE_REMAINDER_COALESCE_MS): the run must
+      // be treated as caught up (schedule one interval out), not re-enqueued.
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const frequencyIntervalMs = 60 * 60 * 1000; // hourly
+      // gap = frontier - (minTimestamp + interval). Kept tiny (well under the
+      // coalesce threshold) so it stays below threshold even after the handler's
+      // own `now` advances a few ms past the test's.
+      const gapMs = 50;
+      const lastSyncAt = new Date(
+        now.getTime() -
+          BLOB_STORAGE_LAG_BUFFER_MS -
+          frequencyIntervalMs -
+          gapMs,
+      );
+
+      // A trace inside the full window so a real chunk is exported.
+      const trace = createTrace({
+        project_id: projectId,
+        timestamp: lastSyncAt.getTime() + frequencyIntervalMs / 2,
+        name: "Windowed Trace",
+      });
+      await createTracesCh([trace]);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          lastSyncAt,
+          compressed: false,
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const updatedIntegration = await prisma.blobStorageIntegration.findUnique(
+        {
+          where: { projectId },
+        },
+      );
+
+      expect(updatedIntegration).toBeDefined();
+      if (!updatedIntegration?.nextSyncAt || !updatedIntegration?.lastSyncAt) {
+        expect.fail("nextSyncAt and lastSyncAt should be set");
+      }
+
+      // Caught up: nextSyncAt is one interval past the exported boundary, far in
+      // the future — not the near-`now` value a catch-up re-enqueue would set.
+      expect(
+        updatedIntegration.nextSyncAt.getTime() - now.getTime(),
+      ).toBeGreaterThan(frequencyIntervalMs / 2);
+
+      // lastSyncAt advances only to the interval-capped boundary; the sub-second
+      // tail up to the frontier is deferred to the next scheduled run.
+      const frontier = now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS;
+      expect(updatedIntegration.lastSyncAt.getTime()).toBeLessThan(frontier);
+      expect(frontier - updatedIntegration.lastSyncAt.getTime()).toBeLessThan(
+        BLOB_STORAGE_REMAINDER_COALESCE_MS + 2000, // + handler-clock drift tolerance
+      );
+    });
+
     it("should schedule normally when caught up", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       s3Prefix = projectId;
@@ -1462,7 +1986,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        const projectFiles = files.filter((f) => f.file.includes(projectId));
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
 
         expect(projectFiles.length).toBeGreaterThan(0);
         expect(projectFiles.every((f) => f.file.endsWith(".csv.gz"))).toBe(
@@ -1514,7 +2040,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        const projectFiles = files.filter((f) => f.file.includes(projectId));
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
 
         expect(projectFiles.length).toBeGreaterThan(0);
         expect(
@@ -1576,7 +2104,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         } as Job);
 
         const files = await s3StorageService.listFiles(s3Prefix);
-        const projectFiles = files.filter((f) => f.file.includes(projectId));
+        const projectFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
 
         expect(projectFiles.length).toBeGreaterThan(0);
         expect(projectFiles.every((f) => f.file.endsWith(".jsonl.gz"))).toBe(
@@ -1584,6 +2114,381 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         );
       },
     );
+  });
+
+  // Uses the non-enriched TRACES_OBSERVATIONS source so it runs on every CI
+  // leg, independent of the V4-preview opt-in.
+  describe("run-completion manifest (LFE-10843)", () => {
+    maybeIt(
+      "writes a manifest listing every file, the window, and per-file format",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const dataTime = now.getTime() - 40 * 60 * 1000;
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        const traceId = randomUUID();
+        await Promise.all([
+          createTracesCh([
+            createTrace({
+              id: traceId,
+              project_id: projectId,
+              timestamp: dataTime,
+              name: "Manifest Trace",
+            }),
+          ]),
+          createObservationsCh([
+            createObservation({
+              id: randomUUID(),
+              trace_id: traceId,
+              project_id: projectId,
+              start_time: dataTime,
+              end_time: dataTime + 5000,
+              name: "Manifest Observation",
+            }),
+          ]),
+          createScoresCh([
+            createTraceScore({
+              id: randomUUID(),
+              trace_id: traceId,
+              project_id: projectId,
+              timestamp: dataTime,
+              name: "Manifest Score",
+              value: 0.5,
+            }),
+          ]),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const tableFiles = files.filter(
+          (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+        );
+        expect(tableFiles).toHaveLength(3); // scores, traces, observations
+
+        const manifestFile = files.find((f) => f.file.includes("/manifests/"));
+        expect(manifestFile).toBeDefined();
+        expect(manifestFile!.file).toContain(
+          `${s3Prefix}${projectId}/manifests/`,
+        );
+        expect(manifestFile!.file.endsWith(".json")).toBe(true);
+
+        const manifest = JSON.parse(
+          await s3StorageService.download(manifestFile!.file),
+        );
+        expect(manifest.version).toBe(1);
+        expect(manifest.projectId).toBe(projectId);
+        expect(manifest.exportSource).toBe("TRACES_OBSERVATIONS");
+        expect(new Set(manifest.tables)).toEqual(
+          new Set(["scores", "traces", "observations"]),
+        );
+
+        expect(
+          new Set(manifest.files.map((f: { key: string }) => f.key)),
+        ).toEqual(new Set(tableFiles.map((f) => f.file)));
+
+        const tracesEntry = manifest.files.find(
+          (f: { table: string }) => f.table === "traces",
+        );
+        expect(tracesEntry.fileType).toBe("JSONL");
+        expect(tracesEntry.format).toBe("jsonl-raw");
+        expect(tracesEntry.compressed).toBe(false);
+        expect(tracesEntry.rowCount).toBe(1);
+        expect(typeof tracesEntry.sizeBytes).toBe("number");
+
+        expect(typeof manifest.window.minTimestamp).toBe("string");
+        expect(manifest.maxTimestamp).toBe(manifest.window.maxTimestamp);
+        expect(typeof manifest.createdAt).toBe("string");
+      },
+    );
+  });
+
+  // LFE-10896: legacy-source projects get a plain-text deprecation notice in
+  // their destination; enriched-only (EVENTS) projects do not, and a stale
+  // notice is removed once a project migrates off a legacy source. The notice
+  // is Cloud-only, so set a cloud region for this suite (the top-level harness
+  // clears it) and restore it afterwards.
+  describe("legacy-source deprecation notice (LFE-10896)", () => {
+    const NOTICE_SUFFIX = "/DEPRECATION_NOTICE.txt";
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeAll(() => {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    });
+    afterAll(() => {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    });
+
+    maybeIt(
+      "writes DEPRECATION_NOTICE.txt for a legacy export source",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const dataTime = now.getTime() - 40 * 60 * 1000;
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        await createTracesCh([
+          createTrace({
+            id: randomUUID(),
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Notice Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const noticeFile = files.find((f) => f.file.endsWith(NOTICE_SUFFIX));
+        expect(noticeFile).toBeDefined();
+        expect(noticeFile!.file).toBe(
+          `${s3Prefix}${projectId}${NOTICE_SUFFIX}`,
+        );
+
+        const notice = await s3StorageService.download(noticeFile!.file);
+        expect(notice).toContain("Traces and observations (legacy)");
+        expect(notice).toContain("Enriched observations (recommended)");
+        expect(notice).toContain(
+          "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage",
+        );
+      },
+    );
+
+    // The EVENTS export reads the enriched events table, which only the
+    // V4-preview CI leg provisions — gate these like every other enriched test.
+    // isCloud is set by the suite's beforeAll, so the notice logic still runs.
+    maybeDescribe("after migrating to the enriched-only source", () => {
+      maybeIt(
+        "does not write a deprecation notice for the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "No Notice Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const files = await s3StorageService.listFiles(s3Prefix);
+          expect(files.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+
+      // A notice written while on a legacy source must be cleaned up once the
+      // project migrates to the enriched-only source, so it can't linger with
+      // now-false claims. Cleanup only runs for integrations old enough to have
+      // used a legacy source (pre-exporter-cutoff createdAt).
+      maybeIt(
+        "removes a stale notice after migrating to the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          // Simulate a notice left behind by an earlier legacy-source run.
+          await s3StorageService.uploadFile({
+            fileName: noticeKey,
+            fileType: "text/plain; charset=utf-8",
+            data: "stale notice from a previous legacy run",
+          });
+          const before = await s3StorageService.listFiles(s3Prefix);
+          expect(before.some((f) => f.file === noticeKey)).toBe(true);
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+              // Pre-exporter-cutoff: old enough to have used a legacy source, so
+              // cleanup runs. Derived from the live cutoff so an env override
+              // can't flip the gate.
+              createdAt: new Date(
+                LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - 24 * 60 * 60 * 1000,
+              ),
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "Migrated Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const after = await s3StorageService.listFiles(s3Prefix);
+          expect(after.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+
+      // Post-cutoff integrations can never have used a legacy source, so they
+      // never wrote a notice — the cleanup delete must be skipped for them to
+      // avoid a needless per-run s3:DeleteObject on every enriched-only export.
+      maybeIt(
+        "skips notice cleanup for a post-cutoff enriched-only integration",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          // A stray notice a post-cutoff project could never legitimately have —
+          // the gate must leave it untouched (no delete attempted).
+          await s3StorageService.uploadFile({
+            fileName: noticeKey,
+            fileType: "text/plain; charset=utf-8",
+            data: "stray notice that must not be touched",
+          });
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+              // Post-exporter-cutoff: never could have used a legacy source, so
+              // cleanup is skipped and the stray file is left in place. Derived
+              // from the live cutoff so an env override can't flip the gate.
+              createdAt: new Date(
+                LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 24 * 60 * 60 * 1000,
+              ),
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "Post-cutoff Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const after = await s3StorageService.listFiles(s3Prefix);
+          expect(after.some((f) => f.file === noticeKey)).toBe(true);
+        },
+      );
+    });
   });
 
   // LFE-10402: raw-passthrough streams ClickHouse JSONEachRow bytes straight to
@@ -1835,7 +2740,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   maybeDescribe("Parquet export (LFE-10463)", () => {
-    // E2e: exportTuning.parquet runs the real handler → MinIO. Parquet magic is
+    // E2e: fileType=PARQUET runs the real handler → MinIO. Parquet magic is
     // ASCII, so it survives the string download at both ends of the body.
     const PARQUET_MAGIC = "PAR1";
 
@@ -1870,8 +2775,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           lastSyncAt: twoHoursAgo,
           // compressed must be ignored on the parquet path (no .gz suffix).
           compressed: true,
-          fileType: BlobStorageIntegrationFileType.JSONL,
-          exportTuning: { parquet: true },
+          fileType: BlobStorageIntegrationFileType.PARQUET,
         },
       });
 
@@ -1931,13 +2835,28 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       } as Job);
 
       const files = await s3StorageService.listFiles(s3Prefix);
-      const projectFiles = files.filter((f) => f.file.includes(projectId));
+      const projectFiles = files.filter(
+        (f) => f.file.includes(projectId) && !f.file.includes("/manifests/"),
+      );
 
       // traces, observations, scores, observations_v2 (events).
       expect(projectFiles).toHaveLength(4);
       for (const f of projectFiles) {
         expect(f.file.endsWith(".parquet")).toBe(true);
         expect(f.file).not.toContain(".gz");
+      }
+
+      const manifestFile = files.find((f) => f.file.includes("/manifests/"));
+      expect(manifestFile).toBeDefined();
+      const manifest = JSON.parse(
+        await s3StorageService.download(manifestFile!.file),
+      );
+      expect(manifest.files).toHaveLength(4);
+      for (const f of manifest.files) {
+        expect(f.fileType).toBe("PARQUET");
+        expect(f.format).toBe("parquet");
+        expect(f.compressed).toBe(false);
+        expect(f.rowCount).toBeNull();
       }
 
       // Every object is a valid Parquet file (magic at both ends).

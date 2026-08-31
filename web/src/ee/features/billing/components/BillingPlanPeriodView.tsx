@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { formatLocalIsoDate } from "@/src/components/LocalIsoDate";
+import { formatLocalIsoDate } from "@/src/utils/dates";
 import { BillingCurrentPlanLabel } from "./BillingCurrentPlanLabel";
 
 export const BillingPlanPeriodView = () => {
@@ -26,5 +26,3 @@ export const BillingPlanPeriodView = () => {
     </div>
   );
 };
-
-export default BillingPlanPeriodView;

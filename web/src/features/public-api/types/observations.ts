@@ -1,16 +1,17 @@
 import {
   type Observation,
   commaSeparatedEnumArray,
+  deprecationResponseZod,
   type EventsObservation,
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
   eventsTableSingleFilter,
   optionalCommaSeparatedStringArray,
+  optionalJsonParam,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   singleFilter,
   InvalidRequestError,
-  type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
 import {
   reduceUsageOrCostDetails,
@@ -21,11 +22,6 @@ import { z } from "zod";
 import { useEventsTableSchema } from "@langfuse/shared/query";
 
 // Re-export for convenience
-export {
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  type ObservationFieldGroupPublicApi,
-};
-
 /**
  * Objects
  */
@@ -177,6 +173,9 @@ export const transformDbToApiObservation = (
     bookmarked,
 
     public: _public,
+
+    // Exclude the V2-only logical root flag from V1 responses.
+    isRootObservation: _isRootObservation,
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {
@@ -227,25 +226,13 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(singleFilter).optional()),
+  filter: optionalJsonParam(z.array(singleFilter), "filter"),
 });
 export const GetObservationsV1Response = z
   .object({
     data: z.array(APIObservation),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -254,14 +241,18 @@ export const GetObservationV1Query = z.object({
   observationId: z.string(),
   useEventsTable: useEventsTableSchema,
 });
-export const GetObservationV1Response = APIObservation;
+// `_deprecation` at the response level, not on the shared `APIObservation`
+// (which is also the list element type).
+export const GetObservationV1Response = APIObservation.extend({
+  _deprecation: deprecationResponseZod.optional(),
+});
 
 /**
  * Cursor schema for v2 observations pagination
  * Encodes the position in the result set using the table's ordering:
  * (start_time, xxHash32(trace_id), span_id)
  */
-export const ObservationsCursorV2 = z.object({
+const ObservationsCursorV2 = z.object({
   lastStartTimeTo: z.coerce.date(),
   lastTraceId: z.string(),
   lastId: z.string(),
@@ -339,27 +330,19 @@ export const GetObservationsV2Query = z.object({
   type: ObservationType.nullish(),
   name: z.string().nullish(),
   userId: z.string().nullish(),
+  sessionId: z.string().nullish(),
   level: z.enum(ObservationLevel).nullish(),
   traceId: z.string().nullish(),
   version: z.string().nullish(),
   parentObservationId: z.string().nullish(),
+  isRootObservation: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(eventsTableSingleFilter).optional()),
+  filter: optionalJsonParam(z.array(eventsTableSingleFilter), "filter"),
 });
 
 /**
@@ -379,6 +362,7 @@ const APIObservationV2 = z
     type: z.string(),
 
     // Basic fields (field group: basic)
+    isRootObservation: z.boolean().optional(),
     name: z.string().nullable().optional(),
     level: z.enum(["DEBUG", "DEFAULT", "WARNING", "ERROR"]).optional(),
     statusMessage: z.string().nullable().optional(),

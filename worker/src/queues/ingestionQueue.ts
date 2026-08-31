@@ -19,6 +19,8 @@ import {
   SecondaryIngestionQueue,
   TQueueJobTypes,
   traceException,
+  type IngestionAttribution,
+  UNKNOWN_INGESTION_SDK_VALUE,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -270,6 +272,14 @@ export const ingestionQueueProcessorBuilder = (
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
         v4WritesToEventsTable(env);
+      const attribution: IngestionAttribution = {
+        ingestionApiKey: job.data.payload.data.ingestionApiKey ?? "",
+        ingestionSdkName:
+          job.data.payload.data.ingestionSdkName || UNKNOWN_INGESTION_SDK_VALUE,
+        ingestionSdkVersion:
+          job.data.payload.data.ingestionSdkVersion ||
+          UNKNOWN_INGESTION_SDK_VALUE,
+      };
 
       // Recover the canonical entity id from the downloaded event body, not
       // from the queue payload. On replay, `payload.data.eventBodyId` is the
@@ -308,14 +318,15 @@ export const ingestionQueueProcessorBuilder = (
         prisma,
         clickhouseWriter,
         clickhouseClient(),
-      ).mergeAndWrite(
-        getClickhouseEntityType(events[0].type),
-        job.data.payload.authCheck.scope.projectId,
-        canonicalEntityId,
-        firstS3WriteTime,
+      ).mergeAndWrite({
+        eventType: getClickhouseEntityType(events[0].type),
+        projectId: job.data.payload.authCheck.scope.projectId,
+        entityId: canonicalEntityId,
+        createdAtTimestamp: firstS3WriteTime,
         events,
         forwardToEventsTable,
-      );
+        attribution,
+      });
     } catch (e) {
       // Check if this is a SlowDown error and mark the project for secondary queue
       if (isS3SlowDownError(e)) {

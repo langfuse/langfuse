@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -15,9 +16,18 @@ import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/Create
 export function CreateLLMApiKeyDialog({
   open,
   setOpen,
+  hideTrigger = false,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
+  /**
+   * Hide the built-in "Add LLM Connection" trigger button and render only the
+   * (controlled) dialog. Use this when the dialog is opened from elsewhere — e.g.
+   * from inside a Select/dropdown, where the dialog must live OUTSIDE the
+   * dropdown content so it survives the dropdown closing. See the overlay
+   * lifecycle note in web/AGENTS.md.
+   */
+  hideTrigger?: boolean;
 }) {
   const projectId = useProjectIdFromURL();
   const hasAccess = useHasProjectAccess({
@@ -35,12 +45,14 @@ export function CreateLLMApiKeyDialog({
         setOpen(isOpen);
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="secondary">
-          <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
-          Add LLM Connection
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="secondary">
+            <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
+            Add LLM Connection
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
         <DialogHeader>
           <DialogTitle>New LLM Connection</DialogTitle>

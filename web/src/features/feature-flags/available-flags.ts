@@ -1,8 +1,39 @@
+import { assertUnreachable } from "@langfuse/shared";
+
+export const featurePreviewFlags = ["modernSession"] as const;
+
+export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
+
+export const isFeaturePreviewFlag = (
+  flag: string,
+): flag is FeaturePreviewFlag =>
+  featurePreviewFlags.some((previewFlag) => previewFlag === flag);
+
+export const filterFeaturePreviewFlags = (
+  flags: string[],
+): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
+
+export const featurePreviewLabels = {
+  modernSession: "Compact Session View",
+} satisfies Record<FeaturePreviewFlag, string>;
+
+export type FeaturePreviewAvailabilityContext = {
+  v4BetaEnabled: boolean;
+};
+
+export const isFeaturePreviewAvailable = (
+  flag: FeaturePreviewFlag,
+  context: FeaturePreviewAvailabilityContext,
+) => {
+  if (flag === "modernSession") {
+    return context.v4BetaEnabled;
+  }
+
+  return assertUnreachable(flag);
+};
+
 export const availableFlags = [
-  // TODO(remove ~2026-06-19): "searchBar" is retired — the grammar search bar
-  // is now GA on the v4 events tables for everyone (see useSearchBarEnabled),
-  // no longer a per-user Feature Preview opt-in. Kept as dead plumbing for a
-  // safe rollback; drop once the GA rollout is confirmed stable.
+  ...featurePreviewFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",

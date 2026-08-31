@@ -129,7 +129,7 @@ export class ClickHouseQueryBuilder {
       SELECT
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
         toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
-        concat('trace-', toString(number % 10)) AS name,
+        arrayElement(['chat-completion','summarize-document','extract-entities','embed-documents','classify-intent','generate-title','translate-text','moderate-content','rerank-results','answer-question'], 1 + (number % 10)) AS name,
         if(h1 % 10 < 3, concat('${idPrefix}user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
@@ -231,18 +231,33 @@ export class ClickHouseQueryBuilder {
           when type = 'GENERATION' then concat('generation-', toString(number % 10))
           when type = 'SPAN' then concat('span-', toString(number % 10))
           else concat('event-', toString(number % 10))
-        end AS name,
-        ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
-        multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
-        NULL AS status_message,
-        NULL AS version,
+          end AS name,
+          ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
+          multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
+          multiIf(
+            level = 'ERROR' AND h2 % 2 = 0,
+              '{"error":{"code":"upstream_timeout","message":"The upstream model did not respond in time.","retryable":true},"requestId":"seed-request-42"}',
+            level = 'ERROR',
+              'Upstream model request timed out after 30 seconds.',
+            level = 'WARNING',
+              'The response completed after one automatic retry.',
+            level = 'DEBUG',
+              'Prompt cache lookup completed without a matching entry.',
+            level = 'DEFAULT' AND h2 % 10 = 0,
+              'The response completed with additional status details.',
+            NULL
+          ) AS status_message,
+          NULL AS version,
         if(type = 'GENERATION',
           if(h2 % 10 < 4, '${escapedHeavyMarkdown}', '${escapedChatMl}'),
           NULL) AS input,
         if(type = 'GENERATION',
           if(h2 % 10 >= 7, '${escapedNestedJson}', '${escapedChatMl}'),
           NULL) AS output,
-        if(type = 'GENERATION', 'gpt-4', NULL) AS provided_model_name,
+        -- Spread generations across a realistic model pool (keyed on the stable
+        -- per-row hash h4) so model-usage / cost / latency-by-model dashboards
+        -- show multiple series instead of a single hardcoded model.
+        if(type = 'GENERATION', arrayElement(['gpt-5.4-mini','gpt-5.4-nano','claude-haiku-4-5','gpt-5.4','claude-sonnet-4-5'], 1 + (h4 % 5)), NULL) AS provided_model_name,
         NULL AS internal_model_id,
         if(type = 'GENERATION', '{"temperature": 0.7}', '{}') AS model_parameters,
         if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS provided_usage_details,
@@ -288,7 +303,8 @@ export class ClickHouseQueryBuilder {
           number,
           xxHash32(toUInt64(number * 4 + ${seedSalt})) AS h1,
           xxHash32(toUInt64(number * 4 + 1 + ${seedSalt})) AS h2,
-          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3
+          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3,
+          xxHash32(toUInt64(number * 4 + 3 + ${seedSalt})) AS h4
         FROM numbers(${totalObservations})
       );
     `;
@@ -366,7 +382,10 @@ export class ClickHouseQueryBuilder {
         now() AS event_ts,
         0 AS is_deleted,
         NULL AS execution_trace_id,
-        '' AS long_string_value
+        '' AS long_string_value,
+        arrayElement(['pk-lf-seed-${idSuffix}-python','pk-lf-seed-${idSuffix}-javascript','pk-lf-seed-${idSuffix}-raw-api'], 1 + (h1 % 3)) AS ingestion_api_key,
+        arrayElement(['python','javascript','unknown'], 1 + (h1 % 3)) AS ingestion_sdk_name,
+        arrayElement(['4.2.1','5.1.3','unknown'], 1 + (h1 % 3)) AS ingestion_sdk_version
       FROM
       (
         SELECT

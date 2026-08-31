@@ -146,8 +146,12 @@ function assignGlobalTimingSteps(
       const ancestors = new Set<string>();
       let current = obsMap.get(obsId);
       while (current?.parentObservationId) {
-        ancestors.add(current.parentObservationId);
-        current = obsMap.get(current.parentObservationId);
+        const parentId = current.parentObservationId;
+        // Cycle guard: parent pointers are acyclic by DB schema, but a malformed
+        // chain (parent already seen) would otherwise loop this walk forever.
+        if (ancestors.has(parentId)) break;
+        ancestors.add(parentId);
+        current = obsMap.get(parentId);
       }
       return ancestors;
     };

@@ -13,8 +13,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useSession } from "next-auth/react";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { api } from "@/src/utils/api";
@@ -134,7 +134,9 @@ export function ResetPasswordPage({
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link href="/">
-            <LangfuseIcon className="mx-auto" />
+            <div className="mx-auto w-fit">
+              <LangfuseIcon />
+            </div>
           </Link>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             {title}
@@ -240,33 +242,35 @@ export function ResetPasswordPage({
                       {submitLabel}
                     </Button>
                   ) : (
-                    <RequestResetPasswordEmailButton
-                      email={form.watch("email")}
-                      className="w-full"
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
-                    />
+                    <div className="w-full">
+                      <RequestResetPasswordEmailButton
+                        email={form.watch("email")}
+                        callbackUrl={
+                          isSetMode ? "/auth/setup-password" : undefined
+                        }
+                      />
+                    </div>
                   )}
                 </div>
               </form>
             </Form>
             {formError ? (
-              <div className="text-destructive text-center text-sm font-medium">
+              <div className="text-destructive text-center text-sm font-bold">
                 {formError}
               </div>
             ) : null}
             {isSuccess && (
-              <div className="text-center text-sm font-medium">
+              <div className="text-center text-sm font-bold">
                 {successMessage}
               </div>
             )}
             {showResetPasswordEmailButton && (
-              <RequestResetPasswordEmailButton
-                email={form.getValues("email")}
-                className="w-full"
-                callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
-              />
+              <div className="w-full">
+                <RequestResetPasswordEmailButton
+                  email={form.getValues("email")}
+                  callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                />
+              </div>
             )}
           </div>
         </div>

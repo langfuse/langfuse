@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
@@ -15,7 +16,7 @@ import {
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   PRODUCTION_LABEL,
   PromptLabelSchema,
@@ -111,7 +112,7 @@ export function SetPromptVersionLabels({
       capture("prompt_detail:apply_labels", { labels: selectedLabels });
       setIsOpen(false);
     } catch (err) {
-      console.error(err);
+      reportNonTrpcError(err, "prompts");
     }
   };
 
@@ -204,7 +205,7 @@ export function SetPromptVersionLabels({
           onClick={(event) => event.stopPropagation()}
           className="flex flex-col"
         >
-          <h2 className="mb-3 font-semibold">Prompt labels</h2>
+          <h2 className="mb-3 font-bold">Prompt labels</h2>
           <h2 className="mb-3 text-xs">
             Use labels to fetch prompts via SDKs. The{" "}
             <strong>production</strong> labeled prompt will be served by
@@ -307,7 +308,10 @@ export function SetPromptVersionLabels({
                       disabled={!isValidNewLabel}
                       onClick={handleCreateLabel}
                     >
-                      <span className="truncate">
+                      <span
+                        className="truncate"
+                        title={`Create a new label: ${trimmedSearch}`}
+                      >
                         Create a new label:{" "}
                         <strong className="text-foreground">
                           {trimmedSearch}

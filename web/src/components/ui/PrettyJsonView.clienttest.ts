@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   decodeUnicodeInJson,
   DECODE_UNICODE_MAX_DEPTH,
@@ -114,6 +116,27 @@ describe("decodeUnicodeInJson", () => {
     expect(decodeUnicodeInJson(input)).toEqual({
       外側: { 内側: "値" },
     });
+  });
+
+  it("drops keys that decode to a prototype-pollution vector", () => {
+    // An escaped "__proto__" survives deepParseJson's literal-string filter and
+    // only becomes dangerous after we decode it — so it must be dropped here.
+    const result = decodeUnicodeInJson({
+      "\\u005f\\u005fproto\\u005f\\u005f": { admin: true },
+      safe: "\\u5024",
+    }) as Record<string, unknown>;
+    expect(result).toEqual({ safe: "値" });
+    // The decoded object's prototype must be untouched (no pollution).
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect((result as { admin?: unknown }).admin).toBeUndefined();
+    // constructor / prototype are dropped too.
+    expect(
+      decodeUnicodeInJson({
+        "\\u0063onstructor": 1,
+        "\\u0070rototype": 2,
+        ok: 3,
+      }),
+    ).toEqual({ ok: 3 });
   });
 
   it("does not blow the call stack on very deeply nested structures", () => {

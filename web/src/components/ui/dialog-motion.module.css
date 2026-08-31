@@ -10,12 +10,23 @@
   animation: dialogContentOut 180ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
+/* A closing dialog must be inert: its handlers are stale (ConfirmDialog even
+   freezes its last-open content), so e.g. a click landing on the fading
+   confirm button must not fire. Disable pointer events on descendants only —
+   the container keeps Radix's inline `pointer-events: auto`, which we rely on
+   as a shield so clicks during the fade-out do not reach the page beneath. */
+.content[data-state="closed"] * {
+  pointer-events: none;
+}
+
 .overlay[data-state="open"] {
   animation: dialogOverlayIn 200ms ease-out both;
 }
 
 .overlay[data-state="closed"] {
-  animation: dialogOverlayOut 150ms ease-in both;
+  /* Same duration as the content exit: the overlay shields the rest of the
+     viewport from clicks for as long as the closing content is visible. */
+  animation: dialogOverlayOut 180ms ease-in both;
 }
 
 @keyframes dialogContentIn {

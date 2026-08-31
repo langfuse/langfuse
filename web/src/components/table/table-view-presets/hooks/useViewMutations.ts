@@ -2,19 +2,23 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import type { TableViewPresetState } from "@langfuse/shared";
 
 type UseViewMutationsProps = {
   handleSetViewId: (viewId: string | null) => void;
+  applyViewState: (view: TableViewPresetState) => void;
 };
 
 export const useViewMutations = ({
   handleSetViewId,
+  applyViewState,
 }: UseViewMutationsProps) => {
   const utils = api.useUtils();
 
   const createMutation = api.TableViewPresets.create.useMutation({
     onSuccess: (data) => {
       utils.TableViewPresets.getByTableName.invalidate();
+      applyViewState(data.view);
       handleSetViewId(data.view.id);
     },
   });

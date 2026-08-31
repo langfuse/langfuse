@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useExtractVariables } from "@/src/features/evals/hooks/useExtractVariables";
@@ -119,6 +120,7 @@ export const EvaluationPromptPreview = ({
   variableMapping,
   isLoading,
   showControls = true,
+  showTargetBadge = true,
   className,
   controlButtons,
 }: {
@@ -128,6 +130,7 @@ export const EvaluationPromptPreview = ({
   variableMapping: VariableMapping[];
   isLoading: boolean;
   showControls?: boolean;
+  showTargetBadge?: boolean;
   className?: string;
   controlButtons?: React.ReactNode;
 }) => {
@@ -232,10 +235,10 @@ export const EvaluationPromptPreview = ({
 
   return (
     <div className={cn("flex flex-col", className)}>
-      <span className="mb-1 flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
+      <span className="mb-1 flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
         <div className="flex flex-row items-center gap-2">
           Evaluation Prompt Preview
-          {targetLink && (
+          {showTargetBadge && targetLink && (
             <Link
               href={targetLink.href}
               className="hover:cursor-pointer"

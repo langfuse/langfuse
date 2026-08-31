@@ -12,7 +12,12 @@ import {
 
 import { __test } from "./MonitorForm";
 
-const { createDefaults, monitorToDefaults, nameOrPlaceholder } = __test;
+const {
+  createDefaults,
+  monitorToDefaults,
+  nameOrPlaceholder,
+  resolveViewChangePatch,
+} = __test;
 
 describe("createDefaults", () => {
   it("only surfaces name + alertThreshold as missing base fields (no hidden missing fields)", () => {
@@ -86,6 +91,36 @@ describe("nameOrPlaceholder", () => {
 
   it("non-blank name: wins over the placeholder", () => {
     expect(nameOrPlaceholder("My Monitor", placeholder)).toBe("My Monitor");
+  });
+});
+
+describe("resolveViewChangePatch", () => {
+  it("view change: never patches filters", () => {
+    expect(
+      resolveViewChangePatch("scores-numeric", "count"),
+    ).not.toHaveProperty("filters");
+    expect(
+      resolveViewChangePatch("scores-numeric", "latency"),
+    ).not.toHaveProperty("filters");
+    expect(resolveViewChangePatch("observations", "value")).not.toHaveProperty(
+      "filters",
+    );
+  });
+
+  it("measure absent on the new view: resets the metric to count", () => {
+    expect(resolveViewChangePatch("scores-numeric", "latency").metric).toEqual({
+      measure: "count",
+      aggregation: "count",
+    });
+  });
+
+  it("measure present on the new view: leaves the metric alone", () => {
+    expect(
+      resolveViewChangePatch("observations", "latency"),
+    ).not.toHaveProperty("metric");
+    expect(
+      resolveViewChangePatch("scores-numeric", "value"),
+    ).not.toHaveProperty("metric");
   });
 });
 

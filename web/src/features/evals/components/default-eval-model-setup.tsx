@@ -1,7 +1,7 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-style-props */
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { CardContent } from "@/src/components/ui/card";
-import { Card } from "@/src/components/ui/card";
+import { CardContent, Card } from "@/src/components/ui/card";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
@@ -11,9 +11,12 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
-import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
+import {
+  DialogContent,
+  DialogTrigger,
+  Dialog,
+} from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
 import {
   Popover,
@@ -111,9 +114,7 @@ function DefaultEvalModelFields({
   return (
     <>
       <ModelParameters
-        customHeader={
-          <p className="leading-none font-medium">LLM connection</p>
-        }
+        customHeader={<p className="leading-none font-bold">LLM connection</p>}
         modelParams={setup.modelParams}
         availableModels={setup.availableModels}
         providerModelCombinations={setup.providerModelCombinations}
@@ -162,7 +163,7 @@ export function DefaultEvalModelSetup({
     <>
       <Card className="mt-3 flex flex-col gap-6">
         <CardContent>
-          <p className="my-2 text-lg font-semibold">
+          <p className="my-2 text-lg font-bold">
             Set up LLM connection to use for evaluations
           </p>
           <ManageDefaultEvalModel
@@ -324,7 +325,7 @@ function UpdateButton({
         onClick={(e) => e.stopPropagation()}
         className="w-fit max-w-[500px]"
       >
-        <h2 className="mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-bold">Please confirm</h2>
         <p className="mb-3 text-sm">
           Updating the default model will impact any currently running
           evaluators that use it. Please confirm that you want to proceed with

@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { ScoreDataTypeEnum, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
-
-export const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
+import type {
+  CodeEvalTemplateVariable,
+  ToolCallForEval,
+} from "../../features/evals/observationForEval";
+export { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
+import { CODE_EVAL_SOURCE_MAX_BYTES } from "../../features/evals/codeEvalConstants";
 export const CODE_EVAL_DISPATCH_PAYLOAD_MAX_BYTES = 5.5 * 1024 * 1024;
 export const CODE_EVAL_DISPATCH_RESULT_MAX_BYTES = 256 * 1024;
 export const CODE_EVAL_DOCS_URL =
@@ -30,12 +34,28 @@ export type CodeEvalPayload = {
     input: unknown;
     output: unknown;
     metadata: unknown;
+    toolCalls: ToolCallForEval[];
   };
   experiment?: {
     itemExpectedOutput: unknown;
     itemMetadata: unknown;
   };
 };
+
+/**
+ * Compile-time lockstep between the canonical code-eval variable list and the
+ * payload contract: adding a variable to CODE_EVAL_TEMPLATE_VARIABLES fails
+ * here until it is assigned a payload section — the reminder to extend
+ * CodeEvalPayload and buildCodeEvalPayload (codeEvalExecution.ts) with it.
+ */
+export const CODE_EVAL_PAYLOAD_SECTION_BY_VARIABLE = {
+  input: "observation",
+  output: "observation",
+  metadata: "observation",
+  toolCalls: "observation",
+  experimentItemExpectedOutput: "experiment",
+  experimentItemMetadata: "experiment",
+} as const satisfies Record<CodeEvalTemplateVariable, keyof CodeEvalPayload>;
 
 export type DispatchInput = {
   scope: CodeEvalScope;

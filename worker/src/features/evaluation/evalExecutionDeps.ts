@@ -4,26 +4,27 @@ import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   buildEventBucketPrefix,
+  createLLMOutput,
   DefaultEvalModelService,
-  fetchLLMCompletion,
+  generateLLMText,
   IngestionQueue,
   LLMAdapter,
+  mapLegacyLLMCompletionParams,
   QueueJobs,
   ScoreEventType,
+  UNKNOWN_INGESTION_SDK_VALUE,
+  type ChatMessage,
 } from "@langfuse/shared/src/server";
-import { buildEvalMessages } from "./evalRuntime";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 
-type StructuredOutputSchema = NonNullable<
-  Parameters<typeof fetchLLMCompletion>[0]["structuredOutputSchema"]
->;
+type StructuredOutputSchema = z.ZodType;
 
 /**
  * Result of fetching model configuration.
  */
-export type ModelConfigResult =
+type ModelConfigResult =
   | {
       valid: true;
       config: {
@@ -45,8 +46,8 @@ export type ModelConfigResult =
 /**
  * Parameters for calling the LLM.
  */
-export interface LLMCallParams {
-  messages: ReturnType<typeof buildEvalMessages>;
+interface LLMCallParams {
+  messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {
@@ -61,7 +62,7 @@ export interface LLMCallParams {
 /**
  * Update data for job execution status.
  */
-export interface UpdateJobExecutionData {
+interface UpdateJobExecutionData {
   status: JobExecutionStatus;
   endTime?: Date;
   jobOutputScoreId?: string;
@@ -71,7 +72,7 @@ export interface UpdateJobExecutionData {
 /**
  * Parameters for uploading a score to S3.
  */
-export interface UploadScoreParams {
+interface UploadScoreParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -81,7 +82,7 @@ export interface UploadScoreParams {
 /**
  * Parameters for enqueueing score ingestion.
  */
-export interface EnqueueScoreIngestionParams {
+interface EnqueueScoreIngestionParams {
   projectId: string;
   scoreId: string;
   eventId: string;
@@ -90,7 +91,7 @@ export interface EnqueueScoreIngestionParams {
 /**
  * Parameters for updating a job execution.
  */
-export interface UpdateJobExecutionParams {
+interface UpdateJobExecutionParams {
   id: string;
   projectId: string;
   data: UpdateJobExecutionData;
@@ -99,7 +100,7 @@ export interface UpdateJobExecutionParams {
 /**
  * Parameters for fetching model configuration.
  */
-export interface FetchModelConfigParams {
+interface FetchModelConfigParams {
   projectId: string;
   provider?: string;
   model?: string;
@@ -190,6 +191,9 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
             bucketPrefix,
+            ingestionApiKey: "",
+            ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
+            ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
           },
           authCheck: {
             validKey: true,
@@ -202,15 +206,16 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
     },
 
     callLLM: async (params) => {
-      // Type assertion needed because the deps interface uses a simplified apiKey type for testability
-      // while the actual fetchLLMCompletion requires a full LlmApiKey type
-      const llmConnection = params.modelConfig.apiKey as unknown as Parameters<
-        typeof fetchLLMCompletion
-      >[0]["llmConnection"];
+      // The dependency interface deliberately keeps the stored connection
+      // shape small for testability. The boundary mapper owns conversion from
+      // persisted Langfuse settings into the native AI SDK call contract.
+      const connection = params.modelConfig.apiKey as unknown as Parameters<
+        typeof mapLegacyLLMCompletionParams
+      >[0]["connection"];
 
       const adapter = params.modelConfig.apiKey
         .adapter as unknown as Parameters<
-        typeof fetchLLMCompletion
+        typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
       // llmaj egress: serialized request body (messages + schema), uncompressed.
@@ -223,9 +228,8 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             )
           : 0);
 
-      const result = await fetchLLMCompletion({
-        streaming: false,
-        llmConnection,
+      const llmParams = mapLegacyLLMCompletionParams({
+        connection,
         messages: params.messages,
         modelParams: {
           provider: params.modelConfig.provider,
@@ -233,9 +237,12 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           adapter,
           ...params.modelConfig.modelParams,
         },
-        structuredOutputSchema: params.structuredOutputSchema,
+      });
+      const result = await generateLLMText({
+        ...llmParams,
+        output: createLLMOutput(params.structuredOutputSchema),
         maxRetries: 1,
-        traceSinkParams: {
+        trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
           traceId: params.traceSinkParams.traceId,
           traceName: params.traceSinkParams.traceName,
@@ -252,7 +259,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         projectId: params.traceSinkParams.targetProjectId,
       });
 
-      return result;
+      return result.output;
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {

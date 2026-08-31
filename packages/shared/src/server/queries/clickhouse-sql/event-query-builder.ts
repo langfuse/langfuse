@@ -1,7 +1,12 @@
 import {
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  ObservationFieldGroupPublicApi,
+  type ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
+import {
+  eventsTableIsRootObservationSql,
+  eventsTableTraceNameAggregationSql,
+  eventsTableTraceNameSelectSql,
+} from "../../../eventsTable";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 import { FilterList, StringFilter } from "./clickhouse-filter";
 
@@ -41,7 +46,10 @@ export interface SplitQueryBuilder extends QueryWithParams {
   leftJoin(cteName: string, alias: string, onClause: string): SplitQueryBuilder;
   select(...expressions: string[]): SplitQueryBuilder;
   orderBy(clause: string): SplitQueryBuilder;
-  orderByColumns(entries: OrderByEntry[]): SplitQueryBuilder;
+  orderByColumns(
+    entries: OrderByEntry[],
+    options?: OrderByColumnsOptions,
+  ): SplitQueryBuilder;
 }
 
 /**
@@ -49,6 +57,51 @@ export interface SplitQueryBuilder extends QueryWithParams {
  */
 export type OrderByDirection = "ASC" | "DESC";
 export type OrderByEntry = { column: string; direction: OrderByDirection };
+type OrderByColumnsOptions = {
+  eventTableAlias?: string;
+  /**
+   * Prepend `<alias>.project_id, toStartOfMinute(<alias>.start_time)` so the
+   * sort matches the events table PRIMARY KEY (project_id,
+   * toStartOfMinute(start_time), xxHash32(trace_id)) for read-in-order.
+   * Callers should set this when the sort order leads with start_time.
+   */
+  matchTablePrimaryKey?: boolean;
+};
+
+const findStartTimeOrderClause = (
+  entries: OrderByEntry[],
+  eventTableAlias: string,
+) =>
+  entries.find(
+    (e) => e.column.replace(/"/g, "") === `${eventTableAlias}.start_time`,
+  );
+
+const buildOrderByClause = (
+  entries: OrderByEntry[],
+  options: OrderByColumnsOptions = {},
+) => {
+  if (!entries.length) {
+    return undefined;
+  }
+
+  const columns: string[] = [];
+  const { eventTableAlias, matchTablePrimaryKey } = options;
+
+  if (matchTablePrimaryKey && eventTableAlias) {
+    // The prefix reuses the direction the caller chose for start_time so the
+    // combined order stays equivalent (toStartOfMinute is monotone).
+    const direction =
+      findStartTimeOrderClause(entries, eventTableAlias)?.direction ?? "DESC";
+    columns.push(
+      `${eventTableAlias}.project_id ${direction}`,
+      `toStartOfMinute(${eventTableAlias}.start_time) ${direction}`,
+    );
+  }
+
+  columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
+
+  return `ORDER BY ${columns.join(", ")}`;
+};
 
 /**
  * Field mapping: each field defined once with its full SELECT expression
@@ -57,6 +110,10 @@ export type OrderByEntry = { column: string; direction: OrderByDirection };
 const EVENTS_FIELDS = {
   // Aggregates
   count: "count(*) as count",
+  // uniq() is the approximate distinct aggregate (HLL-based, bounded memory);
+  // uniqExact would build an unbounded hash set when the filtered set spans
+  // millions of traces.
+  uniqueTraceCount: 'uniq(e.trace_id) as "unique_trace_count"',
 
   // Identity & basic fields
   id: "e.span_id as id",
@@ -65,6 +122,8 @@ const EVENTS_FIELDS = {
   environment: 'e.environment as "environment"',
   type: "e.type as type",
   parentObservationId: 'e.parent_span_id as "parent_observation_id"',
+  isRootObservation: `toBool(${eventsTableIsRootObservationSql}) as "is_root_observation"`,
+  isAppRoot: 'e.is_app_root as "is_app_root"',
   name: "e.name as name",
   level: "e.level as level",
   statusMessage: 'e.status_message as "status_message"',
@@ -73,7 +132,8 @@ const EVENTS_FIELDS = {
   public: "e.public as public",
   userId: 'e.user_id as "user_id"',
   sessionId: 'e.session_id as "session_id"',
-  traceName: 'e.trace_name as "trace_name"',
+  // String-typed on purpose; see eventsTableTraceNameSelectSql (LFE-14924).
+  traceName: `${eventsTableTraceNameSelectSql} as "trace_name"`,
 
   // Time fields
   startTime: 'e.start_time as "start_time"',
@@ -125,7 +185,10 @@ const EVENTS_FIELDS = {
   // Experiment fields (denormalized on events table)
   experimentId: 'e.experiment_id as "experiment_id"',
   experimentName: 'e.experiment_name as "experiment_name"',
+  experimentDescription: 'e.experiment_description as "experiment_description"',
   experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
+  experimentMetadata:
+    "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
 
   // Experiment item fields
   experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
@@ -152,6 +215,7 @@ const EVENTS_FIELDS = {
 const FIELD_SETS = {
   // Aggregates
   count: ["count"],
+  countWithUniqueTraces: ["count", "uniqueTraceCount"],
 
   // List query field sets (for getObservationsWithModelDataFromEventsTable)
   base: [
@@ -240,7 +304,28 @@ const FIELD_SETS = {
   trace_context: ["tags", "release", "traceName"],
   model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
-
+  publicApiExperimentItemCore: [
+    "id",
+    "projectId",
+    "traceId",
+    "startTime",
+    "endTime",
+    "level",
+    "environment",
+    "experimentId",
+    "experimentName",
+    "experimentItemId",
+  ],
+  publicApiExperimentItemDataset: [
+    "experimentDatasetId",
+    "experimentItemVersion",
+  ],
+  publicApiExperimentItemExpectedOutput: ["experimentItemExpectedOutput"],
+  publicApiExperimentItemMetadataFields: ["experimentItemMetadata"],
+  publicApiExperimentItemExperimentMetadata: [
+    "experimentMetadata",
+    "experimentDescription",
+  ],
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
     "id",
@@ -303,6 +388,7 @@ const FIELD_SETS = {
     "public",
     "userId",
     "sessionId",
+    "isRootObservation",
   ],
   time: ["completionStartTime", "createdAt", "updatedAt"],
   model: ["providedModelName", "internalModelId", "modelParameters"],
@@ -363,6 +449,7 @@ const FIELD_SETS = {
     "traceId",
     "projectId",
     "parentObservationId",
+    "isAppRoot",
     "type",
     "name",
     "environment",
@@ -387,6 +474,7 @@ const FIELD_SETS = {
     "toolCalls",
     "toolCallNames",
     "experimentId",
+    "experimentName",
     "experimentItemRootSpanId",
     "experimentItemExpectedOutput",
     "experimentItemMetadata",
@@ -439,7 +527,7 @@ const EVENTS_AGGREGATION_FIELDS = {
   projectId: "project_id",
 
   // Aggregated fields
-  name: "argMaxIf(trace_name, event_ts, trace_name <> '') AS name",
+  name: `${eventsTableTraceNameAggregationSql} AS name`,
   timestamp: "min(start_time) as timestamp",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
@@ -459,6 +547,8 @@ const EVENTS_AGGREGATION_FIELDS = {
     "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
+  observation_count:
+    "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
 
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",
@@ -499,7 +589,7 @@ const AGGREGATION_FIELD_SETS = {
  * // Use when you need to query across all projects (use with caution!)
  * const builder = new EventsQueryBuilder({ projectId: NoProjectId });
  */
-export const NoProjectId = Symbol("NoProjectId");
+const NoProjectId = Symbol("NoProjectId");
 export type NoProjectIdType = typeof NoProjectId;
 
 /**
@@ -591,13 +681,14 @@ abstract class AbstractQueryBuilder {
   /**
    * Add ORDER BY using OrderByEntry array for structured API
    */
-  orderByColumns(entries: OrderByEntry[]): this {
-    if (!entries.length) {
-      return this;
+  orderByColumns(
+    entries: OrderByEntry[],
+    options?: OrderByColumnsOptions,
+  ): this {
+    const orderByClause = buildOrderByClause(entries, options);
+    if (orderByClause) {
+      this.orderByClause = orderByClause;
     }
-
-    const columns: string[] = entries.map((e) => `${e.column} ${e.direction}`);
-    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -629,6 +720,18 @@ abstract class AbstractQueryBuilder {
   limitBy(...columns: string[]): this {
     if (columns.length > 0) {
       this.limitByClause = `LIMIT 1 BY ${columns.join(", ")}`;
+    }
+
+    return this;
+  }
+
+  /**
+   * Keep up to `limit` rows per unique combination of columns.
+   */
+  limitByCount(limit: number, ...columns: string[]): this {
+    if (columns.length > 0) {
+      this.limitByClause = `LIMIT {limitByCount: Int32} BY ${columns.join(", ")}`;
+      this.params.limitByCount = limit;
     }
 
     return this;
@@ -692,6 +795,19 @@ abstract class AbstractQueryBuilder {
 abstract class AbstractCTEQueryBuilder extends AbstractQueryBuilder {
   protected ctes: string[] = [];
   protected joins: string[] = [];
+  protected sampleRowCount: number | null = null;
+
+  /** sampleRows caps the base table read at `rows` events via ClickHouse SAMPLE. */
+  sampleRows(rows: number): this {
+    if (rows > 0) {
+      this.sampleRowCount = Math.floor(rows);
+    }
+    return this;
+  }
+
+  protected buildSampleSection(): string {
+    return this.sampleRowCount === null ? "" : ` SAMPLE ${this.sampleRowCount}`;
+  }
 
   /**
    * Add a CTE (Common Table Expression) to the query
@@ -771,38 +887,25 @@ abstract class BaseEventsQueryBuilder<
   }
 
   /**
-   * Set ORDER BY clause with automatic project_id prepending for optimal ClickHouse performance.
-   * The events table has ORDER BY (project_id, start_time, ...) so queries should match.
+   * Set ORDER BY clause. When the sort order includes e.start_time, the
+   * PRIMARY KEY prefix (project_id, toStartOfMinute(start_time)) is prepended
+   * for optimal ClickHouse performance.
    *
    * @example
    * builder.orderByColumns([
    *   { column: "e.start_time", direction: "DESC" },
    *   { column: "e.event_ts", direction: "DESC" },
    * ])
-   * // Produces: ORDER BY e.project_id DESC, e.start_time DESC, e.event_ts DESC
+   * // Produces: ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, e.event_ts DESC
    */
   orderByColumns(entries: OrderByEntry[]): this {
-    if (!entries.length) {
-      return this;
+    const orderByClause = buildOrderByClause(entries, {
+      eventTableAlias: "e",
+      matchTablePrimaryKey: Boolean(findStartTimeOrderClause(entries, "e")),
+    });
+    if (orderByClause) {
+      this.orderByClause = orderByClause;
     }
-
-    // When ordering by start_time, prepend project_id and toStartOfMinute(e.start_time)
-    // to match the table PRIMARY KEY: (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
-    const startTimeEntry = entries.find((e) =>
-      e.column.replace(/"/g, "").endsWith("start_time"),
-    );
-
-    const columns: string[] = [];
-    if (startTimeEntry) {
-      columns.push(
-        `e.project_id ${startTimeEntry.direction}`,
-        `toStartOfMinute(e.start_time) ${startTimeEntry.direction}`,
-      );
-    }
-
-    columns.push(...entries.map((e) => `${e.column} ${e.direction}`));
-
-    this.orderByClause = `ORDER BY ${columns.join(", ")}`;
     return this;
   }
 
@@ -871,7 +974,7 @@ abstract class BaseEventsQueryBuilder<
 
     // FROM - choose table based on data requirements
     const tableName = this.getTableName();
-    parts.push(`FROM ${tableName} e`);
+    parts.push(`FROM ${tableName} e${this.buildSampleSection()}`);
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -937,7 +1040,11 @@ abstract class BaseEventsQueryBuilder<
 export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
-  private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  private ioFields:
+    | { mode: "full" }
+    | { mode: "truncated"; charLimit?: number }
+    | { mode: "sizeCapped"; inlineChars: number; previewChars: number }
+    | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
   private shouldForceFullTable = false;
@@ -1006,7 +1113,22 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    * Add IO fields with optional truncation
    */
   selectIO(truncated = false, charLimit?: number): this {
-    this.ioFields = { truncated, charLimit };
+    this.ioFields = truncated
+      ? { mode: "truncated", charLimit }
+      : { mode: "full" };
+    return this;
+  }
+
+  /**
+   * Add IO fields with a per-field size cap: fields whose full length is
+   * within `inlineChars` come back whole; larger fields come back as a
+   * `previewChars` head. True lengths are exposed as `input_length` /
+   * `output_length` so callers can tell a preview from full content.
+   * Metadata values are capped with the same policy. Reads events_full
+   * (true lengths + full under-cap values).
+   */
+  selectIOWithSizeCap(inlineChars: number, previewChars: number): this {
+    this.ioFields = { mode: "sizeCapped", inlineChars, previewChars };
     return this;
   }
 
@@ -1035,6 +1157,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     ) {
       fieldsToExclude.push("metadata");
     }
+    // Size-capped I/O caps metadata values too (custom SELECT expression below)
+    if (this.ioFields?.mode === "sizeCapped") {
+      fieldsToExclude.push("metadata");
+    }
 
     const fieldsToProcess = [...this.selectFields].filter(
       (f) => !fieldsToExclude.includes(f),
@@ -1048,13 +1174,51 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     // Add I/O fields if configured
     // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)
     if (this.ioFields) {
-      if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
+      if (
+        this.ioFields.mode === "truncated" &&
+        this.ioFields.charLimit !== undefined
+      ) {
         fieldExpressions.push(
           `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
+        );
+      } else if (this.ioFields.mode === "sizeCapped") {
+        const { inlineChars, previewChars } = this.ioFields;
+        // lengthUTF8() is computed inline instead of reading the materialized
+        // input_length/output_length columns: the full value is read by this
+        // select anyway, and not every deployment's events_full is guaranteed
+        // to carry the materialized columns.
+        fieldExpressions.push(
+          `if(lengthUTF8(e.input) <= ${inlineChars}, e.input, leftUTF8(e.input, ${previewChars})) as input`,
+          `if(lengthUTF8(e.output) <= ${inlineChars}, e.output, leftUTF8(e.output, ${previewChars})) as output`,
+          `lengthUTF8(e.input) as input_length`,
+          `lengthUTF8(e.output) as output_length`,
         );
       } else {
         fieldExpressions.push("input, output");
       }
+    }
+
+    // Size-capped metadata: same per-value policy as I/O, plus a truncation
+    // flag and the shipped size so callers can budget and surface capping.
+    // Mirrors the arrayReverse shape of the default metadata expression.
+    if (
+      this.ioFields?.mode === "sizeCapped" &&
+      this.selectFields.has("metadata")
+    ) {
+      const { inlineChars, previewChars } = this.ioFields;
+      fieldExpressions.push(
+        `mapFromArrays(arrayReverse(e.metadata_names), arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, v, leftUTF8(v, ${previewChars})), arrayReverse(e.metadata_values))) as metadata`,
+        // The flag checks only each key's WINNING value. A duplicate key ships
+        // both entries in the Map's JSON, and the client's JSON.parse keeps the
+        // last textual duplicate — with the arrayReverse above that resolves to
+        // the FIRST occurrence in the original arrays. A capped value that is
+        // shadowed by a small winner must not raise the flag (verified against
+        // ClickHouse + JSON.parse semantics).
+        `arrayExists((v, i) -> lengthUTF8(v) > ${inlineChars} AND arrayFirstIndex(n -> n = e.metadata_names[i], e.metadata_names) = i, e.metadata_values, arrayEnumerate(e.metadata_values)) as metadata_truncated`,
+        // Shipped metadata weight: every (capped) value counts, duplicates
+        // included, because duplicates are physically in the response.
+        `arraySum(arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, lengthUTF8(v), ${previewChars}), e.metadata_values)) as metadata_length`,
+      );
     }
 
     // Add metadata field with expansion if configured
@@ -1093,8 +1257,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    * - events_full: full I/O and metadata (when full data is needed)
    */
   private needsFullTable(): boolean {
-    // Need full I/O? (truncated = false means we need full data)
-    const needsFullIO = this.ioFields !== null && !this.ioFields.truncated;
+    // Need full I/O? (anything but the truncated mode needs full data;
+    // sizeCapped needs true lengths + full under-cap values)
+    const needsFullIO =
+      this.ioFields !== null && this.ioFields.mode !== "truncated";
 
     // Need full metadata? (any expansion requested — specific keys or all)
     const needsFullMetadata =
@@ -1306,6 +1472,10 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
   trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
+  metadata_names:
+    "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+  metadata_values:
+    "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
   total_observations:
     "uniqIf(span_id, parent_span_id != '') AS total_observations",
   duration:
@@ -1331,6 +1501,10 @@ const SESSION_AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
+  base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
+    (field) => field !== "metadata_names" && field !== "metadata_values",
+  ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
+  metadata: ["metadata_names", "metadata_values"],
 } as const;
 
 /**
@@ -1719,7 +1893,7 @@ export class EventsAggQueryBuilder extends AbstractCTEQueryBuilder {
     parts.push(`SELECT ${this.selectExpression}`);
 
     // FROM - use events_core for reads (lightweight table with truncated I/O)
-    parts.push("FROM events_core e");
+    parts.push(`FROM events_core e${this.buildSampleSection()}`);
 
     // JOINs
     const joinSection = this.buildJoinSection();
@@ -1772,7 +1946,8 @@ const EXPERIMENTS_AGGREGATION_FIELDS = {
   experimentName: "any(e.experiment_name) AS experiment_name",
   experimentDescription:
     "any(e.experiment_description) AS experiment_description",
-  experimentDatasetId: "any(e.experiment_dataset_id) AS experiment_dataset_id",
+  experimentDatasetId:
+    "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
   startTime: "min(e.start_time) AS start_time",
   itemCount: "uniq(e.experiment_item_id) AS item_count",
   errorCount: "countIf(e.level = 'ERROR') AS error_count",
@@ -1804,6 +1979,14 @@ const EXPERIMENTS_AGGREGATION_FIELD_SETS = {
     "experimentMetadata",
   ] as const,
   metrics: ["experimentId", "totalCost", "latencyAvg"] as const,
+  publicApiSummary: [
+    "experimentId",
+    "experimentName",
+    "experimentDescription",
+    "experimentDatasetId",
+    "startTime",
+  ] as const,
+  publicApiSummaryMetadata: ["experimentMetadata"] as const,
 } as const;
 
 export type ExperimentsAggregationFieldSetName =
@@ -1839,7 +2022,7 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL
+   * Add start time filter with OBSERVATIONS_TO_TRACE_INTERVAL.
    */
   withStartTimeFrom(startTimeFrom?: string | null): this {
     return this.when(Boolean(startTimeFrom), (b) =>

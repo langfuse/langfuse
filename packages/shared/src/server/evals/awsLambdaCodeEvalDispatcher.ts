@@ -5,7 +5,11 @@ import {
 } from "@aws-sdk/client-lambda";
 import { SpanKind, type AttributeValue, type Span } from "@opentelemetry/api";
 import { z } from "zod";
-import { instrumentAsync, traceException } from "../instrumentation";
+import {
+  instrumentAsync,
+  recordDistribution,
+  traceException,
+} from "../instrumentation";
 import { logger } from "../logger";
 import {
   assertDispatchInputWithinLimits,
@@ -171,7 +175,25 @@ export class AwsLambdaCodeEvalDispatcher implements CodeEvalDispatcher {
         traceScope: "code-eval-dispatcher",
         startNewTrace: true,
       },
-      async (span) => this.dispatchWithTracing(input, span),
+      async (span) => {
+        // Dispatch spans are ingestion-sampled, so fleet-slowness monitors
+        // (per-project p95 quorum) run on this unsampled distribution instead.
+        // Recorded on failures too: timeouts are the slow runs that matter most.
+        const startTime = Date.now();
+        try {
+          return await this.dispatchWithTracing(input, span);
+        } finally {
+          recordDistribution(
+            "langfuse.code_eval.dispatch_duration",
+            Date.now() - startTime,
+            {
+              project_id: input.scope.projectId,
+              language: input.runtime.language,
+              unit: "milliseconds",
+            },
+          );
+        }
+      },
     );
   }
 

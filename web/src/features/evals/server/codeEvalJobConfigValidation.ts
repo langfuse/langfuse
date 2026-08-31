@@ -9,6 +9,7 @@ import type { PrismaClient } from "@prisma/client";
 import { env } from "@/src/env.mjs";
 import {
   CodeEvalTestRunSetupError,
+  runCodeEvalTestForEvaluationRule,
   runCodeEvalTestForJobConfig,
 } from "@/src/features/evals/server/codeEvalTestRun";
 import { assertUnreachable } from "@/src/utils/types";
@@ -40,6 +41,43 @@ export async function assertCodeEvalJobConfigCanRun(params: {
   scoreName: string;
   filter: FilterCondition[] | null;
 }): Promise<void> {
+  return assertCodeEvalCanRun({
+    ...params,
+    run: (mapping) =>
+      runCodeEvalTestForJobConfig({
+        ...params,
+        mapping,
+      }),
+  });
+}
+
+export async function assertCodeEvalRuleCanRun(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  target: EvalTargetObjectType;
+  mapping: unknown;
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}): Promise<void> {
+  return assertCodeEvalCanRun({
+    ...params,
+    run: (mapping) =>
+      runCodeEvalTestForEvaluationRule({
+        ...params,
+        mapping,
+      }),
+  });
+}
+
+async function assertCodeEvalCanRun(params: {
+  target: EvalTargetObjectType;
+  mapping: unknown;
+  run: (
+    mapping: z.infer<typeof observationVariableMapping>[],
+  ) => ReturnType<typeof runCodeEvalTestForJobConfig>;
+}): Promise<void> {
   if (
     params.target !== EvalTargetObject.EVENT &&
     params.target !== EvalTargetObject.EXPERIMENT
@@ -55,16 +93,7 @@ export async function assertCodeEvalJobConfigCanRun(params: {
     .parse(params.mapping);
 
   if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
-    const result = await runCodeEvalTestForJobConfig({
-      prisma: params.prisma,
-      orgId: params.orgId,
-      projectId: params.projectId,
-      evalTemplateId: params.evalTemplateId,
-      target: params.target,
-      mapping: parsedMapping,
-      scoreName: params.scoreName,
-      filter: params.filter,
-    }).catch((error) => {
+    const result = await params.run(parsedMapping).catch((error) => {
       if (!(error instanceof CodeEvalTestRunSetupError)) {
         throw error;
       }
@@ -77,7 +106,6 @@ export async function assertCodeEvalJobConfigCanRun(params: {
         case "UNSUPPORTED_LANGUAGE":
           throw new CodeEvalJobConfigError(error.message, "invalid_request");
         case "DISPATCHER_NOT_CONFIGURED":
-        case "OBSERVATION_NOT_FOUND":
           throw new CodeEvalJobConfigError(error.message);
         default:
           return assertUnreachable(error.code);
@@ -95,7 +123,9 @@ export async function assertCodeEvalJobConfigCanRun(params: {
     }
 
     if (!result.success) {
-      throw new CodeEvalJobConfigError(result.error.message);
+      throw new CodeEvalJobConfigError(
+        `Evaluator failed when tested against sample data: ${result.error.message}`,
+      );
     }
   }
 }

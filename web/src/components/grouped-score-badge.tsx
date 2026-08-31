@@ -1,19 +1,32 @@
-import { Badge } from "@/src/components/ui/badge";
+import { useState } from "react";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
-import {
-  BracesIcon,
-  MessageCircleMoreIcon,
-  ExternalLinkIcon,
-} from "lucide-react";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import Link from "next/link";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { scoreLevelFromScore } from "@/src/components/score-tag";
+import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
+
+/**
+ * Bucket scores by name, the way the badges group them. Exported so a caller that
+ * has to RESERVE room for these badges buckets them identically — two copies of
+ * the grouping rule are two chances to price a chip that never renders.
+ */
+const groupScoresByName = <
+  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
+>(
+  scores: T[],
+): Record<string, T[]> =>
+  scores.reduce<Record<string, T[]>>((groups, score) => {
+    const bucket = groups[score.name];
+    if (!bucket || !Array.isArray(bucket)) groups[score.name] = [score];
+    else bucket.push(score);
+    return groups;
+  }, {});
 
 const partitionScores = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -31,159 +44,123 @@ const partitionScores = <
   return { visibleScores, hiddenScores };
 };
 
-const hasMetadata = (
-  score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
-) => {
-  if (!score.metadata) return false;
-  try {
-    const metadata =
-      typeof score.metadata === "string"
-        ? JSON.parse(score.metadata)
-        : score.metadata;
-    return Object.keys(metadata).length > 0;
-  } catch {
-    return false;
-  }
-};
-
-const ScoreGroupBadge = <
-  T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
->({
-  name,
-  scores,
-  compact,
-  badgeClassName,
-}: {
-  name: string;
-  scores: T[];
-  compact?: boolean;
-  badgeClassName?: string;
-}) => {
-  const projectId = useProjectIdFromURL();
-
-  return (
-    <Badge
-      variant="tertiary"
-      key={name}
-      className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
-    >
-      <div
-        className={`w-fit max-w-20 shrink-0 truncate ${compact ? "leading-tight" : ""}`}
-        title={name}
-      >
-        {name}:
-      </div>
-      <div className="flex min-w-0 items-center gap-1 text-nowrap">
-        {scores.map((s, i) => (
-          <span
-            key={i}
-            className="group/score ml-1 flex min-w-0 items-center gap-1 rounded-sm first:ml-0"
-          >
-            <span className="truncate">
-              {s.stringValue ?? s.value?.toFixed(2) ?? ""}
-            </span>
-            {s.comment && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block shrink-0">
-                  <MessageCircleMoreIcon className="mb-0.25 size-3!" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
-                  <p className="whitespace-pre-wrap">{s.comment}</p>
-                  {"executionTraceId" in s &&
-                    s.executionTraceId &&
-                    projectId && (
-                      <Link
-                        href={`/project/${projectId}/traces/${encodeURIComponent(s.executionTraceId)}`}
-                        className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
-                        target="_blank"
-                      >
-                        <ExternalLinkIcon className="h-3 w-3" />
-                        View execution trace
-                      </Link>
-                    )}
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            {hasMetadata(s) && (
-              <HoverCard>
-                <HoverCardTrigger className="inline-block shrink-0">
-                  <BracesIcon className="mb-0.25 size-3!" />
-                </HoverCardTrigger>
-                <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-                  <JSONView codeClassName="rounded-md!" json={s.metadata} />
-                </HoverCardContent>
-              </HoverCard>
-            )}
-            <span className="group-last/score:hidden">,</span>
-          </span>
-        ))}
-      </div>
-    </Badge>
-  );
-};
-
 export const GroupedScoreBadges = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >({
   scores,
   maxVisible,
   compact,
-  badgeClassName,
+  expandable = true,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
-  badgeClassName?: string;
+  /**
+   * Whether "+N" expands the hidden chips IN PLACE. A caller that has measured a
+   * box for exactly `maxVisible` chips has to say no: expanding is unbounded by
+   * construction, so inside a clipping box it does not reveal the hidden scores,
+   * it cuts the visible ones. The hover preview stays either way, which is the
+   * part that actually shows them.
+   */
+  expandable?: boolean;
 }) => {
-  const groupedScores = scores.reduce<Record<string, T[]>>((acc, score) => {
-    if (!acc[score.name] || !Array.isArray(acc[score.name])) {
-      acc[score.name] = [score];
-    } else {
-      acc[score.name].push(score);
-    }
-    return acc;
-  }, {});
+  const groupedScores = groupScoresByName(scores);
+
+  // Level tags only when this selection MIXES levels (LFE-10596): a row whose
+  // scores all share one level (the common case — e.g. a span's own
+  // observation-level scores) needs no per-chip disambiguation; a mixed row
+  // (e.g. the root carrying trace-level and observation-level scores) tags
+  // each group so the levels are tellable apart.
+  const showLevels =
+    new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
+
+  // "+N" expands IN PLACE on click (hover still previews the hidden chips);
+  // the trailing "−" collapses back to the capped view.
+  const [expanded, setExpanded] = useState(false);
+  const overflows =
+    maxVisible !== undefined && Object.keys(groupedScores).length > maxVisible;
 
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
-    maxVisible,
+    expanded && expandable ? undefined : maxVisible,
+  );
+
+  const overflowButtonClassName = cn(
+    expandable ? "cursor-pointer" : "cursor-default",
+    compact ? "px-0.5 py-0 leading-tight" : "px-1",
+    "text-xs font-bold",
   );
 
   return (
     <>
       {visibleScores.map(([name, scores]) => (
-        <ScoreGroupBadge
+        <ScoreBadge
           key={name}
           name={name}
           scores={scores}
           compact={compact}
-          badgeClassName={badgeClassName}
+          showLevels={showLevels}
         />
       ))}
       {Boolean(hiddenScores.length) && (
         <HoverCard>
-          <HoverCardTrigger className="inline-block rounded-sm">
-            <Badge
-              className={`cursor-pointer ${compact ? "px-0.5 py-0 leading-tight" : "px-1"} text-xs font-medium${badgeClassName ? " " + badgeClassName : ""}`}
-              variant="tertiary"
+          <HoverCardTrigger asChild>
+            <BadgeShell
+              asChild
+              color="neutral"
+              size={compact ? "sm" : "default"}
             >
-              +{hiddenScores.length}
-            </Badge>
+              <button
+                type="button"
+                className={overflowButtonClassName}
+                // aria-label, not title: a native tooltip would stack on top of
+                // the hover-card preview.
+                aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
+                // Chips render inside clickable rows (tree nodes, table rows) —
+                // expanding must not also select/navigate the row. Still swallowed
+                // when expansion is off, or the row would react to a click aimed at
+                // the preview.
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (expandable) setExpanded(true);
+                }}
+              >
+                +{hiddenScores.length}
+              </button>
+            </BadgeShell>
           </HoverCardTrigger>
-          <HoverCardContent className="max-h-[300px] max-w-[200px] overflow-y-auto p-2">
+          {/* w-max overrides the fixed w-64 base so the card adapts to its
+              chips; the cap makes long selections wrap instead of clipping. */}
+          <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
             <div className="flex flex-wrap gap-1">
               {hiddenScores.map(([name, scores]) => (
-                <ScoreGroupBadge
+                <ScoreBadge
                   key={name}
                   name={name}
                   scores={scores}
                   compact={compact}
-                  badgeClassName={badgeClassName}
+                  showLevels={showLevels}
                 />
               ))}
             </div>
           </HoverCardContent>
         </HoverCard>
+      )}
+      {expanded && overflows && (
+        <BadgeShell asChild color="neutral" size={compact ? "sm" : "default"}>
+          <button
+            type="button"
+            className={overflowButtonClassName}
+            title="Show fewer scores"
+            aria-label="Show fewer scores"
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded(false);
+            }}
+          >
+            −
+          </button>
+        </BadgeShell>
       )}
     </>
   );

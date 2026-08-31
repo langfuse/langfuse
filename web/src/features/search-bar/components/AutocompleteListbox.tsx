@@ -4,9 +4,10 @@
 // AutocompletePopover (positioning); Storybook renders it directly.
 
 import * as React from "react";
-import { Check, Clock, Parentheses, Search } from "lucide-react";
+import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
+import { ScoreTag } from "@/src/components/score-tag";
 import type {
   CompletionOption,
   CompletionPlan,
@@ -16,6 +17,7 @@ import { optionDomId } from "@/src/features/search-bar/components/presentation";
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
   const cls = "h-3.5 w-3.5 flex-none opacity-55";
   if (kind === "recent") return <Clock className={cls} aria-hidden />;
+  if (kind === "preset") return <Bookmark className={cls} aria-hidden />;
   if (kind === "operator" || kind === "pattern")
     return <Parentheses className={cls} aria-hidden />;
   return <Search className={cls} aria-hidden />;
@@ -127,9 +129,16 @@ export function AutocompleteListbox({
               onMouseMove={highlightOnMove?.(o.id)}
             >
               <OptionIcon kind={o.kind} />
-              <span className="max-w-[480px] min-w-0 flex-none truncate">
+              <span
+                className="max-w-[480px] min-w-0 flex-none truncate"
+                title={o.label}
+              >
                 {o.label}
               </span>
+              {o.kind === "field" &&
+                o.scoreLevels?.map((level) => (
+                  <ScoreTag key={level} level={level} />
+                ))}
               {o.kind === "value" && o.active && (
                 <Check
                   className="text-foreground/80 h-3.5 w-3.5 flex-none"

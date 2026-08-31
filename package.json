@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.202.1",
+  "version": "4.25.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -8,7 +8,7 @@
     "node": "24"
   },
   "scripts": {
-    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check",
+    "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
     "agents:sync": "node scripts/agents/sync-agent-shims.mjs",
     "postinstall": "node -e \"const fs = require('node:fs'); const cp = require('node:child_process'); if (!fs.existsSync('scripts/postinstall.sh')) { console.log('Skipping repo postinstall helper: scripts/postinstall.sh is not present in this install context.'); process.exit(0); } cp.execSync('bash scripts/postinstall.sh', { stdio: 'inherit' });\"",
     "preinstall": "npx only-allow pnpm",
@@ -20,6 +20,7 @@
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
+    "scan:client-bundle": "node scripts/scan-client-bundle.mjs web/.next/static",
     "seed": "pnpm --filter=shared run seed:scenario",
     "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
@@ -37,6 +38,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
+    "openapi:export": "npx fern-api export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && npx fern-api export --api client web/public/generated/api-client/openapi.yml && npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
     "release": "bash ./scripts/release-preflight.sh && dotenv -e ../.env -- release-it",
@@ -45,12 +47,16 @@
   },
   "devDependencies": {
     "@release-it/bumper": "^7.0.6",
-    "braces": "3.0.3",
     "dotenv-cli": "^7.4.4",
+    "eslint-scope": "^9.1.2",
+    "espree": "^11.2.0",
+    "globals": "^16.5.0",
     "husky": "^9.1.7",
+    "knip": "^6.22.0",
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
-    "turbo": "2.9.18"
+    "ts7": "npm:typescript@^7.0.2",
+    "turbo": "2.10.5"
   },
   "release-it": {
     "git": {
@@ -99,5 +105,5 @@
       }
     }
   },
-  "packageManager": "pnpm@11.4.0"
+  "packageManager": "pnpm@11.22.0"
 }

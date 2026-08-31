@@ -11,7 +11,7 @@ import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Tooltip,
   TooltipContent,
@@ -27,7 +27,6 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import {
   hasModifier,
-  isAppleDevice,
   isCompleteShortcut,
   isInteractiveTarget,
   isOpenDialogPresent,
@@ -37,18 +36,19 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
+import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
 import { useSession } from "next-auth/react";
+import { SplashScreen } from "@/src/components/ui/splash-screen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
-// more <KeyboardShortcut> glyphs (passed as children) on the right.
+// more <KeyboardShortcut> glyphs on the right.
 const ShortcutRow: React.FC<{
   label: string;
   children: React.ReactNode;
 }> = ({ label, children }) => (
   <div className="flex items-center justify-between gap-6 py-1.5">
     <span className="text-sm">{label}</span>
-    <span className="flex items-center gap-1">{children}</span>
+    <span className="hidden items-center gap-1 md:flex">{children}</span>
   </div>
 );
 
@@ -225,13 +225,6 @@ export const AnnotationQueueItemPage: React.FC<{
     [],
   );
 
-  // Platform-aware modifier glyph for the complete chord (⌘ on macOS, Ctrl else).
-  const [isMac, setIsMac] = useState(false);
-  useEffect(() => {
-    setIsMac(isAppleDevice());
-  }, []);
-  const modLabel = isMac ? "⌘" : "Ctrl";
-
   // "?" opens a keyboard-shortcuts cheatsheet.
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -367,7 +360,12 @@ export const AnnotationQueueItemPage: React.FC<{
   }
 
   if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
-    return <div>No more items left to annotate!</div>;
+    return (
+      <SplashScreen
+        title="All queue items processed"
+        description="There are no more items left to annotate."
+      />
+    );
   }
 
   const renderContent = () => {
@@ -445,24 +443,23 @@ export const AnnotationQueueItemPage: React.FC<{
                   aria-label="Previous item"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  <KeyboardShortcut>←</KeyboardShortcut>
+                  <span className="hidden md:inline-flex">
+                    <KeyboardShortcut keys={["ArrowLeft"]} />
+                  </span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <span>Previous item</span>
-                <KeyboardShortcut className="ml-2">←</KeyboardShortcut>
+                <span className="ml-2 hidden md:inline-flex">
+                  <KeyboardShortcut keys={["ArrowLeft"]} />
+                </span>
               </TooltipContent>
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
-              <KeyboardShortcut
-                className="h-4 px-1 text-[9px]"
-                keys={[modLabel, "↵"]}
-              />
+              <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
               complete + next ·
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                →
-              </KeyboardShortcut>
+              <KeyboardShortcut size="sm" keys={["ArrowRight"]} />
               skip
             </span>
             <button
@@ -471,9 +468,7 @@ export const AnnotationQueueItemPage: React.FC<{
               className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
               aria-label="Show keyboard shortcuts"
             >
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                ?
-              </KeyboardShortcut>
+              <KeyboardShortcut size="sm" keys={["?"]} />
               shortcuts
             </button>
           </div>
@@ -496,12 +491,16 @@ export const AnnotationQueueItemPage: React.FC<{
                   aria-label="Skip to next item"
                 >
                   <ArrowRight className="h-4 w-4" />
-                  <KeyboardShortcut>→</KeyboardShortcut>
+                  <span className="hidden md:inline-flex">
+                    <KeyboardShortcut keys={["ArrowRight"]} />
+                  </span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
                 <span>Skip to next item</span>
-                <KeyboardShortcut className="ml-2">→</KeyboardShortcut>
+                <span className="ml-2 hidden md:inline-flex">
+                  <KeyboardShortcut keys={["ArrowRight"]} />
+                </span>
               </TooltipContent>
             </Tooltip>
           )}
@@ -524,10 +523,12 @@ export const AnnotationQueueItemPage: React.FC<{
                   >
                     <span>Mark Completed</span>
                     {!isSingleItem && (
-                      <KeyboardShortcut
-                        className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
-                        keys={[modLabel, "↵"]}
-                      />
+                      <span className="hidden md:inline-flex">
+                        <KeyboardShortcut
+                          variant="inverse"
+                          keys={["Mod", "Enter"]}
+                        />
+                      </span>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -538,12 +539,14 @@ export const AnnotationQueueItemPage: React.FC<{
                       : "Mark completed + go to next item"}
                   </span>
                   {!isSingleItem && (
-                    <KeyboardShortcut className="ml-2" keys={[modLabel, "↵"]} />
+                    <span className="ml-2 hidden md:inline-flex">
+                      <KeyboardShortcut keys={["Mod", "Enter"]} />
+                    </span>
                   )}
                 </TooltipContent>
               </Tooltip>
             ) : (
-              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
+              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-bold">
                 Completed
               </div>
             ))}
@@ -559,51 +562,50 @@ export const AnnotationQueueItemPage: React.FC<{
           </DialogHeader>
           <DialogBody className="gap-4 py-3">
             <div>
-              <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
                 Navigate
               </p>
               <ShortcutRow label="Complete & go to next item">
-                <KeyboardShortcut keys={[modLabel, "↵"]} />
+                <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
               </ShortcutRow>
               <ShortcutRow label="Skip to next item">
-                <KeyboardShortcut>→</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["ArrowRight"]} />
               </ShortcutRow>
               <ShortcutRow label="Previous item">
-                <KeyboardShortcut>←</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["ArrowLeft"]} />
               </ShortcutRow>
             </div>
             <div>
-              <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground mb-1 text-xs font-bold tracking-wide uppercase">
                 Score the item
               </p>
               <ShortcutRow label="Move between score fields">
-                <KeyboardShortcut>↑</KeyboardShortcut>
-                <KeyboardShortcut>↓</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["ArrowUp"]} />
+                <KeyboardShortcut size="sm" keys={["ArrowDown"]} />
               </ShortcutRow>
               <ShortcutRow label="Select an option on the focused field">
-                <KeyboardShortcut>1</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["1"]} />
                 <span className="text-muted-foreground text-xs">–</span>
-                <KeyboardShortcut>9</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["9"]} />
               </ShortcutRow>
               <ShortcutRow label="Edit a field / open a dropdown">
-                <KeyboardShortcut>↵</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["Enter"]} />
               </ShortcutRow>
               <ShortcutRow label="Commit a number / leave a text field">
-                <KeyboardShortcut>Esc</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["Escape"]} />
                 <span className="text-muted-foreground text-xs">/</span>
-                <KeyboardShortcut>Tab</KeyboardShortcut>
+                <KeyboardShortcut size="sm" keys={["Tab"]} />
               </ShortcutRow>
             </div>
             <p className="text-muted-foreground border-t pt-3 text-xs">
               Bare{" "}
-              <KeyboardShortcut className="h-4 px-1 text-[9px]">
-                ↵
-              </KeyboardShortcut>{" "}
+              <span className="hidden md:inline-flex">
+                <KeyboardShortcut size="sm" keys={["Enter"]} />
+              </span>{" "}
               inside a text field (e.g. Feedback) inserts a new line — use{" "}
-              <KeyboardShortcut
-                className="h-4 px-1 text-[9px]"
-                keys={[modLabel, "↵"]}
-              />{" "}
+              <span className="hidden md:inline-flex">
+                <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
+              </span>{" "}
               to complete.
             </p>
           </DialogBody>

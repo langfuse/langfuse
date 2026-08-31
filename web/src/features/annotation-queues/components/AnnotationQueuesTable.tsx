@@ -12,7 +12,9 @@ import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-que
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import TableLink from "@/src/components/table/table-link";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
@@ -55,57 +57,46 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
   });
 
   const columns: LangfuseColumnDef<RowData>[] = [
-    {
+    createLinkTableColumn<RowData, RowData["key"]>({
       accessorKey: "key",
       header: "Name",
-      id: "key",
       size: 150,
       isPinnedLeft: true,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const key: RowData["key"] = row.getValue("key");
-        return key && "id" in key && typeof key.id === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/annotation-queues/${key.id}`}
-            value={key.name}
-          />
-        ) : undefined;
+      getCell: (key) => {
+        if (key && "id" in key && typeof key.id === "string") {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/annotation-queues/${key.id}`,
+              value: key.name,
+            },
+          };
+        }
+
+        return undefined;
       },
-    },
-    {
+    }),
+    createTextTableColumn<RowData>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: RowData["description"] = row.getValue("description");
-        return (
-          <span
-            className={cn(
-              "grid h-full items-center overflow-auto",
-              rowHeight === "s" && "leading-3",
-            )}
-          >
-            {description}
-          </span>
-        );
-      },
-    },
-    {
+    }),
+    createNumberTableColumn<RowData>({
       accessorKey: "countCompletedItems",
       header: "Completed Items",
-      id: "countCompletedItems",
       enableHiding: true,
       size: 90,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<RowData>({
       accessorKey: "countPendingItems",
       header: "Pending Items",
-      id: "countPendingItems",
       enableHiding: true,
       size: 90,
-    },
+      formatter: (value) => String(value),
+    }),
     {
       accessorKey: "scoreConfigs",
       header: "Score Configs",
@@ -227,7 +218,7 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"annotationQueues"}
+        tableName="annotationQueues"
         columns={columns}
         data={
           queues.isLoading

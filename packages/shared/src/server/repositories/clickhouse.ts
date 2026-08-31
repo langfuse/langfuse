@@ -4,8 +4,8 @@ import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
+  EXCEPTION_TAG_HEADER_NAME,
 } from "../clickhouse/client";
-import { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client-common";
 import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
@@ -31,6 +31,14 @@ import {
   type ClickHouseQueryTags,
   type NormalizedClickHouseQueryTags,
 } from "../clickhouse/queryTags";
+
+/**
+ * Re-exported so callers can build `Array(Tuple(...))` query parameters without
+ * importing `@clickhouse/client` directly (e.g. composite `(col_a, col_b) IN`
+ * predicates). A plain JS array serializes as an `Array`; `TupleParam` is what
+ * renders each element as a `(...)` tuple, with string contents escaped.
+ */
+export { TupleParam } from "@clickhouse/client";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -256,14 +264,17 @@ export async function* queryClickhouseStream<T>(
     kind: SpanKind.CLIENT,
   });
 
-  let queryId: string | undefined;
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
 
   try {
     setSpanQueryAttributes(span, opts.query);
+    span.setAttribute("ch.queryId", queryId);
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
-        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span, queryId }),
       )
       .catch((error) => {
         throw ClickHouseResourceError.wrapIfResourceError(
@@ -271,9 +282,6 @@ export async function* queryClickhouseStream<T>(
           normalizedTags,
         );
       });
-
-    queryId = res.query_id;
-    span.setAttribute("ch.queryId", queryId);
 
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
@@ -327,14 +335,17 @@ export async function* queryClickhouseStreamRawText(
     kind: SpanKind.CLIENT,
   });
 
-  let queryId: string | undefined;
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
 
   try {
     setSpanQueryAttributes(span, opts.query);
+    span.setAttribute("ch.queryId", queryId);
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
-        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span, queryId }),
       )
       .catch((error) => {
         throw ClickHouseResourceError.wrapIfResourceError(
@@ -342,9 +353,6 @@ export async function* queryClickhouseStreamRawText(
           normalizedTags,
         );
       });
-
-    queryId = res.query_id;
-    span.setAttribute("ch.queryId", queryId);
 
     for await (const rows of res.stream()) {
       for (const row of rows) {
@@ -375,9 +383,30 @@ export async function* queryClickhouseStreamRawText(
 // flushes at whichever cap hits first. The bytes cap is the real memory governor
 // (auto-adapts to row width); set below CH's 512 MiB default since the dispatcher
 // exports up to 4 tables concurrently (peak ≈ 4×). The row cap bounds narrow tables.
+//
+// The remaining settings guard Arrow's 2^31-byte ceiling on a single column-chunk
+// buffer ("Capacity error: array cannot contain more than 2147483646 bytes",
+// surfacing to the worker as ECONNRESET mid-stream). Two ClickHouse behaviors
+// compose into it: ParquetBlockOutputFormat splits oversized staging by rows
+// only, so the bytes cap above cannot split one fat pipeline chunk (sorted/FINAL
+// stages emit blocks bounded by max_block_size rows, not bytes), and the
+// writer's page/dictionary size checks run once per write batch, so multi-MB
+// payload values overshoot int32 limits between checks (~125 × 17 MiB values in
+// one 1024-value batch overflow the dictionary before its 1 MiB fallback fires).
 export const BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
   output_format_parquet_row_group_size: "1000000",
   output_format_parquet_row_group_size_bytes: String(128 * 1024 * 1024), // 128 MiB
+  // Keep source chunks small so the bytes cap actually binds; at the default
+  // ~65k rows per sorted block, multi-MB payloads reach multi-GiB row groups.
+  max_block_size: "8192",
+  // Run the size checks every 16 rows instead of 1024, capping the per-page /
+  // per-dictionary overshoot at 16 rows' worth of bytes.
+  output_format_parquet_batch_size: "16",
+  // 0 disables dictionary encoding. Near-unique LLM payloads fall back to plain
+  // anyway (dictionary ≈ data), and disabling removes the Arrow dictionary
+  // memo-table ceiling as a failure class; zstd output compression recovers
+  // most of the size difference on low-cardinality columns.
+  output_format_parquet_max_dictionary_size: "0",
 };
 
 export type ClickhouseExecRawResult = {
@@ -412,35 +441,32 @@ export async function queryClickhouseExecRaw(
     kind: SpanKind.CLIENT,
   });
 
-  let queryId: string | undefined;
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
 
   try {
     const queryWithFormat = `${opts.query}\nFORMAT ${opts.format}`;
     setSpanQueryAttributes(span, queryWithFormat);
-
-    const res = await context
-      .with(trace.setSpan(context.active(), span), () =>
-        clickhouseClient(
-          opts.clickhouseConfigs,
-          opts.preferredClickhouseService,
-        ).exec({
-          query: queryWithFormat,
-          query_params: opts.params,
-          clickhouse_settings: {
-            ...opts.clickhouseSettings,
-            log_comment: JSON.stringify(normalizedTags),
-          },
-        }),
-      )
-      .catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(
-          enrichWithQueryId(error as Error, queryId),
-          normalizedTags,
-        );
-      });
-
-    queryId = res.query_id;
     span.setAttribute("ch.queryId", queryId);
+
+    // Failures reject into the outer catch, which enriches with the query_id
+    // and wraps resource errors exactly once.
+    const res = await context.with(trace.setSpan(context.active(), span), () =>
+      clickhouseClient(
+        opts.clickhouseConfigs,
+        opts.preferredClickhouseService,
+      ).exec({
+        query: queryWithFormat,
+        query_params: opts.params,
+        use_multipart_params_auto: opts.useMultipartParamsAuto,
+        query_id: queryId,
+        clickhouse_settings: {
+          ...opts.clickhouseSettings,
+          log_comment: JSON.stringify(normalizedTags),
+        },
+      }),
+    );
     for (const [key, value] of Object.entries(normalizedTags)) {
       span.setAttribute(`ch.tag.${key}`, value);
     }
@@ -466,8 +492,16 @@ export async function queryClickhouseExecRaw(
     );
 
     // The span outlives this function (it covers the consumer's read). Forward
-    // source errors so the consumer sees them.
-    res.stream.on("error", (error) => guardedStream.destroy(error));
+    // source errors (e.g. mid-transfer connection resets) so the consumer sees
+    // them, enriched like the other error paths of this function.
+    res.stream.on("error", (error) =>
+      guardedStream.destroy(
+        ClickHouseResourceError.wrapIfResourceError(
+          enrichWithQueryId(error, queryId),
+          normalizedTags,
+        ),
+      ),
+    );
     // `.pipe()` only wires src→dest, so destroying guardedStream (e.g. the
     // worker's pipeline aborting on an upload failure) would leave the live CH
     // body streaming into an unread socket — pinning a connection slot and query
@@ -542,6 +576,7 @@ function handleExceptionRow<T>(parsedRow: T): T {
 export type ClickhouseQueryOpts = {
   query: string;
   params?: Record<string, unknown>;
+  useMultipartParamsAuto?: boolean;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
@@ -580,12 +615,14 @@ function setSpanQueryAttributes(span: Span, query: string): void {
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
+  useMultipartParamsAuto?: boolean;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   format: F;
   span: Span;
+  queryId?: string;
 }) {
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const res = await clickhouseClient(
@@ -595,6 +632,8 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query: opts.query,
     format: opts.format,
     query_params: opts.params,
+    use_multipart_params_auto: opts.useMultipartParamsAuto,
+    ...(opts.queryId ? { query_id: opts.queryId } : {}),
     clickhouse_settings: {
       ...opts.clickhouseSettings,
       log_comment: JSON.stringify(normalizedTags),
@@ -713,8 +752,13 @@ export async function* queryClickhouseWithProgress<T>(
     kind: SpanKind.CLIENT,
   });
 
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
+
   try {
     setSpanQueryAttributes(span, opts.query);
+    span.setAttribute("ch.queryId", queryId);
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
@@ -727,6 +771,7 @@ export async function* queryClickhouseWithProgress<T>(
           },
           format: "JSONEachRowWithProgress",
           span,
+          queryId,
         }),
       )
       .catch((error) => {
@@ -742,9 +787,18 @@ export async function* queryClickhouseWithProgress<T>(
       }
     }
   } catch (error) {
-    if (error instanceof ClickHouseResourceError) throw error;
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(
+            error.errorType,
+            enriched,
+            normalizedTags,
+          );
+    }
     throw ClickHouseResourceError.wrapIfResourceError(
-      error as Error,
+      enrichWithQueryId(error as Error, queryId),
       normalizedTags,
     );
   } finally {

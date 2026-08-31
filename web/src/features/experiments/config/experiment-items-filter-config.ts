@@ -37,7 +37,7 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     internal: "start_time",
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "level",
@@ -47,6 +47,7 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
       { value: "WARNING" },
       { value: "ERROR" },
     ] as { value: ObservationLevelType }[],
+    aliases: ["Level"],
   },
   {
     name: "Cost ($)",
@@ -77,6 +78,13 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "obs_score_booleans",
+    type: "booleanObject",
+    internal: "obs_score_booleans",
+    nullable: true,
+  },
+  {
     name: "Trace Scores (numeric)",
     id: "trace_scores_avg",
     type: "numberObject",
@@ -88,6 +96,13 @@ export const experimentItemsTableCols: ColumnDefinition[] = [
     type: "categoryOptions",
     internal: "trace_score_categories",
     options: [],
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
     nullable: true,
   },
   {
@@ -148,6 +163,11 @@ export const experimentItemsFilterConfig: FilterConfig = {
       label: getExperimentItemsColumnName("obs_scores_avg"),
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "obs_score_booleans",
+      label: getExperimentItemsColumnName("obs_score_booleans"),
+    },
+    {
       type: "keyValue" as const,
       column: "trace_score_categories",
       label: getExperimentItemsColumnName("trace_score_categories"),
@@ -156,6 +176,11 @@ export const experimentItemsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: getExperimentItemsColumnName("trace_scores_avg"),
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "trace_score_booleans",
+      label: getExperimentItemsColumnName("trace_score_booleans"),
     },
   ],
 };

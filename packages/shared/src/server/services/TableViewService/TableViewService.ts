@@ -4,7 +4,11 @@ import {
   TableViewPresetTableName,
   type TableViewPresetDomain,
 } from "../../../domain/table-view-presets";
-import { LangfuseConflictError, LangfuseNotFoundError } from "../../../errors";
+import {
+  InvalidRequestError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "../../../errors";
 import {
   TableViewPresetsNamesCreatorList,
   TableViewPresetsNamesCreatorListSchema,
@@ -29,6 +33,8 @@ const TABLE_NAME_TO_URL_MAP: Partial<Record<TableViewPresetTableName, string>> =
     [TableViewPresetTableName.Datasets]: "datasets",
     [TableViewPresetTableName.Experiments]: "experiments",
     [TableViewPresetTableName.ExperimentItems]: "experiments/results",
+    [TableViewPresetTableName.Evaluators]: "evals",
+    [TableViewPresetTableName.EvaluationRules]: "evals/rules",
   };
 
 // The v4 table was mistakenly released under the `observations` table name,
@@ -222,6 +228,7 @@ export class TableViewService {
         name: preset.name,
         description: preset.description,
         isSystem: true,
+        category: preset.category,
         tableName: preset.tableName,
         createdBy: null,
         createdByUser: null,
@@ -258,7 +265,13 @@ export class TableViewService {
           // Non-system presets should take precedence over system presets
           (!preset.isSystem && existingPreset.isSystem)
         ) {
-          presetsByName.set(preset.name, preset);
+          presetsByName.set(preset.name, {
+            ...preset,
+            // A user view displacing a same-named system preset inherits its
+            // category, so the category chip keeps the entry (now applying
+            // the user's customized version) instead of silently dropping it.
+            category: preset.category ?? existingPreset?.category,
+          });
         }
       }
 
@@ -329,14 +342,16 @@ export class TableViewService {
       isSystemTableViewPresetId(TableViewPresetsId) &&
       !getSystemTableViewPresetByTableAndId(tableName, TableViewPresetsId)
     ) {
-      throw new Error(
+      throw new InvalidRequestError(
         `Permalinks are not supported for preset ${TableViewPresetsId}`,
       );
     }
 
     const page = TABLE_NAME_TO_URL_MAP[tableName];
     if (!page) {
-      throw new Error(`Permalinks are not supported for table ${tableName}`);
+      throw new InvalidRequestError(
+        `Permalinks are not supported for table ${tableName}`,
+      );
     }
     return `${baseUrl}/project/${projectId}/${page}?viewId=${TableViewPresetsId}`;
   }

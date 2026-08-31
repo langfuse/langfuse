@@ -24,6 +24,7 @@ export const AnnotationQueuesItem = ({
       projectId,
     },
     {
+      enabled: Boolean(projectId) && Boolean(annotationQueueId),
       trpc: {
         context: {
           skipBatch: true,

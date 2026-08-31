@@ -1,37 +1,32 @@
-import { randomUUID } from "node:crypto";
 import {
-  DEFAULT_TRACE_ENVIRONMENT,
-  eventTypes,
+  applyCommentFilters,
+  buildEvalExecutionMetadata,
   createW3CTraceId,
   extractObservationVariables,
   getEventsStreamForEval,
-  getObservationById,
-  processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  writeInternalTraceViaOtelIngestion,
   type CodeEvalUserVisibleError,
   type DispatchResult,
-  type InternalTraceWriteInput,
 } from "@langfuse/shared/src/server";
 
 import {
-  LangfuseNotFoundError,
-  LangfuseInternalTraceEnvironment,
   observationForEvalSchema,
   type EvalTargetObject,
-  type EvalTemplateCodeBased,
   type FilterCondition,
   type ObservationForEval,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { EvalTemplateType, type PrismaClient } from "@langfuse/shared/src/db";
-import { env } from "@/src/env.mjs";
+import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { isCodeEvalSourceCodeLanguageSupported } from "@/src/features/evals/server/isCodeEvalEnabled";
+import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
 
 type CodeEvalTestRunDispatchError = Omit<CodeEvalUserVisibleError, "retryable">;
 
@@ -39,8 +34,7 @@ type CodeEvalTestRunSetupErrorCode =
   | "DISPATCHER_NOT_CONFIGURED"
   | "TEMPLATE_NOT_FOUND"
   | "UNSUPPORTED_LANGUAGE"
-  | "INVALID_TARGET"
-  | "OBSERVATION_NOT_FOUND";
+  | "INVALID_TARGET";
 
 export class CodeEvalTestRunSetupError extends Error {
   constructor(
@@ -105,6 +99,7 @@ export async function runCodeEvalTestForJobConfig(params: {
   filter: FilterCondition[] | null;
 }): Promise<CodeEvalTestRunResult | null> {
   const observation = await getObservationForEvalByFilter({
+    prisma: params.prisma,
     projectId: params.projectId,
     target: params.target,
     filter: params.filter,
@@ -120,6 +115,63 @@ export async function runCodeEvalTestForJobConfig(params: {
   });
 }
 
+export async function runCodeEvalTestForEvaluationRule(params: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  filter: FilterCondition[] | null;
+}): Promise<CodeEvalTestRunResult | null> {
+  const observation = await getObservationForEvalByFilter({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    target: params.target,
+    filter: params.filter,
+  });
+
+  if (!observation) return null;
+
+  const evaluator = await params.prisma.evaluator.findFirst({
+    where: {
+      id: params.evaluatorId,
+      projectId: params.projectId,
+      type: EvalTemplateType.CODE,
+    },
+    include: {
+      versions: {
+        where: { sourceCode: { not: null }, sourceCodeLanguage: { not: null } },
+        orderBy: { version: "desc" },
+        take: 1,
+      },
+    },
+  });
+  const version = evaluator?.versions[0];
+  if (!evaluator || !version?.sourceCode || !version.sourceCodeLanguage) {
+    throw new CodeEvalTestRunSetupError(
+      "TEMPLATE_NOT_FOUND",
+      "Evaluator not found",
+    );
+  }
+
+  return runCodeEvalTestForObservationWithEvaluator({
+    ...params,
+    observation,
+    evaluator,
+    version: {
+      ...version,
+      sourceCode: version.sourceCode,
+      sourceCodeLanguage: version.sourceCodeLanguage,
+    },
+    evaluatorMetadata: {
+      evaluator_id: evaluator.id,
+      evaluator_version: version.version,
+    },
+  });
+}
+
 async function runCodeEvalTestForObservation(params: {
   prisma: PrismaClient;
   orgId: string;
@@ -130,24 +182,48 @@ async function runCodeEvalTestForObservation(params: {
   scoreName: string;
   observation: ObservationForEval;
 }): Promise<CodeEvalTestRunResult> {
-  const dispatcher = resolveConfiguredCodeEvalDispatcher();
-
-  if (!dispatcher) {
-    throw new CodeEvalTestRunSetupError(
-      "DISPATCHER_NOT_CONFIGURED",
-      "Code eval dispatcher is not configured",
-    );
-  }
-
-  const codeTemplate = (await params.prisma.evalTemplate.findFirst({
-    where: {
-      id: params.evalTemplateId,
-      type: EvalTemplateType.CODE,
-      sourceCode: { not: null },
-      sourceCodeLanguage: { not: null },
-      OR: [{ projectId: params.projectId }, { projectId: null }],
-    },
-  })) as EvalTemplateCodeBased | null;
+  const managedKey = params.evalTemplateId.startsWith("managed:")
+    ? params.evalTemplateId.slice("managed:".length)
+    : null;
+  const managedTemplate = managedKey
+    ? MANAGED_TEMPLATES_CATALOG.templates.find(
+        (template) =>
+          template.key === managedKey &&
+          template.evaluator.type === EvalTemplateType.CODE,
+      )
+    : null;
+  const storedVersion = managedTemplate
+    ? null
+    : await params.prisma.evaluatorVersion.findFirst({
+        where: {
+          id: params.evalTemplateId,
+          evaluator: {
+            projectId: params.projectId,
+            type: EvalTemplateType.CODE,
+          },
+          sourceCode: { not: null },
+          sourceCodeLanguage: { not: null },
+        },
+        include: { evaluator: true },
+      });
+  const codeTemplate =
+    managedTemplate?.evaluator.type === EvalTemplateType.CODE
+      ? {
+          id: params.evalTemplateId,
+          name: managedTemplate.name,
+          version: 1,
+          sourceCode: managedTemplate.evaluator.source,
+          sourceCodeLanguage: managedTemplate.evaluator.language,
+        }
+      : storedVersion?.sourceCode && storedVersion.sourceCodeLanguage
+        ? {
+            id: storedVersion.evaluator.id,
+            name: storedVersion.evaluator.name,
+            version: storedVersion.version,
+            sourceCode: storedVersion.sourceCode,
+            sourceCodeLanguage: storedVersion.sourceCodeLanguage,
+          }
+        : null;
 
   if (!codeTemplate) {
     throw new CodeEvalTestRunSetupError(
@@ -163,21 +239,67 @@ async function runCodeEvalTestForObservation(params: {
     );
   }
 
+  return runCodeEvalTestForObservationWithEvaluator({
+    ...params,
+    evaluator: codeTemplate,
+    version: codeTemplate,
+    evaluatorMetadata: {
+      evaluator_id: codeTemplate.id,
+      evaluator_version: codeTemplate.version,
+    },
+  });
+}
+
+async function runCodeEvalTestForObservationWithEvaluator(params: {
+  orgId: string;
+  projectId: string;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observation: ObservationForEval;
+  evaluator: { id: string; name: string };
+  version: {
+    version: number;
+    sourceCode: string;
+    sourceCodeLanguage: "PYTHON" | "TYPESCRIPT";
+  };
+  evaluatorMetadata: Record<string, unknown>;
+}): Promise<CodeEvalTestRunResult> {
+  const dispatcher = resolveConfiguredCodeEvalDispatcher();
+  if (!dispatcher) {
+    throw new CodeEvalTestRunSetupError(
+      "DISPATCHER_NOT_CONFIGURED",
+      "Code eval dispatcher is not configured",
+    );
+  }
+
+  if (
+    !isCodeEvalSourceCodeLanguageSupported(params.version.sourceCodeLanguage)
+  ) {
+    throw new CodeEvalTestRunSetupError(
+      "UNSUPPORTED_LANGUAGE",
+      "This code evaluator language is not supported by the configured dispatcher.",
+    );
+  }
+
   const extractedVariables = extractObservationVariables({
     observation: params.observation,
     variableMapping: params.mapping,
   });
   const executionTraceId = createW3CTraceId();
-  const traceName = `Test evaluator: ${codeTemplate.name}`;
+  const traceName = `Test evaluator: ${params.evaluator.name}`;
   const executionMetadata = {
     dispatcher_name: dispatcher.name,
-    code_eval_runtime: codeTemplate.sourceCodeLanguage,
-    eval_template_id: codeTemplate.id,
-    eval_template_version: codeTemplate.version,
+    code_eval_runtime: params.version.sourceCodeLanguage,
+    ...params.evaluatorMetadata,
+    ...buildEvalExecutionMetadata({
+      type: "TEST",
+      evaluatorId: params.evaluator.id,
+      targetTraceId: params.observation.trace_id,
+      targetObservationId: params.observation.span_id,
+    }),
     score_name: params.scoreName,
     target_object: params.target,
-    target_trace_id: params.observation.trace_id,
-    target_observation_id: params.observation.span_id,
   };
 
   const dispatchOutcome = await runCodeBasedEvaluationDispatch({
@@ -186,12 +308,13 @@ async function runCodeEvalTestForObservation(params: {
     projectId: params.projectId,
     executionTraceId,
     jobExecutionId: executionTraceId,
-    template: codeTemplate,
+    evaluator: params.evaluator,
+    version: params.version,
     extractedVariables,
     hasExperimentContext: Boolean(params.observation.experiment_id),
     traceName,
     metadata: executionMetadata,
-    writeTrace: writeTraceViaIngestion,
+    writeTrace: writeInternalTraceViaOtelIngestion,
   });
 
   if (dispatchOutcome.success) {
@@ -219,6 +342,7 @@ function toCodeEvalTestRunError({
 }
 
 async function getObservationForEvalByFilter(params: {
+  prisma: PrismaClient;
   projectId: string;
   target: EvalTargetObject;
   filter: FilterCondition[] | null;
@@ -234,9 +358,20 @@ async function getObservationForEvalByFilter(params: {
     ? getExperimentEvalPreviewFilters(params.filter)
     : params.filter;
 
+  const { filterState, hasNoMatches } = await applyCommentFilters({
+    filterState: filter ?? [],
+    prisma: params.prisma,
+    projectId: params.projectId,
+    objectType: "OBSERVATION",
+  });
+
+  if (hasNoMatches) {
+    return null;
+  }
+
   const stream = await getEventsStreamForEval({
     projectId: params.projectId,
-    filter,
+    filter: filterState,
     rowLimit: 1,
   });
 
@@ -245,207 +380,4 @@ async function getObservationForEvalByFilter(params: {
   }
 
   return null;
-}
-
-async function getObservationForEvalById(params: {
-  projectId: string;
-  id: string;
-  traceId: string;
-  startTime: Date;
-  shouldReadFromObservationsTable?: boolean;
-}): Promise<ObservationForEval> {
-  if (
-    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true" ||
-    params.shouldReadFromObservationsTable
-  ) {
-    return getObservationForEvalByIdFromLegacyObservations(params);
-  }
-
-  const startTimeUpperBound = new Date(params.startTime.getTime() + 1);
-
-  const stream = await getEventsStreamForEval({
-    projectId: params.projectId,
-    filter: [
-      {
-        type: "string",
-        column: "traceId",
-        operator: "=",
-        value: params.traceId,
-      },
-      {
-        type: "datetime",
-        column: "startTime",
-        operator: ">=",
-        value: params.startTime,
-      },
-      {
-        type: "datetime",
-        column: "startTime",
-        operator: "<",
-        value: startTimeUpperBound,
-      },
-      {
-        type: "stringOptions",
-        column: "id",
-        operator: "any of",
-        value: [params.id],
-      },
-    ],
-    rowLimit: 1,
-  });
-
-  for await (const row of stream) {
-    return observationForEvalSchema.parse(row);
-  }
-
-  throwObservationNotFound();
-}
-
-async function getObservationForEvalByIdFromLegacyObservations(params: {
-  projectId: string;
-  id: string;
-  traceId: string;
-  startTime: Date;
-}): Promise<ObservationForEval> {
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  const observation = await getObservationById({
-    projectId: params.projectId,
-    id: params.id,
-    traceId: params.traceId,
-    startTime: params.startTime,
-    fetchWithInputOutput: true,
-  }).catch((error) => {
-    if (error instanceof LangfuseNotFoundError) {
-      throwObservationNotFound();
-    }
-
-    throw error;
-  });
-
-  if (!observation) {
-    throwObservationNotFound();
-  }
-
-  return observationForEvalSchema.parse({
-    span_id: observation.id,
-    trace_id: observation.traceId,
-    project_id: params.projectId,
-    parent_span_id: observation.parentObservationId,
-    type: observation.type,
-    name: observation.name ?? "",
-    environment: observation.environment ?? DEFAULT_TRACE_ENVIRONMENT,
-    version: observation.version,
-    level: observation.level,
-    status_message: observation.statusMessage,
-    trace_name: null,
-    user_id: null,
-    session_id: null,
-    tags: [],
-    release: null,
-    provided_model_name: observation.model,
-    model_parameters: observation.modelParameters,
-    prompt_id: observation.promptId,
-    prompt_name: observation.promptName,
-    prompt_version: observation.promptVersion,
-    provided_usage_details: observation.providedUsageDetails ?? {},
-    provided_cost_details: observation.providedCostDetails ?? {},
-    usage_details: observation.usageDetails ?? {},
-    cost_details: observation.costDetails ?? {},
-    tool_definitions: observation.toolDefinitions ?? {},
-    tool_calls: observation.toolCalls ?? [],
-    tool_call_names: observation.toolCallNames ?? [],
-    tool_call_count: observation.toolCallNames?.length ?? 0,
-    experiment_id: null,
-    experiment_name: null,
-    experiment_description: null,
-    experiment_dataset_id: null,
-    experiment_item_id: null,
-    experiment_item_expected_output: null,
-    experiment_item_metadata: null,
-    experiment_item_root_span_id: null,
-    input: observation.input,
-    output: observation.output,
-    metadata: observation.metadata,
-  });
-}
-
-function throwObservationNotFound(): never {
-  throw new CodeEvalTestRunSetupError(
-    "OBSERVATION_NOT_FOUND",
-    "Observation not found",
-  );
-}
-
-async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
-  const rootEventInput =
-    trace.eventInputs.find(
-      (eventInput) => eventInput.spanId === trace.rootSpanId,
-    ) ?? trace.eventInputs[0];
-
-  if (!rootEventInput) return;
-
-  const timestamp = new Date().toISOString();
-  const traceEvent = {
-    id: randomUUID(),
-    type: eventTypes.TRACE_CREATE,
-    timestamp,
-    body: {
-      id: rootEventInput.traceId,
-      timestamp: rootEventInput.startTimeISO,
-      name: rootEventInput.traceName ?? rootEventInput.name,
-      environment: getInternalEvalEnvironment(rootEventInput.environment),
-      input: rootEventInput.input,
-      output: rootEventInput.output,
-      metadata: rootEventInput.metadata,
-      release: rootEventInput.release,
-      version: rootEventInput.version,
-      public: rootEventInput.public,
-      tags: rootEventInput.tags,
-      sessionId: rootEventInput.sessionId,
-      userId: rootEventInput.userId,
-    },
-  };
-
-  const spanEvents = trace.eventInputs.map((eventInput) => ({
-    id: randomUUID(),
-    type: eventTypes.SPAN_CREATE,
-    timestamp,
-    body: {
-      id: eventInput.spanId,
-      traceId: eventInput.traceId,
-      name: eventInput.name,
-      environment: getInternalEvalEnvironment(eventInput.environment),
-      startTime: eventInput.startTimeISO,
-      endTime: eventInput.endTimeISO,
-      input: eventInput.input,
-      output: eventInput.output,
-      metadata: eventInput.metadata,
-      level: eventInput.level,
-      statusMessage: eventInput.statusMessage,
-      parentObservationId: eventInput.parentSpanId,
-      version: eventInput.version,
-    },
-  }));
-
-  const result = await processEventBatch(
-    [traceEvent, ...spanEvents],
-    {
-      validKey: true,
-      scope: {
-        projectId: rootEventInput.projectId,
-        accessLevel: "project",
-      },
-    } satisfies Parameters<typeof processEventBatch>[1],
-    { delay: 0, isLangfuseInternal: true },
-  );
-
-  if (result.errors.length > 0) {
-    throw new Error(result.errors[0]?.error ?? "Failed to write trace");
-  }
-}
-
-function getInternalEvalEnvironment(environment: string | undefined) {
-  return environment === LangfuseInternalTraceEnvironment.CodeEval
-    ? LangfuseInternalTraceEnvironment.CodeEval
-    : LangfuseInternalTraceEnvironment.LLMJudge;
 }

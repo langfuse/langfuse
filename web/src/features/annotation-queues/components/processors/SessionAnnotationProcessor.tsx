@@ -9,8 +9,9 @@ import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
+import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { CopyIdsPopover } from "@/src/components/trace/components/_shared/CopyIdsPopover";
+import { CopyIdsPopover } from "@/src/features/traces";
 import { Badge } from "@/src/components/ui/badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
@@ -18,8 +19,9 @@ import { Card } from "@/src/components/ui/card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { getNumberFromMap } from "@/src/utils/map-utils";
+import { MessageSquare, MessageSquareOff } from "lucide-react";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -98,8 +100,16 @@ export const SessionAnnotationProcessor: React.FC<
 
   // Stable callback to avoid creating new function reference on every render (defeats React.memo)
   const openPeek = useCallback(
-    (traceId: string) => {
-      window.open(`/project/${projectId}/traces/${traceId}`, "_blank");
+    (traceId: string, row?: { observationId?: string }) => {
+      // observationId: a truncated observation's "Open in trace view" deep-links
+      // to that observation (LFE-10958).
+      const observationParam = row?.observationId
+        ? `?observation=${encodeURIComponent(row.observationId)}`
+        : "";
+      window.open(
+        `/project/${projectId}/traces/${traceId}${observationParam}`,
+        "_blank",
+      );
     },
     [projectId],
   );
@@ -116,7 +126,7 @@ export const SessionAnnotationProcessor: React.FC<
             <Link
               href={`/project/${projectId}/sessions/${encodeURIComponent(item.objectId)}`}
               target="_blank"
-              className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all hover:underline md:break-normal md:wrap-break-word"
+              className="mb-0 ml-1 line-clamp-2 min-w-0 font-bold break-all hover:underline md:break-normal md:wrap-break-word"
             >
               {item.objectId}
             </Link>
@@ -124,13 +134,44 @@ export const SessionAnnotationProcessor: React.FC<
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
-          <CommentDrawerButton
+          <CommentDrawerController
             projectId={projectId}
-            variant="outline"
             objectId={item.objectId}
             objectType="SESSION"
             count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
-          />
+          >
+            {({ disabled, openDrawer }) => (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={openDrawer}
+                className="gap-1"
+              >
+                {disabled ? (
+                  <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                ) : (
+                  <>
+                    <MessageSquare className="h-4 w-4" />
+                    <span>Add comment</span>
+                    {getNumberFromMap(
+                      sessionCommentCounts.data,
+                      item.objectId,
+                    ) ? (
+                      <ActionButtonCountBadge
+                        count={
+                          getNumberFromMap(
+                            sessionCommentCounts.data,
+                            item.objectId,
+                          ) ?? 0
+                        }
+                      />
+                    ) : null}
+                  </>
+                )}
+              </Button>
+            )}
+          </CommentDrawerController>
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">
@@ -187,6 +228,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
+                  viewLabel={null}
                   hideTracePanel
                   index={index}
                 />

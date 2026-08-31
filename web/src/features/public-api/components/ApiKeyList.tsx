@@ -17,7 +17,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -26,6 +26,14 @@ import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseE
 
 type ApiKeyScope = "project" | "organization";
 type ApiKeyEntity = { id: string; note: string | null };
+type ApiKeyCreator = {
+  createdByUser: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  } | null;
+  createdByApiKey: { id: string; publicKey: string } | null;
+};
 
 export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const { entityId, scope } = props;
@@ -37,9 +45,12 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
     );
   }
 
-  const hasProjectAccess = useHasProjectAccess({
+  // Viewing the list only needs apiKeys:read, which project MEMBERs hold.
+  // Create, delete, and note editing stay behind apiKeys:CUD and are gated
+  // individually by CreateApiKeyButton, DeleteApiKeyButton, and ApiKeyNote.
+  const hasProjectReadAccess = useHasProjectAccess({
     projectId: props.entityId,
-    scope: "apiKeys:CUD",
+    scope: "apiKeys:read",
   });
   const hasOrganizationAccess = useHasOrganizationAccess({
     organizationId: props.entityId,
@@ -47,11 +58,11 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   });
 
   const hasAccess =
-    props.scope === "project" ? hasProjectAccess : hasOrganizationAccess;
+    props.scope === "project" ? hasProjectReadAccess : hasOrganizationAccess;
 
   const projectApiKeysQuery = api.projectApiKeys.byProjectId.useQuery(
     { projectId: entityId },
-    { enabled: hasProjectAccess && props.scope === "project" },
+    { enabled: hasProjectReadAccess && props.scope === "project" },
   );
   const organizationApiKeysQuery =
     api.organizationApiKeys.byOrganizationId.useQuery(
@@ -100,6 +111,9 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableHead className="text-primary hidden md:table-cell">
                 Created
               </TableHead>
+              <TableHead className="text-primary hidden md:table-cell">
+                Created By
+              </TableHead>
               <TableHead className="text-primary">Note</TableHead>
               <TableHead className="text-primary">Public Key</TableHead>
               <TableHead className="text-primary">Secret Key</TableHead>
@@ -112,7 +126,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
               <TableRow>
                 <TableCell
                   density="comfortable"
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center"
                 >
                   None
@@ -130,6 +144,12 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                   >
                     {apiKey.createdAt.toLocaleDateString()}
                   </TableCell>
+                  <TableCell
+                    density="comfortable"
+                    className="hidden md:table-cell"
+                  >
+                    <ApiKeyCreatedBy apiKey={apiKey} />
+                  </TableCell>
                   <TableCell density="comfortable">
                     <ApiKeyNote
                       apiKey={apiKey}
@@ -141,6 +161,7 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
                     density="comfortable"
                     text={apiKey.publicKey}
                     className="truncate font-mono"
+                    title={apiKey.publicKey}
                   />
                   <TableCell density="comfortable" className="font-mono">
                     {apiKey.displaySecretKey}
@@ -210,9 +231,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     } else {
       mutDeleteOrgApiKey
         .mutateAsync({
@@ -223,9 +242,7 @@ function DeleteApiKeyButton(props: {
           capture(`${scope}_settings:api_key_delete`);
           setOpen(false);
         })
-        .catch((error) => {
-          console.error(error);
-        });
+        .catch((error) => reportNonTrpcError(error, "api-keys"));
     }
   };
 
@@ -245,6 +262,28 @@ function DeleteApiKeyButton(props: {
       onConfirm={handleDelete}
     />
   );
+}
+
+function ApiKeyCreatedBy({ apiKey }: { apiKey: ApiKeyCreator }) {
+  if (apiKey.createdByUser) {
+    const { name, email } = apiKey.createdByUser;
+    return (
+      <span className="truncate" title={email ?? undefined}>
+        {name ?? email ?? "Unknown user"}
+      </span>
+    );
+  }
+  if (apiKey.createdByApiKey) {
+    return (
+      <span
+        className="truncate font-mono"
+        title={`Created via API by key ${apiKey.createdByApiKey.publicKey}`}
+      >
+        {apiKey.createdByApiKey.publicKey}
+      </span>
+    );
+  }
+  return <span>—</span>;
 }
 
 function ApiKeyNote({

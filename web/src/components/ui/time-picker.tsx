@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
@@ -58,7 +59,7 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
           onRightFocus={() => minuteRef.current?.focus()}
         />
       </div>
-      {":"}
+      :
       <div className="grid gap-1 text-center">
         <TimePickerInput
           picker="minutes"
@@ -70,7 +71,7 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
           onRightFocus={() => secondRef.current?.focus()}
         />
       </div>
-      {":"}
+      :
       <div className="grid gap-1">
         <TimePickerInput
           picker="seconds"

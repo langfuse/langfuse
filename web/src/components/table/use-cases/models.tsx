@@ -1,12 +1,12 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared/src/db";
 import { useQueryParams, withDefault, StringParam } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { IOTableCell } from "../../ui/IOTableCell";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
@@ -21,15 +21,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useRouter } from "next/router";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
+import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
 import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
@@ -63,7 +62,6 @@ const modelConfigDescriptions = {
 
 export default function ModelTable({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const capture = usePostHogClientCapture();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -117,7 +115,10 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       cell: ({ row }) => {
         return (
-          <span className="truncate font-mono text-xs font-semibold">
+          <span
+            className="truncate font-mono text-xs font-bold"
+            title={row.original.modelName}
+          >
             {row.original.modelName}
           </span>
         );
@@ -164,7 +165,9 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         const value: string = row.getValue("matchPattern");
 
         return value ? (
-          <span className="truncate font-mono text-xs">{value}</span>
+          <span className="truncate font-mono text-xs" title={value}>
+            {value}
+          </span>
         ) : null;
       },
     },
@@ -195,35 +198,28 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       enableHiding: true,
     },
-    {
+    createTextTableColumn<ModelTableRow>({
       accessorKey: "tokenizerId",
-      id: "tokenizerId",
       header: "Tokenizer",
       headerTooltip: {
         description: modelConfigDescriptions.tokenizerId,
       },
       enableHiding: true,
       size: 120,
-    },
-    {
+    }),
+    createIOTableColumn<ModelTableRow>({
       accessorKey: "config",
-      id: "config",
       header: "Tokenizer Configuration",
       headerTooltip: {
         description: modelConfigDescriptions.config,
       },
       enableHiding: true,
       size: 120,
-      cell: ({ row }) => {
-        const value: Prisma.JsonValue | undefined = row.getValue("config");
-
-        return value ? (
-          <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
-    {
-      accessorKey: "lastUsed",
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createTextTableColumn<ModelTableRow>({
+      accessorFn: () => undefined,
       id: "lastUsed",
       header: "Last used",
       headerTooltip: {
@@ -231,12 +227,11 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       },
       enableHiding: true,
       size: 120,
-      cell: ({ row }) => {
-        if (!lastUsed.data) return <Skeleton className="h-4 w-20" />;
-        const value = lastUsed.data[row.original.modelId];
-        return value?.toLocaleString() ?? "";
+      mapValue: (_, { row }) => {
+        if (!lastUsed.data) return { type: "loading" };
+        return lastUsed.data[row.original.modelId]?.toLocaleString() ?? "";
       },
-    },
+    }),
     {
       accessorKey: "actions",
       header: "Actions",
@@ -318,7 +313,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
                 variant="secondary"
                 icon={<PlusIcon className="h-4 w-4" />}
                 hasAccess={hasWriteAccess}
-                onClick={() => capture("models:new_form_open")}
+                trackingEventName="models:new_form_open"
               >
                 Add Model Definition
               </ActionButton>
@@ -329,7 +324,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       />
       <SettingsTableCard className="max-h-[75dvh]">
         <DataTable
-          tableName={"models"}
+          tableName="models"
           columns={columns}
           data={
             models.isPending

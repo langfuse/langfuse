@@ -1,11 +1,18 @@
+import { vi } from "vitest";
+
+// requireV4Writes 404s the monitors routes under the default legacy write mode;
+// env is parsed at module load, so force a passing mode before any import.
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
-import { type Role } from "@langfuse/shared/src/db";
 import {
   MonitorNoDataModeSchema,
   MonitorSeveritySchema,
@@ -38,20 +45,24 @@ const buildSession = (params: {
         plan: "cloud:hobby",
         cloudConfig: undefined,
         metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: true,
         projects: [
           {
             id: params.projectId,
             role: params.projectRole,
             retentionDays: 30,
             deletedAt: null,
+            hasTraces: false,
             name: params.projectName,
             metadata: {},
+            createdAt: new Date().toISOString(),
           },
         ],
       },
     ],
     featureFlags: {
-      inAppAgent: false,
+      searchBar: false,
       templateFlag: false,
       excludeClickhouseRead: false,
       v4BetaToggleVisible: false,
@@ -187,7 +198,7 @@ describe("monitors trpc", () => {
       ).rejects.toThrow(/access/i);
     });
 
-    it("allows monitors.create from MEMBER role (monitors:CUD)", async () => {
+    it("allows monitors.create from MEMBER role (alerts:CUD)", async () => {
       const { project, caller } = await prepare({ projectRole: "MEMBER" });
 
       const created = await caller.monitors.create(
@@ -427,9 +438,9 @@ describe("monitors trpc", () => {
   describe("entitlement limit", () => {
     const monitorLimit =
       entitlementAccess["cloud:hobby"].entitlementLimits["monitor-count"];
-    if (typeof monitorLimit !== "number") {
+    if (typeof monitorLimit !== "number" || monitorLimit < 2) {
       throw new Error(
-        "expected cloud:hobby monitor-count limit to be a number",
+        "expected cloud:hobby monitor-count limit to be a number >= 2; the org-scoping test needs two distinct creatable counts",
       );
     }
 
@@ -444,6 +455,38 @@ describe("monitors trpc", () => {
         }),
       ).rejects.toThrow(/monitor-count/i);
     });
+
+    it("does not admit more monitors than the limit under concurrent requests", async () => {
+      // Counting outside a transaction lets concurrent requests all observe
+      // the same pre-insert count and all pass the check, so the limit only
+      // holds if the count-check-create sequence is serialized.
+      const { project, caller } = await prepare();
+      // Seed up to one seat below the limit, so exactly one of the concurrent
+      // requests may succeed — otherwise a race that admits `monitorLimit`
+      // rows would satisfy the limit by coincidence.
+      await seedMonitors(caller, project.id, monitorLimit - 1);
+
+      const results = await Promise.allSettled(
+        Array.from({ length: 5 }, (_, i) =>
+          caller.monitors.create({
+            ...validMonitorInput(project.id),
+            name: `Concurrent monitor ${i + 1}`,
+          }),
+        ),
+      );
+
+      const created = await prisma.monitor.count({
+        where: { projectId: project.id },
+      });
+      expect(created).toBe(monitorLimit);
+
+      const rejected = results.filter((r) => r.status === "rejected");
+      expect(results.length - rejected.length).toBe(1);
+      // every loser lost to the limit check, not to an incidental error
+      for (const result of rejected) {
+        expect(String(result.reason)).toMatch(/monitor-count/i);
+      }
+    }, 25_000);
 
     it("counts monitors with non-ACTIVE status toward the limit", async () => {
       const { project, caller } = await prepare();
@@ -489,11 +532,15 @@ describe("monitors trpc", () => {
 
     it("monitors.count is scoped to the caller's org", async () => {
       // Two independent orgs prove the count is org-scoped, not global.
+      // Counts derive from the limit so both stay creatable, and differ so a
+      // globally-scoped count could not satisfy both assertions.
+      const countA = monitorLimit;
+      const countB = monitorLimit - 1;
       const orgA = await prepare();
       const orgB = await prepare();
 
-      await seedMonitors(orgA.caller, orgA.project.id, 3);
-      await seedMonitors(orgB.caller, orgB.project.id, 2);
+      await seedMonitors(orgA.caller, orgA.project.id, countA);
+      await seedMonitors(orgB.caller, orgB.project.id, countB);
 
       const resultA = await orgA.caller.monitors.count({
         projectId: orgA.project.id,
@@ -502,8 +549,8 @@ describe("monitors trpc", () => {
         projectId: orgB.project.id,
       });
 
-      expect(resultA.count).toBe(3);
-      expect(resultB.count).toBe(2);
+      expect(resultA.count).toBe(countA);
+      expect(resultB.count).toBe(countB);
     });
   });
 

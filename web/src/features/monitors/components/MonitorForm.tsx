@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef } from "react";
+/* eslint-disable @repo/no-style-props */
+import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -42,24 +43,15 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import {
-  mapWidgetUiTableFilterToView,
-  normalizeStoredWidgetFiltersForEditor,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
-import {
-  getWidgetColumnsWithCustomSelect,
-  getWidgetFilterColumns,
-} from "@/src/features/widgets/components/widgetFilterColumns";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { cn } from "@/src/utils/tailwind";
 
 import {
   CreateMonitorSchema,
   type CreateMonitor,
   getValidMonitorAggregationsForMeasure,
-  getValidMonitorFilterColumns,
   type Monitor,
   type MonitorNoData,
   MonitorNoDataModeSchema,
@@ -80,6 +72,7 @@ import { viewDeclarations, type FilterState } from "@langfuse/shared";
 import TagManager from "@/src/features/tag/components/TagManager";
 
 import { MonitorChartPreview } from "./MonitorChartPreview";
+import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/ui/badge";
@@ -115,11 +108,7 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   id: monitor.id,
   projectId: monitor.projectId,
   view: monitor.view,
-  // Stored filters use the view's dimension names (e.g. "environment"); the
-  // InlineFilterBuilder works in UI-table column space (e.g. "Environment").
-  // Translate on load so the builder shows the right rows.
-  filters: normalizeStoredWidgetFiltersForEditor(monitor.view, monitor.filters)
-    .editorFilters,
+  filters: monitor.filters,
   metric: monitor.metric,
   window: monitor.window,
   thresholdOperator: monitor.thresholdOperator,
@@ -132,6 +121,18 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   triggerIds: monitor.triggerIds,
   // status omitted: the pause/resume toolbar owns it.
 });
+
+/** resolveViewChangePatch returns the form fields that must change when the view changes. */
+const resolveViewChangePatch = (
+  nextView: keyof (typeof viewDeclarations)["v2"],
+  currentMeasure: string,
+): Partial<Pick<CreateMonitor, "metric">> => {
+  const measures = viewDeclarations.v2[nextView]?.measures ?? {};
+  // Filters are never patched; MetricsFilterBuilder drops rows the view cannot render.
+  return currentMeasure in measures
+    ? {}
+    : { metric: { measure: "count", aggregation: "count" } };
+};
 
 /** nameOrPlaceholder falls back to the placeholder when the name is blank. */
 const nameOrPlaceholder = (
@@ -154,8 +155,8 @@ export const MonitorForm = ({
   const router = useRouter();
   /** isEdit is true when the form is bound to an existing monitor. */
   const isEdit = Boolean(monitor);
-  /** hasAccess gates write controls behind the monitors:CUD RBAC scope. */
-  const hasAccess = useHasProjectAccess({ projectId, scope: "monitors:CUD" });
+  /** hasAccess gates write controls behind the alerts:CUD RBAC scope. */
+  const hasAccess = useHasProjectAccess({ projectId, scope: "alerts:CUD" });
   /** utils is the tRPC utils handle used to invalidate caches after mutations. */
   const utils = api.useUtils();
 
@@ -169,19 +170,14 @@ export const MonitorForm = ({
   /** namePlaceholderRef holds the latest computed name placeholder for the resolver. */
   const namePlaceholderRef = useRef("");
 
-  /** resolver wraps zodResolver, mapping filter columns into view-space and filling a blank name with the computed placeholder before validation. */
+  /** resolver wraps zodResolver, filling a blank name with the computed placeholder before validation. */
   const resolver = useMemo(() => {
     const base = zodResolver(schema as any);
     return ((values, context, options) => {
-      const v = values as {
-        view: MonitorView;
-        filters?: FilterState;
-        name?: string;
-      };
+      const v = values as { name?: string };
       const mapped = {
         ...values,
         name: nameOrPlaceholder(v.name, namePlaceholderRef.current),
-        filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
       };
       return base(mapped as any, context, options);
     }) as typeof base;
@@ -199,12 +195,12 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title: "Monitor created",
+        title: "Alert created",
         description: `"${variables.name}" is now active.`,
       });
-      router.replace(`/project/${projectId}/monitors`);
+      router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to create monitor", e.message),
+    onError: (e) => showErrorToast("Failed to create alert", e.message),
   });
 
   /** updateMutation saves edits to an existing monitor and returns to the monitors list on success. */
@@ -212,24 +208,25 @@ export const MonitorForm = ({
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title: "Monitor saved",
+        title: "Alert saved",
         description: `Your changes to "${variables.name}" have been applied.`,
       });
-      router.replace(`/project/${projectId}/monitors`);
+      router.replace(`/project/${projectId}/alerts`);
     },
-    onError: (e) => showErrorToast("Failed to save monitor", e.message),
+    onError: (e) => showErrorToast("Failed to save alert", e.message),
   });
 
-  /** onSubmit normalizes filter columns into view-space and dispatches the create or update mutation. */
+  /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
-    /** onValid normalize filter values before updating or saving the monitor  */
     (values) => {
       const normalizedValues = {
         ...values,
-        filters: mapWidgetUiTableFilterToView(
-          values.view as Parameters<typeof mapWidgetUiTableFilterToView>[0],
+        filters: partitionWidgetUiTableFiltersToView(
+          values.view as Parameters<
+            typeof partitionWidgetUiTableFiltersToView
+          >[0],
           (values.filters ?? []) as FilterState,
-        ),
+        ).mappedFilters,
       } as typeof values;
 
       if (isEdit && monitor) {
@@ -256,81 +253,16 @@ export const MonitorForm = ({
   const watched = useWatch({ control: form.control });
   const monitorWindow = (watched.window ?? "5m") as MonitorWindow;
 
-  // Push the live name up to the host (e.g. the edit page header) so the page
-  // title can mirror it as the user types instead of waiting for save.
-  useEffect(() => {
-    onNameChange?.(watched.name ?? "");
-  }, [watched.name, onNameChange]);
-
-  /** eventsFilterOptions loads the events v2 filter dictionary (environments, tags, models, …) for the picked view. */
-  const eventsFilterOptions = api.events.filterOptions.useQuery(
-    {
-      projectId,
-      monitorWindow,
-    },
-    {
-      trpc: { context: { skipBatch: true } },
-      staleTime: 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
+  /** filterOptionsLookbackFrom lower-bounds discovery at max(20×window, 7d) so even a small monitor window still yields value suggestions. */
+  const filterOptionsLookbackFrom = useMemo(
+    () => getMonitorFilterOptionsLookbackFrom(monitorWindow, Date.now()),
+    [monitorWindow],
   );
-
-  /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
-  const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
   /** monitorFilterOptions loads the project's existing monitor tags for the tag picker's available-options list. */
   const monitorFilterOptions = api.monitors.getFilterOptions.useQuery(
     { projectId },
     { staleTime: Infinity, refetchOnWindowFocus: false },
-  );
-
-  /** filterColumnsParams collects the filter-column descriptor for InlineFilterBuilder, derived from the picked view and live option dictionaries. */
-  const filterColumnsParams = useMemo(() => {
-    const data = eventsFilterOptions.data;
-    return {
-      selectedView: (watched.view ?? "observations") as
-        | "traces"
-        | "observations"
-        | "scores-numeric"
-        | "scores-categorical",
-      viewVersion: "v2" as const,
-      environmentOptions: data?.environment ?? [],
-      nameOptions: normalizeSingleValueOptions(data?.traceName),
-      tagsOptions: data?.traceTags ?? [],
-      modelOptions: data?.providedModelName ?? [],
-      toolNamesOptions: data?.toolNames ?? [],
-      calledToolNamesOptions: data?.calledToolNames ?? [],
-      observationLevelOptions: data?.level ?? [],
-      experimentNameOptions: data?.experimentName ?? [],
-      experimentDatasetOptions: (() => {
-        const ids = new Set(
-          (data?.experimentDatasetId ?? []).map((e) => e.value),
-        );
-        return (
-          datasets.data
-            ?.filter((d: { id: string }) => ids.has(d.id))
-            .map((d: { id: string; name: string }) => ({
-              value: d.id,
-              displayValue: d.name,
-            })) ?? []
-        );
-      })(),
-      observationTypeOptions: data?.type ?? [],
-    };
-  }, [eventsFilterOptions.data, datasets.data, watched.view]);
-
-  /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
-  const filterColumns = useMemo(
-    () =>
-      getValidMonitorFilterColumns(getWidgetFilterColumns(filterColumnsParams)),
-    [filterColumnsParams],
-  );
-
-  /** customSelectColumnIds is the set of filter columns that render a custom select control. */
-  const customSelectColumnIds = useMemo(
-    () => getWidgetColumnsWithCustomSelect(filterColumnsParams),
-    [filterColumnsParams],
   );
 
   /** measureOptions is the list of measure names available on the currently picked view. */
@@ -374,15 +306,15 @@ export const MonitorForm = ({
 
   namePlaceholderRef.current = namePlaceholder;
 
-  /** previewFilters translates the UI-table column filters into the view's dimension space for the preview query. */
+  /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
   const previewFilters = useMemo<FilterState>(
     () =>
-      mapWidgetUiTableFilterToView(
+      partitionWidgetUiTableFiltersToView(
         (watched.view ?? "observations") as Parameters<
-          typeof mapWidgetUiTableFilterToView
+          typeof partitionWidgetUiTableFiltersToView
         >[0],
         (watched.filters ?? []) as FilterState,
-      ),
+      ).mappedFilters,
     [watched.view, watched.filters],
   );
 
@@ -403,7 +335,7 @@ export const MonitorForm = ({
         <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
           <Card className="flex h-full flex-col">
             <CardHeader>
-              <CardTitle>Monitor Configuration</CardTitle>
+              <CardTitle>Alert Configuration</CardTitle>
               <CardDescription>
                 Receive notifications when a metric crosses a threshold. (eg.
                 &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has
@@ -422,29 +354,15 @@ export const MonitorForm = ({
                         value={field.value}
                         onValueChange={(next) => {
                           field.onChange(next);
-                          // Reset the metric whenever the view changes: the
-                          // selected measure may not exist on the new view,
-                          // which would leave the form in an unsubmittable
-                          // state until the user manually picks one. "count"
-                          // is always present and is the safe default.
-                          const view =
-                            next as keyof (typeof viewDeclarations)["v2"];
-                          const measures =
-                            viewDeclarations.v2[view]?.measures ?? {};
-                          const currentMeasure =
-                            form.getValues("metric.measure");
-                          if (!(currentMeasure in measures)) {
-                            form.setValue(
-                              "metric",
-                              { measure: "count", aggregation: "count" },
-                              { shouldValidate: true },
-                            );
+                          const patch = resolveViewChangePatch(
+                            next as keyof (typeof viewDeclarations)["v2"],
+                            form.getValues("metric.measure"),
+                          );
+                          if (patch.metric) {
+                            form.setValue("metric", patch.metric, {
+                              shouldValidate: true,
+                            });
                           }
-                          // Clear filters too — UI-cased column ids only resolve
-                          // against the view that's currently selected.
-                          form.setValue("filters", [], {
-                            shouldValidate: true,
-                          });
                         }}
                         disabled={!hasAccess}
                       >
@@ -568,11 +486,13 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormLabel>Filters</FormLabel>
                       <FormControl>
-                        <InlineFilterBuilder
-                          columns={filterColumns}
-                          filterState={(field.value ?? []) as FilterState}
+                        <MetricsFilterBuilder
+                          version="v2"
+                          view={(watched.view ?? "observations") as MonitorView}
+                          projectId={projectId}
+                          dateRange={{ from: filterOptionsLookbackFrom }}
+                          filters={(field.value ?? []) as FilterState}
                           onChange={(next: FilterState) => field.onChange(next)}
-                          columnsWithCustomSelect={customSelectColumnIds}
                         />
                       </FormControl>
                       <FormMessage />
@@ -639,7 +559,7 @@ export const MonitorForm = ({
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
-                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
@@ -683,7 +603,7 @@ export const MonitorForm = ({
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
-                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
@@ -746,7 +666,7 @@ export const MonitorForm = ({
                 />
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-b-0">
-                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-medium [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                       Advanced Options
                     </AccordionTrigger>
                     <AccordionContent className="space-y-6 px-1 pt-2">
@@ -797,6 +717,10 @@ export const MonitorForm = ({
                           disabled={!hasAccess}
                           {...field}
                           value={field.value ?? ""}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            onNameChange?.(e.target.value ?? "");
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -810,7 +734,7 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormControl>
                         <TagManager
-                          itemName="monitor"
+                          itemName="alert"
                           tags={(field.value ?? []) as string[]}
                           allTags={
                             monitorFilterOptions.data?.tags.map(
@@ -868,7 +792,7 @@ export const MonitorForm = ({
                   className="w-full"
                   disabled={!hasAccess || submitting}
                 >
-                  {isEdit ? "Save Monitor" : "Create Monitor"}
+                  {isEdit ? "Save Alert" : "Create Alert"}
                 </Button>
               </div>
             </CardFooter>
@@ -912,7 +836,7 @@ const Header = ({
   <div className="bg-card sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
       {step != null ? (
-        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">
           {step}
         </span>
       ) : null}
@@ -985,7 +909,7 @@ const NoDataField = ({
             Keep the previous
             <Badge
               variant="secondary"
-              className="w-20 justify-center bg-slate-500 py-1 text-slate-50 hover:bg-slate-500"
+              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
             >
               SEVERITY
             </Badge>
@@ -1092,4 +1016,5 @@ export const __test = {
   createDefaults,
   monitorToDefaults,
   nameOrPlaceholder,
+  resolveViewChangePatch,
 };

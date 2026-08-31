@@ -24,16 +24,26 @@ import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
+  EVENTS_FIELD_REGISTRY,
   isDanglingDotPrefix,
   negationIssue,
   operatorIssue,
-  resolveField,
   SCORE_COLUMNS,
   type FieldDef,
+  type FieldRegistry,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
 
-export type SingleEventsFilter = FilterState[number];
+/**
+ * Emitted when a top-level OR between conditions can't collapse to a same-field
+ * any-of (the PARKED cross-field-OR feature, LFE-10421). Exported so the
+ * analytics error classifier can match this exact cause without brittle string
+ * fragments (LFE-10781 `filters:search_error` → reason `unsupported_or`).
+ */
+export const OR_NOT_SUPPORTED_MESSAGE =
+  "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
+
+type SingleEventsFilter = FilterState[number];
 
 export type AstToFilterStateResult = {
   filters: FilterState;
@@ -58,15 +68,17 @@ export type AstToFilterStateResult = {
 export type ScoreTypeContext = {
   numericScoreNames?: ReadonlySet<string>;
   categoricalScoreNames?: ReadonlySet<string>;
+  booleanScoreNames?: ReadonlySet<string>;
   traceNumericScoreNames?: ReadonlySet<string>;
   traceCategoricalScoreNames?: ReadonlySet<string>;
+  traceBooleanScoreNames?: ReadonlySet<string>;
 };
 
 export function resolveScoreType(
   ctx: ScoreTypeContext | undefined,
   level: "observation" | "trace",
   name: string,
-): "numeric" | "categorical" | "both" | "unknown" {
+): "numeric" | "categorical" | "boolean" | "both" | "unknown" {
   if (ctx === undefined) return "unknown";
   const numeric =
     level === "trace" ? ctx.traceNumericScoreNames : ctx.numericScoreNames;
@@ -74,12 +86,27 @@ export function resolveScoreType(
     level === "trace"
       ? ctx.traceCategoricalScoreNames
       : ctx.categoricalScoreNames;
+  const boolean =
+    level === "trace" ? ctx.traceBooleanScoreNames : ctx.booleanScoreNames;
   const isNum = numeric?.has(name) ?? false;
   const isCat = categorical?.has(name) ?? false;
-  if (isNum && isCat) return "both";
+  const isBool = boolean?.has(name) ?? false;
+  const typeCount = Number(isNum) + Number(isCat) + Number(isBool);
+  if (typeCount > 1) return "both";
   if (isNum) return "numeric";
   if (isCat) return "categorical";
+  if (isBool) return "boolean";
   return "unknown";
+}
+
+function isObservedBooleanScore(
+  ctx: ScoreTypeContext | undefined,
+  level: "observation" | "trace",
+  name: string,
+): boolean {
+  const boolean =
+    level === "trace" ? ctx?.traceBooleanScoreNames : ctx?.booleanScoreNames;
+  return boolean?.has(name) ?? false;
 }
 
 /**
@@ -113,30 +140,63 @@ type LowerContext = {
   searchTerms: string[];
   errors: string[];
   scoreTypes?: ScoreTypeContext;
+  registry: FieldRegistry;
 };
 
 export function astToFilterState(
   ast: ASTNode | null,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): AstToFilterStateResult {
   const ctx: LowerContext = {
     filters: [],
     searchTerms: [],
     errors: [],
     scoreTypes,
+    registry,
   };
 
   if (ast !== null) {
     lowerTopLevel(ast, false, ctx);
   }
 
+  const defaultTextFilter = lowerDefaultTextField(ctx);
+
   return {
     filters: ctx.filters,
-    searchQuery: ctx.searchTerms.length > 0 ? ctx.searchTerms.join(" ") : null,
+    searchQuery:
+      defaultTextFilter || ctx.searchTerms.length === 0
+        ? null
+        : ctx.searchTerms.join(" "),
     // The bar has no scope tokens; the caller (commit.ts) applies the default.
     searchType: null,
     errors: ctx.errors,
   };
+}
+
+/**
+ * On a view with no full-text lane, the collected free-text words are ONE
+ * phrase on the view's default text field — the same coalescing the events
+ * table applies before writing `searchQuery`, and the same thing the bar's own
+ * `id:"test 123"` suggestion promises. Lowering per word instead would AND
+ * `id contains test` with `id contains 123`, which matches neither.
+ * Returns whether it consumed the terms.
+ */
+function lowerDefaultTextField(ctx: LowerContext): boolean {
+  const field = ctx.registry.defaultTextField;
+  if (ctx.registry.allowFreeText || field === null) return false;
+  if (ctx.searchTerms.length === 0) return false;
+  lowerFilterNode(
+    {
+      kind: "filter",
+      key: field,
+      op: "=",
+      values: [ctx.searchTerms.join(" ")],
+    },
+    false,
+    ctx,
+  );
+  return true;
 }
 
 // AND chains (top-level or parenthesized — semantically identical in the
@@ -156,15 +216,27 @@ function lowerTopLevel(
         return;
       }
       // A bare dot-prefix (`metadata.`, `scores.`, …) parses as free text, so
-      // committing it would silently set searchQuery to the prefix. Reject it
-      // here so every commit path (typed Enter and structured pick) is gated.
-      // Quoted text is an explicit literal search and is allowed.
-      if (!node.quoted && isDanglingDotPrefix(node.value)) {
+      // committing it would silently search for the prefix itself. Gated ahead
+      // of the free-text branches below so every view reports the same accurate
+      // reason — a view whose bare words are rewritten (or rejected outright)
+      // still supports `metadata.<key>`, so "free text is not supported" would
+      // be the wrong message. Quoted text is an explicit literal and is allowed.
+      if (!node.quoted && isDanglingDotPrefix(node.value, ctx.registry)) {
         ctx.errors.push(
           `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
         );
         return;
       }
+      if (
+        !ctx.registry.allowFreeText &&
+        ctx.registry.defaultTextField === null
+      ) {
+        ctx.errors.push("Free-text search is not supported by this view");
+        return;
+      }
+      // Collected, not lowered: on a `defaultTextField` view a multi-word run is
+      // ONE phrase, so it becomes a single filter (see lowerDefaultTextField),
+      // never one AND-ed filter per word.
       ctx.searchTerms.push(node.value);
       return;
     case "not":
@@ -190,9 +262,7 @@ function lowerTopLevel(
         lowerFilterNode(collapsed, negated, ctx);
         return;
       }
-      ctx.errors.push(
-        "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values",
-      );
+      ctx.errors.push(OR_NOT_SUPPORTED_MESSAGE);
       return;
     }
     case "filter":
@@ -208,7 +278,14 @@ function lowerFilterNode(
   negated: boolean,
   ctx: LowerContext,
 ): void {
-  lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
+  lowerFilter(
+    node,
+    negated,
+    ctx.filters,
+    ctx.errors,
+    ctx.scoreTypes,
+    ctx.registry,
+  );
 }
 
 function lowerFilter(
@@ -217,6 +294,7 @@ function lowerFilter(
   out: SingleEventsFilter[],
   errors: string[],
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
   if (node.values.length === 0) {
     // The parser already flags every empty-value FilterNode at this span — and
@@ -227,7 +305,7 @@ function lowerFilter(
     return;
   }
 
-  const ref = resolveField(node.key);
+  const ref = registry.resolveField(node.key);
   if (ref === null) {
     errors.push(`Unknown field "${node.key}"`);
     return;
@@ -249,7 +327,7 @@ function lowerFilter(
   switch (ref.type) {
     case "pseudo":
       // `has` is the only pseudo-field.
-      lowerHas(node, negated, out, errors);
+      lowerHas(node, negated, out, errors, registry);
       return;
     case "metadata":
       lowerMetadata(node, ref.key, negated, out, errors);
@@ -390,11 +468,18 @@ function lowerText(
     return;
   }
   if (field.syncMode === "exactOption") {
+    const values = field.filterValueByDisplayValue
+      ? node.values.map((value) => field.filterValueByDisplayValue!.get(value))
+      : node.values;
+    if (values.some((value) => value === undefined)) {
+      errors.push(`"${field.id}" contains an unknown option`);
+      return;
+    }
     out.push({
       type: "stringOptions",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: negated ? "none of" : "any of",
-      value: node.values,
+      value: values as string[],
     });
     return;
   }
@@ -669,10 +754,67 @@ function lowerScores(
     });
   };
 
+  const lowerBooleanScore = (): void => {
+    if (isComparison(node.op)) {
+      errors.push(
+        `${path} is boolean — comparison operators only apply to numeric scores`,
+      );
+      return;
+    }
+    if (node.values.length > 1) {
+      errors.push(
+        `${path} expects a single boolean value — grouped boolean values are not supported`,
+      );
+      return;
+    }
+    const raw = node.values[0]?.toLowerCase();
+    if (raw !== "true" && raw !== "false") {
+      errors.push(`${path} is boolean — use true or false`);
+      return;
+    }
+    out.push({
+      type: "booleanObject",
+      column: columns.boolean,
+      key,
+      operator: negated ? "<>" : "=",
+      value: raw === "true",
+    });
+  };
+
   // Route by observed score TYPE when we know it — a categorical score with
   // numeric labels (e.g. a 1–5 rating) must hit the categorical column, not
   // scores_avg, or it silently targets a column with no data.
   const scoreType = resolveScoreType(scoreTypes, level, key);
+  const allBooleanLiterals = node.values.every((v) => {
+    const raw = v.toLowerCase();
+    return raw === "true" || raw === "false";
+  });
+  if (
+    isObservedBooleanScore(scoreTypes, level, key) &&
+    allBooleanLiterals &&
+    !isComparison(node.op)
+  ) {
+    lowerBooleanScore();
+    return;
+  }
+  if (scoreType === "boolean") {
+    // Legacy-read compat: boolean scores also aggregate numerically (0/1)
+    // into scores_avg, and pre-boolean-filter URLs/saved views still carry
+    // numberObject filters on them. Numeric-shaped input keeps lowering
+    // numerically so that state stays renderable/editable; everything else
+    // gets the boolean diagnostic (never the categorical fallback — a boolean
+    // name has no data in score_categories).
+    const allNumericValues = node.values.every((v) =>
+      Number.isFinite(Number(v)),
+    );
+    if (isComparison(node.op) || node.op === "exact" || allNumericValues) {
+      lowerNumeric();
+      return;
+    }
+    lowerBooleanScore();
+    return;
+  }
+
   if (scoreType === "categorical") {
     // Comparisons (> < >= <=) are meaningless on a category. But exact (`:=x`)
     // and the bare `=` form are both just an exact category match, so they
@@ -694,7 +836,11 @@ function lowerScores(
   }
 
   // '=' default: numeric when known-numeric, else value-syntax fallback
-  // (all-numeric → numeric) for unknown/both.
+  // (all-numeric → numeric) for unknown/both. Known context-miss caveat: a
+  // booleanObject filter whose score name is not in the observed sets (time
+  // range, name-limit cap, saved view) renders as `scores.X:true` and
+  // re-lowers here to categoryOptions — the same context dependence the
+  // categorical kind has always had; eager score-name loading keeps this rare.
   const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
   if (scoreType === "numeric" || allNumeric) {
     lowerNumeric();
@@ -709,6 +855,7 @@ function lowerHas(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  registry: FieldRegistry,
 ): void {
   if (node.values.length > 1 && !negated) {
     // has:(a OR b) would be an OR of null checks — not flat. The negated
@@ -719,14 +866,14 @@ function lowerHas(
     return;
   }
   for (const v of node.values) {
-    const target = resolveField(v);
+    const target = registry.resolveField(v);
     if (target === null || target.type !== "field") {
       errors.push(`has: expects a field name, got "${v}"`);
       continue;
     }
     out.push({
       type: "null",
-      column: target.field.id,
+      column: target.field.filterColumn ?? target.field.id,
       operator: negated ? "is null" : "is not null",
       value: "",
     });

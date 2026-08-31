@@ -1,9 +1,9 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
 import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
@@ -70,13 +70,15 @@ function DatasetCompareRunsTableInternal(props: {
     page: "pageIndex",
     limit: "pageSize",
   });
+  const activeRunFilters = convertToColumnFilterList();
+  const hasActiveRunFilters = activeRunFilters.length > 0;
 
   const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
     {
       projectId: props.projectId,
       datasetId: props.datasetId,
       runIds: props.runIds,
-      filterByRun: convertToColumnFilterList(),
+      filterByRun: activeRunFilters,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -86,7 +88,7 @@ function DatasetCompareRunsTableInternal(props: {
     projectId: props.projectId,
     datasetId: props.datasetId,
     runIds: props.runIds,
-    filterByRun: convertToColumnFilterList(),
+    filterByRun: activeRunFilters,
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
@@ -105,7 +107,12 @@ function DatasetCompareRunsTableInternal(props: {
   }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
   const { closePeek, expandPeek } = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp"],
+    // traceId: not written here, but cleared (and preferred by the trace
+    // reader) so a stray param cannot pin the peek to a foreign trace
+    // (LFE-11041).
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "datasetCompareRuns",
+    isV4: false,
     expandConfig: {
       basePath: `/project/${props.projectId}/traces`,
     },
@@ -116,6 +123,8 @@ function DatasetCompareRunsTableInternal(props: {
       itemType: "TRACE" as const,
       closePeek,
       expandPeek,
+      tableName: "datasetCompareRuns",
+      isV4: false,
       // openPeek is handled by DatasetAggregateTableCell's custom handleOpenPeek
     }),
     [closePeek, expandPeek],
@@ -131,74 +140,43 @@ function DatasetCompareRunsTableInternal(props: {
     });
 
   const columns: LangfuseColumnDef<DatasetCompareRunRowData>[] = [
-    {
+    createLinkTableColumn<DatasetCompareRunRowData>({
       accessorKey: "id",
       header: "Item id",
-      id: "id",
       size: 90,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const id: string = row.getValue("id");
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`}
-            value={id}
-          />
-        );
+      getCell: (id) => {
+        if (!id) return undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`,
+            value: id,
+          },
+        };
       },
-    },
-    {
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "input",
       header: "Input",
-      id: "input",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const input = row.getValue(
-          "input",
-        ) as DatasetCompareRunRowData["input"];
-        return input !== null ? (
-          <div className="h-full w-full">
-            <IOTableCell data={input} />
-          </div>
-        ) : null;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "expectedOutput",
       header: "Expected Output",
-      id: "expectedOutput",
       size: 200,
       enableHiding: true,
-      cell: ({ row }) => {
-        const expectedOutput = row.getValue(
-          "expectedOutput",
-        ) as DatasetCompareRunRowData["expectedOutput"];
-        return expectedOutput !== null ? (
-          <div className="h-full w-full">
-            <IOTableCell
-              data={expectedOutput}
-              className="bg-accent-light-green"
-            />
-          </div>
-        ) : null;
-      },
-    },
-    {
+      variant: "output",
+    }),
+    createIOTableColumn<DatasetCompareRunRowData>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 200,
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const metadata = row.getValue(
-          "metadata",
-        ) as DatasetCompareRunRowData["metadata"];
-        return metadata !== null ? <IOTableCell data={metadata} /> : null;
-      },
-    },
+    }),
     {
       ...getDatasetRunAggregateColumnProps(cellsLoading),
       columns: runAggregateColumns,
@@ -264,11 +242,11 @@ function DatasetCompareRunsTableInternal(props: {
       <FilteredRunPills
         projectId={props.projectId}
         datasetId={props.datasetId}
-        filteredRuns={convertToColumnFilterList()}
+        filteredRuns={activeRunFilters}
         className="px-2 pb-2"
       />
       <DataTable
-        tableName={"datasetCompareRuns"}
+        tableName="datasetCompareRuns"
         columns={columns}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
@@ -298,6 +276,16 @@ function DatasetCompareRunsTableInternal(props: {
           m: "h-64",
           l: "h-96",
         }}
+        noResultsMessage={
+          hasActiveRunFilters ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-1 text-sm">
+              <span>No dataset run items match the current filters.</span>
+              <span className="text-xs">
+                Adjust or clear filters to compare items again.
+              </span>
+            </div>
+          ) : undefined
+        }
         peekView={peekConfig}
       />
       <TablePeekViewTraceDetail {...peekConfig} projectId={props.projectId} />

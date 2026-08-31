@@ -1,12 +1,13 @@
 import { useCallback } from "react";
 import { ExternalLink } from "lucide-react";
-import { ScoreCombobox } from "./charts/ScoreCombobox";
+import { ScoreCombobox, type ScoreOption } from "./charts/ScoreCombobox";
 import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { DASHBOARD_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
+import {
+  DASHBOARD_AGGREGATION_OPTIONS,
+  type TimeRange,
+} from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
-import { type TimeRange } from "@/src/utils/date-range-utils";
-import { type ScoreOption } from "./charts/ScoreCombobox";
 import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,
@@ -87,7 +88,7 @@ export function ScoreAnalyticsHeader({
           </HoverCardTrigger>
           <HoverCardContent className="w-80">
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold">Beta Feature</h4>
+              <h4 className="text-sm font-bold">Beta Feature</h4>
               <p className="text-muted-foreground text-sm">
                 Score analytics is currently in beta. We&apos;re actively
                 improving this feature and would love to hear your feedback.
@@ -96,7 +97,7 @@ export function ScoreAnalyticsHeader({
                 href="https://langfuse.com/discussions"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
+                className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
               >
                 Share feedback on GitHub Discussions
                 <ExternalLink className="h-3 w-3" />

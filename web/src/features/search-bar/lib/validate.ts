@@ -10,12 +10,12 @@
 // span. `valid === true` therefore guarantees astToFilterState() lowers the
 // whole query without errors.
 
-import type { ASTNode, Span } from "./ast";
+import type { ASTNode, Span, TextNode } from "./ast";
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
-import { nullableFields, resolveField } from "./fields";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
-export const MAX_QUERY_LENGTH = 2048;
+const MAX_QUERY_LENGTH = 2048;
 
 function nodeSpan(node: ASTNode, textLength: number): Span {
   if (node.kind === "and" || node.kind === "or") {
@@ -33,8 +33,6 @@ function nodeSpan(node: ASTNode, textLength: number): Span {
   return node.parenSpan ?? node.span ?? { from: 0, to: textLength };
 }
 
-const NULLABLE_FIELD_IDS = new Set(nullableFields().map((f) => f.id));
-
 /**
  * `has:` on a column that always has a value matches everything — and its
  * negation (`-has:` / `NOT has:`) lowers to `IS NULL`, which is vacuously
@@ -46,17 +44,18 @@ function hasFilterWarnings(
   textLength: number,
   out: Diagnostic[],
   negated = false,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): void {
   switch (node.kind) {
     case "filter": {
-      const ref = resolveField(node.key);
+      const ref = registry.resolveField(node.key);
       if (ref === null || ref.type !== "pseudo" || ref.id !== "has") return;
       for (const v of node.values) {
-        const target = resolveField(v);
+        const target = registry.resolveField(v);
         if (
           target !== null &&
           target.type === "field" &&
-          !NULLABLE_FIELD_IDS.has(target.field.id)
+          !registry.nullableFieldIds.has(target.field.id)
         ) {
           const span = nodeSpan(node, textLength);
           out.push({
@@ -74,13 +73,126 @@ function hasFilterWarnings(
     case "text":
       return;
     case "not":
-      hasFilterWarnings(node.child, textLength, out, !negated);
+      hasFilterWarnings(node.child, textLength, out, !negated, registry);
       return;
     case "and":
     case "or":
       for (const c of node.children)
-        hasFilterWarnings(c, textLength, out, negated);
+        hasFilterWarnings(c, textLength, out, negated, registry);
       return;
+  }
+}
+
+/**
+ * Collect STANDALONE free-text nodes — a text node that is NOT immediately
+ * adjacent (within its containing AND/OR group) to another free-text node. A
+ * run of adjacent free-text words is one contiguous phrase (`type error`), so
+ * only a word standing on its own — alone, or isolated from other free text by
+ * a filter (`name:x type`, `type name:x error`) — is a candidate incomplete
+ * filter. `serializeText` in langQ.ts force-quotes with the SAME standalone
+ * rule so the flag and the round-trip quoting stay in lockstep (mirror
+ * invariant).
+ */
+function collectStandaloneTextNodes(node: ASTNode, out: TextNode[]): void {
+  switch (node.kind) {
+    case "text":
+      out.push(node); // top-level / sole child — standalone by definition
+      return;
+    case "not":
+      collectStandaloneTextNodes(node.child, out);
+      return;
+    case "and":
+    case "or": {
+      const kids = node.children;
+      for (let i = 0; i < kids.length; i++) {
+        const c = kids[i]!;
+        if (c.kind !== "text") {
+          collectStandaloneTextNodes(c, out);
+          continue;
+        }
+        // Adjacent to another free-text word ⇒ part of a phrase, not a
+        // standalone token — skip it.
+        const glued =
+          kids[i - 1]?.kind === "text" || kids[i + 1]?.kind === "text";
+        if (!glued) out.push(c);
+      }
+      return;
+    }
+    case "filter":
+      return;
+  }
+}
+
+/**
+ * A bare word that resolves to a field name (`type`, `level`, `env`, …) is
+ * almost always a filter the user started and did not finish — not free text.
+ * Left as free text it silently lowers to a full-text `searchQuery` and wipes
+ * the results with no signal (LFE-11017), while the analogous `type:` (colon, no
+ * value) already errors. Treat it as an incomplete filter so it renders red and
+ * is excluded from the query, consistent with the dangling dot-prefix guard
+ * (`metadata.`) in the adapter.
+ *
+ * Scoped to STANDALONE free-text tokens (see `collectStandaloneTextNodes`): a
+ * deliberate multi-word phrase that happens to contain a field word ("type
+ * error", "content type") is one contiguous-substring `searchQuery`, not a
+ * filter, so it is left untouched — a word glued to other free text is never
+ * flagged. Quoting escapes a single word back to literal text (`"type"`) — the
+ * same escape hatch the reserved keywords (`and`/`or`/`not`) use, and the reason
+ * the serializer force-quotes a standalone field-name free-text value.
+ */
+function incompleteFieldTokenDiagnostics(
+  ast: ASTNode,
+  out: Diagnostic[],
+  registry: FieldRegistry,
+): void {
+  const texts: TextNode[] = [];
+  collectStandaloneTextNodes(ast, texts);
+  for (const node of texts) {
+    if (node.quoted || node.span === undefined) continue;
+    if (registry.resolveField(node.value) === null) continue;
+    out.push({
+      from: node.span.from,
+      to: node.span.to,
+      severity: "error",
+      message: `Incomplete filter "${node.value}" — add a value (e.g. ${node.value}:value) or quote "${node.value}" to search as text`,
+    });
+  }
+}
+
+function labeledOptionValueDiagnostics(
+  node: ASTNode,
+  textLength: number,
+  out: Diagnostic[],
+  registry: FieldRegistry,
+): void {
+  if (node.kind === "not") {
+    labeledOptionValueDiagnostics(node.child, textLength, out, registry);
+    return;
+  }
+  if (node.kind === "and" || node.kind === "or") {
+    for (const child of node.children) {
+      labeledOptionValueDiagnostics(child, textLength, out, registry);
+    }
+    return;
+  }
+  if (node.kind !== "filter") return;
+
+  const ref = registry.resolveField(node.key);
+  if (
+    ref?.type !== "field" ||
+    ref.field.filterValueByDisplayValue === undefined
+  )
+    return;
+
+  for (const value of node.values) {
+    if (ref.field.filterValueByDisplayValue.has(value)) continue;
+    const span = nodeSpan(node, textLength);
+    out.push({
+      from: span.from,
+      to: span.to,
+      severity: "error",
+      message: `"${value}" is not a valid ${ref.field.label.toLowerCase()}`,
+    });
   }
 }
 
@@ -88,9 +200,16 @@ export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   if (ast === null) return out;
+
+  // A standalone bare field-name word (no operator/value) is an incomplete
+  // filter, not free text — checked over the WHOLE tree (not per top-level
+  // node) so the adjacency scoping can see each text node's siblings.
+  incompleteFieldTokenDiagnostics(ast, out, registry);
+  labeledOptionValueDiagnostics(ast, textLength, out, registry);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same
@@ -98,12 +217,12 @@ export function semanticDiagnostics(
   // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node, scoreTypes);
+    const { errors } = astToFilterState(node, scoreTypes, registry);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
-    hasFilterWarnings(node, textLength, out);
+    hasFilterWarnings(node, textLength, out, false, registry);
   }
 
   return out;
@@ -144,11 +263,12 @@ function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
 export function validateQuery(
   text: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): ParseResult {
-  const res = parse(text);
+  const res = parse(text, registry);
   const diagnostics = dedupeMergedDiagnostics([
     ...res.diagnostics,
-    ...semanticDiagnostics(res.ast, text.length, scoreTypes),
+    ...semanticDiagnostics(res.ast, text.length, scoreTypes, registry),
   ]);
   if (text.length > MAX_QUERY_LENGTH) {
     diagnostics.push({

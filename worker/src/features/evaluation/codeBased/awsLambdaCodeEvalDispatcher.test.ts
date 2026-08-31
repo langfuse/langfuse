@@ -19,6 +19,7 @@ const baseInput: DispatchInput = {
       input: null,
       output: null,
       metadata: null,
+      toolCalls: [],
     },
   },
 };
@@ -89,6 +90,7 @@ describe("AwsLambdaCodeEvalDispatcher", () => {
           input: { question: "2+2" },
           output: "4",
           metadata: { source: "test" },
+          toolCalls: [],
         },
         experiment: {
           itemExpectedOutput: "4",

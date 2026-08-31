@@ -172,7 +172,6 @@ const validateSourceTraceExists = async ({
           projectId: sourceProjectId,
           traceId,
           timestamp: timestamp ?? undefined,
-          clickhouseFeatureTag: "tracing-trpc",
           renderingProps: {
             truncated: true,
             shouldJsonParse: false,
@@ -205,7 +204,6 @@ const getLegacyTraceByIdForCorrelation = async ({
     projectId: sourceProjectId,
     traceId,
     timestamp: timestamp ?? undefined,
-    clickhouseFeatureTag: "tracing-trpc",
     excludeInputOutput: true,
   });
 

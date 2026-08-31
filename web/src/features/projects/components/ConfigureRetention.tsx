@@ -1,6 +1,6 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -23,6 +23,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export default function ConfigureRetention() {
   const { update: updateSession } = useSession();
+  const utils = api.useUtils();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
@@ -40,6 +41,9 @@ export default function ConfigureRetention() {
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
       updateSession();
+      // Admins resolve org/project context from these queries, not the session
+      utils.organizations.byId.invalidate();
+      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });
@@ -55,9 +59,7 @@ export default function ConfigureRetention() {
       .then(() => {
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
 
   return (
@@ -125,17 +127,18 @@ export default function ConfigureRetention() {
                 </FormItem>
               )}
             />
-            <ActionButton
-              variant="secondary"
-              hasAccess={hasAccess}
-              hasEntitlement={hasEntitlement}
-              loading={setRetention.isPending}
-              disabled={form.getValues().retention === null}
-              className="mt-4"
-              type="submit"
-            >
-              Save
-            </ActionButton>
+            <div className="mt-4">
+              <ActionButton
+                variant="secondary"
+                hasAccess={hasAccess}
+                hasEntitlement={hasEntitlement}
+                loading={setRetention.isPending}
+                disabled={form.getValues().retention === null}
+                type="submit"
+              >
+                Save
+              </ActionButton>
+            </div>
           </form>
         </Form>
       </Card>

@@ -5,7 +5,7 @@ import { organizationNameSchema } from "@/src/features/organizations/utils/organ
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
 
-export const validateQueryAndExtractId = (query: unknown): string | null => {
+const validateQueryAndExtractId = (query: unknown): string | null => {
   const inputQuerySchema = z.object({
     organizationId: z.string(),
   });
@@ -67,7 +67,9 @@ export async function handleUpdateOrganization(
     return res.status(400).json({ error: "Invalid organization ID" });
   }
 
-  const validationResult = organizationNameSchema.safeParse(req.body);
+  const validationResult = z
+    .object({ name: organizationNameSchema })
+    .safeParse(req.body);
 
   if (!validationResult.success) {
     return res.status(400).json({

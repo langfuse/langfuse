@@ -1,34 +1,18 @@
-import {
-  toAbsoluteTimeRange,
-  type AbsoluteTimeRange,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
-
-export const V4_TIME_RANGE_PRESETS = [
-  "last5Minutes",
-  "last30Minutes",
-  "last1Hour",
-  "last3Hours",
-  "last1Day",
-  "last7Days",
-  "last30Days",
-] as const;
-
-export const MAX_V4_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-export const getV4MigrationStatus = (migrationItemCount: number) =>
-  migrationItemCount > 0
-    ? ({
-        label: "Not migrated",
-        badgeVariant: "warning",
-      } as const)
-    : ({
-        label: "Migrated",
-        badgeVariant: "success",
-      } as const);
-
 export const normalizeLegacyApiEntrypoint = (entrypoint: string) =>
   entrypoint.replace(/^publicapi:\s*/, "");
+
+const NON_ACTIONABLE_API_CALLER_USER_AGENT = /(claude|codex|curl)/i;
+
+export const isActionableLegacyApiUsage = (row: {
+  callers?: { userAgent?: string; isOther?: true }[];
+}) =>
+  !row.callers?.length ||
+  row.callers.some(
+    (caller) =>
+      caller.isOther ||
+      !caller.userAgent ||
+      !NON_ACTIONABLE_API_CALLER_USER_AGENT.test(caller.userAgent),
+  );
 
 export const countLegacyApiEntrypoints = (
   rows: Array<{ entrypoint: string }> | undefined,
@@ -43,25 +27,12 @@ export const countLegacyApiEntrypoints = (
   return entrypoints.size;
 };
 
-export const getCappedAbsoluteTimeRange = (
-  timeRange: TimeRange,
-): AbsoluteTimeRange => {
-  const absoluteRange =
-    toAbsoluteTimeRange(timeRange) ??
-    ({
-      from: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      to: new Date(),
-    } satisfies AbsoluteTimeRange);
-
-  if (
-    absoluteRange.to.getTime() - absoluteRange.from.getTime() <=
-    MAX_V4_TIMELINE_RANGE_MS
-  ) {
-    return absoluteRange;
-  }
-
-  return {
-    from: new Date(absoluteRange.to.getTime() - MAX_V4_TIMELINE_RANGE_MS),
-    to: absoluteRange.to,
-  };
-};
+export const countActionableLegacyApiEntrypoints = (
+  rows:
+    | Array<{
+        entrypoint: string;
+        callers?: { userAgent?: string; isOther?: true }[];
+      }>
+    | undefined,
+): number =>
+  countLegacyApiEntrypoints(rows?.filter(isActionableLegacyApiUsage));

@@ -42,5 +42,6 @@ export const operatorSymbol: Record<MonitorThresholdOperator, string> = {
 export const viewLabels: Record<MonitorView, string> = {
   observations: "Observations",
   "scores-numeric": "Scores (numeric)",
+  "scores-boolean": "Scores (boolean)",
   "scores-categorical": "Scores (categorical)",
 };

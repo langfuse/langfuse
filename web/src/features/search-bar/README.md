@@ -1,13 +1,13 @@
-# Search Bar (Observations v4)
+# Search Bar
 
-Grammar-based query bar for the observations (v4 events) table. It does NOT
-replace the facet sidebar — it is an ADDITIONAL keyboard-driven editor that
-coexists with the sidebar and stays in sync with it. The facet
-sidebar's `FilterState` (+ the table's full-text search) remains the single
-source of truth; the bar reads from and writes to it. Only the legacy toolbar
-search field is replaced (full-text search goes inline in the bar).
-Generally available on the v4 events tables (no opt-in). Based on the
-`langfuse-search-bar` prototype.
+Grammar-based query bar shared by the observations (v4 events) table,
+evaluation-rule observation filters, and the sessions table. On the events table it does NOT replace
+the facet sidebar — it is an ADDITIONAL keyboard-driven editor that coexists
+with the sidebar and stays in sync with it. The facet sidebar's `FilterState`
+(+ the table's full-text search) remains the single source of truth; the bar
+reads from and writes to it. Only the legacy toolbar search field is replaced
+(full-text search goes inline in the bar). Generally available on the v4 events
+tables (no opt-in). Based on the `langfuse-search-bar` prototype.
 
 ## Enablement
 
@@ -20,16 +20,8 @@ Generally available on the v4 events tables (no opt-in). Based on the
   The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
   Observations/Traces tables, so call sites still read as
   `isBetaEnabled && useSearchBarEnabled()`.
-- **Rollout/rollback (temporary).** GA was shipped by force-on shim, not by
-  deleting the opt-in: `useSearchBarEnabled` hard-returns `true` and the
-  "Filter Search Bar" tile was removed from the Feature Preview modal, but the
-  `searchBar` flag plumbing is intentionally **left as dead code** for a day or
-  two so a rollback is a one-line revert. The pieces still present and marked
-  `TODO(remove ~2026-06-19)`: the `searchBar` entry in
-  `features/feature-flags/available-flags.ts`, the
-  `userAccount.setFeaturePreviewEnabled` allowlist, and the modal's
-  `PreviewFlag`/registry entry (`features/feature-previews/`). Once the rollout
-  is confirmed stable, delete those and inline `true` at the call site.
+- The search bar is not a Feature Preview and has no user or organization
+  toggle.
 
 ## Query language
 
@@ -45,11 +37,14 @@ Generally available on the v4 events tables (no opt-in). Based on the
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
-- `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
+- `metadata.region:eu`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
+  (matches a score at observation OR trace level, LFE-10596). The legacy
+  `traceScores.` namespace (trace-only) still parses/lowers so saved queries
+  and URLs keep working, but it is no longer offered in suggestions.
 - dot-path names with spaces/grammar chars are **quoted after the prefix**:
-  `scores."Rouge Score":>=1`, `traceScores."Hallucination Check":faithful`,
-  `metadata."my key":eu` (the quotes are stripped to the real key when lowering;
-  the reverse adapter and completions re-quote them — so they round-trip)
+  `scores."Rouge Score":>=1`, `metadata."my key":eu` (the quotes are stripped
+  to the real key when lowering; the reverse adapter and completions re-quote
+  them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
@@ -127,6 +122,14 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   changes) and it never writes back, so the cycle cannot loop. No
   reconciliation signature, no two-way sync — a commit's own echo settles
   because `resetTo` no-ops when the draft already matches.
+- **Previews are an overlay, not a draft write.** `previewText` (store) is
+  display-only state for "show the query this preset would apply" affordances
+  (the events-table category-preset chips). `ComposerWithPreview` stacks a
+  read-only preview surface over the (mounted, hidden) editor while it is
+  active — SearchComposer itself knows nothing about previews and its DOM is
+  never reprojected by one. The preview never merges into the draft, never
+  commits, and any real draft write clears it — so ending a preview can never
+  lose in-progress typing, by construction rather than by restore logic.
 - This mirrors the prototype's ADR-006 ("URL is canonical; everything derives
   from it") and "no write loops".
 
@@ -173,14 +176,22 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   committed text — the derive direction), `completions.ts` (pure completion
   planner), `composer-segments.ts` (draft text → renderable token segments),
   `edits.ts` (span-local chip removal with AST-surgery fallback),
-  `observed-options.ts` (filterOptions → per-column observed values),
-  `searchBarInvariants.ts` (pure, registry-shaped property-test harness — the
-  universal safety net reused per view; see Hardening).
+  `observed-options.ts` (filterOptions → per-column observed values, plus
+  `withMetadataPathOptions` — see "Metadata key suggestions"),
+  `searchBarInvariants.ts` (pure, registry-shaped
+  property-test harness — the universal safety net reused per view; see
+  Hardening).
 - `store/searchBarStore.ts` — per-mount vanilla zustand store, **draft only**
   (`setDraft`/`resetTo`/`removeChipSpan`/`revealInvalid`). No committed copy,
   no commit workflow. Provided with the container's `commit` via
   `store/SearchBarStoreProvider.tsx` (`useSearchBarStore` selector,
   `useSearchBarCommit`).
+- The observed-metadata suggestions cache is **shared with the filter sidebar**,
+  so it lives outside this feature: `src/stores/observedMetadataStore.ts`
+  (global zustand store persisted to localStorage, per-project map of observed
+  metadata keys → types), `src/fns/observedMetadata/metadataPaths.ts` (the pure
+  analysis + option projection) and `src/hooks/useObservedMetadata.ts` (the
+  harvest/read bridge). See "Metadata key suggestions" below.
 - `hooks/useEventsSearchBar.ts` — the container/bridge. Derives `committedText`
   (memo), runs the one `resetTo` effect, and owns the `commit()` workflow
   (planCommit → write filter state + record recent). No URL param of its own;
@@ -247,30 +258,50 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
 
+## Host-provided query presets
+
+Views can inject complete-query sections through `EventsSearchBarRow`'s
+`presetSections` prop. These are data, not grammar: the shared planner renders
+them at every blank top-level term, including after existing filters, and a pick
+replaces and commits the complete draft. The host owns fetching, ranking,
+registry compatibility, labels, and optional pick analytics.
+
+Evaluation setup uses this seam for **Reuse rule filters**. It groups equivalent
+modern event/experiment rule filters, ranks them only by distinct attached
+evaluator count (latest rule update breaks ties), and excludes legacy
+trace/dataset rules. Rule `FilterState` is serialized with the rule registry and
+validated against the receiving registry before it is offered, so aliases such
+as rule `tags` can safely lower to the events table's `traceTags` column.
+
 ## AI filter mode (the "Ask AI" button)
 
 The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
 sidebar "✨ wand" — `EventsTable` now passes `filterWithAI={!searchBarMode}`, so
-the wand only survives on non-bar/embedded surfaces and the v3 traces table).
+the wand only survives on Cloud, on non-bar/embedded surfaces and the leftover
+traces table). Self-hosted uses Ask AI on this bar only.
 
 - **Entry.** The **"Ask AI"** affordance opens AI mode — a plain button placed
   AFTER the field in DOM order, always available (build from scratch OR refine
   existing filters). Tab is deliberately NOT a shortcut: while typing it belongs
   to autocomplete navigation, so forward-tab just moves focus from the field
   onto the button. `EventsSearchBarRow` owns the `'grammar' | 'ai'` mode and
-  gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled` (the
-  server enforces it too). `SearchComposer` only takes an `onActivateAi` callback
+  gates availability on `organization.aiFeaturesEnabled` (the server enforces it
+  too). `SearchComposer` only takes an `onActivateAi` callback
   - renders the affordance; it stays grammar-only.
 - **The component.** `components/SearchBarAiPrompt.tsx` — a plain NL input (not
   the contenteditable). Enter generates; Esc or the back arrow exits (no
   blur-to-exit — leaving is explicit so a stray click never loses your prompt).
 - **The endpoint.** `server/router.ts` (`searchBar.generateFilter`), NOT the
   legacy `naturalLanguageFilters.createCompletion`. Its prompt is built from
-  THIS registry (`server/buildFilterPrompt.ts`, derived from `FIELDS` +
-  `SCORE_COLUMNS`), so the model's vocabulary IS the grammar. It asks for a flat
-  `FilterState` (an array of `singleFilter`), then **round-trips it through
+  the selected view's `FieldRegistry` (`server/buildFilterPrompt.ts`), so the
+  model's vocabulary IS that view's grammar. The events registry compiles the
+  managed `search-bar-filter` prompt with its catalog; other registries use
+  their registry-derived local prompt until they have a managed prompt of their
+  own. Observed-value grounding is selected from the same registry, so it cannot
+  advertise columns the view rejects. The endpoint asks for a flat `FilterState`
+  (an array of `singleFilter`), then **round-trips it through
   `filterStateToQueryText` server-side and returns only the filters that lower
-  to bar pills** — a hallucinated/non-v4 column lands in `skippedFilters` and is
+  to bar pills** — a hallucinated/unsupported column lands in `skippedFilters` and is
   dropped before it reaches the client. A unit test
   (`__tests__/server/unit/searchBarFilterPrompt.servertest.ts`) asserts every
   field's prompt-recommended `type` round-trips, so the prompt can't drift from
@@ -287,12 +318,58 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
   free text the user asked to remove. Without this, a stale `searchQuery` would
   survive and `resetTo` would re-derive the dropped text back into the bar.
 
+## Metadata key suggestions (client-side observed map)
+
+The API does not enumerate metadata keys, and backend metadata-structure
+analysis is deferred (until CH26), so `metadata.` completions are fed
+**client-side from rows the user has already loaded**:
+
+- On each fetch, `src/hooks/useObservedMetadata.ts` samples the visible rows'
+  metadata (same first-30 sampling as the AI-context path), records their
+  **top-level keys** with the observed JSON value type
+  (`src/fns/observedMetadata/metadataPaths.ts`), and unions the result into
+  `src/stores/observedMetadataStore.ts` — persisted to localStorage, **per
+  project** (one global `Record<projectId, …>` map, the globalDateRangeStore
+  shape).
+- `EventsTable` merges the project's map into the observed options where the
+  completion planner already looked (`withMetadataPathOptions`): keys under
+  `metadata` (`keyPathOptions`) and each key's observed values under
+  `metadata.<key>` (the value stage). So typing `metadata.` suggests observed
+  keys with the type as the option detail (`metadata.hej` · `number`), and
+  `metadata.region:` offers the first few observed values (`eu`, `us`, …).
+- **Values are first-observed distinct scalars, skip-don't-truncate.** Only
+  string/number/boolean leaves are collected (object/array stored forms could
+  not round-trip into a matching `=` filter), and a value longer than the cap
+  is dropped entirely — a truncated suggestion would insert a filter that
+  confidently matches nothing.
+- **Top-level keys only, never flattened dot-paths.** Metadata is stored as a
+  flat `Map(String, String)`: nested object values are JSON-encoded strings
+  under their top-level key, and `StringObjectFilter` matches the LITERAL
+  top-level key — a flattened `metadata.scope.name` suggestion would lower to
+  key `scope.name` and match nothing (the metadata view's filter shortcut
+  resolves the top-level key for the same reason). Dotted suggestions still
+  appear whenever producers use dotted top-level keys (the OTel-attribute
+  shape, `gen_ai.request.model`); object-valued keys are suggested with type
+  `object` and their nested content matches via contains
+  (`metadata.scope:*value*`).
+- **Types are display-only.** Metadata filters always lower to `stringObject`
+  (numeric metadata comparisons are rejected by `operatorIssue`); a key
+  observed with more than one type — or only ever `null` — drops its hint
+  instead of showing a wrong one (`mixed` is absorbing).
+- **Bounded on every axis**: 30 sampled rows per fetch, key length ≤ 100
+  chars, ≤ 200 keys per project (first-observed wins), ≤ 5 values per key,
+  value length ≤ 60 chars, ≤ 1024 values per project, ≤ 20 projects
+  (least-recently-updated evicted), plus a persist `version` key that resets
+  the cache on schema change. A no-change merge skips the localStorage write.
+- Accepted caveat: metadata the user has never loaded is never suggested (if
+  they haven't seen it, they don't know it exists either).
+
 ## Extending to other views (the universality contract)
 
 The bar is intended to become the primary filter interface for **every**
 filterable view, not just the v4 events table. That is cheap _by design_ — but
 only if new views extend it through the seam below instead of forking the
-grammar. Read this before adding a second view.
+grammar. Read this before adding another view.
 
 **Why it's cheap: the back half is already universal.** Langfuse has ~15
 filterable views (traces, sessions, observations, events v4, scores, prompts,
@@ -315,29 +392,63 @@ lowering, the URL contract, and the facet sidebar are **already shared** with
 the bar. The only thing forked per view is the **front half**: the field
 registry + grammar + value validation. Keep it that way.
 
-**The seam to open before the 2nd view.** Today `FIELDS` is a module-level const
-hardcoded to `eventsTableCols`, and `resolveField`/`operatorIssue` close over
-it. Multi-view requires making the registry an **injected parameter** of the
-grammar — parser, validator, adapter, and completion planner take a
-`FieldRegistry` instead of importing the const. This is the one structural
-refactor; everything after it is data, not code.
+**The multi-view seam is implemented.** Parser, validator, adapter, reverse
+adapter, serializer, completion planner, token projection, store, and AI prompt
+all take an injected `FieldRegistry`. `EVENTS_FIELD_REGISTRY` remains the default
+for existing call sites; evaluation rules pass `RULE_FIELD_REGISTRY`, which is
+derived from the same `eventsEvalFilterColumns` used by backend validation, and
+the v4 sessions table passes `SESSIONS_FIELD_REGISTRY`
+(`features/filters/config/sessionsSearchRegistry.ts`).
+
+**Pass the registry to BOTH halves.** `registry` is an optional prop defaulting
+to `EVENTS_FIELD_REGISTRY` on `useEventsSearchBar` AND on `EventsSearchBarRow`.
+Give it to the hook only and the view still _works_: commits validate against
+the right fields while the autocomplete offers the events list. Nothing throws —
+so a new view must check the field dropdown, not just that Enter applies.
 
 **Recipe to add the bar to a view:**
 
-1. **Derive the field registry from that view's `ColumnDefinition[]`** — do NOT
-   hand-author a second 47-entry list. ~70% is mechanical: `type → kind`
-   (`number`/`datetime`/`boolean` map directly, everything else → `text`),
-   `nullable`, `options → observed values`, `unit`. Write a
-   `fieldRegistryFromColumns(cols)` helper.
+1. **Derive the field registry from the view's FACETS, not its raw columns.** Use
+   `fieldRegistryFromColumns(cols, overlay)` — never hand-author a second
+   47-entry list; ~70% is mechanical (`type → kind`, `nullable`,
+   `options → observed values`, `unit`). But feed it the columns the _facet
+   sidebar_ exposes, as `sessionsSearchRegistry.ts` does, not the whole
+   `ColumnDefinition[]`. A view's column list also carries internals the sidebar
+   deliberately never offers — a duplicate (`usage` = `totalTokens`), a column
+   owned by another control (`createdAt`, the time-range picker), a retired one
+   (`bookmarked`). Deriving from facets keeps the bar a strict SUBSET of the
+   sidebar by construction: no bar-authored filter the sidebar cannot display or
+   clear, and adding a facet gives the bar the field for free. Anything outside
+   that set resolves to null, so an old saved view's filter on it lands in
+   `skippedFilters` (preserved) instead of becoming an unparsable token.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
-   user-facing **aliases** (`env`, `tags`, `ttft`), **dot-path roots**
+   user-facing **field aliases** (`env`, `tags`, `ttft`), **inline filter
+   aliases/macros**, **AI context fields**, **dot-path roots**
    (`metadata.`, `scores.`/`traceScores.` and their score columns), and
    **value-parse hints** (datetime ISO, numeric, boolean). Keep it small and
-   declarative.
+   declarative. Three flags are per-view capabilities, not cosmetics:
+   - `metadata` / `scores` / `traceScores` — the keyed dot-path roots. Set them
+     from the columns the view's BACKEND has, not from what reads well: sessions
+     aggregates scores at session level and has no `trace_scores_*` columns, so
+     it keeps `scores.` and closes `traceScores.`. A dot path the backend cannot
+     answer is worse than an unknown-field diagnostic. `fieldRegistryFromColumns`
+     drops the keyed score columns from the field list when `scores` is on
+     (`score_categories` is `categoryOptions`, not `*Object`, so the `*Object`
+     filter alone would leave a bogus keyless `score_categories:` field).
+   - `allowFreeText` + `defaultTextField` — see "Bare text on a view with no
+     full-text lane" below.
+   - `searchExamples` — the placeholder, **written per view, never derived from
+     field ids**. The events examples (`level:ERROR`, `latency:>2`) advertised
+     fields that do not exist on either of the other two surfaces.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed
    values; point it at the new view's procedure (do not invent a parallel one).
+   When a field displays labels but persists stable values, declare its
+   canonical `filterColumn` in the registry overlay and hydrate it with
+   `withFieldOptions([{ value, displayValue }])`. The shared adapter then emits
+   the canonical column/value while the reverse adapter renders the label.
+   Do not add a host-specific post-lowering conversion.
 4. **Keep the adapter targeting the shared `FilterState`.** Reuse the
    already-registry-driven `operatorIssue`/`negationIssue` and the existing
    per-kind lowering. Never add a second lowering path — that breaks the
@@ -349,16 +460,35 @@ refactor; everything after it is data, not code.
 6. **Add the round-trip property test for the new registry** (see Hardening) —
    run it per registry. This is the universal safety net across views.
 
+**Bare text on a view with no full-text lane.** Sessions has no `searchQuery`
+at all — `sessions.all*` takes none. Two registry options cover that:
+
+- `allowFreeText: false` alone — bare words are a commit-blocking diagnostic
+  (evaluation rules).
+- `allowFreeText: false` + `defaultTextField: "<field>"` — bare words become a
+  `contains` filter on that field (sessions uses `id`: it is that view's
+  most-applied filter by an order of magnitude, and every application of it is
+  `contains`). Two properties make this safe rather than magic: the rewrite is
+  **offered before Enter** (it joins the matching-filter suggestions, so the user
+  sees `id:"…"` while typing), and it is **visible and terminal after** — the bar
+  re-renders the word as an `id:` pill which commits to the identical filter. It
+  lowers through the normal field path; there is no second lowering path.
+- A multi-word run is ONE phrase, coalesced exactly like `searchQuery` is. Per
+  word it would AND `id contains test` with `id contains 123` — matching neither
+  the input nor the suggestion.
+
+**`createFieldRegistry` stays unexported.** Both derived views (rules, sessions)
+are fully expressed by `fieldRegistryFromColumns` + overlay; nothing has yet
+needed to hand-assemble a registry. Do not export it speculatively.
+
 **What stays grammar-global — do not make per-view:** tokenizing, quoting
 (`serializeValue` ↔ `reservedTokenIssue` is a **mirror invariant**: add a
 reserved token to one, add it to the other, or the round-trip test fails),
 operator precedence, and the `has:` pseudo-field. These are language, not
 data — a new view inherits them unchanged.
 
-**Do not couple to `ColumnDefinition` speculatively.** Build the derivation +
-overlay when the first real second view lands, validated against that consumer —
-not ahead of it (the same no-half-finished rule that removed the prototype's
-unused planners).
+**Do not add speculative registries.** Build each derivation + overlay with a
+real consumer and validate it against that view's backend filter contract.
 
 ## Hardening before default-on
 
@@ -382,12 +512,12 @@ unused planners).
     the parser rejects. Verified to fail when that fix is reverted.)
 
   The harness is **pure and registry-shaped**: it generates the matrix from the
-  passed `view.fields`, so it auto-covers added/changed fields, and a second
+  passed `view.registry`, so it auto-covers added/changed fields. Each
   filterable view gets the same coverage by adding one block to the
-  `.clienttest.ts` with its registry — see "Extending to other views". When the
-  grammar is parameterized over an injected registry, thread `view.registry`
-  into the harness's parse/validate/lower calls; the generators and assertions
-  do not change.
+  `.clienttest.ts` with its registry — see "Extending to other views". It only
+  exercises free text through `freeTextValues` (INV-3, serialize↔parse), so a
+  `defaultTextField` view must also pin its phrase/round-trip behaviour
+  explicitly, as the sessions block does.
 
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
@@ -412,31 +542,6 @@ unused planners).
     operators, or leave it. Entangled with `tidyQueryText`/chip-removal (which
     strips redundant parens and would bail on a now-"invalid" paren) and
     removes documented top-level grouping — needs its own pass.
-- **Layer system**: the bar's in-flow overlays use a hardcoded local ladder (X
-  z-20 < autocomplete popover z-50, both drop into the table below the bar).
-  These are genuinely local — they live inside the app's isolated `#__next`
-  stacking context, can't escape it, and never need to beat a body-level
-  overlay, so their z-index is fine. The **error tooltip is the exception**:
-  when the popover is open it flips ABOVE the bar, into the page header's band,
-  where no in-flow z-index can win — `#page > main` is `overflow:hidden` (clips
-  anything above the bar) and the header is inside the isolated stacking
-  context. So that one tooltip renders through the `"tooltip"` `<Layer>`
-  (`components/ui/layer.tsx`), which puts it in a `<body>`-level overlay layer
-  that paints above the whole app by DOM ORDER — no z-index needed.
-- **The app-wide layer system** (`components/ui/layer.tsx`): `<Layer>` is now
-  part of the full overlay band, not a one-off seed. `LAYER_ORDER` is
-  `["agent", "modal", "popover", "tooltip", "toast"]` — five `<body>`-level
-  layers (declared in `_document.tsx`), each its own isolated stacking context,
-  stacked by DOM ORDER (later = on top), carrying NO z-index of their own. ALL
-  overlays route through it: Radix/Vaul primitives via their `*.Portal`'s
-  `container` (use `useLayerContainer`), and bespoke
-  imperatively-positioned content (like this bar's error tooltip) via `<Layer>`.
-  No overlay carries a magic z-index to "escape to the top" anymore; the
-  `@repo/no-overlay-zindex` lint rule enforces this — it bans high z-index on
-  the `ui/*` overlay wrappers, and app-wide on any overlay _content_ element
-  (e.g. a `*Content` you put a stray `z-50` on). When adding a search-bar
-  overlay that must escape clipping/stacking, reach for `<Layer>` (bespoke) or a
-  layer-routed Radix primitive — never a one-off portal + z-index.
 - Optional: extract `SearchComposer`'s contenteditable selection/`beforeinput`
   machinery into a `useContentEditableController` hook to fully separate the
   imperative integration from the React component.

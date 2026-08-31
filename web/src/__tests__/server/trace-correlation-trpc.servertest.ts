@@ -64,8 +64,12 @@ const createSession = ({
       },
     ],
     featureFlags: {
+      searchBar: false,
       excludeClickhouseRead: false,
       templateFlag: true,
+      v4BetaToggleVisible: false,
+      observationEvals: false,
+      experimentsV4Enabled: false,
     },
   },
   environment: {

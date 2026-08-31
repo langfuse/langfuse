@@ -3,19 +3,17 @@ export const DATASET_TABS = {
   EXPERIMENTS: "experiments",
 } as const;
 
-export type DatasetTab = (typeof DATASET_TABS)[keyof typeof DATASET_TABS];
-
 export const getDatasetTabs = (projectId: string, datasetId: string) => {
   return [
     {
       value: DATASET_TABS.ITEMS,
       label: "Items",
-      href: `/project/${projectId}/datasets/${datasetId}/items`,
+      href: `/project/${projectId}/datasets/${encodeURIComponent(datasetId)}/items`,
     },
     {
       value: DATASET_TABS.EXPERIMENTS,
       label: "Experiments",
-      href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+      href: `/project/${projectId}/datasets/${encodeURIComponent(datasetId)}/experiments`,
     },
   ];
 };

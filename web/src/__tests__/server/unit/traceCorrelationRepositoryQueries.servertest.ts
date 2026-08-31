@@ -59,10 +59,12 @@ vi.mock("../../../../../packages/shared/src/server/logger", () => ({
   },
 }));
 
+// eslint-disable-next-line no-restricted-imports -- This unit test targets repository-local SQL builders while mocking their ClickHouse dependencies.
 import {
   buildRelatedTracesByMetadataCorrelationFromEventsTableQuery,
   getRelatedTracesByMetadataCorrelationFromEventsTable,
 } from "../../../../../packages/shared/src/server/repositories/events";
+// eslint-disable-next-line no-restricted-imports -- This unit test targets a repository-local SQL builder while mocking its ClickHouse dependencies.
 import { buildRelatedTracesByMetadataCorrelationQuery } from "../../../../../packages/shared/src/server/repositories/traces";
 
 const normalizeSql = (query: string) => query.replace(/\s+/g, " ").trim();

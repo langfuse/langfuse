@@ -9,23 +9,29 @@ import {
   contextWithLangfuseProps,
   eventTypes,
   markProjectIngestFailure,
+  createIngestionAttribution,
+  processEventBatch,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { jsonSchema } from "@langfuse/shared";
-import { isPrismaException } from "@/src/utils/exceptions";
 import {
+  jsonSchema,
   MethodNotAllowedError,
   BaseError,
   UnauthorizedError,
   ForbiddenError,
 } from "@langfuse/shared";
-import { processEventBatch } from "@langfuse/shared/src/server";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
+import {
+  SDK_NAME_ATTRIBUTE,
+  SDK_VERSION_ATTRIBUTE,
+  extractSdkAttributes,
+} from "@langfuse/shared/instrumentation/bootstrap";
 
 export const config = {
   api: {
@@ -63,7 +69,9 @@ export default async function handler(
     // add context of api call to the span
     const currentSpan = getCurrentSpan();
 
-    // get x-langfuse-xxx headers and add them to the span
+    // Preserve the raw x-langfuse-* attributes consumed by existing ingestion
+    // dashboards. The canonical attributes below are shared by all public API
+    // routes and intentionally use a bounded SDK name/version vocabulary.
     Object.keys(req.headers).forEach((header) => {
       if (
         header.toLowerCase().startsWith("x-langfuse") ||
@@ -75,6 +83,14 @@ export default async function handler(
         });
       }
     });
+
+    const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
+    if (sdkName) {
+      currentSpan?.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
+    }
+    if (sdkVersion) {
+      currentSpan?.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
+    }
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
@@ -150,12 +166,31 @@ export default async function handler(
         // writes would land in the legacy ClickHouse tables this deployment no
         // longer reads. Scores and SDK logs are unaffected and pass through.
         // Reject per-event so a mixed batch still processes its score events.
+        const isEventsOnlyMode =
+          env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
           parsedSchema.data.batch,
-          env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only",
+          isEventsOnlyMode,
         );
 
-        const result = await processEventBatch(batchForProcessing, authCheck);
+        const attribution = createIngestionAttribution({
+          headers: req.headers,
+          authCheck,
+        });
+
+        if (isEventsOnlyMode && rejectedErrors.length > 0) {
+          logger.warn(
+            `Rejected ${rejectedErrors.length} event(s) from the legacy /api/public/ingestion endpoint for project ${projectId} because this Langfuse v4 deployment runs in events_only mode. These events were not stored. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+            {
+              sdkName: attribution.ingestionSdkName,
+              sdkVersion: attribution.ingestionSdkVersion,
+            },
+          );
+        }
+
+        const result = await processEventBatch(batchForProcessing, authCheck, {
+          attribution,
+        });
         if (rejectedErrors.length > 0) {
           result.errors = [...result.errors, ...rejectedErrors];
         }
@@ -228,8 +263,16 @@ export default async function handler(
 const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
   eventTypes.SCORE_CREATE,
   eventTypes.SDK_LOG,
-  eventTypes.DATASET_RUN_ITEM_CREATE,
 ]);
+
+const EVENTS_ONLY_INGESTION_DOCS_URL =
+  "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4";
+
+const EVENTS_ONLY_INGESTION_REMEDIATION = [
+  "Upgrade the client or integration to a v4-compatible SDK or OTLP ingestion path.",
+  "As a temporary migration bridge, set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual on both the web and worker services and redeploy.",
+  `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
+].join(" ");
 
 function filterBatchForEventsOnly(
   batch: unknown[],
@@ -272,7 +315,7 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score, log, and dataset-run-item events.`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score and log events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
       });
     }
   }

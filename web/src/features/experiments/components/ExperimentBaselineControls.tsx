@@ -2,6 +2,9 @@ import { Button } from "@/src/components/ui/button";
 import { Combobox } from "@/src/components/ui/combobox";
 import { X } from "lucide-react";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { baselineChangedProps } from "@/src/features/experiments/lib/analytics";
 
 type ExperimentBaselineControlsProps = {
   projectId: string;
@@ -9,7 +12,6 @@ type ExperimentBaselineControlsProps = {
   baselineName?: string;
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
-  canClearBaseline?: boolean;
 };
 
 export function ExperimentBaselineControls({
@@ -18,8 +20,8 @@ export function ExperimentBaselineControls({
   baselineName,
   onBaselineChange,
   onBaselineClear,
-  canClearBaseline = true,
 }: ExperimentBaselineControlsProps) {
+  const capture = usePostHogClientCapture();
   const { experimentNames, isLoading } = useExperimentNames({
     projectId,
   });
@@ -29,27 +31,51 @@ export function ExperimentBaselineControls({
   }));
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-full">
+    <div className="flex min-w-0 items-center">
+      <div className="min-w-0 flex-1">
         <Combobox
           options={baselineOptions}
           value={baselineId}
-          onValueChange={onBaselineChange}
+          onValueChange={(id) => {
+            if (id === baselineId) return;
+            capture(
+              "experiment:baseline_changed",
+              baselineChangedProps({
+                tableName: "experiment-items",
+                source: "picker",
+              }),
+            );
+            onBaselineChange(id);
+          }}
           placeholder={baselineName ?? baselineId ?? "Select baseline..."}
           emptyText="No experiments found"
           searchPlaceholder="Search experiments..."
           disabled={isLoading}
-          className="h-9"
+          className={cn(
+            "rounded-l-none border-l-0",
+            baselineId && "rounded-r-none",
+          )}
         />
       </div>
 
-      {baselineId && canClearBaseline && (
+      {baselineId && (
         <Button
-          variant="ghost"
-          size="sm"
-          onClick={onBaselineClear}
+          variant="outline"
+          size="icon"
+          className="-ml-px shrink-0 rounded-l-none"
+          onClick={() => {
+            capture(
+              "experiment:baseline_changed",
+              baselineChangedProps({
+                tableName: "experiment-items",
+                source: "clear",
+              }),
+            );
+            onBaselineClear();
+          }}
           disabled={isLoading}
           title="Clear baseline"
+          aria-label="Clear baseline"
         >
           <X className="h-4 w-4" />
         </Button>

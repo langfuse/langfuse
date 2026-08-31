@@ -21,7 +21,6 @@ function resolved(
 ): ResolvedBlobExportTuning {
   return {
     rawPassthrough: false,
-    parquet: false,
     gzipLevel: undefined,
     partSizeBytes: DEFAULTS.partSizeBytes,
     maxConcurrentParts: undefined,
@@ -119,63 +118,6 @@ describe("resolveBlobExportTuning", () => {
           skipEnrichment: true,
         }),
       );
-      expect(warnings).toEqual([]);
-    });
-  });
-
-  describe("parquet (LFE-10463)", () => {
-    it("honors parquet=true", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { parquet: true },
-        DEFAULTS,
-      );
-      expect(res).toEqual(resolved({ parquet: true }));
-      expect(warnings).toEqual([]);
-    });
-
-    it("honors parquet=false explicitly", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { parquet: false },
-        DEFAULTS,
-      );
-      expect(res.parquet).toBe(false);
-      expect(warnings).toEqual([]);
-    });
-
-    it("defaults parquet to false when absent", () => {
-      expect(resolveBlobExportTuning({}, DEFAULTS).resolved.parquet).toBe(
-        false,
-      );
-    });
-
-    it("falls back to false and warns on a wrong-typed parquet", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { parquet: "yes" },
-        DEFAULTS,
-      );
-      expect(res.parquet).toBe(false);
-      expect(warnings.some((w) => w.includes("expected a boolean"))).toBe(true);
-    });
-
-    it("takes precedence over rawPassthrough: parquet wins, rawPassthrough forced false, with a warning", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { parquet: true, rawPassthrough: true },
-        DEFAULTS,
-      );
-      expect(res.parquet).toBe(true);
-      expect(res.rawPassthrough).toBe(false);
-      expect(warnings.some((w) => w.includes("parquet takes precedence"))).toBe(
-        true,
-      );
-    });
-
-    it("leaves rawPassthrough untouched when parquet is not set", () => {
-      const { resolved: res, warnings } = resolveBlobExportTuning(
-        { rawPassthrough: true },
-        DEFAULTS,
-      );
-      expect(res.parquet).toBe(false);
-      expect(res.rawPassthrough).toBe(true);
       expect(warnings).toEqual([]);
     });
   });
@@ -392,12 +334,6 @@ describe("BlobExportTuningSchema (write schema)", () => {
       BlobExportTuningSchema.safeParse({ rawPassthrough: true, gzipLevel: 6 })
         .success,
     ).toBe(true);
-  });
-
-  it("accepts parquet", () => {
-    expect(BlobExportTuningSchema.safeParse({ parquet: true }).success).toBe(
-      true,
-    );
   });
 
   it("rejects out-of-range values (writes reject; reads clamp)", () => {

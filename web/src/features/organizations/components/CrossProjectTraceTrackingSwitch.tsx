@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -105,7 +105,7 @@ export default function CrossProjectTraceTrackingSwitch() {
       <Card className="mb-4 p-3">
         <div className="flex flex-row items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <h4 className="font-semibold">Enable cross-project trace links</h4>
+            <h4 className="font-bold">Enable cross-project trace links</h4>
             <p className="text-muted-foreground text-sm">
               Users can discover related traces with the same metadata
               correlation value across projects in this organization. Results
@@ -129,7 +129,7 @@ export default function CrossProjectTraceTrackingSwitch() {
         <div className="mt-4 border-t pt-3">
           <label
             htmlFor="cross-project-trace-correlation-key"
-            className="text-sm font-medium"
+            className="text-sm font-bold"
           >
             Correlation metadata key
           </label>

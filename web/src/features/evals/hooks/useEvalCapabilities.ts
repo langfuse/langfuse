@@ -3,14 +3,16 @@ import { api } from "@/src/utils/api";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { isNewLegacyEvalAllowed } from "@/src/features/evals/utils/legacyEvalGate";
 
 export interface EvalCapabilities {
   isNewCompatible: boolean;
   compatibilityCheckWasPerformed: boolean;
   allowLegacy: boolean;
-  allowPropagationFilters: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
+  forceV3Experience: boolean;
 }
 
 /**
@@ -36,53 +38,46 @@ export function useEvalCapabilities(
   // Query SDK version info from events table (only when v4 beta is enabled)
   const sdkVersionInfo = api.events.getSdkVersionInfo.useQuery(
     { projectId },
-    { enabled: isBetaEnabled },
+    { enabled: isBetaEnabled && Boolean(projectId) },
   );
 
   // Determine OTEL status from SDK version info
   const isOtel = sdkVersionInfo.data?.isOtel ?? false;
-  // TODO: Implement propagation check
-  const isPropagating = false;
 
   // Get eval counts including legacy eval count
-  const evalCounts = api.evals.counts.useQuery({ projectId });
+  const evalCounts = api.evals.counts.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId) },
+  );
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
 
   // The legacy eval experience depends on whether the deployment still writes
-  // the legacy tables and on the user's rollout cohort. Use === true / explicit
-  // mode checks so we default to hidden while the session is loading, which
-  // prevents a flash of legacy options.
+  // the legacy tables. Use explicit mode checks so we default to hidden while
+  // the session is loading, which prevents a flash of legacy options.
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const canToggleV4 = session?.user?.canToggleV4 === true;
   const v4WriteMode = session?.environment?.v4WriteMode;
 
-  // Whether a *new* config may use the legacy experience (independent of
-  // hasLegacyEvals, which always keeps legacy visible so existing legacy
-  // evaluators stay manageable):
-  // - events_only: legacy tables are no longer written → no new legacy evals.
-  // - dual: self-hosted deployments always allow legacy; on Cloud only cohorts
-  //   that can still toggle V4 (orgs created before the rollout cutoff).
-  // - legacy: legacy is the only experience.
-  const modeAllowsNewLegacy =
-    v4WriteMode === "events_only"
-      ? false
-      : v4WriteMode === "dual"
-        ? isLangfuseCloud
-          ? canToggleV4
-          : true
-        : v4WriteMode === "legacy"; // legacy → true; undefined (loading) → false
+  // Projects forced onto v3 keep legacy evals while legacy tables are written.
+  const forceV3Experience = useForceV3Experience(projectId);
+
+  // Whether a *new* config may use the legacy experience.
+  const modeAllowsNewLegacy = isNewLegacyEvalAllowed({
+    v4WriteMode,
+    isLangfuseCloud,
+    isForceV3Project: forceV3Experience,
+  });
 
   return {
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
     compatibilityCheckWasPerformed: isBetaEnabled,
-    // Allow legacy if: not a code eval AND (user has legacy evals to manage OR
-    // the deployment mode/cohort offers the legacy experience).
-    allowLegacy: !isCodeEvalConfig && (hasLegacyEvals || modeAllowsNewLegacy),
-    // Allow propagation filters only when using OTEL and spans are propagating
-    allowPropagationFilters: isOtel && isPropagating,
+    // Allow setting up new legacy evals only if: not a code eval AND the
+    // deployment mode offers the legacy experience. Having existing legacy
+    // evals no longer grants this; they remain editable via edit mode.
+    allowLegacy: !isCodeEvalConfig && modeAllowsNewLegacy,
     isLoading:
       evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
+    forceV3Experience,
   };
 }

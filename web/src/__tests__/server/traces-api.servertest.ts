@@ -8,8 +8,6 @@ import {
   createEvent,
   createOrgProjectAndApiKey,
   type EventRecordInsertType,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createTracesCh,
   createEventsCh,
@@ -2010,6 +2008,82 @@ describe("/api/public/traces API Endpoint", () => {
           expect(traces.body.data.map((d) => d.id)).toEqual([traceWithScore1]);
           expect(traces.body.meta.totalItems).toBe(1);
         });
+
+        it("should filter by score_booleans without requesting scores field group", async () => {
+          const baseTimestamp = Date.now();
+          const traceWithTrueScore = randomUUID();
+          const traceWithFalseScore = randomUUID();
+
+          const trace1 = createTrace({
+            id: traceWithTrueScore,
+            name: "trace-boolean-score-true",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+          const trace2 = createTrace({
+            id: traceWithFalseScore,
+            name: "trace-boolean-score-false",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+            createScoresCh([
+              createTraceScore({
+                trace_id: traceWithTrueScore,
+                project_id: projectId,
+                name: "is_hallucination",
+                value: 1,
+                string_value: "True",
+                data_type: "BOOLEAN",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+              createTraceScore({
+                trace_id: traceWithFalseScore,
+                project_id: projectId,
+                name: "is_hallucination",
+                value: 0,
+                string_value: "False",
+                data_type: "BOOLEAN",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+            ]),
+          ]);
+
+          const filterParam = JSON.stringify([
+            {
+              type: "booleanObject",
+              column: "score_booleans",
+              key: "is_hallucination",
+              operator: "=",
+              value: true,
+            },
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [traceWithTrueScore, traceWithFalseScore],
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
+          );
+
+          expect(traces.status).toBe(200);
+          expect(traces.body.data.map((d) => d.id)).toEqual([
+            traceWithTrueScore,
+          ]);
+          expect(traces.body.meta.totalItems).toBe(1);
+        });
       });
     };
 
@@ -2366,6 +2440,101 @@ describe("/api/public/traces API Endpoint", () => {
     if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
       runTestSuite(true); // Events table
     }
+  });
+
+  describe("data-access-days enforcement", () => {
+    it("intersects advanced timestamp filters with the Hobby access floor", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldTrace = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+      });
+      const recentTrace = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      await createTracesCh([oldTrace, recentTrace]);
+
+      const filter = encodeURIComponent(
+        JSON.stringify([
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(
+              Date.now() - 365 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        ]),
+      );
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?filter=${filter}`,
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((trace) => trace.id)).toContain(
+        recentTrace.id,
+      );
+      expect(response.body.data.map((trace) => trace.id)).not.toContain(
+        oldTrace.id,
+      );
+    });
+
+    it("preserves stricter from and to bounds alongside advanced filters", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const beforeFrom = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      });
+      const withinRange = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
+      });
+      const afterTo = createTrace({
+        id: randomUUID(),
+        project_id: fixture.projectId,
+        timestamp: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      await createTracesCh([beforeFrom, withinRange, afterTo]);
+
+      const filter = encodeURIComponent(
+        JSON.stringify([
+          {
+            column: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: new Date(
+              Date.now() - 365 * 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        ]),
+      );
+      const fromTimestamp = new Date(
+        Date.now() - 7 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const toTimestamp = new Date(
+        Date.now() - 2 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const response = await makeZodVerifiedAPICall(
+        GetTracesV1Response,
+        "GET",
+        `/api/public/traces?fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}&filter=${filter}`,
+        undefined,
+        fixture.auth,
+      );
+      const ids = response.body.data.map((trace) => trace.id);
+
+      expect(ids).toContain(withinRange.id);
+      expect(ids).not.toContain(beforeFrom.id);
+      expect(ids).not.toContain(afterTo.id);
+    });
   });
 
   describe.skip("GET /api/public/traces env var controls", () => {

@@ -1,7 +1,4 @@
-# Codex Guidelines for `worker`
-
-This file covers package-local guidance for the worker.
-Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `worker`
 
 ## Purpose
 
@@ -10,13 +7,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR for material worker-local changes:
-  - new/renamed queue processors
-  - new worker bootstrapping points
-  - changed worker verification commands
-- If queue contracts or shared workflows change, update root `AGENTS.md` and
-  likely `../packages/shared/AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change. Queue-contract changes usually need `../packages/shared/AGENTS.md`
+  too.
 
 ## High-Signal Entry Points
 
@@ -69,6 +62,22 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Preserve metrics/tracing patterns in `workerManager` and queue processors.
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.
 - Keep queue payload parsing/schema validation centralized in shared contracts.
+
+## In-App Agent Runtime
+
+- `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
+  instrumentation, prompt loading, continuation handling, tools, skills, and
+  sandbox providers.
+- Worker env owns queue concurrency, sandbox configuration, and the
+  development-only in-app-agent AWS profile. Enablement is
+  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+  `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
+  `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
+  worker out of the queue consumer (and nested DLQ retry) or integrity runner.
+  Shared lifecycle policy values are fixed constants, so web and worker cannot
+  diverge.
+- Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
+  handling, and the seeded system prompt remain explicit shared subpaths.
 
 ## Package-Specific Rules
 

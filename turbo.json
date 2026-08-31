@@ -4,12 +4,25 @@
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF",
+    "NEXT_PUBLIC_LANGFUSE_ANALYTICS_EXPORTER_CUTOFF",
+    "CLICKHOUSE_BIN"
   ],
   "envMode": "loose",
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
+      // NEXT_IGNORE_BUILD_ERRORS toggles the Next.js type check, so builds
+      // with and without it must not share a cache entry — a cached
+      // unchecked build would otherwise replay as a "type-checked" one.
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
+    "build:test": {
+      "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
@@ -85,6 +98,7 @@
     },
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": [".next-check/**", "!.next-check/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
@@ -98,6 +112,21 @@
       "outputs": ["dist/**"],
       "cache": true,
       "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
+      "dependsOn": ["build"],
+      "inputs": ["Dockerfile", "package.json", "tsconfig.json"],
+      "outputs": [".local-image-built"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#test": {
+      "dependsOn": [],
+      "cache": true
+    },
+    "@repo/in-app-agent-sandbox-runtime#test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
     },
     "worker#dev": {
       "cache": false,

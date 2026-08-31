@@ -8,8 +8,27 @@ import {
 } from "@langfuse/shared/src/server";
 
 describe("project API keys trpc", () => {
-  async function createProjectCaller() {
-    const { projectId, orgId } = await createOrgProjectAndApiKey();
+  // The session user is persisted as the API key creator, so it must exist
+  // in the database (CI does not run the seeder that creates user-1).
+  // createMany + skipDuplicates is atomic, so concurrently running test
+  // files can ensure the user without racing each other.
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [
+        {
+          id: "user-1",
+          name: "Demo User",
+          email: "demo-user-1@langfuse.com",
+        },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  async function createProjectCaller(
+    projectRole: "ADMIN" | "MEMBER" = "ADMIN",
+  ) {
+    const { projectId, orgId, publicKey } = await createOrgProjectAndApiKey();
 
     const session: Session = {
       expires: "1",
@@ -25,30 +44,39 @@ describe("project API keys trpc", () => {
             plan: "cloud:hobby",
             cloudConfig: undefined,
             metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
-                role: "ADMIN",
+                role: projectRole,
                 retentionDays: 30,
                 deletedAt: null,
+                hasTraces: false,
                 name: "Test Project",
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
         featureFlags: {
+          searchBar: false,
           excludeClickhouseRead: false,
           templateFlag: true,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+          experimentsV4Enabled: false,
         },
         admin: false,
       },
       environment: {} as any,
     };
 
-    const ctx = createInnerTRPCContext({ session });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
 
-    return { caller, projectId };
+    return { caller, projectId, publicKey };
   }
 
   describe("projectApiKeys.byProjectId", () => {
@@ -69,6 +97,59 @@ describe("project API keys trpc", () => {
       expect(apiKeys.map((key) => key.note)).not.toContain(
         "In-app agent key hidden from project UI",
       );
+    });
+
+    // The settings page gates the list view on apiKeys:read, which MEMBERs
+    // hold without apiKeys:CUD. Pin that this read path stays open to them.
+    it("lists keys for MEMBER callers, who only hold apiKeys:read", async () => {
+      const { caller, projectId, publicKey } =
+        await createProjectCaller("MEMBER");
+
+      const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
+
+      expect(apiKeys.map((key) => key.publicKey)).toContain(publicKey);
+    });
+  });
+
+  describe("projectApiKeys.create", () => {
+    it("stores the creating user and returns it in the list", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      const apiKeyResult = await caller.projectApiKeys.create({
+        projectId,
+        note: "Key for creator attribution test",
+      });
+
+      const dbKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: apiKeyResult.id },
+      });
+      expect(dbKey.createdByUserId).toBe("user-1");
+      expect(dbKey.createdByApiKeyId).toBeNull();
+      expect(dbKey.scope).toBe("PROJECT");
+      expect(dbKey.projectId).toBe(projectId);
+      expect(dbKey.orgId).toBeNull();
+
+      const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
+      const listedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
+      expect(listedKey?.createdByUser?.id).toBe("user-1");
+      expect(listedKey?.createdByApiKey).toBeNull();
+    });
+
+    it("rejects users without apiKeys:CUD access", async () => {
+      const { caller, projectId } = await createProjectCaller("MEMBER");
+
+      await expect(
+        caller.projectApiKeys.create({
+          projectId,
+          note: "Unauthorized migration key",
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        prisma.apiKey.count({
+          where: { projectId, note: "Unauthorized migration key" },
+        }),
+      ).resolves.toBe(0);
     });
   });
 

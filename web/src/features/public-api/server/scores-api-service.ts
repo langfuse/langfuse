@@ -22,6 +22,7 @@ import {
   QueueJobs,
   ScoreDeleteQueue,
   type AuthHeaderValidVerificationResultIngestion,
+  type IngestionAttribution,
   StringFilter,
   StringOptionsFilter,
   type FilterList,
@@ -224,11 +225,13 @@ export class ScoresApiService {
     auth,
     auditScope,
     scoreId = body.id ?? randomUUID(),
+    attribution,
   }: {
     body: z.infer<typeof PostScoresBodyV1>;
     auth: AuthHeaderValidVerificationResultIngestion;
     auditScope?: { projectId: string; orgId: string; apiKeyId: string };
     scoreId?: string;
+    attribution: IngestionAttribution;
   }) {
     const existingScore = auditScope
       ? await _handleGetScoreById({
@@ -252,6 +255,7 @@ export class ScoresApiService {
         },
       ],
       auth,
+      { attribution },
     );
 
     if (

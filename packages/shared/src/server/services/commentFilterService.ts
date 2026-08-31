@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../db";
+import { InvalidRequestError } from "../../errors";
 import { type singleFilter } from "../../interfaces/filters";
 import {
   type CommentObjectType,
@@ -8,6 +9,11 @@ import {
   getObjectIdsByCommentContent,
 } from "../repositories/comments";
 import type { z } from "zod";
+
+type CommentContentFilter = Extract<
+  z.infer<typeof singleFilter>,
+  { type: "string" }
+>;
 
 /**
  * Maximum number of object IDs that can be returned from comment filters.
@@ -26,8 +32,8 @@ export function validateObjectIdCount(
 ): void {
   if (objectIds.length > COMMENT_FILTER_THRESHOLD) {
     const objectTypePlural = objectType.toLowerCase() + "s";
-    throw new Error(
-      `Comment filter matches ${objectIds.length.toLocaleString()} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString()}). Please add additional filters to narrow your search.`,
+    throw new InvalidRequestError(
+      `Comment filter matches ${objectIds.length.toLocaleString("en-US")} ${objectTypePlural} (limit: ${COMMENT_FILTER_THRESHOLD.toLocaleString("en-US")}). Please add additional filters to narrow your search.`,
     );
   }
 }
@@ -44,6 +50,10 @@ export function validateObjectIdCount(
 function filterRangeIncludesZero(
   filters: Array<{ type: string; operator: string; value: number }>,
 ): boolean {
+  if (filters.some((f) => f.operator === "=" && f.value !== 0)) {
+    return false;
+  }
+
   const lowerBoundFilters = filters.filter(
     (f) => f.type === "number" && (f.operator === ">=" || f.operator === ">"),
   );
@@ -53,8 +63,8 @@ function filterRangeIncludesZero(
     return true;
   }
 
-  // Check if any lower bound allows 0
-  return lowerBoundFilters.some(
+  // Every lower bound must allow 0 because filters are combined with AND.
+  return lowerBoundFilters.every(
     (f) =>
       (f.operator === ">=" && f.value <= 0) ||
       (f.operator === ">" && f.value < 0),
@@ -109,12 +119,13 @@ export async function applyCommentFilters({
       (f.type === "number" || f.type === "datetime") &&
       f.column === "commentCount",
   );
-  const commentContentFilter = filterState.find(
-    (f) => f.type === "string" && f.column === "commentContent",
+  const commentContentFilters = filterState.filter(
+    (f): f is CommentContentFilter =>
+      f.type === "string" && f.column === "commentContent",
   );
 
   // If no comment filters, return original filter state
-  if (commentCountFilters.length === 0 && !commentContentFilter) {
+  if (commentCountFilters.length === 0 && commentContentFilters.length === 0) {
     return {
       filterState,
       hasNoMatches: false,
@@ -123,7 +134,7 @@ export async function applyCommentFilters({
   }
 
   let objectIdsFromComments: string[] = [];
-  const hasCommentCountFilters = commentCountFilters.length > 0;
+  let shouldIntersectWithCommentCountIds = commentCountFilters.length > 0;
 
   // Remove comment filters from filterState
   const updatedFilterState = filterState.filter(
@@ -134,6 +145,31 @@ export async function applyCommentFilters({
         (f.type === "string" && f.column === "commentContent")
       ),
   );
+
+  const resolveCommentContentFilterIds = async (): Promise<string[]> => {
+    let matchingIds: string[] | null = null;
+
+    for (const commentContentFilter of commentContentFilters) {
+      const filterObjectIds = await getObjectIdsByCommentContent({
+        prisma,
+        projectId,
+        objectType,
+        searchQuery: commentContentFilter.value,
+        operator: commentContentFilter.operator as CommentContentOperator,
+      });
+
+      if (matchingIds === null) {
+        matchingIds = filterObjectIds;
+      } else {
+        const filterObjectIdSet = new Set(filterObjectIds);
+        matchingIds = matchingIds.filter((id) => filterObjectIdSet.has(id));
+      }
+    }
+
+    const resolvedIds = matchingIds ?? [];
+    validateObjectIdCount(resolvedIds, objectType);
+    return resolvedIds;
+  };
 
   // Handle comment count filters (may be multiple for ranges like >= 1 AND <= 100)
   if (commentCountFilters.length > 0) {
@@ -150,24 +186,52 @@ export async function applyCommentFilters({
     if (filterRangeIncludesZero(numberFilters)) {
       // When range includes zero, use EXCLUSION logic instead of inclusion
       // Find the upper bound filter (if any)
-      const upperBoundFilter = numberFilters.find(
-        (f) => f.operator === "<=" || f.operator === "<",
-      );
+      // Exact zero is equivalent to the tightest possible upper bound because
+      // comment counts cannot be negative.
+      const upperBoundFilter = numberFilters.reduce<
+        (typeof numberFilters)[number] | undefined
+      >((tightest, filter) => {
+        const isUpperBound =
+          (filter.operator === "=" && filter.value === 0) ||
+          filter.operator === "<=" ||
+          filter.operator === "<";
+
+        if (!isUpperBound) return tightest;
+        if (!tightest) return filter;
+
+        const isTighter =
+          filter.value < tightest.value ||
+          (filter.value === tightest.value &&
+            filter.operator === "<" &&
+            tightest.operator !== "<");
+
+        return isTighter ? filter : tightest;
+      }, undefined);
 
       if (!upperBoundFilter) {
         // No upper bound + includes zero = match everything, skip comment count filter
         // But still process content filter if present
-        if (!commentContentFilter) {
+        if (commentContentFilters.length === 0) {
           return {
             filterState: updatedFilterState,
             hasNoMatches: false,
             matchingIds: null,
           };
         }
+        // Only the lower-bound predicates that are no-ops for non-negative
+        // counts can safely be discarded before applying the content filter.
+        const commentCountFilterIsNoop =
+          numberFilters.length === commentCountFilters.length &&
+          numberFilters.every(
+            (filter) =>
+              (filter.operator === ">=" && filter.value <= 0) ||
+              (filter.operator === ">" && filter.value < 0),
+          );
+        shouldIntersectWithCommentCountIds = !commentCountFilterIsNoop;
         // Continue to content filter handling below
       } else {
         // Get IDs that EXCEED the upper bound (to exclude them)
-        const excludeOperator = upperBoundFilter.operator === "<=" ? ">" : ">=";
+        const excludeOperator = upperBoundFilter.operator === "<" ? ">=" : ">";
         const idsToExclude = await getObjectIdsByCommentCount({
           prisma,
           projectId,
@@ -179,16 +243,8 @@ export async function applyCommentFilters({
         validateObjectIdCount(idsToExclude, objectType);
 
         // Handle content filter intersection if present
-        if (commentContentFilter && commentContentFilter.type === "string") {
-          const contentObjectIds = await getObjectIdsByCommentContent({
-            prisma,
-            projectId,
-            objectType,
-            searchQuery: commentContentFilter.value,
-            operator: commentContentFilter.operator as CommentContentOperator,
-          });
-
-          validateObjectIdCount(contentObjectIds, objectType);
+        if (commentContentFilters.length > 0) {
+          const contentObjectIds = await resolveCommentContentFilterIds();
 
           // For content filter with zero-inclusive count filter:
           // Include items matching content AND not exceeding upper bound
@@ -278,20 +334,11 @@ export async function applyCommentFilters({
   }
 
   // Handle comment content filter
-  if (commentContentFilter && commentContentFilter.type === "string") {
-    const contentObjectIds = await getObjectIdsByCommentContent({
-      prisma,
-      projectId,
-      objectType,
-      searchQuery: commentContentFilter.value,
-      operator: commentContentFilter.operator as CommentContentOperator,
-    });
-
-    validateObjectIdCount(contentObjectIds, objectType);
+  if (commentContentFilters.length > 0) {
+    const contentObjectIds = await resolveCommentContentFilterIds();
 
     // Intersect with comment count results if present
-    if (hasCommentCountFilters) {
-      // Always intersect if comment count filters were processed
+    if (shouldIntersectWithCommentCountIds) {
       objectIdsFromComments = objectIdsFromComments.filter((id) =>
         contentObjectIds.includes(id),
       );

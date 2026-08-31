@@ -25,17 +25,23 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
-import { serializeValue, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
+import { explainSegment } from "@/src/features/search-bar/lib/explain";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
+  applyPick,
   flattenOptions,
   planInputCompletions,
   type CompletionOption,
   type CompletionPlan,
+  type QueryPresetSection,
 } from "@/src/features/search-bar/lib/completions";
 import {
   useSearchBarStore,
@@ -49,15 +55,25 @@ import {
   WORD_JOINER,
 } from "@/src/features/search-bar/components/ComposerTokens";
 import {
-  COMPOSER_PLACEHOLDER,
+  composerPlaceholder,
+  deactivationReason,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
+import {
+  COMPOSER_SURFACE_CLASSES,
+  COMPOSER_TEXT_CLASSES,
+} from "@/src/features/search-bar/components/composer-chrome";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
 // between pills without changing the query text; stripped before the text
 // reaches the model or clipboard.
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
+
+// Shared by the visible tooltip and its screen-reader description, so a
+// deactivated token reads the same either way.
+const notAppliedNote = (reason: string) =>
+  `Not applied on this view: ${reason}`;
 
 // Stable empty recents reference so the plan memo doesn't churn when recents
 // are intentionally suppressed (popover closed, or a non-empty draft — recents
@@ -286,13 +302,40 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  erroredColumns,
   onActivateAi,
+  onRequestColumns,
+  onQueryPresetPick,
+  presetSections,
+  fieldReason,
+  freeTextReason,
+  registry = EVENTS_FIELD_REGISTRY,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — settle the value-stage
+   *  loading row to empty (per column) instead of pinning it (matches the
+   *  sidebar), without blocking other columns from loading. */
+  erroredColumns?: ReadonlySet<string>;
   /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
   onActivateAi?: () => void;
+  /**
+   * Lazy filter-options: request a field's observed values on demand when the
+   * caret enters its value stage (e.g. typing `userId:`). No-op unless lazy
+   * loading is wired by the host table.
+   */
+  onRequestColumns?: (columns: readonly string[]) => void;
+  /** Complete-query sections supplied by the host view. Presets remain visible
+   * at every blank top-level term and replace the full query when picked. */
+  presetSections?: QueryPresetSection[];
+  onQueryPresetPick?: (presetId: string) => void;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (dims the pill + hover), or null. Undefined leaves all active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
+  registry?: FieldRegistry;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -347,16 +390,31 @@ export function SearchComposer({
     [autocompleteOpen, draft, projectId],
   );
 
-  const plan: CompletionPlan | null =
+  const unrestrictedPlan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
-      ? planInputCompletions({
-          input: draft,
-          caret: Math.min(caret, draft.length),
-          observed,
-          recents,
-          currentQueryText: draft,
-        })
+      ? planInputCompletions(
+          {
+            input: draft,
+            caret: Math.min(caret, draft.length),
+            observed,
+            erroredColumns,
+            recents,
+            presetSections,
+            currentQueryText: draft,
+          },
+          registry,
+        )
       : null;
+  const plan = unrestrictedPlan;
+  // Lazy filter-options: when the current completion stage needs option columns
+  // that have not loaded yet, ask the host table to fetch them. Keyed on the
+  // joined column list so it fires once per distinct need, not every keystroke.
+  const requestColumnsKey = plan?.requestColumns?.join(",") ?? "";
+  React.useEffect(() => {
+    if (!onRequestColumns || requestColumnsKey.length === 0) return;
+    onRequestColumns(requestColumnsKey.split(","));
+  }, [requestColumnsKey, onRequestColumns]);
+
   const options = flattenOptions(plan);
   // Highlight policy: Enter only picks what typing narrowed. Explicit user
   // highlights (arrows/hover) always win; otherwise only plans that completed
@@ -681,7 +739,9 @@ export function SearchComposer({
       // it reveals the invalid draft and returns null. On success it returns the
       // CANONICAL committed text in its RESTING form (trailing space when
       // non-empty) — the same text the resetTo effect re-derives.
-      const committedText = commitToFilterState();
+      const committedText = commitToFilterState(
+        advanceToTrailingSpace ? "enter" : "blur",
+      );
       if (committedText === null) return;
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
@@ -705,6 +765,7 @@ export function SearchComposer({
           typedSpaced,
           committedText,
           scoreTypes,
+          registry,
         )
           ? typedSpaced
           : committedText;
@@ -720,7 +781,13 @@ export function SearchComposer({
         setAutocompleteOpen(false);
       }
     },
-    [storeApi, commitToFilterState, setDraftWithSelection, scoreTypes],
+    [
+      storeApi,
+      commitToFilterState,
+      setDraftWithSelection,
+      scoreTypes,
+      registry,
+    ],
   );
 
   // Structured edits (autocomplete picks, chip removal) apply immediately, but
@@ -730,102 +797,46 @@ export function SearchComposer({
   // (the `commit` path above) or blur. writeDraft ran synchronously, so the
   // freshly-set draftValid is current here.
   const commitStructuredEdit = React.useCallback(() => {
-    if (storeApi.getState().draftValid) commitToFilterState();
+    if (storeApi.getState().draftValid) commitToFilterState("pick");
   }, [storeApi, commitToFilterState]);
 
   const pickOption = React.useCallback(
     (option: CompletionOption) => {
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
-      if (option.kind === "recent") {
-        // Land in the RESTING (trailing-space) form like every other commit
-        // landing, so a later click past the text doesn't have to mutate the
-        // draft (= the caret flicker this PR removed). A recent is stored
-        // canonical/trimmed, so one space never doubles.
+      if (option.kind === "recent" || option.kind === "preset") {
+        // Complete-query picks replace the full draft and land in the RESTING
+        // trailing-space form like every other commit landing.
         const resting =
           option.query.length === 0 ? option.query : `${option.query} `;
         setDraftWithSelection(resting, resting.length);
-        // A recent is a COMPLETE query the user explicitly picked, so it gets
-        // the same Enter/blur reveal semantics: commit if valid, otherwise
-        // reveal the red invalid state instead of silently no-op'ing (e.g. a
-        // recent stored before a grammar tightening, or a since-retyped score).
+        // Explicit complete-query picks commit when valid and otherwise reveal
+        // the invalid state instead of silently no-op'ing.
         const state = storeApi.getState();
-        if (state.draftValid) commitToFilterState();
-        else state.actions.revealInvalid();
+        if (state.draftValid) {
+          const committed = commitToFilterState(
+            "pick",
+            option.kind === "preset" ? { replaceHidden: true } : undefined,
+          );
+          if (option.kind === "preset" && committed !== null)
+            onQueryPresetPick?.(option.id);
+        } else state.actions.revealInvalid();
         setAutocompleteOpen(false);
         return;
       }
 
-      const current = draftRef.current;
-      let insert: string;
-      let keepOpen: boolean;
-      let replaceFrom = currentPlan.from;
-      let replaceTo = currentPlan.to;
-      if (option.kind === "field") {
-        // Replacing the key of an existing filter: the span ends AT the colon,
-        // so the insert must not bring its own.
-        const colonFollows = current.slice(currentPlan.to).startsWith(":");
-        insert = option.fieldId.endsWith(".")
-          ? option.fieldId
-          : colonFollows
-            ? option.fieldId
-            : `${option.fieldId}:`;
-        keepOpen = true;
-        // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
-        // partial key. When an existing `:value` follows the replaced key, the
-        // bare prefix would splice in front of it (`meta:foo` -> broken
-        // `metadata.:foo`). Consume the whole term so the user re-picks the key
-        // from observed options instead.
-        if (option.fieldId.endsWith(".") && colonFollows) {
-          replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
-        }
-      } else if (option.kind === "value") {
-        insert = serializeValue(option.value);
-        keepOpen = currentPlan.keepOpenOnPick ?? false;
-      } else {
-        insert = option.insert;
-        // A scope rewrite carries its own span (the whole coalesced free-text
-        // run), so it replaces that, not just the token under the caret.
-        if (option.kind === "pattern" && option.replaceSpan) {
-          replaceFrom = option.replaceSpan.from;
-          replaceTo = option.replaceSpan.to;
-        }
-        // A trailing `:`, ` `, or `(` drops the caret into an interactive
-        // context (value stage, next field, or an open array group like
-        // `tags:(`) — keep the popover open so the next pick is immediate.
-        keepOpen =
-          option.insert.endsWith(":") ||
-          option.insert.endsWith(" ") ||
-          option.insert.endsWith("(");
-      }
-
-      // A pick that COMPLETES a filter token — a value (`name:checkout`) or a
-      // ready-to-run suggestion (`level:DEFAULT`) — and sits at the END of the
-      // draft advances to a fresh token: append a trailing space, drop the caret
-      // AFTER it (OUTSIDE the just-completed pill), and reopen field suggestions
-      // for the next filter, instead of leaving the caret inside the pill where
-      // typing would edit what was just picked. Picks that invite more input (a
-      // bare `field:` key, a `metadata.` prefix, an open `tags:(` group), grouped
-      // value entry, and mid-query edits (non-whitespace follows) stay put.
-      const grouped = currentPlan.keepOpenOnPick ?? false;
-      const invitesMoreInput =
-        option.kind === "field" || // a `field:` key always needs a value next
-        insert.endsWith(":") ||
-        insert.endsWith(" ") ||
-        insert.endsWith("(");
-      const completesFilterAtEnd =
-        !grouped &&
-        !invitesMoreInput &&
-        current.slice(replaceTo).trim().length === 0;
-      if (completesFilterAtEnd) {
-        insert += " ";
-        // Consume any existing trailing whitespace so the space never doubles.
-        replaceTo = current.length;
-        keepOpen = true;
-      }
-
-      const next = replaceRange(current, replaceFrom, replaceTo, insert);
-      const caretAt = replaceFrom + insert.length;
+      // The pure text/caret computation — insert, caret placement, and whether
+      // to keep the popover open — lives in `applyPick` (unit-tested). A pick
+      // that COMPLETES a filter at the END of the draft appends a trailing space
+      // and drops the caret OUTSIDE the pill (next-filter affordance); a pick
+      // that INVITES MORE INPUT (a `field:` key, a `metadata.` prefix, an open
+      // `tags:(` group, a comparison/logical operator awaiting its value) keeps
+      // the caret in place.
+      const {
+        next,
+        caret: caretAt,
+        keepOpen,
+      } = applyPick(option, draftRef.current, currentPlan);
       setDraftWithSelection(next, caretAt);
       setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);
@@ -844,6 +855,7 @@ export function SearchComposer({
       setDraftWithSelection,
       commitStructuredEdit,
       commitToFilterState,
+      onQueryPresetPick,
       storeApi,
     ],
   );
@@ -1154,7 +1166,7 @@ export function SearchComposer({
       // or its padding) nudges the collapsed caret across the whitespace run,
       // so typing starts the next entry instead of gluing to the previous
       // token. Clicks on token text keep their native caret untouched.
-      const segment = deriveComposerSegments(draft, scoreTypes).find(
+      const segment = deriveComposerSegments(draft, scoreTypes, registry).find(
         (s) => s.to === end,
       );
       const el =
@@ -1189,18 +1201,19 @@ export function SearchComposer({
     setHoveredTokenId(token?.getAttribute("data-segment-id") ?? null);
   };
 
-  const describedBy =
-    visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : undefined;
-
-  const segments = deriveComposerSegments(draft, scoreTypes);
-  // The remove affordance targets the hovered token, or — while the editor is
-  // focused — the token holding a collapsed caret. Not at the trailing
-  // insertion point, where the user is appending, not editing.
-  const focusTokenId =
+  const placeholder = composerPlaceholder(registry);
+  const segments = deriveComposerSegments(draft, scoreTypes, registry);
+  // The token holding a collapsed caret — the keyboard counterpart to hover.
+  // Not at the trailing insertion point, where the user is appending, not
+  // editing. Every segment kind qualifies: an operator explains itself on the
+  // caret path exactly as it does on hover (it just can't be removed, below).
+  const caretSegment =
     editorFocused && selectionCollapsed && caret < draft.length
-      ? (segments.find((s) => s.editable && s.from <= caret && caret <= s.to)
-          ?.id ?? null)
+      ? (segments.find((s) => s.from <= caret && caret <= s.to) ?? null)
       : null;
+  // The remove affordance targets the hovered token, or the caret token — but
+  // only an editable one, since operators/parens have nothing to remove.
+  const focusTokenId = caretSegment?.editable === true ? caretSegment.id : null;
   const removeTargetId = hoveredTokenId ?? focusTokenId;
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
@@ -1214,6 +1227,53 @@ export function SearchComposer({
       ? removeTarget
       : null;
 
+  // Plain-language explanation of a token (LFE-14447), in the same slot — an
+  // error wins it. Hover always explains; the caret path only while the popover
+  // is closed, so it never stacks a tooltip over the suggestions you are typing
+  // against.
+  const explainTarget =
+    errorTarget !== null
+      ? null
+      : hoveredTokenId !== null
+        ? (segments.find((s) => s.id === hoveredTokenId) ?? null)
+        : plan === null
+          ? caretSegment
+          : null;
+  const explainTargetId = explainTarget?.id ?? null;
+  const explanation =
+    explainTarget === null ? null : explainSegment(explainTarget, registry);
+  const explainDeactivatedReason =
+    explainTarget === null
+      ? null
+      : deactivationReason(explainTarget, fieldReason, freeTextReason);
+  // Keyboard/AT path: the caret token's explanation, read through the combobox's
+  // description regardless of the popover — including the "not applied" note,
+  // which the visible tooltip also carries.
+  const caretExplanation =
+    caretSegment === null ? null : explainSegment(caretSegment, registry);
+  const caretDeactivatedReason =
+    caretSegment === null
+      ? null
+      : deactivationReason(caretSegment, fieldReason, freeTextReason);
+  const caretHelp =
+    caretExplanation === null
+      ? null
+      : [
+          `${caretExplanation.subject} ${caretExplanation.predicate}`.trim(),
+          caretDeactivatedReason === null
+            ? null
+            : notAppliedNote(caretDeactivatedReason),
+        ]
+          .filter((part) => part !== null)
+          .join(" ");
+  const describedBy =
+    [
+      visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : null,
+      caretHelp !== null ? "search-bar-token-help" : null,
+    ]
+      .filter((id) => id !== null)
+      .join(" ") || undefined;
+
   // Measure the remove target's last client rect in the parent's layout
   // effect: it runs after every commit that can move text, and after all
   // subtree refs (root + container) are attached.
@@ -1221,7 +1281,7 @@ export function SearchComposer({
     left: number;
     top: number;
   } | null>(null);
-  // Anchors for the per-token error tooltip — left edge of the token, plus its
+  // Anchors for the per-token tooltip — left edge of the token, plus its
   // bottom (default placement, just under the block) and top (used to flip the
   // tooltip ABOVE the block while the suggestions popover is open below). These
   // are VIEWPORT coordinates (not container-relative): the tooltip portals to
@@ -1229,61 +1289,70 @@ export function SearchComposer({
   // getClientRects() directly. The bar's band is sticky (it doesn't scroll out
   // from under the token), so a fixed anchor stays put; it re-measures on draft
   // change and the container ResizeObserver below, same as the X button.
-  const [errorPosition, setErrorPosition] = React.useState<{
+  const [tooltipPosition, setTooltipPosition] = React.useState<{
     left: number;
     belowTop: number;
     aboveTop: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
-  const measureRemovePosition = React.useCallback(() => {
+  // Measured separately from the remove target: an operator token explains
+  // itself but is not editable, so it never has a remove X to anchor to.
+  const tooltipTargetId =
+    errorTarget !== null
+      ? errorTarget.id
+      : explanation !== null
+        ? explainTargetId
+        : null;
+  const measurePositions = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
-    if (root === null || container === null || removeTargetIdActual === null) {
-      setRemovePosition(null);
-      setErrorPosition(null);
-      return;
-    }
-    const el = root.querySelector(
-      `[data-segment-id="${CSS.escape(removeTargetIdActual)}"]`,
-    );
-    if (el === null) {
-      setRemovePosition(null);
-      setErrorPosition(null);
-      return;
-    }
-    const rects = el.getClientRects();
-    const rect =
-      rects.length > 0 ? rects[rects.length - 1]! : el.getBoundingClientRect();
-    const firstRect = rects.length > 0 ? rects[0]! : rect;
-    const containerRect = container.getBoundingClientRect();
-    setRemovePosition({
-      left: rect.right - containerRect.left - 6,
-      top: rect.top - containerRect.top - 8,
-    });
-    setErrorPosition({
-      left: firstRect.left,
-      belowTop: firstRect.bottom + 6,
-      aboveTop: firstRect.top,
-    });
-  }, [removeTargetIdActual]);
+    const rectsOf = (id: string | null): DOMRectList | null => {
+      if (root === null || id === null) return null;
+      const el = root.querySelector(`[data-segment-id="${CSS.escape(id)}"]`);
+      return el === null ? null : el.getClientRects();
+    };
 
-  // Re-measure when the target or draft text changes.
+    const removeRects = rectsOf(removeTargetIdActual);
+    const lastRect = removeRects?.[removeRects.length - 1] ?? null;
+    if (container === null || lastRect === null) {
+      setRemovePosition(null);
+    } else {
+      const containerRect = container.getBoundingClientRect();
+      setRemovePosition({
+        left: lastRect.right - containerRect.left - 6,
+        top: lastRect.top - containerRect.top - 8,
+      });
+    }
+
+    const tooltipRect = rectsOf(tooltipTargetId)?.[0] ?? null;
+    setTooltipPosition(
+      tooltipRect === null
+        ? null
+        : {
+            left: tooltipRect.left,
+            belowTop: tooltipRect.bottom + 6,
+            aboveTop: tooltipRect.top,
+          },
+    );
+  }, [removeTargetIdActual, tooltipTargetId]);
+
+  // Re-measure when a target or the draft text changes.
   React.useLayoutEffect(() => {
-    measureRemovePosition();
-  }, [measureRemovePosition, draft]);
+    measurePositions();
+  }, [measurePositions, draft]);
 
   // Those deps miss layout reflows that don't change React state — window
   // resize, browser zoom, sidebar collapse — which re-wrap the full-width bar
   // and move the token. Observe the composer surface so the absolutely-
   // positioned X re-anchors to its token instead of leaving a stale ghost X.
   React.useEffect(() => {
-    if (removeTargetIdActual === null) return;
+    if (removeTargetIdActual === null && tooltipTargetId === null) return;
     const container = containerRef.current;
     if (container === null || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => measureRemovePosition());
+    const observer = new ResizeObserver(() => measurePositions());
     observer.observe(container);
     return () => observer.disconnect();
-  }, [measureRemovePosition, removeTargetIdActual]);
+  }, [measurePositions, removeTargetIdActual, tooltipTargetId]);
 
   return (
     <div
@@ -1303,7 +1372,9 @@ export function SearchComposer({
           // centers a single line near min-h-9 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          // Box + text metrics are shared with the preview surface
+          // (composer-chrome.ts) so the overlay renders pixel-identical.
+          COMPOSER_SURFACE_CLASSES,
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
@@ -1315,11 +1386,21 @@ export function SearchComposer({
         {draft.length === 0 && (
           <div
             className={cn(
+              // Bound the right edge (not just pr-*) so `truncate` has a width
+              // to clip against — otherwise the placeholder grows to its full
+              // text width and runs under the top-right "Ask AI" button. The
+              // reserved gap matches the surface's pr-20/pr-8.
               "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
-              onActivateAi !== undefined ? "pr-20" : "pr-8",
+              // Mirror the surface's right reservation exactly: the "Ask AI"
+              // button (right-20) is hidden while diagnostics show, when the
+              // error icon takes over the top-right corner (right-8).
+              onActivateAi !== undefined && !showGlobalDiagnostics
+                ? "right-20"
+                : "right-8",
             )}
+            title={placeholder}
           >
-            {COMPOSER_PLACEHOLDER}
+            {placeholder}
           </div>
         )}
         <div
@@ -1351,7 +1432,10 @@ export function SearchComposer({
           // below the ~24px pills ("too big"). 24px matches the pill height so
           // the caret aligns with the pills. Trade-off: tighter gap between
           // wrapped lines of pills (single-line is unaffected).
-          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          className={cn(
+            COMPOSER_TEXT_CLASSES,
+            "ph-no-capture caret-[hsl(var(--foreground))] outline-none",
+          )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
@@ -1374,6 +1458,12 @@ export function SearchComposer({
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
+            registry={registry}
+            highlightedSegmentId={
+              explanation !== null ? explainTargetId : errorTarget?.id
+            }
           />
         </div>
         {/* "Ask AI" affordance — a plain button, always available so filters can
@@ -1412,14 +1502,9 @@ export function SearchComposer({
           </button>
         )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
-            (z-20) < autocomplete popover (z-50). Both the X and the popover drop
-            BELOW the bar, staying in-flow inside the table. The error tooltip is
-            the exception: when the popover is open it flips ABOVE the offending
-            block, into the page header's band — an ancestor it can't beat
-            in-flow (`#page > main` is overflow:hidden and the header is its own
-            z-50 stacking context). So it renders through the "tooltip" <Layer>,
-            which portals it to a body-level layer container (see the render
-            below + components/ui/layer.tsx). */}
+            (z-20). The autocomplete and token tooltip both render through app
+            overlay layers so they escape clipped table, panel, and dialog
+            ancestors. */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
@@ -1430,7 +1515,7 @@ export function SearchComposer({
       </div>
 
       {showGlobalDiagnostics && (
-        <div className="absolute top-1.5 right-2 flex items-center gap-1">
+        <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
           <span
             className="text-destructive"
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
@@ -1447,6 +1532,12 @@ export function SearchComposer({
         </div>
       )}
 
+      {caretHelp !== null && (
+        <div id="search-bar-token-help" className="sr-only">
+          {caretHelp}
+        </div>
+      )}
+
       {plan !== null && (
         <AutocompletePopover
           plan={plan}
@@ -1455,39 +1546,63 @@ export function SearchComposer({
           onHighlight={setHighlightedOptionId}
           listboxId={LISTBOX_ID}
           anchorLeft={0}
-          containerRef={containerRef}
         />
       )}
 
-      {/* Per-token error tooltip. The "tooltip" <Layer> renders it on a
-          body-level container so it escapes the page header's overflow:hidden
-          clip and z-50 stacking context when it flips above the bar — an
-          in-flow z-index can't win against either. `fixed` + viewport anchors.
-          pointer-events-none so moving onto it doesn't change the hovered token
-          (which would flicker it away). */}
-      {errorTarget !== null && errorPosition !== null && (
-        <Layer name="tooltip">
-          <div
-            role="tooltip"
-            style={
-              plan !== null
-                ? {
-                    left: errorPosition.left,
-                    top: errorPosition.aboveTop,
-                    transform: "translateY(calc(-100% - 6px))",
-                  }
-                : { left: errorPosition.left, top: errorPosition.belowTop }
-            }
-            className={cn(
-              "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
-              "border-destructive/40 bg-popover text-destructive rounded-md border",
-              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
-            )}
-          >
-            {errorTarget.message}
-          </div>
-        </Layer>
-      )}
+      {/* Per-token tooltip — the error diagnostic, or the token's plain-language
+          explanation. The "tooltip" <Layer> renders it on a body-level container
+          so it escapes the page header's overflow:hidden clip and z-50 stacking
+          context when it flips above the bar — an in-flow z-index can't win
+          against either. `fixed` + viewport anchors. pointer-events-none so
+          moving onto it doesn't change the hovered token (which would flicker it
+          away). */}
+      {(errorTarget !== null || explanation !== null) &&
+        tooltipPosition !== null && (
+          <Layer name="tooltip">
+            <div
+              role="tooltip"
+              data-testid="search-bar-token-tooltip"
+              style={
+                plan !== null
+                  ? {
+                      left: tooltipPosition.left,
+                      top: tooltipPosition.aboveTop,
+                      transform: "translateY(calc(-100% - 6px))",
+                    }
+                  : {
+                      left: tooltipPosition.left,
+                      top: tooltipPosition.belowTop,
+                    }
+              }
+              className={cn(
+                "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
+                "bg-popover rounded-md border",
+                "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+                errorTarget !== null
+                  ? "border-destructive/40 text-destructive"
+                  : "border-border text-popover-foreground",
+              )}
+            >
+              {errorTarget !== null ? (
+                errorTarget.message
+              ) : (
+                <>
+                  <span className="font-bold">{explanation?.subject}</span>
+                  {/* A boolean token's phrase IS the whole explanation — no
+                      predicate, so no dangling space before the period. */}
+                  {explanation?.predicate !== "" && (
+                    <> {explanation?.predicate}</>
+                  )}
+                  {explainDeactivatedReason !== null && (
+                    <span className="text-muted-foreground block pt-0.5">
+                      {notAppliedNote(explainDeactivatedReason)}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </Layer>
+        )}
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BlobStorageIntegrationFormSchema,
   blobStorageIntegrationFormSchema,
-  parquetEnabledFromTuning,
 } from "@/src/features/blobstorage-integration/types";
 import {
   AnalyticsIntegrationExportSource,
@@ -89,22 +88,6 @@ describe("blob storage form — exportFieldGroups validation", () => {
   });
 });
 
-describe("parquetEnabledFromTuning", () => {
-  it.each([
-    [{ parquet: true }, true],
-    [{ parquet: true, gzipLevel: 1 }, true],
-    [{ parquet: false }, false],
-    [{ gzipLevel: 1 }, false],
-    [{}, false],
-    [null, false],
-    [undefined, false],
-    ["parquet", false],
-    [["parquet"], false],
-  ])("%o → %s", (input, expected) => {
-    expect(parquetEnabledFromTuning(input)).toBe(expected);
-  });
-});
-
 describe("EXPORT_FIELD_GROUP_OPTIONS — parquet description", () => {
   const PRICE_FIELDS = ["input_price", "output_price", "total_price"];
   const model = EXPORT_FIELD_GROUP_OPTIONS.find((o) => o.value === "model")!;
@@ -149,5 +132,13 @@ describe("EXPORT_FIELD_GROUP_OPTIONS — parquet description", () => {
     expect(traceContext.legacyParquetDescription).toBe(
       "Not included in the legacy observations export",
     );
+  });
+
+  it("flags groups without legacy observation columns so the UI can hide them for legacy-only exports", () => {
+    for (const option of EXPORT_FIELD_GROUP_OPTIONS) {
+      expect(option.includedInLegacyExport).toBe(
+        option.value !== "trace_context",
+      );
+    }
   });
 });

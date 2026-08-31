@@ -1,6 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
@@ -23,6 +23,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -40,6 +41,7 @@ const DatasetAggregateCellContent = ({
   baselineRunValue?: EnrichedDatasetRunItem;
 }) => {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const silentHttpCodes = [404];
   const { selectedFields } = useDatasetCompareFields();
   const { activeCell, setActiveCell } = useActiveCell();
@@ -101,6 +103,19 @@ const DatasetAggregateCellContent = ({
 
   // Note that we implement custom handling for opening peek view from cell
   const handleOpenPeek = () => {
+    // Mirrors usePeekNavigation's peek:opened (this open bypasses the hook);
+    // re-clicking the already-peeked cell is a no-op and emits nothing.
+    if (
+      router.query.peek !== value.trace.id ||
+      router.query.observation !== value.observation?.id
+    ) {
+      capture("peek:opened", {
+        routePattern: router.pathname,
+        wasOpen: router.query.peek !== undefined,
+        isV4: false,
+        tableName: "datasetCompareRuns",
+      });
+    }
     const newQuery: Record<string, string | string[] | undefined> = {
       ...router.query,
       peek: value.trace.id,
@@ -146,7 +161,7 @@ const DatasetAggregateCellContent = ({
       {/* Displays trace/observation output */}
       <div
         className={cn(
-          "relative h-[50%] w-full min-w-0 shrink-0 overflow-auto",
+          "relative h-[50%] min-h-8 w-full min-w-0 shrink-0 overflow-auto",
           !selectedFields.includes("output") && "hidden",
         )}
       >
@@ -155,12 +170,12 @@ const DatasetAggregateCellContent = ({
             itemType={value.observation ? "observation" : "trace"}
             singleLine={false}
           />
+        ) : isLoading || !data ? (
+          <ConnectedIOTableCell isLoading variant="output" />
         ) : (
-          <MemoizedIOTableCell
-            isLoading={isLoading || !data}
-            data={data?.output ?? "null"}
-            className={"bg-accent-light-green min-h-8"}
-            singleLine={false}
+          <ConnectedIOTableCell
+            data={data.output ?? "null"}
+            variant="output"
             enableExpandOnHover
           />
         )}

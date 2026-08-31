@@ -2,7 +2,7 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   FilterList,
   StringOptionsFilter,
@@ -11,19 +11,24 @@ import {
   CTEWithSchema,
   EventsAggQueryBuilder,
   StringFilter,
+  extractTimeFilter,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoreRowsCTE,
   buildScoresCTE,
   eventsExperimentsRootSpans,
+  eventsExperimentsForItems,
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsScoresAggregation,
   eventsTracesScoresAggregation,
+  scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { extractTimeFilter, queryClickhouse } from "../repositories";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "../repositories/clickhouse";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
@@ -47,6 +52,54 @@ export type ExperimentMetricsReturnType = {
   experiment_id: string;
   total_cost: number | null;
   latency_avg: number | null;
+};
+
+type DatasetExperimentMetricsReturnType = {
+  experiment_dataset_id: string;
+  count_dataset_runs: string;
+  last_run_at: string;
+};
+
+export const getDatasetExperimentMetricsFromEvents = async (props: {
+  projectId: string;
+  datasetIds: string[];
+}) => {
+  if (props.datasetIds.length === 0) {
+    return [];
+  }
+
+  const experimentsQuery = eventsExperimentsAggregation({
+    projectId: props.projectId,
+    fieldSet: "count",
+  })
+    .selectRaw(
+      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
+      "min(e.start_time) AS start_time",
+    )
+    .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
+      datasetIds: props.datasetIds,
+    })
+    .buildWithParams();
+
+  const rows = await queryClickhouse<DatasetExperimentMetricsReturnType>({
+    query: `
+      SELECT
+        experiment_dataset_id,
+        count() AS count_dataset_runs,
+        max(start_time) AS last_run_at
+      FROM (${experimentsQuery.query}) experiments
+      GROUP BY experiment_dataset_id
+    `,
+    params: experimentsQuery.params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    datasetId: row.experiment_dataset_id,
+    countDatasetRuns: Number(row.count_dataset_runs),
+    lastRunAt: parseClickhouseUTCDateTimeFormat(row.last_run_at),
+  }));
 };
 
 const experimentScoreCTE = (params: {
@@ -110,6 +163,7 @@ const experimentScoreCTE = (params: {
       "s.experiment_id AS experiment_id",
       `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg`,
       `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}_score_categories`,
+      `${scoreBooleansAggregation("s.")} AS ${prefix}_score_booleans`,
     )
     .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())
@@ -182,21 +236,11 @@ export const getExperimentMetricsFromEvents = async (props: {
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const res = await measureAndReturn({
-    operationName: "getExperimentMetricsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: { projectId: props.projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<ExperimentMetricsReturnType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const res = await queryClickhouse<ExperimentMetricsReturnType>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res.map((row) => ({
@@ -251,10 +295,16 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   // Detect score filter presence to conditionally include score CTEs
   const hasTraceScoreFilter = scoreAggFilters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+    [
+      "trace_scores_avg",
+      "trace_score_categories",
+      "trace_score_booleans",
+    ].includes(f.field),
   );
   const hasObsScoreFilter = scoreAggFilters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
+      f.field,
+    ),
   );
 
   const experimentIds = experimentIdFilter?.values;
@@ -284,7 +334,11 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+              [
+                "obs_scores_avg",
+                "obs_score_categories",
+                "obs_score_booleans",
+              ].includes(f.field),
             ),
             level: "observation",
           }),
@@ -306,7 +360,11 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+              [
+                "trace_scores_avg",
+                "trace_score_categories",
+                "trace_score_booleans",
+              ].includes(f.field),
             ),
             level: "trace",
           }),
@@ -340,21 +398,11 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   const finalParams = built.params;
 
-  return measureAndReturn({
-    operationName: "getExperimentsFromEventsGeneric",
-    projectId,
-    input: {
-      params: finalParams,
-      tags: { ...(props.tags ?? {}), projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query: finalQuery,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  return queryClickhouse<T>({
+    query: finalQuery,
+    params: finalParams,
+    tags: { ...(props.tags ?? {}), projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -578,6 +626,7 @@ export type ScoreColumnDefinition = {
 
 type ProcessedScoreFilterOptions = {
   numeric: string[];
+  boolean: string[];
   categorical: Array<{ label: string; values: string[] }>;
   scoreColumns: ScoreColumnDefinition[];
 };
@@ -586,6 +635,7 @@ const processScoreFilterOptionsResults = (
   rows: ScoreFilterOptionsRow[],
 ): ProcessedScoreFilterOptions => {
   const numeric = new Set<string>();
+  const boolean = new Set<string>();
   const categorical = new Map<string, Set<string>>();
   const scoreColumns: ScoreColumnDefinition[] = [];
 
@@ -599,6 +649,9 @@ const processScoreFilterOptionsResults = (
 
     if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
       numeric.add(row.name);
+    }
+    if (row.data_type === "BOOLEAN") {
+      boolean.add(row.name);
     } else if (row.data_type === "CATEGORICAL") {
       const existingValues = categorical.get(row.name) ?? new Set<string>();
       row.values.forEach((value) => existingValues.add(value));
@@ -608,6 +661,7 @@ const processScoreFilterOptionsResults = (
 
   return {
     numeric: Array.from(numeric),
+    boolean: Array.from(boolean),
     categorical: Array.from(categorical.entries()).map(([label, values]) => ({
       label,
       values: Array.from(values),
@@ -618,6 +672,7 @@ const processScoreFilterOptionsResults = (
 
 const emptyScoreFilterOptions = (): ProcessedScoreFilterOptions => ({
   numeric: [],
+  boolean: [],
   categorical: [],
   scoreColumns: [],
 });
@@ -683,9 +738,11 @@ export const getExperimentItemsFilterOptions = async (
 ): Promise<{
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_booleans: string[];
   obs_score_columns: ScoreColumnDefinition[];
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_booleans: string[];
   trace_score_columns: ScoreColumnDefinition[];
 }> => {
   const { observation, trace } =
@@ -694,9 +751,11 @@ export const getExperimentItemsFilterOptions = async (
   return {
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
+    obs_score_booleans: observation.boolean,
     obs_score_columns: observation.scoreColumns,
     trace_scores_avg: trace.numeric,
     trace_score_categories: trace.categorical,
+    trace_score_booleans: trace.boolean,
     trace_score_columns: trace.scoreColumns,
   };
 };
@@ -857,15 +916,21 @@ const buildQualificationPlan = (
 
   const filters = filterByExperiment.flatMap((f) => f.filters);
   const hasScoreFilters = filters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.column),
+    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
+      f.column,
+    ),
   );
   const hasTraceScoreFilters = filters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.column),
+    [
+      "trace_scores_avg",
+      "trace_score_categories",
+      "trace_score_booleans",
+    ].includes(f.column),
   );
 
   const allExperimentIds = [
     ...(baseExperimentId ? [baseExperimentId] : []),
-    ...(isBaselineEnforced ? filteredCompExperimentIds : compExperimentIds),
+    ...compExperimentIds,
   ];
 
   const compiledFiltersByExperiment = allExperimentIds.map((experimentId) =>
@@ -939,7 +1004,10 @@ const getExperimentItemsFromEventsGeneric = (params: {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.experiment_item_id",
-    selectExpression: "e.experiment_item_id as item_id",
+    // min(start_time) is the item's root start_time (WHERE below restricts
+    // to root rows), used as a coarse partition-prune lower bound for Query 2.
+    selectExpression:
+      "e.experiment_item_id as item_id, min(e.start_time) as start_time",
   })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
     .when(hasScoreFilters, (b) =>
@@ -1018,7 +1086,10 @@ export const getExperimentItemsFromEvents = async (
       offset,
     });
 
-  const itemIdsResult = await queryClickhouse<{ item_id: string }>({
+  const itemIdsResult = await queryClickhouse<{
+    item_id: string;
+    start_time: string;
+  }>({
     query: itemIdsQuery,
     params: itemIdsParams,
     tags: { projectId },
@@ -1036,24 +1107,53 @@ export const getExperimentItemsFromEvents = async (
     ...compExperimentIds,
   ];
 
+  // Earliest root start_time among the qualified items - a coarse partition
+  // prune for Query 2. Children always start at or after their own root, so
+  // this bound can't exclude a legitimate descendant.
+  const minStartTime = new Date(
+    Math.min(
+      ...itemIdsResult.map((r) =>
+        parseClickhouseUTCDateTimeFormat(r.start_time).getTime(),
+      ),
+    ),
+  );
+
   // ========== QUERY 2: Fetch data for ALL experiments ==========
-  const queryBuilderData = eventsExperimentsRootSpans({
+  // total_cost is summed across the item's full observation subtree via a
+  // window function - the root span itself usually carries no cost of its
+  // own, so reading e.total_cost directly would just return 0. WHERE only
+  // scopes to project/experiment/item; root-row selection happens in
+  // ORDER BY/LIMIT BY below, so the window function still sees sibling rows.
+  // The partition includes trace_id so items with multiple repetitions
+  // (until we model them properly, LFE-8965) sum only the selected
+  // iteration's own subtree, not every repetition's cost combined.
+  const queryBuilderData = eventsExperimentsForItems({
     projectId,
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
   })
+    .whereRaw("e.start_time >= {itemsMinStartTime: DateTime64(3)}", {
+      itemsMinStartTime: convertDateToClickhouseDateTime(minStartTime),
+    })
     .selectRaw(
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
       "e.level as level",
       "e.start_time as start_time",
-      "e.total_cost as total_cost",
+      "sum(e.total_cost) OVER (PARTITION BY e.experiment_item_id, e.experiment_id, e.trace_id) as total_cost",
       "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
       "e.span_id as observation_id",
       "e.trace_id as trace_id",
     )
-    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
-    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965).
+    // Uses raw orderBy() rather than orderByColumns(), which auto-prepends a
+    // toStartOfMinute(start_time) primary-key-read-order prefix whenever a
+    // start_time entry is present - that prefix would outrank the root-flag
+    // tiebreak below whenever a child observation starts in a later minute
+    // bucket than its root, causing LIMIT BY to keep the child row instead.
+    .orderBy(
+      "ORDER BY (e.span_id = e.experiment_item_root_span_id) DESC, e.start_time DESC",
+    )
     .limitBy("e.experiment_item_id, e.experiment_id");
 
   const { query: dataQuery, params: dataParams } =
@@ -1230,9 +1330,9 @@ export const getExperimentNamesFromEvents = async (props: {
 }) => {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: props.projectId,
-    groupByColumn: "e.experiment_name",
+    groupByColumn: "e.experiment_id",
     selectExpression:
-      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId",
+      "any(e.experiment_name) as experimentName, e.experiment_id as experimentId, nullIf(any(e.experiment_dataset_id), '') as datasetId",
   })
     .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
     .limit(1000, 0);
@@ -1242,6 +1342,7 @@ export const getExperimentNamesFromEvents = async (props: {
   const res = await queryClickhouse<{
     experimentName: string;
     experimentId: string;
+    datasetId: string | null;
   }>({
     query,
     params,

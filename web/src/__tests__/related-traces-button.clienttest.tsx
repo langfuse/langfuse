@@ -3,7 +3,10 @@ import type { Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 
-import { RelatedTracesButton } from "@/src/features/trace-correlation/components/RelatedTracesButton";
+import {
+  RelatedTracesButton,
+  RelatedTracesPopoverController,
+} from "@/src/features/trace-correlation/components/RelatedTracesButton";
 import { api } from "@/src/utils/api";
 
 vi.mock("next-auth/react", () => ({
@@ -89,6 +92,27 @@ const createSession = ({
 
 const mockUseQuery = vi.mocked(api.traces.relatedAcrossProjects.useQuery);
 
+const renderRelatedTraces = ({
+  observations = [],
+}: {
+  observations?: Array<{ startTime?: Date | string | null }>;
+} = {}) =>
+  render(
+    <RelatedTracesPopoverController
+      projectId={projectId}
+      traceId={traceId}
+      timestamp={timestamp}
+      observations={observations}
+      enabled
+    >
+      {({ relatedCount, Trigger }) => (
+        <Trigger asChild>
+          <RelatedTracesButton relatedCount={relatedCount} />
+        </Trigger>
+      )}
+    </RelatedTracesPopoverController>,
+  );
+
 describe("RelatedTracesButton", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,15 +140,7 @@ describe("RelatedTracesButton", () => {
       update: vi.fn(),
     });
 
-    const { container } = render(
-      <RelatedTracesButton
-        projectId={projectId}
-        traceId={traceId}
-        timestamp={timestamp}
-        observations={[]}
-        enabled
-      />,
-    );
+    const { container } = renderRelatedTraces();
 
     expect(container).toBeEmptyDOMElement();
     expect(mockUseQuery).toHaveBeenCalledWith(
@@ -134,18 +150,12 @@ describe("RelatedTracesButton", () => {
   });
 
   it("queries lazily after opening with the observation time window", async () => {
-    render(
-      <RelatedTracesButton
-        projectId={projectId}
-        traceId={traceId}
-        timestamp={timestamp}
-        observations={[
-          { startTime: "2026-01-01T11:30:00.000Z" },
-          { startTime: new Date("2026-01-01T12:15:00.000Z") },
-        ]}
-        enabled
-      />,
-    );
+    renderRelatedTraces({
+      observations: [
+        { startTime: "2026-01-01T11:30:00.000Z" },
+        { startTime: new Date("2026-01-01T12:15:00.000Z") },
+      ],
+    });
 
     expect(mockUseQuery).toHaveBeenLastCalledWith(
       expect.objectContaining({

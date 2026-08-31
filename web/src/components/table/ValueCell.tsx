@@ -2,16 +2,22 @@ import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
-import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
+import {
+  SMALL_ARRAY_THRESHOLD,
+  SMALL_OBJECT_THRESHOLD,
+  objectFitsInSingleRowPreview,
+  type JsonTableRow,
+} from "@/src/components/table/utils/jsonExpansionUtils";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  DropdownMenuController,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { cn } from "@/src/utils/tailwind";
 import {
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
@@ -30,10 +36,8 @@ export type MetadataFilterActions = {
 };
 
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
-export const MAX_CELL_DISPLAY_CHARS = 2000;
-const SMALL_ARRAY_THRESHOLD = 5;
+const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const OBJECT_PREVIEW_KEYS = 2;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
@@ -92,12 +96,12 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
     const displayItems = arr
       .map((item) => {
         const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
+        if (itemType === "string") return JSON.stringify(item);
         if (itemType === "object" && item !== null) {
           const obj = item as Record<string, unknown>;
           const keys = Object.keys(obj);
           if (keys.length === 0) return "{}";
-          if (keys.length <= OBJECT_PREVIEW_KEYS) {
+          if (keys.length <= SMALL_OBJECT_THRESHOLD) {
             const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
             return `{${keyPreview}}`;
           }
@@ -114,7 +118,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
     .slice(0, ARRAY_PREVIEW_ITEMS)
     .map((item) => {
       const itemType = getValueType(item);
-      if (itemType === "string") return `"${String(item)}"`;
+      if (itemType === "string") return JSON.stringify(item);
       if (itemType === "object" || itemType === "array") return "...";
       return String(item);
     })
@@ -126,10 +130,29 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
   );
 }
 
+function formatPreviewPrimitive(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (value === null) return "null";
+  return String(value);
+}
+
+function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
+  if (!objectFitsInSingleRowPreview(obj)) return null;
+  const fields = Object.entries(obj).map(
+    ([key, field]) =>
+      `${JSON.stringify(key)}: ${formatPreviewPrimitive(field)}`,
+  );
+  return `{${fields.join(", ")}}`;
+}
+
 function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
   const keys = Object.keys(obj);
   if (keys.length === 0) {
     return <span className={PREVIEW_TEXT_CLASSES}>empty object</span>;
+  }
+  const shortPreview = formatShortObjectPreview(obj);
+  if (shortPreview) {
+    return <span className={PREVIEW_TEXT_CLASSES}>{shortPreview}</span>;
   }
   return <span className={PREVIEW_TEXT_CLASSES}>{keys.length} items</span>;
 }
@@ -206,7 +229,7 @@ function resolveKeyPath(row: Row<JsonTableRow>): string {
  * only when `metadataActions` is provided, so `useRouter` stays off the hot
  * path for the (far more numerous) input/output JSON cells.
  */
-function ValueCellActionsMenu({
+function ValueCellActionsMenuContent({
   row,
   metadataActions,
 }: {
@@ -268,64 +291,55 @@ function ValueCellActionsMenu({
     );
   };
 
+  const includeFilterText = `metadata.${metadataKey} ${includeOperator} ${displayValue}`;
+  const excludeFilterText = `metadata.${metadataKey} ${excludeOperator} ${displayValue}`;
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Value actions"
-          title="Actions"
-          className="bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100 data-[state=open]:opacity-100"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <EllipsisVertical className="h-3 w-3" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="max-w-[320px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
-          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
-          {hasChildren ? "Copy structure" : "Copy value"}
-        </DropdownMenuItem>
-        <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
-          <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
-          Copy path
-        </DropdownMenuItem>
-        {isScalarLeaf && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => navigateWithFilter(includeOperator)}
-            >
-              <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span>Include in filter</span>
-                <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} {includeOperator} {displayValue}
-                </span>
+    <>
+      <DropdownMenuItem className="text-xs" onSelect={handleCopyData}>
+        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        {hasChildren ? "Copy structure" : "Copy value"}
+      </DropdownMenuItem>
+      <DropdownMenuItem className="text-xs" onSelect={handleCopyPath}>
+        <Copy className="mr-2 h-3.5 w-3.5 shrink-0" />
+        Copy path
+      </DropdownMenuItem>
+      {isScalarLeaf && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => navigateWithFilter(includeOperator)}
+          >
+            <Filter className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Include in filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={includeFilterText}
+              >
+                {includeFilterText}
               </span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => navigateWithFilter(excludeOperator)}
-            >
-              <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
-              <span className="flex min-w-0 flex-col">
-                <span>Exclude from filter</span>
-                <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} {excludeOperator} {displayValue}
-                </span>
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-xs"
+            onSelect={() => navigateWithFilter(excludeOperator)}
+          >
+            <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
+            <span className="flex min-w-0 flex-col">
+              <span>Exclude from filter</span>
+              <span
+                className="text-muted-foreground truncate font-mono"
+                title={excludeFilterText}
+              >
+                {excludeFilterText}
               </span>
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            </span>
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
   );
 }
 
@@ -365,6 +379,17 @@ export const ValueCell = memo(
       switch (type) {
         case "string": {
           const stringValue = String(value);
+
+          // Render previewable media (Langfuse refs, data URIs, media URLs) as a
+          // hover-to-peek chip instead of the raw string.
+          const mediaDescriptor = classifyMediaValue(stringValue);
+          if (mediaDescriptor) {
+            return {
+              content: <MediaReferenceTag descriptor={mediaDescriptor} />,
+              needsTruncation: false,
+            };
+          }
+
           const needsTruncation = stringValue.length > MAX_CELL_DISPLAY_CHARS;
           const displayValue =
             needsTruncation && !isCellExpanded
@@ -423,6 +448,18 @@ export const ValueCell = memo(
             needsTruncation: false,
           };
         case "array": {
+          // Hide the parent preview only when expanded children are actually
+          // rendered. showNullValues={false} can filter every child out while
+          // leaving the expand chevron (hasChildren is computed on the raw
+          // array), and blanking the cell then loses the only remaining value.
+          const hasVisibleChildRows =
+            row.getIsExpanded() && row.subRows.length > 0;
+          if (hasVisibleChildRows) {
+            return {
+              content: null,
+              needsTruncation: false,
+            };
+          }
           const arrayValue = value as unknown[];
           // Arrays always show previews, never truncate
           return {
@@ -431,6 +468,14 @@ export const ValueCell = memo(
           };
         }
         case "object": {
+          const hasVisibleChildRows =
+            row.getIsExpanded() && row.subRows.length > 0;
+          if (hasVisibleChildRows) {
+            return {
+              content: null,
+              needsTruncation: false,
+            };
+          }
           const objectValue = value as Record<string, unknown>;
           // Objects always show previews, never truncate
           return {
@@ -480,7 +525,34 @@ export const ValueCell = memo(
         {/* Hover affordance: a one-click copy by default, or an actions menu
             (copy + filter shortcuts) in metadata views. */}
         {metadataActions ? (
-          <ValueCellActionsMenu row={row} metadataActions={metadataActions} />
+          <DropdownMenuController
+            align="end"
+            maxWidth="320px"
+            renderMenu={() => (
+              <ValueCellActionsMenuContent
+                row={row}
+                metadataActions={metadataActions}
+              />
+            )}
+          >
+            {({ isOpen, Trigger }) => (
+              <Trigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Value actions"
+                  title="Actions"
+                  className={cn(
+                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    isOpen && "opacity-100",
+                  )}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <EllipsisVertical className="h-3 w-3" />
+                </Button>
+              </Trigger>
+            )}
+          </DropdownMenuController>
         ) : (
           <Button
             variant="ghost"

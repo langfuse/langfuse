@@ -9,6 +9,7 @@ import {
   getScoresForAnalyticsIntegrations,
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
@@ -19,7 +20,12 @@ import {
   transformScoreForMixpanel,
   transformEventForMixpanel,
 } from "./transformers";
-import { env } from "../../env";
+import { env, v4WritesToLegacyTables } from "../../env";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+
+export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
+  "langfuse.mixpanel.integration_customer_fault.count";
 
 const sleep = (ms: number) =>
   ms > 0
@@ -131,7 +137,11 @@ const processMixpanelScores = async (
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
-    { useGraceHash: config.useGraceHash },
+    {
+      useGraceHash: config.useGraceHash,
+      // events_only no longer writes the traces table (LFE-11009)
+      traceAttributesSource: v4WritesToLegacyTables(env) ? "traces" : "events",
+    },
   );
 
   logger.info(
@@ -248,6 +258,13 @@ export const handleMixpanelIntegrationProjectJob = async (
   };
 
   try {
+    // Fail loudly before exporting empty data and advancing lastSyncAt
+    // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
+    assertExportSourceWritable(
+      mixpanelIntegration.exportSource,
+      "Select the enriched observations export source in the Mixpanel integration settings.",
+    );
+
     // Reuse a single client and run streams sequentially so the per-job export
     // rate stays bounded. Running the streams in parallel with one client each
     // produced an unbounded burst that overwhelmed the target (issue #12786).
@@ -295,9 +312,22 @@ export const handleMixpanelIntegrationProjectJob = async (
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    const mixpanelFaultReason = classifyCustomerFault(error);
+    if (mixpanelFaultReason !== undefined) {
+      recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
+        reason: mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      });
+    }
     logger.error(
       `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      error,
+      {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      },
     );
     throw error;
   }

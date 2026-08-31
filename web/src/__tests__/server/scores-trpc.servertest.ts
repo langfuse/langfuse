@@ -1,5 +1,16 @@
-const mockAddScoreDelete = vi.fn();
-const mockAddBatchAction = vi.fn();
+const {
+  mockAddScoreDelete,
+  mockAddBatchAction,
+  mockGetEventsGroupedByTraceTags,
+  mockGetEventsGroupedByTraceName,
+  mockGetEventsGroupedByUserId,
+} = vi.hoisted(() => ({
+  mockAddScoreDelete: vi.fn(),
+  mockAddBatchAction: vi.fn(),
+  mockGetEventsGroupedByTraceTags: vi.fn(async () => []),
+  mockGetEventsGroupedByTraceName: vi.fn(async () => []),
+  mockGetEventsGroupedByUserId: vi.fn(async () => []),
+}));
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const originalModule = await vi.importActual("@langfuse/shared/src/server");
@@ -15,6 +26,9 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
+    getEventsGroupedByTraceTags: mockGetEventsGroupedByTraceTags,
+    getEventsGroupedByTraceName: mockGetEventsGroupedByTraceName,
+    getEventsGroupedByUserId: mockGetEventsGroupedByUserId,
   };
 });
 
@@ -24,6 +38,8 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { ScoreConfigDataType } from "@langfuse/shared";
 import {
+  createEvent,
+  createEventsCh,
   createObservation,
   createObservationsCh,
   createTrace,
@@ -35,7 +51,14 @@ import {
   QueueJobs,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
 import { randomUUID } from "crypto";
+
+const maybeEvents =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
 
 describe("scores trpc", () => {
   let projectId: string;
@@ -48,6 +71,9 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
+    mockGetEventsGroupedByTraceTags.mockClear();
+    mockGetEventsGroupedByTraceName.mockClear();
+    mockGetEventsGroupedByUserId.mockClear();
 
     const session: Session = {
       expires: "1",
@@ -62,6 +88,9 @@ describe("scores trpc", () => {
             role: "OWNER",
             plan: "cloud:hobby",
             cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
@@ -69,6 +98,9 @@ describe("scores trpc", () => {
                 retentionDays: 30,
                 deletedAt: null,
                 name: "Test Project",
+                hasTraces: false,
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
@@ -76,14 +108,399 @@ describe("scores trpc", () => {
         featureFlags: {
           excludeClickhouseRead: false,
           templateFlag: true,
+          searchBar: false,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+          experimentsV4Enabled: false,
         },
         admin: true,
       },
       environment: {} as any,
     };
 
-    const ctx = createInnerTRPCContext({ session });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
+  });
+
+  describe("scores.all", () => {
+    it("returns the recorded evaluator and resolves legacy scores by rule assignment and score name", async () => {
+      const [recordedEvaluator, matchingEvaluator, otherEvaluator] =
+        await Promise.all(
+          ["Recorded evaluator", "Matching evaluator", "Other evaluator"].map(
+            (name) =>
+              prisma.evaluator.create({
+                data: {
+                  projectId,
+                  name,
+                  type: "LLM_AS_JUDGE",
+                },
+              }),
+          ),
+        );
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Evaluation rule",
+          targetObject: "EVENT",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: [matchingEvaluator, otherEvaluator].map((evaluator) => ({
+              projectId,
+              evaluatorId: evaluator.id,
+            })),
+          },
+        },
+      });
+      const recordedScore = createTraceScore({
+        project_id: projectId,
+        name: recordedEvaluator.name,
+        metadata: { evaluator_id: recordedEvaluator.id },
+      });
+      const legacyScore = createTraceScore({
+        project_id: projectId,
+        name: matchingEvaluator.name,
+        metadata: {},
+      });
+
+      await Promise.all([
+        createScoresCh([recordedScore, legacyScore]),
+        prisma.jobExecution.createMany({
+          data: [recordedScore, legacyScore].map((score) => ({
+            projectId,
+            jobConfigurationId: rule.id,
+            jobOutputScoreId: score.id,
+            status: "COMPLETED",
+          })),
+        }),
+      ]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+      const evaluatorIdByScoreId = new Map(
+        result.scores.map((score) => [score.id, score.evaluatorId]),
+      );
+
+      expect(evaluatorIdByScoreId.get(recordedScore.id)).toBe(
+        recordedEvaluator.id,
+      );
+      expect(evaluatorIdByScoreId.get(legacyScore.id)).toBe(
+        matchingEvaluator.id,
+      );
+    });
+
+    it("filters evaluator scores by recorded evaluator and legacy rule metadata", async () => {
+      const [evaluator, otherEvaluator] = await Promise.all(
+        ["Evaluator", "Other evaluator"].map((name) =>
+          prisma.evaluator.create({
+            data: { projectId, name, type: "CODE" },
+          }),
+        ),
+      );
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Legacy rule",
+          targetObject: "EVENT",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: { projectId, evaluatorId: evaluator.id },
+          },
+        },
+      });
+      const directScore = createTraceScore({
+        project_id: projectId,
+        name: "direct-score",
+        metadata: { evaluator_id: evaluator.id },
+      });
+      const legacyScore = createTraceScore({
+        project_id: projectId,
+        name: "legacy-score-with-a-different-name",
+        metadata: { job_configuration_id: rule.id },
+      });
+      const otherScore = createTraceScore({
+        project_id: projectId,
+        name: "other-score",
+        metadata: { evaluator_id: otherEvaluator.id },
+      });
+      await createScoresCh([directScore, legacyScore, otherScore]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "evaluatorId",
+            type: "stringOptions" as const,
+            operator: "any of" as const,
+            value: [evaluator.id, rule.id],
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" as const },
+        page: 0,
+        limit: 50,
+      };
+
+      const [scores, eventScores, count, eventCount] = await Promise.all([
+        caller.scores.all(payload),
+        caller.scores.allFromEvents(payload),
+        caller.scores.countAll({ ...payload, orderBy: null }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(new Set(scores.scores.map(({ id }) => id))).toEqual(
+        new Set([directScore.id, legacyScore.id]),
+      );
+      expect(new Set(eventScores.scores.map(({ id }) => id))).toEqual(
+        new Set([directScore.id, legacyScore.id]),
+      );
+      expect(count.totalCount).toBe(2);
+      expect(eventCount.totalCount).toBe(2);
+    });
+
+    it("does not match empty boolean representations when filtering boolean values", async () => {
+      const trueBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-true",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "True",
+      });
+      const falseBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-false",
+        data_type: "BOOLEAN",
+        value: 0,
+        string_value: "False",
+      });
+      const emptyBooleanScore = createTraceScore({
+        project_id: projectId,
+        name: "boolean-score-empty",
+        data_type: "BOOLEAN",
+        value: 1,
+        string_value: "",
+      });
+      const numericScore = createTraceScore({
+        project_id: projectId,
+        name: "numeric-score",
+        data_type: "NUMERIC",
+        value: 0.7,
+        string_value: null,
+      });
+
+      await createScoresCh([
+        trueBooleanScore,
+        falseBooleanScore,
+        emptyBooleanScore,
+        numericScore,
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "booleanValue",
+            type: "stringOptions" as const,
+            operator: "none of" as const,
+            value: ["false"],
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" as const },
+        page: 0,
+        limit: 50,
+      };
+
+      const result = await caller.scores.all(payload);
+      const resultFromEvents = await caller.scores.allFromEvents(payload);
+
+      expect(result.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+      expect(resultFromEvents.scores.map((score) => score.id)).toEqual([
+        trueBooleanScore.id,
+      ]);
+    });
+  });
+
+  describe("observation scope filter", () => {
+    it("lists trace-level scores for a trace-level owner span and for no other span", async () => {
+      const traceId = randomUUID();
+      const rootObservationId = randomUUID();
+      const childObservationId = randomUUID();
+
+      const traceLevelScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "trace-level-score",
+      });
+      const rootObservationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: rootObservationId,
+        name: "root-observation-score",
+      });
+      const childObservationScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: childObservationId,
+        name: "child-observation-score",
+      });
+
+      await createScoresCh([
+        traceLevelScore,
+        rootObservationScore,
+        childObservationScore,
+      ]);
+
+      const scoreIdsFor = async (
+        observationId: string,
+        includeTraceLevelScores: boolean,
+      ) => {
+        const payload = {
+          projectId,
+          filter: [
+            {
+              column: "traceId",
+              type: "string" as const,
+              operator: "=" as const,
+              value: traceId,
+            },
+            ...observationScopeFilter(observationId, includeTraceLevelScores),
+          ],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+          page: 0,
+          limit: 50,
+        };
+        const [v3, v4] = await Promise.all([
+          caller.scores.all(payload),
+          caller.scores.allFromEvents(payload),
+        ]);
+        return {
+          v3: v3.scores.map((score) => score.id).sort(),
+          v4: v4.scores.map((score) => score.id).sort(),
+        };
+      };
+
+      // Trace-level owner: its own score plus the trace-level one, each once.
+      const owner = await scoreIdsFor(rootObservationId, true);
+      const expectedOwnerScoreIds = [
+        traceLevelScore.id,
+        rootObservationScore.id,
+      ].sort();
+      expect(owner.v3).toEqual(expectedOwnerScoreIds);
+      expect(owner.v4).toEqual(expectedOwnerScoreIds);
+
+      // Any other span stays observation-scoped.
+      const child = await scoreIdsFor(childObservationId, false);
+      expect(child.v3).toEqual([childObservationScore.id]);
+      expect(child.v4).toEqual([childObservationScore.id]);
+    });
+  });
+
+  maybeEvents("scores.allFromEvents trace-name filters", () => {
+    it("keeps scores for semantic roots without a stored trace name", async () => {
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "semantic-root-score",
+        value: 0.9,
+      });
+
+      await createEventsCh([
+        createEvent({
+          trace_id: traceId,
+          project_id: projectId,
+          parent_span_id: "external-parent",
+          is_app_root: true,
+          name: "semantic-root-trace",
+          trace_name: "",
+        }),
+      ]);
+      await createScoresCh([score]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            operator: "=",
+            value: "semantic-root-trace",
+            type: "string",
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+
+      expect(result.scores.map(({ id }) => id)).toContain(score.id);
+    });
+  });
+
+  describe("scores.createAnnotationScore", () => {
+    it("rejects empty stringValue for boolean annotation scores", async () => {
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await expect(
+        caller.scores.createAnnotationScore({
+          projectId,
+          name: scoreName,
+          value: 1,
+          stringValue: "",
+          dataType: "BOOLEAN",
+          scoreTarget: { type: "trace", traceId: randomUUID() },
+          configId,
+          environment: "default",
+        } as any),
+      ).rejects.toThrow();
+    });
+
+    it("accepts explicit boolean annotation stringValue labels", async () => {
+      const traceId = randomUUID();
+      const configId = randomUUID();
+      const scoreName = `boolean-annotation-score-${configId.slice(0, 8)}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+        }),
+      ]);
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.BOOLEAN,
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        },
+      });
+
+      const score = await caller.scores.createAnnotationScore({
+        projectId,
+        name: scoreName,
+        value: 1,
+        stringValue: "True",
+        dataType: "BOOLEAN",
+        scoreTarget: { type: "trace", traceId },
+        configId,
+        environment: "default",
+      });
+
+      expect(score.stringValue).toBe("True");
+    });
   });
 
   describe("scores.deleteMany", () => {
@@ -259,10 +676,26 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scores.filterOptions", () => {
+    it("returns static boolean value options for both scores views", async () => {
+      await expect(
+        caller.scores.filterOptions({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
+
+      await expect(
+        caller.scores.filterOptionsFromEvents({ projectId }),
+      ).resolves.toMatchObject({
+        booleanValue: [{ value: "true" }, { value: "false" }],
+      });
+    });
+  });
+
   describe("scoreConfigs.all", () => {
     it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
       const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
-      const configIds = [randomUUID(), randomUUID(), randomUUID()];
+      const configIds: string[] = [randomUUID(), randomUUID(), randomUUID()];
 
       await prisma.scoreConfig.createMany({
         data: configIds.map((id, index) => ({
@@ -295,6 +728,86 @@ describe("scores trpc", () => {
 
       expect(tiedIds).toEqual(configIds.slice().sort());
       expect(new Set(tiedIds).size).toBe(configIds.length);
+    });
+  });
+
+  describe("scoreConfigs.appendCategory", () => {
+    it("keeps both categories when two appends race", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-race-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await Promise.all([
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "pen_testing",
+        }),
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "just_testing",
+        }),
+      ]);
+
+      const latest = await caller.scoreConfigs.byId({
+        projectId,
+        id: config.id,
+      });
+
+      expect(
+        latest.categories?.map((category) => category.label).sort(),
+      ).toEqual(["internal_user", "just_testing", "pen_testing"]);
+    });
+
+    it("rejects a duplicate label", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-dup-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "internal_user",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "A category with this name already exists",
+      });
+    });
+
+    it("rejects a non-categorical config", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-numeric-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "pen_testing",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Only categorical score configs can append categories.",
+      });
     });
   });
 });

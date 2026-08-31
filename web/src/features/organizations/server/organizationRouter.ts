@@ -5,22 +5,33 @@ import {
 } from "@/src/server/api/trpc";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  organizationFormSchema,
   organizationOptionalNameSchema,
-  organizationNameSchema,
 } from "@/src/features/organizations/utils/organizationNameSchema";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
-import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+import {
+  getLastTraceTimestampsByProjects,
+  isLangfuseAITracingConfigured,
+  redis,
+} from "@langfuse/shared/src/server";
+import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import {
   CROSS_PROJECT_TRACE_CORRELATION_KEY_MAX_LENGTH,
   CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN,
 } from "@/src/features/trace-correlation/constants";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  featurePreviewFlags,
+  filterFeaturePreviewFlags,
+} from "@/src/features/feature-flags/available-flags";
+import { setOrganizationFeatureFlagDefault } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import { parseFlags } from "@/src/features/feature-flags/utils";
 
 import { env } from "@/src/env.mjs";
 
@@ -32,8 +43,152 @@ const crossProjectTraceCorrelationKeySchema = z
   .regex(CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN);
 
 export const organizationsRouter = createTRPCRouter({
+  // Admin-only fallback for useOrganization: returns the org in the same shape
+  // as session.user.organizations[number], since admins are not members of
+  // customer orgs and have no session entry.
+  byId: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization = await buildAdminOrgContext(ctx);
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+      return organization;
+    }),
+  lastTraceByProject: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization =
+        ctx.session.user.admin === true
+          ? await buildAdminOrgContext(ctx)
+          : ctx.session.user.organizations.find(
+              (org) => org.id === ctx.session.orgId,
+            );
+
+      return getLastTraceTimestampsByProjects({
+        projectIds: organization?.projects.map((project) => project.id) ?? [],
+      });
+    }),
+  getFeatureFlagOrgDefaults: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature preview defaults are unavailable for the demo organization",
+        });
+      }
+
+      const organization = await ctx.prisma.organization.findUnique({
+        where: { id: input.orgId },
+        select: {
+          featureFlagOrgDefaults: true,
+          _count: { select: { organizationMemberships: true } },
+        },
+      });
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+
+      return {
+        defaults: filterFeaturePreviewFlags(
+          organization.featureFlagOrgDefaults,
+        ),
+        memberCount: organization._count.organizationMemberships,
+      };
+    }),
+  setFeatureFlagOrgDefault: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        flag: z.enum(featurePreviewFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature preview defaults are unavailable for the demo organization",
+        });
+      }
+
+      if (
+        input.enabled &&
+        env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES !== "true"
+      ) {
+        const actor = await ctx.prisma.user.findUnique({
+          where: { id: ctx.session.user.id },
+          select: {
+            email: true,
+            featureFlags: true,
+            v4BetaEnabled: true,
+          },
+        });
+        const actorHasPreviewEnabled =
+          actor !== null &&
+          parseFlags(actor.featureFlags, {
+            email: actor.email,
+            v4BetaEnabled:
+              ctx.session.user.v4BetaEnabled ?? actor.v4BetaEnabled,
+          })[input.flag] === true;
+        if (!actorHasPreviewEnabled) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "Enable and test this preview in your personal Feature Preview settings before enabling it for the organization.",
+          });
+        }
+      }
+
+      const result = await setOrganizationFeatureFlagDefault({
+        prisma: ctx.prisma,
+        orgId: input.orgId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "organization",
+        resourceId: input.orgId,
+        action: "updateFeatureFlagDefault",
+        before: { featureFlagOrgDefaults: result.before },
+        after: { featureFlagOrgDefaults: result.after },
+      });
+
+      return {
+        defaults: result.after,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
+    }),
   create: authenticatedProcedure
-    .input(organizationNameSchema)
+    .input(organizationFormSchema)
     .mutation(async ({ input, ctx }) => {
       if (!ctx.session.user.canCreateOrganizations)
         throw new TRPCError({
@@ -55,6 +210,7 @@ export const organizationsRouter = createTRPCRouter({
         const organization = await tx.organization.create({
           data: {
             name: input.name,
+            aiFeaturesEnabled: input.aiFeaturesEnabled,
             organizationMemberships: {
               create: {
                 userId: ctx.session.user.id,
@@ -129,9 +285,8 @@ export const organizationsRouter = createTRPCRouter({
       await getSfdcService()?.upsertOrg({
         orgId: organization.id,
         orgName: organization.name,
-        userId: ctx.session.user.id,
-        email: ctx.session.user.email,
-        role: "OWNER",
+        createdAt: organization.createdAt,
+        plan: "Hobby",
       });
       await getSfdcService()?.setUserRole({
         orgId: organization.id,
@@ -177,15 +332,22 @@ export const organizationsRouter = createTRPCRouter({
         scope: "organization:update",
       });
 
-      if (
-        (input.aiFeaturesEnabled !== undefined ||
-          input.aiTelemetryEnabled !== undefined) &&
-        !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "AI features are not available in self-hosted deployments.",
-        });
+      if (input.aiTelemetryEnabled !== undefined) {
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available on Langfuse Cloud.",
+          });
+        }
+
+        if (!isLangfuseAITracingConfigured()) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "AI telemetry controls are only available when the AI-features project is configured.",
+          });
+        }
       }
 
       const beforeOrganization = await ctx.prisma.organization.findFirst({
@@ -263,17 +425,17 @@ export const organizationsRouter = createTRPCRouter({
         });
       }
 
-      // Attempt to cancel Stripe subscription immediately (Cloud only) before deleting org
+      // Attempt to cancel the billing subscription immediately (Cloud only) before deleting org
       if (isCloudBillingEnabled()) {
         try {
-          const stripeBillingService = createBillingServiceFromContext(ctx);
-          await stripeBillingService.cancelImmediatelyAndInvoice(input.orgId);
+          const { service } = await resolveBillingService(ctx, input.orgId);
+          await service.cancelImmediatelyAndInvoice(input.orgId);
         } catch (e) {
           // If billing cancellation fails for reasons other than no subscription, abort deletion
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message:
-              "Failed to cancel Stripe subscription prior to organization deletion",
+              "Failed to cancel billing subscription prior to organization deletion",
             cause: e as Error,
           });
         }

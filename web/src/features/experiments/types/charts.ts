@@ -1,14 +1,3 @@
-import type { WidgetConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
-
-// Extended widget config for experiment charts with query-building fields
-// Omit conflicting properties from WidgetConfig that have readonly/mutable mismatches
-export interface ExperimentWidgetConfig extends WidgetConfig {
-  orderBy: readonly { field: string; direction: "asc" | "desc" }[];
-  timeDimension: null;
-  entityDimension: { field: string };
-  schedulerId?: string;
-}
-
 // Metric option for the per-slot dropdown
 export type MetricOption = {
   id: string;
@@ -19,15 +8,19 @@ export type MetricOption = {
 export type ScoreFilterOptions = {
   obs_scores_avg?: string[];
   obs_score_categories?: Record<string, string[]>;
+  obs_score_booleans?: string[];
   experiment_scores_avg?: string[];
   experiment_score_categories?: Record<string, string[]>;
+  experiment_score_booleans?: string[];
 };
 
 export type ExperimentItemScoreFilterOptions = {
   obs_scores_avg?: string[];
   obs_score_categories?: Record<string, string[]>;
+  obs_score_booleans?: string[];
   trace_scores_avg?: string[];
   trace_score_categories?: Record<string, string[]>;
+  trace_score_booleans?: string[];
 };
 
 export type ScoreLevel = "obs" | "experiment";

@@ -14,8 +14,9 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { processEventBatch } from "@langfuse/shared/src/server";
 import {
+  processEventBatch,
+  createIngestionAttribution,
   eventTypes,
   logger,
   traceDeletionProcessor,
@@ -31,6 +32,8 @@ import {
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares(
   {
@@ -42,7 +45,7 @@ export default withMiddlewares(
       // Legacy POST writes a trace-create event that lands in the legacy traces
       // ClickHouse table; events_only deployments expect OTel ingestion.
       rejectInEventsOnlyMode: true,
-      fn: async ({ body, auth, res }) => {
+      fn: async ({ body, auth, req, res }) => {
         await telemetry();
         const event = {
           id: v4(),
@@ -53,7 +56,12 @@ export default withMiddlewares(
         if (!event.body.id) {
           event.body.id = v4();
         }
-        const result = await processEventBatch([event], auth);
+        const result = await processEventBatch([event], auth, {
+          attribution: createIngestionAttribution({
+            headers: req.headers,
+            authCheck: auth,
+          }),
+        });
         if (result.errors.length > 0) {
           const error = result.errors[0];
           res
@@ -74,6 +82,7 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
+      deprecation: TRACES_DEPRECATION,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
@@ -100,6 +109,35 @@ export default withMiddlewares(
             referenceDateMs - defaultDateRangeDays * 24 * 60 * 60 * 1000,
           ).toISOString();
         }
+
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: effectiveFromTimestamp,
+        });
+        effectiveFromTimestamp =
+          dataAccessWindow.effectiveFromTimestamp?.toISOString();
+
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "timestamp",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toTimestamp
+                ? [
+                    {
+                      column: "timestamp",
+                      operator: "<" as const,
+                      value: new Date(query.toTimestamp),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
 
         // 3. Apply default fields if configured and no fields query param provided
         let effectiveFields = query.fields ?? undefined;
@@ -134,12 +172,12 @@ export default withMiddlewares(
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
               orderBy: query.orderBy ?? null,
             }),
             getTracesCountFromEventsTableForPublicApi({
               ...filterProps,
-              advancedFilters: query.filter,
+              advancedFilters,
             }),
           ]);
 
@@ -161,12 +199,12 @@ export default withMiddlewares(
         const [items, count] = await Promise.all([
           generateTracesForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
             orderBy: query.orderBy ?? null,
           }),
           getTracesCountForPublicApi({
             props: filterProps,
-            advancedFilters: query.filter,
+            advancedFilters,
           }),
         ]);
 

@@ -11,7 +11,7 @@ export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
           <div className="text-xs text-gray-500 dark:text-gray-400">
             Tool called
           </div>
-          <div className="mt-1 overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap">
+          <div className="mt-1 overflow-hidden text-xs font-bold text-ellipsis whitespace-nowrap">
             {toolCall.name}
           </div>
         </div>

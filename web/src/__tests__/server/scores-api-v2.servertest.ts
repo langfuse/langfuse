@@ -4,8 +4,6 @@ import {
   createTrace,
   createSessionScore,
   createDatasetRunScore,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
@@ -16,6 +14,17 @@ import { GetScoreResponseV2, GetScoresResponseV2 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
+
+// GetScoresResponseV2 rows are a union where only the trace-enriched branch
+// carries `trace`; narrow to that branch for assertions on trace fields.
+type ScoreV2WithTrace = z.infer<typeof GetScoresResponseV2>["data"][number] & {
+  trace?: {
+    userId?: string | null;
+    tags?: string[] | null;
+    environment?: string | null;
+    sessionId?: string | null;
+  } | null;
+};
 
 describe("/api/public/v2/scores API Endpoint", () => {
   describe("GET /api/public/v2/scores/:scoreId", () => {
@@ -235,6 +244,45 @@ describe("/api/public/v2/scores API Endpoint", () => {
   });
 
   describe("GET /api/public/scores", () => {
+    it("clamps Hobby score access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = v4();
+      const recentId = v4();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: fixture.projectId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          id: oldId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+        }),
+        createTraceScore({
+          id: recentId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoresResponseV2,
+        "GET",
+        "/api/public/v2/scores",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((score) => score.id)).toContain(recentId);
+      expect(response.body.data.map((score) => score.id)).not.toContain(oldId);
+    });
+
     describe("should Filter scores", () => {
       let configId = "";
       const userId = "user-name";
@@ -625,9 +673,10 @@ describe("/api/public/v2/scores API Endpoint", () => {
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
-          expect(val.traceId).toBe(traceId);
-          expect(val.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
-          expect(val.trace?.userId).toBe("user-name");
+          const score = val as ScoreV2WithTrace;
+          expect(score.traceId).toBe(traceId);
+          expect(score.trace?.tags?.sort()).toEqual(["prod", "test"].sort());
+          expect(score.trace?.userId).toBe("user-name");
         }
       });
 
@@ -1842,7 +1891,7 @@ describe("/api/public/v2/scores API Endpoint", () => {
         expect(getScores.body.data).toHaveLength(3);
         // All scores should have trace as null
         for (const score of getScores.body.data) {
-          expect(score.trace).toBeNull();
+          expect((score as ScoreV2WithTrace).trace).toBeNull();
         }
       });
     });

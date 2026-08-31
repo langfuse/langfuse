@@ -1,3 +1,4 @@
+import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -27,14 +28,17 @@ import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
-import { type RowSelectionState } from "@tanstack/react-table";
+import { useStore } from "zustand";
 import TableIdOrName from "@/src/components/table/table-id";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -44,10 +48,6 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/IOTableCell";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
@@ -61,6 +61,19 @@ import {
 } from "@/src/components/ui/accordion";
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
+import {
+  createExperimentsTableStore,
+  type ExperimentsTableStore,
+} from "@/src/features/experiments/store/experimentsTableStore";
+import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  baselineChangedProps,
+  comparisonChangedProps,
+  chartsSectionToggledProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -88,11 +101,177 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
   return next;
 };
 
+/**
+ * Owns every consumer of the selection state (action menu, compare navigation,
+ * run-evaluator dialog) so checkbox clicks re-render only this menu and the
+ * clicked checkbox — not the whole ExperimentsTable.
+ */
+function ExperimentsMultiSelectActionMenu({
+  projectId,
+  store,
+  datasetIdByExperimentId,
+}: {
+  projectId: string;
+  store: ExperimentsTableStore;
+  datasetIdByExperimentId: Record<string, string>;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
+  // Page-scoped and in table order, so the first id is the topmost selected
+  // row — the compare baseline.
+  const selectedExperimentIds = useStore(
+    store,
+    (state) => state.selectedPageRowIds,
+  );
+  const clearSelection = useStore(
+    store,
+    (state) => state.actions.clearSelection,
+  );
+
+  const hasEvalAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
+
+  // Build query with experiment context filter for batch actions
+  const batchActionQuery = useMemo(
+    () => ({
+      filter:
+        selectedExperimentIds.length > 0
+          ? [
+              {
+                column: "experimentId" as const,
+                operator: "any of" as const,
+                value: selectedExperimentIds,
+                type: "stringOptions" as const,
+              },
+              {
+                column: "isExperimentItemRootSpan" as const,
+                operator: "=" as const,
+                value: true,
+                type: "boolean" as const,
+              },
+            ]
+          : [],
+      orderBy: { column: "startTime" as const, order: "DESC" as const },
+    }),
+    [selectedExperimentIds],
+  );
+
+  // Handler for comparing selected experiments
+  // First selected becomes baseline, rest become comparisons
+  const handleCompareSelected = () => {
+    if (selectedExperimentIds.length === 0) return;
+
+    const [baseline, ...comparisons] = selectedExperimentIds;
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiments",
+        comparisonCount: comparisons.length,
+        datasetIds: selectedExperimentIds.map(
+          (id) => datasetIdByExperimentId[id],
+        ),
+        source: "table-selection",
+      }),
+    );
+    capture(
+      "experiment:baseline_changed",
+      baselineChangedProps({
+        tableName: "experiments",
+        source: "table-selection",
+      }),
+    );
+    const params = new URLSearchParams();
+    params.set("baseline", baseline);
+    comparisons.forEach((id) => {
+      params.append("c", id);
+    });
+
+    router.push(
+      `/project/${projectId}/experiments/results?${params.toString()}`,
+    );
+  };
+
+  if (selectedExperimentIds.length === 0) return null;
+
+  // Build table actions - Compare is disabled (not hidden) when >MAX_SELECTED_EXPERIMENTS rows selected
+  const tooManySelected =
+    selectedExperimentIds.length > MAX_SELECTED_EXPERIMENTS;
+  const tableActions: TableAction[] = [
+    {
+      id: ActionId.ExperimentCompare,
+      type: BatchActionType.Create,
+      label: "Compare",
+      description: "Compare selected experiments",
+      icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
+      customDialog: true,
+      disabled: tooManySelected,
+      disabledReason: tooManySelected
+        ? `Select only up to ${MAX_SELECTED_EXPERIMENTS} experiments to compare`
+        : undefined,
+      accessCheck: {
+        scope: "project:read",
+      },
+    } as TableAction,
+    ...(hasEvalAccess
+      ? [
+          {
+            id: ActionId.ObservationBatchEvaluation,
+            type: BatchActionType.Create,
+            label: "Run Evaluator",
+            description: "Run evaluators on selected experiments",
+            icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+            customDialog: true,
+            accessCheck: {
+              scope: "evaluationRule:CUD",
+            },
+          } as TableAction,
+        ]
+      : []),
+  ];
+
+  return (
+    <>
+      <TableActionMenu
+        projectId={projectId}
+        actions={tableActions}
+        tableName={BatchExportTableName.Sessions}
+        selectedCount={selectedExperimentIds.length}
+        onClearSelection={clearSelection}
+        onCustomAction={(actionId) => {
+          if (actionId === ActionId.ExperimentCompare) {
+            handleCompareSelected();
+          } else if (actionId === ActionId.ObservationBatchEvaluation) {
+            setShowRunEvaluationDialog(true);
+          }
+        }}
+      />
+      {showRunEvaluationDialog && (
+        <RunEvaluationDialog
+          projectId={projectId}
+          selectedObservationIds={[]}
+          query={batchActionQuery}
+          selectAll={true}
+          totalCount={selectedExperimentIds.length}
+          onClose={() => {
+            setShowRunEvaluationDialog(false);
+            clearSelection();
+          }}
+          sourceTable="experiments"
+        />
+      )}
+    </>
+  );
+}
+
 export default function ExperimentsTable({
   projectId,
   defaultFilter,
   fixedFilter = [],
   sessionFilterContextId,
+  showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
   const filterConfig = useMemo(
@@ -106,13 +285,9 @@ export default function ExperimentsTable({
   );
 
   const { setDetailPageList } = useDetailPageLists();
-  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
-
-  const hasEvalAccess = useHasProjectAccess({
-    projectId,
-    scope: "evalJob:CUD",
-  });
+  // Selection lives in a per-mount vanilla zustand store (not useState) so a
+  // checkbox click re-renders only its subscribers, not the whole table.
+  const [experimentsTableStore] = useState(() => createExperimentsTableStore());
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
@@ -128,7 +303,10 @@ export default function ExperimentsTable({
     order: "DESC",
   });
 
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId, {
+    defaultRelativeAggregation: "last30Days",
+    persistAsDefault: false,
+  });
 
   // Convert timeRange to absolute date range for compatibility
   const tableDateRange = useMemo(() => {
@@ -168,6 +346,7 @@ export default function ExperimentsTable({
     loading: isFilterOptionsPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
+    isV4: true,
   });
 
   // Apply default filter on mount (only if no existing filter)
@@ -279,8 +458,9 @@ export default function ExperimentsTable({
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
     projectId,
     tableName: "experiments",
-    setSelectedRows,
-    setSelectAll: () => {}, // Experiments table doesn't support select-all
+    setSelectedRows: experimentsTableStore.getState().actions.setRowSelection,
+    setSelectAll: experimentsTableStore.getState().actions.setSelectAll,
+    selectionStore: experimentsTableStore,
   });
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
@@ -296,48 +476,31 @@ export default function ExperimentsTable({
         return value ? <TableIdOrName value={value} /> : undefined;
       },
     },
-    {
+    createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
-      id: "description",
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("description");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       // Placed here (right after the identifying name/description columns) rather
       // than last so it is never the trailing column. As the last column its right
       // resize handle sat flush against the table edge and could not be dragged
       // wider in a maximized browser (LFE-10460).
       accessorKey: "metadata",
-      id: "metadata",
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
+      singleLine: rowHeight === "s",
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
-      id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      cell: ({ row }) => {
-        const value: number = row.getValue("itemCount");
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0, 0),
+    }),
     {
       accessorKey: "errorCount",
       id: "errorCount",
@@ -356,18 +519,13 @@ export default function ExperimentsTable({
       },
       enableHiding: true,
     },
-    {
+    createDateTableColumn<ExperimentsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: getExperimentsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "datasetId",
       id: "datasetId",
@@ -435,33 +593,23 @@ export default function ExperimentsTable({
         );
       },
     },
-    {
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "latencyAvg",
-      id: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined || value === null) return undefined;
-        return <span>{numberFormatter(value / 1000, 4)}s</span>;
-      },
-    },
-    {
+      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "totalCost",
-      id: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined || value === null) return undefined;
-        return <span>${numberFormatter(value, 6)}</span>;
-      },
-    },
+      formatter: (value) => `$${numberFormatter(value, 6)}`,
+    }),
     {
       accessorKey: "traceItemScores",
       header: "Trace Item Scores",
@@ -569,109 +717,70 @@ export default function ExperimentsTable({
   }, [rows]);
 
   // Charts accordion collapsed state (persisted in session storage)
+  const capture = usePostHogClientCapture();
   const { accordionValue, setAccordionValue } =
     useExperimentChartsAccordion(projectId);
 
-  // Get selected experiment IDs in the order they appear in the table
-  const selectedExperimentIds = useMemo(() => {
-    const selectedIds = Object.keys(selectedRows).filter((id) =>
-      rows.some((row) => row.id === id),
-    );
-    // Sort by table order to ensure first selected = first in table among selected
-    return rows
-      .filter((row) => selectedIds.includes(row.id))
-      .map((row) => row.id);
-  }, [selectedRows, rows]);
+  const datasetIdByExperimentId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.id] = row.datasetId;
+    }
+    return map;
+  }, [rows]);
 
-  // Build query with experiment context filter for batch actions
-  const batchActionQuery = useMemo(
-    () => ({
-      filter:
-        selectedExperimentIds.length > 0
-          ? [
-              {
-                column: "experimentId" as const,
-                operator: "any of" as const,
-                value: selectedExperimentIds,
-                type: "stringOptions" as const,
-              },
-              {
-                column: "isExperimentItemRootSpan" as const,
-                operator: "=" as const,
-                value: true,
-                type: "boolean" as const,
-              },
-            ]
-          : [],
-      orderBy: { column: "startTime" as const, order: "DESC" as const },
-    }),
-    [selectedExperimentIds],
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiments",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
   );
 
-  // Handler for comparing selected experiments
-  // First selected becomes baseline, rest become comparisons
-  const handleCompareSelected = useCallback(() => {
-    if (selectedExperimentIds.length === 0) return;
+  const handleChartsAccordionChange = useCallback(
+    (value: string) => {
+      const isExpanded = value === "charts";
+      const wasExpanded = accordionValue === "charts";
+      if (isExpanded !== wasExpanded) {
+        capture(
+          "experiment:charts_section_toggled",
+          chartsSectionToggledProps({
+            tableName: "experiments",
+            isExpanded,
+          }),
+        );
+      }
+      setAccordionValue(value);
+    },
+    [accordionValue, capture, setAccordionValue],
+  );
 
-    const [baseline, ...comparisons] = selectedExperimentIds;
-    const params = new URLSearchParams();
-    params.set("baseline", baseline);
-    comparisons.forEach((id) => {
-      params.append("c", id);
-    });
-
-    router.push(
-      `/project/${projectId}/experiments/results?${params.toString()}`,
-    );
-  }, [selectedExperimentIds, projectId, router]);
-
-  // Build table actions - Compare is disabled (not hidden) when >5 rows selected
-  const tableActions: TableAction[] = useMemo(() => {
-    const actions: TableAction[] = [];
-
-    // Compare action: disabled when >5 experiments selected
-    const tooManySelected = selectedExperimentIds.length > 5;
-    actions.push({
-      id: ActionId.ExperimentCompare,
-      type: BatchActionType.Create,
-      label: "Compare",
-      description: "Compare selected experiments",
-      icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
-      customDialog: true,
-      disabled: tooManySelected,
-      disabledReason: tooManySelected
-        ? "Select only up to 5 experiments to compare"
-        : undefined,
-      accessCheck: {
-        scope: "project:read",
-      },
-    } as TableAction);
-
-    // Run Evaluator action: only when user has eval access
-    if (hasEvalAccess) {
-      actions.push({
-        id: ActionId.ObservationBatchEvaluation,
-        type: BatchActionType.Create,
-        label: "Run Evaluator",
-        description: "Run evaluators on selected experiments",
-        icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
-        customDialog: true,
-        accessCheck: {
-          scope: "evalJob:CUD",
-        },
-      } as TableAction);
-    }
-
-    return actions;
-  }, [selectedExperimentIds.length, hasEvalAccess]);
-
-  const shouldShowActions =
-    selectedExperimentIds.length > 0 && tableActions.length > 0;
+  // Mirror the visible page's rows into the store (in table order, so
+  // selectedPageRowIds keeps the first-selected-in-table-order semantics
+  // the compare baseline relies on).
+  const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+  useExperimentsTableSelectionSync({
+    store: experimentsTableStore,
+    pageRowIds,
+    totalCount,
+  });
 
   return (
     <>
-      <DataTableControlsProvider>
+      <DataTableControlsProvider tableName={filterConfig.tableName}>
         <div className="flex h-full w-full flex-col">
+          {showControlsInPageHeader && (
+            <TableHeaderControls
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+            />
+          )}
           {/* Toolbar spanning full width */}
           <DataTableToolbar
             columns={columns}
@@ -681,6 +790,9 @@ export default function ExperimentsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={filterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["name", "datasetId"]}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}
@@ -689,30 +801,15 @@ export default function ExperimentsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
+            timeRange={showControlsInPageHeader ? undefined : timeRange}
+            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
             actionButtons={[
-              ...(shouldShowActions
-                ? [
-                    <TableActionMenu
-                      key="experiments-multi-select-actions"
-                      projectId={projectId}
-                      actions={tableActions}
-                      tableName={BatchExportTableName.Sessions}
-                      selectedCount={selectedExperimentIds.length}
-                      onClearSelection={() => setSelectedRows({})}
-                      onCustomAction={(actionId) => {
-                        if (actionId === ActionId.ExperimentCompare) {
-                          handleCompareSelected();
-                        } else if (
-                          actionId === ActionId.ObservationBatchEvaluation
-                        ) {
-                          setShowRunEvaluationDialog(true);
-                        }
-                      }}
-                    />,
-                  ]
-                : []),
+              <ExperimentsMultiSelectActionMenu
+                key="experiments-multi-select-actions"
+                projectId={projectId}
+                store={experimentsTableStore}
+                datasetIdByExperimentId={datasetIdByExperimentId}
+              />,
             ]}
           />
 
@@ -722,12 +819,12 @@ export default function ExperimentsTable({
               type="single"
               collapsible
               value={accordionValue}
-              onValueChange={setAccordionValue}
+              onValueChange={handleChartsAccordionChange}
             >
               <AccordionItem value="charts" className="border-t">
                 <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Charts</span>
+                    <span className="text-sm font-bold">Charts</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
@@ -754,7 +851,7 @@ export default function ExperimentsTable({
             <div className="flex flex-1 flex-col overflow-hidden">
               <DataTable
                 key={`experiments-table-${dataUpdatedAt}`}
-                tableName={"experiments"}
+                tableName="experiments"
                 columns={columns}
                 data={
                   experiments.status === "loading" || isViewLoading
@@ -791,8 +888,7 @@ export default function ExperimentsTable({
                     pageSize: paginationState.limit,
                   },
                 }}
-                rowSelection={selectedRows}
-                setRowSelection={setSelectedRows}
+                selectionStore={experimentsTableStore}
                 setOrderBy={setOrderByState}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
@@ -821,21 +917,6 @@ export default function ExperimentsTable({
           </ResizableFilterLayout>
         </div>
       </DataTableControlsProvider>
-
-      {showRunEvaluationDialog && selectedExperimentIds.length > 0 && (
-        <RunEvaluationDialog
-          projectId={projectId}
-          selectedObservationIds={[]}
-          query={batchActionQuery}
-          selectAll={true}
-          totalCount={selectedExperimentIds.length}
-          onClose={() => {
-            setShowRunEvaluationDialog(false);
-            setSelectedRows({});
-          }}
-          sourceTable="experiments"
-        />
-      )}
     </>
   );
 }

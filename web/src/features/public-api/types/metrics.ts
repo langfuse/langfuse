@@ -1,4 +1,5 @@
 import {
+  deprecationResponseZod,
   InvalidRequestError,
   paginationMetaResponseZod,
   publicApiPaginationZod,
@@ -27,7 +28,7 @@ export const publicGranularities = granularities.extract([
 /**
  * Query Object Structure
  */
-export const MetricsQueryObject = z
+const MetricsQueryObject = z
   .object({
     // Pagination parameters
     // page: z.number().min(1).default(1),
@@ -155,6 +156,7 @@ export const GetMetricsV2Query = z.object({
     .pipe(MetricsQueryObjectV2),
 });
 
+/** @alias */
 export const GetMetricsV2Response = GetMetricsV1Response;
 
 // Get /metrics/daily
@@ -193,5 +195,6 @@ export const GetMetricsDailyV1Response = z
         .strict(),
     ),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();

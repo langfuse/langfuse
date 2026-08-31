@@ -1,0 +1,77 @@
+{
+  "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
+  // Re-enable once Knip tracks all workspace packages and catalog entries stop false-positiveing.
+  "rules": {
+    "catalog": "off",
+  },
+  "workspaces": {
+    "packages/shared": {
+      "ignoreFiles": [
+        // Standalone helper invoked manually as documented in the adjacent framework-traces README.
+        "scripts/seeder/utils/framework-traces/merge-observations.ts",
+      ],
+    },
+    "worker": {
+      "entry": [
+        // Migration implementations are loaded dynamically from script names persisted in the database.
+        "src/backgroundMigrations/*.ts",
+        // Loaded through a dynamic require from the tokenisation worker thread.
+        "src/features/tokenisation/usage.ts",
+      ],
+      "ignoreFiles": [
+        // Standalone fixture downloader invoked manually as documented in the adjacent README.
+        "src/__tests__/chatml/framework-traces/download_traces.js",
+        // Updated by release-it even though worker runtime code does not import it.
+        "src/constants/VERSION.ts",
+        // Runtime worker entry loaded by filename through node:worker_threads in source environments.
+        "src/features/tokenisation/worker-thread.js",
+        // Compiled runtime worker entry loaded by filename through node:worker_threads.
+        "src/features/tokenisation/worker-thread.ts",
+        // Operational and maintenance scripts are invoked directly or through package scripts, not imported.
+        "src/scripts/**/*.{ts,js}",
+      ],
+    },
+    "web": {
+      "ignoreFiles": [
+        // Standalone benchmark invoked directly with Node rather than imported by the application.
+        "src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",
+      ],
+      // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
+      "project": ["src/**/*.{ts,tsx,mjs}"],
+      "ignoreDependencies": [
+        // Tailwind loads this plugin from an @plugin directive in globals.css.
+        "@tailwindcss/forms",
+        // Tailwind loads this plugin from an @plugin directive in globals.css.
+        "@tailwindcss/typography",
+        // Tailwind loads this plugin from an @plugin directive in globals.css.
+        "tailwindcss-animate",
+        // Turbopack resolves this loader from its string name in next.config.mjs.
+        "raw-loader",
+        // The next-auth patch requires this module from core/lib/oauth/client.js.
+        "https-proxy-agent",
+      ],
+    },
+    "ee": {
+      "project": ["src/**/*.ts"],
+    },
+    "packages/in-app-agent-sandbox-runtime": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
+    },
+    "packages/config-eslint": {
+      "project": ["*.js"],
+      // eslint-plugin-import loads these from the resolver names in next.js settings.
+      "ignoreDependencies": [
+        "eslint-import-resolver-node",
+        "eslint-import-resolver-typescript",
+      ],
+    },
+    "packages/eslint-plugin": {
+      "project": ["src/**/*.ts"],
+    },
+    "packages/config-typescript": {
+      // The shared Next.js tsconfig names a plugin supplied by its consuming workspace.
+      "ignoreUnresolved": ["next"],
+    },
+  },
+}

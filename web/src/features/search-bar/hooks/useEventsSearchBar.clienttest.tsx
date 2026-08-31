@@ -19,6 +19,7 @@ function setup(
   const { result } = renderHook(() =>
     useEventsSearchBar({
       projectId: "p",
+      tableName: "observations",
       enabled: true,
       filterState: [],
       searchQuery: "refund",
@@ -32,6 +33,35 @@ function setup(
   );
   return { result, setFilterState, setSearchQuery, setSearchType };
 }
+
+describe("useEventsSearchBar.commit", () => {
+  it("fully replaces hidden filters when a query preset is picked", () => {
+    const hiddenFilter: FilterState = [
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["legacy-scope"],
+      },
+    ];
+    const { result, setFilterState } = setup({
+      filterState: hiddenFilter,
+      searchQuery: null,
+    });
+
+    act(() => result.current.store.getState().actions.setDraft("level:ERROR"));
+    act(() => result.current.commit("pick", { replaceHidden: true }));
+
+    expect(setFilterState).toHaveBeenCalledWith([
+      {
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ]);
+  });
+});
 
 describe("useEventsSearchBar.applyFilters", () => {
   it("clears the free-text lane so refine actually drops it", () => {

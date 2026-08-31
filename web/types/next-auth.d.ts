@@ -1,4 +1,4 @@
-import { type DefaultSession, type DefaultUser } from "next-auth";
+import { type DefaultSession } from "next-auth";
 import {
   type User as PrismaUser,
   type Project as PrismaProject,
@@ -6,8 +6,7 @@ import {
   type Role,
 } from "@langfuse/shared/src/db";
 import { type Flags } from "@/src/features/feature-flags/types";
-import { type CloudConfigSchema } from "@langfuse/shared";
-import { type Plan } from "@langfuse/shared";
+import { type CloudConfigSchema, type Plan } from "@langfuse/shared";
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -17,10 +16,62 @@ import { type Plan } from "@langfuse/shared";
  */
 declare module "next-auth" {
   interface Session extends DefaultSession {
-    user: User | null; // null if user does not exist anymore in the database but has active jwt
+    user:
+      | ({
+          id: PrismaUser["id"];
+          name?: PrismaUser["name"];
+          email?: PrismaUser["email"];
+          emailSupportHash?: string | null;
+          image?: PrismaUser["image"];
+          admin?: PrismaUser["admin"];
+          v4BetaEnabled?: boolean;
+          canToggleV4?: boolean;
+          // Whether this deployment shows the v4 migration UI (sidebar pill,
+          // organization-overview chips and banner, panel, status page). Derived
+          // from the write mode in the session callback — see
+          // isV4UpgradeUiAvailable. This is the gate every migration surface
+          // reads, via useV4UpgradeUiEnabled; there is no per-user opt-in.
+          v4UpgradeUiAvailable?: boolean;
+          emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
+          canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
+          organizations: {
+            id: PrismaOrganization["id"];
+            name: PrismaOrganization["name"];
+            role: Role;
+            cloudConfig: CloudConfigSchema | undefined;
+            plan: Plan;
+            metadata: Record<string, unknown>;
+            aiFeaturesEnabled: boolean;
+            aiTelemetryEnabled: boolean;
+            crossProjectTraceTrackingEnabled?: boolean;
+            crossProjectTraceCorrelationKey?: string;
+            featureFlags?: Flags;
+            projects: {
+              id: PrismaProject["id"];
+              name: PrismaProject["name"];
+              deletedAt: PrismaProject["deletedAt"];
+              retentionDays: PrismaProject["retentionDays"];
+              hasTraces: PrismaProject["hasTraces"];
+              metadata: Record<string, unknown>;
+              role: Role; // include only projects where user has a role
+              createdAt: string; // iso datetime string — JWT does not support Date objects
+            }[];
+          }[];
+          featureFlags: Flags;
+          hasPassword?: boolean;
+        } & DefaultSession["user"])
+      | null; // null if user does not exist anymore in the database but has active jwt
+
     environment: {
       // Run-time environment variables that need to be available client-side
       enableExperimentalFeatures: boolean;
+      // Instance-wide in-app agent switch. Populated by the session callback.
+      // Optional so existing session mocks need not set it.
+      inAppAgentEnabled?: boolean;
+      // Whether LANGFUSE_AI_FEATURES_PROJECT_ID is set, so Cloud orgs can
+      // opt out of product traces. Optional so existing session mocks need
+      // not set it.
+      aiFeaturesTracingConfigured?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
       // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the
@@ -32,42 +83,9 @@ declare module "next-auth" {
     };
   }
 
-  interface User extends DefaultUser {
-    id: PrismaUser["id"];
-    name?: PrismaUser["name"];
-    email?: PrismaUser["email"];
-    emailSupportHash?: string | null;
-    image?: PrismaUser["image"];
-    admin?: PrismaUser["admin"];
-    v4BetaEnabled?: boolean;
-    canToggleV4?: boolean;
-    emailVerified?: string | null; // iso datetime string, need to stringify as JWT & useSession do not support Date objects
-    canCreateOrganizations: boolean; // default true, allowlist can be set via LANGFUSE_ALLOWED_ORGANIZATION_CREATORS
-    organizations: {
-      id: PrismaOrganization["id"];
-      name: PrismaOrganization["name"];
-      role: Role;
-      cloudConfig: CloudConfigSchema | undefined;
-      plan: Plan;
-      metadata: Record<string, unknown>;
-      aiFeaturesEnabled: boolean;
-      aiTelemetryEnabled: boolean;
-      crossProjectTraceTrackingEnabled: boolean;
-      crossProjectTraceCorrelationKey: string;
-      projects: {
-        id: PrismaProject["id"];
-        name: PrismaProject["name"];
-        deletedAt: PrismaProject["deletedAt"];
-        retentionDays: PrismaProject["retentionDays"];
-        hasTraces: PrismaProject["hasTraces"];
-        metadata: Record<string, unknown>;
-        role: Role; // include only projects where user has a role
-        createdAt: string; // iso datetime string — JWT does not support Date objects
-      }[];
-    }[];
-    featureFlags: Flags;
-    hasPassword?: boolean;
-  }
+  // Do not add `interface User extends DefaultUser` here.
+  // OAuth provider `profile` callbacks return `User` before the session callback enriches it.
+  // App-specific fields therefore belong on `Session.user`.
 }
 
 declare module "next-auth/jwt" {

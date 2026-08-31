@@ -2,7 +2,6 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import type { ColumnDefinition } from "@langfuse/shared";
 
 // Temporary column definitions for experiments
@@ -97,6 +96,13 @@ export const experimentsTableCols: ColumnDefinition[] = [
     options: [],
     nullable: true,
   },
+  {
+    name: "Scores (boolean)",
+    id: "obs_score_booleans",
+    type: "booleanObject",
+    internal: "obs_score_booleans",
+    nullable: true,
+  },
   // Trace-level scores (ets.* alias in backend)
   {
     name: "Trace Scores (numeric)",
@@ -112,6 +118,13 @@ export const experimentsTableCols: ColumnDefinition[] = [
     options: [],
     nullable: true,
   },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
+    nullable: true,
+  },
 ];
 
 // Helper function to get column name from experimentsTableCols by ID
@@ -123,14 +136,7 @@ export const getExperimentsColumnName = (id: string): string => {
   return column.name;
 };
 
-/**
- * Maps frontend column IDs to backend-expected column IDs for experiments table
- */
-export const EXPERIMENTS_COLUMN_TO_BACKEND_KEY: ColumnToBackendKeyMap = {
-  // No mapping needed currently
-};
-
-export const experimentsFilterConfig: FilterConfig = {
+const experimentsFilterConfig: FilterConfig = {
   tableName: "experiments",
 
   columnDefinitions: experimentsTableCols,
@@ -164,6 +170,11 @@ export const experimentsFilterConfig: FilterConfig = {
       column: "obs_scores_avg",
       label: getExperimentsColumnName("obs_scores_avg"),
     },
+    {
+      type: "booleanKeyValue" as const,
+      column: "obs_score_booleans",
+      label: getExperimentsColumnName("obs_score_booleans"),
+    },
     // Trace-level scores
     {
       type: "keyValue" as const,
@@ -174,6 +185,11 @@ export const experimentsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: getExperimentsColumnName("trace_scores_avg"),
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "trace_score_booleans",
+      label: getExperimentsColumnName("trace_score_booleans"),
     },
   ],
 };

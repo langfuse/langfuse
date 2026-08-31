@@ -1,9 +1,10 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-import { convertDateToClickhouseDateTime } from "../../../server/clickhouse/client";
 import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
 import {
+  bindUtcDateTimeParam,
   FilterList,
+  filtersRequireEventsFull,
   type Filter,
 } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
@@ -18,6 +19,7 @@ import type {
 import {
   query as queryModel,
   getValidAggregationsForMeasureType,
+  SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
 import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
@@ -43,6 +45,7 @@ type AppliedDimensionType = {
 type AppliedMetricType = {
   sql: string;
   aggregation: z.infer<typeof metricAggregations>;
+  queryAggregation?: z.infer<typeof metricAggregations>;
   alias?: string;
   relationTable?: string;
   aggs?: Record<string, string>;
@@ -135,7 +138,9 @@ export class QueryBuilder {
   }
 
   private translateAggregation(metric: AppliedMetricType): string {
-    switch (metric.aggregation) {
+    const aggregation = metric.queryAggregation ?? metric.aggregation;
+
+    switch (aggregation) {
       case "sum":
         return `sum(${metric.alias || metric.sql})`;
       case "avg":
@@ -165,16 +170,16 @@ export class QueryBuilder {
         return `uniq(${metric.alias || metric.sql})`;
       default: {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const exhaustiveCheck: never = metric.aggregation;
+        const exhaustiveCheck: never = aggregation;
         throw new InvalidRequestError(
-          `Invalid aggregation: ${metric.aggregation satisfies never}`,
+          `Invalid aggregation: ${aggregation satisfies never}`,
         );
       }
     }
   }
 
   private getViewDeclaration(
-    viewName: z.infer<typeof views>,
+    viewName: z.infer<typeof views> | typeof SCORES_LISTABLE_COUNT_VIEW,
   ): ViewDeclarationType {
     return getViewDeclaration(viewName, this.version);
   }
@@ -301,16 +306,23 @@ export class QueryBuilder {
         );
       }
       const measureDef = view.measures[metric.measure];
-      const validAggs = getValidAggregationsForMeasureType(measureDef.type);
+      const aggregationOverride =
+        measureDef.aggregationOverrides?.[metric.aggregation];
+      const resolvedMeasureDef = aggregationOverride
+        ? { ...measureDef, ...aggregationOverride }
+        : measureDef;
+      const validAggs = getValidAggregationsForMeasureType(
+        resolvedMeasureDef.type,
+      );
       if (!validAggs.includes(metric.aggregation)) {
         throw new InvalidRequestError(
-          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${measureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
+          `Aggregation "${metric.aggregation}" is not valid for measure "${metric.measure}" (type: ${resolvedMeasureDef.type}). Valid aggregations: ${validAggs.join(", ")}`,
         );
       }
       return {
-        ...view.measures[metric.measure],
+        ...resolvedMeasureDef,
         aggregation: metric.aggregation,
-        aggs: view.measures[metric.measure].aggs,
+        aggs: resolvedMeasureDef.aggs,
         measureName: metric.measure,
       };
     });
@@ -325,6 +337,12 @@ export class QueryBuilder {
       const dimension = this.resolveDimension(filter.column, view);
 
       if (dimension) {
+        if (dimension.pairExpand) {
+          throw new InvalidRequestError(
+            `Field '${filter.column}' cannot be used as a filter.`,
+          );
+        }
+
         const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
           dimension.type,
         );
@@ -962,12 +980,13 @@ export class QueryBuilder {
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
     // When the view has a rootEventCondition, prefer the root event's timestamp for
-    // time bucketing. Falls back to min(start_time) when no root event exists for a
-    // trace (e.g. parent_span_id is not populated).
+    // time bucketing. Falls back to min(start_time) when no semantic-root event
+    // exists for a trace.
     let wrappedSql: string;
     if (wrapInAgg && view.rootEventCondition) {
-      const alias = this.tableAlias(view);
-      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${alias}.${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
+      // The condition owns its qualification because prefixing a compound SQL
+      // expression here would produce invalid SQL such as `alias.(a OR b)`.
+      wrappedSql = `ifNull(anyIf(toNullable(${timeDimensionSql}), ${view.rootEventCondition.condition}), min(${timeDimensionSql}))`;
     } else if (wrapInAgg) {
       wrappedSql = `${wrapInAgg}(${timeDimensionSql})`;
     } else {
@@ -1236,14 +1255,18 @@ export class QueryBuilder {
         step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown
     }
 
-    parameters["fillFromDate"] = convertDateToClickhouseDateTime(
+    const fillFromDateParam = bindUtcDateTimeParam(
+      "fillFromDate",
       new Date(fromTimestamp),
     );
-    parameters["fillToDate"] = convertDateToClickhouseDateTime(
+    const fillToDateParam = bindUtcDateTimeParam(
+      "fillToDate",
       new Date(toTimestamp),
     );
+    parameters["fillFromDate"] = fillFromDateParam.value;
+    parameters["fillToDate"] = fillToDateParam.value;
 
-    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", appliedBucketingDimension.granularity)} STEP ${step}`;
+    return ` WITH FILL FROM ${this.getTimeDimensionSql(fillFromDateParam.placeholder, appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql(fillToDateParam.placeholder, appliedBucketingDimension.granularity)} STEP ${step}`;
   }
 
   /**
@@ -1552,9 +1575,12 @@ export class QueryBuilder {
     const appliedMetrics = this.mapMetrics(query.metrics, view);
     const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 
-    // Auto-include dimensions required by pairExpand-dependent measures.
+    // Auto-include dimensions required to evaluate a measure, whether the
+    // dimension uses pairExpand or explodeArray.
     // e.g. costByType.requiresDimension = "costType": without that dimension the
     // ARRAY JOIN is never emitted and ClickHouse errors with "unknown column cost_value".
+    // toolCallInvocations similarly needs calledToolNames so arrayJoin is emitted
+    // and its per-tool result alias is in scope.
     for (const metric of appliedMetrics) {
       if (
         metric.requiresDimension &&
@@ -1565,6 +1591,7 @@ export class QueryBuilder {
           appliedDimensions.push({
             ...requiredDimDef,
             table: requiredDimDef.relationTable || view.name,
+            explodeArray: requiredDimDef.explodeArray,
             pairExpand: requiredDimDef.pairExpand,
           });
         }
@@ -1572,10 +1599,23 @@ export class QueryBuilder {
     }
 
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
-    const { whereFilters, whereRawParts } = this.mapFilters(
-      query.filters,
-      view,
-    );
+    let mappedFilters = this.mapFilters(query.filters, view);
+
+    // events_core stores metadata_values truncated to 200 chars (events_core_mv);
+    // truncation-sensitive filters must read events_full or matches beyond the
+    // truncation point are silently dropped. Re-map so filter prefixes follow.
+    if (
+      this.actualTableName(view) === "events_core" &&
+      filtersRequireEventsFull(new FilterList(mappedFilters.whereFilters))
+    ) {
+      view = {
+        ...view,
+        baseCte: view.baseCte.replace("events_core", "events_full"),
+      };
+      mappedFilters = this.mapFilters(query.filters, view);
+    }
+
+    const { whereFilters, whereRawParts } = mappedFilters;
     let filterList = new FilterList(whereFilters);
 
     // Add standard filters (project_id, timestamps)
@@ -1645,18 +1685,24 @@ export class QueryBuilder {
         const toP = `subTo${uid}`;
         const projP = `subProj${uid}`;
         const baseTable = this.actualTableName(view);
+        const tableAlias = this.tableAlias(view);
         const { column, condition } = view.rootEventCondition;
+        const fromParam = bindUtcDateTimeParam(
+          fromP,
+          new Date(query.fromTimestamp),
+        );
+        const toParam = bindUtcDateTimeParam(toP, new Date(query.toTimestamp));
         const subquery =
-          `SELECT ${column} FROM ${baseTable} ` +
-          `WHERE project_id = {${projP}: String} ` +
+          `SELECT ${tableAlias}.${column} FROM ${baseTable} ${tableAlias} ` +
+          `WHERE ${tableAlias}.project_id = {${projP}: String} ` +
           `AND ${condition} ` +
-          `AND ${view.timeDimension} >= {${fromP}: DateTime64(3)} ` +
-          `AND ${view.timeDimension} <= {${toP}: DateTime64(3)}`;
+          `AND ${tableAlias}.${view.timeDimension} >= ${fromParam.placeholder} ` +
+          `AND ${tableAlias}.${view.timeDimension} <= ${toParam.placeholder}`;
         fromClause +=
           ` AND (${baseTable}.${column} IN (${subquery})` +
           ` OR NOT EXISTS (${subquery} LIMIT 1))`;
-        parameters[fromP] = new Date(query.fromTimestamp).getTime();
-        parameters[toP] = new Date(query.toTimestamp).getTime();
+        parameters[fromP] = fromParam.value;
+        parameters[toP] = toParam.value;
         parameters[projP] = projectId;
       }
     }

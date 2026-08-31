@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -12,12 +13,15 @@ import { cn } from "@/src/utils/tailwind";
 import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import {
   renderRichPromptContent,
@@ -44,8 +48,14 @@ export function JSONView(props: {
   externalJsonCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
-  // some users ingest stringified json nested in json, parse it
-  const parsedJson = useMemo(() => deepParseJson(props.json), [props.json]);
+  // some users ingest stringified json nested in json, parse it. Also decode
+  // \uXXXX escapes (e.g. Japanese ingested with Python ensure_ascii=True) so
+  // non-ASCII content renders as real characters. Already-decoded strings are
+  // a no-op (decodeUnicodeEscapesOnly returns early when there is no backslash).
+  const parsedJson = useMemo(
+    () => decodeUnicodeInJson(deepParseJson(props.json)),
+    [props.json],
+  );
   const { resolvedTheme } = useTheme();
   const { setIsMarkdownEnabled } = useMarkdownContext();
   const capture = usePostHogClientCapture();
@@ -91,14 +101,12 @@ export function JSONView(props: {
     <>
       <div
         className={cn(
-          "io-message-content flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
+          "io-message-content ph-no-capture flex max-w-full min-w-0 gap-2 text-xs wrap-break-word whitespace-pre-wrap",
           props.borderless ? "" : "p-2",
           props.title === "assistant" || props.title === "Output"
-            ? "bg-accent-light-green dark:border-accent-dark-green"
+            ? "bg-accent-light-green dark:border-accent-dark-green/30"
             : "",
-          props.title === "system" || props.title === "Input"
-            ? "bg-primary-foreground"
-            : "",
+          props.title === "system" || props.title === "Input" ? "bg-card" : "",
           props.scrollable || props.borderless ? "" : "rounded-sm border",
           props.codeClassName,
         )}
@@ -115,7 +123,7 @@ export function JSONView(props: {
           </code>
         ) : (
           <div
-            className="max-w-full min-w-0 flex-1 overflow-hidden"
+            className="max-w-full min-w-0 flex-1"
             onClick={() => {
               // If externally collapsed and user clicks to expand, sync the state
               if (props.externalJsonCollapsed && props.onToggleCollapse) {
@@ -140,6 +148,15 @@ export function JSONView(props: {
               }
               displaySize={isCollapsed ? "collapsed" : "expanded"}
               matchesURL={true}
+              // Render previewable media (Langfuse refs, data URIs, media URLs)
+              // as a hover-to-peek chip instead of the raw string; everything
+              // else falls through to the default value rendering.
+              customizeNode={({ node }) => {
+                const descriptor = classifyMediaValue(node);
+                return descriptor ? (
+                  <MediaReferenceTag descriptor={descriptor} />
+                ) : undefined;
+              }}
               customizeCopy={(node) => stringifyJsonNode(node)}
               className="w-full max-w-full min-w-0"
             />
@@ -151,7 +168,7 @@ export function JSONView(props: {
           <div className="text-muted-foreground my-1 px-0 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 pt-1 pb-4">
+          <div className="ph-no-capture flex flex-wrap gap-2 pt-1 pb-4">
             {props.media.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
@@ -220,8 +237,10 @@ export function CodeView(props: {
   title?: string;
   scrollable?: boolean;
   copiedToClipboardMessage?: string;
+  lineWrap?: boolean;
 }) {
   const { copiedToClipboardMessage } = props;
+  const lineWrap = props.lineWrap ?? true;
 
   const [isCollapsed, setCollapsed] = useState(props.defaultCollapsed);
 
@@ -258,7 +277,10 @@ export function CodeView(props: {
       <div className="animate-appear relative h-3">
         <Check className="h-3 w-3" />
         {copiedToClipboardMessage && (
-          <div className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap">
+          <div
+            className="text-secondary-foreground absolute top-0 right-0 mr-6 h-full max-w-[60vw] transform truncate overflow-hidden text-right text-sm leading-none whitespace-nowrap"
+            title={copiedToClipboardMessage}
+          >
             {copiedToClipboardMessage}
           </div>
         )}
@@ -277,7 +299,7 @@ export function CodeView(props: {
       <>
         {props.title ? (
           <div className="my-1 flex shrink-0 items-center justify-between pl-1">
-            <div className="text-sm font-medium">{props.title}</div>
+            <div className="text-sm font-bold">{props.title}</div>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -307,7 +329,11 @@ export function CodeView(props: {
         )}
         <code
           className={cn(
-            "relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs wrap-break-word whitespace-pre-wrap",
+            "ph-no-capture relative max-w-full min-w-0 flex-1 px-4 py-3 font-mono text-xs",
+            !props.title && !lineWrap ? "w-[calc(100%-2.5rem)] pr-12" : "",
+            lineWrap
+              ? "wrap-break-word whitespace-pre-wrap"
+              : "overflow-x-auto whitespace-pre",
             isCollapsed ? `line-clamp-6` : "block",
             props.scrollable ? "overflow-y-auto" : "",
           )}
