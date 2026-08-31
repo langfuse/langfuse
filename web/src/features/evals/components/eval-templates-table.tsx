@@ -148,7 +148,7 @@ const EvalTemplateRowActionsMenu = ({
   const utils = api.useUtils();
   const hasTemplateWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   return (
@@ -255,7 +255,10 @@ export default function EvalsTemplateTable({
     searchQuery: searchQuery,
   });
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:CUD",
+  });
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -389,7 +392,7 @@ export default function EvalsTemplateTable({
       header: "Usage Count",
       enableHiding: true,
       size: 80,
-      formatter: String,
+      formatter: (value) => String(value),
       getValue: (value) => {
         return value || undefined;
       },
@@ -399,7 +402,7 @@ export default function EvalsTemplateTable({
       header: "Latest Version",
       enableHiding: true,
       size: 80,
-      formatter: String,
+      formatter: (value) => String(value),
     }),
     columnHelper.accessor("id", {
       header: "Id",
