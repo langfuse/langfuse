@@ -48,6 +48,8 @@ import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
+import { type RouterOutputs } from "@/src/utils/api";
+import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 
 export type ObservationDetailViewHeaderProps = {
   observation: ObservationReturnTypeWithMetadata;
@@ -65,7 +67,12 @@ export type ObservationDetailViewHeaderProps = {
         disabled: boolean;
         onClick: () => void;
       }
-    | { type: "menu"; menu: ReactNode };
+    | {
+        type: "menu";
+        disabled: boolean;
+        datasetItems: RouterOutputs["datasets"]["datasetItemsBasedOnTraceOrObservation"];
+        onOpenDialog: () => void;
+      };
   annotationAction: {
     disabled: boolean;
     onClick: () => void;
@@ -109,6 +116,26 @@ export function ObservationDetailViewHeader({
   });
   const [isAnnotationQueueMenuOpen, setIsAnnotationQueueMenuOpen] =
     useState(false);
+  const datasetMenu =
+    datasetAction.type === "menu" ? (
+      <ExistingDatasetItemsDropdownMenuController
+        projectId={projectId}
+        datasetItems={datasetAction.datasetItems}
+        disabled={datasetAction.disabled}
+        onOpenDialog={datasetAction.onOpenDialog}
+      >
+        {({ Anchor, openDropdown }) => (
+          <Anchor>
+            <ObservationHeaderDatasetButton
+              variant={isMobile ? "mobile" : "desktop"}
+              disabled={datasetAction.disabled}
+              datasetCount={datasetAction.datasetItems.length}
+              onClick={openDropdown}
+            />
+          </Anchor>
+        )}
+      </ExistingDatasetItemsDropdownMenuController>
+    ) : null;
   const annotationQueueMenu = (
     <DropdownMenu
       open={!annotationQueueAction.disabled && isAnnotationQueueMenuOpen}
@@ -172,7 +199,7 @@ export function ObservationDetailViewHeader({
                     onClick={datasetAction.onClick}
                   />
                 ) : datasetAction.type === "menu" ? (
-                  datasetAction.menu
+                  datasetMenu
                 ) : null}
                 {!isAnnotationMode ? (
                   <ObservationHeaderAnnotationButton
@@ -203,7 +230,7 @@ export function ObservationDetailViewHeader({
                 onClick={datasetAction.onClick}
               />
             ) : datasetAction.type === "menu" ? (
-              datasetAction.menu
+              datasetMenu
             ) : null}
             {!isAnnotationMode ? (
               <div className="flex items-start">

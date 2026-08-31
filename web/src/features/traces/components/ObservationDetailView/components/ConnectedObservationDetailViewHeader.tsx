@@ -6,7 +6,6 @@ import {
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
@@ -31,7 +30,6 @@ import { useSession } from "next-auth/react";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   ObservationDetailViewHeader,
-  ObservationHeaderDatasetButton,
   ObservationHeaderOptionsButton,
   ObservationHeaderPlaygroundButton,
 } from "./ObservationDetailViewHeader";
@@ -265,27 +263,9 @@ export const ConnectedObservationDetailViewHeader = memo(
                               }
                             : {
                                 type: "menu",
-                                menu: (
-                                  <ExistingDatasetItemsDropdownMenuController
-                                    projectId={projectId}
-                                    datasetItems={existingDatasetItems}
-                                    disabled={!hasDatasetAccess}
-                                    onOpenDialog={openDialog}
-                                  >
-                                    {({ Anchor, openDropdown }) => (
-                                      <Anchor>
-                                        <ObservationHeaderDatasetButton
-                                          variant={
-                                            isMobile ? "mobile" : "desktop"
-                                          }
-                                          disabled={!hasDatasetAccess}
-                                          datasetCount={datasetCount}
-                                          onClick={openDropdown}
-                                        />
-                                      </Anchor>
-                                    )}
-                                  </ExistingDatasetItemsDropdownMenuController>
-                                ),
+                                disabled: !hasDatasetAccess,
+                                datasetItems: existingDatasetItems,
+                                onOpenDialog: openDialog,
                               }
                       }
                       annotationAction={{

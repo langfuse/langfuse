@@ -26,9 +26,16 @@ const defaultArgs = {
   isMobile: false,
   optionsMenu: <button>Options menu</button>,
   datasetAction: {
-    type: "dialog" as const,
+    type: "menu" as const,
     disabled: false,
-    onClick: fn(),
+    datasetItems: [
+      {
+        id: "dataset-item-id",
+        datasetId: "dataset-id",
+        datasetName: "Evaluation dataset",
+      },
+    ],
+    onOpenDialog: fn(),
   },
   annotationAction: {
     disabled: false,
@@ -61,7 +68,7 @@ export const Desktop = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Observation name")).toBeVisible();
     await expect(canvas.getByText("Options menu")).toBeVisible();
-    await expect(canvas.getByText("Add to datasets")).toBeVisible();
+    await expect(canvas.getByText("In 1 dataset(s)")).toBeVisible();
     await expect(canvas.getByText("Annotate")).toBeVisible();
     await expect(canvas.getByText("Add comment")).toBeVisible();
     await expect(
@@ -81,7 +88,7 @@ export const Mobile = meta.story({
     await expect(
       canvas.getByRole("button", { name: "More actions" }),
     ).toBeVisible();
-    await expect(screen.getByText("Add to datasets")).toBeInTheDocument();
+    await expect(screen.getByText("In 1 dataset(s)")).toBeInTheDocument();
     await expect(screen.getByText("Annotate")).toBeInTheDocument();
     await expect(screen.getByText("Add comment")).toBeInTheDocument();
   },
