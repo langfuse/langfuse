@@ -10,6 +10,10 @@ const anthropicCacheControl = {
   anthropic: { cacheControl: { type: "ephemeral" } },
 };
 
+const openaiCacheBreakpoint = {
+  openai: { promptCacheBreakpoint: { mode: "explicit" } },
+};
+
 const twoMessagePrompt = [
   { role: "system", content: "You are the Langfuse assistant." },
   { role: "user", content: [{ type: "text", text: "hello" }] },
@@ -181,6 +185,148 @@ describe("applyPromptCachePoints", () => {
     ]);
   });
 
+  it("walks a Responses checkpoint back from a tool result to the nearest user message", () => {
+    // The Responses converter emits `prompt_cache_breakpoint` for system
+    // messages, user parts, and content-typed tool outputs, not for assistant
+    // messages or this agent's JSON tool results. A checkpoint chosen for one
+    // of those walks back to the nearest user or system message so the next
+    // in-loop step still has an explicit read point after tools+system.
+    expect(
+      applyPromptCachePoints(
+        [
+          { role: "system", content: "You are the Langfuse assistant." },
+          { role: "system", content: "Skill: error analysis." },
+          {
+            role: "user",
+            content: [
+              { type: "file", data: "aGk=", mediaType: "image/png" },
+              { type: "text", text: "hello" },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [{ type: "tool-call", toolCallId: "call-1" }],
+          },
+          {
+            role: "tool",
+            content: [{ type: "tool-result", toolCallId: "call-1" }],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
+              },
+            ],
+          },
+        ],
+        "openai-responses",
+      ),
+    ).toEqual([
+      { role: "system", content: "You are the Langfuse assistant." },
+      {
+        role: "system",
+        content: "Skill: error analysis.",
+        providerOptions: openaiCacheBreakpoint,
+      },
+      {
+        role: "user",
+        content: [
+          { type: "file", data: "aGk=", mediaType: "image/png" },
+          {
+            type: "text",
+            text: "hello",
+            providerOptions: openaiCacheBreakpoint,
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("stamps the previous turn's user message and the new user turn for Responses", () => {
+    expect(
+      applyPromptCachePoints(
+        [
+          { role: "system", content: "You are the Langfuse assistant." },
+          { role: "user", content: [{ type: "text", text: "hello" }] },
+          {
+            role: "assistant",
+            content: [{ type: "tool-call", toolCallId: "call-1" }],
+          },
+          {
+            role: "tool",
+            content: [{ type: "tool-result", toolCallId: "call-1" }],
+          },
+          {
+            role: "assistant",
+            content: [{ type: "text", text: "You have 20 prompts." }],
+          },
+          {
+            role: "user",
+            content: [{ type: "text", text: "and the versions?" }],
+          },
+        ],
+        "openai-responses",
+      ),
+    ).toEqual([
+      {
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: openaiCacheBreakpoint,
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "hello",
+            providerOptions: openaiCacheBreakpoint,
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-1" }],
+      },
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "call-1" }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "You have 20 prompts." }],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "and the versions?",
+            providerOptions: openaiCacheBreakpoint,
+          },
+        ],
+      },
+    ]);
+  });
+
   it("writes a single checkpoint when the prompt is only system messages", () => {
     expect(
       applyPromptCachePoints(
@@ -297,6 +443,47 @@ describe("applyPromptCacheToCall", () => {
           role: "user",
           content: [{ type: "text", text: "hello" }],
           providerOptions: anthropicCacheControl,
+        },
+      ],
+    });
+  });
+
+  it("stamps Responses prompt_cache_breakpoint for Claude ids and leaves GPT ids unchanged", () => {
+    const options = {
+      prompt: twoMessagePrompt,
+      maxOutputTokens: 1024,
+    };
+
+    expect(
+      applyPromptCacheToCall({
+        provider: "openai.responses",
+        modelId: "gpt-5.6-sol",
+        options,
+      }),
+    ).toBe(options);
+    expect(
+      applyPromptCacheToCall({
+        provider: "openai.responses",
+        modelId: "claude-opus-5",
+        options,
+      }),
+    ).toEqual({
+      maxOutputTokens: 1024,
+      prompt: [
+        {
+          role: "system",
+          content: "You are the Langfuse assistant.",
+          providerOptions: openaiCacheBreakpoint,
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "hello",
+              providerOptions: openaiCacheBreakpoint,
+            },
+          ],
         },
       ],
     });

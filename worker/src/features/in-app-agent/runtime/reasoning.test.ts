@@ -158,6 +158,60 @@ describe("OpenAI Responses request shape", () => {
     expect(calls[0]?.body.include).toEqual(["reasoning.encrypted_content"]);
   });
 
+  it("posts prompt_cache_breakpoint on Responses input for Claude ids", async () => {
+    Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "claude-opus-5",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-gateway.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    const prompt = [
+      { role: "system" as const, content: "You are the Langfuse assistant." },
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "hello" }],
+      },
+    ];
+    await model.doGenerate(
+      applyPromptCacheToCall({
+        provider: String(model.provider),
+        modelId: model.modelId,
+        options: { prompt },
+      }),
+    );
+
+    expect(calls[0]?.url).toBe("https://llm-gateway.internal/v1/responses");
+    expect(calls[0]?.body.input).toEqual([
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: "You are the Langfuse assistant.",
+            prompt_cache_breakpoint: { mode: "explicit" },
+          },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "hello",
+            prompt_cache_breakpoint: { mode: "explicit" },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("posts to /v1/responses when a custom URL opts into Responses", async () => {
     Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
 
