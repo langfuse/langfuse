@@ -27,47 +27,34 @@ services:
     networks:
       - default
 
-  minio:
-    image: cgr.dev/chainguard/minio
-    container_name: ${MINIO_CONTAINER_NAME:-langfuse-minio}
-    entrypoint: sh
-    # create the 'langfuse' bucket before starting the service
-    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
-    ports:
-      - ${HOST_IP:-127.0.0.1}:${MINIO_API_PORT:-9090}:9000
-      - ${HOST_IP:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9091}:9001
-    volumes:
-      - langfuse_minio_data:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 1s
-      timeout: 5s
-      retries: 5
-      start_period: 1s
-    networks:
-      - default
-
   floci:
-    profiles:
-      - worker-tests
-    image: docker.io/floci/floci:1.5.17-compat
-    user: "0"
+    image: docker.io/floci/floci:1.7.0-compat
     container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
     environment:
+      AWS_ACCESS_KEY_ID: ${FLOCI_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${FLOCI_SECRET_ACCESS_KEY:-test}
+      AWS_REGION: ${FLOCI_REGION:-us-east-1}
       FLOCI_HOSTNAME: floci
       FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: 120
+      FLOCI_SERVICES_S3_ENFORCE_AUTH: "true"
+      FLOCI_STORAGE_MODE: ${FLOCI_STORAGE_MODE:-persistent}
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_S3_BUCKET: ${FLOCI_S3_BUCKET:-langfuse}
     ports:
       - ${HOST_IP:-127.0.0.1}:${FLOCI_PORT:-4566}:4566
     volumes:
-      # Floci Lambda starts real Docker containers for function invocations.
-      # See: https://floci.io/floci/services/lambda/
-      - /var/run/docker.sock:/var/run/docker.sock
-      # The init hook packages these local runner sources into Lambda ZIPs on startup.
-      - ./scripts/code-eval-runners:/opt/code-eval-runners:ro
-      - ./scripts/code-eval-runners/bootstrap-floci.py:/etc/floci/init/ready.d/01-bootstrap-code-eval-runners.py:ro
+      - langfuse_floci_data:/app/data
+      - ./scripts/code-eval-runners/bootstrap-floci-s3.py:/etc/floci/init/ready.d/01-bootstrap-s3.py:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "aws --endpoint-url=http://localhost:4566 s3api head-bucket --bucket $${FLOCI_S3_BUCKET} >/dev/null 2>&1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 1s
     networks:
       - default
 
@@ -116,8 +103,8 @@ volumes:
   langfuse_clickhouse_logs:
     name: ${CLICKHOUSE_LOGS_VOLUME_NAME:-langfuse_clickhouse_logs}
     driver: local
-  langfuse_minio_data:
-    name: ${MINIO_VOLUME_NAME:-langfuse_minio_data}
+  langfuse_floci_data:
+    name: ${FLOCI_VOLUME_NAME:-langfuse_floci_data}
     driver: local
 
 networks:

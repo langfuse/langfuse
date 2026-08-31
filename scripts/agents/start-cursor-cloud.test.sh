@@ -103,9 +103,19 @@ assert_file_contains '"3000:3000"'
 assert_file_contains '"3030:3030"'
 assert_file_contains '"8123:8123"'
 assert_file_contains '"9000:9000"'
-assert_file_contains '"9090:9000"'
-assert_file_contains '"9091:9001"'
+assert_file_contains '"4566:4566"'
+assert_file_contains 'floci/floci:1.7.0-compat'
 assert_file_contains '6379:6379'
 assert_file_contains '5432:5432'
+
+assert_file_excludes() {
+  local unexpected="$1"
+  if grep -Fq -- "$unexpected" "$repo_root/docker-compose.build.yml"; then
+    echo "Cursor Compose still contains: $unexpected"
+    exit 1
+  fi
+}
+
+assert_file_excludes 'minio'
 
 echo "Cursor Cloud startup command regression test passed"

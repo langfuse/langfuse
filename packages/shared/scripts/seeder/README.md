@@ -140,7 +140,8 @@ cost.
 
 - `cli.ts` — env-precheck bootstrap; `cli-main.ts` — the actual CLI
 - `doctor.ts` — stack checks (Postgres, migrations, project, ClickHouse +
-  tables + memory pressure, Redis, MinIO, web app), each with a fix command
+  tables + memory pressure, Redis, S3-compatible storage, web app), each with a
+  fix command
 - `scenarios/` — one file per scenario plus `rng.ts` (Rng/jitter/anchor),
   `payload.ts`, `event-mirror.ts` (v3→v4 mapping), `verify.ts` (readbacks)
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing dx

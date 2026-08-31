@@ -964,7 +964,9 @@ describe("Media Upload API", () => {
       expect(result.getDownloadUrlResponse?.status).toBe(404);
       expect(result.mediaRecord).not.toBeNull();
       expect(result.mediaRecord?.uploadHttpStatus).toBe(400);
-      expect(result.mediaRecord?.uploadHttpError).toContain("ChecksumMismatch");
+      expect(result.mediaRecord?.uploadHttpError).toMatch(
+        /BadDigest|ChecksumMismatch/,
+      );
       expect(result.traceMediaRecord).toMatchObject({
         projectId,
         traceId,

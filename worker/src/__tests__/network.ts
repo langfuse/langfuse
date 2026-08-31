@@ -44,9 +44,9 @@ function JsonCompletionHandler(data: object) {
   return CompletionHandler(HttpResponse.json(data));
 }
 
-function MinioCompletionHandler() {
-  return http.all("http://localhost:9090*", async (request) => {
-    logger.info("minio handler");
+function S3CompletionHandler() {
+  return http.all("http://localhost:4566*", async (request) => {
+    logger.info("s3 handler");
     if ((request.params[0] as string).startsWith("/langfuse/events/")) {
       return new HttpResponse("Success");
     }
@@ -119,7 +119,7 @@ export class OpenAIServer {
   respondWithData(data: object) {
     this.internalServer.use(
       JsonCompletionHandler(data),
-      MinioCompletionHandler(),
+      S3CompletionHandler(),
       ClickHouseCompletionHandler(),
       AzuriteCompletionHandler(),
     );

@@ -33,24 +33,32 @@ services:
     depends_on:
       - postgres
 
-  minio:
-    image: cgr.dev/chainguard/minio
-    entrypoint: sh
-    # create the 'langfuse' bucket before starting the service
-    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+  floci:
+    image: docker.io/floci/floci:1.7.0-compat
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniosecret}
+      AWS_ACCESS_KEY_ID: ${FLOCI_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${FLOCI_SECRET_ACCESS_KEY:-test}
+      AWS_REGION: ${FLOCI_REGION:-us-east-1}
+      FLOCI_HOSTNAME: floci
+      FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: 120
+      FLOCI_SERVICES_S3_ENFORCE_AUTH: "true"
+      FLOCI_STORAGE_MODE: ${FLOCI_STORAGE_MODE:-persistent}
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_S3_BUCKET: ${FLOCI_S3_BUCKET:-langfuse}
     ports:
-      - 127.0.0.1:9090:9000
-      - 127.0.0.1:9091:9001
+      - 127.0.0.1:4566:4566
     volumes:
-      - langfuse_minio_data:/data
+      - langfuse_floci_data:/app/data
+      - ./scripts/code-eval-runners/bootstrap-floci-s3.py:/etc/floci/init/ready.d/01-bootstrap-s3.py:ro
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 1s
+      test:
+        [
+          "CMD-SHELL",
+          "aws --endpoint-url=http://localhost:4566 s3api head-bucket --bucket $${FLOCI_S3_BUCKET} >/dev/null 2>&1",
+        ]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
       start_period: 1s
 
   postgres:
@@ -174,7 +182,7 @@ volumes:
     driver: local
   langfuse_clickhouse_logs:
     driver: local
-  langfuse_minio_data:
+  langfuse_floci_data:
     driver: local
   redis-cluster_data-0:
     driver: local
