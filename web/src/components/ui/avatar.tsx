@@ -43,9 +43,9 @@ AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
 const AvatarFallback = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Fallback>,
-  Omit<
+  Pick<
     React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>,
-    "className"
+    "children"
   > & { className?: "text-xs" | "rounded-lg" | "bg-tertiary" }
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Fallback
