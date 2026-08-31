@@ -23,20 +23,22 @@ export const BlobStorageStatusSection = ({
     <>
       <Header title="Status" />
       {config.lastError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTitle>Last export failed</AlertTitle>
-          <AlertDescription>
-            {config.lastError}
-            {config.lastErrorAt && (
-              <>
-                <br />
-                <span className="text-xs opacity-70">
-                  {new Date(config.lastErrorAt).toLocaleString()}
-                </span>
-              </>
-            )}
-          </AlertDescription>
-        </Alert>
+        <div className="mb-4">
+          <Alert variant="destructive">
+            <AlertTitle>Last export failed</AlertTitle>
+            <AlertDescription>
+              {config.lastError}
+              {config.lastErrorAt && (
+                <>
+                  <br />
+                  <span className="text-xs opacity-70">
+                    {new Date(config.lastErrorAt).toLocaleString()}
+                  </span>
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
       <Card className="p-3">
         <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
