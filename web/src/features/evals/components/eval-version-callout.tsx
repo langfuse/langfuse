@@ -159,8 +159,7 @@ export function EvalVersionCallout({
 
   return (
     <div className="mt-2 w-full max-w-4xl">
-      <Alert variant="warning">
-        <AlertTriangle className="h-4 w-4" />
+      <Alert variant="warning" icon={AlertTriangle}>
         <AlertDescription>
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">

@@ -83,8 +83,7 @@ export function TransferProjectDialogContent({
           className="flex flex-col gap-8"
         >
           <DialogBody>
-            <Alert variant="warning">
-              <TriangleAlert className="h-4 w-4" />
+            <Alert variant="warning" icon={TriangleAlert}>
               <AlertTitle>Warning</AlertTitle>
               <AlertDescription>
                 Transferring the project will move it to a different

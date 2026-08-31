@@ -242,8 +242,7 @@ const MetricsFilterView = ({
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Alert variant="warning-subtle">
-          <AlertCircle className="h-4 w-4" />
+        <Alert variant="warning-subtle" icon={AlertCircle}>
           <AlertTitle>Unsupported filters</AlertTitle>
           <AlertDescription>
             {`These filter columns are not supported for ${startCase(view)} and were dropped: ${unsupportedColumns}. Switch back to a compatible view to restore them.`}

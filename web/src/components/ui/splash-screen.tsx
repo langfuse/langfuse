@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, type LucideIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import {
   Alert,
@@ -13,7 +13,7 @@ import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 export interface ValueProposition {
   title: string;
   description: string;
-  icon?: React.ReactNode;
+  icon?: LucideIcon;
 }
 
 export interface ActionConfig {
@@ -151,8 +151,7 @@ export function SplashScreen({
 
       {gettingStarted && (
         <div className="w-full max-w-3xl">
-          <Alert>
-            <InfoIcon className="mr-2 h-4 w-4" />
+          <Alert icon={InfoIcon}>
             <AlertTitle>Getting Started</AlertTitle>
             <AlertDescription>{gettingStarted}</AlertDescription>
           </Alert>
@@ -203,8 +202,7 @@ export function SplashScreen({
       {valuePropositions.length > 0 && (
         <div className="my-6 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
           {valuePropositions.map((prop, index) => (
-            <Alert key={index}>
-              {prop.icon}
+            <Alert key={index} icon={prop.icon}>
               <AlertTitle>{prop.title}</AlertTitle>
               <AlertDescription>{prop.description}</AlertDescription>
             </Alert>

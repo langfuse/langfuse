@@ -153,8 +153,7 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <VerifiedDomainsSettings orgId={orgId} />
         <div>
           {heading}
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
+          <Alert icon={AlertCircle}>
             <AlertTitle>Not available</AlertTitle>
             <AlertDescription>
               Enterprise SSO is not available on your plan. Please upgrade to

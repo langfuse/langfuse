@@ -105,8 +105,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
           <CardDescription>Error loading connection status</CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
+          <Alert icon={AlertCircle}>
             <AlertDescription>
               Failed to load Slack integration status. Please try again.
             </AlertDescription>
@@ -130,8 +129,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {integrationStatus?.error && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
+            <Alert icon={AlertCircle}>
               <AlertDescription>{integrationStatus.error}</AlertDescription>
             </Alert>
           )}

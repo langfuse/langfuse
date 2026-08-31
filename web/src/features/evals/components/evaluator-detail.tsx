@@ -144,8 +144,7 @@ export const EvaluatorDetail = () => {
         <div className="flex h-full flex-col overflow-hidden">
           {filterValidation && !filterValidation.isValid && (
             <div className="mx-3 mt-3">
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
+              <Alert variant="destructive" icon={AlertTriangle}>
                 <AlertTitle>Unsupported filters</AlertTitle>
                 <AlertDescription>
                   This evaluator contains deprecated or unsupported filters. The

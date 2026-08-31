@@ -265,8 +265,7 @@ export default function NewEvaluatorPage() {
         step === "run" && evaluatorId && projectId && (
           <div className="flex flex-col gap-4">
             {hasNewerTemplate && latestTemplate && currentTemplate ? (
-              <Alert variant="info">
-                <Info className="h-4 w-4" />
+              <Alert variant="info" icon={Info}>
                 <AlertTitle>Selected Evaluator has been updated</AlertTitle>
                 <AlertDescription>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

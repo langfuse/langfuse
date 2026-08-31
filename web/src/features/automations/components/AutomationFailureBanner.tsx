@@ -29,8 +29,7 @@ export const AutomationFailureBanner: React.FC<
 
   return (
     <div className="mb-4">
-      <Alert variant="destructive">
-        <AlertTriangle className="h-4 w-4" />
+      <Alert variant="destructive" icon={AlertTriangle}>
         <AlertDescription>
           <div className="flex items-center justify-between">
             <div className="flex-1">

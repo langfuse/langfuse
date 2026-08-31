@@ -1026,8 +1026,7 @@ function CodeEvalSdkVersionCallout({
 
   return (
     <div className="w-full max-w-4xl">
-      <Alert variant="warning">
-        <AlertTriangle className="h-4 w-4" />
+      <Alert variant="warning" icon={AlertTriangle}>
         <AlertDescription>
           <div className="flex flex-col gap-1">
             <span className="text-foreground font-bold">

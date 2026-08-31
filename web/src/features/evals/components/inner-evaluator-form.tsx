@@ -847,8 +847,7 @@ export const InnerEvaluatorForm = (props: {
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
+            <Alert variant="destructive" icon={AlertTriangle}>
               <AlertTitle>Unsupported filter detected</AlertTitle>
               <AlertDescription>
                 This evaluator has a filter that is not supported for

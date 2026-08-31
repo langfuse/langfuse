@@ -20,7 +20,7 @@ export function EvaluationRuleAttachmentValidationAlert({
   onReview?: () => void;
 }) {
   return (
-    <Alert variant="warning" actionPosition="top-right">
+    <Alert variant="warning" actionPosition="top-right" icon={AlertTriangle}>
       <button
         type="button"
         className="absolute top-2.5 right-2.5 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent"
@@ -29,7 +29,6 @@ export function EvaluationRuleAttachmentValidationAlert({
       >
         <X className="size-4 stroke-current" aria-hidden="true" />
       </button>
-      <AlertTriangle className="h-4 w-4" />
       <AlertTitle>Review evaluator variable mapping</AlertTitle>
       <AlertDescription>
         <div className="flex flex-col items-start gap-1">

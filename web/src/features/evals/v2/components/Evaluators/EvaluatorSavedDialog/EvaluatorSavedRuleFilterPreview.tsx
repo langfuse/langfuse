@@ -18,8 +18,7 @@ export function EvaluatorSavedRuleFilterPreview({
   return (
     <div className="space-y-2">
       {unsupportedReasons.size > 0 ? (
-        <Alert variant="warning" size="sm">
-          <AlertTriangle className="h-4 w-4" />
+        <Alert variant="warning" size="sm" icon={AlertTriangle}>
           <AlertTitle>Some filters won&apos;t be included</AlertTitle>
           <AlertDescription>
             {unsupportedReasons.size} of {filter.length} sample{" "}

@@ -891,8 +891,7 @@ export function WidgetForm({
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
             {isBetaEnabled && selectedView === "traces" && (
-              <Alert variant="warning-subtle">
-                <AlertCircle className="h-4 w-4" />
+              <Alert variant="warning-subtle" icon={AlertCircle}>
                 <AlertTitle>Traces view is not available in v4</AlertTitle>
                 <AlertDescription>
                   This widget uses the traces view which is not supported in v4.
@@ -1084,8 +1083,7 @@ export function WidgetForm({
             <CardContent>
               <div className="flex h-[300px] items-center justify-center">
                 <div className="w-full max-w-sm">
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
+                  <Alert variant="destructive" icon={AlertCircle}>
                     <AlertTitle>Invalid query</AlertTitle>
                     <AlertDescription>
                       {queryValidation.reason}

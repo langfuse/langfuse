@@ -140,8 +140,7 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
 
         {showLegacyReadOnlyNotice ? (
-          <Alert variant="warning-light">
-            <AlertTriangle className="h-4 w-4" />
+          <Alert variant="warning-light" icon={AlertTriangle}>
             <AlertTitle>Legacy evaluator is read-only</AlertTitle>
             <AlertDescription>
               This evaluator uses a legacy target that the current rule editor
@@ -208,8 +207,7 @@ const PeekViewEvaluatorConfigDetail = ({
             }}
           />
         ) : (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
+          <Alert icon={AlertTriangle}>
             <AlertTitle>Referenced evaluator unavailable</AlertTitle>
             <AlertDescription>
               This legacy rule no longer has an evaluator attached, so its

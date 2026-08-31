@@ -96,8 +96,7 @@ export const VerifiedDomainsSettings = ({ orgId }: { orgId: string }) => {
     return (
       <div>
         {heading}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
+        <Alert icon={AlertCircle}>
           <AlertTitle>Not available</AlertTitle>
           <AlertDescription>
             Verified Domains and Enterprise SSO are not available on your plan.

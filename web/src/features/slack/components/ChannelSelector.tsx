@@ -399,8 +399,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
 
       {/* Private channel scope warning */}
       {channelsData && !channelsData.hasPrivateChannelAccess && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
+        <Alert icon={AlertTriangle}>
           <AlertDescription>
             Private channels are not visible. To access private channels,{" "}
             <button

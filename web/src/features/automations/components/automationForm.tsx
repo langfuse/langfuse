@@ -344,8 +344,7 @@ const PromptTriggerFields = ({
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
-  <Alert>
-    <Info className="h-4 w-4" />
+  <Alert icon={Info}>
     <AlertTitle>How Alerts Connect</AlertTitle>
     <AlertDescription>
       Add this automation to an alert from the{" "}

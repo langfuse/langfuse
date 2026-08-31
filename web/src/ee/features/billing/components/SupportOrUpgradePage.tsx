@@ -9,8 +9,7 @@ export const SupportOrUpgradePage = () => {
   return (
     <div className="flex h-full w-full items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
+        <Alert icon={AlertCircle}>
           <AlertTitle>Access Restricted</AlertTitle>
           <AlertDescription>
             <p className="mb-2">This feature requires additional permissions</p>
