@@ -1025,7 +1025,9 @@ export default function SignIn({
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        {env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined && (
+          <CloudPrivacyNotice action="signing in" />
+        )}
       </div>
     </>
   );
