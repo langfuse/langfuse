@@ -599,16 +599,19 @@ const InnerEvalTemplateForm = (props: {
         </>
       ) : undefined}
 
-      <EvalTemplateTypeSelector
-        form={form}
-        codeEvalCapabilities={codeEvalCapabilities}
-        mode={templateTypeSelectorMode}
-        hasExistingTemplate={Boolean(props.existingEvalTemplateId)}
-        onChange={() => {
-          resetCodeEvalSourceValidation();
-          setFormError(null);
-        }}
-      />
+      {codeEvalCapabilities.enabled &&
+        !props.existingEvalTemplateId &&
+        templateTypeSelectorMode !== "hidden" && (
+          <EvalTemplateTypeSelector
+            form={form}
+            codeEvalCapabilities={codeEvalCapabilities}
+            mode={templateTypeSelectorMode}
+            onChange={() => {
+              resetCodeEvalSourceValidation();
+              setFormError(null);
+            }}
+          />
+        )}
 
       {showCodeTemplateForm ? (
         <div className="space-y-3">
