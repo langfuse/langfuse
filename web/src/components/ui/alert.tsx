@@ -30,7 +30,7 @@ type AlertProps = Omit<
 > & {
   children: React.ReactNode;
   className?:
-    | "w-full max-w-3xl"
+    | "max-w-3xl"
     | "mb-4"
     | "mt-4"
     | "mt-2 max-w-4xl"
@@ -45,7 +45,7 @@ type AlertTitleProps = Omit<
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?: "text-base font-bold" | "text-base" | "mb-1 text-sm" | "pr-4";
+  className?: "text-base" | "text-sm" | "pr-4";
 };
 
 function Alert({ children, className, variant }: AlertProps) {

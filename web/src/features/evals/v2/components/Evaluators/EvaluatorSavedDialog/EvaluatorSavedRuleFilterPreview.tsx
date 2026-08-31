@@ -19,7 +19,7 @@ export function EvaluatorSavedRuleFilterPreview({
           className="rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5"
         >
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle className="mb-1 text-sm">
+          <AlertTitle className="text-sm">
             Some filters won&apos;t be included
           </AlertTitle>
           <AlertDescription className="text-xs">

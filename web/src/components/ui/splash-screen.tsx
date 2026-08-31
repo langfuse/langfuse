@@ -146,7 +146,7 @@ export function SplashScreen({
       </div>
 
       {gettingStarted && (
-        <Alert className="w-full max-w-3xl">
+        <Alert className="max-w-3xl">
           <InfoIcon className="mr-2 h-4 w-4" />
           <AlertTitle>Getting Started</AlertTitle>
           <AlertDescription>{gettingStarted}</AlertDescription>

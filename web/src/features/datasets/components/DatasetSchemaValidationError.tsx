@@ -30,9 +30,7 @@ export const DatasetSchemaValidationError: React.FC<
 
   return (
     <Alert variant="destructive" className="mt-4">
-      <AlertTitle className="text-base font-bold">
-        Schema Validation Failed
-      </AlertTitle>
+      <AlertTitle className="text-base">Schema Validation Failed</AlertTitle>
       <AlertDescription className="mt-2 space-y-3">
         <p className="text-sm">
           {hasMoreThan10

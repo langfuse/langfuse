@@ -323,11 +323,9 @@ export const VariableMappingCard = ({
                   )}
                 >
                   {disabled && !syncStatus.inSync && (
-                    <Alert className="text-sm" variant="destructive">
+                    <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
-                      <AlertTitle className="text-base">
-                        Variable mapping is out of sync
-                      </AlertTitle>
+                      <AlertTitle>Variable mapping is out of sync</AlertTitle>
                       <AlertDescription>
                         The template has {syncStatus.added.length} new
                         variable(s) and {syncStatus.removed.length} removed
