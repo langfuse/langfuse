@@ -2,7 +2,7 @@ import handler from "@/src/pages/api/spec";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
-const callHandler = (method: string) => {
+const callHandler = (method: "GET" | "HEAD" | "POST") => {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({ method });
   handler(req, res);
   return res;
