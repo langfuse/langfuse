@@ -4,6 +4,7 @@ import {
   type DeleteModelV1Query,
   type GetModelV1Query,
   type GetModelsV1Query,
+  type PatchModelV1Body,
   type PostModelsV1Body,
   prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
@@ -54,6 +55,13 @@ type CreateModelInput = {
 type UpsertModelInput = z.infer<typeof GetModelV1Query> & {
   projectId: string;
   input: z.infer<typeof PostModelsV1Body>;
+  auditScope: ModelAuditScope;
+};
+
+type PatchModelInput = {
+  projectId: string;
+  modelId: string;
+  input: z.infer<typeof PatchModelV1Body>;
   auditScope: ModelAuditScope;
 };
 
@@ -257,6 +265,71 @@ export const createModelForApi = async ({
   }
 
   return prismaToApiModelDefinition(modelWithTiers);
+};
+
+export const updateModelForApi = async ({
+  projectId,
+  modelId,
+  input,
+  auditScope,
+}: PatchModelInput) => {
+  if (input.matchPattern !== undefined) {
+    const validRegex = await isValidPostgresRegex(input.matchPattern, prisma);
+    if (!validRegex) {
+      throw new InvalidRequestError(
+        "matchPattern is not a valid regex pattern (Postgres)",
+      );
+    }
+  }
+
+  const data: Prisma.ModelUpdateInput = {};
+  if (input.matchPattern !== undefined) data.matchPattern = input.matchPattern;
+  if (input.tokenizerId !== undefined) data.tokenizerId = input.tokenizerId;
+  if (input.tokenizerConfig !== undefined) {
+    data.tokenizerConfig =
+      input.tokenizerConfig === null ? Prisma.DbNull : input.tokenizerConfig;
+  }
+  if (input.startDate !== undefined) data.startDate = input.startDate;
+  if (input.unit !== undefined) data.unit = input.unit;
+
+  const updatedModelWithTiers = await prisma.$transaction(async (tx) => {
+    const existing = await tx.model.findFirst({
+      where: { id: modelId, projectId },
+    });
+
+    if (!existing) {
+      throw new LangfuseNotFoundError("No model with this id found.");
+    }
+
+    const updated = await tx.model.update({
+      where: { id: modelId, projectId },
+      data,
+    });
+
+    await auditLog({
+      action: "update",
+      resourceType: "model",
+      resourceId: updated.id,
+      projectId: auditScope.projectId,
+      orgId: auditScope.orgId,
+      apiKeyId: auditScope.apiKeyId,
+      before: existing,
+      after: updated,
+    });
+
+    return tx.model.findUnique({
+      where: { id: modelId, projectId },
+      include: modelPricingInclude,
+    });
+  });
+
+  await clearModelCacheForProject(projectId);
+
+  if (!updatedModelWithTiers) {
+    throw new InvalidRequestError("Failed to fetch updated model");
+  }
+
+  return prismaToApiModelDefinition(updatedModelWithTiers);
 };
 
 export const upsertModelForApi = async ({

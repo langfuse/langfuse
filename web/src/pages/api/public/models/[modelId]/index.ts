@@ -5,12 +5,16 @@ import {
   DeleteModelV1Response,
   GetModelV1Query,
   GetModelV1Response,
+  PatchModelV1Body,
+  PatchModelV1Query,
+  PatchModelV1Response,
   PostModelsV1Body,
   PutModelV1Response,
 } from "@/src/features/public-api/types/models";
 import {
   deleteModelForApi,
   getModelForApi,
+  updateModelForApi,
   upsertModelForApi,
 } from "@/src/features/models/server/publicApiModelService";
 
@@ -36,6 +40,22 @@ export default withMiddlewares({
     responseSchema: PutModelV1Response,
     fn: async ({ query, body, auth }) => {
       return await upsertModelForApi({
+        projectId: auth.scope.projectId,
+        modelId: query.modelId,
+        input: body,
+        auditScope: auth.scope,
+      });
+    },
+  }),
+
+  PATCH: createAuthedProjectAPIRoute({
+    name: "Update model",
+    isAdminApiKeyAuthAllowed: true,
+    querySchema: PatchModelV1Query,
+    bodySchema: PatchModelV1Body,
+    responseSchema: PatchModelV1Response,
+    fn: async ({ query, body, auth }) => {
+      return await updateModelForApi({
         projectId: auth.scope.projectId,
         modelId: query.modelId,
         input: body,
