@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  apiReferenceReact: vi.fn(() => <div>API reference</div>),
+  apiReferenceReact: vi.fn((_props: { configuration: { url: string } }) => (
+    <div>API reference</div>
+  )),
 }));
 
 vi.mock("@scalar/api-reference-react", () => ({
