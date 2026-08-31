@@ -593,13 +593,7 @@ export class OtelIngestionProcessor {
                       null)
                     : null,
                   promptVersion: canLinkPrompt
-                    ? (spanAttributes?.[
-                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-                      ] ??
-                      spanAttributes["langfuse.prompt.version"] ??
-                      this.parseLangfusePromptFromAISDK(spanAttributes)
-                        ?.version ??
-                      null)
+                    ? this.extractPromptVersion(spanAttributes)
                     : null,
 
                   modelParameters: this.extractModelParameters(
@@ -1277,12 +1271,7 @@ export class OtelIngestionProcessor {
           null)
         : null,
       promptVersion: canLinkPrompt
-        ? (attributes?.[
-            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-          ] ??
-          attributes["langfuse.prompt.version"] ??
-          this.parseLangfusePromptFromAISDK(attributes)?.version ??
-          null)
+        ? this.extractPromptVersion(attributes)
         : null,
       usageDetails: isAiSdkAgentSpan
         ? {}
@@ -3524,6 +3513,25 @@ export class OtelIngestionProcessor {
       "OTEL invalid experiment item version, dropping. Expected timestamp.",
     );
     return undefined;
+  }
+
+  /**
+   * OTLP exporters may carry the prompt version as a stringValue; downstream
+   * schemas require an integer. Non-integer values become null.
+   */
+  private extractPromptVersion(
+    attributes: Record<string, unknown>,
+  ): number | null {
+    const raw =
+      attributes[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
+      attributes["langfuse.prompt.version"] ??
+      this.parseLangfusePromptFromAISDK(attributes)?.version;
+
+    if (typeof raw === "number") return Number.isInteger(raw) ? raw : null;
+    if (typeof raw === "string" && /^\d+$/.test(raw.trim())) {
+      return Number(raw);
+    }
+    return null;
   }
 
   private parseLangfusePromptFromAISDK(
