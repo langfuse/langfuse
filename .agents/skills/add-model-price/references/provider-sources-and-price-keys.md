@@ -363,6 +363,38 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
     > 272K multiplier applies. It also added the two Anthropic Fast-mode tiers, including
     > the documented prompt-cache multipliers.
 
+- **Full re-confirmation with no changes (2026-08-31)** — Re-fetched the
+  Anthropic pricing page, the OpenAI standard/large-context pricing table, and
+  the Gemini AI Studio pricing page (with an explicit Free/Paid column split).
+  Every model price already in `default-model-prices.json` matched exactly;
+  no pricing or `matchPattern` changes were needed. While checking each
+  provider's models listing page for new flagship releases, found only
+  specialized/non-text-pricing additions, all out of scope per the
+  modality-specific-endpoint skip rule:
+  - **OpenAI** (`developers.openai.com/api/docs/models`): `gpt-5.6-cyber`,
+    `gpt-daybreak-red-latest`, and `gpt-daybreak-blue-latest` are new
+    cybersecurity-focused model variants. None appear in the Standard pricing
+    table (which still lists only `gpt-5.6-sol`/`-terra`/`-luna` for the 5.6
+    family), so there is no confirmed public per-token price to add. Also
+    present: several realtime/audio/transcription models
+    (`gpt-realtime-2.1`, `gpt-realtime-2.1-mini`, `gpt-realtime-2`,
+    `gpt-realtime-translate`, `gpt-realtime-1.5`, `gpt-transcribe`,
+    `gpt-live-transcribe`, `gpt-realtime-whisper`, `gpt-4o-mini-tts`) and
+    `gpt-image-2` — all modality-specific, skipped per the existing rule.
+  - **Gemini** (`ai.google.dev/gemini-api/docs/models`): `gemini-3.5-transcribe`
+    (speech-to-text) and `gemini-omni-1.1-flash` (an updated name for the
+    previously-seen `gemini-omni-flash` video-generation model) are
+    modality-specific, not general text/chat models — skipped. Also newly
+    listed: `antigravity-preview-05-2026`, `deep-research-preview-04-2026`,
+    and `deep-research-max-preview-04-2026`, which are specialized
+    agent/developer-tool products rather than directly priced per-token text
+    models — no standalone pricing page entry found, skipped. `gemini-3-pro-preview`
+    (the non-`.1` variant) is still absent from this models page, consistent
+    with prior audits (see the "Gemini 3 Pro Preview" note above).
+  - No action needed for any of these; listed here so a future audit does not
+    re-spend a fetch investigating the same names unless one gains a standard
+    per-token text-generation pricing entry.
+
 Capture:
 
 1. Base input token price per million tokens
