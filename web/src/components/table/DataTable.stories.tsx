@@ -1051,7 +1051,7 @@ function buildGroupedColumns(
         accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        formatter: usdFormatter,
+        formatter: (value) => usdFormatter(value),
       }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",

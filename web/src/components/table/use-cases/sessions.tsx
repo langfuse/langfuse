@@ -527,7 +527,7 @@ export default function SessionsTable({
       header: "Duration",
       size: 130,
       enableHiding: true,
-      formatter: formatIntervalSeconds,
+      formatter: (value) => formatIntervalSeconds(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -594,7 +594,7 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -610,7 +610,7 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -625,7 +625,7 @@ export default function SessionsTable({
       size: 110,
       enableHiding: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
