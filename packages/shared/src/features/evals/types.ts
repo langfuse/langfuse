@@ -25,18 +25,25 @@ export const EvalTemplateSourceCodeLanguageEnum = {
   EvalTemplateSourceCodeLanguage
 >;
 
-export const EvaluatorPromptMessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"]),
-  content: z.string().refine((content) => content.trim().length > 0, {
-    message: "Prompt messages cannot be empty",
-  }),
-});
+export const EvaluatorPromptMessageRoleSchema = z.enum([
+  "system",
+  "user",
+  "assistant",
+]);
+
+export const EvaluatorPromptMessageSchema = z
+  .object({
+    role: EvaluatorPromptMessageRoleSchema,
+    content: z.string().refine((content) => content.trim().length > 0, {
+      message: "Prompt messages cannot be empty",
+    }),
+  })
+  .strict();
 export type EvaluatorPromptMessage = z.infer<
   typeof EvaluatorPromptMessageSchema
 >;
 
-/** Chat messages persisted alongside the legacy evaluator prompt string. */
-export const PersistedEvaluatorPromptMessagesSchema = z
+export const EvaluatorPromptMessagesSchema = z
   .array(EvaluatorPromptMessageSchema)
   .min(1)
   .refine(
@@ -48,17 +55,18 @@ export const PersistedEvaluatorPromptMessagesSchema = z
       message: "System messages are only allowed as the first prompt message",
     },
   );
-export type PersistedEvaluatorPromptMessages = z.infer<
-  typeof PersistedEvaluatorPromptMessagesSchema
+export type EvaluatorPromptMessages = z.infer<
+  typeof EvaluatorPromptMessagesSchema
 >;
+
+/** Compatibility alias for messages persisted with the legacy prompt. */
+export type PersistedEvaluatorPromptMessages = EvaluatorPromptMessages;
 
 export function getEvaluatorPromptMessages(params: {
   prompt: string | null;
   promptMessages?: unknown;
 }): PersistedEvaluatorPromptMessages {
-  const parsed = PersistedEvaluatorPromptMessagesSchema.safeParse(
-    params.promptMessages,
-  );
+  const parsed = EvaluatorPromptMessagesSchema.safeParse(params.promptMessages);
   return parsed.success
     ? parsed.data
     : [{ role: "user", content: params.prompt ?? "" }];

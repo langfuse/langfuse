@@ -5,7 +5,7 @@ export const EMPTY_PROMPT_MESSAGE_ERROR =
 export const INVALID_SYSTEM_PROMPT_MESSAGE_ERROR =
   "System messages are only allowed as the first prompt message.";
 
-export function hasInvalidSystemPromptMessage(
+function hasInvalidSystemPromptMessage(
   messages: EvaluatorPromptMessage[],
 ): boolean {
   return messages.some(

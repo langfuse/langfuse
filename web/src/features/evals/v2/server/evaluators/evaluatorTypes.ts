@@ -1,7 +1,7 @@
 import {
   EvalOutputDefinitionSchema,
   EvalTemplateType,
-  EvaluatorPromptMessageSchema,
+  EvaluatorPromptMessagesSchema,
   extractVariables,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
@@ -13,7 +13,6 @@ import {
   type ObservationVariableMapping,
   type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
-import { hasInvalidSystemPromptMessage } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { z } from "zod";
 
 const EvaluatorMetadataSchema = z.object({
@@ -53,12 +52,7 @@ export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
 
 const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  promptMessages: z
-    .array(EvaluatorPromptMessageSchema)
-    .min(1)
-    .refine((messages) => !hasInvalidSystemPromptMessage(messages), {
-      message: "System messages are only allowed as the first prompt message",
-    }),
+  promptMessages: EvaluatorPromptMessagesSchema,
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),
@@ -86,12 +80,7 @@ export const EvaluatorModelConfigSchema = z.object({
 
 const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  promptMessages: z
-    .array(EvaluatorPromptMessageSchema)
-    .min(1)
-    .refine((messages) => !hasInvalidSystemPromptMessage(messages), {
-      message: "System messages are only allowed as the first prompt message",
-    }),
+  promptMessages: EvaluatorPromptMessagesSchema,
   modelConfig: EvaluatorModelConfigSchema.nullable(),
   outputDefinition: EvalOutputDefinitionSchema,
 });
@@ -232,7 +221,7 @@ export const SuggestEvaluatorTextSchema = z.object({
   definition: z.discriminatedUnion("type", [
     z.object({
       type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-      promptMessages: z.array(EvaluatorPromptMessageSchema).min(1),
+      promptMessages: EvaluatorPromptMessagesSchema,
     }),
     z.object({
       type: z.literal(EvalTemplateType.CODE),

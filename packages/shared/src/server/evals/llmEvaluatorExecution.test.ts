@@ -31,7 +31,7 @@ describe("executeLlmEvaluator", () => {
   it("preserves message order and roles while interpolating each message", async () => {
     const callLlm = vi.fn().mockResolvedValue({ score: 1 });
 
-    await executeLlmEvaluator({
+    const result = await executeLlmEvaluator({
       promptMessages: [
         { role: "system", content: "Judge {{input}}" },
         { role: "user", content: "Response: {{output}}" },
@@ -50,6 +50,8 @@ describe("executeLlmEvaluator", () => {
 
     expect(callLlm).toHaveBeenCalledWith(
       expect.objectContaining({
+        interpolatedPrompt:
+          "Judge quality\n\nResponse: great\n\nReturn only the score",
         messages: [
           expect.objectContaining({ role: "system", content: "Judge quality" }),
           expect.objectContaining({ role: "user", content: "Response: great" }),
@@ -59,6 +61,9 @@ describe("executeLlmEvaluator", () => {
           }),
         ],
       }),
+    );
+    expect(result.interpolatedPrompt).toBe(
+      "Judge quality\n\nResponse: great\n\nReturn only the score",
     );
   });
 

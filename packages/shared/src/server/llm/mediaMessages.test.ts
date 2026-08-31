@@ -16,7 +16,6 @@ vi.mock("../s3", () => ({
   }),
 }));
 
-import { LLMValidationError } from "./errors";
 import {
   compileLangfuseMediaMessages,
   normalizeEvaluatorMediaType,
@@ -298,12 +297,12 @@ describe("compileLangfuseMediaMessages", () => {
   });
 
   it.each([
-    [ChatMessageRole.System, ChatMessageType.System],
-    [ChatMessageRole.Developer, ChatMessageType.Developer],
-    [ChatMessageRole.Assistant, ChatMessageType.AssistantText],
+    [ChatMessageRole.System, ChatMessageType.System, "user"],
+    [ChatMessageRole.Developer, ChatMessageType.Developer, "user"],
+    [ChatMessageRole.Assistant, ChatMessageType.AssistantText, "user"],
   ])(
-    "rejects supported media in %s messages before resolution",
-    async (role, type) => {
+    "leaves supported media in %s messages as plain text",
+    async (role, type, providerRole) => {
       const resolver = vi.fn();
 
       await expect(
@@ -313,7 +312,10 @@ describe("compileLangfuseMediaMessages", () => {
           adapter: LLMAdapter.GoogleAIStudio,
           resolveMedia: resolver,
         }),
-      ).rejects.toSatisfy(LLMValidationError.isInstance);
+      ).resolves.toEqual({
+        providerMessages: [{ role: providerRole, content: imageRef }],
+        traceMessages: [{ role: providerRole, content: imageRef }],
+      });
       expect(resolver).not.toHaveBeenCalled();
     },
   );

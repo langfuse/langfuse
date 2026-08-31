@@ -4,7 +4,10 @@ import {
   type CompiledEvalOutputDefinition,
   type PersistedEvalOutputDefinition,
 } from "../../features/evals/outputDefinition";
-import type { PersistedEvaluatorPromptMessages } from "../../features/evals/types";
+import type {
+  EvaluatorPromptMessage,
+  PersistedEvaluatorPromptMessages,
+} from "../../features/evals/types";
 import { compileEvalPrompt } from "../../utils/prompts";
 import type { ExtractedVariable } from "./extractObservationVariables";
 import {
@@ -13,35 +16,44 @@ import {
   type ChatMessage,
 } from "../llm/types";
 
+const CHAT_MESSAGE_BUILDERS = {
+  system: (content: string) => ({
+    type: ChatMessageType.System,
+    role: ChatMessageRole.System,
+    content,
+  }),
+  user: (content: string) => ({
+    type: ChatMessageType.User,
+    role: ChatMessageRole.User,
+    content,
+  }),
+  assistant: (content: string) => ({
+    type: ChatMessageType.AssistantText,
+    role: ChatMessageRole.Assistant,
+    content,
+  }),
+} satisfies Record<
+  EvaluatorPromptMessage["role"],
+  (content: string) => ChatMessage
+>;
+
 function buildEvalMessages(params: {
   promptMessages: PersistedEvaluatorPromptMessages;
   variables: ExtractedVariable[];
-}): ChatMessage[] {
-  return params.promptMessages.map((message): ChatMessage => {
-    const content = compileEvalPrompt({
-      templatePrompt: message.content,
-      variables: params.variables,
-    });
-    if (message.role === "system") {
-      return {
-        type: ChatMessageType.System,
-        role: ChatMessageRole.System,
-        content,
-      };
-    }
-    if (message.role === "assistant") {
-      return {
-        type: ChatMessageType.AssistantText,
-        role: ChatMessageRole.Assistant,
-        content,
-      };
-    }
-    return {
-      type: ChatMessageType.User,
-      role: ChatMessageRole.User,
-      content,
-    };
-  });
+}) {
+  const messages = params.promptMessages.map((message) =>
+    CHAT_MESSAGE_BUILDERS[message.role](
+      compileEvalPrompt({
+        templatePrompt: message.content,
+        variables: params.variables,
+      }),
+    ),
+  );
+
+  return {
+    messages,
+    interpolatedPrompt: messages.map(({ content }) => content).join("\n\n"),
+  };
 }
 
 export async function executeLlmEvaluator(params: {
@@ -54,10 +66,7 @@ export async function executeLlmEvaluator(params: {
     interpolatedPrompt: string;
   }) => Promise<unknown>;
 }) {
-  const messages = buildEvalMessages(params);
-  const interpolatedPrompt = messages
-    .map(({ content }) => content)
-    .join("\n\n");
+  const { messages, interpolatedPrompt } = buildEvalMessages(params);
   const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
     params.outputDefinition,
   );

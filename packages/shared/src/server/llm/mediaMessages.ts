@@ -170,8 +170,8 @@ async function fetchMediaBytes(
 
 /**
  * Maps Langfuse chat messages to AI SDK messages. URL and inline modes expand
- * supported media references in user text into ordered FileParts and reject
- * them in system/assistant messages. Disabled mode leaves every reference as
+ * supported media references in user text into ordered FileParts. References
+ * in other roles remain plain text. Disabled mode leaves every reference as
  * plain text and performs no media lookup.
  */
 export async function compileLangfuseMediaMessages(params: {
@@ -211,7 +211,13 @@ export async function compileLangfuseMediaMessages(params: {
       );
     }
   }
-  assertMediaOnlyInUserMessages(params.messages, supportedReferencesByContent);
+  const sourceRolesByContent = new Map<string, string[]>();
+  for (const message of params.messages) {
+    if (typeof message.content !== "string") continue;
+    const roles = sourceRolesByContent.get(message.content) ?? [];
+    roles.push(message.role);
+    sourceRolesByContent.set(message.content, roles);
+  }
 
   const modelMessages = mapChatMessagesToModelMessages(params.messages, {
     adapter: params.adapter,
@@ -225,7 +231,11 @@ export async function compileLangfuseMediaMessages(params: {
 
   const compiledMessages = await Promise.all(
     modelMessages.map(async (message) => {
-      if (message.role !== "user" || typeof message.content !== "string") {
+      if (typeof message.content !== "string") {
+        return { providerMessage: message, traceMessage: message };
+      }
+      const sourceRole = sourceRolesByContent.get(message.content)?.shift();
+      if (message.role !== "user" || sourceRole !== ChatMessageRole.User) {
         return { providerMessage: message, traceMessage: message };
       }
 
@@ -316,26 +326,6 @@ export async function compileLangfuseMediaMessages(params: {
     ),
     traceMessages: compiledMessages.map(({ traceMessage }) => traceMessage),
   };
-}
-
-function assertMediaOnlyInUserMessages(
-  messages: ChatMessage[],
-  supportedReferencesByContent: Map<string, SupportedReference[]>,
-) {
-  for (const message of messages) {
-    if (
-      (message.role === ChatMessageRole.System ||
-        message.role === ChatMessageRole.Developer ||
-        message.role === ChatMessageRole.Assistant) &&
-      typeof message.content === "string" &&
-      (supportedReferencesByContent.get(message.content)?.length ?? 0) > 0
-    ) {
-      throw new LLMValidationError({
-        code: "invalid-request",
-        message: `Supported media references are not allowed in ${message.role} evaluator messages`,
-      });
-    }
-  }
 }
 
 type SupportedReference = {
