@@ -22,29 +22,27 @@ describe("/api/spec", () => {
     expect(res.statusCode).toBe(200);
     expect(res.getHeader("Content-Type")).toBe("text/html; charset=utf-8");
     expect(body).toContain("<title>Langfuse API Reference</title>");
-    expect(body).toContain('href="?asset=swagger-ui.css"');
-    expect(body).toContain('src="?asset=swagger-ui-bundle.js"');
+    expect(body).toContain('src="?asset=scalar-api-reference.js"');
     expect(body).toContain('url: "../generated/api/openapi.yml"');
-    expect(body).toContain("validatorUrl: null");
+    expect(body).toContain("agent: { disabled: true }");
+    expect(body).toContain("mcp: { disabled: true }");
+    expect(body).toContain("telemetry: false");
+    expect(body).toContain("hideClientButton: true");
+    expect(body).toContain("withDefaultFonts: false");
     expect(body).not.toMatch(/https?:\/\//);
   });
 
-  it.each([
-    ["swagger-ui.css", "text/css; charset=utf-8", ".swagger-ui"],
-    [
-      "swagger-ui-bundle.js",
-      "text/javascript; charset=utf-8",
-      "SwaggerUIBundle",
-    ],
-  ])("serves the packaged %s asset", (asset, contentType, content) => {
-    const res = callHandler("GET", { asset });
+  it("serves the packaged Scalar standalone asset", () => {
+    const res = callHandler("GET", { asset: "scalar-api-reference.js" });
 
     expect(res.statusCode).toBe(200);
-    expect(res.getHeader("Content-Type")).toBe(contentType);
+    expect(res.getHeader("Content-Type")).toBe(
+      "text/javascript; charset=utf-8",
+    );
     expect(res.getHeader("Cache-Control")).toBe(
       "public, max-age=31536000, immutable",
     );
-    expect(res._getData().toString()).toContain(content);
+    expect(res._getData().toString()).toContain("Scalar");
   });
 
   it("keeps the specification URL within a deployment base path", () => {

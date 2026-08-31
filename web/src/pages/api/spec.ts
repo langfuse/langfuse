@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import getSwaggerUiPath from "swagger-ui-dist/absolute-path.js";
+import { dirname, join } from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const contentSecurityPolicy = [
@@ -15,15 +14,11 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-const swaggerUiPath = getSwaggerUiPath();
+const scalarDistPath = dirname(require.resolve("@scalar/api-reference"));
 const assets = {
-  "swagger-ui-bundle.js": {
-    content: readFileSync(join(swaggerUiPath, "swagger-ui-bundle.js")),
+  "scalar-api-reference.js": {
+    content: readFileSync(join(scalarDistPath, "browser", "standalone.js")),
     contentType: "text/javascript; charset=utf-8",
-  },
-  "swagger-ui.css": {
-    content: readFileSync(join(swaggerUiPath, "swagger-ui.css")),
-    contentType: "text/css; charset=utf-8",
   },
 } as const;
 
@@ -33,19 +28,24 @@ const apiReferenceHtml = `<!doctype html>
     <title>Langfuse API Reference</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="?asset=swagger-ui.css" />
   </head>
   <body>
-    <div id="swagger-ui"></div>
-    <script src="?asset=swagger-ui-bundle.js"></script>
+    <div id="app"></div>
+    <script src="?asset=scalar-api-reference.js"></script>
     <script>
-      SwaggerUIBundle({
+      Scalar.createApiReference("#app", {
         url: "../generated/api/openapi.yml",
-        dom_id: "#swagger-ui",
-        deepLinking: true,
-        docExpansion: "none",
-        persistAuthorization: false,
-        validatorUrl: null,
+        agent: { disabled: true },
+        mcp: { disabled: true },
+        telemetry: false,
+        hideClientButton: true,
+        withDefaultFonts: false,
+        customCss: \`
+          :root {
+            --scalar-font: ui-sans-serif, system-ui, sans-serif;
+            --scalar-font-code: ui-monospace, monospace;
+          }
+        \`,
       });
     </script>
   </body>
