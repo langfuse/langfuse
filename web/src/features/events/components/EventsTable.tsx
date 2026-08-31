@@ -40,6 +40,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDurationTableColumn } from "@/src/components/design-system/table/columns/createDurationTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -82,7 +83,6 @@ import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -1421,9 +1421,8 @@ export default function ObservationsEventsTable({
         );
       },
     },
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "promptName",
-      id: "promptName",
       header: getEventsColumnName("promptName"),
       headerTooltip: {
         description: "Link to prompt version in Langfuse prompt management.",
@@ -1432,13 +1431,14 @@ export default function ObservationsEventsTable({
       size: 200,
       enableHiding: true,
       enableSorting,
-      cell: ({ row }) => {
+      getValue: (_value, { row }) => {
         const promptName = row.original.promptName;
         const promptVersion = row.original.promptVersion;
-        const value = `${promptName} (v${promptVersion})`;
-        return promptName && promptVersion && <TableIdOrName value={value} />;
+        return promptName && promptVersion
+          ? `${promptName} (v${promptVersion})`
+          : undefined;
       },
-    },
+    }),
     createBadgeTableColumn<EventsTableRow>({
       accessorKey: "environment",
       header: getEventsColumnName("environment"),
@@ -1471,21 +1471,14 @@ export default function ObservationsEventsTable({
       enableSorting,
       defaultHidden: true,
     }),
-    {
+    createIdTableColumn<EventsTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       header: getEventsColumnName("traceId"),
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       enableSorting,
       enableHiding: true,
       defaultHidden: true,
-    },
+    }),
     {
       accessorKey: "modelId",
       id: "modelId",

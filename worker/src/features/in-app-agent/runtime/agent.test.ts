@@ -1185,6 +1185,27 @@ describe("createAgUiStream", () => {
       href: "/project/project-1/widgets/widget-1",
     });
 
+    // Destinations without params receive {}; required params still reject it.
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open alerts",
+        destination: "alerts",
+        params: {},
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open alerts",
+      href: "/project/project-1/alerts",
+    });
+
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open session",
+        destination: "session",
+        params: {},
+      }),
+    ).resolves.toMatchObject({ error: true });
+
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
       "in-app-agent-system-prompt",
       undefined,
