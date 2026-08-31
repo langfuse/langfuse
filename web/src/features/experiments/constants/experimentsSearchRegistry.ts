@@ -68,8 +68,16 @@ const EXPERIMENT_FIELD_OVERLAY = {
   },
 };
 
-export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
-  fieldRegistryFromColumns(facetColumns(experimentsFilterConfig), {
+/**
+ * Built from the config the table actually renders, not the static one: a
+ * dataset-scoped page omits the Dataset facet, and the sidebar then strips any
+ * filter on that column on write. A registry that still offered `dataset:`
+ * there would accept the token and let it be dropped without a word.
+ */
+export const experimentsFieldRegistry = (
+  config: FilterConfig = experimentsFilterConfig,
+): FieldRegistry =>
+  fieldRegistryFromColumns(facetColumns(config), {
     id: "experiments",
     metadata: true,
     // `scores.<name>` lowers onto the canonical `scores_avg` /
@@ -92,3 +100,7 @@ export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
     aiContextFields: AI_CONTEXT_FIELDS,
     fields: EXPERIMENT_FIELD_OVERLAY,
   });
+
+/** The unscoped registry: the server's AI-filter guard and the grammar tests. */
+export const EXPERIMENTS_FIELD_REGISTRY: FieldRegistry =
+  experimentsFieldRegistry();
