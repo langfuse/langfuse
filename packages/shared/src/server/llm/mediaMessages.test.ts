@@ -278,23 +278,34 @@ describe("compileLangfuseMediaMessages", () => {
   });
 
   it.each([
-    ["unknown MIME", unknownRef],
-    ["field-size placeholder", fieldSizeLimitRef],
-  ])("leaves %s references unchanged as text", async (_label, reference) => {
-    const resolver = vi.fn();
-    const result = await compileLangfuseMediaMessages({
-      projectId: "project-1",
-      messages: [userMessage(`inspect ${reference}`)],
-      adapter: LLMAdapter.Anthropic,
-      resolveMedia: resolver,
-    });
+    ["unknown MIME", unknownRef, "application/zip"],
+    ["field-size placeholder", fieldSizeLimitRef, "text/plain"],
+  ])(
+    "leaves %s references as provider text but exposes them as trace media",
+    async (_label, reference, mediaType) => {
+      const resolver = vi.fn();
+      const result = await compileLangfuseMediaMessages({
+        projectId: "project-1",
+        messages: [userMessage(`inspect ${reference}`)],
+        adapter: LLMAdapter.Anthropic,
+        resolveMedia: resolver,
+      });
 
-    expect(result).toEqual({
-      providerMessages: [{ role: "user", content: `inspect ${reference}` }],
-      traceMessages: [{ role: "user", content: `inspect ${reference}` }],
-    });
-    expect(resolver).not.toHaveBeenCalled();
-  });
+      expect(result).toEqual({
+        providerMessages: [{ role: "user", content: `inspect ${reference}` }],
+        traceMessages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "inspect " },
+              { type: "file", data: reference, mediaType },
+            ],
+          },
+        ],
+      });
+      expect(resolver).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     [ChatMessageRole.System, ChatMessageType.System, "user"],

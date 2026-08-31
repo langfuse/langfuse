@@ -239,28 +239,22 @@ export async function compileLangfuseMediaMessages(params: {
         return { providerMessage: message, traceMessage: message };
       }
 
+      const traceContent = buildTraceContent(message.content);
       const matches = supportedReferencesByContent.get(message.content) ?? [];
       if (matches.length === 0) {
-        return { providerMessage: message, traceMessage: message };
+        return {
+          providerMessage: message,
+          traceMessage: { ...message, content: traceContent },
+        };
       }
 
       const content: UserContent = [];
-      const traceContent: Array<
-        | { type: "text"; text: string }
-        | { type: "file"; data: string; mediaType: string }
-      > = [];
       let cursor = 0;
       for (const match of matches) {
         if (match.index > cursor) {
           const text = message.content.slice(cursor, match.index);
           content.push({ type: "text", text });
-          traceContent.push({ type: "text", text });
         }
-        traceContent.push({
-          type: "file",
-          data: match.referenceString,
-          mediaType: match.mediaType,
-        });
         const resolved = await resolveMedia({
           projectId: params.projectId,
           mediaId: match.id,
@@ -310,7 +304,6 @@ export async function compileLangfuseMediaMessages(params: {
       if (cursor < message.content.length) {
         const text = message.content.slice(cursor);
         content.push({ type: "text", text });
-        traceContent.push({ type: "text", text });
       }
 
       return {
@@ -334,6 +327,37 @@ type SupportedReference = {
   mediaType: string;
   referenceString: string;
 };
+
+type TraceContentPart =
+  | { type: "text"; text: string }
+  | { type: "file"; data: string; mediaType: string };
+
+function buildTraceContent(content: string): string | TraceContentPart[] {
+  const parts: TraceContentPart[] = [];
+  let cursor = 0;
+
+  for (const match of content.matchAll(
+    new RegExp(MEDIA_REFERENCE_PATTERN.source, MEDIA_REFERENCE_PATTERN.flags),
+  )) {
+    const parsed = MediaReferenceStringSchema.safeParse(match[0]);
+    if (!parsed.success || match.index === undefined) continue;
+    if (match.index > cursor) {
+      parts.push({ type: "text", text: content.slice(cursor, match.index) });
+    }
+    parts.push({
+      type: "file",
+      data: match[0],
+      mediaType: normalizeEvaluatorMediaType(parsed.data.type),
+    });
+    cursor = match.index + match[0].length;
+  }
+
+  if (parts.length === 0) return content;
+  if (cursor < content.length) {
+    parts.push({ type: "text", text: content.slice(cursor) });
+  }
+  return parts;
+}
 
 function getSupportedReferences(content: string): SupportedReference[] {
   const references: SupportedReference[] = [];
