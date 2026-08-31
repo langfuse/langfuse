@@ -5,8 +5,8 @@ const contentSecurityPolicy = [
   "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
   "style-src 'unsafe-inline' https://cdn.jsdelivr.net",
   "img-src https: data: blob:",
-  "font-src https://cdn.jsdelivr.net data:",
-  "connect-src 'self'",
+  "font-src https: data:",
+  "connect-src 'self' https://cdn.jsdelivr.net",
   "base-uri 'none'",
   "form-action 'none'",
   "frame-ancestors 'none'",
@@ -28,6 +28,10 @@ const apiReferenceHtml = `<!doctype html>
     <script>
       Scalar.createApiReference("#app", {
         url: "../generated/api/openapi.yml",
+        agent: { disabled: true },
+        mcp: { disabled: true },
+        hideClientButton: true,
+        hideTestRequestButton: true,
       });
     </script>
   </body>

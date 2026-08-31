@@ -20,6 +20,8 @@ describe("/api/spec", () => {
     expect(body).toContain(
       "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.67.0",
     );
+    expect(body).toContain("agent: { disabled: true }");
+    expect(body).toContain("mcp: { disabled: true }");
     expect(res.getHeader("Content-Security-Policy")).toContain(
       "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
     );
