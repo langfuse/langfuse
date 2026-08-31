@@ -132,7 +132,7 @@ Splitting a file and directory renames are not part of the surface
 | 11     | no runtime import cycles                                                                      | graph + `.dependency-cruiser.js`                                         |
 | 12     | `src/pages` files import only a Page component                                                | graph + `.dependency-cruiser.js`                                         |
 | 13     | `components/ui` frozen                                                                        | census (file count, baseline ratchets adds)                              |
-| 14, 15 | design-system purity; git-mv moves                                                            | review / process — not counted. Rule 14's import boundary is also enforced by `boundaries/dependencies` |
+| 14, 15 | design-system purity; git-mv moves                                                            | review / process — not counted                                           |
 | 16     | ESLint ignores at file level only                                                             | census (line-level disables)                                             |
 | 17     | baseline only shrinks                                                                         | this baseline + `--diff`                                                 |
 | 18     | fn/hook tests colocated flat                                                                  | census                                                                   |
