@@ -222,3 +222,45 @@ describe("sign-in page NextAuth error classification", () => {
     expect(captureExceptionMock).not.toHaveBeenCalled();
   });
 });
+
+describe("sign-in page JumpCloud provider button", () => {
+  beforeEach(() => {
+    signInMock.mockReset();
+    signInMock.mockResolvedValue(undefined);
+    routerState.query = {};
+    window.localStorage.clear();
+  });
+
+  it("does not render a JumpCloud button when the provider is disabled", () => {
+    renderSignIn();
+
+    expect(
+      screen.queryByRole("button", { name: /JumpCloud/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a JumpCloud button and signs in with the jumpcloud provider", () => {
+    renderSignIn({
+      authProviders: { ...authProviders, jumpcloud: true },
+    });
+
+    const button = screen.getByRole("button", { name: /JumpCloud/ });
+    fireEvent.click(button);
+
+    expect(signInMock).toHaveBeenCalledWith("jumpcloud");
+  });
+
+  it("uses AUTH_JUMPCLOUD_NAME as the button label when configured", () => {
+    renderSignIn({
+      authProviders: {
+        ...authProviders,
+        jumpcloud: { name: "Acme SSO" },
+      },
+    });
+
+    const button = screen.getByRole("button", { name: /Acme SSO/ });
+    fireEvent.click(button);
+
+    expect(signInMock).toHaveBeenCalledWith("jumpcloud");
+  });
+});

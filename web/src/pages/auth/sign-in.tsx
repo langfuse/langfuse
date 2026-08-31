@@ -424,11 +424,7 @@ export function SSOButtons({
                   ? authProviders.jumpcloud.name
                   : "JumpCloud"
               }
-              onClick={() => {
-                capture("sign_in:button_click", { provider: "jumpcloud" });
-                onProviderSelect?.("jumpcloud");
-                signIn("jumpcloud");
-              }}
+              onClick={() => handleSignIn("jumpcloud")}
               loading={providerSigningIn === "jumpcloud"}
               showLastUsedBadge={
                 hasMultipleAuthMethods && lastUsedMethod === "jumpcloud"
