@@ -32,7 +32,7 @@ import {
   PROMPT_TABS,
 } from "@/src/features/navigation/utils/prompt-tabs";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import { ConnectedJumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
 import LegacyGenerations from "@/src/components/table/use-cases/observations";
 import EventsTable from "@/src/features/events/components/EventsTable";
@@ -410,7 +410,7 @@ export const PromptDetail = ({
                 <div className="min-h-1 flex-1" />
               </div>
               <div className="flex h-full flex-wrap content-start items-start justify-end gap-1 lg:flex-nowrap">
-                <JumpToPlaygroundDropdownMenuController
+                <ConnectedJumpToPlaygroundDropdownMenuController
                   source="prompt"
                   prompt={{
                     ...prompt,
@@ -437,7 +437,7 @@ export const PromptDetail = ({
                       </Button>
                     </Trigger>
                   )}
-                </JumpToPlaygroundDropdownMenuController>
+                </ConnectedJumpToPlaygroundDropdownMenuController>
                 {hasAccess && (
                   <Dialog
                     open={isCreateExperimentDialogOpen}

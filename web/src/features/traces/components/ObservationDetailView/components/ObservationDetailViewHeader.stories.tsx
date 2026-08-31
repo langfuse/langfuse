@@ -53,7 +53,13 @@ const defaultArgs = {
     ],
     onQueueItemToggle: fn(),
   },
-  playgroundMenu: <button>Playground menu</button>,
+  playgroundAction: {
+    disabled: false,
+    title: "Test in LLM playground",
+    includeOutput: false,
+    onIncludeOutputChange: fn(),
+    onPlaygroundAction: fn(),
+  },
   commentAction: {
     disabled: false,
     count: 2,

@@ -40,7 +40,7 @@ import {
   type JumpToPlaygroundAction,
 } from "./JumpToPlaygroundMenu";
 
-type JumpToPlaygroundDropdownMenuControllerProps = (
+type JumpToPlaygroundControllerProps =
   | {
       source: "prompt";
       prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
@@ -56,124 +56,114 @@ type JumpToPlaygroundDropdownMenuControllerProps = (
         output: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
-    }
-) & {
-  children: (control: {
-    disabled: boolean;
-    title: string;
-    Trigger: Parameters<
-      NonNullable<
-        React.ComponentProps<typeof DropdownMenuController>["children"]
-      >
-    >[0]["Trigger"];
-  }) => React.ReactNode;
-};
+    };
 
-export const JumpToPlaygroundDropdownMenuController = (
-  props: JumpToPlaygroundDropdownMenuControllerProps,
+type ConnectedJumpToPlaygroundDropdownMenuControllerProps =
+  JumpToPlaygroundControllerProps & {
+    children: (control: {
+      disabled: boolean;
+      title: string;
+      Trigger: Parameters<
+        NonNullable<
+          React.ComponentProps<typeof DropdownMenuController>["children"]
+        >
+      >[0]["Trigger"];
+    }) => React.ReactNode;
+  };
+
+export const ConnectedJumpToPlaygroundDropdownMenuController = (
+  props: ConnectedJumpToPlaygroundDropdownMenuControllerProps,
 ) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [includeOutput, setIncludeOutput] = useState(false);
-
-  // Generate a stable window ID based on the source data
   const sourceId =
     props.source === "prompt" ? props.prompt.id : props.generation.id;
-  const stableWindowId = useMemo(() => {
-    return `playground-${props.source}-${sourceId}`;
-  }, [props.source, sourceId]);
+  const stableWindowId = useMemo(
+    () => `playground-${props.source}-${sourceId}`,
+    [props.source, sourceId],
+  );
   const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
-
   const apiKeys = api.llmApiKey.all.useQuery(
-    {
-      projectId: projectId as string,
-    },
+    { projectId: projectId as string },
     { enabled: Boolean(projectId) },
   );
-
   const modelToProviderMap = useMemo(() => {
     const modelProviderMap: Record<string, string> = {};
 
-    (apiKeys.data?.data ?? []).forEach((apiKey) => {
-      const { provider, customModels, withDefaultModels, adapter } = apiKey;
-      // add default models if enabled
-      if (withDefaultModels) {
-        (playgroundSupportedModels[adapter] ?? []).forEach((model) => {
-          modelProviderMap[model] = provider;
+    (apiKeys.data?.data ?? []).forEach(
+      ({ provider, customModels, withDefaultModels, adapter }) => {
+        if (withDefaultModels) {
+          (playgroundSupportedModels[adapter] ?? []).forEach((model) => {
+            modelProviderMap[model] = provider;
+          });
+        }
+        customModels.forEach((customModel) => {
+          modelProviderMap[customModel] = provider;
         });
-      }
-
-      // add custom models if set
-      customModels.forEach((customModel) => {
-        modelProviderMap[customModel] = provider;
-      });
-    });
+      },
+    );
     return modelProviderMap;
   }, [apiKeys.data]);
-
-  const prompt = props.source === "prompt" ? props.prompt : undefined;
-  const generation =
-    props.source === "generation" ? props.generation : undefined;
   const capturedState = useMemo(() => {
-    if (prompt) return parsePrompt(prompt);
-    if (generation) {
-      return parseGeneration(generation, modelToProviderMap, includeOutput);
-    }
-    return null;
-  }, [prompt, generation, modelToProviderMap, includeOutput]);
-  const isAvailable = capturedState !== null;
-
+    if (props.source === "prompt") return parsePrompt(props.prompt);
+    return parseGeneration(props.generation, modelToProviderMap, includeOutput);
+  }, [props, modelToProviderMap, includeOutput]);
   const handlePlaygroundAction = (action: JumpToPlaygroundAction) => {
     const useFreshPlayground = action === "fresh";
     capture(props.analyticsEventName, {
       playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
     });
-
-    // First, ensure we have state to save
-    if (!capturedState) {
-      console.warn("No captured state available for playground");
-      return;
-    }
+    if (!capturedState) return;
 
     if (useFreshPlayground) {
-      // Clear all existing playground data and reset to single window
       clearAllCache(stableWindowId);
-    } else {
-      // Add to existing playground
-      const addedWindowId = addWindowWithId(stableWindowId);
-
-      if (!addedWindowId) {
-        console.warn(
-          "Failed to add window to existing playground, maximum windows reached",
-        );
-        return;
-      }
+    } else if (!addWindowWithId(stableWindowId)) {
+      return;
     }
-
-    // Use requestAnimationFrame to ensure the state update has been processed
     requestAnimationFrame(() => {
       try {
         setPlaygroundCache(capturedState);
-        console.log(
-          `Cache saved for existing playground window ${stableWindowId}`,
-        );
-
-        // Navigate after cache is successfully saved
-        router.push(`/project/${projectId}/playground`);
-      } catch (error) {
-        console.error("Failed to save playground cache:", error);
-        // Navigate anyway, but user might not see their data
+      } finally {
         router.push(`/project/${projectId}/playground`);
       }
     });
   };
-
-  const tooltipMessage = isAvailable
+  const title = capturedState
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
+  return (
+    <JumpToPlaygroundDropdownMenuController
+      source={props.source}
+      disabled={!capturedState}
+      title={title}
+      includeOutput={includeOutput}
+      onIncludeOutputChange={setIncludeOutput}
+      onPlaygroundAction={handlePlaygroundAction}
+    >
+      {props.children}
+    </JumpToPlaygroundDropdownMenuController>
+  );
+};
+
+export function JumpToPlaygroundDropdownMenuController(
+  props: {
+    disabled: boolean;
+    title: string;
+    onPlaygroundAction: (action: JumpToPlaygroundAction) => void;
+    children: ConnectedJumpToPlaygroundDropdownMenuControllerProps["children"];
+  } & (
+    | { source: "prompt" }
+    | {
+        source: "generation";
+        includeOutput: boolean;
+        onIncludeOutputChange: (includeOutput: boolean) => void;
+      }
+  ),
+) {
   return (
     <DropdownMenuController
       align="end"
@@ -181,14 +171,14 @@ export const JumpToPlaygroundDropdownMenuController = (
         props.source === "prompt" ? (
           <JumpToPlaygroundMenu
             source="prompt"
-            onPlaygroundAction={handlePlaygroundAction}
+            onPlaygroundAction={props.onPlaygroundAction}
           />
         ) : (
           <JumpToPlaygroundMenu
             source="generation"
-            includeOutput={includeOutput}
-            onIncludeOutputChange={setIncludeOutput}
-            onPlaygroundAction={handlePlaygroundAction}
+            includeOutput={props.includeOutput}
+            onIncludeOutputChange={props.onIncludeOutputChange}
+            onPlaygroundAction={props.onPlaygroundAction}
           />
         )
       }
@@ -196,13 +186,13 @@ export const JumpToPlaygroundDropdownMenuController = (
       {({ Trigger }) =>
         props.children({
           Trigger,
-          disabled: !isAvailable,
-          title: tooltipMessage,
+          disabled: props.disabled,
+          title: props.title,
         })
       }
     </DropdownMenuController>
   );
-};
+}
 
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
@@ -241,7 +231,7 @@ const parsePrompt = (
   }
 };
 
-const parseGeneration = (
+export const parseGeneration = (
   generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
     input: string | null;
     output: string | null;

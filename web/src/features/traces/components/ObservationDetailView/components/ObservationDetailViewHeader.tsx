@@ -50,6 +50,8 @@ import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggr
 import type Decimal from "decimal.js";
 import { type RouterOutputs } from "@/src/utils/api";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
+import { type JumpToPlaygroundAction } from "@/src/features/playground/page/components/JumpToPlaygroundMenu";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 
 export type ObservationDetailViewHeaderProps = {
   observation: ObservationReturnTypeWithMetadata;
@@ -87,7 +89,15 @@ export type ObservationDetailViewHeaderProps = {
       itemId?: string,
     ) => void;
   };
-  playgroundMenu: ReactNode;
+  playgroundAction:
+    | { type: "hidden" }
+    | {
+        disabled: boolean;
+        title: string;
+        includeOutput: boolean;
+        onIncludeOutputChange: (includeOutput: boolean) => void;
+        onPlaygroundAction: (action: JumpToPlaygroundAction) => void;
+      };
   commentAction: {
     disabled: boolean;
     count: number | undefined;
@@ -107,7 +117,7 @@ export function ObservationDetailViewHeader({
   datasetAction,
   annotationAction,
   annotationQueueAction,
-  playgroundMenu,
+  playgroundAction,
   commentAction,
 }: ObservationDetailViewHeaderProps) {
   const preparedDate = buildLocalIsoDatePresentation({
@@ -159,6 +169,27 @@ export function ObservationDetailViewHeader({
       />
     </DropdownMenu>
   );
+  const playgroundMenu =
+    playgroundAction.type === "hidden" ? null : (
+      <JumpToPlaygroundDropdownMenuController
+        source="generation"
+        disabled={playgroundAction.disabled}
+        title={playgroundAction.title}
+        includeOutput={playgroundAction.includeOutput}
+        onIncludeOutputChange={playgroundAction.onIncludeOutputChange}
+        onPlaygroundAction={playgroundAction.onPlaygroundAction}
+      >
+        {({ Trigger, disabled, title }) => (
+          <Trigger asChild>
+            <ObservationHeaderPlaygroundButton
+              variant={isMobile ? "mobile" : "desktop"}
+              disabled={disabled}
+              title={title}
+            />
+          </Trigger>
+        )}
+      </JumpToPlaygroundDropdownMenuController>
+    );
 
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">

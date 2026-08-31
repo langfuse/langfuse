@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import {
   AnnotationQueueObjectType,
   isGenerationLike,
+  supportedModels as playgroundSupportedModels,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -11,7 +12,7 @@ import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/ho
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { type AnnotationQueueItemMenuQueue } from "@/src/features/annotation-queues/components/AnnotationQueueItemMenuContent";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import { parseGeneration } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -28,10 +29,14 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useSession } from "next-auth/react";
 import { api, reportNonTrpcError } from "@/src/utils/api";
+import { useRouter } from "next/router";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
+import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { type JumpToPlaygroundAction } from "@/src/features/playground/page/components/JumpToPlaygroundMenu";
 import {
   ObservationDetailViewHeader,
   ObservationHeaderOptionsButton,
-  ObservationHeaderPlaygroundButton,
 } from "./ObservationDetailViewHeader";
 
 export interface ConnectedObservationDetailViewHeaderProps {
@@ -79,6 +84,13 @@ export const ConnectedObservationDetailViewHeader = memo(
     const { trace, serverScores } = useTraceData();
     const [isV4AnnotationDrawerOpen, setIsV4AnnotationDrawerOpen] =
       useState(false);
+    const [includePlaygroundOutput, setIncludePlaygroundOutput] =
+      useState(false);
+    const router = useRouter();
+    const capture = usePostHogClientCapture();
+    const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
+    const playgroundWindowId = `playground-generation-${observation.id}`;
+    const { setPlaygroundCache } = usePlaygroundCache(playgroundWindowId);
 
     const traceScores = useMemo(
       () => serverScores.filter((score) => !score.observationId),
@@ -162,6 +174,62 @@ export const ConnectedObservationDetailViewHeader = memo(
       enabled: Boolean(observationWithIO),
     });
     const datasetCount = existingDatasetItems.length;
+    const playgroundApiKeys = api.llmApiKey.all.useQuery(
+      { projectId },
+      { enabled: Boolean(projectId) },
+    );
+    const playgroundModelToProviderMap = useMemo(() => {
+      const modelProviderMap: Record<string, string> = {};
+
+      (playgroundApiKeys.data?.data ?? []).forEach(
+        ({ provider, customModels, withDefaultModels, adapter }) => {
+          if (withDefaultModels) {
+            (playgroundSupportedModels[adapter] ?? []).forEach((model) => {
+              modelProviderMap[model] = provider;
+            });
+          }
+          customModels.forEach((customModel) => {
+            modelProviderMap[customModel] = provider;
+          });
+        },
+      );
+      return modelProviderMap;
+    }, [playgroundApiKeys.data]);
+    const playgroundState = useMemo(
+      () =>
+        observationWithIO
+          ? parseGeneration(
+              observationWithIO,
+              playgroundModelToProviderMap,
+              includePlaygroundOutput,
+            )
+          : null,
+      [
+        includePlaygroundOutput,
+        observationWithIO,
+        playgroundModelToProviderMap,
+      ],
+    );
+    const handlePlaygroundAction = (action: JumpToPlaygroundAction) => {
+      const useFreshPlayground = action === "fresh";
+      capture("trace_detail:test_in_playground_button_click", {
+        playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
+      });
+      if (!playgroundState) return;
+
+      if (useFreshPlayground) {
+        clearAllCache(playgroundWindowId);
+      } else if (!addWindowWithId(playgroundWindowId)) {
+        return;
+      }
+      requestAnimationFrame(() => {
+        try {
+          setPlaygroundCache(playgroundState);
+        } finally {
+          router.push(`/project/${projectId}/playground`);
+        }
+      });
+    };
 
     const optionsAction = (
       <DetailHeaderActionsMenuController
@@ -289,25 +357,19 @@ export const ConnectedObservationDetailViewHeader = memo(
                           []) satisfies AnnotationQueueItemMenuQueue[],
                         onQueueItemToggle: handleQueueItemToggle,
                       }}
-                      playgroundMenu={
+                      playgroundAction={
                         observationWithIO &&
-                        isGenerationLike(observationWithIO.type) ? (
-                          <JumpToPlaygroundDropdownMenuController
-                            source="generation"
-                            generation={observationWithIO}
-                            analyticsEventName="trace_detail:test_in_playground_button_click"
-                          >
-                            {({ Trigger, disabled, title }) => (
-                              <Trigger asChild>
-                                <ObservationHeaderPlaygroundButton
-                                  variant={isMobile ? "mobile" : "desktop"}
-                                  disabled={disabled}
-                                  title={title}
-                                />
-                              </Trigger>
-                            )}
-                          </JumpToPlaygroundDropdownMenuController>
-                        ) : null
+                        isGenerationLike(observationWithIO.type)
+                          ? {
+                              disabled: !playgroundState,
+                              title: playgroundState
+                                ? "Test in LLM playground"
+                                : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.",
+                              includeOutput: includePlaygroundOutput,
+                              onIncludeOutputChange: setIncludePlaygroundOutput,
+                              onPlaygroundAction: handlePlaygroundAction,
+                            }
+                          : { type: "hidden" }
                       }
                       commentAction={{
                         disabled: commentDisabled,
