@@ -27,7 +27,10 @@ import {
   LangfuseInternalTraceEnvironment,
 } from "../";
 
-import { LangfuseOtelSpanAttributes } from "./attributes";
+import {
+  AI_FEATURE_OTEL_SDK_NAME,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
@@ -267,12 +270,10 @@ export class OtelIngestionProcessor {
   private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
   private static readonly MAX_OTEL_RECONSTRUCTED_PATH_DEPTH = 64;
 
-  private static readonly METADATA_DROP_WARN_CAP = 10;
   private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
-  private metadataDropWarnCount = 0;
   private arrayAttributeDropWarnCounts = new Map<
     ReconstructedAttributeDropReason,
     number
@@ -383,7 +384,7 @@ export class OtelIngestionProcessor {
           return [];
         }
 
-        return resourceSpans
+        const events = resourceSpans
           .filter((r) => Boolean(r))
           .flatMap((resourceSpan) => {
             const resourceAttributes =
@@ -672,6 +673,12 @@ export class OtelIngestionProcessor {
 
             return events;
           });
+
+        if (this.sdkName === AI_FEATURE_OTEL_SDK_NAME) {
+          this.denormalizeAiFeatureChildTraceNames(events);
+        }
+
+        return events;
       } catch (error) {
         logger.error("Error processing OTEL spans to events:", {
           error,
@@ -681,6 +688,45 @@ export class OtelIngestionProcessor {
         throw error;
       }
     });
+  }
+
+  /**
+   * Copy the wrapping root's observation.traceName onto sibling events in the
+   * same batch that omitted langfuse.trace.name. That OTEL attribute is a
+   * trace-update signal; filling the events-table field keeps cost-by-trace-name
+   * filters working without rewriting the trace.
+   */
+  private denormalizeAiFeatureChildTraceNames(
+    events: Array<{
+      traceId?: string;
+      traceName?: string | null;
+      parentSpanId?: string | null;
+      isAppRoot?: boolean;
+    }>,
+  ): void {
+    const traceNameByTraceId = new Map<string, string>();
+
+    for (const event of events) {
+      if (!event.traceId || !event.traceName) {
+        continue;
+      }
+
+      const isRoot = !event.parentSpanId || event.isAppRoot === true;
+      if (isRoot) {
+        traceNameByTraceId.set(event.traceId, event.traceName);
+      }
+    }
+
+    for (const event of events) {
+      if (event.traceName || !event.traceId) {
+        continue;
+      }
+
+      const traceName = traceNameByTraceId.get(event.traceId);
+      if (traceName !== undefined) {
+        event.traceName = traceName;
+      }
+    }
   }
 
   /**
@@ -3226,7 +3272,6 @@ export class OtelIngestionProcessor {
   // pipelines) or the per-resourceSpan attributes object for resource
   // attributes — on (attribute key, reason). Distinct spans/resourceSpans
   // in one job count separately; the first-seen domain wins the tag.
-  // Warns are capped per instance, increments are not.
   private recordMetadataDropped(
     reason: string,
     context: MetadataDropContext,
@@ -3247,18 +3292,8 @@ export class OtelIngestionProcessor {
       reason,
       source: "otel",
       domain,
+      projectId: this.projectId,
     });
-    if (
-      this.metadataDropWarnCount < OtelIngestionProcessor.METADATA_DROP_WARN_CAP
-    ) {
-      this.metadataDropWarnCount += 1;
-      logger.warn("OTEL metadata attribute dropped", {
-        projectId: this.projectId,
-        reason,
-        domain,
-        attributeKey,
-      });
-    }
   }
 
   private parseMetadataAttribute(

@@ -468,11 +468,18 @@ function lowerText(
     return;
   }
   if (field.syncMode === "exactOption") {
+    const values = field.filterValueByDisplayValue
+      ? node.values.map((value) => field.filterValueByDisplayValue!.get(value))
+      : node.values;
+    if (values.some((value) => value === undefined)) {
+      errors.push(`"${field.id}" contains an unknown option`);
+      return;
+    }
     out.push({
       type: "stringOptions",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: negated ? "none of" : "any of",
-      value: node.values,
+      value: values as string[],
     });
     return;
   }
@@ -866,7 +873,7 @@ function lowerHas(
     }
     out.push({
       type: "null",
-      column: target.field.id,
+      column: target.field.filterColumn ?? target.field.id,
       operator: negated ? "is null" : "is not null",
       value: "",
     });

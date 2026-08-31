@@ -411,7 +411,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "evalJob:CUD",
+    scope = "evaluationRule:CUD",
     invalidateFunc = () => utils.evals.invalidate(),
   } = props;
 
