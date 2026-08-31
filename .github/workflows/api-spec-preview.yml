@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
 
           cp web/public/generated/api/openapi.yml api-reference/public/openapi.yml
-          find api-reference/public -type f -name '*.html' -exec sed -i 's|%APISPEC_DATA_URL%|/openapi.yml|g' {} \;
+          sed -i 's/%APISPEC_DATA_URL%/\/openapi.yml/g' api-reference/public/index.html
 
       - name: Deploy preview to Vercel
         id: publish
