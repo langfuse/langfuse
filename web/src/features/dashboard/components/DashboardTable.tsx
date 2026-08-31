@@ -34,7 +34,8 @@ type DashboardTableRow = {
 };
 
 const dashboardMenuButtonWrapperClassName =
-  "w-full [&_button]:w-full [&_button]:justify-start";
+  "flex w-full min-w-32 flex-col items-stretch";
+const dashboardMenuButtonClassName = "w-full justify-start";
 
 function CloneDashboardButton({
   dashboardId,
@@ -84,6 +85,7 @@ function CloneDashboardButton({
       <Button
         variant="ghost"
         size="default"
+        className={dashboardMenuButtonClassName}
         disabled={!hasAccess}
         onClick={handleCloneDashboard}
       >
@@ -113,6 +115,7 @@ function EditDashboardButton({
       <Button
         variant="ghost"
         size="default"
+        className={dashboardMenuButtonClassName}
         disabled={!hasAccess}
         onClick={() => setIsDialogOpen(true)}
       >
@@ -150,6 +153,7 @@ function LockedEditDashboardButton({
       <Button
         variant="ghost"
         size="default"
+        className={dashboardMenuButtonClassName}
         disabled={!hasAccess}
         onClick={() => {
           capture("dashboard:locked_edit_attempt", {
@@ -315,6 +319,7 @@ export function DashboardTable() {
                     itemId={id}
                     projectId={projectId}
                     isTableAction
+                    className={dashboardMenuButtonClassName}
                   />
                 </div>
               </DropdownMenuItem>
