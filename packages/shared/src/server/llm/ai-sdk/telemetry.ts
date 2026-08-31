@@ -90,7 +90,7 @@ export function createAiSdkTelemetryCapture(params: {
   traceSinkParams: TraceSinkParams;
   /** Recorded as the root span's (and trace's) input. */
   rootInput?: unknown;
-  /** Display input for the AI SDK generation span, allowing trace rendering to differ from the provider-bound messages. */
+  /** Trace-visible generation input. Pass media-reference messages instead of the exact provider egress payload when needed. */
   generationInput?: unknown;
 }): AiSdkTelemetryCapture | undefined {
   const { traceSinkParams, rootInput, generationInput } = params;
