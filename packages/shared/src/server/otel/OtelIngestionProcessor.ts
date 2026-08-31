@@ -270,12 +270,10 @@ export class OtelIngestionProcessor {
   private static readonly MAX_OTEL_RECONSTRUCTED_ARRAY_SLOTS = 10_001;
   private static readonly MAX_OTEL_RECONSTRUCTED_PATH_DEPTH = 64;
 
-  private static readonly METADATA_DROP_WARN_CAP = 10;
   private static readonly ARRAY_ATTRIBUTE_DROP_WARN_CAP = 10;
 
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
-  private metadataDropWarnCount = 0;
   private arrayAttributeDropWarnCounts = new Map<
     ReconstructedAttributeDropReason,
     number
@@ -3274,7 +3272,6 @@ export class OtelIngestionProcessor {
   // pipelines) or the per-resourceSpan attributes object for resource
   // attributes — on (attribute key, reason). Distinct spans/resourceSpans
   // in one job count separately; the first-seen domain wins the tag.
-  // Warns are capped per instance, increments are not.
   private recordMetadataDropped(
     reason: string,
     context: MetadataDropContext,
@@ -3295,18 +3292,8 @@ export class OtelIngestionProcessor {
       reason,
       source: "otel",
       domain,
+      projectId: this.projectId,
     });
-    if (
-      this.metadataDropWarnCount < OtelIngestionProcessor.METADATA_DROP_WARN_CAP
-    ) {
-      this.metadataDropWarnCount += 1;
-      logger.warn("OTEL metadata attribute dropped", {
-        projectId: this.projectId,
-        reason,
-        domain,
-        attributeKey,
-      });
-    }
   }
 
   private parseMetadataAttribute(

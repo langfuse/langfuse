@@ -64,7 +64,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
@@ -577,22 +577,15 @@ export default function ScoresTable({
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ScoresTableRow>({
       accessorKey: "id",
-      id: "id",
       enableColumnFilter: false,
       header: "Score ID",
       size: 100,
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
-    },
+    }),
     createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
