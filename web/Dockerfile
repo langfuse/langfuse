@@ -3,7 +3,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib && \
+    apk add --no-cache dumb-init tzdata
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -14,11 +15,10 @@ RUN corepack enable
 RUN corepack prepare pnpm@11.22.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
-# Remove build-only package managers. npm stays here because the runner stage
-# uses it to install prisma and optional dd-trace before removing it.
-RUN rm -rf /usr/local/lib/node_modules/corepack \
+# package managers and build-only CLIs only increase exposure to CVEs -> remove them
+RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
             /root/.cache/node/corepack && \
-    rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
+    rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -134,8 +134,20 @@ ENV CI true
 
 RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
 
-# Production image, copy all the files and run next
-FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
+# Install runtime CLIs here so npm's cache never lands in a shipped layer.
+FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS runtime-extras
+WORKDIR /extras
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+RUN npm install -g --no-package-lock --no-save prisma@6.19.3 && \
+    mkdir -p /extras/node_modules && \
+    if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
+      npm install --no-package-lock --no-save dd-trace@5.109.0; \
+    fi && \
+    rm -rf /root/.npm /root/.cache /tmp/* /var/cache/apk
+
+# Assemble the runtime filesystem, then flatten it so deletions actually leave
+# the image (COPY + RUN rm keeps the bytes in the parent layer).
+FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS assembled
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
@@ -143,38 +155,16 @@ ARG BUILDPLATFORM
 WORKDIR /app
 
 ARG NEXT_PUBLIC_BUILD_ID
-ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-
-ENV NODE_ENV production
-# Uncomment the following line in case you want to disable telemetry during runtime.
-ENV NEXT_TELEMETRY_DISABLED 1
-# Needed to re-enable validation of environment variables during runtime
-ENV DOCKER_BUILD 0
-# Set NEXT_MANUAL_SIG_HANDLE for runtime
-ENV NEXT_MANUAL_SIG_HANDLE true
-
-RUN apk add --no-cache dumb-init tzdata
 
 # Don't run production as root
 ARG UID=1001
 ARG GID=1001
-RUN addgroup --system --gid ${GID} nodejs
-RUN adduser --system --uid ${UID} nextjs
+RUN addgroup --system --gid ${GID} nodejs && \
+    adduser --system --uid ${UID} nextjs
 
-RUN npm install -g --no-package-lock --no-save prisma@6.19.3
-
-# Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
-ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    npm install --no-package-lock --no-save dd-trace@5.109.0; \
-    fi
-
-# npm is only used for the installs above; remove it from the final runtime image.
-RUN rm -rf /usr/local/lib/node_modules/npm && \
-    rm -f /usr/local/bin/npm /usr/local/bin/npx
-
+COPY --from=runtime-extras /usr/local/lib/node_modules/prisma /usr/local/lib/node_modules/prisma
+COPY --from=runtime-extras /usr/local/bin/prisma /usr/local/bin/prisma
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
@@ -189,14 +179,37 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/public ./web/public
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/prisma ./packages/shared/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/packages/shared/clickhouse ./packages/shared/clickhouse
 
-COPY --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
+COPY --chmod=755 --chown=nextjs:nodejs ./web/entrypoint.sh ./web/entrypoint.sh
 COPY --chown=nextjs:nodejs ./packages/shared/scripts/cleanup.sql ./packages/shared/scripts/cleanup.sql
-RUN chmod +x ./web/entrypoint.sh
 
+# Overlay optional cloud-only packages last so they are not replaced by standalone.
+COPY --from=runtime-extras /extras/node_modules/ /app/node_modules/
+
+COPY scripts/docker/prune-runtime-node-modules.sh /tmp/prune-runtime-node-modules.sh
+RUN sh /tmp/prune-runtime-node-modules.sh --dir /app/node_modules && \
+    sh /tmp/prune-runtime-node-modules.sh --dir /usr/local/lib/node_modules/prisma && \
+    rm -rf /tmp/prune-runtime-node-modules.sh /root/.npm /root/.cache /tmp/* /var/cache/apk \
+           /usr/local/lib/node_modules/prisma/README.md
+
+FROM scratch AS runner
+
+ARG NEXT_PUBLIC_BUILD_ID
+ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+
+# scratch has an empty PATH; keep the alpine + node locations.
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    BUILD_ID=$NEXT_PUBLIC_BUILD_ID \
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION \
+    NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    DOCKER_BUILD=0 \
+    NEXT_MANUAL_SIG_HANDLE=true \
+    PORT=3000
+
+COPY --from=assembled / /
+
+WORKDIR /app
 USER nextjs
-
-# Default port to 3000
-ENV PORT 3000
 
 # Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
 # Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking

@@ -3,7 +3,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
 
 # It's important to update the index before installing packages to ensure you're getting the latest versions.
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib && \
+    apk add --no-cache dumb-init
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -60,9 +61,10 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 
 # previously we copied the --from=builder /app . (includes full node_modules etc)
 # we only need the prod + generated prisma client plus .prisma artifacts
-# @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
-# intact here instead of pruning node_modules in Docker.
+# @langfuse/shared still pulls in next-auth transitively; drop the Next.js
+# compiler/SWC toolchain after deploy because the worker never compiles pages.
 # Keep legacy deploy until the worker Docker image is verified with pnpm's default deploy implementation.
+COPY scripts/docker/prune-runtime-node-modules.sh /tmp/prune-runtime-node-modules.sh
 RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
@@ -70,36 +72,50 @@ RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
     deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
     rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
-    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir" && \
+    sh /tmp/prune-runtime-node-modules.sh --dir /prod/worker/node_modules \
+      --drop-next-toolchain --drop-prisma-cli && \
+    rm -f /tmp/prune-runtime-node-modules.sh
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
+# Assemble the runtime filesystem, then flatten it so deletions actually leave
+# the image (COPY + RUN rm keeps the bytes in the parent layer).
+FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS assembled
 
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
 
-RUN apk add --no-cache dumb-init
-
 WORKDIR /app
 
 ARG NEXT_PUBLIC_BUILD_ID
-ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
-
-ENV NODE_ENV production
-ENV DOCKER_BUILD 0
 
 # Don't run production as root
 ARG UID=1001
 ARG GID=1001
-RUN addgroup --system --gid ${GID} expressjs
-RUN adduser --system --uid ${UID} expressjs
+RUN addgroup --system --gid ${GID} expressjs && \
+    adduser --system --uid ${UID} expressjs
 
 # Copy only production worker payload instead of full builder workspace (just /prod/worker not entire /app)
 COPY --from=prod-deps --chown=expressjs:expressjs /prod/worker ./worker
-RUN chmod +x ./worker/entrypoint.sh
+RUN chmod +x ./worker/entrypoint.sh && \
+    rm -rf /root/.npm /root/.cache /tmp/* /var/cache/apk
+
+FROM scratch AS runner
+
+ARG NEXT_PUBLIC_BUILD_ID
+
+# scratch has an empty PATH; keep the alpine + node locations.
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    BUILD_ID=$NEXT_PUBLIC_BUILD_ID \
+    NODE_ENV=production \
+    DOCKER_BUILD=0 \
+    PORT=3030
+
+COPY --from=assembled / /
+
+WORKDIR /app
 USER expressjs
 
 EXPOSE 3030
-ENV PORT=3030
 
 # Docker ENTRYPOINT (dumb-init) is covered by semantic versioning, not the entrypoint.sh itself
 # Reasoning: ENTRYPOINT is overridden by some self-hosted deployments, thus changing this is breaking
