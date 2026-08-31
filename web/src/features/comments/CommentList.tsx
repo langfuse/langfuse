@@ -577,7 +577,6 @@ export function CommentList({
                           .concat("")
                       : (comment.authorUserId ?? "U")
                   }
-                  fallbackTextSize="xs"
                 />
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}

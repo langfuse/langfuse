@@ -99,7 +99,6 @@ export function MentionAutocomplete({
                         fallback={
                           user.name ? user.name[0] : user.email?.[0] || "U"
                         }
-                        fallbackTextSize="xs"
                       />
                       <div className="text-foreground flex-1 overflow-hidden">
                         <div className="truncate font-bold" title={userLabel}>

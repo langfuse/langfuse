@@ -55,7 +55,6 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
           src={user.image ?? undefined}
           alt={name}
           fallback={initials}
-          fallbackTextSize="xs"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-56">
