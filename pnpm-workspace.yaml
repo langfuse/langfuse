@@ -66,6 +66,7 @@ allowBuilds:
   "@scarf/scarf": false
   cpu-features: true
   ssh2: true
+  vue-demi: true
 overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
