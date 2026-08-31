@@ -24,6 +24,7 @@ import { decrypt } from "../../encryption";
 import { env } from "../../env";
 import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMValidationError } from "./errors";
+import { resolveEvaluatorMediaTransport } from "./mediaMessages";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
 import { buildAiSdkModel } from "./ai-sdk/providers";
 import { translateAnthropicProviderOptions } from "./ai-sdk/providers/anthropic";
@@ -359,11 +360,9 @@ async function prepareLLMTextCall<
       maxRetries: options.maxRetries,
       timeout,
       abortSignal: options.abortSignal,
-      // Do not let AI SDK download remote media on the Langfuse server.
-      // Callers must use provider-supported URLs or inline data.
-      experimental_download: createPassThroughSupportedRemoteMedia(
-        options.messages,
-      ),
+      // URL transport preserves provider-supported media URLs without downloading
+      // them. Inline and disabled modes continue to block remote downloads.
+      experimental_download: createRemoteMediaDownloadHandler(options.messages),
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
@@ -409,6 +408,32 @@ function isJsonObject(
 ): value is Record<string, JSONValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+export function createRemoteMediaDownloadHandler(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  const transport = resolveEvaluatorMediaTransport({
+    configured: env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  });
+
+  return transport === "url"
+    ? createPassThroughSupportedRemoteMedia(messages)
+    : rejectRemoteMediaDownloads;
+}
+
+const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
+  downloads,
+) => {
+  if (downloads.length > 0) {
+    throw new LLMValidationError({
+      code: "invalid-request",
+      message:
+        "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
+    });
+  }
+  return [];
+};
 
 function createPassThroughSupportedRemoteMedia(
   messages: ModelMessage[],
