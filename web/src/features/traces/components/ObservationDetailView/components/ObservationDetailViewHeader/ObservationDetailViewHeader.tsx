@@ -14,6 +14,7 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
@@ -34,12 +35,19 @@ import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
-} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "./ModelBadge";
-import { ModelParametersBadges } from "./ModelParametersBadges";
+import {
+  SessionBadge,
+  UserIdBadge,
+} from "@/src/features/traces/components/TraceMetadataBadges";
+import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
+import {
+  CostBadge,
+  UsageBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
+import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -79,6 +87,8 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
+import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
@@ -155,6 +165,22 @@ export const ObservationDetailViewHeader = memo(
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+    const evaluatorId = resolveEvaluatorIdMetadata(
+      observationWithIO?.metadata ?? observation.metadata,
+    );
+    const isEvaluatorExecution =
+      observation.environment === LangfuseInternalTraceEnvironment.LLMJudge ||
+      observation.environment === LangfuseInternalTraceEnvironment.CodeEval;
+    const evaluator = api.evalsV2.get.useQuery(
+      { projectId, evaluatorId: evaluatorId ?? "" },
+      {
+        enabled: Boolean(
+          evaluatorId &&
+          isEvaluatorExecution &&
+          !evaluatorId.startsWith("managed:"),
+        ),
+      },
+    );
 
     const preparedDate = buildLocalIsoDatePresentation({
       date: observation.startTime,
@@ -678,6 +704,12 @@ export const ObservationDetailViewHeader = memo(
               />
               <UserIdBadge
                 userId={observation.userId ?? null}
+                projectId={projectId}
+              />
+              <EvaluatorBadge
+                evaluatorId={evaluatorId}
+                evaluatorName={evaluator.data?.name}
+                environment={observation.environment}
                 projectId={projectId}
               />
               <EnvironmentBadge environment={observation.environment} />
