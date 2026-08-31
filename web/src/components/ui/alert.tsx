@@ -15,6 +15,10 @@ const alertVariants = cva(
         info: "bg-light-blue border-dark-blue",
         warning:
           "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow",
+        "warning-light":
+          "border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow",
+        "warning-subtle":
+          "border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20 [&>svg]:text-yellow-600 dark:[&>svg]:text-yellow-500 [&>[data-slot=alert-title]]:text-yellow-800 dark:[&>[data-slot=alert-title]]:text-yellow-400 [&>[data-slot=alert-description]]:text-yellow-700 dark:[&>[data-slot=alert-description]]:text-yellow-500",
       },
       size: {
         default: "",

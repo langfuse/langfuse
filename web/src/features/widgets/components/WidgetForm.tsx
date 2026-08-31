@@ -887,7 +887,7 @@ export function WidgetForm({
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
             {isBetaEnabled && selectedView === "traces" && (
-              <Alert variant="warning">
+              <Alert variant="warning-subtle">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Traces view is not available in v4</AlertTitle>
                 <AlertDescription>

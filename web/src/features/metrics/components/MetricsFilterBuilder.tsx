@@ -238,7 +238,7 @@ const MetricsFilterView = ({
   return (
     <div className="space-y-2">
       {unsupportedColumns.length > 0 && (
-        <Alert variant="warning">
+        <Alert variant="warning-subtle">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Unsupported filters</AlertTitle>
           <AlertDescription>

@@ -136,7 +136,7 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
 
         {showLegacyReadOnlyNotice ? (
-          <Alert variant="warning">
+          <Alert variant="warning-light">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Legacy evaluator is read-only</AlertTitle>
             <AlertDescription>
