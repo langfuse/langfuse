@@ -23,12 +23,12 @@ describe("/api/spec", () => {
     expect(res.getHeader("Content-Type")).toBe("text/html; charset=utf-8");
     expect(body).toContain("<title>Langfuse API Reference</title>");
     expect(body).toContain('src="?asset=scalar-api-reference.js"');
-    expect(body).toContain('url: "../generated/api/openapi.yml"');
-    expect(body).toContain("agent: { disabled: true }");
-    expect(body).toContain("mcp: { disabled: true }");
-    expect(body).toContain("telemetry: false");
-    expect(body).toContain("hideClientButton: true");
-    expect(body).toContain("withDefaultFonts: false");
+    expect(body).toContain('"url":"../generated/api/openapi.yml"');
+    expect(body).toContain('"agent":{"disabled":true}');
+    expect(body).toContain('"mcp":{"name":"Langfuse API"');
+    expect(body).toContain('"telemetry":false');
+    expect(body).toContain('"hideClientButton":true');
+    expect(body).toContain('"withDefaultFonts":false');
     expect(body).not.toMatch(/https?:\/\//);
   });
 
@@ -47,7 +47,7 @@ describe("/api/spec", () => {
 
   it("keeps the specification URL within a deployment base path", () => {
     const body = callHandler("GET")._getData() as string;
-    const relativeSpecUrl = body.match(/url: "([^"]+)"/)?.[1];
+    const relativeSpecUrl = body.match(/"url":"([^"]+)"/)?.[1];
 
     expect(relativeSpecUrl).toBe("../generated/api/openapi.yml");
     expect(

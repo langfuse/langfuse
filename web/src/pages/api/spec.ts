@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ApiReferenceConfiguration } from "@scalar/api-reference";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const contentSecurityPolicy = [
@@ -36,6 +37,25 @@ const assets = {
   },
 } as const;
 
+const apiReferenceConfiguration = {
+  url: "../generated/api/openapi.yml",
+  agent: { disabled: true },
+  mcp: {
+    name: "Langfuse API",
+    url: "../api/public/mcp",
+    disabled: true,
+  },
+  telemetry: false,
+  hideClientButton: true,
+  withDefaultFonts: false,
+  customCss: `
+    :root {
+      --scalar-font: ui-sans-serif, system-ui, sans-serif;
+      --scalar-font-code: ui-monospace, monospace;
+    }
+  `,
+} satisfies ApiReferenceConfiguration;
+
 const apiReferenceHtml = `<!doctype html>
 <html>
   <head>
@@ -47,20 +67,7 @@ const apiReferenceHtml = `<!doctype html>
     <div id="app"></div>
     <script src="?asset=scalar-api-reference.js"></script>
     <script>
-      Scalar.createApiReference("#app", {
-        url: "../generated/api/openapi.yml",
-        agent: { disabled: true },
-        mcp: { disabled: true },
-        telemetry: false,
-        hideClientButton: true,
-        withDefaultFonts: false,
-        customCss: \`
-          :root {
-            --scalar-font: ui-sans-serif, system-ui, sans-serif;
-            --scalar-font-code: ui-monospace, monospace;
-          }
-        \`,
-      });
+      Scalar.createApiReference("#app", ${JSON.stringify(apiReferenceConfiguration)});
     </script>
   </body>
 </html>`;
