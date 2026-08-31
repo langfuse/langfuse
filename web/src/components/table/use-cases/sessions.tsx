@@ -4,7 +4,7 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -549,7 +549,7 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -685,7 +685,7 @@ export default function SessionsTable({
       size: 220,
       enableHiding: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const promptTokens: SessionTableRow["inputTokens"] =
           row.getValue("inputTokens");
@@ -694,7 +694,7 @@ export default function SessionsTable({
         const totalTokens: SessionTableRow["totalTokens"] =
           row.getValue("totalTokens");
         if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return (
           <TokenUsageBadge
@@ -713,11 +713,11 @@ export default function SessionsTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
         if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return (
           value &&

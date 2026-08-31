@@ -14,6 +14,7 @@ import {
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { BatchActionStatus } from "@langfuse/shared";
 
 type BatchActionRow = {
@@ -46,20 +47,16 @@ export function BatchActionsTable(props: { projectId: string }) {
   });
 
   const columns: LangfuseColumnDef<BatchActionRow>[] = [
-    {
+    createTextTableColumn<BatchActionRow>({
       accessorKey: "actionType",
-      id: "actionType",
       header: "Action Type",
       size: 200,
-      cell: ({ row }) => {
-        const actionType = row.getValue("actionType") as string;
-        const formattedType = actionType
-          .split("-")
+      mapValue: (value) =>
+        value
+          ?.split("-")
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(" ");
-        return <span>{formattedType}</span>;
-      },
-    },
+          .join(" "),
+    }),
     {
       accessorKey: "tableName",
       id: "tableName",

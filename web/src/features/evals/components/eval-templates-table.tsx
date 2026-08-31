@@ -148,7 +148,7 @@ const EvalTemplateRowActionsMenu = ({
   const utils = api.useUtils();
   const hasTemplateWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   return (
@@ -255,7 +255,10 @@ export default function EvalsTemplateTable({
     searchQuery: searchQuery,
   });
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:CUD",
+  });
 
   const totalCount = templates.data?.totalCount ?? null;
 

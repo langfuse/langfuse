@@ -6,20 +6,21 @@ import type {
   Prisma as PrismaNamespace,
   prisma,
 } from "@langfuse/shared/src/db";
-import {
-  type PublicEvaluationRuleEvaluatorReferenceType,
-  type PublicEvaluationRuleEvaluatorType,
-  type PublicEvaluationRuleFilterType,
-  type PromptVariableMappingReadType,
-  type PublicEvaluationRuleStatusType,
-  type PublicEvaluationRuleTargetType,
-  type LegacyPromptVariableMappingType,
-  type PublicEvaluationRuleLegacyTargetType,
-  type PublicEvaluatorModelConfigType,
-  type PublicEvaluatorOutputDefinitionType,
-  type PublicCodeEvaluatorSourceCodeLanguageType,
-  type PUBLIC_EVALUATOR_TYPE_CODE,
-  type PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+import type {
+  PublicEvaluationRuleEvaluatorReferenceType,
+  PublicEvaluationRuleEvaluatorType,
+  PublicEvaluationRuleFilterType,
+  PublicEvaluationRuleReadFilterType,
+  PromptVariableMappingReadType,
+  PublicEvaluationRuleStatusType,
+  PublicEvaluationRuleTargetType,
+  LegacyPromptVariableMappingType,
+  PublicEvaluationRuleLegacyTargetType,
+  PublicEvaluatorModelConfigType,
+  PublicEvaluatorOutputDefinitionType,
+  PublicCodeEvaluatorSourceCodeLanguageType,
+  PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/server";
 import type {
   CODE_EVAL_TEMPLATE_VARIABLES,
@@ -104,8 +105,15 @@ type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   mapping: LegacyPromptVariableMappingType[];
 };
 
+type ApiReadableV2EvaluationRuleRecord = Omit<
+  ApiWritableEvaluationRuleRecord,
+  "filter"
+> & {
+  filter: PublicEvaluationRuleReadFilterType[];
+};
+
 export type ApiEvaluationRuleRecord =
-  | ApiWritableEvaluationRuleRecord
+  | ApiReadableV2EvaluationRuleRecord
   | ApiLegacyEvaluationRuleRecord;
 
 export type EvaluationRuleEvaluatorFamilyReference =

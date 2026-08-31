@@ -175,6 +175,7 @@ export type {
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
+  PublicEvaluationRuleReadFilterType,
   PublicEvaluationRuleLegacyTargetType,
   PublicEvaluationRuleReadTargetType,
   PublicEvaluationRuleStatusType,
@@ -194,5 +195,6 @@ export {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   PublicEvaluationRuleFilter,
+  PublicEvaluationRuleReadFilter,
   PublicEvaluatorType,
 } from "../types/unstable-public-evals-contract";

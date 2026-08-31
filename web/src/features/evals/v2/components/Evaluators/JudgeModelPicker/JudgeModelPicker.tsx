@@ -35,6 +35,7 @@ type JudgeModelPickerCommonProps = {
   providerGroups: Array<[string, string[]]>;
   onConfigureProviders: () => void;
   onConfigureModel: () => void;
+  hasModelConfiguration?: boolean;
 };
 
 type EvaluatorJudgeModelPickerProps = JudgeModelPickerCommonProps & {
@@ -169,6 +170,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
     providerGroups,
     onConfigureProviders,
     onConfigureModel,
+    hasModelConfiguration = false,
   } = props;
   const selectsProjectDefault = props.purpose === "projectDefault";
   const selectedModel = selectsProjectDefault
@@ -304,7 +306,19 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               onClick={() => selectAndClose(onConfigureModel)}
             >
               <Settings2 className="text-muted-foreground mr-2 h-3.5 w-3.5" />
-              Model configuration...
+              Model configuration
+              {hasModelConfiguration ? (
+                <>
+                  <span className="sr-only">Customized</span>
+                  <span
+                    aria-hidden="true"
+                    className="relative ml-auto inline-flex h-2.5 w-2.5"
+                  >
+                    <span className="bg-dark-yellow absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
+                    <span className="bg-dark-yellow relative inline-flex h-2.5 w-2.5 rounded-full" />
+                  </span>
+                </>
+              ) : null}
             </Button>
             {!selectsProjectDefault ? (
               <Button
