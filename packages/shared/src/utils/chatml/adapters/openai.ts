@@ -13,11 +13,30 @@ import { z } from "zod";
  * These are permissive - only validate structural markers, not full API contracts
  */
 
+// OpenAI uses parts inside content, not at message level.
+// Microsoft Agent / Gemini / OTel GenAI use top-level parts.
+function hasTopLevelParts(messages: unknown): boolean {
+  return (
+    Array.isArray(messages) &&
+    messages.some(
+      (msg) =>
+        typeof msg === "object" &&
+        msg !== null &&
+        "parts" in msg &&
+        Array.isArray((msg as Record<string, unknown>).parts),
+    )
+  );
+}
+
 // INPUT SCHEMAS (requests)
-const OpenAIInputChatCompletionsSchema = z.looseObject({
-  messages: z.array(z.any()),
-  tools: z.array(z.any()).optional(),
-});
+const OpenAIInputChatCompletionsSchema = z
+  .looseObject({
+    messages: z.array(z.any()),
+    tools: z.array(z.any()).optional(),
+  })
+  .refine((data) => !hasTopLevelParts(data.messages), {
+    message: "Messages with top-level parts are not OpenAI format",
+  });
 
 const OpenAIInputMessagesSchema = z
   .array(
@@ -25,20 +44,9 @@ const OpenAIInputMessagesSchema = z
       role: z.enum(["system", "user", "assistant", "tool", "function"]),
     }),
   )
-  .refine(
-    (data) => {
-      // Reject if any message has top-level parts (Microsoft Agent/Gemini format)
-      // OpenAI uses parts inside content, not at message level
-      return !data.some(
-        (msg) =>
-          typeof msg === "object" &&
-          msg !== null &&
-          "parts" in msg &&
-          Array.isArray((msg as Record<string, unknown>).parts),
-      );
-    },
-    { message: "Messages with top-level parts are not OpenAI format" },
-  );
+  .refine((data) => !hasTopLevelParts(data), {
+    message: "Messages with top-level parts are not OpenAI format",
+  });
 
 // Role-less Responses input item types. normalizeMessage converts the common
 // conversation items and preserves built-in tool items as JSON passthrough.
