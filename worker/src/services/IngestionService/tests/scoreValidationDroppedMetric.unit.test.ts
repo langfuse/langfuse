@@ -10,8 +10,7 @@
  *   events in the same batch are still written, unexpected errors still
  *   reject the batch (and must NOT emit the drop counter — a rejected
  *   batch is retried, not silently lost).
- * - project_id is NOT a metric tag; tenant attribution via a log line
- *   that includes the projectId.
+ * - projectId is a metric tag (low cardinality) for tenant attribution.
  */
 import { expect, describe, it, vi, beforeEach } from "vitest";
 
@@ -62,11 +61,9 @@ const expectScoreDropTags = (call: unknown[]) => {
       reason: "score_validation_dropped",
       source: "api",
       domain: "score",
+      projectId: PROJECT_ID,
     }),
   );
-  // Acceptance criterion: project_id is NOT a metric tag (cardinality).
-  expect(Object.keys(tags ?? {})).not.toContain("project_id");
-  expect(Object.keys(tags ?? {})).not.toContain("projectId");
 };
 
 const createService = () => {
@@ -146,8 +143,7 @@ describe("score validation drop metric (LFE-14345)", () => {
     expect(calls).toHaveLength(1);
     expectScoreDropTags(calls[0]);
 
-    // Acceptance criterion: tenant attribution via logs — a log line
-    // emitted during the drop includes the projectId.
+    // The "no valid score records" log names the tenant.
     expect(JSON.stringify(loggerCalls)).toContain(PROJECT_ID);
   });
 

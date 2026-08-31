@@ -5,10 +5,12 @@ import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
 const {
   mockCompileLangfuseMediaMessages,
+  mockCreateLLMOutput,
   mockGenerateLLMText,
   mockRecordIncrement,
 } = vi.hoisted(() => ({
   mockCompileLangfuseMediaMessages: vi.fn(),
+  mockCreateLLMOutput: vi.fn(),
   mockGenerateLLMText: vi.fn(),
   mockRecordIncrement: vi.fn(),
 }));
@@ -19,6 +21,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...original,
     compileLangfuseMediaMessages: mockCompileLangfuseMediaMessages,
+    createLLMOutput: mockCreateLLMOutput,
     generateLLMText: mockGenerateLLMText,
     recordIncrement: mockRecordIncrement,
   };
@@ -47,6 +50,7 @@ describe("createProductionEvalExecutionDeps", () => {
         return { providerMessages: mapped, traceMessages: mapped };
       },
     );
+    mockCreateLLMOutput.mockImplementation((schema) => ({ schema }));
     mockGenerateLLMText.mockResolvedValue({ output: { completion: "ok" } });
   });
 
@@ -71,7 +75,10 @@ describe("createProductionEvalExecutionDeps", () => {
         adapter: "openai" as any,
         modelParams: {},
       },
-      structuredOutputSchema: {} as any,
+      structuredOutputSchema: z.object({
+        reasoning: z.string(),
+        score: z.number(),
+      }),
       traceSinkParams: {
         targetProjectId: "project-123",
         traceId: "trace-123",
@@ -98,6 +105,63 @@ describe("createProductionEvalExecutionDeps", () => {
         }),
       }),
     );
+  });
+
+  it("renames reasoning only for the model call and maps it back", async () => {
+    mockGenerateLLMText.mockResolvedValue({
+      output: { score: 0.8, scoreExplanation: "Good response" },
+    });
+    const deps = createProductionEvalExecutionDeps();
+    const structuredOutputSchema = z.object({
+      reasoning: z.string().describe("why this score was given"),
+      score: z.number().describe("score between 0 and 1"),
+    });
+
+    const result = await deps.callLLM({
+      messages: [
+        {
+          role: "user",
+          type: "user",
+          content: "Judge this answer",
+        },
+      ],
+      modelConfig: {
+        provider: "openai",
+        model: "gpt-4.1",
+        apiKey: { adapter: "openai", secretKey: "secret" },
+        adapter: "openai" as any,
+        modelParams: {},
+      },
+      structuredOutputSchema,
+      traceSinkParams: {
+        targetProjectId: "project-123",
+        traceId: "trace-123",
+        traceName: "Judge trace",
+        environment: "langfuse-llm-as-a-judge",
+        metadata: {},
+      },
+    });
+
+    const modelOutput = mockGenerateLLMText.mock.calls[0][0].output as {
+      schema: z.ZodType;
+    };
+    expect(z.toJSONSchema(modelOutput.schema)).toMatchObject({
+      properties: {
+        scoreExplanation: { type: "string" },
+        score: { type: "number" },
+      },
+      required: ["scoreExplanation", "score"],
+    });
+    expect(z.toJSONSchema(modelOutput.schema).properties).not.toHaveProperty(
+      "reasoning",
+    );
+    expect(
+      structuredOutputSchema.safeParse({
+        score: 0.8,
+        reasoning: "Good response",
+      }).success,
+    ).toBe(true);
+    expect(result).toEqual({ score: 0.8, reasoning: "Good response" });
   });
 
   it("records llmaj export volume using the schema's JSON Schema form", async () => {
@@ -155,10 +219,14 @@ describe("createProductionEvalExecutionDeps", () => {
           ? Buffer.from(value).toString("base64")
           : value,
     );
+    const modelFacingSchema = z.object({
+      scoreExplanation: structuredOutputSchema.shape.reasoning,
+      score: structuredOutputSchema.shape.score,
+    });
     const expectedBytes =
       Buffer.byteLength(serializedProviderMessages, "utf8") +
       Buffer.byteLength(
-        JSON.stringify(z.toJSONSchema(structuredOutputSchema)),
+        JSON.stringify(z.toJSONSchema(modelFacingSchema)),
         "utf8",
       );
 
@@ -170,7 +238,7 @@ describe("createProductionEvalExecutionDeps", () => {
     );
     // Not the Zod _def form.
     const zodDefBytes = Buffer.byteLength(
-      JSON.stringify(structuredOutputSchema),
+      JSON.stringify(modelFacingSchema),
       "utf8",
     );
     expect(expectedBytes).not.toBe(

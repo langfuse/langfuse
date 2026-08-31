@@ -20,7 +20,10 @@ import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 
-type StructuredOutputSchema = z.ZodType;
+type StructuredOutputSchema = z.ZodObject<{
+  reasoning: z.ZodString;
+  score: z.ZodType;
+}>;
 
 /**
  * Result of fetching model configuration.
@@ -243,6 +246,13 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           adapter,
         });
 
+      // Keep the evaluator contract unchanged, but avoid exposing the
+      // overloaded `reasoning` field name to the model.
+      const modelFacingStructuredOutputSchema = z.object({
+        scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+        score: params.structuredOutputSchema.shape.score,
+      });
+
       // llmaj egress: provider-bound messages (including base64-expanded inline
       // media) plus schema, uncompressed.
       const bytes =
@@ -250,18 +260,16 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
           serializeProviderMessagesForEgress(providerMessages),
           "utf8",
         ) +
-        (params.structuredOutputSchema
-          ? Buffer.byteLength(
-              serializeSchemaForEgress(params.structuredOutputSchema),
-              "utf8",
-            )
-          : 0);
+        Buffer.byteLength(
+          serializeSchemaForEgress(modelFacingStructuredOutputSchema),
+          "utf8",
+        );
 
       const result = await generateLLMText({
         ...llmParams,
         messages: providerMessages,
         traceInput: traceMessages,
-        output: createLLMOutput(params.structuredOutputSchema),
+        output: createLLMOutput(modelFacingStructuredOutputSchema),
         maxRetries: 1,
         trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
@@ -280,7 +288,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         projectId: params.traceSinkParams.targetProjectId,
       });
 
-      return result.output;
+      return {
+        score: result.output.score,
+        reasoning: result.output.scoreExplanation,
+      };
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {
