@@ -46,6 +46,20 @@ function Alert({
   );
 }
 
+type AlertDescriptionProps = Omit<
+  Pick<React.ComponentProps<"div">, "children" | "className">,
+  "className"
+> & {
+  className?:
+    | "flex items-center justify-between"
+    | "mt-2 space-y-3"
+    | "text-dark-yellow"
+    | "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+    | "text-yellow-700 dark:text-yellow-500"
+    | "text-xs"
+    | "flex flex-col items-start gap-1";
+};
+
 function AlertTitle({ children, className }: AlertTitleProps) {
   return (
     <h5 className={cn("mb-1 leading-none font-bold tracking-tight", className)}>
@@ -54,10 +68,7 @@ function AlertTitle({ children, className }: AlertTitleProps) {
   );
 }
 
-function AlertDescription({
-  children,
-  className,
-}: Pick<React.ComponentProps<"div">, "children" | "className">) {
+function AlertDescription({ children, className }: AlertDescriptionProps) {
   return (
     <div className={cn("text-sm [&_p]:leading-relaxed", className)}>
       {children}
