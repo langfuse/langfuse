@@ -1,5 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
+const contentSecurityPolicy = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'unsafe-inline' https://cdn.jsdelivr.net",
+  "img-src https: data: blob:",
+  "font-src https://cdn.jsdelivr.net data:",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 const apiReferenceHtml = `<!doctype html>
 <html>
   <head>
@@ -9,10 +21,13 @@ const apiReferenceHtml = `<!doctype html>
   </head>
   <body>
     <div id="app"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.67.0"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.67.0"
+      integrity="sha384-zH522fC6a57bnP3yLzTekKbq61WR1WnYu4dxusbB48q1eska2wE6/qmqHAHEkv+H"
+      crossorigin="anonymous"></script>
     <script>
       Scalar.createApiReference("#app", {
-        url: "../../generated/api/openapi.yml",
+        url: "../generated/api/openapi.yml",
       });
     </script>
   </body>
@@ -30,6 +45,7 @@ export default function handler(
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=3600");
+  res.setHeader("Content-Security-Policy", contentSecurityPolicy);
 
   if (req.method === "HEAD") {
     res.status(200).end();
