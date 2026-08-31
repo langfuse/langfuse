@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReferenceProps } from "@scalar/api-reference";
@@ -30,12 +31,20 @@ if (!scalarBundlePath) {
   throw new Error("Scalar API reference bundle is missing");
 }
 
-const assets = {
-  "scalar-api-reference.js": {
-    content: readFileSync(scalarBundlePath),
-    contentType: "text/javascript; charset=utf-8",
-  },
-} as const;
+const scalarBundle = readFileSync(scalarBundlePath);
+const scalarAssetName = `scalar-api-reference-${createHash("sha256")
+  .update(scalarBundle)
+  .digest("hex")
+  .slice(0, 12)}.js`;
+const assets = new Map([
+  [
+    scalarAssetName,
+    {
+      content: scalarBundle,
+      contentType: "text/javascript; charset=utf-8",
+    },
+  ],
+]);
 
 const apiReferenceConfiguration = {
   url: "../generated/api/openapi.yml",
@@ -65,7 +74,7 @@ const apiReferenceHtml = `<!doctype html>
   </head>
   <body>
     <div id="app"></div>
-    <script src="?asset=scalar-api-reference.js"></script>
+    <script src="?asset=${scalarAssetName}"></script>
     <script>
       Scalar.createApiReference("#app", ${JSON.stringify(apiReferenceConfiguration)});
     </script>
@@ -85,7 +94,7 @@ export default function handler(
   const assetName =
     typeof req.query.asset === "string" ? req.query.asset : null;
   if (assetName) {
-    const asset = assets[assetName as keyof typeof assets];
+    const asset = assets.get(assetName);
     if (!asset) {
       res.status(404).end();
       return;

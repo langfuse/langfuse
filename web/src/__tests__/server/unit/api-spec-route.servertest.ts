@@ -24,7 +24,7 @@ describe("/api/spec", () => {
     expect(res.statusCode).toBe(200);
     expect(res.getHeader("Content-Type")).toBe("text/html; charset=utf-8");
     expect(body).toContain("<title>Langfuse API Reference</title>");
-    expect(body).toContain('src="?asset=scalar-api-reference.js"');
+    expect(body).toMatch(/src="\?asset=scalar-api-reference-[a-f0-9]{12}\.js"/);
     expect(body).toContain('"url":"../generated/api/openapi.yml"');
     expect(body).toContain('"agent":{"disabled":true}');
     expect(body).toContain('"mcp":{"name":"Langfuse API"');
@@ -35,7 +35,11 @@ describe("/api/spec", () => {
   });
 
   it("serves the packaged Scalar standalone asset", () => {
-    const res = callHandler("GET", { asset: "scalar-api-reference.js" });
+    const body = callHandler("GET")._getData() as string;
+    const asset = body.match(/src="\?asset=([^"]+)"/)?.[1];
+    expect(asset).toMatch(/^scalar-api-reference-[a-f0-9]{12}\.js$/);
+
+    const res = callHandler("GET", { asset: asset! });
 
     expect(res.statusCode).toBe(200);
     expect(res.getHeader("Content-Type")).toBe(
@@ -75,9 +79,12 @@ describe("/api/spec", () => {
     ).toBe("/langfuse/generated/api/openapi.yml");
   });
 
-  it("rejects unknown assets", () => {
-    expect(callHandler("GET", { asset: "unknown.js" }).statusCode).toBe(404);
-  });
+  it.each(["unknown.js", "constructor", "toString", "__proto__"])(
+    "rejects the unknown asset name %s",
+    (asset) => {
+      expect(callHandler("GET", { asset }).statusCode).toBe(404);
+    },
+  );
 
   it("supports metadata requests without sending the document", () => {
     const res = callHandler("HEAD");
