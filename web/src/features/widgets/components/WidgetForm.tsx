@@ -1079,11 +1079,15 @@ export function WidgetForm({
           {!queryValidation.valid ? (
             <CardContent>
               <div className="flex h-[300px] items-center justify-center">
-                <Alert variant="destructive" className="max-w-sm">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Invalid query</AlertTitle>
-                  <AlertDescription>{queryValidation.reason}</AlertDescription>
-                </Alert>
+                <div className="w-full max-w-sm">
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Invalid query</AlertTitle>
+                    <AlertDescription>
+                      {queryValidation.reason}
+                    </AlertDescription>
+                  </Alert>
+                </div>
               </div>
             </CardContent>
           ) : queryResult.data || chartLoadingState.isLoading ? (

@@ -34,15 +34,7 @@ type AlertProps = Omit<
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?:
-    | "max-w-3xl"
-    | "mb-4"
-    | "mt-4"
-    | "mt-2 max-w-4xl"
-    | "max-w-4xl"
-    | "text-sm"
-    | "max-w-sm"
-    | "pr-10";
+  className?: "mb-4" | "mt-4" | "text-sm" | "pr-10";
 };
 type AlertTitleProps = Omit<
   Pick<React.ComponentProps<"h5">, "children" | "className">,

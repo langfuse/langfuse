@@ -155,18 +155,20 @@ export function EvalVersionCallout({
   }
 
   return (
-    <Alert variant="warning" className="mt-2 max-w-4xl">
-      <AlertTriangle className="h-4 w-4" />
-      <AlertDescription>
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
-            <span className="text-foreground font-bold">{content.title}</span>
-            <span className="text-foreground text-sm">
-              {content.description}
-            </span>
+    <div className="mt-2 w-full max-w-4xl">
+      <Alert variant="warning">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-foreground font-bold">{content.title}</span>
+              <span className="text-foreground text-sm">
+                {content.description}
+              </span>
+            </div>
           </div>
-        </div>
-      </AlertDescription>
-    </Alert>
+        </AlertDescription>
+      </Alert>
+    </div>
   );
 }
