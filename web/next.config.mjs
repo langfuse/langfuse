@@ -59,19 +59,6 @@ const cspHeader = `
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}
 `;
-const apiSpecCspHeader = `
-  default-src 'self' ${assetPrefixSrc};
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' ${assetPrefixSrc};
-  style-src 'self' 'unsafe-inline' ${assetPrefixSrc};
-  img-src 'self' data: blob:;
-  font-src 'self' data: ${assetPrefixSrc};
-  connect-src 'self' ${assetPrefixSrc};
-  worker-src 'self' blob:;
-  object-src 'none';
-  base-uri 'self';
-  form-action 'none';
-  frame-ancestors 'none';
-`;
 
 // Match rules for Hugging Face
 const huggingFaceHosts = ["huggingface.co", ".*\\.hf\\.space$"];
@@ -186,6 +173,12 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/api/spec": [
+      "./node_modules/swagger-ui-dist/swagger-ui-bundle.js",
+      "./node_modules/swagger-ui-dist/swagger-ui.css",
+    ],
+  },
 
   async redirects() {
     return renamedRouteRedirects;
@@ -262,15 +255,6 @@ const nextConfig = {
           type: "host",
           value: host,
         })),
-      },
-      {
-        source: "/api/spec",
-        headers: [
-          {
-            key: "Content-Security-Policy",
-            value: apiSpecCspHeader.replace(/\n/g, ""),
-          },
-        ],
       },
       // Required to check authentication status from langfuse.com
       ...(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
