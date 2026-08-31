@@ -8,6 +8,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -79,7 +80,6 @@ import {
   type LevelCount,
 } from "@/src/components/level-counts-display";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import TableIdOrName from "@/src/components/table/table-id";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
@@ -914,10 +914,9 @@ export default function TracesTable({
             columns: scoreColumns,
           },
         ]),
-    {
+    createIdTableColumn<TracesTableRow>({
       accessorKey: "sessionId",
       enableColumnFilter: !omittedFilter.includes("sessionId"),
-      id: "sessionId",
       header: "Session",
       size: 150,
       headerTooltip: {
@@ -939,20 +938,13 @@ export default function TracesTable({
         ),
         href: "https://langfuse.com/docs/observability/features/sessions",
       },
-      cell: ({ row }) => {
-        const value: TracesTableRow["sessionId"] = row.getValue("sessionId");
-        return value && typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
-    {
+    }),
+    createIdTableColumn<TracesTableRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       size: 150,
       headerTooltip: {
         description: (
@@ -973,16 +965,10 @@ export default function TracesTable({
         ),
         href: "https://langfuse.com/docs/observability/features/users",
       },
-      cell: ({ row }) => {
-        const value: TracesTableRow["userId"] = row.getValue("userId");
-        return value && typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
+    }),
     createNumberTableColumn<TracesTableRow, bigint>({
       accessorKey: "observationCount",
       header: "Observations",
@@ -1080,22 +1066,14 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createIdTableColumn<TracesTableRow>({
       accessorKey: "id",
       header: "Trace ID",
-      id: "id",
       size: 90,
-      cell: ({ row }) => {
-        const value: TracesTableRow["id"] = row.getValue("id");
-
-        return value && typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
       defaultHidden: true,
       enableHiding: true,
       enableSorting,
-    },
+    }),
     {
       accessorKey: "cost",
       header: "Cost",
