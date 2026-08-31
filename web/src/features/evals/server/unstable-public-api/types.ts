@@ -10,6 +10,7 @@ import type {
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
+  PublicEvaluationRuleReadFilterType,
   PromptVariableMappingReadType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
@@ -104,8 +105,15 @@ type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   mapping: LegacyPromptVariableMappingType[];
 };
 
+type ApiReadableV2EvaluationRuleRecord = Omit<
+  ApiWritableEvaluationRuleRecord,
+  "filter"
+> & {
+  filter: PublicEvaluationRuleReadFilterType[];
+};
+
 export type ApiEvaluationRuleRecord =
-  | ApiWritableEvaluationRuleRecord
+  | ApiReadableV2EvaluationRuleRecord
   | ApiLegacyEvaluationRuleRecord;
 
 export type EvaluationRuleEvaluatorFamilyReference =

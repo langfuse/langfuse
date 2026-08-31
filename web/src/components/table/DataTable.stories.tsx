@@ -41,10 +41,6 @@ import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -321,7 +317,7 @@ function buildTraceColumns(
       id: "levelCounts",
       header: "Observation Levels",
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.levelCounts;
         const counts: LevelCount[] = Object.entries(value).map(
@@ -340,7 +336,7 @@ function buildTraceColumns(
       header: "Latency",
       size: 100,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.latency;
         return value !== undefined ? (
@@ -353,7 +349,7 @@ function buildTraceColumns(
       header: "Tokens",
       id: "tokens",
       size: 180,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.usage;
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
@@ -380,7 +376,7 @@ function buildTraceColumns(
       id: "totalCost",
       header: "Total Cost",
       size: 130,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const cost = row.original.totalCost;
         return cost != null ? (
@@ -403,7 +399,7 @@ function buildTraceColumns(
       header: "Environment",
       id: "environment",
       size: 150,
-      loadingCell: <TableBadgeLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: ({ row }) => {
         const value = row.original.environment;
         return value ? (
@@ -1055,7 +1051,7 @@ function buildGroupedColumns(
         accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        formatter: usdFormatter,
+        formatter: (value) => usdFormatter(value),
       }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",

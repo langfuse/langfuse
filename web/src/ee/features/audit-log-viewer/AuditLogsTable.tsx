@@ -15,6 +15,7 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 // Both endpoints return the same shape
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
@@ -106,18 +107,18 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
         return null;
       },
     },
-    {
+    createTextTableColumn<AuditLogRow>({
       accessorKey: "resourceType",
       header: "Resource Type",
-    },
-    {
+    }),
+    createTextTableColumn<AuditLogRow>({
       accessorKey: "resourceId",
       header: "Resource ID",
-    },
-    {
+    }),
+    createTextTableColumn<AuditLogRow>({
       accessorKey: "action",
       header: "Action",
-    },
+    }),
     createIOTableColumn<AuditLogRow>({
       accessorKey: "before",
       header: "Before",

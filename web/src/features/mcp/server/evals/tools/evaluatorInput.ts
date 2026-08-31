@@ -1,4 +1,8 @@
-import { EvalTemplateType, observationVariableMapping } from "@langfuse/shared";
+import {
+  EvalOutputDataTypeSchema,
+  EvalTemplateType,
+  observationVariableMapping,
+} from "@langfuse/shared";
 import { z } from "zod";
 import {
   CodeEvaluatorDefinitionSchema,
@@ -27,6 +31,50 @@ const McpObservationVariableMappingSchema = observationVariableMapping.extend({
   jsonSelector: z.string().optional(),
 });
 
+const McpEvalOutputDefinitionSchema = z.object({
+  dataType: EvalOutputDataTypeSchema.describe(
+    "The score type returned by the evaluator.",
+  ),
+  reasoning: z
+    .object({
+      description: z
+        .string()
+        .optional()
+        .describe("Instructions for the evaluator's reasoning output."),
+    })
+    .describe("Definition of the evaluator's textual reasoning output."),
+  score: z
+    .object({
+      description: z
+        .string()
+        .optional()
+        .describe("Instructions for the evaluator's score output."),
+      minValue: z
+        .number()
+        .optional()
+        .describe("Optional minimum score for NUMERIC evaluators."),
+      maxValue: z
+        .number()
+        .optional()
+        .describe("Optional maximum score for NUMERIC evaluators."),
+      categories: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Allowed score labels for CATEGORICAL evaluators. Provide at least two unique values.",
+        ),
+      shouldAllowMultipleMatches: z
+        .boolean()
+        .optional()
+        .describe(
+          "Whether CATEGORICAL evaluators may return multiple score labels.",
+        ),
+    })
+    .describe(
+      "Definition of the evaluator's typed score output. Type-specific fields are validated against dataType.",
+    ),
+});
+
 export const McpEvaluatorInputBase = z.object({
   name: CreateEvaluatorSchema.shape.name,
   description: CreateEvaluatorSchema.shape.description.unwrap().optional(),
@@ -35,7 +83,9 @@ export const McpEvaluatorInputBase = z.object({
   modelConfig: McpEvaluatorModelConfigSchema.optional().describe(
     "Optional custom model configuration. Omit to use the project default model.",
   ),
-  outputDefinition: z.record(z.string(), z.unknown()).optional(),
+  outputDefinition: McpEvalOutputDefinitionSchema.optional().describe(
+    "Required for LLM-as-a-judge evaluators. Defines the reasoning and score returned by the evaluator.",
+  ),
   sourceCode: CodeEvaluatorDefinitionSchema.shape.sourceCode.optional(),
   sourceCodeLanguage:
     CodeEvaluatorDefinitionSchema.shape.sourceCodeLanguage.optional(),
