@@ -44,7 +44,7 @@ describe("/api/spec", () => {
     expect(res.getHeader("Cache-Control")).toBe(
       "public, max-age=31536000, immutable",
     );
-    expect(res._getData()).toContain(content);
+    expect(res._getData().toString()).toContain(content);
   });
 
   it("keeps the specification URL within a deployment base path", () => {
