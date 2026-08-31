@@ -21,6 +21,18 @@ const alertVariants = cva(
   },
 );
 
+type AlertTitleProps = Omit<
+  Pick<React.ComponentProps<"h5">, "children" | "className">,
+  "className"
+> & {
+  className?:
+    | "text-base font-bold"
+    | "text-base"
+    | "text-yellow-800 dark:text-yellow-400"
+    | "mb-1 text-sm"
+    | "pr-4";
+};
+
 function Alert({
   children,
   className,
@@ -34,10 +46,7 @@ function Alert({
   );
 }
 
-function AlertTitle({
-  children,
-  className,
-}: Pick<React.ComponentProps<"h5">, "children" | "className">) {
+function AlertTitle({ children, className }: AlertTitleProps) {
   return (
     <h5 className={cn("mb-1 leading-none font-bold tracking-tight", className)}>
       {children}
