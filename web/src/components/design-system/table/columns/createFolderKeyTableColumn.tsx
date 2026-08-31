@@ -1,16 +1,17 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { Folder } from "lucide-react";
 
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
-import TableLink, {
-  type TableLinkProps,
-} from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
 } from "./utils/createTableColumn";
 
-type LinkProps = Pick<TableLinkProps, "path" | "value" | "title" | "onClick">;
+type LinkProps = Pick<
+  React.ComponentProps<typeof TextLink>,
+  "path" | "value" | "title" | "onClick"
+>;
 
 export function createFolderKeyTableColumn<
   TData extends RowData,
@@ -29,29 +30,31 @@ export function createFolderKeyTableColumn<
 }) {
   return createTableColumn<TData, TValue>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       const cell = getCell(value, context);
       if (!cell) return null;
 
       if (cell.type === "folder") {
         return (
-          <TableLink
+          <TextLink
             path=""
             value={cell.name}
-            icon={
-              <div className="flex flex-row items-center gap-1">
-                <Folder className="h-3.5 w-3.5 shrink-0" />
-                {cell.name}
-              </div>
-            }
+            icon={Folder}
             onClick={cell.onClick}
             title={cell.name}
           />
         );
       }
 
-      return <TableLink {...cell.props} />;
+      return (
+        <TextLink
+          path={cell.props.path}
+          value={cell.props.value}
+          title={cell.props.title ?? cell.props.value}
+          onClick={cell.props.onClick}
+        />
+      );
     },
   });
 }

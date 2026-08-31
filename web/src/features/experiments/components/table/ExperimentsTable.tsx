@@ -38,6 +38,7 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
@@ -52,10 +53,6 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/IOTableCell";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
@@ -139,7 +136,7 @@ function ExperimentsMultiSelectActionMenu({
 
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   // Build query with experiment context filter for batch actions
@@ -233,7 +230,7 @@ function ExperimentsMultiSelectActionMenu({
             icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
             customDialog: true,
             accessCheck: {
-              scope: "evalJob:CUD",
+              scope: "evaluationRule:CUD",
             },
           } as TableAction,
         ]
@@ -512,38 +509,25 @@ export default function ExperimentsTable({
         return value ? <TableIdOrName value={value} /> : undefined;
       },
     },
-    {
+    createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
-      id: "description",
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("description");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       // Placed here (right after the identifying name/description columns) rather
       // than last so it is never the trailing column. As the last column its right
       // resize handle sat flush against the table edge and could not be dragged
       // wider in a maximized browser (LFE-10460).
       accessorKey: "metadata",
-      id: "metadata",
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
+      singleLine: rowHeight === "s",
+    }),
     createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
       header: getExperimentsColumnName("itemCount"),

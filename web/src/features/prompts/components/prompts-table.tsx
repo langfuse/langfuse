@@ -5,7 +5,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -340,10 +340,12 @@ export function PromptTable() {
         if (!promptMetrics.isSuccess) {
           return <Skeleton className="h-3 w-1/2" />;
         }
+        const displayValue = numberOfObservations?.toLocaleString() ?? "";
         return (
-          <TableLink
+          <TextLink
             path={`/project/${projectId}/observations?filter=${numberOfObservations ? filter : ""}`}
-            value={numberOfObservations?.toLocaleString() ?? ""}
+            value={displayValue}
+            title={displayValue}
           />
         );
       },

@@ -8973,7 +8973,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableEvaluationRule'
+                $ref: '#/components/schemas/unstableReadableV2EvaluationRule'
         '400':
           description: ''
           content:
@@ -19090,6 +19090,42 @@ components:
         - mapping
       allOf:
         - $ref: '#/components/schemas/unstableEvaluationRuleBase'
+    unstableReadableV2EvaluationRule:
+      title: unstableReadableV2EvaluationRule
+      type: object
+      properties:
+        evaluators:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorAssignment'
+          description: >-
+            Evaluators attached to this rule in deterministic assignment order.
+            A `null` mapping inherits the evaluator version's default mapping.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type that should trigger scoring.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationRuleReadFilter'
+          description: >-
+            List of stored filter conditions returned verbatim. Historical
+            filters remain readable even when the current write contract no
+            longer accepts their shape.
+        mapping:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstablePromptVariableMappingRead'
+          description: >-
+            Deprecated compatibility alias containing the effective mapping for
+            `evaluators[0]`.
+      required:
+        - evaluators
+        - target
+        - filter
+        - mapping
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluationRuleBase'
     unstableLegacyEvaluationRule:
       title: unstableLegacyEvaluationRule
       type: object
@@ -19144,7 +19180,7 @@ components:
     unstableReadableEvaluationRule:
       title: unstableReadableEvaluationRule
       oneOf:
-        - $ref: '#/components/schemas/unstableEvaluationRule'
+        - $ref: '#/components/schemas/unstableReadableV2EvaluationRule'
         - $ref: '#/components/schemas/unstableLegacyEvaluationRule'
       description: >-
         Evaluation rule returned by list and get, including read-only legacy

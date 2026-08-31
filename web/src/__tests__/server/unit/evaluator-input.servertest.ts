@@ -44,6 +44,35 @@ describe("MCP evaluator input", () => {
       type: "object",
       required: ["provider", "model"],
     });
+    expect(schema.properties?.outputDefinition).toMatchObject({
+      type: "object",
+      required: ["dataType", "reasoning", "score"],
+      properties: {
+        dataType: {
+          type: "string",
+          enum: ["NUMERIC", "CATEGORICAL", "BOOLEAN"],
+        },
+        reasoning: {
+          type: "object",
+          properties: {
+            description: { type: "string" },
+          },
+        },
+        score: {
+          type: "object",
+          properties: {
+            description: { type: "string" },
+            minValue: { type: "number" },
+            maxValue: { type: "number" },
+            categories: {
+              type: "array",
+              items: { type: "string" },
+            },
+            shouldAllowMultipleMatches: { type: "boolean" },
+          },
+        },
+      },
+    });
     expect(hasJsonSchemaComposition(schema)).toBe(false);
   });
 
