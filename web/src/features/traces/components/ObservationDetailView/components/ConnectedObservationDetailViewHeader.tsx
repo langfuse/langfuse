@@ -1,5 +1,5 @@
 /**
- * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
+ * ConnectedObservationDetailViewHeader - Connected header component for ObservationDetailView
  *
  * Contains:
  * - Title row with ItemBadge, observation name, options menu
@@ -81,7 +81,7 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
-export interface ObservationDetailViewHeaderProps {
+export interface ConnectedObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
   observationWithIO:
     | (Omit<ObservationReturnTypeWithMetadata, "traceId" | "metadata"> & {
@@ -105,8 +105,8 @@ export interface ObservationDetailViewHeaderProps {
   treeNodeTotalCost?: Decimal;
 }
 
-export const ObservationDetailViewHeader = memo(
-  function ObservationDetailViewHeader({
+export const ConnectedObservationDetailViewHeader = memo(
+  function ConnectedObservationDetailViewHeader({
     observation,
     observationWithIO,
     projectId,
@@ -120,7 +120,7 @@ export const ObservationDetailViewHeader = memo(
     onCommentDrawerOpenChange,
     subtreeMetrics,
     treeNodeTotalCost,
-  }: ObservationDetailViewHeaderProps) {
+  }: ConnectedObservationDetailViewHeaderProps) {
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const { isBetaEnabled: isV4Enabled } = useV4Beta();
