@@ -16,7 +16,7 @@ describe("/api/spec", () => {
     expect(res.statusCode).toBe(200);
     expect(res.getHeader("Content-Type")).toBe("text/html; charset=utf-8");
     expect(body).toContain("<title>Langfuse API Reference</title>");
-    expect(body).toContain('"url": "../../generated/api/openapi.yml"');
+    expect(body).toContain('url: "../../generated/api/openapi.yml"');
     expect(body).toContain(
       "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.67.0",
     );

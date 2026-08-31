@@ -1,13 +1,22 @@
-import { renderApiReference } from "@scalar/client-side-rendering";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-const apiReferenceHtml = renderApiReference({
-  pageTitle: "Langfuse API Reference",
-  config: {
-    url: "../../generated/api/openapi.yml",
-  },
-  cdn: "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.67.0",
-});
+const apiReferenceHtml = `<!doctype html>
+<html>
+  <head>
+    <title>Langfuse API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.67.0"></script>
+    <script>
+      Scalar.createApiReference("#app", {
+        url: "../../generated/api/openapi.yml",
+      });
+    </script>
+  </body>
+</html>`;
 
 export default function handler(
   req: NextApiRequest,
