@@ -316,6 +316,54 @@ describe("project v4 migration data", () => {
     expect(result.current.apis).toEqual({ status: "loaded", count: 0 });
     expect(result.current.apiUsage).toHaveLength(1);
   });
+
+  it("orders API routes and their callers by most recent usage", () => {
+    mocks.legacyApiUsageSummaryUseQuery.mockReturnValue(
+      loadedQuery([
+        {
+          entrypoint: "publicapi: GET /api/public/sessions",
+          count: 2,
+          lastSeen: "2026-07-23T09:00:00Z",
+          callers: [
+            {
+              userAgent: "recent-sessions-caller",
+              count: 1,
+              lastSeen: "2026-07-23T09:00:00Z",
+            },
+          ],
+        },
+        {
+          entrypoint: "publicapi: GET /api/public/traces",
+          count: 11,
+          lastSeen: "2026-07-23T11:00:00Z",
+          callers: [
+            {
+              userAgent: "frequent-older-caller",
+              count: 10,
+              lastSeen: "2026-07-23T10:00:00Z",
+            },
+            {
+              userAgent: "recent-caller",
+              count: 1,
+              lastSeen: "2026-07-23T11:00:00Z",
+            },
+          ],
+        },
+      ]),
+    );
+
+    const { result } = renderHook(() =>
+      useProjectV4MigrationData({ projectId: "project-1", enabled: true }),
+    );
+
+    expect(result.current.apiUsage.map((row) => row.endpoint)).toEqual([
+      "GET /api/public/traces",
+      "GET /api/public/sessions",
+    ]);
+    expect(
+      result.current.apiUsage[0]?.callers.map((caller) => caller.userAgent),
+    ).toEqual(["recent-caller", "frequent-older-caller"]);
+  });
 });
 
 describe("migration actions", () => {

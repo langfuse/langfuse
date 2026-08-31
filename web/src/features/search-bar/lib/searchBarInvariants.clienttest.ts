@@ -2,8 +2,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import { EVENTS_FIELD_REGISTRY } from "./fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  type FieldRegistry,
+  withFieldOptions,
+} from "./fields";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import {
+  EVALUATOR_FIELD_REGISTRY,
+  RULE_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { validateQuery } from "./validate";
@@ -119,6 +127,59 @@ const evaluationRulesView: RegistryUnderTest = {
   fieldValues: ["x", "ERROR", "5", "true", "a b"],
   freeTextValues: [],
 };
+
+const withInvariantDatasetOptions = (
+  registry: FieldRegistry,
+  values: string[],
+) =>
+  withFieldOptions(
+    registry,
+    "datasetName",
+    values.map((displayValue, index) => ({
+      value: `dataset-${index}`,
+      displayValue,
+    })),
+  );
+
+const sampleFilterViews: RegistryUnderTest[] = [
+  {
+    ...eventsView,
+    name: "evaluator sample filters",
+    registry: withInvariantDatasetOptions(
+      EVALUATOR_FIELD_REGISTRY,
+      eventsView.fieldValues,
+    ),
+  },
+  {
+    ...evaluationRulesView,
+    name: "rule sample filters",
+    registry: withInvariantDatasetOptions(
+      RULE_SAMPLE_FIELD_REGISTRY,
+      evaluationRulesView.fieldValues,
+    ),
+  },
+];
+
+describe.each(sampleFilterViews)(
+  "search bar invariants — $name registry",
+  (view) => {
+    it("holds parity, round-trip, and serialization invariants", () => {
+      const failures = runSearchBarInvariants(view);
+      expect(
+        failures,
+        failures.length === 0
+          ? "ok"
+          : `\n${failures
+              .slice(0, 25)
+              .map(
+                (failure) =>
+                  `  [${failure.invariant}] ${failure.case} — ${failure.detail}`,
+              )
+              .join("\n")}`,
+      ).toEqual([]);
+    });
+  },
+);
 
 describe("search bar invariants — events v4 registry", () => {
   it("generates a broad field × operator × value matrix", () => {

@@ -1,7 +1,7 @@
 import { type RowData } from "@tanstack/react-table";
 
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
 import TableIdOrName from "@/src/components/table/table-id";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -12,7 +12,7 @@ export function createIdTableColumn<TData extends RowData>(
 ) {
   return createTableColumn<TData, string>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value) => (value ? <TableIdOrName value={value} /> : null),
   });
 }

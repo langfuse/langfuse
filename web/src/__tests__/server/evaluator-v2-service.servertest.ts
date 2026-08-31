@@ -139,7 +139,7 @@ const setSharedAiModel = (params: {
   smallModel: string | undefined;
 }) => {
   Object.assign(sharedEnv, {
-    LANGFUSE_AI_PROVIDER: undefined,
+    LANGFUSE_AI_PROVIDER: "bedrock",
     LANGFUSE_AI_API_KEY: undefined,
     LANGFUSE_AI_MODEL: params.model,
     LANGFUSE_AI_SMALL_MODEL: params.smallModel,

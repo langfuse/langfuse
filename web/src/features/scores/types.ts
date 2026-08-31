@@ -2,7 +2,6 @@ import {
   type AnnotationScoreDataSchema,
   type AnnotateFormSchema,
 } from "@/src/features/scores/schema";
-import { type ButtonProps } from "@/src/components/ui/button";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
@@ -69,19 +68,6 @@ export type AnalyticsData = {
     | "SessionDetail"
     | "AnnotationQueue"
     | "DatasetCompare";
-};
-
-export type AnnotateDrawerProps<Target extends ScoreTarget> = {
-  projectId: string;
-  scoreTarget: Target;
-  scores: WithStringifiedMetadata<ScoreDomain>[];
-  analyticsData?: AnalyticsData;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  buttonVariant?: ButtonProps["variant"];
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;

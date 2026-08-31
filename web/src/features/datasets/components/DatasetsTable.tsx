@@ -19,11 +19,12 @@ import {
   BatchActionType,
   BatchExportTableName,
 } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
@@ -341,18 +342,12 @@ export function DatasetsTable(props: { projectId: string }) {
         };
       },
     }),
-    {
+    createTextTableColumn<DatasetTableRow>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: DatasetTableRow["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
+    }),
     {
       accessorKey: "countItems",
       header: "Items",
@@ -416,19 +411,14 @@ export function DatasetsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createIOTableColumn<DatasetTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",
