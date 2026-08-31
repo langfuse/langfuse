@@ -51,6 +51,7 @@ import {
   getDatasetItems,
   getDatasetItemsCount,
   getObservationById,
+  getObservationByIdFromEventsTable,
   logger,
   processEventBatch,
   stampExperimentAttributesOnTraceEvents,
@@ -849,14 +850,35 @@ export const buildStableDatasetRunItemResponseEventsOnly = async ({
   });
   const createdAt = body.createdAt ? new Date(body.createdAt) : new Date();
 
+  let traceId = body.traceId ?? "";
+  if (!traceId && body.observationId) {
+    try {
+      const observation = await getObservationByIdFromEventsTable({
+        id: body.observationId,
+        projectId,
+        fetchWithInputOutput: false,
+      });
+      traceId = observation.traceId ?? "";
+    } catch (error) {
+      if (!(error instanceof LangfuseNotFoundError)) {
+        logger.error(
+          "Failed to resolve observation for events_only dataset run item",
+          {
+            error,
+            projectId,
+            observationId: body.observationId,
+          },
+        );
+      }
+    }
+  }
+
   const datasetRunItem: APIDatasetRunItem = {
     id: v4(),
     datasetRunId: experimentId,
     datasetRunName: body.runName,
     datasetItemId: datasetItem.id,
-    // events_only skips the observation→trace lookup; echo whatever the caller
-    // provided (the body schema requires traceId or observationId).
-    traceId: body.traceId ?? "",
+    traceId,
     observationId: body.observationId ?? null,
     createdAt,
     updatedAt: createdAt,

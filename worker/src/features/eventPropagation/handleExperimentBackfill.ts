@@ -14,8 +14,25 @@ import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { updateLastRunStartedAt } from "./handleEventPropagationJob";
 
+const DATASET_RUN_ITEM_SELECT = `
+      dri.id AS id,
+      dri.project_id AS project_id,
+      dri.trace_id AS trace_id,
+      dri.observation_id AS observation_id,
+      dri.dataset_run_id AS dataset_run_id,
+      dri.dataset_run_name AS dataset_run_name,
+      dri.dataset_run_description AS dataset_run_description,
+      dri.dataset_run_metadata AS dataset_run_metadata,
+      dri.dataset_id AS dataset_id,
+      dri.dataset_item_version AS dataset_item_version,
+      dri.dataset_item_id AS dataset_item_id,
+      dri.dataset_item_expected_output AS dataset_item_expected_output,
+      dri.dataset_item_metadata AS dataset_item_metadata,
+      toString(dri.created_at) AS created_at`;
 const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
+export const EXPERIMENT_CATCH_UP_CURSOR_KEY =
+  "langfuse:event-propagation:experiment-backfill:catch-up-cursor";
 const EXPERIMENT_BACKFILL_LOCK_KEY = "langfuse:experiment-backfill:lock";
 const LOCK_TTL_SECONDS = 300; // 5 minutes
 const UNENRICHED_EVENTS_LOOKBACK_DAYS = 90;
@@ -134,27 +151,19 @@ async function getDatasetRunItemsSinceLastRun(
     )
 
     SELECT
-      dri.id,
-      dri.project_id,
-      dri.trace_id,
-      dri.observation_id,
-      dri.dataset_run_id,
-      dri.dataset_run_name,
-      dri.dataset_run_description,
-      dri.dataset_run_metadata,
-      dri.dataset_id,
-      dri.dataset_item_version,
-      dri.dataset_item_id,
-      dri.dataset_item_expected_output,
-      dri.dataset_item_metadata,
-      dri.created_at
+      ${DATASET_RUN_ITEM_SELECT}
     FROM dataset_run_items_rmt AS dri
-    -- Traces already in events_core still need a stamp when experiment_id is
-    -- empty (dataset-run-item created without langfuse.experiment.* attributes).
+    -- Observation-level DRIs are enriched when that span is stamped; a sibling
+    -- item on the same trace must still be picked up. Trace-level DRIs are
+    -- enriched when any span on the trace has experiment_id.
     LEFT ANTI JOIN events_core AS ec
       ON dri.project_id = ec.project_id
       AND dri.trace_id = ec.trace_id
       AND ec.experiment_id != ''
+      AND (
+        coalesce(dri.observation_id, '') = ''
+        OR ec.span_id = dri.observation_id
+      )
     WHERE dri.created_at > {lastRun: DateTime64(3)}
       AND dri.created_at <= {upperBound: DateTime64(3)}
       AND (dri.project_id, dri.trace_id) IN (SELECT project_id, trace_id FROM candidate_dris)
@@ -180,35 +189,80 @@ async function getDatasetRunItemsSinceLastRun(
   return rows;
 }
 
+type CatchUpCursor = { createdAt: string; id: string };
+
+const readCatchUpCursor = async (): Promise<CatchUpCursor | null> => {
+  if (!redis) {
+    return null;
+  }
+  const raw = await redis.get(EXPERIMENT_CATCH_UP_CURSOR_KEY);
+  if (!raw) {
+    return null;
+  }
+  const sep = raw.indexOf("|");
+  if (sep <= 0 || sep === raw.length - 1) {
+    return null;
+  }
+  return { createdAt: raw.slice(0, sep), id: raw.slice(sep + 1) };
+};
+
+const toCatchUpCursorDateTime = (value: string | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(value)) {
+    return value;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return convertDateToClickhouseDateTime(parsed);
+};
+
+const writeCatchUpCursor = async (item: DatasetRunItem): Promise<void> => {
+  if (!redis) {
+    logger.warn(
+      "[EXPERIMENT BACKFILL] Redis not available, cannot advance catch-up cursor",
+    );
+    return;
+  }
+  const createdAt = toCatchUpCursorDateTime(item.created_at);
+  if (!createdAt) {
+    logger.error(
+      "[EXPERIMENT BACKFILL] Cannot advance catch-up cursor without created_at",
+      { id: item.id },
+    );
+    return;
+  }
+  try {
+    await redis.set(EXPERIMENT_CATCH_UP_CURSOR_KEY, `${createdAt}|${item.id}`);
+  } catch (error) {
+    logger.error(
+      "[EXPERIMENT BACKFILL] Failed to update catch-up cursor",
+      error,
+    );
+  }
+};
+
 /**
  * Dataset-run-items older than the incremental cursor whose traces exist in
  * events_core without experiment_id. Those traces are already ingested, so the
  * observations-copy path never sees them.
  */
-async function getUnenrichedDatasetRunItemsBeforeCursor(
+export async function getUnenrichedDatasetRunItemsBeforeCursor(
   lastRun: Date,
   limit: number,
 ): Promise<DatasetRunItem[]> {
   const lookbackStart = new Date(
     lastRun.getTime() - UNENRICHED_EVENTS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
   );
+  const cursor = await readCatchUpCursor();
+  const lookbackStartCh = convertDateToClickhouseDateTime(lookbackStart);
 
   const query = `
     SELECT
-      dri.id,
-      dri.project_id,
-      dri.trace_id,
-      dri.observation_id,
-      dri.dataset_run_id,
-      dri.dataset_run_name,
-      dri.dataset_run_description,
-      dri.dataset_run_metadata,
-      dri.dataset_id,
-      dri.dataset_item_version,
-      dri.dataset_item_id,
-      dri.dataset_item_expected_output,
-      dri.dataset_item_metadata,
-      dri.created_at
+      ${DATASET_RUN_ITEM_SELECT}
     FROM dataset_run_items_rmt AS dri
     LEFT SEMI JOIN events_core AS present
       ON present.project_id = dri.project_id
@@ -217,9 +271,17 @@ async function getUnenrichedDatasetRunItemsBeforeCursor(
       ON enriched.project_id = dri.project_id
       AND enriched.trace_id = dri.trace_id
       AND enriched.experiment_id != ''
+      AND (
+        coalesce(dri.observation_id, '') = ''
+        OR enriched.span_id = dri.observation_id
+      )
     WHERE dri.created_at > {lookbackStart: DateTime64(3)}
       AND dri.created_at <= {lastRun: DateTime64(3)}
-    ORDER BY dri.created_at ASC
+      AND (
+        {hasCursor: UInt8} = 0
+        OR (dri.created_at, dri.id) > ({cursorAt: DateTime64(3)}, {cursorId: String})
+      )
+    ORDER BY dri.created_at ASC, dri.id ASC
     LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
     LIMIT {limit: UInt32}
   `;
@@ -227,8 +289,11 @@ async function getUnenrichedDatasetRunItemsBeforeCursor(
   const rows = await queryClickhouse<DatasetRunItem>({
     query,
     params: {
-      lookbackStart: convertDateToClickhouseDateTime(lookbackStart),
+      lookbackStart: lookbackStartCh,
       lastRun: convertDateToClickhouseDateTime(lastRun),
+      hasCursor: cursor ? 1 : 0,
+      cursorAt: cursor?.createdAt ?? lookbackStartCh,
+      cursorId: cursor?.id ?? "",
       limit,
     },
     clickhouseConfigs: {
@@ -249,7 +314,7 @@ const stampDatasetRunItemOntoEvents = async (
   const { stamped } = await stampExperimentAttributesOnTraceEvents({
     projectId: dri.project_id,
     traceId: dri.trace_id,
-    rootSpanId: dri.observation_id,
+    rootSpanId: dri.observation_id || null,
     experimentId: dri.dataset_run_id,
     experimentName: dri.dataset_run_name,
     experimentDescription: dri.dataset_run_description,
@@ -265,38 +330,52 @@ const stampDatasetRunItemOntoEvents = async (
   return stamped;
 };
 
-const stampUnenrichedDatasetRunItemsBeforeCursor = async (
+export const stampUnenrichedDatasetRunItemsBeforeCursor = async (
   lastRun: Date,
 ): Promise<void> => {
   const excludeProjectIds =
     env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS;
-  const catchUpItems = await getUnenrichedDatasetRunItemsBeforeCursor(
-    lastRun,
-    env.LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE,
-  );
-  const toStamp =
-    excludeProjectIds && excludeProjectIds.length > 0
-      ? catchUpItems.filter(
-          (dri) => !excludeProjectIds.includes(dri.project_id),
-        )
-      : catchUpItems;
+  const chunkSize = env.LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE;
 
-  if (toStamp.length === 0) {
-    return;
-  }
+  while (true) {
+    const catchUpItems = await getUnenrichedDatasetRunItemsBeforeCursor(
+      lastRun,
+      chunkSize,
+    );
+    if (catchUpItems.length === 0) {
+      return;
+    }
 
-  logger.info(
-    `[EXPERIMENT BACKFILL] Stamping ${toStamp.length} historically skipped dataset run items`,
-  );
+    const toStamp =
+      excludeProjectIds && excludeProjectIds.length > 0
+        ? catchUpItems.filter(
+            (dri) => !excludeProjectIds.includes(dri.project_id),
+          )
+        : catchUpItems;
 
-  for (const dri of toStamp) {
-    try {
-      await stampDatasetRunItemOntoEvents(dri);
-    } catch (error) {
-      logger.error(
-        `[EXPERIMENT BACKFILL] Failed to stamp historically skipped DRI ${dri.id}`,
-        error,
+    if (toStamp.length > 0) {
+      logger.info(
+        `[EXPERIMENT BACKFILL] Stamping ${toStamp.length} historically skipped dataset run items`,
       );
+
+      for (const dri of toStamp) {
+        try {
+          await stampDatasetRunItemOntoEvents(dri);
+        } catch (error) {
+          logger.error(
+            `[EXPERIMENT BACKFILL] Failed to stamp historically skipped DRI ${dri.id}`,
+            error,
+          );
+        }
+      }
+    }
+
+    const lastItem = catchUpItems[catchUpItems.length - 1];
+    await writeCatchUpCursor(lastItem);
+    await updateLastRunStartedAt();
+
+    if (catchUpItems.length < chunkSize) {
+      return;
     }
   }
 };
