@@ -21,7 +21,11 @@ import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";

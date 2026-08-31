@@ -49,7 +49,11 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
-import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";

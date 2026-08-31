@@ -14,7 +14,11 @@ import {
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 
 const JobExecutionCounts = ({

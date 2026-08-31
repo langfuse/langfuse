@@ -46,7 +46,11 @@ import {
 } from "@/src/components/ui/select";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 

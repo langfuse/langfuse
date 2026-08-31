@@ -8,7 +8,10 @@ import {
   isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";

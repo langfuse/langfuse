@@ -9,7 +9,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectButton } from "@/src/features/slack/components/SlackDisconnectButton";

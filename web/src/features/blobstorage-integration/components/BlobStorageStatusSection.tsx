@@ -1,5 +1,9 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { Card } from "@/src/components/ui/card";
 import { BlobStorageExportMode } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";

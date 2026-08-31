@@ -74,7 +74,10 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 import {
   useEvalCapabilities,
   type EvalCapabilities,

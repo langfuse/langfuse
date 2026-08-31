@@ -7,7 +7,11 @@ import { z } from "zod";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import {

@@ -4,7 +4,11 @@ import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useRouter } from "next/router";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";

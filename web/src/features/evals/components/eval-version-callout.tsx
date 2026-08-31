@@ -1,4 +1,7 @@
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {

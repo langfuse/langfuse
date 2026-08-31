@@ -51,7 +51,11 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "lucide-react";
 

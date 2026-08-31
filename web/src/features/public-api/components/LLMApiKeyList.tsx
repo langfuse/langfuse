@@ -15,7 +15,11 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { CreateLLMApiKeyDialog } from "./CreateLLMApiKeyDialog";
 import { UpdateLLMApiKeyDialog } from "./UpdateLLMApiKeyDialog";
 

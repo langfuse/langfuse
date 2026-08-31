@@ -1,5 +1,9 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
   AlertDialogAction,

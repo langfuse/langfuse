@@ -1,5 +1,9 @@
 import Header from "@/src/components/layouts/header";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type PostHogIntegrationConfig = NonNullable<

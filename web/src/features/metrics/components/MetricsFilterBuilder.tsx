@@ -12,7 +12,11 @@ import {
 import { type views, type ViewVersion } from "@langfuse/shared/query";
 import { type z } from "zod";
 
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import {
   displayNameForFilterColumn,

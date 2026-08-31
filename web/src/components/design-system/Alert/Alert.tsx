@@ -7,7 +7,7 @@ import { cn } from "@/src/utils/tailwind";
 type AlertContent = Exclude<React.ReactNode, null | undefined | boolean>;
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border p-3 [&>svg~*]:pl-6 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-3 [&>svg]:top-3 [&>svg]:text-foreground",
+  "relative w-full rounded-lg border p-3 [&>svg~*]:pl-6 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-3 [&>svg]:top-3 [&>svg]:text-foreground [&>[data-slot=alert-title]]:mb-1",
   {
     variants: {
       variant: {
@@ -67,7 +67,7 @@ function AlertTitle({ children, className }: AlertTitleProps) {
   return (
     <h5
       data-slot="alert-title"
-      className={cn("mb-1 leading-none font-bold tracking-tight", className)}
+      className={cn("leading-none font-bold tracking-tight", className)}
     >
       {children}
     </h5>

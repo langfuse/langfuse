@@ -1,5 +1,9 @@
 import { AlertCircle } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 
 export const SupportOrUpgradePage = () => {
   return (

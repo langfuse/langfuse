@@ -2,8 +2,8 @@ import React from "react";
 import { AlertTriangle, Info, X } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
-import { Alert, AlertDescription, AlertTitle } from "./alert";
+import preview from "../../../../.storybook/preview";
+import { Alert, AlertDescription, AlertTitle } from "./Alert";
 
 type Variant = NonNullable<React.ComponentProps<typeof Alert>["variant"]>;
 type Size = NonNullable<React.ComponentProps<typeof Alert>["size"]>;

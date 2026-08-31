@@ -1,5 +1,8 @@
 import React from "react";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+} from "@/src/components/design-system/Alert/Alert";
 
 export interface StepHeaderProps {
   title: string;

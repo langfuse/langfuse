@@ -1,6 +1,10 @@
 import { useWatch } from "react-hook-form";
 import { Info, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import {
   FormControl,
   FormDescription,

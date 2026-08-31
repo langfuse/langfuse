@@ -20,7 +20,11 @@ import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganiz
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { TrashIcon } from "lucide-react";
 import { useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import startCase from "lodash/startCase";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 

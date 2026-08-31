@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { AlertTriangle, X } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 
 export function EvaluationRuleAttachmentValidationAlert({
   message,

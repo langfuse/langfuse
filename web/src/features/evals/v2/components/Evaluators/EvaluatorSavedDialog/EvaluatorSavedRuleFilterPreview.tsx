@@ -1,7 +1,11 @@
 import type { FilterState } from "@langfuse/shared";
 import { AlertTriangle } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 
 export function EvaluatorSavedRuleFilterPreview({

@@ -1,5 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,

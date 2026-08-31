@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 

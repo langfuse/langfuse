@@ -1,6 +1,10 @@
 import { AlertCircle, Settings } from "lucide-react";
 import Link from "next/link";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 
 interface NoModelConfiguredAlertProps {
   projectId: string;

@@ -36,7 +36,11 @@ import {
   type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/src/components/design-system/Alert/Alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
