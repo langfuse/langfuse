@@ -21,6 +21,7 @@ import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   DropdownMenu,
@@ -99,12 +100,11 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   const totalCount = configs.data?.totalCount ?? null;
 
   const columns: LangfuseColumnDef<ScoreConfigTableRow>[] = [
-    {
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "name",
-      id: "name",
       header: "Name",
       enableHiding: true,
-    },
+    }),
     {
       accessorKey: "dataType",
       id: "dataType",

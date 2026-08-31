@@ -44,6 +44,7 @@ import { createItemBadgeTableColumn } from "@/src/components/design-system/table
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -1279,50 +1280,26 @@ export default function ObservationsEventsTable({
         ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.inputCost, row.type),
           id: "inputCost",
           header: getEventsColumnName("inputCost"),
           size: 120,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createTextTableColumn<EventsTableRow>({
+          accessorFn: (row) =>
+            formatObservationCost(row.cost.outputCost, row.type),
           id: "outputCost",
           header: getEventsColumnName("outputCost"),
           size: 120,
-          loadingCell: <Skeleton className="h-4 w-1/2" />,
-          cell: ({ row }) => {
-            const value = row.getValue("cost") as {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            };
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
     createNumberTableColumn<EventsTableRow>({

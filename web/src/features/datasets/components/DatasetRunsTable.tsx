@@ -47,6 +47,7 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   Dialog,
   DialogContent,
@@ -417,18 +418,12 @@ export function DatasetRunsTable(props: {
         };
       },
     }),
-    {
+    createTextTableColumn<DatasetRunRowData>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const description: DatasetRunRowData["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
+    }),
     {
       accessorKey: "countRunItems",
       header: "Run Items",

@@ -9,6 +9,7 @@ import { createBadgeTableColumn } from "@/src/components/design-system/table/col
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -764,25 +765,20 @@ export default function TracesTable({
       },
       enableHiding: true,
     },
-    {
+    createTextTableColumn<TracesTableRow, number>({
       accessorKey: "latency",
-      id: "latency",
       header: "Latency",
       size: 100,
-      // add seconds to the end of the latency
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["latency"] = row.getValue("latency");
-        if (isMetricPending(row.original.id)) {
-          return <Skeleton className="h-4 w-1/2" />;
-        }
-        return value !== undefined ? (
-          <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
-        ) : undefined;
-      },
+      className: "text-nowrap",
+      mapValue: (value, { row }) =>
+        isMetricPending(row.original.id)
+          ? { type: "loading" }
+          : value === null || value === undefined
+            ? undefined
+            : formatIntervalSeconds(value),
       enableHiding: true,
       enableSorting,
-    },
+    }),
 
     {
       accessorKey: "tokens",
