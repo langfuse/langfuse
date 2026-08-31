@@ -127,6 +127,14 @@ function validateEvaluatorInput(
   input: z.infer<typeof McpEvaluatorInputBase>,
   ctx: z.RefinementCtx,
 ) {
+  if (input.type === EvalTemplateType.LLM_AS_JUDGE && !input.prompt?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["prompt"],
+      message: "Prompt is required for LLM-as-a-judge evaluators.",
+    });
+  }
+
   if (
     input.type === EvalTemplateType.CODE &&
     input.variableMapping !== undefined
