@@ -20,7 +20,6 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
@@ -63,6 +62,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -115,6 +115,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
       : null;
+
+  const preparedDate = buildLocalIsoDatePresentation({
+    date: trace.timestamp,
+    accuracy: "millisecond",
+  });
 
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -475,9 +480,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       {/* Metadata badges */}
       <div className="flex flex-col gap-2">
         {/* Timestamp */}
-        <div className="flex flex-wrap items-center gap-1 text-sm">
-          <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
-        </div>
+        {preparedDate ? (
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <span title={preparedDate.title}>{preparedDate.display}</span>
+          </div>
+        ) : null}
 
         {/* Other badges */}
         {!isAnnotationMode && (

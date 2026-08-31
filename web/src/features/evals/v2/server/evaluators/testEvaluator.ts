@@ -26,6 +26,7 @@ export async function testEvaluator(params: {
   orgId: string;
   projectId: string;
   evaluatorId: string;
+  includeEvaluatorLink?: boolean;
   definition: NormalizedEvaluatorDefinition;
   observationId: string;
   traceId: string;
@@ -50,7 +51,8 @@ export async function testEvaluator(params: {
   });
   const metadata = buildEvalExecutionMetadata({
     type: "TEST",
-    evaluatorId: params.evaluatorId,
+    evaluatorId:
+      params.includeEvaluatorLink === false ? null : params.evaluatorId,
     targetTraceId: params.traceId,
     targetObservationId: params.observationId,
   });

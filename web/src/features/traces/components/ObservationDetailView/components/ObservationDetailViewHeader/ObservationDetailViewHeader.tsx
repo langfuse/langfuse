@@ -14,12 +14,12 @@ import {
   type ObservationType,
   AnnotationQueueObjectType,
   isGenerationLike,
+  LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
@@ -35,12 +35,19 @@ import {
   EnvironmentBadge,
   ReleaseBadge,
   VersionBadge,
-} from "../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { SessionBadge, UserIdBadge } from "../../TraceMetadataBadges";
-import { CostBadge, UsageBadge } from "../../ObservationMetadataBadgesTooltip";
-import { ModelBadge } from "./ModelBadge";
-import { ModelParametersBadges } from "./ModelParametersBadges";
+import {
+  SessionBadge,
+  UserIdBadge,
+} from "@/src/features/traces/components/TraceMetadataBadges";
+import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
+import {
+  CostBadge,
+  UsageBadge,
+} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
+import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -80,6 +87,9 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
+import { api } from "@/src/utils/api";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -155,6 +165,27 @@ export const ObservationDetailViewHeader = memo(
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+    const evaluatorId = resolveEvaluatorIdMetadata(
+      observationWithIO?.metadata ?? observation.metadata,
+    );
+    const isEvaluatorExecution =
+      observation.environment === LangfuseInternalTraceEnvironment.LLMJudge ||
+      observation.environment === LangfuseInternalTraceEnvironment.CodeEval;
+    const evaluator = api.evalsV2.get.useQuery(
+      { projectId, evaluatorId: evaluatorId ?? "" },
+      {
+        enabled: Boolean(
+          evaluatorId &&
+          isEvaluatorExecution &&
+          !evaluatorId.startsWith("managed:"),
+        ),
+      },
+    );
+
+    const preparedDate = buildLocalIsoDatePresentation({
+      date: observation.startTime,
+      accuracy: "millisecond",
+    });
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -654,9 +685,11 @@ export const ObservationDetailViewHeader = memo(
 
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
-          </div>
+          {preparedDate ? (
+            <div className="flex flex-wrap items-center gap-1 text-sm">
+              <span title={preparedDate.title}>{preparedDate.display}</span>
+            </div>
+          ) : null}
 
           {/* Other badges */}
           {!isAnnotationMode && (
@@ -671,6 +704,12 @@ export const ObservationDetailViewHeader = memo(
               />
               <UserIdBadge
                 userId={observation.userId ?? null}
+                projectId={projectId}
+              />
+              <EvaluatorBadge
+                evaluatorId={evaluatorId}
+                evaluatorName={evaluator.data?.name}
+                environment={observation.environment}
                 projectId={projectId}
               />
               <EnvironmentBadge environment={observation.environment} />
