@@ -48,18 +48,18 @@ drop_pnpm_name() {
 
 if [ "$DROP_NEXT_TOOLCHAIN" -eq 1 ]; then
   # Next.js compiler / bundler artifacts pulled in via next-auth. The worker
-  # never compiles or serves Next pages. typescript / prettier / playwright
-  # are likewise build or test tooling that pnpm deploy still copies.
+  # never compiles or serves Next pages. typescript / playwright are build or
+  # test tooling that pnpm deploy still copies. Keep prettier: @react-email/render
+  # requires prettier/standalone at runtime for worker email jobs.
   drop_pnpm_name 'next@*'
   drop_pnpm_name '@next+swc-*'
   drop_pnpm_name 'typescript@*'
-  drop_pnpm_name 'prettier@*'
   drop_pnpm_name 'playwright@*'
   drop_pnpm_name 'playwright-core@*'
-  rm -rf "$DIR/next" "$DIR/@next" "$DIR/typescript" "$DIR/prettier" \
+  rm -rf "$DIR/next" "$DIR/@next" "$DIR/typescript" \
     "$DIR/playwright" "$DIR/playwright-core"
   rm -f "$DIR/.bin/next" "$DIR/.bin/tsc" "$DIR/.bin/tsserver" \
-    "$DIR/.bin/prettier" "$DIR/.bin/playwright"
+    "$DIR/.bin/playwright"
 fi
 
 if [ "$DROP_PRISMA_CLI" -eq 1 ]; then
