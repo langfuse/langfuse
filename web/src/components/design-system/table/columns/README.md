@@ -13,7 +13,7 @@ createTextTableColumn<Row>({
 });
 ```
 
-Use `accessorFn` for a derived value. Computed columns require an explicit, stable ID for sorting, visibility, and persisted column order. Action menus use this form because the cell renders a dropdown, not the accessor value:
+Use `accessorFn` for a derived value. Computed columns require an explicit, stable ID for sorting, visibility, and persisted column order:
 
 ```tsx
 createNumberTableColumn<Row>({
@@ -24,18 +24,6 @@ createNumberTableColumn<Row>({
   },
   header: "Tokens per second",
   formatter: (value) => numberFormatter(value, 0, 1),
-});
-
-createDropdownTableColumn<Row>({
-  id: "actions",
-  accessorFn: (row) => row.id,
-  header: "Actions",
-  size: 70,
-  isFixedPosition: true,
-  renderMenu: (id) =>
-    id ? (
-      <DropdownMenuItem onClick={() => onDelete(id)}>Delete</DropdownMenuItem>
-    ) : null,
 });
 ```
 
