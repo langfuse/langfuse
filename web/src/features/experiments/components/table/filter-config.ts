@@ -1,6 +1,7 @@
 import {
   omitFilterFacets,
   type FilterConfig,
+  type FilterStateMigration,
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnDefinition } from "@langfuse/shared";
 
@@ -150,12 +151,39 @@ export const getExperimentsColumnName = (id: string): string => {
   return column.name;
 };
 
+/**
+ * Folds a legacy `experimentDatasetId` filter onto the canonical column.
+ *
+ * Both ids compile to the same ClickHouse column, and the name resolver passes
+ * a value it cannot translate straight through — so an id keeps matching. What
+ * matters is that only ONE dataset column can be present: the sidebar's facet
+ * actions replace entries by exact column name, so a leftover
+ * `experimentDatasetId` from an old link survived every interaction with the
+ * Dataset facet and was ANDed with the user's new choice, silently showing zero
+ * rows with one dataset apparently selected.
+ */
+const foldLegacyDatasetColumn: FilterStateMigration = (filters) => {
+  if (!filters.some((filter) => filter.column === "experimentDatasetId")) {
+    return filters;
+  }
+  const seen = new Set<string>();
+  return filters.flatMap((filter) => {
+    if (filter.column !== "experimentDatasetId") return [filter];
+    // Two legacy entries would fold onto one column and re-create the AND.
+    if (seen.has(filter.column)) return [];
+    seen.add(filter.column);
+    return [{ ...filter, column: "experimentDatasetName" }];
+  });
+};
+
 export const experimentsFilterConfig: FilterConfig = {
   tableName: "experiments",
 
   columnDefinitions: experimentsTableCols,
 
   defaultExpanded: ["experimentDatasetName"],
+
+  migrateFilterState: foldLegacyDatasetColumn,
 
   facets: [
     {

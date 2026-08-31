@@ -1,3 +1,4 @@
+import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 
@@ -70,5 +71,64 @@ describe("withDatasetNamesResolved", () => {
         idByName,
       )[0],
     ).toMatchObject({ value: ["ds-legal", "ds-ground"] });
+  });
+});
+
+describe("folding the legacy dataset column", () => {
+  const migrate = experimentsFilterConfig.migrateFilterState!;
+
+  it("moves a legacy experimentDatasetId filter onto the canonical column", () => {
+    // Left on its own column it survives every Dataset-facet interaction and is
+    // ANDed with the user's choice, so the table shows nothing.
+    expect(
+      migrate([
+        {
+          type: "stringOptions",
+          column: "experimentDatasetId",
+          operator: "any of",
+          value: ["dataset-abc"],
+        },
+      ]),
+    ).toEqual([
+      {
+        type: "stringOptions",
+        column: "experimentDatasetName",
+        operator: "any of",
+        value: ["dataset-abc"],
+      },
+    ]);
+  });
+
+  it("cannot leave two dataset filters behind", () => {
+    const migrated = migrate([
+      {
+        type: "stringOptions",
+        column: "experimentDatasetId",
+        operator: "any of",
+        value: ["dataset-abc"],
+      },
+      {
+        type: "stringOptions",
+        column: "experimentDatasetId",
+        operator: "any of",
+        value: ["dataset-def"],
+      },
+    ]);
+
+    expect(migrated).toHaveLength(1);
+    expect(migrated[0]).toMatchObject({ column: "experimentDatasetName" });
+  });
+
+  it("leaves a filter state without the legacy column untouched", () => {
+    const filters: FilterState = [
+      {
+        type: "stringOptions",
+        column: "experimentDatasetName",
+        operator: "any of",
+        value: ["legal-answer-quality"],
+      },
+    ];
+
+    expect(migrate(filters)).toBe(filters);
   });
 });
