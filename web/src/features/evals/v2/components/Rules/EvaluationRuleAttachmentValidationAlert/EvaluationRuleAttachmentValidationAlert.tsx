@@ -16,10 +16,10 @@ export function EvaluationRuleAttachmentValidationAlert({
   onReview?: () => void;
 }) {
   return (
-    <Alert className="border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow pr-10">
+    <Alert variant="warning" className="pr-10">
       <button
         type="button"
-        className="text-dark-yellow absolute top-2.5 right-2.5 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent"
+        className="absolute top-2.5 right-2.5 grid size-7 cursor-pointer place-items-center rounded-sm border-none bg-transparent"
         aria-label="Dismiss validation warning"
         onClick={onDismiss}
       >

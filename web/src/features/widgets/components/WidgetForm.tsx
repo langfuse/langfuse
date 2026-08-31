@@ -887,15 +887,10 @@ export function WidgetForm({
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
             {isBetaEnabled && selectedView === "traces" && (
-              <Alert
-                variant="default"
-                className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-              >
-                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-                <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-                  Traces view is not available in v4
-                </AlertTitle>
-                <AlertDescription className="text-yellow-700 dark:text-yellow-500">
+              <Alert variant="warning">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Traces view is not available in v4</AlertTitle>
+                <AlertDescription>
                   This widget uses the traces view which is not supported in v4.
                   It will continue to use v3 definitions. To use v4, change the
                   view to observations or scores.

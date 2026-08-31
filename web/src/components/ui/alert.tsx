@@ -13,6 +13,8 @@ const alertVariants = cva(
         destructive:
           "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
         info: "bg-light-blue border-dark-blue",
+        warning:
+          "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow",
       },
     },
     defaultVariants: {
@@ -28,27 +30,20 @@ type AlertProps = Omit<
 > & {
   className?:
     | "w-full max-w-3xl"
-    | "border-light-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow"
     | "mb-4"
     | "mt-4"
-    | "border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
-    | "border-dark-yellow bg-light-yellow max-w-4xl"
+    | "mt-2 max-w-4xl"
+    | "max-w-4xl"
     | "text-sm"
-    | "border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
     | "max-w-sm"
-    | "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5"
-    | "border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow pr-10";
+    | "rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5"
+    | "pr-10";
 };
 type AlertTitleProps = Omit<
   Pick<React.ComponentProps<"h5">, "children" | "className">,
   "className"
 > & {
-  className?:
-    | "text-base font-bold"
-    | "text-base"
-    | "text-yellow-800 dark:text-yellow-400"
-    | "mb-1 text-sm"
-    | "pr-4";
+  className?: "text-base font-bold" | "text-base" | "mb-1 text-sm" | "pr-4";
 };
 
 function Alert({ children, className, variant }: AlertProps) {
@@ -68,7 +63,6 @@ type AlertDescriptionProps = Omit<
     | "mt-2 space-y-3"
     | "text-dark-yellow"
     | "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-    | "text-yellow-700 dark:text-yellow-500"
     | "text-xs"
     | "flex flex-col items-start gap-1";
 };

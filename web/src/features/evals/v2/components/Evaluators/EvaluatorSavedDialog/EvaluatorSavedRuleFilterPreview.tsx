@@ -14,7 +14,10 @@ export function EvaluatorSavedRuleFilterPreview({
   return (
     <div className="space-y-2">
       {unsupportedReasons.size > 0 ? (
-        <Alert className="border-dark-yellow bg-light-yellow text-dark-yellow [&>svg]:text-dark-yellow rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5">
+        <Alert
+          variant="warning"
+          className="rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5"
+        >
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle className="mb-1 text-sm">
             Some filters won&apos;t be included

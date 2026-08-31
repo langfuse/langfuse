@@ -155,11 +155,8 @@ export function EvalVersionCallout({
   }
 
   return (
-    <Alert
-      variant="default"
-      className="border-dark-yellow bg-light-yellow mt-2 max-w-4xl"
-    >
-      <AlertTriangle className="text-dark-yellow h-4 w-4" />
+    <Alert variant="warning" className="mt-2 max-w-4xl">
+      <AlertTriangle className="h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
