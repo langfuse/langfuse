@@ -173,8 +173,8 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
-  // Keep Scalar outside Next's client compilation while retaining its prebuilt
-  // browser bundle and MIT notice in standalone images.
+  // Keep Scalar outside Next's client compilation by tracing its prebuilt bundle.
+  // Its MIT notice must ship with redistributed copies.
   outputFileTracingIncludes: {
     "/api/spec": [
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
