@@ -33,6 +33,11 @@ describe("Media Upload API", () => {
   const describeIfNotAzureBlobStorage = isAzureBlobMode
     ? describe.skip
     : describe;
+  const describeIfFloci = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT?.includes(
+    ":4566",
+  )
+    ? describe
+    : describe.skip;
   const session: Session = {
     expires: "1",
     user: {
@@ -287,6 +292,40 @@ describe("Media Upload API", () => {
     if (redis) {
       redis.disconnect();
     }
+  });
+
+  describeIfFloci("Local Floci CORS", () => {
+    const preflight = async (origin: string) => {
+      const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
+      const bucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+
+      if (!endpoint || !bucket) {
+        throw new Error("Floci media storage is not configured");
+      }
+
+      return fetch(`${endpoint}/${bucket}/media/cors-probe`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "PUT",
+          "Access-Control-Request-Headers":
+            "content-type,x-amz-checksum-sha256",
+        },
+      });
+    };
+
+    it("allows the local app origin and rejects unrelated origins", async () => {
+      const localOrigin = new URL(env.NEXTAUTH_URL).origin;
+      const localResponse = await preflight(localOrigin);
+      const unrelatedResponse = await preflight("https://attacker.example");
+
+      expect(localResponse.headers.get("access-control-allow-origin")).toBe(
+        localOrigin,
+      );
+      expect(unrelatedResponse.headers.get("access-control-allow-origin")).toBe(
+        null,
+      );
+    });
   });
 
   describeIfNotAzureBlobStorage("End-to-end tests", () => {

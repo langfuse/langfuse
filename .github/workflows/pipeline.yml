@@ -858,7 +858,7 @@ jobs:
         run: |
           compose_args=(-f docker-compose.dev${{ matrix.deploy-mode }}.yml)
           if [ "${{ matrix.deploy-mode }}" = "" ]; then
-            compose_args+=(-f docker-compose.dev-worker-tests.yml)
+            compose_args+=(-f docker-compose.dev-code-eval.yml)
           fi
           docker compose "${compose_args[@]}" up -d --wait --wait-timeout 180
           docker compose "${compose_args[@]}" ps
@@ -866,7 +866,7 @@ jobs:
         run: |
           compose_args=(-f docker-compose.dev${{ matrix.deploy-mode }}.yml)
           if [ "${{ matrix.deploy-mode }}" = "" ]; then
-            compose_args+=(-f docker-compose.dev-worker-tests.yml)
+            compose_args+=(-f docker-compose.dev-code-eval.yml)
           fi
           if docker compose "${compose_args[@]}" ps | grep "(unhealthy)"; then
             echo "One or more services are unhealthy"

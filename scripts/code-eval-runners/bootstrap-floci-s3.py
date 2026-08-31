@@ -10,6 +10,14 @@ BUCKET = os.environ.get("FLOCI_S3_BUCKET", "langfuse")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "test")
 SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "test")
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "FLOCI_S3_CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if origin.strip()
+]
 
 
 def main() -> None:
@@ -29,7 +37,7 @@ def main() -> None:
                 {
                     "AllowedHeaders": ["*"],
                     "AllowedMethods": ["GET", "HEAD", "PUT"],
-                    "AllowedOrigins": ["*"],
+                    "AllowedOrigins": ALLOWED_ORIGINS,
                     "ExposeHeaders": ["ETag", "x-amz-checksum-sha256"],
                     "MaxAgeSeconds": 3600,
                 }
