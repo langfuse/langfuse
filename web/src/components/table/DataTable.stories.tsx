@@ -26,6 +26,7 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -33,7 +34,6 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -84,7 +84,7 @@ const renderMediaReference = (descriptor: MediaDescriptor) => (
 //   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
 //                plain menu item instead of the tRPC-bound DeleteTraceButton.
 // Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
-// TokenUsageBadge, LevelCountsDisplay, folder links, Skeleton, the
+// createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
 // The IOTableCell relies on MarkdownContext; that is provided globally in
@@ -339,33 +339,26 @@ function buildTraceColumns(
         ) : undefined;
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<TraceRow, TraceRow["usage"]>({
       id: "tokens",
+      accessorFn: (row) => row.usage,
+      header: "Tokens",
       size: 180,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value = row.original.usage;
-        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
-          return null;
-        }
-        return (
-          <BreakdownTooltip details={row.original.tokenDetails}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage)}
-                outputUsage={Number(value.outputUsage)}
-                totalUsage={Number(value.totalUsage)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableSorting: true,
-    },
+      getCell: (value, { row }) => {
+        if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
+          return undefined;
+        }
+
+        return {
+          type: "usage",
+          inputUsage: Number(value.inputUsage),
+          outputUsage: Number(value.outputUsage),
+          totalUsage: Number(value.totalUsage),
+          details: row.original.tokenDetails,
+        };
+      },
+    }),
     {
       accessorKey: "totalCost",
       id: "totalCost",
