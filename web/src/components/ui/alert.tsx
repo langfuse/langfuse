@@ -20,36 +20,39 @@ const alertVariants = cva(
         default: "",
         sm: "rounded-md p-2 [&>svg]:top-2 [&>svg]:left-2 [&>svg+div]:translate-y-0 [&>svg~*]:pl-5 [&>[data-slot=alert-title]]:text-sm [&>[data-slot=alert-description]]:text-xs",
       },
+      dismissible: {
+        true: "pr-10",
+      },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
+      dismissible: false,
     },
   },
 );
 
 type AlertProps = Omit<
   Pick<React.ComponentProps<"div">, "children" | "className"> &
-    Pick<VariantProps<typeof alertVariants>, "size" | "variant">,
+    Pick<
+      VariantProps<typeof alertVariants>,
+      "dismissible" | "size" | "variant"
+    >,
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?: "text-sm" | "pr-10";
 };
 type AlertTitleProps = Omit<
   Pick<React.ComponentProps<"h5">, "children" | "className">,
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?: "text-base" | "pr-4";
+  className?: "text-base";
 };
 
-function Alert({ children, className, size, variant }: AlertProps) {
+function Alert({ children, dismissible, size, variant }: AlertProps) {
   return (
-    <div
-      role="alert"
-      className={cn(alertVariants({ size, variant }), className)}
-    >
+    <div role="alert" className={alertVariants({ dismissible, size, variant })}>
       {children}
     </div>
   );
@@ -60,7 +63,6 @@ type AlertDescriptionProps = Omit<
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?: "text-dark-yellow";
 };
 
 function AlertTitle({ children, className }: AlertTitleProps) {
@@ -74,11 +76,11 @@ function AlertTitle({ children, className }: AlertTitleProps) {
   );
 }
 
-function AlertDescription({ children, className }: AlertDescriptionProps) {
+function AlertDescription({ children }: AlertDescriptionProps) {
   return (
     <div
       data-slot="alert-description"
-      className={cn("text-sm [&_p]:leading-relaxed", className)}
+      className="text-sm [&_p]:leading-relaxed"
     >
       {children}
     </div>
