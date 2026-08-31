@@ -1,6 +1,6 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { numberFormatter } from "@/src/utils/numbers";
 import {
   createTableColumn,
@@ -22,7 +22,7 @@ export function createNumberTableColumn<TData extends RowData>({
 }) {
   return createTableColumn<TData, number>({
     ...options,
-    loadingCell: <TableTextLoadingCell />,
+    loadingCell: <Skeleton className="h-4 w-1/2" />,
     renderCell: (value, context) => {
       if (!getValue) {
         if (value === null || value === undefined) return emptyValue ?? null;
@@ -32,7 +32,9 @@ export function createNumberTableColumn<TData extends RowData>({
       const resolvedValue = getValue(value, context);
 
       if (resolvedValue === undefined) return emptyValue ?? null;
-      if (typeof resolvedValue !== "number") return <TableTextLoadingCell />;
+      if (typeof resolvedValue !== "number") {
+        return <Skeleton className="h-4 w-1/2" />;
+      }
 
       return <span>{formatter(resolvedValue)}</span>;
     },

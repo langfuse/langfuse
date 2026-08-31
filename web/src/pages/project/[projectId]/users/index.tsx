@@ -9,7 +9,7 @@ import {
 } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { DataTable } from "@/src/components/table/data-table";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -325,11 +325,11 @@ const UsersTable = ({
         description: "The earliest trace recorded for this user.",
       },
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: RowData["firstEvent"] = row.getValue("firstEvent");
         if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return typeof value === "string" ? value : undefined;
       },
@@ -341,11 +341,11 @@ const UsersTable = ({
         description: "The latest trace recorded for this user.",
       },
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: RowData["lastEvent"] = row.getValue("lastEvent");
         if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return typeof value === "string" ? value : undefined;
       },
@@ -359,11 +359,11 @@ const UsersTable = ({
         href: "https://langfuse.com/docs/observability/data-model",
       },
       size: 120,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: RowData["totalEvents"] = row.getValue("totalEvents");
         if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return typeof value === "string" ? value : undefined;
       },
@@ -377,11 +377,11 @@ const UsersTable = ({
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: RowData["totalTokens"] = row.getValue("totalTokens");
         if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return typeof value === "string" ? value : undefined;
       },
@@ -394,11 +394,11 @@ const UsersTable = ({
         href: "https://langfuse.com/docs/model-usage-and-cost",
       },
       size: 120,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: RowData["totalCost"] = row.getValue("totalCost");
         if (!userMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return typeof value === "string" ? value : undefined;
       },
