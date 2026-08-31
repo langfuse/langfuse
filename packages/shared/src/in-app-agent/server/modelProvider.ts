@@ -34,7 +34,7 @@ export type InAppAgentModelConfig =
     } & LangfuseAIHttpProviderConfig);
 
 export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
-  "Langfuse AI model is not configured. Set LANGFUSE_AI_MODEL and LANGFUSE_AI_SMALL_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER is anthropic or openai.";
+  "Langfuse AI is not configured. Set LANGFUSE_AI_PROVIDER and LANGFUSE_AI_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER is anthropic or openai.";
 
 const extraHeadersRecordSchema = z.record(z.string(), z.string());
 
@@ -43,9 +43,9 @@ const extraHeadersRecordSchema = z.record(z.string(), z.string());
  *
  * Callers should not branch on vendor beyond this discriminated config.
  * `LANGFUSE_AI_PROVIDER` selects `bedrock`, `anthropic`, or `openai`. Unset
- * provider defaults to Bedrock, including when
- * `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` is set. Cloud does not override an
- * explicit Anthropic or OpenAI provider.
+ * provider is unconfigured, even when model variables and
+ * `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` are set. Bedrock requires
+ * `LANGFUSE_AI_PROVIDER=bedrock`.
  *
  * Region is optional for Bedrock: Cloud web historically omits it and lets
  * the AWS SDK use the task region.
@@ -58,7 +58,10 @@ const extraHeadersRecordSchema = z.record(z.string(), z.string());
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
 }): InAppAgentModelConfig | undefined {
-  const provider = resolveLangfuseAIProvider();
+  const provider = env.LANGFUSE_AI_PROVIDER;
+  if (!provider) {
+    return undefined;
+  }
 
   if (provider === "anthropic" || provider === "openai") {
     return resolveHttpProviderConfig({ provider, modelId: params?.modelId });
@@ -134,10 +137,6 @@ function parseLangfuseAIExtraHeaders(): Record<string, string> | undefined {
 
   const headers = extraHeadersRecordSchema.parse(JSON.parse(raw));
   return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function resolveLangfuseAIProvider(): LangfuseAIProvider {
-  return env.LANGFUSE_AI_PROVIDER ?? "bedrock";
 }
 
 function warnIfBedrockIgnoresNonBedrockEnv() {

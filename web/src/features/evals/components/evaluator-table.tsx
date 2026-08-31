@@ -52,11 +52,6 @@ import {
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import {
-  TableBadgeLoadingCell,
-  TableIconButtonLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -126,7 +121,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
   // Deprecated evaluators are read-only where new legacy setups are not
   // allowed (cloud); self-hosted deployments keep editing them.
   const { allowLegacy } = useEvalCapabilities(projectId);
@@ -212,7 +210,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "status",
       enableSorting: true,
       size: 80,
-      loadingCell: <TableBadgeLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: (row) => {
         const status = row.getValue();
         return (
@@ -284,8 +282,8 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       size: 200,
       loadingCell: (
         <div className="flex items-center gap-2">
-          <TableTextLoadingCell className="w-32" />
-          <TableBadgeLoadingCell className="w-6" />
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-5 w-6 shrink-0 rounded-sm" />
         </div>
       ),
       cell: ({ row }) => {
@@ -370,7 +368,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       id: "actions",
       enableSorting: false,
       size: 100,
-      loadingCell: <TableIconButtonLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-5 shrink-0 rounded-full" />,
       cell: ({ row }) => {
         const id = row.original.id;
         return (

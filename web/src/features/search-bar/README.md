@@ -444,6 +444,11 @@ so a new view must check the field dropdown, not just that Enter applies.
 3. **Reuse the view's `filterOptions` tRPC** for observed values —
    `observed-options.ts` already maps that payload to per-column observed
    values; point it at the new view's procedure (do not invent a parallel one).
+   When a field displays labels but persists stable values, declare its
+   canonical `filterColumn` in the registry overlay and hydrate it with
+   `withFieldOptions([{ value, displayValue }])`. The shared adapter then emits
+   the canonical column/value while the reverse adapter renders the label.
+   Do not add a host-specific post-lowering conversion.
 4. **Keep the adapter targeting the shared `FilterState`.** Reuse the
    already-registry-driven `operatorIssue`/`negationIssue` and the existing
    per-kind lowering. Never add a second lowering path — that breaks the

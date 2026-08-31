@@ -131,7 +131,7 @@ const createStableLlmEvaluatorForMcpWriteTest = async (
       name,
       type: "LLM_AS_JUDGE",
       prompt: "Judge {{input}} against {{output}}",
-      outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+      outputDefinition: mcpEvalOutputDefinition,
       variableMapping: [
         { templateVariable: "input", selectedColumnId: "input" },
         { templateVariable: "output", selectedColumnId: "output" },
@@ -203,7 +203,7 @@ describe("MCP Write Tools", () => {
           name: evaluator.name,
           type: "LLM_AS_JUDGE",
           prompt: "Judge {{input}} very strictly",
-          outputDefinition: { version: 2, ...mcpEvalOutputDefinition },
+          outputDefinition: mcpEvalOutputDefinition,
         },
         setup.context,
       )) as { id: string; versions: Array<{ version: number }> };

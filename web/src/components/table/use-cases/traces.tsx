@@ -4,11 +4,12 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
@@ -56,7 +57,7 @@ import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "../../ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
@@ -694,13 +695,9 @@ export default function TracesTable({
       header: "Input",
       id: "input",
       size: 400,
+      cellBackground: "gray",
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -723,13 +720,9 @@ export default function TracesTable({
       header: "Output",
       id: "output",
       size: 400,
+      cellBackground: "green",
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const traceId: TracesTableRow["id"] = row.getValue("id");
@@ -752,11 +745,13 @@ export default function TracesTable({
       id: "levelCounts",
       header: "Observation Levels",
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: TracesTableRow["levelCounts"] =
           row.getValue("levelCounts");
-        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
 
         const counts: LevelCount[] = Object.entries(value).map(
           ([level, count]) => ({
@@ -770,33 +765,32 @@ export default function TracesTable({
       },
       enableHiding: true,
     },
-    {
+    createTextTableColumn<TracesTableRow, number>({
       accessorKey: "latency",
-      id: "latency",
       header: "Latency",
       size: 100,
-      // add seconds to the end of the latency
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["latency"] = row.getValue("latency");
-        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
-        return value !== undefined ? (
-          <span className="text-nowrap">{formatIntervalSeconds(value)}</span>
-        ) : undefined;
-      },
+      className: "text-nowrap",
+      mapValue: (value, { row }) =>
+        isMetricPending(row.original.id)
+          ? { type: "loading" }
+          : value === null || value === undefined
+            ? undefined
+            : formatIntervalSeconds(value),
       enableHiding: true,
       enableSorting,
-    },
+    }),
 
     {
       accessorKey: "tokens",
       header: "Tokens",
       id: "tokens",
       size: 180,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
           return null;
         }
@@ -823,10 +817,12 @@ export default function TracesTable({
       id: "totalCost",
       header: "Total Cost",
       size: 130,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
-        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         return cost != null ? (
           <BreakdownTooltip details={row.original.costDetails ?? []} isCost>
             <div className="flex items-center gap-1">
@@ -879,11 +875,7 @@ export default function TracesTable({
       header: "Metadata",
       size: 400,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: (
@@ -930,7 +922,9 @@ export default function TracesTable({
             enableHiding: true,
             defaultHidden: true,
             cell: () => {
-              return isColumnLoading ? <TableTextLoadingCell /> : null;
+              return isColumnLoading ? (
+                <Skeleton className="h-4 w-1/2" />
+              ) : null;
             },
             columns: scoreColumns,
           },
@@ -1004,9 +998,8 @@ export default function TracesTable({
       enableHiding: true,
       enableSorting,
     },
-    {
+    createNumberTableColumn<TracesTableRow, bigint>({
       accessorKey: "observationCount",
-      id: "observationCount",
       header: "Observations",
       size: 120,
       headerTooltip: {
@@ -1014,23 +1007,21 @@ export default function TracesTable({
       },
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["observationCount"] =
-          row.getValue("observationCount");
-        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0),
+      getValue: (value, { row }) =>
+        isMetricPending(row.original.id) ? { type: "loading" } : (value ?? 0n),
+    }),
     {
       accessorKey: "level",
       id: "level",
       header: "Status",
       size: 75,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: TracesTableRow["level"] = row.getValue("level");
-        if (isMetricPending(row.original.id)) return <TableTextLoadingCell />;
+        if (isMetricPending(row.original.id)) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         return value ? (
           <span
             className={cn(
@@ -1127,7 +1118,9 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isPending ? <TableTextLoadingCell /> : null;
+        return traceMetrics.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
         createNumberTableColumn<TracesTableRow>({
@@ -1136,7 +1129,7 @@ export default function TracesTable({
           header: "Input Cost",
           size: 100,
           emptyValue: "-",
-          formatter: usdFormatter,
+          formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
             return value ?? undefined;
@@ -1151,7 +1144,7 @@ export default function TracesTable({
           header: "Output Cost",
           size: 100,
           emptyValue: "-",
-          formatter: usdFormatter,
+          formatter: (value) => usdFormatter(value),
           getValue: (value, { row }) => {
             if (isMetricPending(row.original.id)) return { type: "loading" };
             return value ?? undefined;
@@ -1169,57 +1162,53 @@ export default function TracesTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return traceMetrics.isPending ? <TableTextLoadingCell /> : null;
+        return traceMetrics.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputTokens",
+        createNumberTableColumn<TracesTableRow, bigint>({
+          accessorFn: (row) => row.usage.inputUsage,
           id: "inputTokens",
           header: "Input Tokens",
           size: 110,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return <span>{numberFormatter(value.inputUsage, 0)}</span>;
-          },
+          formatter: (value) => numberFormatter(value, 0),
+          getValue: (value, { row }) =>
+            isMetricPending(row.original.id)
+              ? { type: "loading" }
+              : (value ?? 0n),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputTokens",
+        }),
+        createNumberTableColumn<TracesTableRow, bigint>({
+          accessorFn: (row) => row.usage.outputUsage,
           id: "outputTokens",
           header: "Output Tokens",
           size: 110,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return <span>{numberFormatter(value.outputUsage, 0)}</span>;
-          },
+          formatter: (value) => numberFormatter(value, 0),
+          getValue: (value, { row }) =>
+            isMetricPending(row.original.id)
+              ? { type: "loading" }
+              : (value ?? 0n),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "totalTokens",
+        }),
+        createNumberTableColumn<TracesTableRow, bigint>({
+          accessorFn: (row) => row.usage.totalUsage,
           id: "totalTokens",
           header: "Total Tokens",
           size: 110,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: TracesTableRow["usage"] = row.getValue("usage");
-            if (isMetricPending(row.original.id))
-              return <TableTextLoadingCell />;
-            return <span>{numberFormatter(value.totalUsage, 0)}</span>;
-          },
+          formatter: (value) => numberFormatter(value, 0),
+          getValue: (value, { row }) =>
+            isMetricPending(row.original.id)
+              ? { type: "loading" }
+              : (value ?? 0n),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<TracesTableRow>[],
     },
     ...(hideControls
@@ -1594,14 +1583,13 @@ const TracesDynamicCell = ({
         ? trace.data?.input
         : trace.data?.metadata;
 
+  if (trace.isPending) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
   return (
-    <MemoizedIOTableCell
-      isLoading={trace.isPending}
+    <ConnectedIOTableCell
       data={data}
-      className={cn(
-        col === "output" && "bg-accent-light-green",
-        col === "input" && "bg-muted/50",
-      )}
       singleLine={singleLine}
       enableExpandOnHover={singleLine}
     />
