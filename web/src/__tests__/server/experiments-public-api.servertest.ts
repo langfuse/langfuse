@@ -12,7 +12,15 @@ import {
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
-import { GetExperimentsV1Response } from "@/src/features/public-api/types/experiments";
+import {
+  GetExperimentItemsV1Response,
+  GetExperimentsV1Response,
+} from "@/src/features/public-api/types/experiments";
+import {
+  PostDatasetItemsV1Response,
+  PostDatasetRunItemsV1Response,
+  PostDatasetsV1Response,
+} from "@/src/features/public-api/types/datasets";
 
 const getExperiments = (url: string, auth: string) =>
   makeZodVerifiedAPICall(GetExperimentsV1Response, "GET", url, undefined, auth);
@@ -381,4 +389,107 @@ describe("GET /api/public/experiment-items", () => {
 
     expect(res.status).toBe(400);
   });
+});
+
+describe("POST /api/public/dataset-run-items experiment visibility", () => {
+  maybeEventTables(
+    "makes a run created without langfuse.experiment.* span attributes visible in GET /experiments",
+    async () => {
+      const { auth, projectId } = await createOrgProjectAndApiKey();
+      const datasetName = `dataset-run-item-harness-${randomUUID()}`;
+      const runName = `harness-run-${randomUUID()}`;
+      const startTimeMs = Date.now();
+      const spanId = randomUUID();
+      const traceId = randomUUID();
+
+      const dataset = await makeZodVerifiedAPICall(
+        PostDatasetsV1Response,
+        "POST",
+        "/api/public/datasets",
+        { name: datasetName },
+        auth,
+      );
+
+      const datasetItem = await makeZodVerifiedAPICall(
+        PostDatasetItemsV1Response,
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName,
+          input: { prompt: "hello" },
+          expectedOutput: { answer: "world" },
+          metadata: { suite: "harness" },
+        },
+        auth,
+      );
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "harness-generation",
+          type: "GENERATION",
+          environment: "default",
+          start_time: startTimeMs * 1000,
+          end_time: (startTimeMs + 50) * 1000,
+        }),
+      ]);
+
+      const runItem = await makeZodVerifiedAPICall(
+        PostDatasetRunItemsV1Response,
+        "POST",
+        "/api/public/dataset-run-items",
+        {
+          datasetItemId: datasetItem.body.id,
+          traceId,
+          observationId: spanId,
+          runName,
+          runDescription: "created by a custom eval harness",
+          metadata: { runner: "custom" },
+        },
+        auth,
+      );
+
+      const fromStartTime = new Date(startTimeMs - 1_000).toISOString();
+      const experimentsRes = await getExperiments(
+        `/api/public/experiments?fromStartTime=${encodeURIComponent(fromStartTime)}&datasetId=${dataset.body.id}`,
+        auth,
+      );
+
+      expect(experimentsRes.status).toBe(200);
+      const experiment = experimentsRes.body.data.find(
+        (item) => item.id === runItem.body.datasetRunId,
+      );
+      expect(experiment).toMatchObject({
+        id: runItem.body.datasetRunId,
+        name: runName,
+        description: "created by a custom eval harness",
+        datasetId: dataset.body.id,
+        itemCount: 1,
+      });
+
+      const itemsRes = await makeZodVerifiedAPICall(
+        GetExperimentItemsV1Response,
+        "GET",
+        `/api/public/experiment-items?fromStartTime=${encodeURIComponent(fromStartTime)}&experimentId=${runItem.body.datasetRunId}`,
+        undefined,
+        auth,
+      );
+
+      expect(itemsRes.status).toBe(200);
+      expect(itemsRes.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: spanId,
+            traceId,
+            experimentId: runItem.body.datasetRunId,
+            experimentName: runName,
+            experimentItemId: datasetItem.body.id,
+          }),
+        ]),
+      );
+    },
+  );
 });
