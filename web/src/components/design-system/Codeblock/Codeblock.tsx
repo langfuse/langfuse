@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-design-system-external-components */
+/* eslint-disable boundaries/dependencies */
 import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Check, Copy } from "lucide-react";

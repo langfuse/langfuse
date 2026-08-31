@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-design-system-external-components */
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { TableTextLoadingCell } from "@/src/components/table/loading-cells";

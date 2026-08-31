@@ -31,7 +31,7 @@ They must **not** import from:
 - `src/features`
 
 Features and app UI consume the design system, not the other way around.
-`@repo/no-design-system-external-components` enforces this.
+`boundaries/dependencies` enforces this.
 
 ---
 

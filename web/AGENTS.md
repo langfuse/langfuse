@@ -118,7 +118,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - Design-system files in `src/components/design-system` must not import from the
   outer `src/components` tree or from `src/features`.
-  `@repo/no-design-system-external-components` enforces this. Compose the other
+  `boundaries/dependencies` enforces this. Compose the other
   way: features and app UI consume the design system.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component

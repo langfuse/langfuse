@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-design-system-external-components */
+/* eslint-disable boundaries/dependencies */
 import {
   JsonSkeleton,
   stringifyJsonNode,
