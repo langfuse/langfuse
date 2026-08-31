@@ -176,6 +176,7 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/spec": [
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
+      "./third-party-licenses/scalar-api-reference.LICENSE.txt",
     ],
   },
 

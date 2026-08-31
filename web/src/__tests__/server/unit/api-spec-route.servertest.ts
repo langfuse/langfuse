@@ -1,4 +1,6 @@
 import handler from "@/src/pages/api/spec";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
@@ -43,6 +45,21 @@ describe("/api/spec", () => {
       "public, max-age=31536000, immutable",
     );
     expect(res._getData().toString()).toContain("Scalar");
+  });
+
+  it("retains Scalar's MIT notice for redistribution", () => {
+    const license = readFileSync(
+      join(
+        process.cwd(),
+        "third-party-licenses/scalar-api-reference.LICENSE.txt",
+      ),
+      "utf8",
+    );
+
+    expect(license).toContain("Copyright (c) 2023-present Scalar");
+    expect(license).toContain(
+      "The above copyright notice and this permission notice shall be included",
+    );
   });
 
   it("keeps the specification URL within a deployment base path", () => {
