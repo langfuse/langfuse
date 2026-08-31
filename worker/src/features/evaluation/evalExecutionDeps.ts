@@ -19,7 +19,10 @@ import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 
-type StructuredOutputSchema = z.ZodType;
+type StructuredOutputSchema = z.ZodObject<{
+  reasoning: z.ZodString;
+  score: z.ZodType;
+}>;
 
 /**
  * Result of fetching model configuration.
@@ -218,15 +221,20 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
+      // Keep the evaluator contract unchanged, but avoid exposing the
+      // overloaded `reasoning` field name to the model.
+      const modelFacingStructuredOutputSchema = z.object({
+        scoreExplanation: params.structuredOutputSchema.shape.reasoning,
+        score: params.structuredOutputSchema.shape.score,
+      });
+
       // llmaj egress: serialized request body (messages + schema), uncompressed.
       const bytes =
         Buffer.byteLength(JSON.stringify(params.messages), "utf8") +
-        (params.structuredOutputSchema
-          ? Buffer.byteLength(
-              serializeSchemaForEgress(params.structuredOutputSchema),
-              "utf8",
-            )
-          : 0);
+        Buffer.byteLength(
+          serializeSchemaForEgress(modelFacingStructuredOutputSchema),
+          "utf8",
+        );
 
       const llmParams = mapLegacyLLMCompletionParams({
         connection,
@@ -240,7 +248,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       });
       const result = await generateLLMText({
         ...llmParams,
-        output: createLLMOutput(params.structuredOutputSchema),
+        output: createLLMOutput(modelFacingStructuredOutputSchema),
         maxRetries: 1,
         trace: {
           targetProjectId: params.traceSinkParams.targetProjectId,
@@ -259,7 +267,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         projectId: params.traceSinkParams.targetProjectId,
       });
 
-      return result.output;
+      return {
+        score: result.output.score,
+        reasoning: result.output.scoreExplanation,
+      };
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {

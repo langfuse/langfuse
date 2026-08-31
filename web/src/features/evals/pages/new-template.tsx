@@ -9,7 +9,7 @@ export default function NewTemplatesPage() {
 
   const hasAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:read",
+    scope: "evaluator:CUD",
   });
 
   if (!hasAccess) {

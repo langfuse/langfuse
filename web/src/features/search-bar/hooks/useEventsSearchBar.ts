@@ -111,11 +111,13 @@ export function useEventsSearchBar({
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
   observedRef.current = observed;
+  const registryRef = useRef(registry);
+  registryRef.current = registry;
 
   const [store] = useState(() =>
     createSearchBarStore(
       () => scoreTypeContextFromObserved(observedRef.current),
-      registry,
+      () => registryRef.current,
     ),
   );
 
@@ -144,17 +146,14 @@ export function useEventsSearchBar({
     store.getState().actions.resetTo(committedText);
   }, [enabled, committedText, store]);
 
-  // Re-validate when observed options load: a draft typed before score types
-  // were known has a stale draftValid (the editor's red-border gate reads it),
-  // so without this a `scores.<numeric>:<non-number>` typed during the load
-  // window would commit-reject with no visible error. `observed` identity is
-  // NOT stable across refetches (a relative range + auto-refresh rebuilds it
-  // every tick), so this can fire on ticks where the score types are unchanged
-  // — revalidate() bails on a set-equal context, keeping that path a no-op.
+  // Re-validate when observed options or the registry load: a draft typed
+  // before score types or dynamic allowed values were known has stale
+  // draftValid. Their identities can rotate across refetches, so revalidate()
+  // bails when both effective contexts are unchanged.
   useEffect(() => {
     if (!enabled) return;
     store.getState().actions.revalidate();
-  }, [enabled, observed, store]);
+  }, [enabled, observed, registry, store]);
 
   // Latest applied-state setters, read inside commit without rebuilding it.
   const applyRef = useRef({ setFilterState, setSearchQuery, setSearchType });
