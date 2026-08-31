@@ -46,6 +46,7 @@ import {
   createDatasetItem,
   getDatasetItems,
   getExperimentsFromEvents,
+  queryClickhouse,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 
@@ -1286,6 +1287,65 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       description: "observation-only harness",
       datasetId,
       itemCount: 1,
+    });
+  });
+
+  it("events_only persists a dataset run item for catch-up when events are not stampable", async () => {
+    const datasetId = v4();
+    await prisma.dataset.create({
+      data: {
+        id: datasetId,
+        name: "events-only-catch-up-dataset",
+        projectId,
+      },
+    });
+    const itemResult = await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { prompt: "hello" },
+      expectedOutput: { answer: "world" },
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+    if (!itemResult.success) throw new Error(itemResult.message);
+
+    const missingTraceId = v4();
+    const runName = "events-only-catch-up-run";
+    const helperAuth = { scope: { projectId } } as any;
+    const runItem = await buildStableDatasetRunItemResponseEventsOnly({
+      auth: helperAuth,
+      body: {
+        datasetItemId: itemResult.datasetItem.id,
+        traceId: missingTraceId,
+        runName,
+        runDescription: "pending events",
+        metadata: { runner: "custom" },
+      } as any,
+    });
+
+    expect(runItem.traceId).toBe(missingTraceId);
+
+    const rows = await queryClickhouse<{
+      id: string;
+      dataset_run_id: string;
+      trace_id: string;
+      dataset_item_id: string;
+    }>({
+      query: `
+        SELECT id, dataset_run_id, trace_id, dataset_item_id
+        FROM dataset_run_items_rmt
+        WHERE project_id = {projectId: String}
+          AND id = {id: String}
+        ORDER BY event_ts DESC
+        LIMIT 1
+      `,
+      params: { projectId, id: runItem.id },
+    });
+
+    expect(rows[0]).toMatchObject({
+      id: runItem.id,
+      dataset_run_id: runItem.datasetRunId,
+      trace_id: missingTraceId,
+      dataset_item_id: itemResult.datasetItem.id,
     });
   });
 

@@ -52,6 +52,7 @@ import {
   getDatasetItemsCount,
   getObservationById,
   getObservationByIdFromEventsTable,
+  insertDatasetRunItems,
   logger,
   processEventBatch,
   stampExperimentAttributesOnTraceEvents,
@@ -162,6 +163,28 @@ const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
   return { metadata };
 };
 
+const toMetadataStringRecord = (value: unknown): Record<string, string> => {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return { metadata: String(value) };
+  }
+  if (Array.isArray(value)) {
+    return { metadata: JSON.stringify(value) };
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        typeof entry === "string" ? entry : JSON.stringify(entry ?? null),
+      ]),
+    );
+  }
+  return {};
+};
+
 const stampExperimentAttributesOnTraceEventsFromRunItem = async ({
   projectId,
   traceId,
@@ -186,9 +209,9 @@ const stampExperimentAttributesOnTraceEventsFromRunItem = async ({
     expectedOutput?: unknown;
     metadata?: unknown;
   };
-}) => {
+}): Promise<boolean> => {
   try {
-    await stampExperimentAttributesOnTraceEvents({
+    const { stamped } = await stampExperimentAttributesOnTraceEvents({
       projectId,
       traceId,
       rootSpanId: observationId,
@@ -202,8 +225,78 @@ const stampExperimentAttributesOnTraceEventsFromRunItem = async ({
       experimentMetadata,
       experimentItemMetadata: datasetItem.metadata,
     });
+    return stamped;
   } catch (error) {
     logger.error("Failed to stamp experiment attributes onto events", {
+      error,
+      projectId,
+      traceId,
+      experimentId,
+    });
+    return false;
+  }
+};
+
+const persistDatasetRunItemForCatchUp = async ({
+  id,
+  projectId,
+  traceId,
+  observationId,
+  experimentId,
+  experimentName,
+  experimentDescription,
+  experimentMetadata,
+  datasetItem,
+  createdAt,
+}: {
+  id: string;
+  projectId: string;
+  traceId: string;
+  observationId?: string | null;
+  experimentId: string;
+  experimentName: string;
+  experimentDescription?: string | null;
+  experimentMetadata?: unknown;
+  datasetItem: {
+    id: string;
+    datasetId: string;
+    validFrom: Date;
+    input?: unknown;
+    expectedOutput?: unknown;
+    metadata?: unknown;
+  };
+  createdAt: Date;
+}) => {
+  const timestamp = createdAt.getTime();
+  try {
+    await insertDatasetRunItems([
+      {
+        id,
+        project_id: projectId,
+        dataset_run_id: experimentId,
+        dataset_item_id: datasetItem.id,
+        dataset_id: datasetItem.datasetId,
+        trace_id: traceId,
+        observation_id: observationId ?? null,
+        error: null,
+        created_at: timestamp,
+        updated_at: timestamp,
+        event_ts: timestamp,
+        is_deleted: 0,
+        dataset_run_name: experimentName,
+        dataset_run_description: experimentDescription ?? null,
+        dataset_run_metadata: toMetadataStringRecord(experimentMetadata),
+        dataset_run_created_at: timestamp,
+        dataset_item_version: datasetItem.validFrom.getTime(),
+        dataset_item_input: JSON.stringify(datasetItem.input ?? null),
+        dataset_item_expected_output: JSON.stringify(
+          datasetItem.expectedOutput ?? null,
+        ),
+        dataset_item_metadata: toMetadataStringRecord(datasetItem.metadata),
+      },
+    ]);
+  } catch (error) {
+    logger.error("Failed to persist dataset run item for experiment catch-up", {
       error,
       projectId,
       traceId,
@@ -816,9 +909,11 @@ export const createStableExperimentId = ({
  * return a stable experiment id derived from (projectId, datasetId, runName).
  *
  * The trace ↔ experiment link is written onto existing events_full rows by
- * stamping experiment_* columns. Beyond the dataset-item lookup we skip the
- * observation→trace lookup, ClickHouse dataset_run_items ingest, and the eval
- * enqueue.
+ * stamping experiment_* columns. If that stamp cannot complete (events not
+ * in events_full yet, or ClickHouse error), a dataset_run_items_rmt row is
+ * persisted so worker catch-up can retry once events exist. Postgres dataset
+ * runs, eval enqueue, and observation→trace lookup via the routing wrapper
+ * are still skipped.
  */
 export const buildStableDatasetRunItemResponseEventsOnly = async ({
   body,
@@ -885,7 +980,7 @@ export const buildStableDatasetRunItemResponseEventsOnly = async ({
   };
 
   if (datasetRunItem.traceId) {
-    await stampExperimentAttributesOnTraceEventsFromRunItem({
+    const stamped = await stampExperimentAttributesOnTraceEventsFromRunItem({
       projectId,
       traceId: datasetRunItem.traceId,
       observationId: body.observationId,
@@ -895,6 +990,20 @@ export const buildStableDatasetRunItemResponseEventsOnly = async ({
       experimentMetadata: body.metadata,
       datasetItem,
     });
+    if (!stamped) {
+      await persistDatasetRunItemForCatchUp({
+        id: datasetRunItem.id,
+        projectId,
+        traceId: datasetRunItem.traceId,
+        observationId: body.observationId,
+        experimentId,
+        experimentName: body.runName,
+        experimentDescription: body.runDescription,
+        experimentMetadata: body.metadata,
+        datasetItem,
+        createdAt,
+      });
+    }
   }
 
   return datasetRunItem;

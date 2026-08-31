@@ -357,24 +357,36 @@ export const stampUnenrichedDatasetRunItemsBeforeCursor = async (
       logger.info(
         `[EXPERIMENT BACKFILL] Stamping ${toStamp.length} historically skipped dataset run items`,
       );
+    }
 
-      for (const dri of toStamp) {
-        try {
-          await stampDatasetRunItemOntoEvents(dri);
-        } catch (error) {
-          logger.error(
-            `[EXPERIMENT BACKFILL] Failed to stamp historically skipped DRI ${dri.id}`,
-            error,
-          );
-        }
+    let lastAdvanced: DatasetRunItem | undefined;
+    let stampFailed = false;
+
+    for (const dri of catchUpItems) {
+      if (excludeProjectIds?.includes(dri.project_id)) {
+        lastAdvanced = dri;
+        continue;
+      }
+
+      try {
+        await stampDatasetRunItemOntoEvents(dri);
+        lastAdvanced = dri;
+      } catch (error) {
+        logger.error(
+          `[EXPERIMENT BACKFILL] Failed to stamp historically skipped DRI ${dri.id}`,
+          error,
+        );
+        stampFailed = true;
+        break;
       }
     }
 
-    const lastItem = catchUpItems[catchUpItems.length - 1];
-    await writeCatchUpCursor(lastItem);
+    if (lastAdvanced) {
+      await writeCatchUpCursor(lastAdvanced);
+    }
     await updateLastRunStartedAt();
 
-    if (catchUpItems.length < chunkSize) {
+    if (stampFailed || catchUpItems.length < chunkSize) {
       return;
     }
   }

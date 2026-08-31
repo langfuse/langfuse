@@ -18,12 +18,16 @@ import {
   queryClickhouse,
 } from "./clickhouse";
 import { convertDatasetRunItemClickhouseToDomain } from "./dataset-run-items-converters";
-import { DatasetRunItemRecord } from "./definitions";
+import {
+  DatasetRunItemRecord,
+  type DatasetRunItemRecordInsertType,
+} from "./definitions";
 import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import {
+  clickhouseClient,
   convertDateToClickhouseDateTime,
   type PreferredClickhouseService,
 } from "../clickhouse/client";
@@ -1208,4 +1212,18 @@ export const getDatasetRunItemCountsByProjectInCreationInterval = async ({
     projectId: row.project_id,
     count: Number(row.count),
   }));
+};
+
+export const insertDatasetRunItems = async (
+  records: DatasetRunItemRecordInsertType[],
+): Promise<void> => {
+  if (records.length === 0) {
+    return;
+  }
+
+  await clickhouseClient().insert({
+    table: "dataset_run_items_rmt",
+    format: "JSONEachRow",
+    values: records,
+  });
 };
