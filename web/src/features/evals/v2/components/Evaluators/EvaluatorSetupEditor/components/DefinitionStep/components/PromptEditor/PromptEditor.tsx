@@ -12,7 +12,9 @@ import {
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
@@ -104,13 +106,24 @@ export function PromptEditorContent({
     promptPreviewEnabled: state.promptPreviewEnabled,
     sampleObject,
   });
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const activeMessageIndex = activeMessageId
+    ? state.promptMessageIds.indexOf(activeMessageId)
+    : -1;
+  const activeMessage =
+    activeMessageIndex >= 0 ? state.promptMessages[activeMessageIndex] : null;
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor),
     useSensor(KeyboardSensor),
   );
 
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    setActiveMessageId(String(active.id));
+  };
+
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveMessageId(null);
     if (!over || active.id === over.id) return;
     const fromIndex = state.promptMessageIds.indexOf(String(active.id));
     const toIndex = state.promptMessageIds.indexOf(String(over.id));
@@ -123,6 +136,8 @@ export function PromptEditorContent({
       collisionDetection={closestCenter}
       modifiers={[restrictToVerticalAxis]}
       sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragCancel={() => setActiveMessageId(null)}
       onDragEnd={handleDragEnd}
     >
       <div className="flex flex-col gap-2">
@@ -165,6 +180,25 @@ export function PromptEditorContent({
           Add message
         </Button>
       </div>
+      <DragOverlay dropAnimation={null}>
+        {activeMessage ? (
+          <div
+            data-testid="prompt-message-drag-preview"
+            aria-hidden="true"
+            className="bg-secondary text-secondary-foreground flex h-9 w-full items-center gap-2 rounded-md border px-2 shadow-lg"
+          >
+            <Badge variant="tertiary" size="sm" className="h-5 shrink-0">
+              {ROLES.find((role) => role.value === activeMessage.role)?.label}
+            </Badge>
+            <span
+              className="min-w-0 truncate text-xs"
+              title={activeMessage.content || "Empty message"}
+            >
+              {activeMessage.content || "Empty message"}
+            </span>
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -238,7 +272,10 @@ function SortablePromptMessage({
     <div
       ref={setNodeRef}
       style={style}
-      className={cn("group/prompt-message relative", isDragging && "z-10")}
+      className={cn(
+        "group/prompt-message relative",
+        isDragging && "z-10 opacity-0",
+      )}
     >
       {messageCount > 1 ? (
         <button
@@ -257,7 +294,7 @@ function SortablePromptMessage({
         onChange={(content) => onChange({ ...message, content })}
         variableStatus={combinedPrepared.promptVariableStatus}
         variableMappings={combinedPrepared.promptVariableMappings}
-        showPreviewToggle={index === 0}
+        showPreviewToggle
         previewEnabled={previewEnabled}
         onPreviewEnabledChange={onPreviewEnabledChange}
         previewDisabledReason={combinedPrepared.promptPreviewDisabledReason}
@@ -374,10 +411,7 @@ function SortablePromptMessage({
 function renderMediaAwareText(value: string) {
   return splitStringByMediaReferences(value).map((segment, index) =>
     segment.type === "media" ? (
-      <span
-        key={`${segment.value}-${index}`}
-        className="relative -top-px inline-flex"
-      >
+      <span key={`${segment.value}-${index}`} className="inline-flex">
         <MediaReferenceTag descriptor={segment.descriptor} />
       </span>
     ) : (

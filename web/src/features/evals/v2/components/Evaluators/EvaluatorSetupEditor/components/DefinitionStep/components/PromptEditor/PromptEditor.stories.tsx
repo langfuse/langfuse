@@ -12,10 +12,12 @@ function PromptEditorStory({
   messages,
   compact = false,
   previewEnabled = false,
+  sampleObject = null,
 }: {
   messages: EvaluatorPromptMessage[];
   compact?: boolean;
   previewEnabled?: boolean;
+  sampleObject?: Record<string, unknown> | null;
 }) {
   const [store] = useState(() => {
     const nextStore = createEvaluatorSetupStore({
@@ -37,7 +39,7 @@ function PromptEditorStory({
 
   return (
     <div className={compact ? "w-64 max-w-full" : "w-[42rem] max-w-full"}>
-      <PromptEditorContent store={store} sampleObject={null} />
+      <PromptEditorContent store={store} sampleObject={sampleObject} />
     </div>
   );
 }
@@ -120,6 +122,63 @@ export const MultipleMessages = meta.story({
   },
 });
 
+export const SharedPreviewStateAndHeight = meta.story({
+  name: "(Test) Shared preview state and height",
+  render: () => (
+    <PromptEditorStory
+      sampleObject={{}}
+      messages={[
+        {
+          role: "system",
+          content: "Judge the response against the rubric.",
+        },
+        {
+          role: "user",
+          content:
+            "Return a score and a concise explanation.\nKeep the explanation grounded in the response.",
+        },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const previewSwitches = canvas.getAllByRole("switch", {
+      name: "Preview",
+    });
+    await expect(previewSwitches).toHaveLength(2);
+
+    const promptSurfaces = canvas
+      .getAllByRole("button", { name: /Collapse .* prompt message/ })
+      .map((button) => button.parentElement?.parentElement?.parentElement)
+      .filter((surface): surface is HTMLElement => Boolean(surface));
+    const editorHeights = promptSurfaces.map(
+      (surface) => surface.getBoundingClientRect().height,
+    );
+    const editorLines = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>(".cm-content"),
+    );
+
+    await userEvent.click(previewSwitches[1]);
+    for (const previewSwitch of previewSwitches) {
+      await expect(previewSwitch).toBeChecked();
+    }
+
+    const previews = Array.from(canvasElement.querySelectorAll("pre"));
+    await expect(previews).toHaveLength(2);
+    promptSurfaces.forEach((surface, index) => {
+      expect(surface.getBoundingClientRect().height).toBe(editorHeights[index]);
+      expect(getComputedStyle(previews[index]).lineHeight).toBe(
+        getComputedStyle(editorLines[index]).lineHeight,
+      );
+    });
+
+    await userEvent.click(previewSwitches[0]);
+    for (const previewSwitch of previewSwitches) {
+      await expect(previewSwitch).not.toBeChecked();
+    }
+  },
+});
+
 export const InvalidSystemMessagePosition = meta.story({
   name: "(Test) Invalid system message position",
   render: () => (
@@ -187,34 +246,51 @@ export const DraggingMessage = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Collapse user prompt message",
+      }),
+    );
+
     const handle = canvas.getByRole("button", {
       name: "Reorder system prompt message",
     });
     const promptMessage = handle.parentElement;
-    if (!promptMessage) throw new Error("Prompt message not found");
+    const collapsedMessage = canvas.getByRole("button", {
+      name: "Reorder user prompt message",
+    }).parentElement;
+    if (!promptMessage || !collapsedMessage) {
+      throw new Error("Prompt message not found");
+    }
     const initialBounds = promptMessage.getBoundingClientRect();
     const handleBounds = handle.getBoundingClientRect();
+    const collapsedBounds = collapsedMessage.getBoundingClientRect();
 
     await userEvent.pointer([
       { keys: "[MouseLeft>]", target: handle },
       {
         coords: {
           x: handleBounds.left + handleBounds.width / 2,
-          y: handleBounds.top + handleBounds.height / 2 + 12,
+          y: collapsedBounds.top + collapsedBounds.height / 2,
         },
       },
     ]);
 
-    await expect(
-      page.queryByTestId("prompt-message-drag-preview"),
-    ).not.toBeInTheDocument();
-    await expect(promptMessage).toBeVisible();
+    await expect(page.getByTestId("prompt-message-drag-preview")).toBeVisible();
+    await expect(promptMessage).toHaveClass("opacity-0");
     await expect(promptMessage.getBoundingClientRect().height).toBe(
       initialBounds.height,
     );
     await expect(promptMessage.getBoundingClientRect().width).toBe(
       initialBounds.width,
     );
+    for (const sortableMessage of [promptMessage, collapsedMessage]) {
+      const transform = getComputedStyle(sortableMessage).transform;
+      if (transform === "none") continue;
+      const matrix = new DOMMatrix(transform);
+      expect(matrix.a).toBe(1);
+      expect(matrix.d).toBe(1);
+    }
 
     await userEvent.keyboard("{Escape}");
     await userEvent.pointer([{ keys: "[/MouseLeft]" }]);

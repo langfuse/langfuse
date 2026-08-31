@@ -255,7 +255,7 @@ describe("generateLLMText", () => {
     ).rejects.toMatchObject({
       name: "LLMValidationError",
       message:
-        "This model adapter cannot consume one or more media URLs directly; Langfuse does not download remote media on the server",
+        "The interpolated prompt contains media with type image/png, but the selected model does not support this media type. To continue, narrow the variable mapping so it does not include this media, or select a model that supports image/png.",
       code: "invalid-request",
       statusCode: 400,
     });

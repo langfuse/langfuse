@@ -361,7 +361,9 @@ async function prepareLLMTextCall<
       abortSignal: options.abortSignal,
       // Do not let AI SDK download remote media on the Langfuse server.
       // Callers must use provider-supported URLs or inline data.
-      experimental_download: passThroughSupportedRemoteMedia,
+      experimental_download: createPassThroughSupportedRemoteMedia(
+        options.messages,
+      ),
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
@@ -408,18 +410,57 @@ function isJsonObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export const passThroughSupportedRemoteMedia: Experimental_DownloadFunction =
-  async (downloads) => {
-    if (downloads.some(({ isUrlSupportedByModel }) => !isUrlSupportedByModel)) {
-      throw new LLMValidationError({
-        code: "invalid-request",
-        message:
-          "This model adapter cannot consume one or more media URLs directly; Langfuse does not download remote media on the server",
-      });
+function createPassThroughSupportedRemoteMedia(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  const mediaTypesByUrl = new Map<string, string>();
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (part.type === "file" && part.data instanceof URL) {
+        mediaTypesByUrl.set(part.data.href, part.mediaType);
+      }
     }
-    // null instructs AI SDK to preserve each provider-supported URL as-is.
-    return downloads.map(() => null);
-  };
+  }
+
+  return (downloads) => handleRemoteMediaDownloads(downloads, mediaTypesByUrl);
+}
+
+async function handleRemoteMediaDownloads(
+  downloads: Parameters<Experimental_DownloadFunction>[0],
+  mediaTypesByUrl: Map<string, string>,
+) {
+  const unsupportedDownloads = downloads.filter(
+    ({ isUrlSupportedByModel }) => !isUrlSupportedByModel,
+  );
+  if (unsupportedDownloads.length > 0) {
+    const mediaTypes = [
+      ...new Set(
+        unsupportedDownloads
+          .map(({ url }) => mediaTypesByUrl.get(url.href))
+          .filter((mediaType): mediaType is string => Boolean(mediaType)),
+      ),
+    ];
+    const mediaTypeList = mediaTypes.join(", ");
+    const mediaDescription = mediaTypeList
+      ? `media with type ${mediaTypeList}`
+      : "media";
+    const modelSupportDescription = mediaTypeList
+      ? `this media type. To continue, narrow the variable mapping so it does not include this media, or select a model that supports ${mediaTypeList}.`
+      : "one or more media types. To continue, narrow the variable mapping so it does not include this media, or select a model that supports it.";
+
+    throw new LLMValidationError({
+      code: "invalid-request",
+      message: `The interpolated prompt contains ${mediaDescription}, but the selected model does not support ${modelSupportDescription}`,
+    });
+  }
+  // null instructs AI SDK to preserve each provider-supported URL as-is.
+  return downloads.map(() => null);
+}
+
+export const passThroughSupportedRemoteMedia: Experimental_DownloadFunction = (
+  downloads,
+) => handleRemoteMediaDownloads(downloads, new Map());
 
 function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
   if (!tools) return;

@@ -31,7 +31,7 @@ const promptFontTheme = EditorView.theme({
   // Match createTheme's selector specificity so this prompt-only override wins
   // over the shared editor theme's monospace default.
   "&.cm-editor .cm-scroller": { fontFamily: "var(--font-sans)" },
-  ".cm-content": { padding: "8px 0" },
+  ".cm-content": { padding: "8px 0", lineHeight: "1.25rem" },
   ".cm-line": { padding: "0 12px" },
 });
 
@@ -233,6 +233,7 @@ export function PromptVariableEditor({
       toolbarActionsBeforePreview ||
       toolbarActions,
     );
+  const activePreview = previewEnabled ? preview : undefined;
 
   return (
     <div className="flex flex-col">
@@ -288,46 +289,52 @@ export function PromptVariableEditor({
         </div>
       ) : null}
 
-      {!collapsed &&
-        (previewEnabled && preview ? (
-          preview.status === "unavailable" ? (
-            <p className="ph-no-capture bg-muted/50 text-muted-foreground min-h-[140px] rounded-b-md border px-3 py-2 text-sm">
-              {preview.message}
-            </p>
-          ) : (
-            <pre className="ph-no-capture bg-muted/50 text-card-foreground max-h-[50dvh] min-h-[140px] overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm whitespace-pre-wrap">
-              {preview.fragments.map((fragment, index) => (
-                <Fragment key={index}>
-                  {fragment.type === "text" ? (
-                    renderPreviewText(fragment.text)
-                  ) : (
-                    <span
-                      className="bg-primary-accent/10 dark:bg-accent-light-blue dark:text-accent-dark-blue rounded px-0.5"
-                      title={`{{${fragment.name}}}`}
-                    >
-                      {renderPreviewText(fragment.value)}
-                    </span>
-                  )}
-                </Fragment>
-              ))}
-            </pre>
-          )
-        ) : (
-          <CodeMirrorEditor
-            value={value}
-            onChange={onChange}
-            editable={!readOnly}
-            mode="prompt"
-            // Low enough that typical prompts hug their content — a tall fixed
-            // min-height leaves a dead strip under the last line that reads as
-            // broken bottom padding.
-            minHeight={140}
-            maxHeight="50dvh"
-            lineNumbers={false}
-            extensions={extensions}
-            className={cn(hasToolbar && "rounded-t-none", "text-sm")}
-          />
-        ))}
+      {!collapsed ? (
+        <div className="relative">
+          <div
+            className={cn(activePreview && "invisible")}
+            aria-hidden={activePreview ? true : undefined}
+          >
+            <CodeMirrorEditor
+              value={value}
+              onChange={onChange}
+              editable={!readOnly}
+              mode="prompt"
+              // Keep the editor mounted while previewing so it remains the
+              // stable height anchor for both surfaces.
+              minHeight={140}
+              maxHeight="50dvh"
+              lineNumbers={false}
+              extensions={extensions}
+              className={cn(hasToolbar && "rounded-t-none", "text-sm")}
+            />
+          </div>
+          {activePreview ? (
+            activePreview.status === "unavailable" ? (
+              <p className="ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5">
+                {activePreview.message}
+              </p>
+            ) : (
+              <pre className="ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap">
+                {activePreview.fragments.map((fragment, index) => (
+                  <Fragment key={index}>
+                    {fragment.type === "text" ? (
+                      renderPreviewText(fragment.text)
+                    ) : (
+                      <span
+                        className="bg-primary-accent/10 dark:bg-accent-light-blue dark:text-accent-dark-blue rounded px-0.5"
+                        title={`{{${fragment.name}}}`}
+                      >
+                        {renderPreviewText(fragment.value)}
+                      </span>
+                    )}
+                  </Fragment>
+                ))}
+              </pre>
+            )
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
