@@ -1,19 +1,14 @@
 name: API Spec Preview
 
 on:
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: Pull request number for the selected branch
-        required: true
-        type: string
+  workflow_dispatch: {}
   pull_request:
     types: [opened, reopened, synchronize, labeled]
 
 permissions: {}
 
 concurrency:
-  group: api-spec-preview-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: api-spec-preview-${{ github.event.pull_request.number || github.ref_name }}
   cancel-in-progress: ${{ github.event.action != 'labeled' || github.event.label.name == 'api-spec' }}
 
 jobs:
@@ -30,6 +25,23 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - name: Resolve pull request number
+        id: resolve-pr-number
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          pr_number=$(gh api -X GET "repos/${GITHUB_REPOSITORY}/pulls" -f "head=${GITHUB_REPOSITORY%%/*}:${GITHUB_REF_NAME}" -f state=open --jq '.[0].number')
+
+          if [ -z "${pr_number}" ] || [ "${pr_number}" = "null" ]; then
+            echo "No open pull request found for branch ${GITHUB_REF_NAME}."
+            exit 1
+          fi
+
+          echo "pr_number=${pr_number}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,7 +82,7 @@ jobs:
       - name: Deploy preview to Vercel
         id: publish
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
           VERCEL_ORG_ID: ${{ secrets.STORYBOOK_VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.STORYBOOK_VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.STORYBOOK_VERCEL_TOKEN }}
@@ -108,7 +120,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PREVIEW_URL: ${{ steps.publish.outputs.url }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || steps.resolve-pr-number.outputs.pr_number }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         with:
           script: |

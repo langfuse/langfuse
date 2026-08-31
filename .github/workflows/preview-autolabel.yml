@@ -95,7 +95,6 @@ jobs:
                 (path.startsWith("web/src/features/") &&
                   path.includes("/components/")) ||
                 path === "web/src/styles/globals.css" ||
-                path === "web/tailwind.config.ts" ||
                 /\.stories\.[^/]+$/.test(path) ||
                 path === ".github/workflows/storybook-preview.yml",
             );
@@ -120,10 +119,7 @@ jobs:
             // Existing labels already make the pull_request event run the preview.
             const dispatches = [];
             if (hasApiSpecChanges && !existingLabels.has("api-spec")) {
-              dispatches.push({
-                workflow_id: "api-spec-preview.yml",
-                inputs: { pr_number: String(pr.number) },
-              });
+              dispatches.push({ workflow_id: "api-spec-preview.yml" });
             }
             if (hasStorybookChanges && !existingLabels.has("storybook")) {
               dispatches.push({ workflow_id: "storybook-preview.yml" });
