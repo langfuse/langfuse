@@ -5,6 +5,7 @@ import {
   convertDateToClickhouseDateTime,
   flattenJsonToPathArrays,
   recordGauge,
+  stampExperimentAttributesOnTraceEvents,
   UNKNOWN_INGESTION_SDK_VALUE,
   type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -17,6 +18,7 @@ const EXPERIMENT_BACKFILL_TIMESTAMP_KEY =
   "langfuse:event-propagation:experiment-backfill:last-run";
 const EXPERIMENT_BACKFILL_LOCK_KEY = "langfuse:experiment-backfill:lock";
 const LOCK_TTL_SECONDS = 300; // 5 minutes
+const UNENRICHED_EVENTS_LOOKBACK_DAYS = 90;
 
 export interface DatasetRunItem {
   id: string;
@@ -147,9 +149,12 @@ async function getDatasetRunItemsSinceLastRun(
       dri.dataset_item_metadata,
       dri.created_at
     FROM dataset_run_items_rmt AS dri
+    -- Traces already in events_core still need a stamp when experiment_id is
+    -- empty (dataset-run-item created without langfuse.experiment.* attributes).
     LEFT ANTI JOIN events_core AS ec
       ON dri.project_id = ec.project_id
       AND dri.trace_id = ec.trace_id
+      AND ec.experiment_id != ''
     WHERE dri.created_at > {lastRun: DateTime64(3)}
       AND dri.created_at <= {upperBound: DateTime64(3)}
       AND (dri.project_id, dri.trace_id) IN (SELECT project_id, trace_id FROM candidate_dris)
@@ -174,6 +179,127 @@ async function getDatasetRunItemsSinceLastRun(
 
   return rows;
 }
+
+/**
+ * Dataset-run-items older than the incremental cursor whose traces exist in
+ * events_core without experiment_id. Those traces are already ingested, so the
+ * observations-copy path never sees them.
+ */
+async function getUnenrichedDatasetRunItemsBeforeCursor(
+  lastRun: Date,
+  limit: number,
+): Promise<DatasetRunItem[]> {
+  const lookbackStart = new Date(
+    lastRun.getTime() - UNENRICHED_EVENTS_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  const query = `
+    SELECT
+      dri.id,
+      dri.project_id,
+      dri.trace_id,
+      dri.observation_id,
+      dri.dataset_run_id,
+      dri.dataset_run_name,
+      dri.dataset_run_description,
+      dri.dataset_run_metadata,
+      dri.dataset_id,
+      dri.dataset_item_version,
+      dri.dataset_item_id,
+      dri.dataset_item_expected_output,
+      dri.dataset_item_metadata,
+      dri.created_at
+    FROM dataset_run_items_rmt AS dri
+    LEFT SEMI JOIN events_core AS present
+      ON present.project_id = dri.project_id
+      AND present.trace_id = dri.trace_id
+    LEFT ANTI JOIN events_core AS enriched
+      ON enriched.project_id = dri.project_id
+      AND enriched.trace_id = dri.trace_id
+      AND enriched.experiment_id != ''
+    WHERE dri.created_at > {lookbackStart: DateTime64(3)}
+      AND dri.created_at <= {lastRun: DateTime64(3)}
+    ORDER BY dri.created_at ASC
+    LIMIT 1 BY dri.project_id, dri.trace_id, coalesce(dri.observation_id, '')
+    LIMIT {limit: UInt32}
+  `;
+
+  const rows = await queryClickhouse<DatasetRunItem>({
+    query,
+    params: {
+      lookbackStart: convertDateToClickhouseDateTime(lookbackStart),
+      lastRun: convertDateToClickhouseDateTime(lastRun),
+      limit,
+    },
+    clickhouseConfigs: {
+      request_timeout: 120000,
+    },
+  });
+
+  logger.info(
+    `[EXPERIMENT BACKFILL] Found ${rows.length} unenriched dataset run items before ${lastRun.toISOString()}`,
+  );
+
+  return rows;
+}
+
+const stampDatasetRunItemOntoEvents = async (
+  dri: DatasetRunItem,
+): Promise<boolean> => {
+  const { stamped } = await stampExperimentAttributesOnTraceEvents({
+    projectId: dri.project_id,
+    traceId: dri.trace_id,
+    rootSpanId: dri.observation_id,
+    experimentId: dri.dataset_run_id,
+    experimentName: dri.dataset_run_name,
+    experimentDescription: dri.dataset_run_description,
+    experimentDatasetId: dri.dataset_id,
+    experimentItemId: dri.dataset_item_id,
+    experimentItemVersion: dri.dataset_item_version
+      ? new Date(dri.dataset_item_version)
+      : null,
+    experimentItemExpectedOutput: dri.dataset_item_expected_output,
+    experimentMetadata: dri.dataset_run_metadata,
+    experimentItemMetadata: dri.dataset_item_metadata,
+  });
+  return stamped;
+};
+
+const stampUnenrichedDatasetRunItemsBeforeCursor = async (
+  lastRun: Date,
+): Promise<void> => {
+  const excludeProjectIds =
+    env.LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS;
+  const catchUpItems = await getUnenrichedDatasetRunItemsBeforeCursor(
+    lastRun,
+    env.LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE,
+  );
+  const toStamp =
+    excludeProjectIds && excludeProjectIds.length > 0
+      ? catchUpItems.filter(
+          (dri) => !excludeProjectIds.includes(dri.project_id),
+        )
+      : catchUpItems;
+
+  if (toStamp.length === 0) {
+    return;
+  }
+
+  logger.info(
+    `[EXPERIMENT BACKFILL] Stamping ${toStamp.length} historically skipped dataset run items`,
+  );
+
+  for (const dri of toStamp) {
+    try {
+      await stampDatasetRunItemOntoEvents(dri);
+    } catch (error) {
+      logger.error(
+        `[EXPERIMENT BACKFILL] Failed to stamp historically skipped DRI ${dri.id}`,
+        error,
+      );
+    }
+  }
+};
 
 /**
  * Fetch observations that belong to traces referenced by dataset run items.
@@ -912,6 +1038,7 @@ async function processExperimentBackfill(
       "[EXPERIMENT BACKFILL] No dataset run items to process, advancing cursor",
     );
     await updateBackfillTimestamp(upperBound);
+    await stampUnenrichedDatasetRunItemsBeforeCursor(lastRun);
     return;
   }
 
@@ -935,9 +1062,35 @@ async function processExperimentBackfill(
     // backfill would let the heartbeat go stale and trip the stuck health check.
     await updateLastRunStartedAt();
 
-    // Extract project and trace IDs for this chunk
-    const projectIds = [...new Set(driChunk.map((dri) => dri.project_id))];
-    const traceIds = [...new Set(driChunk.map((dri) => dri.trace_id))];
+    const unstamped: DatasetRunItem[] = [];
+    for (const dri of driChunk) {
+      try {
+        const stamped = await stampDatasetRunItemOntoEvents(dri);
+        if (!stamped) {
+          unstamped.push(dri);
+        }
+      } catch (error) {
+        logger.error(
+          `[EXPERIMENT BACKFILL] Failed to stamp events for DRI ${dri.id}`,
+          error,
+        );
+        unstamped.push(dri);
+      }
+    }
+
+    if (unstamped.length === 0) {
+      const lastItemInChunk = driChunk[driChunk.length - 1];
+      const chunkCursor =
+        i === chunks.length - 1
+          ? upperBound
+          : new Date(lastItemInChunk.created_at);
+      await updateBackfillTimestamp(chunkCursor);
+      continue;
+    }
+
+    // Extract project and trace IDs for traces that are not yet in events
+    const projectIds = [...new Set(unstamped.map((dri) => dri.project_id))];
+    const traceIds = [...new Set(unstamped.map((dri) => dri.trace_id))];
 
     // Fetch observations and traces
     const [observations, traces] = await Promise.all([
@@ -975,8 +1128,7 @@ async function processExperimentBackfill(
     const allEnrichedSpans: EnrichedSpan[] = [];
     const processedSpanIds = new Set<string>();
 
-    for (const dri of driChunk) {
-      // Find the root span (either observation or trace)
+    for (const dri of unstamped) {
       const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
       const rootSpanKey = spanScopedKey(
         dri.project_id,
@@ -1054,4 +1206,6 @@ async function processExperimentBackfill(
   logger.info(
     `[EXPERIMENT BACKFILL] Completed backfill process for ${datasetRunItems.length} items`,
   );
+
+  await stampUnenrichedDatasetRunItemsBeforeCursor(lastRun);
 }
