@@ -64,9 +64,12 @@ allowBuilds:
   protobufjs: false
   "@datadog/pprof": false
   "@scarf/scarf": false
+  "@tree-sitter-grammars/tree-sitter-yaml": false
+  core-js-pure: false
   cpu-features: true
   ssh2: true
-  vue-demi: true
+  tree-sitter: false
+  tree-sitter-json: false
 overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.

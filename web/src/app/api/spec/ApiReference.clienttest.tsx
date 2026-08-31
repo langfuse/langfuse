@@ -1,37 +1,31 @@
 import { render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  apiReferenceReact: vi.fn((_props: { configuration: { url: string } }) => (
-    <div>API reference</div>
-  )),
+  swaggerUI: vi.fn((_props: { url: string }) => <div>API reference</div>),
 }));
 
-vi.mock("@scalar/api-reference-react", () => ({
-  ApiReferenceReact: mocks.apiReferenceReact,
+vi.mock("swagger-ui-react", () => ({
+  default: mocks.swaggerUI,
 }));
 
 import { ApiReference } from "./ApiReference";
 
 describe("ApiReference", () => {
-  it("renders the local spec with hosted integrations disabled", () => {
+  it("renders the deployment-local specification", () => {
     render(<ApiReference />);
 
     expect(screen.getByText("API reference")).toBeInTheDocument();
-    const configuration =
-      mocks.apiReferenceReact.mock.calls[0]?.[0].configuration;
-    expect(configuration).toMatchObject({
+    const properties = mocks.swaggerUI.mock.calls[0]?.[0];
+    expect(properties).toMatchObject({
       url: "../generated/api/openapi.yml",
-      agent: { disabled: true },
-      mcp: { disabled: true },
-      hideClientButton: true,
-      withDefaultFonts: false,
+      deepLinking: true,
+      docExpansion: "none",
+      persistAuthorization: false,
+      validatorUrl: null,
     });
-    expect(configuration).not.toHaveProperty("hideTestRequestButton");
     expect(
-      new URL(
-        configuration.url,
-        "https://langfuse.example.com/langfuse/api/spec",
-      ).pathname,
+      new URL(properties.url, "https://langfuse.example.com/langfuse/api/spec")
+        .pathname,
     ).toBe("/langfuse/generated/api/openapi.yml");
   });
 });
