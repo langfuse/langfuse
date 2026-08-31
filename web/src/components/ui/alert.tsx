@@ -4,6 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
 
+type AlertContent = Exclude<React.ReactNode, null | undefined | boolean>;
+
 const alertVariants = cva(
   "relative w-full rounded-lg border p-3 [&>svg~*]:pl-6 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-3 [&>svg]:top-3 [&>svg]:text-foreground",
   {
@@ -39,7 +41,7 @@ type AlertProps = Pick<
   VariantProps<typeof alertVariants>,
   "actionPosition" | "size" | "variant"
 > & {
-  children: React.ReactNode;
+  children: AlertContent;
 };
 type AlertTitleProps = {
   children: React.ReactNode;
