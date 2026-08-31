@@ -10,9 +10,9 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -678,34 +678,24 @@ export default function SessionsTable({
         return value;
       },
     }),
-    {
-      accessorKey: "usage",
+    createTokenUsageTableColumn<SessionTableRow, number | undefined>({
       id: "usage",
+      accessorFn: (row) => row.totalTokens,
       header: "Usage",
       size: 220,
       enableHiding: true,
       enableSorting: true,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const promptTokens: SessionTableRow["inputTokens"] =
-          row.getValue("inputTokens");
-        const completionTokens: SessionTableRow["outputTokens"] =
-          row.getValue("outputTokens");
-        const totalTokens: SessionTableRow["totalTokens"] =
-          row.getValue("totalTokens");
-        if (!sessionMetrics.isSuccess) {
-          return <Skeleton className="h-4 w-1/2" />;
-        }
-        return (
-          <TokenUsageBadge
-            inputUsage={Number(promptTokens ?? 0)}
-            outputUsage={Number(completionTokens ?? 0)}
-            totalUsage={Number(totalTokens ?? 0)}
-            inline
-          />
-        );
+      getCell: (_value, { row }) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+
+        return {
+          type: "usage",
+          inputUsage: Number(row.original.inputTokens ?? 0),
+          outputUsage: Number(row.original.outputTokens ?? 0),
+          totalUsage: Number(row.original.totalTokens ?? 0),
+        };
       },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",

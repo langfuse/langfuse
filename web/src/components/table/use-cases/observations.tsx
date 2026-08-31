@@ -14,7 +14,6 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
@@ -84,6 +83,7 @@ import { createDurationTableColumn } from "@/src/components/design-system/table/
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -884,35 +884,28 @@ export default function ObservationsTable({
         );
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<
+      ObservationsTableRow,
+      ObservationsTableRow["usageDetails"]
+    >({
       id: "tokens",
+      accessorFn: (row) => row.usageDetails,
+      header: "Tokens",
       size: 150,
-      cell: ({ row }) => {
-        const aggregatedUsage = calculateAggregatedUsage(
-          row.original.usageDetails,
-        );
-        return (
-          <BreakdownTooltip
-            details={row.original.usageDetails}
-            pricingTierName={row.original.usagePricingTierName ?? undefined}
-          >
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={aggregatedUsage.input}
-                outputUsage={aggregatedUsage.output}
-                totalUsage={aggregatedUsage.total}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableHiding: true,
       enableSorting,
-    },
+      getCell: (value, { row }) => {
+        const aggregatedUsage = calculateAggregatedUsage(value ?? {});
+        return {
+          type: "usage",
+          inputUsage: aggregatedUsage.input,
+          outputUsage: aggregatedUsage.output,
+          totalUsage: aggregatedUsage.total,
+          details: row.original.usageDetails,
+          pricingTierName: row.original.usagePricingTierName ?? undefined,
+        };
+      },
+    }),
     {
       accessorKey: "model",
       id: "model",
