@@ -122,6 +122,23 @@ describe("Ask AI filter generation access", () => {
     ).not.toContain(NO_ACCESS);
   });
 
+  it("rejects AI generation for a view with no prompt of its own", async () => {
+    // The experiments bar deliberately has no AI prompt. Before the registry
+    // lookup was total, this id fell through to the events registry, whose flag
+    // is set — so the guard passed and answered with the events vocabulary.
+    const { project, caller } = await prepare("OWNER");
+
+    await expect(
+      caller.searchBar.generateFilter({
+        projectId: project.id,
+        prompt: "runs where groundedness is low",
+        registryId: "experiments",
+      }),
+    ).rejects.toMatchObject({
+      message: "AI filter generation is not available for this view",
+    });
+  });
+
   it("rejects a project role without project:read on both endpoints", async () => {
     const { project, caller } = await prepare("NONE");
 
