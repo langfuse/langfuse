@@ -61,6 +61,12 @@ Keep the composite API when callers meaningfully:
 - Use the members as extension points.
 - Collapsing would make heavy use of slots or render props.
 
+Component files may export only a single component. When keeping a composite
+API, use `Object.assign` to expose subcomponents through the exported component,
+such as `Alert.Title` and `Alert.Description`, instead of separate component
+exports such as `AlertTitle` and `AlertDescription`. Update all callsites.
+COMMIT.
+
 ## Step 4: Audit the changes
 
 Audit the changes and check if the updated callsites are still valid in terms of positioning & HTML semantics. If there are any issues, present the user with options on how to resolve them.
