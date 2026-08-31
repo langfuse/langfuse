@@ -1,9 +1,9 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { InfoIcon } from "lucide-react";
 
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
+import { formatTokenCounts } from "@/src/utils/numbers";
 import {
   createTableColumn,
   type TableColumnOptions,
@@ -53,16 +53,13 @@ export function createTokenUsageTableColumn<
       if (!cell) return null;
       if (cell.type === "loading") return tokenUsageLoadingCell;
 
-      const badge = (
-        <TokenUsageBadge
-          inputUsage={cell.inputUsage}
-          outputUsage={cell.outputUsage}
-          totalUsage={cell.totalUsage}
-          inline
-        />
+      const content = formatTokenCounts(
+        cell.inputUsage,
+        cell.outputUsage,
+        cell.totalUsage,
       );
 
-      if (!cell.details) return badge;
+      if (!cell.details) return content ? <span>{content}</span> : null;
 
       return (
         <BreakdownTooltip
@@ -70,7 +67,7 @@ export function createTokenUsageTableColumn<
           pricingTierName={cell.pricingTierName}
         >
           <div className="flex items-center gap-1">
-            {badge}
+            {content}
             <InfoIcon className="h-3 w-3" />
           </div>
         </BreakdownTooltip>
