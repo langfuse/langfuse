@@ -1,6 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { type LucideIcon } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -29,6 +30,9 @@ const alertVariants = cva(
       actionPosition: {
         "top-right": "pr-10",
       },
+      hasIcon: {
+        true: "[&>[data-slot=alert-title]]:pl-6 [&>[data-slot=alert-description]]:pl-6 [&>[data-slot=alert-icon]+[data-slot=alert-description]]:translate-y-[-3px]",
+      },
     },
     defaultVariants: {
       variant: "default",
@@ -42,18 +46,37 @@ type AlertProps = Pick<
   "actionPosition" | "size" | "variant"
 > & {
   children: AlertContent;
+  icon?: LucideIcon;
 };
 type AlertTitleProps = {
   children: React.ReactNode;
   className?: "text-base";
 };
 
-function Alert({ actionPosition, children, size, variant }: AlertProps) {
+function Alert({
+  actionPosition,
+  children,
+  icon: Icon,
+  size,
+  variant,
+}: AlertProps) {
   return (
     <div
       role="alert"
-      className={alertVariants({ actionPosition, size, variant })}
+      className={alertVariants({
+        actionPosition,
+        hasIcon: Boolean(Icon),
+        size,
+        variant,
+      })}
     >
+      {Icon ? (
+        <Icon
+          data-slot="alert-icon"
+          className="absolute top-3 left-3 size-4"
+          aria-hidden="true"
+        />
+      ) : null}
       {children}
     </div>
   );

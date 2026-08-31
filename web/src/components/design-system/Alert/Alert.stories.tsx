@@ -38,7 +38,6 @@ const dismissibleChildren = (
     >
       <X className="size-4" aria-hidden="true" />
     </button>
-    <AlertTriangle className="h-4 w-4" />
     <AlertTitle>Review required</AlertTitle>
     <AlertDescription>Check this warning before continuing.</AlertDescription>
   </>
@@ -46,11 +45,22 @@ const dismissibleChildren = (
 
 export const Default = meta.story({
   args: {
+    icon: Info,
     children: (
       <>
-        <Info className="h-4 w-4" />
         <AlertTitle>Information</AlertTitle>
         <AlertDescription>This is an informational alert.</AlertDescription>
+      </>
+    ),
+  },
+});
+
+export const Iconless = meta.story({
+  args: {
+    children: (
+      <>
+        <AlertTitle>Information</AlertTitle>
+        <AlertDescription>This alert has no leading icon.</AlertDescription>
       </>
     ),
   },
@@ -66,8 +76,12 @@ export const VariantMatrix = meta.story({
     <div className="grid w-[600px] gap-4">
       {variants.map((variant) =>
         sizes.map((size) => (
-          <Alert key={`${variant}-${size}`} variant={variant} size={size}>
-            <AlertTriangle className="h-4 w-4" />
+          <Alert
+            key={`${variant}-${size}`}
+            variant={variant}
+            size={size}
+            icon={AlertTriangle}
+          >
             <AlertTitle>
               {variant} / {size}
             </AlertTitle>
@@ -86,16 +100,19 @@ export const DismissAction = meta.story({
   args: {
     actionPosition: "top-right",
     children: dismissibleChildren,
+    icon: AlertTriangle,
     variant: "warning",
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
+    const icon = alert.querySelector('[data-slot="alert-icon"]');
+    const dismissButton = canvas.getByRole("button", { name: "Dismiss alert" });
 
     await expect(alert).toHaveClass("pr-10");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Dismiss alert" }),
-    );
+    await expect(icon).toHaveClass("absolute", "top-3", "left-3", "size-4");
+    await expect(dismissButton).not.toHaveClass("pl-6");
+    await userEvent.click(dismissButton);
     await expect(dismiss).toHaveBeenCalledOnce();
   },
 });
