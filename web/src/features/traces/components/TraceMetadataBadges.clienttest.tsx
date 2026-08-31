@@ -28,6 +28,11 @@ describe("TraceMetadataBadges session replay privacy", () => {
           environment="production"
           projectId="project"
         />
+        <EvaluatorBadge
+          evaluatorId="managed:exact-match"
+          environment={LangfuseInternalTraceEnvironment.CodeEval}
+          projectId="project"
+        />
         <EnvironmentBadge environment="production" />
       </>,
     );

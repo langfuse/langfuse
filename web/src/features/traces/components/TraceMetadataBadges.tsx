@@ -85,7 +85,8 @@ export function EvaluatorBadge({
   const isEvaluatorExecution =
     environment === LangfuseInternalTraceEnvironment.LLMJudge ||
     environment === LangfuseInternalTraceEnvironment.CodeEval;
-  if (!evaluatorId || !isEvaluatorExecution) return null;
+  const isManagedTemplate = evaluatorId?.startsWith("managed:") ?? false;
+  if (!evaluatorId || !isEvaluatorExecution || isManagedTemplate) return null;
 
   return (
     <Link
