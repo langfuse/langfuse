@@ -29,7 +29,7 @@ import { createDropdownTableColumn } from "@/src/components/design-system/table/
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import TableIdOrName from "@/src/components/table/table-id";
+import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
 import {
   buildLocalIsoDatePresentation,
   formatIntervalSeconds,
@@ -85,7 +85,7 @@ const renderMediaReference = (descriptor: MediaDescriptor) => (
 //                instead of TagPromptPopover/TagManager (same visible children).
 //   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
 //                plain menu item instead of the tRPC-bound DeleteTraceButton.
-// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
+// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, IdTableCell,
 // createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
@@ -419,19 +419,14 @@ function buildTraceColumns(
       singleLine,
       enableExpandOnHover: singleLine,
     }),
-    {
+    createIdTableColumn<TraceRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       size: 150,
       // Default-hidden in the real table; seeds the Columns drawer unchecked.
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.original.userId;
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
       enableSorting: true,
-    },
+    }),
     createIdTableColumn<TraceRow>({
       accessorKey: "id",
       header: "Trace ID",
@@ -1333,8 +1328,8 @@ export const WithFolderRows = meta.story({
 // "Provided Model Name" create-affordance, ListTree source links, folder rows).
 // They must NOT shift the text baseline relative to plain rows. This story puts
 // every variant in one column so any vertical-alignment regression is obvious:
-//   - plain TableIdOrName (no icon)
-//   - TableIdOrName + trailing PlusCircle — mirrors features/models
+//   - plain IdTableCell (no icon)
+//   - IdTableCell + trailing PlusCircle — mirrors features/models
 //     ProvidedModelNameCell: the name is wrapped in `inline-flex items-center`
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
@@ -1384,14 +1379,14 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       const { name, kind } = row.original;
       switch (kind) {
         case "createModel":
-          // Faithful to ProvidedModelNameCell: same TableIdOrName + trailing
+          // Faithful to ProvidedModelNameCell: same IdTableCell + trailing
           // icon, in a native <button> trigger (keyboard-activatable).
           return (
             <button
               type="button"
-              className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
+              className="inline-flex max-w-full min-w-0 cursor-pointer items-center gap-1 text-left"
             >
-              <TableIdOrName value={name} className="min-w-0" />
+              <IdTableCell value={name} />
               <PlusCircle className="h-3.5 w-3.5 shrink-0" />
             </button>
           );
@@ -1412,8 +1407,8 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
         case "plain":
         default:
           return (
-            <span className="inline-flex max-w-full items-center">
-              <TableIdOrName value={name} className="min-w-0" />
+            <span className="inline-flex max-w-full min-w-0 items-center">
+              <IdTableCell value={name} />
             </span>
           );
       }
