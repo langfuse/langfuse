@@ -68,6 +68,54 @@ export type ExperimentMetricsReturnType = {
   latency_avg: number | null;
 };
 
+type DatasetExperimentMetricsReturnType = {
+  experiment_dataset_id: string;
+  count_dataset_runs: string;
+  last_run_at: string;
+};
+
+export const getDatasetExperimentMetricsFromEvents = async (props: {
+  projectId: string;
+  datasetIds: string[];
+}) => {
+  if (props.datasetIds.length === 0) {
+    return [];
+  }
+
+  const experimentsQuery = eventsExperimentsAggregation({
+    projectId: props.projectId,
+    fieldSet: "count",
+  })
+    .selectRaw(
+      "nullIf(any(e.experiment_dataset_id), '') AS experiment_dataset_id",
+      "min(e.start_time) AS start_time",
+    )
+    .whereRaw("e.experiment_dataset_id IN ({datasetIds: Array(String)})", {
+      datasetIds: props.datasetIds,
+    })
+    .buildWithParams();
+
+  const rows = await queryClickhouse<DatasetExperimentMetricsReturnType>({
+    query: `
+      SELECT
+        experiment_dataset_id,
+        count() AS count_dataset_runs,
+        max(start_time) AS last_run_at
+      FROM (${experimentsQuery.query}) experiments
+      GROUP BY experiment_dataset_id
+    `,
+    params: experimentsQuery.params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    datasetId: row.experiment_dataset_id,
+    countDatasetRuns: Number(row.count_dataset_runs),
+    lastRunAt: parseClickhouseUTCDateTimeFormat(row.last_run_at),
+  }));
+};
+
 /**
  * One experiment-score CTE, aggregated into the arrays the score filters read
  * as a HAVING.

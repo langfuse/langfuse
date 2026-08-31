@@ -24,11 +24,14 @@ import { createFolderKeyTableColumn } from "@/src/components/design-system/table
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import TableLink from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import TableIdOrName from "@/src/components/table/table-id";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import {
   LevelCountsDisplay,
@@ -37,10 +40,6 @@ import {
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +57,10 @@ import {
   PlusCircle,
   Trash,
 } from "lucide-react";
+
+const renderMediaReference = (descriptor: MediaDescriptor) => (
+  <MediaTag contentType={descriptor.contentType} status="idle" />
+);
 
 // =============================================================================
 // FIDELITY GOAL
@@ -85,7 +88,7 @@ import {
 //                instead of TagPromptPopover/TagManager (same visible children).
 //   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
 //                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
-// Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
+// Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
 // TokenUsageBadge, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
 //
@@ -230,7 +233,7 @@ function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
 // -----------------------------------------------------------------------------
 // Mirrors the visible-by-default Traces columns. The action/selection
 // cells use the standalone visual components (see FIDELITY GOAL note). The IO
-// cells use the same MemoizedIOTableCell with the same bg classes + the
+// cells use the same IOTableCell variants + the
 // `singleLine = rowHeight === "s"` rule the real table applies.
 
 function buildTraceColumns(
@@ -284,51 +287,37 @@ function buildTraceColumns(
       header: "Input",
       id: "input",
       size: 400,
+      cellBackground: "gray",
       loadingCell: () => (
-        <MemoizedIOTableCell
+        <IOTableCell
           isLoading
-          data={undefined}
-          className="bg-muted/50"
           singleLine={singleLine}
+          renderMediaReference={renderMediaReference}
         />
       ),
       cell: ({ row }) => (
-        <MemoizedIOTableCell
+        <IOTableCell
           data={row.original.input}
-          className="bg-muted/50"
           singleLine={singleLine}
           enableExpandOnHover={singleLine}
+          renderMediaReference={renderMediaReference}
         />
       ),
     },
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "output",
       header: "Output",
-      id: "output",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.output}
-          className="bg-accent-light-green"
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
+      singleLine,
+      enableExpandOnHover: singleLine,
+      variant: "output",
+    }),
     {
       accessorKey: "levelCounts",
       id: "levelCounts",
       header: "Observation Levels",
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.levelCounts;
         const counts: LevelCount[] = Object.entries(value).map(
@@ -347,7 +336,7 @@ function buildTraceColumns(
       header: "Latency",
       size: 100,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.latency;
         return value !== undefined ? (
@@ -360,7 +349,7 @@ function buildTraceColumns(
       header: "Tokens",
       id: "tokens",
       size: 180,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value = row.original.usage;
         if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
@@ -387,7 +376,7 @@ function buildTraceColumns(
       id: "totalCost",
       header: "Total Cost",
       size: 130,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const cost = row.original.totalCost;
         return cost != null ? (
@@ -410,7 +399,7 @@ function buildTraceColumns(
       header: "Environment",
       id: "environment",
       size: 150,
-      loadingCell: <TableBadgeLoadingCell />,
+      loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
       cell: ({ row }) => {
         const value = row.original.environment;
         return value ? (
@@ -433,26 +422,13 @@ function buildTraceColumns(
       },
       shouldWrap: rowHeight !== "s",
     }),
-    {
+    createIOTableColumn<TraceRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       size: 400,
-      loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={singleLine}
-        />
-      ),
-      cell: ({ row }) => (
-        <MemoizedIOTableCell
-          data={row.original.metadata}
-          singleLine={singleLine}
-          enableExpandOnHover={singleLine}
-        />
-      ),
-    },
+      singleLine,
+      enableExpandOnHover: singleLine,
+    }),
     {
       accessorKey: "userId",
       header: "User",
@@ -1075,7 +1051,7 @@ function buildGroupedColumns(
         accessorFn: (row) => row.totalCost.toNumber(),
         header: "Cost (USD)",
         size: 110,
-        formatter: usdFormatter,
+        formatter: (value) => usdFormatter(value),
       }),
       createNumberTableColumn<TraceRow>({
         id: "totalTokensGrouped",
@@ -1134,12 +1110,12 @@ export const WithGroupedHeaders = meta.story({
 // -----------------------------------------------------------------------------
 // Reproduces features/prompts/components/prompts-table.tsx cell-for-cell:
 //   - cellPadding="comfortable" (the Prompts one-off override at prompts-table.tsx:482)
-//   - Name column: folder rows use the folder key column (TableLink + Folder
-//     icon); prompt rows use TableLink to the prompt.
+//   - Name column: folder rows use the folder key column (TextLink + Folder
+//     icon); prompt rows use TextLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
 //   - "Latest Version Created At": LocalIsoDate, null on folder rows.
-//   - "Number of Observations (7d)": TableLink wrapping the count (0 still links),
+//   - "Number of Observations (7d)": TextLink wrapping the count (0 still links),
 //     with the real Skeleton fallback shape (h-3 w-1/2).
 //   - Tags: real TagList in the `flex gap-x-1 gap-y-1` wrapper; folder rows
 //     render the `h-6` spacer.
@@ -1272,11 +1248,17 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
       if (row.original.type === "folder") return null;
       const n = row.original.numberOfObservations;
       // Real cell shows a Skeleton h-3 w-1/2 while metrics load; here metrics
-      // are "loaded", so it always renders the TableLink (0 still links).
+      // are "loaded", so it always renders the TextLink (0 still links).
       if (n === undefined) {
         return <Skeleton className="h-3 w-1/2" />;
       }
-      return <TableLink path="/observations" value={n.toLocaleString()} />;
+      return (
+        <TextLink
+          path="/observations"
+          value={n.toLocaleString()}
+          title={n.toLocaleString()}
+        />
+      );
     },
   },
   {
@@ -1373,7 +1355,7 @@ export const WithFolderRows = meta.story({
 //     ProvidedModelNameCell: the name is wrapped in `inline-flex items-center`
 //     with the icon as a `shrink-0` adornment, so it lands on the same baseline
 //     as the no-icon rows.
-//   - TableLink with a leading icon (ListTree)
+//   - TextLink with a leading icon (ListTree)
 //   - Folder link (Folder icon)
 // A second plain-text column shows the row stays aligned across the table.
 
@@ -1432,29 +1414,16 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
           );
         case "link":
           return (
-            <TableLink
-              path="#"
-              value={name}
-              icon={
-                <span className="flex flex-row items-center gap-1">
-                  <ListTree className="h-3.5 w-3.5 shrink-0" />
-                  {name}
-                </span>
-              }
-            />
+            <TextLink path="#" value={name} icon={ListTree} title={name} />
           );
         case "folder":
           return (
-            <TableLink
+            <TextLink
               path=""
               value={name}
-              icon={
-                <span className="flex flex-row items-center gap-1">
-                  <Folder className="h-3.5 w-3.5 shrink-0" />
-                  {name}
-                </span>
-              }
+              icon={Folder}
               onClick={() => undefined}
+              title={name}
             />
           );
         case "plain":
@@ -1523,5 +1492,30 @@ export const PaginationControlsStayGrouped = meta.story({
     expect(
       canvas.queryByRole("button", { name: "Go to last page" }),
     ).toBeNull();
+  },
+});
+
+export const TestManualIOCellBackground = meta.story({
+  name: "(Test) Manual IO Cell Background",
+  render: () => (
+    <TracesTable
+      tableName="story-manual-io-background"
+      rowHeight="s"
+      cellPadding="compact"
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const headers = Array.from(canvasElement.querySelectorAll("thead th"));
+    const inputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Input",
+    );
+    const outputIndex = headers.findIndex(
+      (header) => header.textContent?.trim() === "Output",
+    );
+    const row = canvasElement.querySelector<HTMLTableRowElement>("tbody tr");
+    if (!row) throw new globalThis.Error("Row not found");
+
+    await expect(row.cells[inputIndex]).toHaveClass("bg-muted/50");
+    await expect(row.cells[outputIndex]).toHaveClass("bg-accent-light-green");
   },
 });

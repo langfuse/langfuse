@@ -629,6 +629,8 @@ describe("DataTableControls facet ordering", () => {
       categoricalFilter("beta", "Beta", true),
     ]);
     qf.onExpandedChange = (value) => expandedChanges.push(value);
+    qf.isV4 = true;
+    captureSpy.mockClear();
     render(
       <TooltipProvider>
         <DataTableControls queryFilter={qf} />
@@ -638,6 +640,94 @@ describe("DataTableControls facet ordering", () => {
     // Nothing expanded -> the toggle offers Expand all with every column.
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
     expect(expandedChanges.at(-1)).toEqual(["beta", "alpha"]);
+
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: true,
+      facetCount: 2,
+      layout: "panel",
+      isV4: true,
+    });
+    // Expand-all is its own intent; it must not also emit per-facet toggles.
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
+  });
+
+  it("captures expand_all_toggled collapsed when every visible facet is open", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.expanded = ["alpha", "beta"];
+    qf.isV4 = false;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse all filters" }),
+    );
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: false,
+      facetCount: 2,
+      layout: "panel",
+      isV4: false,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("captures facet_toggled once when a single header is opened", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.isV4 = true;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
+    const toggled = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_toggled",
+    );
+    expect(toggled).toHaveLength(1);
+    expect(toggled[0][1]).toMatchObject({
+      column: "alpha",
+      expanded: true,
+      layout: "panel",
+      isV4: true,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:expand_all_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
   });
 
   it("shows only active facets plus an Add filter picker when active-only mode is on", () => {
@@ -829,7 +919,7 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
   });
 });
 
-describe("DataTableControls facet fold", () => {
+describe("DataTableControls facet catalog", () => {
   const categoricalFilter = (
     column: string,
     label: string,
@@ -849,32 +939,15 @@ describe("DataTableControls facet fold", () => {
     onChange: () => {},
   });
 
-  const queryFilter = (
-    filters: UIFilter[],
-    commonFacets?: string[],
-  ): QueryFilter => ({
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
     filters,
     expanded: [],
     onExpandedChange: () => {},
     clearAll: () => {},
     isFiltered: filters.some((f) => f.isActive),
     setFilterState: () => {},
-    commonFacets,
   });
 
-  // The fold preference is session-scoped and (without a provider) shares one
-  // key across tests; the used-facet recency map is localStorage-backed the
-  // same way. (Guarded: this vitest environment lacks localStorage on some
-  // Node versions, where the hook falls back to plain state.)
-  beforeEach(() => {
-    sessionStorage.clear();
-    globalThis.localStorage?.clear?.();
-    captureSpy.mockClear();
-  });
-
-  // Config order deliberately interleaves a tail facet (Release) between the
-  // common ones, so the append-below-the-fold ordering is distinguishable
-  // from plain catalog order.
   const CATALOG = [
     categoricalFilter("environment", "Environment", false),
     categoricalFilter("release", "Release", false),
@@ -882,97 +955,15 @@ describe("DataTableControls facet fold", () => {
     categoricalFilter("version", "Version", false),
   ];
 
-  const labelOrder = (first: string, second: string) => {
-    const a = screen.getByText(first);
-    const b = screen.getByText(second);
-    return Boolean(
-      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-  };
-
-  it("folds uncommon facets behind 'Show N more' with the real hidden count", () => {
-    render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(screen.getByText("Environment")).toBeVisible();
-    expect(screen.getByText("Name")).toBeVisible();
-    expect(screen.getByText("Release")).not.toBeVisible();
-    expect(screen.getByText("Version")).not.toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Show 2 more" }),
-    ).toBeInTheDocument();
-  });
-
-  it("expands to the full catalog and collapses back, capturing the toggle", () => {
-    render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
-        />
-      </TooltipProvider>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
-    expect(screen.getByText("Release")).toBeVisible();
-    expect(screen.getByText("Version")).toBeVisible();
-    // Revealed facets APPEND below the common block — the facets already on
-    // screen keep their positions, so Release (config-ordered between
-    // Environment and Name) lands after Name, not between them.
-    expect(labelOrder("Environment", "Name")).toBe(true);
-    expect(labelOrder("Name", "Release")).toBe(true);
-    expect(labelOrder("Release", "Version")).toBe(true);
-    const toggled = captureSpy.mock.calls.filter(
-      ([event]) => event === "filters:facet_fold_toggled",
-    );
-    expect(toggled).toHaveLength(1);
-    expect(toggled[0][1]).toMatchObject({
-      expanded: true,
-      foldedCount: 2,
-      isV4: false,
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
-    expect(screen.getByText("Release")).not.toBeVisible();
-    expect(screen.getByText("Version")).not.toBeVisible();
-  });
-
-  it("never folds a facet with an active filter, even outside the common set", () => {
-    render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(
-            [
-              categoricalFilter("environment", "Environment", false),
-              categoricalFilter("name", "Name", false),
-              categoricalFilter("release", "Release", true),
-              categoricalFilter("version", "Version", false),
-            ],
-            ["environment", "name"],
-          )}
-        />
-      </TooltipProvider>,
-    );
-
-    // Active Release stays reachable; only inactive Version counts as folded.
-    expect(screen.getByText("Release")).toBeVisible();
-    expect(screen.getByText("Version")).not.toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Show 1 more" }),
-    ).toBeInTheDocument();
-  });
-
-  it("renders the full catalog with no fold control when the table declares no common set", () => {
+  it("keeps every facet visible so browser find can reach it", () => {
     render(
       <TooltipProvider>
         <DataTableControls queryFilter={queryFilter(CATALOG)} />
       </TooltipProvider>,
     );
 
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(screen.getByText("Name")).toBeVisible();
     expect(screen.getByText("Release")).toBeVisible();
     expect(screen.getByText("Version")).toBeVisible();
     expect(
@@ -980,54 +971,13 @@ describe("DataTableControls facet fold", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps a facet the user has filtered on visible after the filter clears", () => {
-    const withReleaseActive = [
-      categoricalFilter("environment", "Environment", false),
-      categoricalFilter("release", "Release", true),
-      categoricalFilter("name", "Name", false),
-      categoricalFilter("version", "Version", false),
-    ];
-    const { rerender } = render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
-        />
-      </TooltipProvider>,
-    );
-    expect(screen.getByText("Release")).not.toBeVisible();
-
-    // A filter lands on Release: it surfaces and is recorded as used.
-    rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(withReleaseActive, ["environment", "name"])}
-        />
-      </TooltipProvider>,
-    );
-    expect(screen.getByText("Release")).toBeVisible();
-
-    // Clearing the filter no longer folds it away: a used facet stays
-    // visible, and the fold count only covers the never-used tail.
-    rerender(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(CATALOG, ["environment", "name"])}
-        />
-      </TooltipProvider>,
-    );
-    expect(screen.getByText("Release")).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Show 1 more" }),
-    ).toBeInTheDocument();
-  });
-
-  it("expand-all expands only the facets on screen while folded", () => {
+  it("expand-all expands every facet in the catalog", () => {
     const onExpandedChange = vi.fn();
     render(
       <TooltipProvider>
         <DataTableControls
           queryFilter={{
-            ...queryFilter(CATALOG, ["environment", "name"]),
+            ...queryFilter(CATALOG),
             onExpandedChange,
           }}
         />
@@ -1035,30 +985,12 @@ describe("DataTableControls facet fold", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
-    // Folded tail facets must not expand: that would fire their option
-    // loads with no visible effect.
-    expect(onExpandedChange).toHaveBeenCalledWith(["environment", "name"]);
-  });
-
-  it("hides the fold control when every tail facet is promoted (nothing left to fold)", () => {
-    render(
-      <TooltipProvider>
-        <DataTableControls
-          queryFilter={queryFilter(
-            [
-              categoricalFilter("environment", "Environment", false),
-              categoricalFilter("release", "Release", true),
-            ],
-            ["environment"],
-          )}
-        />
-      </TooltipProvider>,
-    );
-
-    expect(screen.getByText("Release")).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: /Show \d+ more|Show fewer/ }),
-    ).not.toBeInTheDocument();
+    expect(onExpandedChange).toHaveBeenCalledWith([
+      "environment",
+      "release",
+      "name",
+      "version",
+    ]);
   });
 });
 

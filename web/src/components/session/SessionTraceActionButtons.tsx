@@ -3,13 +3,19 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { cn } from "@/src/utils/tailwind";
-import { ChevronDown, MessageSquare, MessageSquareOff } from "lucide-react";
+import {
+  ChevronDown,
+  LockIcon,
+  MessageSquare,
+  MessageSquareOff,
+  SquarePen,
+} from "lucide-react";
 
 type TraceScores =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number]["scores"];
@@ -46,7 +52,7 @@ export function SessionTraceActionButtons({
         size={size}
       />
       <div className="flex items-start">
-        <AnnotateDrawer
+        <AnnotateDrawerController
           key={`annotation-drawer-${traceId}`}
           projectId={projectId}
           scoreTarget={{
@@ -54,8 +60,6 @@ export function SessionTraceActionButtons({
             traceId,
           }}
           scores={scores}
-          buttonVariant="outline"
-          size={size}
           analyticsData={{
             type: "trace",
             source: "SessionDetail",
@@ -64,7 +68,24 @@ export function SessionTraceActionButtons({
             projectId,
             environment: environment ?? undefined,
           }}
-        />
+        >
+          {({ disabled, openDrawer }) => (
+            <Button
+              variant="outline"
+              size={size}
+              disabled={disabled}
+              className="rounded-r-none"
+              onClick={openDrawer}
+            >
+              {disabled ? (
+                <LockIcon className="mr-1.5 h-3 w-3" />
+              ) : (
+                <SquarePen className="mr-1.5 h-4 w-4" />
+              )}
+              <span>Annotate</span>
+            </Button>
+          )}
+        </AnnotateDrawerController>
         <AnnotationQueueItemDropdownMenuController
           projectId={projectId}
           objectId={traceId}

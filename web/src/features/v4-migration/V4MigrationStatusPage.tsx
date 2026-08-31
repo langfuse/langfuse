@@ -16,6 +16,7 @@ import {
 import {
   useCopyMigrationPrompt,
   useHasV4MigrationDeadline,
+  useV4MigrationTitle,
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
@@ -476,6 +477,7 @@ function V4MigrationStatusPageContent() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
   const hasDeadline = useHasV4MigrationDeadline();
+  const title = useV4MigrationTitle();
 
   const orgs: V4MigrationOrganization[] =
     session.data?.user?.organizations?.map((org) => ({
@@ -627,11 +629,11 @@ function V4MigrationStatusPageContent() {
     >
       <div className="flex flex-col gap-6 pt-2 pb-24">
         <Card className="flex min-w-0 flex-col gap-2.5 p-6">
-          <p className="text-base font-bold">Upgrade to v4</p>
+          <p className="text-base font-bold">{title}</p>
           <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
             <p>
               {actionNeededProjects > 0
-                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to switch over. "
+                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to avoid disruption. "
                 : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
               <V4MigrationDocsLink />
             </p>
