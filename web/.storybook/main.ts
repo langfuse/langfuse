@@ -11,6 +11,7 @@ import {
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Avatar/Avatar",
   "Badge/Badge",
   "Callout/Callout",
   "Checkbox/Checkbox",
