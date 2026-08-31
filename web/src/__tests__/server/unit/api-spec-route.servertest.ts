@@ -49,7 +49,7 @@ describe("/api/spec", () => {
     ]);
   });
 
-  it("keeps optional offline tools enabled while disabling online integrations", () => {
+  it("keeps local test requests enabled while disabling online integrations", () => {
     const configuration = readFileSync(
       join(process.cwd(), "public/vendor/scalar/langfuse-api-reference.js"),
       "utf8",
@@ -59,8 +59,8 @@ describe("/api/spec", () => {
     expect(configuration).toContain("agent: { disabled: true }");
     expect(configuration).toContain("mcp: { disabled: true }");
     expect(configuration).toContain("telemetry: false");
+    expect(configuration).toContain("hideClientButton: true");
     expect(configuration).toContain("withDefaultFonts: false");
-    expect(configuration).not.toContain("hideClientButton");
     expect(configuration).not.toContain("hideTestRequestButton");
     expect(configuration).not.toMatch(/https?:\/\//);
   });
