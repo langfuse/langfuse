@@ -40,17 +40,22 @@ function TokenUsageTableColumnStory({
           return undefined;
         }
 
+        if (showBreakdown && row.original.details) {
+          return {
+            type: "usage",
+            inputUsage: value.inputUsage,
+            outputUsage: value.outputUsage,
+            totalUsage: value.totalUsage,
+            details: row.original.details,
+            pricingTierName: row.original.pricingTierName,
+          };
+        }
+
         return {
           type: "usage",
           inputUsage: value.inputUsage,
           outputUsage: value.outputUsage,
           totalUsage: value.totalUsage,
-          ...(showBreakdown && row.original.details
-            ? {
-                details: row.original.details,
-                pricingTierName: row.original.pricingTierName,
-              }
-            : {}),
         };
       },
     }),
