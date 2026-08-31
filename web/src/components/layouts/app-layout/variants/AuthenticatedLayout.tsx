@@ -22,7 +22,10 @@ import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
-import { VersionUpdateBanner } from "@/src/features/version-update";
+import {
+  VersionUpdateBanner,
+  useVersionUpdatePrompt,
+} from "@/src/features/version-update";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
@@ -127,6 +130,7 @@ export function AuthenticatedLayout({
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
+  const versionUpdatePrompt = useVersionUpdatePrompt();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
@@ -267,7 +271,12 @@ export function AuthenticatedLayout({
             <div className="flex h-dvh w-full flex-col">
               <PaymentBanner />
               <PreviewDeploymentBanner />
-              <VersionUpdateBanner />
+              {versionUpdatePrompt.isVisible && (
+                <VersionUpdateBanner
+                  onReload={versionUpdatePrompt.reload}
+                  onDismiss={versionUpdatePrompt.dismiss}
+                />
+              )}
               <div className="pt-banner-offset flex min-h-0 flex-1">
                 <ConnectedAppSidebar
                   navItems={navigation.mainNavigation}
