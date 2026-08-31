@@ -33,6 +33,9 @@ type DashboardTableRow = {
   owner: "PROJECT" | "LANGFUSE";
 };
 
+const dashboardMenuButtonWrapperClassName =
+  "w-full [&_button]:w-full [&_button]:justify-start";
+
 function CloneDashboardButton({
   dashboardId,
   projectId,
@@ -77,15 +80,17 @@ function CloneDashboardButton({
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="default"
-      disabled={!hasAccess}
-      onClick={handleCloneDashboard}
-    >
-      <Copy className="mr-2 h-4 w-4" />
-      Clone
-    </Button>
+    <div className={dashboardMenuButtonWrapperClassName}>
+      <Button
+        variant="ghost"
+        size="default"
+        disabled={!hasAccess}
+        onClick={handleCloneDashboard}
+      >
+        <Copy className="mr-2 h-4 w-4" />
+        Clone
+      </Button>
+    </div>
   );
 }
 
@@ -104,7 +109,7 @@ function EditDashboardButton({
   const hasAccess = useHasProjectAccess({ projectId, scope: "dashboards:CUD" });
 
   return (
-    <>
+    <div className={dashboardMenuButtonWrapperClassName}>
       <Button
         variant="ghost"
         size="default"
@@ -123,7 +128,7 @@ function EditDashboardButton({
         initialName={dashboardName}
         initialDescription={dashboardDescription}
       />
-    </>
+    </div>
   );
 }
 
@@ -141,7 +146,7 @@ function LockedEditDashboardButton({
   const capture = usePostHogClientCapture();
 
   return (
-    <>
+    <div className={dashboardMenuButtonWrapperClassName}>
       <Button
         variant="ghost"
         size="default"
@@ -166,7 +171,7 @@ function LockedEditDashboardButton({
         dashboardId={dashboardId}
         dashboardName={dashboardName}
       />
-    </>
+    </div>
   );
 }
 
@@ -305,11 +310,13 @@ export function DashboardTable() {
             </DropdownMenuItem>
             {owner === "PROJECT" ? (
               <DropdownMenuItem asChild>
-                <DeleteDashboardButton
-                  itemId={id}
-                  projectId={projectId}
-                  isTableAction
-                />
+                <div className={dashboardMenuButtonWrapperClassName}>
+                  <DeleteDashboardButton
+                    itemId={id}
+                    projectId={projectId}
+                    isTableAction
+                  />
+                </div>
               </DropdownMenuItem>
             ) : null}
           </>
