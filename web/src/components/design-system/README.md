@@ -20,6 +20,12 @@ Do **not** include:
 
 ## Rules
 
+### Imports
+
+Design-system files may import other design-system files, shared utilities (`src/utils`, `src/hooks`), and third-party libraries. They must not import from the outer `src/components` tree or `src/features`.
+
+---
+
 ### Structure
 
 - One component per file
@@ -117,6 +123,7 @@ const PromiseButton = (props: PromiseButtonProps) => {
 - Use enums + `cva`
 - No root margin
 - No React Context
+- No imports from the outer `src/components` tree or from `src/features`
 - Props must be explicit, typed, and use a positive name
 - Prop values must not mirror Tailwind class names
 - Boolean props → `is` / `should`
