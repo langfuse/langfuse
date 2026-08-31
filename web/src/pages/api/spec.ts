@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ApiReferenceConfiguration } from "@scalar/api-reference";
+import type { ReferenceProps } from "@scalar/api-reference";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const contentSecurityPolicy = [
@@ -54,7 +54,7 @@ const apiReferenceConfiguration = {
       --scalar-font-code: ui-monospace, monospace;
     }
   `,
-} satisfies ApiReferenceConfiguration;
+} satisfies NonNullable<ReferenceProps["configuration"]>;
 
 const apiReferenceHtml = `<!doctype html>
 <html>
