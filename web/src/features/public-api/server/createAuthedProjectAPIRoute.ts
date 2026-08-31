@@ -31,7 +31,7 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
-import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
+import { writeJsonOrProtobufResponse } from "@/src/server/otel/otlpResponse";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -376,7 +376,7 @@ export const createAuthedProjectAPIRoute = <
           );
         }
 
-        writeOtlpHttpResponse({
+        writeJsonOrProtobufResponse({
           req,
           res,
           statusCode: 503,
@@ -395,7 +395,7 @@ export const createAuthedProjectAPIRoute = <
         );
       }
 
-      writeOtlpHttpResponse({
+      writeJsonOrProtobufResponse({
         req,
         res,
         statusCode,

@@ -89,7 +89,7 @@ vi.mock("@/src/utils/exceptions", () => ({
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
   decodeOtlpStatusMessage,
-  writeOtlpHttpResponse,
+  writeJsonOrProtobufResponse,
 } from "@/src/server/otel/otlpResponse";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 
@@ -169,7 +169,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       name: "OTel Traces",
       querySchema: z.any(),
       responseSchema: z.any(),
-      writeResponse: writeOtlpHttpResponse,
+      writeResponse: writeJsonOrProtobufResponse,
       fn: async () => ({}),
     });
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
@@ -348,7 +348,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       name: "OTel Traces",
       querySchema: z.any(),
       responseSchema: z.any(),
-      writeResponse: writeOtlpHttpResponse,
+      writeResponse: writeJsonOrProtobufResponse,
       fn: async () => ({}),
     });
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({

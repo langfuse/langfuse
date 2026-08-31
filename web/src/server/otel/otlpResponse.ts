@@ -52,11 +52,10 @@ function otlpErrorMessage(body: unknown): string {
 }
 
 /**
- * Writes an OTLP/HTTP response. Protobuf requests get a protobuf body and
- * `Content-Type: application/x-protobuf`; JSON requests keep the existing
- * JSON body.
+ * Writes a JSON response by default. If the request Content-Type is
+ * `application/x-protobuf`, writes an OTLP protobuf body instead.
  */
-export function writeOtlpHttpResponse({
+export function writeJsonOrProtobufResponse({
   req,
   res,
   body,

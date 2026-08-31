@@ -19,7 +19,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import {
   isOtlpProtobufRequest,
-  writeOtlpHttpResponse,
+  writeJsonOrProtobufResponse,
 } from "@/src/server/otel/otlpResponse";
 import {
   createStructuredPublicApiRateLimitError,
@@ -231,7 +231,7 @@ export const sendRateLimitResponse = (
     responseOptions.req &&
     isOtlpProtobufRequest(responseOptions.req.headers)
   ) {
-    writeOtlpHttpResponse({
+    writeJsonOrProtobufResponse({
       req: responseOptions.req,
       res,
       statusCode: error.httpCode,

@@ -23,7 +23,7 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
+import { writeJsonOrProtobufResponse } from "@/src/server/otel/otlpResponse";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
@@ -115,7 +115,7 @@ export function withMiddlewares(
         return await finalHandlers[method](req, res);
       } catch (error) {
         const sendError = (statusCode: number, body: unknown) => {
-          writeOtlpHttpResponse({ req, res, statusCode, body });
+          writeJsonOrProtobufResponse({ req, res, statusCode, body });
         };
 
         if (error instanceof ClickHouseResourceError) {
