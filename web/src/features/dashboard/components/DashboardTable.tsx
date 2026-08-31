@@ -33,8 +33,7 @@ type DashboardTableRow = {
   owner: "PROJECT" | "LANGFUSE";
 };
 
-const dashboardMenuButtonWrapperClassName =
-  "flex w-full min-w-32 flex-col items-stretch";
+const dashboardMenuButtonWrapperClassName = "w-full";
 const dashboardMenuButtonClassName = "w-full justify-start";
 
 function CloneDashboardButton({
@@ -288,7 +287,7 @@ export function DashboardTable() {
         return (
           <>
             {owner === "PROJECT" ? (
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem className="w-full p-0">
                 <EditDashboardButton
                   dashboardId={id}
                   projectId={projectId}
@@ -297,7 +296,7 @@ export function DashboardTable() {
                 />
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem className="w-full p-0">
                 <LockedEditDashboardButton
                   dashboardId={id}
                   projectId={projectId}
@@ -305,7 +304,7 @@ export function DashboardTable() {
                 />
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem className="w-full p-0">
               <CloneDashboardButton
                 dashboardId={id}
                 projectId={projectId}
@@ -313,7 +312,12 @@ export function DashboardTable() {
               />
             </DropdownMenuItem>
             {owner === "PROJECT" ? (
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem
+                className="w-full p-0"
+                onSelect={(event) => {
+                  event.preventDefault();
+                }}
+              >
                 <div className={dashboardMenuButtonWrapperClassName}>
                   <DeleteDashboardButton
                     itemId={id}
