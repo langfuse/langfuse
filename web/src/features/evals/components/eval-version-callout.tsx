@@ -1,7 +1,4 @@
-import {
-  Alert,
-  AlertDescription,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
@@ -160,7 +157,7 @@ export function EvalVersionCallout({
   return (
     <div className="mt-2 w-full max-w-4xl">
       <Alert variant="warning" icon={AlertTriangle}>
-        <AlertDescription>
+        <Alert.Description>
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
               <span className="text-foreground font-bold">{content.title}</span>
@@ -169,7 +166,7 @@ export function EvalVersionCallout({
               </span>
             </div>
           </div>
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     </div>
   );

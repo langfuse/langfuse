@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
@@ -23,8 +19,10 @@ export const CsvImportValidationError: React.FC<
   return (
     <div className="mt-4">
       <Alert variant="destructive">
-        <AlertTitle className="text-base">Schema Validation Failed</AlertTitle>
-        <AlertDescription>
+        <Alert.Title className="text-base">
+          Schema Validation Failed
+        </Alert.Title>
+        <Alert.Description>
           <div className="mt-2 flex flex-col gap-3">
             <p className="text-sm">
               {hasMoreThan10
@@ -96,7 +94,7 @@ export const CsvImportValidationError: React.FC<
               </div>
             )}
           </div>
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     </div>
   );

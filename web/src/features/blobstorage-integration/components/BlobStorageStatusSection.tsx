@@ -1,9 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Card } from "@/src/components/ui/card";
 import { BlobStorageExportMode } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
@@ -29,8 +25,8 @@ export const BlobStorageStatusSection = ({
       {config.lastError && (
         <div className="mb-4">
           <Alert variant="destructive">
-            <AlertTitle>Last export failed</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>Last export failed</Alert.Title>
+            <Alert.Description>
               {config.lastError}
               {config.lastErrorAt && (
                 <>
@@ -40,7 +36,7 @@ export const BlobStorageStatusSection = ({
                   </span>
                 </>
               )}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </div>
       )}

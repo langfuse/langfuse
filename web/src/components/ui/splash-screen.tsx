@@ -3,11 +3,7 @@ import { cn } from "@/src/utils/tailwind";
 import Image from "next/image";
 import { InfoIcon, type LucideIcon } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
-import {
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 
 export interface ValueProposition {
@@ -152,8 +148,8 @@ export function SplashScreen({
       {gettingStarted && (
         <div className="w-full max-w-3xl">
           <Alert icon={InfoIcon}>
-            <AlertTitle>Getting Started</AlertTitle>
-            <AlertDescription>{gettingStarted}</AlertDescription>
+            <Alert.Title>Getting Started</Alert.Title>
+            <Alert.Description>{gettingStarted}</Alert.Description>
           </Alert>
         </div>
       )}
@@ -203,8 +199,8 @@ export function SplashScreen({
         <div className="my-6 grid w-full max-w-3xl grid-cols-1 gap-4 md:grid-cols-2">
           {valuePropositions.map((prop, index) => (
             <Alert key={index} icon={prop.icon}>
-              <AlertTitle>{prop.title}</AlertTitle>
-              <AlertDescription>{prop.description}</AlertDescription>
+              <Alert.Title>{prop.title}</Alert.Title>
+              <Alert.Description>{prop.description}</Alert.Description>
             </Alert>
           ))}
         </div>

@@ -3,7 +3,7 @@ import { AlertTriangle, Info, X } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Alert, AlertDescription, AlertTitle } from "./Alert";
+import { Alert } from "./Alert";
 
 type Variant = NonNullable<React.ComponentProps<typeof Alert>["variant"]>;
 type Size = NonNullable<React.ComponentProps<typeof Alert>["size"]>;
@@ -38,8 +38,8 @@ const dismissibleChildren = (
     >
       <X className="size-4" aria-hidden="true" />
     </button>
-    <AlertTitle>Review required</AlertTitle>
-    <AlertDescription>Check this warning before continuing.</AlertDescription>
+    <Alert.Title>Review required</Alert.Title>
+    <Alert.Description>Check this warning before continuing.</Alert.Description>
   </>
 );
 
@@ -48,8 +48,8 @@ export const Default = meta.story({
     icon: Info,
     children: (
       <>
-        <AlertTitle>Information</AlertTitle>
-        <AlertDescription>This is an informational alert.</AlertDescription>
+        <Alert.Title>Information</Alert.Title>
+        <Alert.Description>This is an informational alert.</Alert.Description>
       </>
     ),
   },
@@ -59,8 +59,8 @@ export const Iconless = meta.story({
   args: {
     children: (
       <>
-        <AlertTitle>Information</AlertTitle>
-        <AlertDescription>This alert has no leading icon.</AlertDescription>
+        <Alert.Title>Information</Alert.Title>
+        <Alert.Description>This alert has no leading icon.</Alert.Description>
       </>
     ),
   },
@@ -82,12 +82,12 @@ export const VariantMatrix = meta.story({
             size={size}
             icon={AlertTriangle}
           >
-            <AlertTitle>
+            <Alert.Title>
               {variant} / {size}
-            </AlertTitle>
-            <AlertDescription>
+            </Alert.Title>
+            <Alert.Description>
               Alert content remains composable across variants and sizes.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )),
       )}

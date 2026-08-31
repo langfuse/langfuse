@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, X } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 export function EvaluationRuleAttachmentValidationAlert({
   message,
@@ -29,8 +25,8 @@ export function EvaluationRuleAttachmentValidationAlert({
       >
         <X className="size-4 stroke-current" aria-hidden="true" />
       </button>
-      <AlertTitle>Review evaluator variable mapping</AlertTitle>
-      <AlertDescription>
+      <Alert.Title>Review evaluator variable mapping</Alert.Title>
+      <Alert.Description>
         <div className="flex flex-col items-start gap-1">
           <p>{message}</p>
           <Link
@@ -41,7 +37,7 @@ export function EvaluationRuleAttachmentValidationAlert({
             Review how the evaluator maps data to variables
           </Link>
         </div>
-      </AlertDescription>
+      </Alert.Description>
     </Alert>
   );
 }

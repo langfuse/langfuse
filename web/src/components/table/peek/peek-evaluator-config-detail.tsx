@@ -28,11 +28,7 @@ import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useL
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -141,12 +137,12 @@ const PeekViewEvaluatorConfigDetail = ({
 
         {showLegacyReadOnlyNotice ? (
           <Alert variant="warning-light" icon={AlertTriangle}>
-            <AlertTitle>Legacy evaluator is read-only</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>Legacy evaluator is read-only</Alert.Title>
+            <Alert.Description>
               This evaluator uses a legacy target that the current rule editor
               cannot represent safely. You can review or delete it here, but it
               cannot be edited or reactivated.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         ) : null}
       </div>
@@ -208,11 +204,11 @@ const PeekViewEvaluatorConfigDetail = ({
           />
         ) : (
           <Alert icon={AlertTriangle}>
-            <AlertTitle>Referenced evaluator unavailable</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>Referenced evaluator unavailable</Alert.Title>
+            <Alert.Description>
               This legacy rule no longer has an evaluator attached, so its
               evaluator configuration cannot be displayed.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
       </div>

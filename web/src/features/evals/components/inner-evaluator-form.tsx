@@ -1,9 +1,5 @@
 import { type UseFormReturn, useForm } from "react-hook-form";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -848,12 +844,12 @@ export const InnerEvaluatorForm = (props: {
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
             <Alert variant="destructive" icon={AlertTriangle}>
-              <AlertTitle>Unsupported filter detected</AlertTitle>
-              <AlertDescription>
+              <Alert.Title>Unsupported filter detected</Alert.Title>
+              <Alert.Description>
                 This evaluator has a filter that is not supported for
                 trace-level evaluators. It is effectively paused. Please remove
                 all filters and re-add them from scratch to resume execution.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           )}
           <div className="flex flex-col gap-4">

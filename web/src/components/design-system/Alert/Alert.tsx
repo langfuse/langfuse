@@ -53,7 +53,7 @@ type AlertTitleProps = {
   className?: "text-base";
 };
 
-function Alert({
+function AlertRoot({
   actionPosition,
   children,
   icon: Icon,
@@ -108,4 +108,9 @@ function AlertDescription({ children }: AlertDescriptionProps) {
   );
 }
 
-export { Alert, AlertTitle, AlertDescription };
+const Alert = Object.assign(AlertRoot, {
+  Title: AlertTitle,
+  Description: AlertDescription,
+});
+
+export { Alert };

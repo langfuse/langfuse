@@ -74,10 +74,7 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
-import {
-  Alert,
-  AlertDescription,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   useEvalCapabilities,
   type EvalCapabilities,
@@ -1027,7 +1024,7 @@ function CodeEvalSdkVersionCallout({
   return (
     <div className="w-full max-w-4xl">
       <Alert variant="warning" icon={AlertTriangle}>
-        <AlertDescription>
+        <Alert.Description>
           <div className="flex flex-col gap-1">
             <span className="text-foreground font-bold">
               Please verify your SDK version
@@ -1047,7 +1044,7 @@ function CodeEvalSdkVersionCallout({
               .
             </span>
           </div>
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     </div>
   );

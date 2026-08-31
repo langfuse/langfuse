@@ -1,10 +1,7 @@
 import React from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import {
-  Alert,
-  AlertDescription,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 
 interface AutomationFailureBannerProps {
@@ -30,7 +27,7 @@ export const AutomationFailureBanner: React.FC<
   return (
     <div className="mb-4">
       <Alert variant="destructive" icon={AlertTriangle}>
-        <AlertDescription>
+        <Alert.Description>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <strong>
@@ -51,7 +48,7 @@ export const AutomationFailureBanner: React.FC<
               <X className="h-4 w-4" />
             </Button>
           </div>
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     </div>
   );

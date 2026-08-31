@@ -46,11 +46,7 @@ import {
 } from "@/src/components/ui/select";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 
@@ -892,12 +888,12 @@ export function WidgetForm({
           <CardContent className="space-y-4 overflow-y-auto">
             {isBetaEnabled && selectedView === "traces" && (
               <Alert variant="warning-subtle" icon={AlertCircle}>
-                <AlertTitle>Traces view is not available in v4</AlertTitle>
-                <AlertDescription>
+                <Alert.Title>Traces view is not available in v4</Alert.Title>
+                <Alert.Description>
                   This widget uses the traces view which is not supported in v4.
                   It will continue to use v3 definitions. To use v4, change the
                   view to observations or scores.
-                </AlertDescription>
+                </Alert.Description>
               </Alert>
             )}
             {/* Data Selection Section */}
@@ -1084,10 +1080,10 @@ export function WidgetForm({
               <div className="flex h-[300px] items-center justify-center">
                 <div className="w-full max-w-sm">
                   <Alert variant="destructive" icon={AlertCircle}>
-                    <AlertTitle>Invalid query</AlertTitle>
-                    <AlertDescription>
+                    <Alert.Title>Invalid query</Alert.Title>
+                    <Alert.Description>
                       {queryValidation.reason}
-                    </AlertDescription>
+                    </Alert.Description>
                   </Alert>
                 </div>
               </div>

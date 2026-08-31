@@ -8,10 +8,7 @@ import {
   isTraceTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { type PartialConfig } from "@/src/features/evals/types";
-import {
-  Alert,
-  AlertDescription,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -259,9 +256,9 @@ export default function RemapEvaluatorPage() {
             </div>
           ) : !oldConfig || !evalTemplate ? (
             <Alert variant="destructive">
-              <AlertDescription>
+              <Alert.Description>
                 Failed to load eval configuration or template.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           ) : (
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2px_minmax(0,1fr)] items-start">

@@ -1,9 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -154,11 +150,11 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <div>
           {heading}
           <Alert icon={AlertCircle}>
-            <AlertTitle>Not available</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>Not available</Alert.Title>
+            <Alert.Description>
               Enterprise SSO is not available on your plan. Please upgrade to
               access this feature.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </div>
       </div>
@@ -172,10 +168,10 @@ export const SSOSettings = ({ orgId }: { orgId: string }) => {
         <div>
           {heading}
           <Alert>
-            <AlertTitle>Access Denied</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>Access Denied</Alert.Title>
+            <Alert.Description>
               You do not have permission to configure SSO for this organization.
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </div>
       </div>

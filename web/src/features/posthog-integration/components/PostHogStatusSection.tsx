@@ -1,9 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type PostHogIntegrationConfig = NonNullable<
@@ -30,12 +26,12 @@ export const PostHogStatusSection = ({
             {/* A fault normally arrives with the auto-disable, but the disable is
                             skipped when the host changed mid-run, leaving a fault on a still
                             enabled integration — so only promise "disabled" when it is. */}
-            <AlertTitle>
+            <Alert.Title>
               {config.enabled
                 ? "Last export failed"
                 : "Export disabled – action required"}
-            </AlertTitle>
-            <AlertDescription>
+            </Alert.Title>
+            <Alert.Description>
               {config.lastError}
               {config.lastErrorAt && (
                 <>
@@ -45,7 +41,7 @@ export const PostHogStatusSection = ({
                   </span>
                 </>
               )}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         </div>
       )}

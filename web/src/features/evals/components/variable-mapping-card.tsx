@@ -49,11 +49,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertCircle, ExternalLink } from "lucide-react";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
@@ -328,12 +324,12 @@ export const VariableMappingCard = ({
                 >
                   {disabled && !syncStatus.inSync && (
                     <Alert variant="destructive" icon={AlertCircle}>
-                      <AlertTitle>Variable mapping is out of sync</AlertTitle>
-                      <AlertDescription>
+                      <Alert.Title>Variable mapping is out of sync</Alert.Title>
+                      <Alert.Description>
                         The template has {syncStatus.added.length} new
                         variable(s) and {syncStatus.removed.length} removed
                         variable(s). Toggle Edit Mode to update the mapping.
-                      </AlertDescription>
+                      </Alert.Description>
                     </Alert>
                   )}
                   {isLegacyEvalTarget(form.watch("target")) // Complex variable mapping for trace/dataset targets (legacy)

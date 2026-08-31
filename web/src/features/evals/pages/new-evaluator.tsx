@@ -21,11 +21,7 @@ import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/src/components/design-system/Alert/Alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -266,8 +262,8 @@ export default function NewEvaluatorPage() {
           <div className="flex flex-col gap-4">
             {hasNewerTemplate && latestTemplate && currentTemplate ? (
               <Alert variant="info" icon={Info}>
-                <AlertTitle>Selected Evaluator has been updated</AlertTitle>
-                <AlertDescription>
+                <Alert.Title>Selected Evaluator has been updated</Alert.Title>
+                <Alert.Description>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <span>
                       Click to use the latest version of your evaluator{" "}
@@ -283,7 +279,7 @@ export default function NewEvaluatorPage() {
                       Use updated evaluator
                     </Button>
                   </div>
-                </AlertDescription>
+                </Alert.Description>
               </Alert>
             ) : null}
             <RunEvaluatorForm
