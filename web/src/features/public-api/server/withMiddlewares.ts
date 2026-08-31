@@ -23,7 +23,10 @@ import {
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { writeJsonOrProtobufResponse } from "@/src/server/otel/otlpResponse";
+import {
+  writePublicApiResponse,
+  type PublicApiWriteResponse,
+} from "@/src/features/public-api/server/writePublicApiResponse";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
@@ -62,6 +65,11 @@ export const LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE = [
 type MiddlewareOptions = {
   errorContract?: PublicApiErrorContract;
   clickHouseResourceErrorMessage?: string;
+  /**
+   * When set, writes errors instead of `res.json`.
+   * Use this for routes whose wire format is not JSON (for example OTLP/HTTP).
+   */
+  writeResponse?: PublicApiWriteResponse;
 };
 
 const logBaseError = (error: BaseError) => {
@@ -115,7 +123,13 @@ export function withMiddlewares(
         return await finalHandlers[method](req, res);
       } catch (error) {
         const sendError = (statusCode: number, body: unknown) => {
-          writeJsonOrProtobufResponse({ req, res, statusCode, body });
+          writePublicApiResponse({
+            req,
+            res,
+            statusCode,
+            body,
+            writeResponse: options?.writeResponse,
+          });
         };
 
         if (error instanceof ClickHouseResourceError) {

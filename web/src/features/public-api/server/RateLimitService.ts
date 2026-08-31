@@ -17,10 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import {
-  isOtlpProtobufRequest,
-  writeJsonOrProtobufResponse,
-} from "@/src/server/otel/otlpResponse";
+import { type PublicApiWriteResponse } from "@/src/features/public-api/server/writePublicApiResponse";
 import {
   createStructuredPublicApiRateLimitError,
   sendStructuredPublicApiErrorResponse,
@@ -34,6 +31,7 @@ export type RateLimitResponseOptions = {
   errorContract?: PublicApiErrorContract | undefined;
   upgradePath?: RateLimitUpgradePath | undefined;
   req?: NextApiRequest;
+  writeResponse?: PublicApiWriteResponse;
 };
 
 export type RateLimitResponseOptionsInput =
@@ -227,11 +225,8 @@ export const sendRateLimitResponse = (
     responseOptions,
   );
 
-  if (
-    responseOptions.req &&
-    isOtlpProtobufRequest(responseOptions.req.headers)
-  ) {
-    writeJsonOrProtobufResponse({
+  if (responseOptions.writeResponse && responseOptions.req) {
+    responseOptions.writeResponse({
       req: responseOptions.req,
       res,
       statusCode: error.httpCode,

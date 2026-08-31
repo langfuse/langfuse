@@ -20,7 +20,7 @@ function isOtlpProtobufContentType(
   return value?.toLowerCase().includes(OTLP_PROTOBUF_CONTENT_TYPE) ?? false;
 }
 
-export function isOtlpProtobufRequest(headers: IncomingHttpHeaders): boolean {
+function isOtlpProtobufRequest(headers: IncomingHttpHeaders): boolean {
   return isOtlpProtobufContentType(headers["content-type"]);
 }
 
@@ -52,10 +52,11 @@ function otlpErrorMessage(body: unknown): string {
 }
 
 /**
- * Writes a JSON response by default. If the request Content-Type is
- * `application/x-protobuf`, writes an OTLP protobuf body instead.
+ * OTLP/HTTP writer for the traces and metrics ingestion routes.
+ * JSON OTLP requests stay JSON; protobuf requests get an empty
+ * Export*ServiceResponse or a google.rpc.Status error.
  */
-export function writeJsonOrProtobufResponse({
+export function writeOtlpHttpResponse({
   req,
   res,
   body,

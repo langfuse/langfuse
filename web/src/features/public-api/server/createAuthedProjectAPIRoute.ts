@@ -21,6 +21,10 @@ import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rate
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  writePublicApiResponse,
+  type PublicApiWriteResponse,
+} from "@/src/features/public-api/server/writePublicApiResponse";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createStructuredPublicApiAuthError,
@@ -31,7 +35,6 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
-import { writeJsonOrProtobufResponse } from "@/src/server/otel/otlpResponse";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -95,12 +98,7 @@ export type AuthedProjectAPIRouteConfig<
    * `body` is the handler result, or `{ message: "OK" }` when the handler
    * returns a falsy value.
    */
-  writeResponse?: (params: {
-    req: NextApiRequest;
-    res: NextApiResponse;
-    body: unknown;
-    statusCode: number;
-  }) => void;
+  writeResponse?: PublicApiWriteResponse;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -376,11 +374,12 @@ export const createAuthedProjectAPIRoute = <
           );
         }
 
-        writeJsonOrProtobufResponse({
+        writePublicApiResponse({
           req,
           res,
           statusCode: 503,
           body: { message: "Service Unavailable" },
+          writeResponse: routeConfig.writeResponse,
         });
         return;
       }
@@ -395,11 +394,12 @@ export const createAuthedProjectAPIRoute = <
         );
       }
 
-      writeJsonOrProtobufResponse({
+      writePublicApiResponse({
         req,
         res,
         statusCode,
         body: { message },
+        writeResponse: routeConfig.writeResponse,
       });
 
       return;
@@ -416,6 +416,7 @@ export const createAuthedProjectAPIRoute = <
         errorContract: routeConfig.errorContract,
         upgradePath: routeConfig.rateLimitUpgradePath,
         req,
+        writeResponse: routeConfig.writeResponse,
       });
     }
 

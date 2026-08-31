@@ -19,7 +19,10 @@ import {
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { decodeOtlpStatusMessage } from "@/src/server/otel/otlpResponse";
+import {
+  decodeOtlpStatusMessage,
+  writeOtlpHttpResponse,
+} from "@/src/server/otel/otlpResponse";
 
 // Mock the logger and traceException
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -103,6 +106,34 @@ describe("withMiddlewares error handling", () => {
         "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
 
+      const handler = withMiddlewares(
+        {
+          POST: async () => {
+            throw error;
+          },
+        },
+        { writeResponse: writeOtlpHttpResponse },
+      );
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        headers: {
+          "content-type": "application/x-protobuf",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(403);
+      expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
+      expect(decodeOtlpStatusMessage(res._getBuffer()).message).toContain(
+        "Ingestion suspended",
+      );
+    });
+
+    it("keeps JSON errors when writeResponse is not set", async () => {
+      const error = new ForbiddenError("Ingestion suspended");
+
       const handler = withMiddlewares({
         POST: async () => {
           throw error;
@@ -119,10 +150,11 @@ describe("withMiddlewares error handling", () => {
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(403);
-      expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
-      expect(decodeOtlpStatusMessage(res._getBuffer()).message).toContain(
-        "Ingestion suspended",
-      );
+      expect(res.getHeader("Content-Type")).toMatch(/application\/json/);
+      expect(JSON.parse(res._getData())).toMatchObject({
+        message: "Ingestion suspended",
+        error: "ForbiddenError",
+      });
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {

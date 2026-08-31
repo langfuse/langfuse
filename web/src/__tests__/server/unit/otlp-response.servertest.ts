@@ -5,7 +5,7 @@ import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   decodeOtlpStatusMessage,
   OTLP_PROTOBUF_CONTENT_TYPE,
-  writeJsonOrProtobufResponse,
+  writeOtlpHttpResponse,
 } from "@/src/server/otel/otlpResponse";
 
 const ExportTraceServiceResponse =
@@ -23,7 +23,7 @@ function write(params: {
       : undefined,
   });
 
-  writeJsonOrProtobufResponse({
+  writeOtlpHttpResponse({
     req,
     res,
     body: params.body ?? {},
@@ -33,7 +33,7 @@ function write(params: {
   return res;
 }
 
-describe("writeJsonOrProtobufResponse", () => {
+describe("writeOtlpHttpResponse", () => {
   it("returns an empty ExportTraceServiceResponse for protobuf success", () => {
     const res = write({ contentType: OTLP_PROTOBUF_CONTENT_TYPE });
 

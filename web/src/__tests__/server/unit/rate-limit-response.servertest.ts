@@ -85,6 +85,7 @@ vi.mock(
 );
 
 import { sendRateLimitResponse } from "@/src/features/public-api/server/RateLimitService";
+import { writeOtlpHttpResponse } from "@/src/server/otel/otlpResponse";
 
 describe("sendRateLimitResponse", () => {
   const upgradePath = {
@@ -157,7 +158,10 @@ describe("sendRateLimitResponse", () => {
       },
     });
 
-    sendRateLimitResponse(res, rateLimitResult, { req });
+    sendRateLimitResponse(res, rateLimitResult, {
+      req,
+      writeResponse: writeOtlpHttpResponse,
+    });
 
     expect(res.statusCode).toBe(429);
     expect(res.getHeader("Content-Type")).toBe("application/x-protobuf");
