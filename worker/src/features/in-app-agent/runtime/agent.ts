@@ -265,10 +265,7 @@ type InAppAgentCompleteOutcome = {
   /** The turn reached the step cap, whether or not wrap-up rescued it. */
   reachedStepLimit: boolean;
   truncatedByStepLimit: boolean;
-  /**
-   * The last model step ended with a `length` finish: the provider's
-   * output-token limit cut the response before a final answer.
-   */
+  /** The last model step ended with a `length` finish. */
   truncatedByOutputLimit: boolean;
 };
 
@@ -281,7 +278,8 @@ type StepLimitState = {
 function isTruncatedByStepLimit(state: StepLimitState): boolean {
   return (
     state.iteration >= IN_APP_AGENT_MAX_STEPS &&
-    state.lastFinishReason !== "stop"
+    state.lastFinishReason !== "stop" &&
+    state.lastFinishReason !== "length"
   );
 }
 

@@ -716,7 +716,6 @@ function resolveCompletedRunFinish(outcome?: {
   truncatedByStepLimit: boolean;
   truncatedByOutputLimit: boolean;
 }): NonNullable<Parameters<typeof flushPendingRunEvents>[0]["finish"]> {
-  // A length finish is the proximate cause, so it wins over the step limit.
   if (outcome?.truncatedByOutputLimit) {
     return {
       status: InAppAgentRunStatus.SUCCEEDED,

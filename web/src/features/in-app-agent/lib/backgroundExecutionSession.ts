@@ -609,17 +609,18 @@ const OUTPUT_LIMIT_NOTICE =
   "The assistant had to stop before finishing this answer. The response hit the model's output limit. Send another message to continue.";
 
 /** Notices for SUCCEEDED runs cut short before a final answer, by error code. */
-const TRUNCATION_NOTICES: Partial<Record<string, string>> = {
+const TRUNCATION_NOTICES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.STEP_LIMIT]: STEP_LIMIT_NOTICE,
   [InAppAgentRunErrorCode.OUTPUT_LIMIT]: OUTPUT_LIMIT_NOTICE,
 };
 
-function getTruncationNotice(
-  run: BackgroundExecutionRunView,
-): string | undefined {
-  return run.status === InAppAgentRunStatus.SUCCEEDED && run.errorCode
-    ? TRUNCATION_NOTICES[run.errorCode]
-    : undefined;
+/** A SUCCEEDED run that was cut short before producing a final answer. */
+function isTruncatedRun(run: BackgroundExecutionRunView): boolean {
+  return (
+    run.status === InAppAgentRunStatus.SUCCEEDED &&
+    !!run.errorCode &&
+    run.errorCode in TRUNCATION_NOTICES
+  );
 }
 
 export function getBackgroundRunNotice(
@@ -640,7 +641,9 @@ export function getBackgroundRunNotice(
     };
   }
 
-  const truncationNotice = getTruncationNotice(run);
+  const truncationNotice = isTruncatedRun(run)
+    ? TRUNCATION_NOTICES[run.errorCode ?? ""]
+    : undefined;
   if (truncationNotice !== undefined) {
     return { text: truncationNotice, tone: "warning" };
   }
@@ -657,10 +660,7 @@ export function getSettledActivityOutcome(
     return "worked";
   }
 
-  if (
-    getTruncationNotice(run) !== undefined ||
-    run.status === InAppAgentRunStatus.CANCELLED
-  ) {
+  if (isTruncatedRun(run) || run.status === InAppAgentRunStatus.CANCELLED) {
     return "stopped";
   }
 

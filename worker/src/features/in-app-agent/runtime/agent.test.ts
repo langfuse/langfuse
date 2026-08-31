@@ -966,7 +966,7 @@ describe("createAgUiStream", () => {
     {
       iteration: IN_APP_AGENT_MAX_STEPS,
       finishReason: "length",
-      byStepLimit: true,
+      byStepLimit: false,
       byOutputLimit: true,
     },
   ])(

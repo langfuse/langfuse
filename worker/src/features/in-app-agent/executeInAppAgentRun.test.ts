@@ -590,26 +590,6 @@ describe("executeInAppAgentRun", () => {
     expect(finished.errorMessage).toMatch(/output-token limit/i);
   });
 
-  it("prefers output_limit over step_limit when both truncations apply", async () => {
-    const { projectId, run } = await seedBackgroundRun();
-
-    scenarioRef.current = async ({ options }) => {
-      await options.onEvent(textChunk("Still going"));
-      await options.onComplete({
-        reachedStepLimit: true,
-        truncatedByStepLimit: true,
-        truncatedByOutputLimit: true,
-      });
-      await options.onFinish();
-    };
-
-    await executeInAppAgentRun({ projectId, runId: run.id });
-
-    const finished = await getRun(projectId, run.id);
-    expect(finished.status).toBe("SUCCEEDED");
-    expect(finished.errorCode).toBe("output_limit");
-  });
-
   it("acknowledges duplicate delivery without executing (claim CAS returns no row)", async () => {
     const { projectId, run } = await seedBackgroundRun({ status: "RUNNING" });
 
