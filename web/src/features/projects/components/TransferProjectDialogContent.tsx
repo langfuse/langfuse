@@ -79,7 +79,7 @@ export function TransferProjectDialogContent({
           className="flex flex-col gap-8"
         >
           <DialogBody>
-            <Alert>
+            <Alert variant="warning">
               <TriangleAlert className="h-4 w-4" />
               <AlertTitle>Warning</AlertTitle>
               <AlertDescription>
