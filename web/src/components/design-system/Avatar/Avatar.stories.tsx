@@ -24,15 +24,14 @@ const allShapes = Object.keys({
 
 export const Default = meta.story({
   args: {
-    alt: "Langfuse",
-    fallback: "LF",
+    displayName: "Langfuse",
     src: "/apple-touch-icon.png",
   },
 });
 
 export const Fallback = meta.story({
   args: {
-    fallback: "BB",
+    displayName: "Ben Bachem",
   },
 });
 
@@ -61,7 +60,7 @@ export const VariantMatrix = meta.story({
           {allShapes.map((shape) => (
             <Avatar
               key={`${size}-${shape}`}
-              fallback="LF"
+              displayName="Lang Fuse"
               shape={shape}
               size={size}
             />

@@ -164,16 +164,7 @@ export function MembersTable({
             <Avatar
               size="md"
               src={image ?? undefined}
-              alt={name ?? "User Avatar"}
-              fallback={
-                name
-                  ? name
-                      .split(" ")
-                      .map((word) => word[0])
-                      .slice(0, 2)
-                      .concat("")
-                  : null
-              }
+              displayName={name ?? "User"}
             />
             <span>{name}</span>
           </div>

@@ -568,14 +568,8 @@ export function CommentList({
                 <Avatar
                   size="sm"
                   src={comment.authorUserImage ?? undefined}
-                  fallback={
-                    comment.authorUserName
-                      ? comment.authorUserName
-                          .split(" ")
-                          .map((word) => word[0])
-                          .slice(0, 2)
-                          .concat("")
-                      : (comment.authorUserId ?? "U")
+                  displayName={
+                    comment.authorUserName ?? comment.authorUserId ?? "User"
                   }
                 />
                 <div className="min-w-0">

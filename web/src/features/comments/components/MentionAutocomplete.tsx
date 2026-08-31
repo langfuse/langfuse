@@ -96,9 +96,7 @@ export function MentionAutocomplete({
                       <Avatar
                         size="sm"
                         aria-hidden="true"
-                        fallback={
-                          user.name ? user.name[0] : user.email?.[0] || "U"
-                        }
+                        displayName={displayName}
                       />
                       <div className="text-foreground flex-1 overflow-hidden">
                         <div className="truncate font-bold" title={userLabel}>

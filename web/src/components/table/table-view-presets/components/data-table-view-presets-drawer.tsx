@@ -937,16 +937,7 @@ function TableViewPresetsDrawerContentBody({
                             <Avatar
                               size="sm"
                               src={view.createdByUser?.image ?? undefined}
-                              alt={view.createdByUser?.name ?? "User Avatar"}
-                              fallback={
-                                view.createdByUser?.name
-                                  ? view.createdByUser?.name
-                                      .split(" ")
-                                      .map((word) => word[0])
-                                      .slice(0, 2)
-                                      .concat("")
-                                  : null
-                              }
+                              displayName={view.createdByUser?.name ?? "User"}
                             />
                           </div>
                         )}

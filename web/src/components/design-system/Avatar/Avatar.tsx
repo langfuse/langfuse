@@ -24,32 +24,41 @@ const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
 
 type AvatarProps = {
   "aria-hidden"?: boolean | "true" | "false";
-  alt?: string;
+  displayName: string;
   src?: string | Blob;
-  fallback: string | string[] | null | undefined;
 } & VariantProps<typeof avatarVariants>;
 
 const Avatar = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Root>,
   AvatarProps
->(({ src, alt, fallback, size, shape, ...props }, ref) => (
-  <AvatarPrimitive.Root
-    ref={ref}
-    className={avatarVariants({ size, shape })}
-    {...props}
-  >
-    {src ? (
-      <AvatarPrimitive.Image
-        src={src}
-        alt={alt}
-        className="aspect-square h-full w-full"
-      />
-    ) : null}
-    <AvatarPrimitive.Fallback className="bg-muted flex h-full w-full items-center justify-center rounded-[inherit]">
-      {fallback}
-    </AvatarPrimitive.Fallback>
-  </AvatarPrimitive.Root>
-));
+>(({ src, displayName, size, shape, ...props }, ref) => {
+  const normalizedDisplayName = displayName.trim() || "User";
+  const initials = normalizedDisplayName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word.charAt(0))
+    .join("")
+    .toUpperCase();
+
+  return (
+    <AvatarPrimitive.Root
+      ref={ref}
+      className={avatarVariants({ size, shape })}
+      {...props}
+    >
+      {src ? (
+        <AvatarPrimitive.Image
+          src={src}
+          alt={normalizedDisplayName}
+          className="aspect-square h-full w-full"
+        />
+      ) : null}
+      <AvatarPrimitive.Fallback className="bg-muted flex h-full w-full items-center justify-center rounded-[inherit]">
+        {initials}
+      </AvatarPrimitive.Fallback>
+    </AvatarPrimitive.Root>
+  );
+});
 
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 

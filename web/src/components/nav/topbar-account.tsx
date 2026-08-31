@@ -31,15 +31,6 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
 
   const name = user.name ?? "";
   const email = user.email ?? "";
-  const initials =
-    name
-      .split(" ")
-      .slice(0, 2)
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase() ||
-    email[0]?.toUpperCase() ||
-    "?";
 
   return (
     <DropdownMenu>
@@ -53,8 +44,7 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
         <Avatar
           size="lg"
           src={user.image ?? undefined}
-          alt={name}
-          fallback={initials}
+          displayName={name || email || "User"}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={4} className="min-w-56">

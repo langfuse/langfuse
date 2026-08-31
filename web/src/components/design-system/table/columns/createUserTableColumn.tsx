@@ -70,20 +70,9 @@ export function createUserTableColumn<
         );
       }
 
-      const initials = name
-        ?.split(" ")
-        .map((word) => word[0])
-        .slice(0, 2)
-        .join("");
-
       return (
         <div className="flex items-center space-x-2">
-          <Avatar
-            size="md"
-            src={image ?? undefined}
-            alt={name ?? "User Avatar"}
-            fallback={initials}
-          />
+          <Avatar size="md" src={image ?? undefined} displayName={label} />
           <span>{label}</span>
         </div>
       );

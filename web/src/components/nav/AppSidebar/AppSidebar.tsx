@@ -436,13 +436,6 @@ function NavUser({
   items: UserNavigationItem[];
   isMobile: boolean;
 }) {
-  const initials = user.name
-    .split(" ")
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
   const renderMenuItem = (item: UserNavigationItem) => {
     if (item.type === "submenu") {
       return (
@@ -489,8 +482,7 @@ function NavUser({
                 size="lg"
                 shape="rounded"
                 src={user.avatar}
-                alt={user.name}
-                fallback={initials}
+                displayName={user.name}
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-bold" title={user.name}>
@@ -515,8 +507,7 @@ function NavUser({
                   size="lg"
                   shape="rounded"
                   src={user.avatar}
-                  alt={user.name}
-                  fallback={initials}
+                  displayName={user.name}
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-bold" title={user.name}>

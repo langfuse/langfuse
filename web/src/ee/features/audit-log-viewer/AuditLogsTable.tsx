@@ -74,10 +74,7 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
               <Avatar
                 size="sm"
                 src={user?.image ?? undefined}
-                alt={user?.name ?? "User"}
-                fallback={
-                  user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"
-                }
+                displayName={user?.name ?? user?.email ?? "User"}
               />
               <span
                 className={cn(
