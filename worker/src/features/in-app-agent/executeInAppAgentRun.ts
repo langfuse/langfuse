@@ -60,6 +60,7 @@ import {
 import { createInAppAgentSandbox } from "./runtime/sandbox";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
+import { resolveLangfuseMcpUrl } from "./resolveLangfuseMcpUrl";
 import type { AgUiRunAgentInput } from "./runtime/types";
 
 import { env } from "../../env";
@@ -735,20 +736,18 @@ function findPersistedApprovalRequest(
 }
 
 function getLangfuseMcpUrl(): string {
-  if (!env.NEXTAUTH_URL) {
+  const url = resolveLangfuseMcpUrl({
+    mcpBaseUrl: env.LANGFUSE_MCP_BASE_URL,
+    nextAuthUrl: env.NEXTAUTH_URL,
+  });
+
+  if (!url) {
     throw new InAppAgentRunInitError(
-      "NEXTAUTH_URL must be configured to derive the MCP endpoint",
+      "LANGFUSE_MCP_BASE_URL or NEXTAUTH_URL must be configured to derive the MCP endpoint",
     );
   }
 
-  const rawUrl = env.NEXTAUTH_URL.replace(/\/api\/auth\/?$/, "");
-  const baseUrl = new URL(rawUrl);
-
-  baseUrl.pathname = `${baseUrl.pathname.replace(/\/$/, "")}/api/public/mcp`;
-  baseUrl.search = "";
-  baseUrl.hash = "";
-
-  return baseUrl.toString();
+  return url;
 }
 
 function buildTracingConfig(params: {

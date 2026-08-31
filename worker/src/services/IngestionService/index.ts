@@ -728,6 +728,7 @@ export class IngestionService {
         reason: "score_validation_dropped",
         source: "api",
         domain: "score",
+        projectId,
       });
     }
 
