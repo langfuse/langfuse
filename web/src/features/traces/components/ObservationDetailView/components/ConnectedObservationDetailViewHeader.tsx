@@ -19,7 +19,10 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import {
+  buildEventsTablePathForObservationType,
+  buildEventsTablePathForSpanName,
+} from "@/src/features/events/lib/eventsTablePaths";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -34,10 +37,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { type JumpToPlaygroundAction } from "@/src/features/playground/page/components/JumpToPlaygroundMenu";
-import {
-  ObservationDetailViewHeader,
-  ObservationHeaderOptionsButton,
-} from "./ObservationDetailViewHeader";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
 
 export interface ConnectedObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -86,6 +88,7 @@ export const ConnectedObservationDetailViewHeader = memo(
       useState(false);
     const [includePlaygroundOutput, setIncludePlaygroundOutput] =
       useState(false);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
     const router = useRouter();
     const capture = usePostHogClientCapture();
     const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
@@ -230,29 +233,30 @@ export const ConnectedObservationDetailViewHeader = memo(
         }
       });
     };
-
-    const optionsAction = (
-      <DetailHeaderActionsMenuController
-        idItems={[
-          { id: traceId, name: "Trace ID" },
-          { id: observation.id, name: "Observation ID" },
-        ]}
-        observationType={observation.type}
-        projectId={projectId}
-        spanName={observation.name ?? ""}
-        webCallout={{
-          traceId,
-          observationId: observation.id,
-          sessionId: observation.sessionId ?? null,
-        }}
-      >
-        {({ Trigger }) => (
-          <Trigger asChild>
-            <ObservationHeaderOptionsButton />
-          </Trigger>
-        )}
-      </DetailHeaderActionsMenuController>
-    );
+    const webCalloutAction = useWebCalloutAction({
+      projectId,
+      traceId,
+      observationId: observation.id,
+      sessionId: observation.sessionId ?? null,
+    });
+    const spanName = observation.name?.trim();
+    const spanNameFilterHref = spanName
+      ? buildEventsTablePathForSpanName({
+          currentPath: router.asPath,
+          projectId,
+          spanName,
+        })
+      : null;
+    const observationTypeFilterHref = buildEventsTablePathForObservationType({
+      currentPath: router.asPath,
+      projectId,
+      observationType: observation.type,
+    });
+    const handleCopyId = (id: string) => {
+      copyTextToClipboard(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    };
 
     return (
       <NewDatasetItemFromExistingObjectDialogController
@@ -316,7 +320,42 @@ export const ConnectedObservationDetailViewHeader = memo(
                       treeNodeTotalCost={treeNodeTotalCost}
                       isAnnotationMode={isAnnotationMode}
                       isMobile={isMobile}
-                      optionsMenu={optionsAction}
+                      optionsAction={{
+                        idItems: [
+                          { id: traceId, name: "Trace ID" },
+                          { id: observation.id, name: "Observation ID" },
+                        ],
+                        copiedId,
+                        onCopy: handleCopyId,
+                        filterItems: [
+                          ...(spanNameFilterHref && spanName
+                            ? [
+                                {
+                                  href: spanNameFilterHref,
+                                  label: `name:${spanName}`,
+                                  title: spanName,
+                                },
+                              ]
+                            : []),
+                          {
+                            href: observationTypeFilterHref,
+                            label: `type:${observation.type}`,
+                            title: `type:${observation.type}`,
+                          },
+                        ],
+                        onNavigate: (href) => router.push(href),
+                        webCallout: webCalloutAction.isVisible
+                          ? {
+                              endpointName: webCalloutAction.endpointName,
+                              isLoading: webCalloutAction.isLoading,
+                              onSelect: () => {
+                                webCalloutAction
+                                  .invokeCallout()
+                                  .catch(() => undefined);
+                              },
+                            }
+                          : null,
+                      }}
                       datasetAction={
                         !observationWithIO
                           ? { type: "hidden" }

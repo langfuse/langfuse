@@ -21,7 +21,7 @@ type WebCalloutTarget = {
   sessionId?: string | null;
 };
 
-function useWebCalloutAction(props: WebCalloutTarget) {
+export function useWebCalloutAction(props: WebCalloutTarget) {
   const endpoint = api.webCallouts.enabled.useQuery(
     { projectId: props.projectId },
     {

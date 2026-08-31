@@ -1,12 +1,12 @@
 import { EllipsisVertical } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { DetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "./DetailHeaderActionsMenuController";
 import preview from "../../../../.storybook/preview";
 
 function DetailHeaderActionsMenuStory() {
   return (
-    <DetailHeaderActionsMenuController
+    <ConnectedDetailHeaderActionsMenuController
       idItems={[{ id: "storybook-trace", name: "Trace ID" }]}
       projectId="storybook-project"
     >
@@ -22,7 +22,7 @@ function DetailHeaderActionsMenuStory() {
           </Button>
         </Trigger>
       )}
-    </DetailHeaderActionsMenuController>
+    </ConnectedDetailHeaderActionsMenuController>
   );
 }
 

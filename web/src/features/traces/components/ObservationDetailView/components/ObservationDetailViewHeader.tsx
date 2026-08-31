@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +19,7 @@ import {
   PlusIcon,
   SquarePen,
   Terminal,
+  Webhook,
 } from "lucide-react";
 import {
   Popover,
@@ -27,6 +28,8 @@ import {
 } from "@/src/components/ui/popover";
 import {
   DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
@@ -52,6 +55,10 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { type JumpToPlaygroundAction } from "@/src/features/playground/page/components/JumpToPlaygroundMenu";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import {
+  DetailHeaderActionsMenuController,
+  type DetailHeaderIdItem,
+} from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 
 export type ObservationDetailViewHeaderProps = {
   observation: ObservationReturnTypeWithMetadata;
@@ -61,7 +68,18 @@ export type ObservationDetailViewHeaderProps = {
   treeNodeTotalCost: Decimal | undefined;
   isAnnotationMode: boolean;
   isMobile: boolean;
-  optionsMenu: ReactNode;
+  optionsAction: {
+    idItems: DetailHeaderIdItem[];
+    copiedId: string | null;
+    onCopy: (id: string) => void;
+    filterItems: { href: string; label: string; title: string }[];
+    onNavigate: (href: string) => void;
+    webCallout: {
+      endpointName: string;
+      isLoading: boolean;
+      onSelect: () => void;
+    } | null;
+  };
   datasetAction:
     | { type: "hidden" }
     | {
@@ -113,7 +131,7 @@ export function ObservationDetailViewHeader({
   treeNodeTotalCost,
   isAnnotationMode,
   isMobile,
-  optionsMenu,
+  optionsAction,
   datasetAction,
   annotationAction,
   annotationQueueAction,
@@ -124,6 +142,47 @@ export function ObservationDetailViewHeader({
     date: observation.startTime,
     accuracy: "millisecond",
   });
+  const optionsMenu = (
+    <DetailHeaderActionsMenuController
+      idItems={optionsAction.idItems}
+      copiedId={optionsAction.copiedId}
+      onCopy={optionsAction.onCopy}
+      filterItems={optionsAction.filterItems}
+      onNavigate={optionsAction.onNavigate}
+      webCallout={
+        optionsAction.webCallout ? (
+          <>
+            <DropdownMenuItem
+              className="text-xs"
+              disabled={optionsAction.webCallout.isLoading}
+              onSelect={(event) => {
+                event.preventDefault();
+                optionsAction.webCallout?.onSelect();
+              }}
+            >
+              <Webhook className="mr-2 h-4 w-4" />
+              <span
+                className="max-w-[260px] min-w-0 truncate"
+                title={optionsAction.webCallout.endpointName}
+              >
+                <span>Call </span>
+                <span className="font-bold">
+                  {optionsAction.webCallout.endpointName}
+                </span>
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null
+      }
+    >
+      {({ Trigger }) => (
+        <Trigger asChild>
+          <ObservationHeaderOptionsButton />
+        </Trigger>
+      )}
+    </DetailHeaderActionsMenuController>
+  );
   const [isAnnotationQueueMenuOpen, setIsAnnotationQueueMenuOpen] =
     useState(false);
   const datasetMenu =

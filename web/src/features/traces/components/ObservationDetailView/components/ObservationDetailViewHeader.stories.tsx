@@ -24,7 +24,14 @@ const defaultArgs = {
   treeNodeTotalCost: undefined,
   isAnnotationMode: false,
   isMobile: false,
-  optionsMenu: <button>Options menu</button>,
+  optionsAction: {
+    idItems: [{ id: "trace-id", name: "Trace ID" }],
+    copiedId: null,
+    onCopy: fn(),
+    filterItems: [],
+    onNavigate: fn(),
+    webCallout: null,
+  },
   datasetAction: {
     type: "menu" as const,
     disabled: false,
@@ -73,7 +80,7 @@ export const Desktop = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Observation name")).toBeVisible();
-    await expect(canvas.getByText("Options menu")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Options" })).toBeVisible();
     await expect(canvas.getByText("In 1 dataset(s)")).toBeVisible();
     await expect(canvas.getByText("Annotate")).toBeVisible();
     await expect(canvas.getByText("Add comment")).toBeVisible();

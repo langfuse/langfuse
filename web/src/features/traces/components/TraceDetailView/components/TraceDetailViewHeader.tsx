@@ -20,7 +20,7 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
@@ -135,7 +135,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           >
             {trace.name || trace.id}
           </span>
-          <DetailHeaderActionsMenuController
+          <ConnectedDetailHeaderActionsMenuController
             idItems={[{ id: trace.id, name: "Trace ID" }]}
             projectId={projectId}
             webCallout={{
@@ -156,7 +156,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 </Button>
               </Trigger>
             )}
-          </DetailHeaderActionsMenuController>
+          </ConnectedDetailHeaderActionsMenuController>
           {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
               full-width labeled rows, next to the `⋮` utility menu. */}
           {isMobile && (
