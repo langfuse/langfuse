@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const contentSecurityPolicy = [
@@ -14,10 +14,24 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-const scalarDistPath = dirname(require.resolve("@scalar/api-reference"));
+const scalarBundlePath = [
+  join(
+    process.cwd(),
+    "node_modules/@scalar/api-reference/dist/browser/standalone.js",
+  ),
+  join(
+    process.cwd(),
+    "web/node_modules/@scalar/api-reference/dist/browser/standalone.js",
+  ),
+].find(existsSync);
+
+if (!scalarBundlePath) {
+  throw new Error("Scalar API reference bundle is missing");
+}
+
 const assets = {
   "scalar-api-reference.js": {
-    content: readFileSync(join(scalarDistPath, "browser", "standalone.js")),
+    content: readFileSync(scalarBundlePath),
     contentType: "text/javascript; charset=utf-8",
   },
 } as const;
