@@ -27,7 +27,6 @@ const DESIGN_COMPONENT_STORIES = [
   "TextLink/TextLink",
   "Toggle/Toggle",
   "table/components/IOTableCell/IOTableCell",
-  "table/components/TokenUsageTableCell/TokenUsageTableCell",
   "table/columns/createBadgeTableColumn",
   "table/columns/createDateTableColumn",
   "table/columns/createDurationTableColumn",
