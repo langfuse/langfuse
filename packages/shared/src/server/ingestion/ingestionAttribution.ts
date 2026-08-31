@@ -203,6 +203,42 @@ export const classifyIngestionSdkAttribution = (params: {
   return "attributed";
 };
 
+const METRIC_TAG_MAX_LENGTH = 32;
+
+/**
+ * Bounds a caller-supplied SDK value for safe use as a StatsD/Datadog metric
+ * tag. Ingestion SDK name/version come straight from request headers, so
+ * without this a caller could inject oversized or separator-bearing
+ * (`,` `|` `:` `=`) tag values and inflate metric cardinality. Strips control
+ * characters and tag separators, caps length, and falls back to "unknown".
+ */
+export const sanitizeSdkMetricTagValue = (
+  value: string | null | undefined,
+): string => {
+  if (!value) {
+    return UNKNOWN_INGESTION_SDK_VALUE;
+  }
+  const sanitized = Array.from(value)
+    .filter((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (codePoint <= 31 || codePoint === 127) {
+        return false;
+      }
+      return (
+        character !== "," &&
+        character !== "|" &&
+        character !== ":" &&
+        character !== "="
+      );
+    })
+    .join("")
+    .trim();
+  const bounded = Array.from(sanitized)
+    .slice(0, METRIC_TAG_MAX_LENGTH)
+    .join("");
+  return bounded || UNKNOWN_INGESTION_SDK_VALUE;
+};
+
 const sanitizeCallerAttributionValue = (
   value: string,
   maxLength: number,

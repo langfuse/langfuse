@@ -1,6 +1,6 @@
 /**
- * LFE-14345: `langfuse.ingestion.metadata_dropped` counter at the score
- * validation drop site (catch in processScoreEventList).
+ * `langfuse.ingestion.metadata_dropped` counter at the score validation
+ * drop site (catch in processScoreEventList).
  *
  * Spec under test:
  * - The catch that silently filters score events on validation failure
@@ -10,7 +10,8 @@
  *   events in the same batch are still written, unexpected errors still
  *   reject the batch (and must NOT emit the drop counter — a rejected
  *   batch is retried, not silently lost).
- * - projectId is a metric tag (low cardinality) for tenant attribution.
+ * - projectId, sdkName, sdkVersion are metric tags (low cardinality) for
+ *   tenant and client attribution.
  */
 import { expect, describe, it, vi, beforeEach } from "vitest";
 
@@ -62,6 +63,8 @@ const expectScoreDropTags = (call: unknown[]) => {
       source: "api",
       domain: "score",
       projectId: PROJECT_ID,
+      sdkName: "langfuse-test",
+      sdkVersion: "0.0.0",
     }),
   );
 };
@@ -116,7 +119,7 @@ const processScores = (
     },
   });
 
-describe("score validation drop metric (LFE-14345)", () => {
+describe("score validation drop metric", () => {
   beforeEach(() => {
     mocks.recordIncrement.mockClear();
     mocks.validateAndInflateScoreOverride = undefined;

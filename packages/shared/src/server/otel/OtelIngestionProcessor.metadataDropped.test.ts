@@ -1,12 +1,14 @@
 /**
- * LFE-14342: `langfuse.ingestion.metadata_dropped` counter at the OTel
- * metadata drop site (`parseMetadataAttribute` drop branches).
+ * `langfuse.ingestion.metadata_dropped` counter at the OTel metadata drop
+ * site (`parseMetadataAttribute` drop branches).
  *
  * Spec under test:
  * - Counter name: langfuse.ingestion.metadata_dropped
  * - Tags: reason ∈ {non_object_top_level, parse_failure, primitive},
  *   source = otel, domain ∈ {trace, observation}, projectId (low
- *   cardinality: only projects emitting malformed metadata appear)
+ *   cardinality: only projects emitting malformed metadata appear),
+ *   attributeKey (closed set of Langfuse constants), sdkName, sdkVersion,
+ *   and — for parse_failure only — kind (value-shape sub-classification)
  * - No behavior change to what the processor returns
  * - Dotted-key metadata (langfuse.*.metadata.foo) stays increment-free
  *
@@ -112,9 +114,12 @@ const expectDropTags = (
   expect(tags).toEqual(expect.objectContaining(expected));
   // projectId is a metric tag (low cardinality) for tenant attribution.
   expect(tags?.projectId).toBe(PROJECT_ID);
+  // sdkName/sdkVersion attribute the emitting client.
+  expect(tags?.sdkName).toBe("python");
+  expect(tags?.sdkVersion).toBe("3.8.1");
 };
 
-describe("OTel metadata_dropped metric (LFE-14342)", () => {
+describe("OTel metadata_dropped metric", () => {
   beforeEach(() => {
     recordIncrementMock.mockClear();
   });
@@ -742,6 +747,103 @@ describe("OTel reconstructed array drop telemetry", () => {
       });
     } finally {
       warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("metadata_dropped attribution tags (parse_failure kind, attributeKey)", () => {
+  beforeEach(() => {
+    recordIncrementMock.mockClear();
+  });
+
+  const singleDropTags = () => {
+    const calls = recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === METRIC,
+    );
+    expect(calls).toHaveLength(1);
+    return (calls[0] as [string, number, Record<string, string>])[2];
+  };
+
+  // Each value fails JSON.parse and must be sub-classified by its shape.
+  // The values are synthetic and carry no real user content.
+  const kindCases: Array<{ name: string; value: string; kind: string }> = [
+    {
+      name: "python dict repr",
+      value: "{'user': 'x', 'ok': True}",
+      kind: "python_repr",
+    },
+    { name: "bare True token", value: "True", kind: "python_repr" },
+    { name: "unquoted string", value: "in progress", kind: "unquoted_string" },
+    {
+      name: "truncated object",
+      value: '{"a":"long va',
+      kind: "truncated_json",
+    },
+    {
+      name: "loose json trailing comma",
+      value: '{"a":1,}',
+      kind: "loose_json",
+    },
+    { name: "empty string on compat key", value: "", kind: "empty" },
+  ];
+
+  for (const { name, value, kind } of kindCases) {
+    it(`classifies ${name} as kind=${kind}`, async () => {
+      // Empty is only reachable on the compat key (a falsy primary value
+      // survives the `||` fallback); non-empty values sit on the primary key.
+      const attrKey =
+        value === "" ? "langfuse.metadata" : "langfuse.observation.metadata";
+      await createProcessor().processToIngestionEvents(
+        buildBatch([{ key: attrKey, value: { stringValue: value } }]),
+      );
+
+      const tags = singleDropTags();
+      expect(tags.reason).toBe("parse_failure");
+      expect(tags.kind).toBe(kind);
+      expect(tags.attributeKey).toBe(attrKey);
+      expect(tags.sdkName).toBe("python");
+      expect(tags.sdkVersion).toBe("3.8.1");
+    });
+  }
+
+  it("omits kind for a non-parse_failure drop (primitive)", async () => {
+    await createProcessor().processToIngestionEvents(
+      buildBatch([
+        { key: "langfuse.observation.metadata", value: { intValue: 42 } },
+      ]),
+    );
+    const tags = singleDropTags();
+    expect(tags.reason).toBe("primitive");
+    expect(tags.kind).toBeUndefined();
+  });
+
+  it("sanitizes and bounds attacker-controlled sdkName/sdkVersion tags", async () => {
+    // sdkName/sdkVersion come from raw request headers; a caller must not be
+    // able to inject tag separators, control chars, or oversized values.
+    const processor = new OtelIngestionProcessor({
+      projectId: PROJECT_ID,
+      publicKey: "pk-test",
+      sdkName: "evil,name|with:sep=chars",
+      sdkVersion: `1.0\n${"x".repeat(100)}`,
+    });
+    await processor.processToIngestionEvents(
+      buildBatch([
+        {
+          key: "langfuse.observation.metadata",
+          value: { stringValue: "{bad" },
+        },
+      ]),
+    );
+
+    const tags = singleDropTags();
+    for (const key of ["sdkName", "sdkVersion"] as const) {
+      expect(tags[key]).not.toMatch(/[,|:=]/);
+      expect(tags[key].length).toBeLessThanOrEqual(32);
+      for (const character of tags[key]) {
+        const codePoint = character.codePointAt(0) ?? 0;
+        expect(codePoint).toBeGreaterThan(31);
+        expect(codePoint).not.toBe(127);
+      }
     }
   });
 });

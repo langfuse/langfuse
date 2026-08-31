@@ -54,6 +54,7 @@ import {
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
+  sanitizeSdkMetricTagValue,
   type IngestionAttribution,
   type PricingTierMatchAttributes,
 } from "@langfuse/shared/src/server";
@@ -729,6 +730,8 @@ export class IngestionService {
         source: "api",
         domain: "score",
         projectId,
+        sdkName: sanitizeSdkMetricTagValue(attribution.ingestionSdkName),
+        sdkVersion: sanitizeSdkMetricTagValue(attribution.ingestionSdkVersion),
       });
     }
 
