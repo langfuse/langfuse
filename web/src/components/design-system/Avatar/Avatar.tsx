@@ -26,7 +26,7 @@ type AvatarProps = {
   "aria-hidden"?: boolean | "true" | "false";
   alt?: string;
   src?: string | Blob;
-  fallback: React.ReactNode;
+  fallback: string | string[] | null | undefined;
 } & VariantProps<typeof avatarVariants>;
 
 const Avatar = React.forwardRef<
