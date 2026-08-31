@@ -163,8 +163,12 @@ ARG GID=1001
 RUN addgroup --system --gid ${GID} nodejs && \
     adduser --system --uid ${UID} nextjs
 
+# Recreate the prisma CLI symlink instead of copying /usr/local/bin/prisma —
+# COPY would dereference the symlink and leave a JS file whose require()s
+# resolve from /usr/local/bin rather than the prisma package.
 COPY --from=runtime-extras /usr/local/lib/node_modules/prisma /usr/local/lib/node_modules/prisma
-COPY --from=runtime-extras /usr/local/bin/prisma /usr/local/bin/prisma
+RUN ln -sf /usr/local/lib/node_modules/prisma/build/index.js /usr/local/bin/prisma \
+    && chmod +x /usr/local/lib/node_modules/prisma/build/index.js
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
