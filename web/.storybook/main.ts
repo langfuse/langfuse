@@ -29,6 +29,7 @@ const DESIGN_COMPONENT_STORIES = [
   "table/components/IOTableCell/IOTableCell",
   "table/columns/createBadgeTableColumn",
   "table/columns/createDateTableColumn",
+  "table/columns/createDropdownTableColumn",
   "table/columns/createDurationTableColumn",
   "table/columns/createIdTableColumn",
   "table/columns/createItemBadgeTableColumn",
