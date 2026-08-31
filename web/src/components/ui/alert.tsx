@@ -60,12 +60,7 @@ type AlertDescriptionProps = Omit<
   "children" | "className"
 > & {
   children: React.ReactNode;
-  className?:
-    | "flex items-center justify-between"
-    | "mt-2 space-y-3"
-    | "text-dark-yellow"
-    | "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-    | "flex flex-col items-start gap-1";
+  className?: "text-dark-yellow";
 };
 
 function AlertTitle({ children, className }: AlertTitleProps) {

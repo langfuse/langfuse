@@ -264,20 +264,22 @@ export default function NewEvaluatorPage() {
               <Alert variant="info">
                 <Info className="h-4 w-4" />
                 <AlertTitle>Selected Evaluator has been updated</AlertTitle>
-                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span>
-                    Click to use the latest version of your evaluator{" "}
-                    {latestTemplate.name}.
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-fit"
-                    onClick={handleUseUpdatedEvaluator}
-                  >
-                    Use updated evaluator
-                  </Button>
+                <AlertDescription>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span>
+                      Click to use the latest version of your evaluator{" "}
+                      {latestTemplate.name}.
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-fit"
+                      onClick={handleUseUpdatedEvaluator}
+                    >
+                      Use updated evaluator
+                    </Button>
+                  </div>
                 </AlertDescription>
               </Alert>
             ) : null}

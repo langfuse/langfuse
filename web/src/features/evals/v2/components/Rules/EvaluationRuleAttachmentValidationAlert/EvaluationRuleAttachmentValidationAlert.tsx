@@ -29,15 +29,17 @@ export function EvaluationRuleAttachmentValidationAlert({
       <AlertTitle className="pr-4">
         Review evaluator variable mapping
       </AlertTitle>
-      <AlertDescription className="flex flex-col items-start gap-1">
-        <p>{message}</p>
-        <Link
-          href={reviewHref}
-          className="font-bold underline underline-offset-2"
-          onClick={onReview}
-        >
-          Review how the evaluator maps data to variables
-        </Link>
+      <AlertDescription>
+        <div className="flex flex-col items-start gap-1">
+          <p>{message}</p>
+          <Link
+            href={reviewHref}
+            className="font-bold underline underline-offset-2"
+            onClick={onReview}
+          >
+            Review how the evaluator maps data to variables
+          </Link>
+        </div>
       </AlertDescription>
     </Alert>
   );
