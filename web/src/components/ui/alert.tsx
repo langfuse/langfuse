@@ -45,16 +45,15 @@ function AlertTitle({
   );
 }
 
-const AlertDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("text-sm [&_p]:leading-relaxed", className)}
-    {...props}
-  />
-));
-AlertDescription.displayName = "AlertDescription";
+function AlertDescription({
+  children,
+  className,
+}: Pick<React.ComponentProps<"div">, "children" | "className">) {
+  return (
+    <div className={cn("text-sm [&_p]:leading-relaxed", className)}>
+      {children}
+    </div>
+  );
+}
 
 export { Alert, AlertTitle, AlertDescription };
