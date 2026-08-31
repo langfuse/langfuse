@@ -10,9 +10,9 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -780,38 +780,28 @@ export default function TracesTable({
       enableSorting,
     }),
 
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<TracesTableRow, TracesTableRow["usage"]>({
       id: "tokens",
+      accessorFn: (row) => row.usage,
+      header: "Tokens",
       size: 180,
-      loadingCell: <Skeleton className="h-4 w-1/2" />,
-      cell: ({ row }) => {
-        const value: TracesTableRow["usage"] = row.getValue("usage");
-        if (isMetricPending(row.original.id)) {
-          return <Skeleton className="h-4 w-1/2" />;
-        }
-        if (!value.inputUsage && !value.outputUsage && !value.totalUsage) {
-          return null;
-        }
-
-        return (
-          <BreakdownTooltip details={row.original.tokenDetails ?? []}>
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={Number(value.inputUsage ?? 0)}
-                outputUsage={Number(value.outputUsage ?? 0)}
-                totalUsage={Number(value.totalUsage ?? 0)}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableSorting,
       enableHiding: true,
-    },
+      getCell: (value, { row }) => {
+        if (isMetricPending(row.original.id)) return { type: "loading" };
+        if (!value?.inputUsage && !value?.outputUsage && !value?.totalUsage) {
+          return undefined;
+        }
+
+        return {
+          type: "usage",
+          inputUsage: Number(value.inputUsage ?? 0),
+          outputUsage: Number(value.outputUsage ?? 0),
+          totalUsage: Number(value.totalUsage ?? 0),
+          details: row.original.tokenDetails ?? [],
+        };
+      },
+    }),
     {
       accessorKey: "totalCost",
       id: "totalCost",
