@@ -9,14 +9,27 @@ export { S3_DELETE_OBJECTS_CHUNK_SIZE } from "../services/StorageService";
 let s3MediaStorageClient: StorageService;
 let s3EventStorageClient: StorageService;
 
+export function resolveMediaStorageEndpoints(params: {
+  endpoint: string | undefined;
+  internalEndpoint: string | undefined;
+}) {
+  return {
+    endpoint: params.internalEndpoint ?? params.endpoint,
+    externalEndpoint: params.internalEndpoint ? params.endpoint : undefined,
+  };
+}
+
 export const getS3MediaStorageClient = (bucketName: string): StorageService => {
   if (!s3MediaStorageClient) {
+    const endpoints = resolveMediaStorageEndpoints({
+      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
+      internalEndpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT,
+    });
     s3MediaStorageClient = StorageServiceFactory.getInstance({
       bucketName,
       accessKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
       secretAccessKey: env.LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
-      externalEndpoint: env.LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT,
+      ...endpoints,
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
       awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,

@@ -369,8 +369,8 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
     LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
-    // Browser-facing endpoint for signed URLs when the server uses an internal storage address.
-    LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT: z.string().optional(),
+    // Server-reachable storage address when signed URLs use a different browser-facing endpoint.
+    LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -952,8 +952,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
     LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT,
-    LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT:
-      process.env.LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT,
+    LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT:
+      process.env.LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT,
     LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID,
     LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY:
