@@ -42,19 +42,17 @@ const avatarFallbackVariants = cva(
   },
 );
 
+type AvatarProps = {
+  "aria-hidden"?: boolean | "true" | "false";
+  alt?: string;
+  src?: string | Blob;
+  fallback: React.ReactNode;
+} & VariantProps<typeof avatarVariants> &
+  VariantProps<typeof avatarFallbackVariants>;
+
 const Avatar = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Root>,
-  Pick<
-    React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
-    "aria-hidden"
-  > &
-    Pick<
-      React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>,
-      "alt" | "src"
-    > & {
-      fallback: React.ReactNode;
-    } & VariantProps<typeof avatarVariants> &
-    VariantProps<typeof avatarFallbackVariants>
+  AvatarProps
 >(
   (
     {
