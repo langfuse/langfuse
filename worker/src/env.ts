@@ -20,6 +20,9 @@ const EnvSchema = z.object({
   // Set this instead of redirecting NEXTAUTH_URL when the worker should reach
   // web internally: NEXTAUTH_URL also builds user-facing links in emails and
   // Slack messages, which must stay externally resolvable.
+  // Web validates the Host header of MCP requests, so any hostname used here
+  // other than NEXTAUTH_URL's own must be listed in LANGFUSE_MCP_ALLOWED_HOSTS
+  // on web, or the requests are rejected.
   LANGFUSE_MCP_BASE_URL: z.url().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 

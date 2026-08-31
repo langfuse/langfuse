@@ -8,6 +8,9 @@
  * notifications, blob storage integration settings, usage threshold emails — so
  * pointing that at a cluster-internal Service makes all of them unreachable.
  *
+ * Web validates the Host header of MCP requests, so an internal hostname used
+ * here must also be listed in LANGFUSE_MCP_ALLOWED_HOSTS on web.
+ *
  * Kept free of env and error-type coupling so the precedence and URL
  * normalisation are directly testable.
  */
