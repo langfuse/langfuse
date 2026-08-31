@@ -53,6 +53,7 @@ import {
   getObservationById,
   logger,
   processEventBatch,
+  stampExperimentAttributesOnTraceEvents,
   type AuthHeaderValidVerificationResultIngestion,
   upsertDatasetItem,
 } from "@langfuse/shared/src/server";
@@ -158,6 +159,56 @@ const resolveMetadata = (metadata: JSONValue): Record<string, unknown> => {
     return metadata as Record<string, unknown>;
   }
   return { metadata };
+};
+
+const stampExperimentAttributesOnTraceEventsFromRunItem = async ({
+  projectId,
+  traceId,
+  observationId,
+  experimentId,
+  experimentName,
+  experimentDescription,
+  experimentMetadata,
+  datasetItem,
+}: {
+  projectId: string;
+  traceId: string;
+  observationId?: string | null;
+  experimentId: string;
+  experimentName: string;
+  experimentDescription?: string | null;
+  experimentMetadata?: unknown;
+  datasetItem: {
+    id: string;
+    datasetId: string;
+    validFrom: Date;
+    expectedOutput?: unknown;
+    metadata?: unknown;
+  };
+}) => {
+  try {
+    await stampExperimentAttributesOnTraceEvents({
+      projectId,
+      traceId,
+      rootSpanId: observationId,
+      experimentId,
+      experimentName,
+      experimentDescription,
+      experimentDatasetId: datasetItem.datasetId,
+      experimentItemId: datasetItem.id,
+      experimentItemVersion: datasetItem.validFrom,
+      experimentItemExpectedOutput: datasetItem.expectedOutput,
+      experimentMetadata,
+      experimentItemMetadata: datasetItem.metadata,
+    });
+  } catch (error) {
+    logger.error("Failed to stamp experiment attributes onto events", {
+      error,
+      projectId,
+      traceId,
+      experimentId,
+    });
+  }
 };
 
 const getDatasetByNameOrThrow = async ({
@@ -758,15 +809,15 @@ export const createStableExperimentId = ({
 /**
  * events_only deployments no longer write dataset run items into the legacy
  * dataset_run_items ClickHouse table, so the full createDatasetRunItemForApi
- * flow has nothing to persist. The experiment runner still calls POST
+ * flow has nothing to persist there. The experiment runner still calls POST
  * /dataset-run-items per item and expects a dataset run id it can reuse as the
  * experiment id across the whole run, so we resolve the item's dataset and
  * return a stable experiment id derived from (projectId, datasetId, runName).
  *
- * In v4 the trace ↔ experiment link is established through OTel experiment span
- * attributes instead, so beyond the dataset-item lookup (needed for datasetId
- * and to 404 on genuinely missing items) we skip every legacy side effect:
- * the observation→trace lookup, ClickHouse ingestion, and the eval enqueue.
+ * The trace ↔ experiment link is written onto existing events_full rows by
+ * stamping experiment_* columns. Beyond the dataset-item lookup we skip the
+ * observation→trace lookup, ClickHouse dataset_run_items ingest, and the eval
+ * enqueue.
  */
 export const buildStableDatasetRunItemResponseEventsOnly = async ({
   body,
@@ -810,6 +861,19 @@ export const buildStableDatasetRunItemResponseEventsOnly = async ({
     createdAt,
     updatedAt: createdAt,
   };
+
+  if (datasetRunItem.traceId) {
+    await stampExperimentAttributesOnTraceEventsFromRunItem({
+      projectId,
+      traceId: datasetRunItem.traceId,
+      observationId: body.observationId,
+      experimentId,
+      experimentName: body.runName,
+      experimentDescription: body.runDescription,
+      experimentMetadata: body.metadata,
+      datasetItem,
+    });
+  }
 
   return datasetRunItem;
 };
@@ -948,6 +1012,17 @@ export const createDatasetRunItemForApi = async ({
     datasetItemValidFrom: datasetItem.validFrom,
     traceId: finalTraceId,
     observationId: observationId ?? undefined,
+  });
+
+  await stampExperimentAttributesOnTraceEventsFromRunItem({
+    projectId,
+    traceId: finalTraceId,
+    observationId,
+    experimentId: run.id,
+    experimentName: run.name,
+    experimentDescription: run.description,
+    experimentMetadata: metadata,
+    datasetItem,
   });
 
   return PostDatasetRunItemsV1Response.parse(datasetRunItem);
