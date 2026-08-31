@@ -28,6 +28,6 @@ jobs:
       - name: Codespell
         uses: codespell-project/actions-codespell@8f01853be192eb0f849a5c7d721450e7a467c579 # v2.2
         with:
-          # Vendored and patched package code contains minified identifiers,
-          # not prose that should be spellchecked.
-          skip: "./.git,./patches,./web/public/vendor"
+          # patches/ holds pnpm-patch diffs of vendored (often minified)
+          # package code, whose identifiers are not prose.
+          skip: "./.git,./patches"
