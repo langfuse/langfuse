@@ -25,6 +25,7 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
@@ -40,12 +41,7 @@ import {
 import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
@@ -53,7 +49,6 @@ import {
   Folder,
   InfoIcon,
   ListTree,
-  MoreVertical,
   PlusCircle,
   Trash,
 } from "lucide-react";
@@ -86,8 +81,8 @@ const renderMediaReference = (descriptor: MediaDescriptor) => (
 // the standalone visual part with identical DOM/classes:
 //   - tags:      real TagList in the real `flex gap-x-2 gap-y-1` wrapper,
 //                instead of TagPromptPopover/TagManager (same visible children).
-//   - actions:   real DropdownMenu + ghost MoreVertical, with a plain menu item
-//                instead of the tRPC-bound DeleteTraceButton / DeletePrompt.
+//   - actions:   createDropdownTableColumn (ghost MoreVertical trigger), with a
+//                plain menu item instead of the tRPC-bound DeleteTraceButton.
 // Everything else (TextLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
 // createTokenUsageTableColumn, LevelCountsDisplay, folder links, Skeleton, the
 // loading cells) is the actual production component.
@@ -442,31 +437,19 @@ function buildTraceColumns(
       defaultHidden: true,
       enableSorting: true,
     }),
-    {
-      accessorKey: "action",
-      header: "Action",
+    createDropdownTableColumn<TraceRow, string>({
       id: "action",
+      accessorFn: (row) => row.id,
+      header: "Action",
       size: 70,
       isFixedPosition: true,
-      // Real action menu: ghost MoreVertical trigger + dropdown. The destructive
-      // item is a plain menu item (the real one renders DeleteTraceButton, which
-      // needs tRPC) but the trigger DOM/spacing is identical.
-      cell: () => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem className="text-destructive">
-              <Trash className="mr-2 h-4 w-4" />
-              Delete trace
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      renderMenu: () => (
+        <DropdownMenuItem className="text-destructive">
+          <Trash className="mr-2 h-4 w-4" />
+          Delete trace
+        </DropdownMenuItem>
       ),
-    },
+    }),
   ];
 }
 
