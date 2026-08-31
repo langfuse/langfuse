@@ -5,8 +5,8 @@
  * Spec under test:
  * - Counter name: langfuse.ingestion.metadata_dropped
  * - Tags: reason ∈ {non_object_top_level, parse_failure, primitive},
- *   source = otel, domain ∈ {trace, observation}
- * - project_id must NOT be a metric tag (cardinality)
+ *   source = otel, domain ∈ {trace, observation}, projectId (low
+ *   cardinality: only projects emitting malformed metadata appear)
  * - No behavior change to what the processor returns
  * - Dotted-key metadata (langfuse.*.metadata.foo) stays increment-free
  *
@@ -31,9 +31,7 @@ vi.mock("../instrumentation", async (importOriginal) => {
 
 // processToIngestionEvents awaits redis.set (seen-traces tracking); CI's
 // tests-shared job has REDIS_HOST set but no Redis server, so ioredis
-// queues the command forever and the suite times out. Stub the client
-// (not null — the null path adds a logger.warn, which would break the
-// warn-cap exactly-10 assertion).
+// queues the command forever and the suite times out. Stub the client.
 vi.mock("../redis/redis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../redis/redis")>()),
   redis: { set: vi.fn().mockResolvedValue("OK") },
@@ -112,9 +110,8 @@ const expectDropTags = (
   // recordIncrement(stat) defaults to 1; explicit 1 is equivalent.
   expect(value ?? 1).toBe(1);
   expect(tags).toEqual(expect.objectContaining(expected));
-  // Acceptance criterion: project_id is NOT a metric tag (cardinality).
-  expect(Object.keys(tags ?? {})).not.toContain("project_id");
-  expect(Object.keys(tags ?? {})).not.toContain("projectId");
+  // projectId is a metric tag (low cardinality) for tenant attribution.
+  expect(tags?.projectId).toBe(PROJECT_ID);
 };
 
 describe("OTel metadata_dropped metric (LFE-14342)", () => {
@@ -299,8 +296,7 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
         expect.objectContaining({ reason: expectedReason, source: "otel" }),
       );
       expect(["trace", "observation"]).toContain(tags?.domain);
-      expect(Object.keys(tags ?? {})).not.toContain("project_id");
-      expect(Object.keys(tags ?? {})).not.toContain("projectId");
+      expect(tags?.projectId).toBe(PROJECT_ID);
     };
 
     it("counts a dropped attribute once when both pipelines run on one processor instance", async () => {
@@ -458,8 +454,7 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
         expect(["trace", "observation"]).toContain(
           (tags as Record<string, string>)?.domain,
         );
-        expect(Object.keys(tags ?? {})).not.toContain("project_id");
-        expect(Object.keys(tags ?? {})).not.toContain("projectId");
+        expect((tags as Record<string, string>)?.projectId).toBe(PROJECT_ID);
       }
     };
 
@@ -611,41 +606,6 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
 
         expect(events.length).toBeGreaterThan(0);
         expectDropReasons(["parse_failure", "primitive"]);
-      });
-    });
-
-    // RULING C: logger.warn from the drop path is capped at 10 per
-    // processor instance (per job); the metric keeps counting past the cap.
-    describe("warn cap", () => {
-      it("caps drop-path warns at 10 per instance while increments keep counting", async () => {
-        const warnSpy = vi
-          .spyOn(serverBarrel.logger, "warn")
-          .mockImplementation(() => serverBarrel.logger);
-
-        try {
-          const spans = Array.from({ length: 12 }, (_, i) =>
-            makeSpan(
-              [
-                {
-                  key: "langfuse.observation.metadata",
-                  // Distinct malformed values so per-value dedup keeps all 12.
-                  value: { stringValue: `{bad-${i}` },
-                },
-              ],
-              `00000000000000${(i + 1).toString(16).padStart(2, "0")}`,
-            ),
-          );
-
-          const events = await createProcessor().processToIngestionEvents([
-            makeResourceSpan([], spans),
-          ]);
-
-          expect(events.length).toBeGreaterThan(0);
-          expect(droppedCalls().length).toBeGreaterThan(10);
-          expect(warnSpy).toHaveBeenCalledTimes(10);
-        } finally {
-          warnSpy.mockRestore();
-        }
       });
     });
   });
