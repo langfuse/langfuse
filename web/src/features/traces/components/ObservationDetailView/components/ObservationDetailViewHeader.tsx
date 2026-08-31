@@ -1,9 +1,13 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import {
+  AnnotationQueueItemMenuContent,
+  type AnnotationQueueItemMenuQueue,
+} from "@/src/features/annotation-queues/components/AnnotationQueueItemMenuContent";
 import {
   ChevronDown,
   EllipsisVertical,
@@ -21,6 +25,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -62,7 +70,16 @@ export type ObservationDetailViewHeaderProps = {
     disabled: boolean;
     onClick: () => void;
   };
-  annotationQueueMenu: ReactNode;
+  annotationQueueAction: {
+    disabled: boolean;
+    totalCount: number;
+    queues: AnnotationQueueItemMenuQueue[];
+    onQueueItemToggle: (
+      queueId: string,
+      queueName: string,
+      itemId?: string,
+    ) => void;
+  };
   playgroundMenu: ReactNode;
   commentAction: {
     disabled: boolean;
@@ -82,7 +99,7 @@ export function ObservationDetailViewHeader({
   optionsMenu,
   datasetAction,
   annotationAction,
-  annotationQueueMenu,
+  annotationQueueAction,
   playgroundMenu,
   commentAction,
 }: ObservationDetailViewHeaderProps) {
@@ -90,6 +107,31 @@ export function ObservationDetailViewHeader({
     date: observation.startTime,
     accuracy: "millisecond",
   });
+  const [isAnnotationQueueMenuOpen, setIsAnnotationQueueMenuOpen] =
+    useState(false);
+  const annotationQueueMenu = (
+    <DropdownMenu
+      open={!annotationQueueAction.disabled && isAnnotationQueueMenuOpen}
+      onOpenChange={(open) => {
+        if (!annotationQueueAction.disabled) {
+          setIsAnnotationQueueMenuOpen(open);
+        }
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        <ObservationHeaderQueueButton
+          variant={isMobile ? "mobile" : "desktop"}
+          disabled={annotationQueueAction.disabled}
+          totalCount={annotationQueueAction.totalCount}
+        />
+      </DropdownMenuTrigger>
+      <AnnotationQueueItemMenuContent
+        projectId={projectId}
+        queues={annotationQueueAction.queues}
+        onQueueItemToggle={annotationQueueAction.onQueueItemToggle}
+      />
+    </DropdownMenu>
+  );
 
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">

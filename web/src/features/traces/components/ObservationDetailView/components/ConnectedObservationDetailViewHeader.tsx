@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   AnnotationQueueObjectType,
   isGenerationLike,
@@ -11,7 +11,7 @@ import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features
 import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+import { type AnnotationQueueItemMenuQueue } from "@/src/features/annotation-queues/components/AnnotationQueueItemMenuContent";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import {
   type WithStringifiedMetadata,
@@ -27,12 +27,13 @@ import { Drawer, DrawerContent } from "@/src/components/ui/drawer";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useSession } from "next-auth/react";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import {
   ObservationDetailViewHeader,
   ObservationHeaderDatasetButton,
   ObservationHeaderOptionsButton,
   ObservationHeaderPlaygroundButton,
-  ObservationHeaderQueueButton,
 } from "./ObservationDetailViewHeader";
 
 export interface ConnectedObservationDetailViewHeaderProps {
@@ -89,6 +90,69 @@ export const ConnectedObservationDetailViewHeader = memo(
       projectId,
       scope: "scores:CUD",
     });
+    const session = useSession();
+    const hasAnnotationQueueAccess = useHasProjectAccess({
+      projectId,
+      scope: "annotationQueues:CUD",
+    });
+    const annotationQueues = api.annotationQueues.byObjectId.useQuery(
+      {
+        projectId,
+        objectId: observation.id,
+        objectType: AnnotationQueueObjectType.OBSERVATION,
+      },
+      {
+        enabled:
+          session.status === "authenticated" &&
+          Boolean(projectId) &&
+          Boolean(observation.id),
+      },
+    );
+    const utils = api.useUtils();
+    const addToQueueMutation =
+      api.annotationQueueItems.createMany.useMutation();
+    const removeFromQueueMutation =
+      api.annotationQueueItems.deleteMany.useMutation();
+    const handleQueueItemToggle = useCallback(
+      async (queueId: string, queueName: string, itemId?: string) => {
+        try {
+          if (!itemId) {
+            await addToQueueMutation.mutateAsync({
+              projectId,
+              objectIds: [observation.id],
+              objectType: AnnotationQueueObjectType.OBSERVATION,
+              queueId,
+            });
+          } else if (
+            confirm(
+              `Are you sure you want to remove this item from the queue "${queueName}"?`,
+            )
+          ) {
+            await removeFromQueueMutation.mutateAsync({
+              projectId,
+              itemIds: [itemId],
+            });
+          }
+
+          await utils.annotationQueues.byObjectId.invalidate({
+            projectId,
+            objectId: observation.id,
+            objectType: AnnotationQueueObjectType.OBSERVATION,
+          });
+        } catch (error) {
+          reportNonTrpcError(error, "annotation-queues");
+        }
+      },
+      [
+        addToQueueMutation,
+        observation.id,
+        projectId,
+        removeFromQueueMutation,
+        utils.annotationQueues,
+      ],
+    );
+    const areAnnotationQueuesLoading =
+      session.status !== "authenticated" || annotationQueues.isLoading;
     const {
       existingDatasetItems,
       hasAccess: hasDatasetAccess,
@@ -236,21 +300,15 @@ export const ConnectedObservationDetailViewHeader = memo(
                             }
                           : openDrawer,
                       }}
-                      annotationQueueMenu={
-                        <AnnotationQueueItemDropdownMenuController
-                          projectId={projectId}
-                          objectId={observation.id}
-                          objectType={AnnotationQueueObjectType.OBSERVATION}
-                        >
-                          {({ disabled, totalCount }) => (
-                            <ObservationHeaderQueueButton
-                              variant={isMobile ? "mobile" : "desktop"}
-                              disabled={disabled !== undefined}
-                              totalCount={totalCount}
-                            />
-                          )}
-                        </AnnotationQueueItemDropdownMenuController>
-                      }
+                      annotationQueueAction={{
+                        disabled:
+                          !hasAnnotationQueueAccess ||
+                          areAnnotationQueuesLoading,
+                        totalCount: annotationQueues.data?.totalCount ?? 0,
+                        queues: (annotationQueues.data?.queues ??
+                          []) satisfies AnnotationQueueItemMenuQueue[],
+                        onQueueItemToggle: handleQueueItemToggle,
+                      }}
                       playgroundMenu={
                         observationWithIO &&
                         isGenerationLike(observationWithIO.type) ? (

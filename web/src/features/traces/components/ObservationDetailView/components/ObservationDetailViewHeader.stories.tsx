@@ -34,7 +34,18 @@ const defaultArgs = {
     disabled: false,
     onClick: fn(),
   },
-  annotationQueueMenu: <button>Queue menu</button>,
+  annotationQueueAction: {
+    disabled: false,
+    totalCount: 1,
+    queues: [
+      {
+        id: "queue-id",
+        name: "Review queue",
+        itemId: "queue-item-id",
+      },
+    ],
+    onQueueItemToggle: fn(),
+  },
   playgroundMenu: <button>Playground menu</button>,
   commentAction: {
     disabled: false,
