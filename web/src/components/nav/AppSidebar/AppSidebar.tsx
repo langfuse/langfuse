@@ -50,7 +50,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { planLabels, type Plan } from "@langfuse/shared";
-import { Avatar } from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Card,
   CardContent,

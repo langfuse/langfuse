@@ -1,7 +1,7 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
-import { Avatar } from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,

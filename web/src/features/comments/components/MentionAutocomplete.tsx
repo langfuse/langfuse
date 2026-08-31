@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { Avatar } from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Command,
   CommandEmpty,

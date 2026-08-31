@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
-import { Avatar } from "@/src/components/ui/avatar";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
