@@ -25,7 +25,7 @@ const apiReferenceHtml = `<!doctype html>
     <div id="app"></div>
     <script
       src="../vendor/scalar/scalar-api-reference-1.67.0.txt"
-      integrity="sha384-6c7Vmx+i0yi8gBbltn0x1cavD+zsMGw2xmXXVyacPJLIGBxwaVimW5TW0WiW17Ir"></script>
+      integrity="sha384-K+6QKzDFun7NTjt/zWI+uFnjs8cJZ5dc2v5sKpm6Ftry+zYxcyZICFeqXqRAR3M7"></script>
     <script src="../vendor/scalar/langfuse-api-reference.js"></script>
   </body>
 </html>`;

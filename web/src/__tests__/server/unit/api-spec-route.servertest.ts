@@ -74,8 +74,23 @@ describe("/api/spec", () => {
     );
 
     expect(createHash("sha384").update(bundle).digest("base64")).toBe(
-      "6c7Vmx+i0yi8gBbltn0x1cavD+zsMGw2xmXXVyacPJLIGBxwaVimW5TW0WiW17Ir",
+      "K+6QKzDFun7NTjt/zWI+uFnjs8cJZ5dc2v5sKpm6Ftry+zYxcyZICFeqXqRAR3M7",
     );
+    expect(bundle.toString()).not.toContain("https://fonts.scalar.com");
+
+    const fontUrls = [
+      ...new Set(
+        bundle
+          .toString()
+          .match(/\.\.\/vendor\/scalar\/fonts\/[^)"']+\.woff2/g) ?? [],
+      ),
+    ];
+    expect(fontUrls).toHaveLength(14);
+    for (const fontUrl of fontUrls) {
+      expect(() =>
+        readFileSync(join(process.cwd(), "public", fontUrl.slice(3))),
+      ).not.toThrow();
+    }
   });
 
   it("supports metadata requests without sending the document", () => {
