@@ -281,6 +281,19 @@ describe("EvaluatorService", () => {
         }),
       ],
     });
+
+    await prisma.evaluatorVersion.updateMany({
+      where: { evaluatorId: created.id },
+      data: { prompt: "   ", promptMessages: Prisma.DbNull },
+    });
+    await expect(service.get(projectId, created.id)).resolves.toMatchObject({
+      versions: [
+        expect.objectContaining({
+          promptMessages: [{ role: "user", content: "No prompt provided" }],
+        }),
+      ],
+    });
+
     await expect(service.get(otherProjectId, created.id)).rejects.toThrow(
       "Evaluator not found",
     );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
@@ -17,7 +17,7 @@ function PromptEditorStory({
   messages: EvaluatorPromptMessage[];
   compact?: boolean;
   previewEnabled?: boolean;
-  sampleObject?: Record<string, unknown> | null;
+  sampleObject?: ComponentProps<typeof PromptEditorContent>["sampleObject"];
 }) {
   const [store] = useState(() => {
     const nextStore = createEvaluatorSetupStore({

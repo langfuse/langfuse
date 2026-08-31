@@ -85,7 +85,7 @@ export function PromptEditorContent({
   sampleObject,
 }: {
   store: EvaluatorSetupStore;
-  sampleObject: ReturnType<typeof useEvaluatorSetupSample>;
+  sampleObject: Record<string, unknown> | null;
 }) {
   const state = useStore(
     store,

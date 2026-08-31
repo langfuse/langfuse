@@ -62,14 +62,21 @@ export type EvaluatorPromptMessages = z.infer<
 /** Compatibility alias for messages persisted with the legacy prompt. */
 export type PersistedEvaluatorPromptMessages = EvaluatorPromptMessages;
 
+const LEGACY_EMPTY_PROMPT_PLACEHOLDER = "No prompt provided";
+
 export function getEvaluatorPromptMessages(params: {
   prompt: string | null;
   promptMessages?: unknown;
 }): PersistedEvaluatorPromptMessages {
   const parsed = EvaluatorPromptMessagesSchema.safeParse(params.promptMessages);
-  return parsed.success
-    ? parsed.data
-    : [{ role: "user", content: params.prompt ?? "" }];
+  if (parsed.success) return parsed.data;
+
+  // Historical evaluator rows may contain blank prompts that do not satisfy
+  // the current message schema. Keep those rows readable with valid content.
+  const legacyPrompt = params.prompt?.trim()
+    ? params.prompt
+    : LEGACY_EMPTY_PROMPT_PLACEHOLDER;
+  return [{ role: "user", content: legacyPrompt }];
 }
 
 export type EvalTemplateLlmAsAJudge = EvalTemplate & {
