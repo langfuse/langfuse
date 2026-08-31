@@ -1,7 +1,7 @@
 import { InfoIcon } from "lucide-react";
 
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
-import { BreakdownTooltip } from "@/src/features/traces";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 
 export type TokenUsageDetails = Record<string, number | undefined>;
 
