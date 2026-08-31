@@ -70,12 +70,17 @@ describe("cached input metrics", () => {
     ).toBe(42);
   });
 
-  it("distinguishes unattributed cached cost from an explicit zero cost", () => {
-    expect(getCachedInputMetric()).toBe(0);
+  it("distinguishes missing cached metrics from explicit zero values", () => {
+    expect(getCachedInputMetric()).toBeUndefined();
     expect(getCachedInputCost()).toBeUndefined();
     expect(getCachedInputCost({ input_cache_creation: 0.01 })).toBeUndefined();
+    expect(getCachedInputMetric({ input_cached_tokens: 0 })).toBe(0);
     expect(getCachedInputCost({ input_cached_tokens: 0 })).toBe(0);
     expect(getCachedInputCost({ input_cached_tokens: 0.004 })).toBe(0.004);
+  });
+
+  it("matches cache-read keys case-insensitively", () => {
+    expect(getCachedInputMetric({ INPUT_CACHED_TOKENS: 5 })).toBe(5);
   });
 
   it("exposes cached token and cost columns as numeric sidebar facets", () => {

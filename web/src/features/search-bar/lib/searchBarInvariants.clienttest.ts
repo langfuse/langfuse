@@ -245,16 +245,29 @@ describe("search bar invariants — events v4 registry", () => {
     });
   });
 
-  it("supports presence filters for cached cost", () => {
+  it("supports presence filters for cached metrics", () => {
+    const query =
+      "has:cachedTokens -has:cachedTokens has:cachedCost -has:cachedCost";
     expect(
-      planCommit(
-        "has:cachedCost -has:cachedCost",
-        undefined,
-        EVENTS_FIELD_REGISTRY,
-      ),
+      validateQuery(query, undefined, EVENTS_FIELD_REGISTRY).diagnostics,
+    ).toEqual([]);
+    expect(
+      planCommit(query, undefined, EVENTS_FIELD_REGISTRY),
     ).toMatchObject({
       status: "committed",
       filters: [
+        {
+          column: "cachedInputTokens",
+          type: "null",
+          operator: "is not null",
+          value: "",
+        },
+        {
+          column: "cachedInputTokens",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
         {
           column: "cachedInputCost",
           type: "null",

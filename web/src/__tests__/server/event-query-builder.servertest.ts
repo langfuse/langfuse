@@ -44,26 +44,35 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     },
   );
 
-  it("keeps missing cached cost distinguishable from an explicit zero", () => {
-    const [filter] = createFilterFromFilterState(
-      [
-        {
-          column: "cachedInputCost",
-          type: "null",
-          operator: "is null",
-          value: "",
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    );
+  it.each([
+    ["cachedInputTokens", eventsTableCachedInputTokensSql],
+    ["cachedInputCost", eventsTableCachedInputCostSql],
+  ] as const)(
+    "keeps missing %s distinguishable from an explicit zero",
+    (column, expression) => {
+      expect(expression).toContain("mapExists");
+      expect(
+        eventsTableCols.find((definition) => definition.id === column),
+      ).toMatchObject({ nullable: true });
 
-    expect(filter).toBeDefined();
-    if (!filter) throw new Error("expected filter");
-    expect(filter.apply().query).toContain(
-      `${eventsTableCachedInputCostSql} is null`,
-    );
-  });
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "null",
+            operator: "is null",
+            value: "",
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      expect(filter.apply().query).toContain(`${expression} is null`);
+    },
+  );
 
   it("builds one events_core scan for multiple filter option columns", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({

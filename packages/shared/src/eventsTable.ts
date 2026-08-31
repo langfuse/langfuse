@@ -54,8 +54,12 @@ export const isRootObservation = ({
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
 
-const isCachedInputMetric = (key: string): boolean =>
-  key.includes("cached") || key.includes("cache_read");
+const isCachedInputMetric = (key: string): boolean => {
+  const normalizedKey = key.toLowerCase();
+  return (
+    normalizedKey.includes("cached") || normalizedKey.includes("cache_read")
+  );
+};
 
 const findCachedInputMetric = (
   details?: Record<string, number> | null,
@@ -71,33 +75,26 @@ const findCachedInputMetric = (
 
 export const getCachedInputMetric = (
   details?: Record<string, number> | null,
-): number => findCachedInputMetric(details) ?? 0;
+): number | undefined => findCachedInputMetric(details);
 
 export const getCachedInputCost = (
   details?: Record<string, number> | null,
 ): number | undefined => findCachedInputMetric(details);
 
-const cachedInputMetricSql = (
-  detailsColumn: string,
-  missingValueSql: "0" | "NULL",
-): string => {
+const cachedInputMetricSql = (detailsColumn: string): string => {
   const keyPredicate = (key: string) =>
     `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
   const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
   const sum = `arraySum(mapValues(${filteredDetails}))`;
 
-  return missingValueSql === "NULL"
-    ? `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`
-    : sum;
+  return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
 };
 
 export const eventsTableCachedInputTokensSql = cachedInputMetricSql(
   "e.usage_details",
-  "0",
 );
 export const eventsTableCachedInputCostSql = cachedInputMetricSql(
   "e.cost_details",
-  "NULL",
 );
 
 type MutableDeep<T> = T extends readonly (infer U)[]
@@ -289,6 +286,7 @@ const eventsTableColsDefinition = [
     id: "cachedInputTokens",
     type: "number",
     internal: eventsTableCachedInputTokensSql,
+    nullable: true,
   },
   {
     name: "Output Tokens",
