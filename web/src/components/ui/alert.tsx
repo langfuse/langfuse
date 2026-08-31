@@ -32,20 +32,13 @@ const alertVariants = cva(
   },
 );
 
-type AlertProps = Omit<
-  Pick<React.ComponentProps<"div">, "children" | "className"> &
-    Pick<
-      VariantProps<typeof alertVariants>,
-      "dismissible" | "size" | "variant"
-    >,
-  "children" | "className"
+type AlertProps = Pick<
+  VariantProps<typeof alertVariants>,
+  "dismissible" | "size" | "variant"
 > & {
   children: React.ReactNode;
 };
-type AlertTitleProps = Omit<
-  Pick<React.ComponentProps<"h5">, "children" | "className">,
-  "children" | "className"
-> & {
+type AlertTitleProps = {
   children: React.ReactNode;
   className?: "text-base";
 };
@@ -58,10 +51,7 @@ function Alert({ children, dismissible, size, variant }: AlertProps) {
   );
 }
 
-type AlertDescriptionProps = Omit<
-  Pick<React.ComponentProps<"div">, "children" | "className">,
-  "children" | "className"
-> & {
+type AlertDescriptionProps = {
   children: React.ReactNode;
 };
 
