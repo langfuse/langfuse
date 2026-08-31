@@ -362,7 +362,7 @@ async function prepareLLMTextCall<
       abortSignal: options.abortSignal,
       // URL transport preserves provider-supported media URLs without downloading
       // them. Inline and disabled modes continue to block remote downloads.
-      experimental_download: createRemoteMediaDownloadHandler(options.messages),
+      experimental_download: createEvaluatorMediaUrlPolicy(options.messages),
       ...(capture ? { telemetry: capture.telemetry } : {}),
     },
   };
@@ -409,7 +409,7 @@ function isJsonObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function createRemoteMediaDownloadHandler(
+export function createEvaluatorMediaUrlPolicy(
   messages: ModelMessage[],
 ): Experimental_DownloadFunction {
   const transport = resolveEvaluatorMediaTransport({
@@ -418,7 +418,7 @@ export function createRemoteMediaDownloadHandler(
   });
 
   return transport === "url"
-    ? createPassThroughSupportedRemoteMedia(messages)
+    ? createProviderSupportedMediaUrlPolicy(messages)
     : rejectRemoteMediaDownloads;
 }
 
@@ -435,9 +435,11 @@ const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
   return [];
 };
 
-function createPassThroughSupportedRemoteMedia(
+function createProviderSupportedMediaUrlPolicy(
   messages: ModelMessage[],
 ): Experimental_DownloadFunction {
+  // Keep the media type beside each URL so validation errors can explain which
+  // input the selected model rejected.
   const mediaTypesByUrl = new Map<string, string>();
   for (const message of messages) {
     if (!Array.isArray(message.content)) continue;
@@ -448,10 +450,13 @@ function createPassThroughSupportedRemoteMedia(
     }
   }
 
-  return (downloads) => handleRemoteMediaDownloads(downloads, mediaTypesByUrl);
+  return (downloads) =>
+    enforceProviderSupportedMediaUrls(downloads, mediaTypesByUrl);
 }
 
-async function handleRemoteMediaDownloads(
+// The AI SDK asks about every URL. Preserve URLs supported by the provider and
+// reject the rest instead of letting the SDK download them on this server.
+async function enforceProviderSupportedMediaUrls(
   downloads: Parameters<Experimental_DownloadFunction>[0],
   mediaTypesByUrl: Map<string, string>,
 ) {
@@ -483,9 +488,9 @@ async function handleRemoteMediaDownloads(
   return downloads.map(() => null);
 }
 
-export const passThroughSupportedRemoteMedia: Experimental_DownloadFunction = (
+export const providerSupportedMediaUrlPolicy: Experimental_DownloadFunction = (
   downloads,
-) => handleRemoteMediaDownloads(downloads, new Map());
+) => enforceProviderSupportedMediaUrls(downloads, new Map());
 
 function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
   if (!tools) return;
