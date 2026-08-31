@@ -137,7 +137,7 @@ export function AutocompleteListbox({
               </span>
               {o.kind === "field" &&
                 o.scoreLevels?.map((level) => (
-                  <ScoreTag key={level} level={level} className="flex-none" />
+                  <ScoreTag key={level} level={level} />
                 ))}
               {o.kind === "value" && o.active && (
                 <Check

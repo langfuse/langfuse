@@ -10,6 +10,7 @@ import {
 } from "@/src/features/public-api/types/metrics";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { METRICS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
@@ -24,7 +25,16 @@ export default withMiddlewares(
       fn: async ({ query, auth }) => {
         try {
           // Extract the parsed query object
-          const queryParams = query.query;
+          const dataAccessWindow = clampToDataAccessDays({
+            plan: auth.scope.plan,
+            fromTimestamp: query.query.fromTimestamp,
+          });
+          const queryParams = {
+            ...query.query,
+            fromTimestamp:
+              dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+              query.query.fromTimestamp,
+          };
 
           // Log the received query for debugging
           logger.debug("Received metrics query", {

@@ -353,7 +353,7 @@ export class ChbBillingService {
             "ClickHouse Billing returned a different organization for this checkout",
         });
       }
-      return session.url;
+      return session.checkoutUrl;
     }
 
     // First checkout for this org: the CH organization id is the one thing
@@ -414,7 +414,7 @@ export class ChbBillingService {
       );
     });
 
-    return session.url;
+    return session.checkoutUrl;
   }
 
   async changePlan(orgId: string, newProductId: string, opId?: string) {

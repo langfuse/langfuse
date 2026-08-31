@@ -4,13 +4,13 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createLinkListTableColumn } from "@/src/components/design-system/table/columns/createLinkListTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -527,7 +527,7 @@ export default function SessionsTable({
       header: "Duration",
       size: 130,
       enableHiding: true,
-      formatter: formatIntervalSeconds,
+      formatter: (value) => formatIntervalSeconds(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -549,36 +549,26 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
-    {
+    createLinkListTableColumn<SessionTableRow>({
       accessorKey: "userIds",
       enableColumnFilter: !omittedFilter.includes("userIds"),
-      id: "userIds",
       header: "User IDs",
       size: 200,
       enableHiding: true,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        const value: SessionTableRow["userIds"] = row.getValue("userIds");
-        if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
-        }
-        return value && Array.isArray(value) ? (
-          <div className="flex gap-1">
-            {(value as string[]).map((user) => (
-              <TableLink
-                key={user}
-                path={`/project/${projectId}/users/${encodeURIComponent(user)}`}
-                value={user}
-              />
-            ))}
-          </div>
-        ) : undefined;
+      getCell: (userIds) => {
+        if (!sessionMetrics.isSuccess) return { type: "loading" };
+        if (!userIds?.length) return undefined;
+
+        return userIds.map((userId) => ({
+          path: `/project/${projectId}/users/${encodeURIComponent(userId)}`,
+          value: userId,
+        }));
       },
-    },
+    }),
     createNumberTableColumn<SessionTableRow>({
       accessorKey: "countTraces",
       header: "Traces",
@@ -604,7 +594,7 @@ export default function SessionsTable({
       enableHiding: true,
       defaultHidden: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -620,7 +610,7 @@ export default function SessionsTable({
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -635,7 +625,7 @@ export default function SessionsTable({
       size: 110,
       enableHiding: true,
       enableSorting: true,
-      formatter: usdFormatter,
+      formatter: (value) => usdFormatter(value),
       getValue: (value) => {
         if (!sessionMetrics.isSuccess) return { type: "loading" };
         if (!value) return undefined;
@@ -695,7 +685,7 @@ export default function SessionsTable({
       size: 220,
       enableHiding: true,
       enableSorting: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const promptTokens: SessionTableRow["inputTokens"] =
           row.getValue("inputTokens");
@@ -704,7 +694,7 @@ export default function SessionsTable({
         const totalTokens: SessionTableRow["totalTokens"] =
           row.getValue("totalTokens");
         if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return (
           <TokenUsageBadge
@@ -723,11 +713,11 @@ export default function SessionsTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
         const value: SessionTableRow["traceTags"] = row.getValue("traceTags");
         if (!sessionMetrics.isSuccess) {
-          return <TableTextLoadingCell />;
+          return <Skeleton className="h-4 w-1/2" />;
         }
         return (
           value &&
