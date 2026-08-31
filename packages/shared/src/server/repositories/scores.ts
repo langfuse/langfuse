@@ -509,7 +509,13 @@ export const getObservationScoresForExperimentItems = async (
     }
   >
 > => {
+  // An EMPTY experimentItemIds array means "no item predicate" to the builder,
+  // which would widen the scan to every item of these experiments to answer a
+  // page that has no rows. Undefined still means "all items", deliberately.
   if (experimentIds.length === 0) return [];
+  if (experimentItemIds !== undefined && experimentItemIds.length === 0) {
+    return [];
+  }
 
   const itemSpansSubquery = eventsExperimentsForItems({
     projectId,
