@@ -11,6 +11,7 @@ import {
   CloudConfigSchema,
   InternalServerError,
   type Organization,
+  type ParsedOrganization,
   type Plan,
   parseDbOrg,
 } from "@langfuse/shared";
@@ -169,6 +170,14 @@ async function getOrgBasedOnActiveSubscriptionId(
 }
 
 /**
+ * Whether a Stripe object names this cloud region, another one, or none at all.
+ * Only Stripe itself is shared between regions, so these markers are the only
+ * ownership information a region can read without access to another region's
+ * database.
+ */
+type RegionMarker = "own-region" | "other-region" | "none";
+
+/**
  * Fallback method to find an organization using the checkout session attached to a subscription.
  * Used primarily for new subscriptions where the subscription ID hasn't been saved to the org yet.
  *
@@ -179,11 +188,12 @@ async function getOrgBasedOnActiveSubscriptionId(
  * 4. Looks up the organization
  *
  * @param subscriptionId - The Stripe subscription ID to look up
- * @returns The organization associated with the checkout session, or null if not found
+ * @returns The organization associated with the checkout session (null if not
+ * found) plus the region marker the session carries
  */
 async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   subscriptionId: string,
-): Promise<Organization | null> {
+): Promise<{ organization: Organization | null; marker: RegionMarker }> {
   // get the checkout session from the subscription to retrieve the client reference for this subscription
   const checkoutSessionsResponse = await stripeClient?.checkout.sessions.list({
     subscription: subscriptionId,
@@ -191,7 +201,7 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   });
   if (!checkoutSessionsResponse || checkoutSessionsResponse.data.length !== 1) {
     logger.warn("[Stripe Webhook] No checkout session found");
-    return null;
+    return { organization: null, marker: "none" };
   }
   const checkoutSession = checkoutSessionsResponse.data[0];
 
@@ -199,13 +209,13 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
   const clientReference = checkoutSession.client_reference_id;
   if (!clientReference) {
     logger.warn("[Stripe Webhook] No client reference");
-    return null;
+    return { organization: null, marker: "none" };
   }
   if (!isStripeClientReferenceFromCurrentCloudRegion(clientReference)) {
     logger.info(
       "[Stripe Webhook] Client reference not from current cloud region",
     );
-    return null;
+    return { organization: null, marker: "other-region" };
   }
   const orgId = getOrgIdFromStripeClientReference(clientReference);
 
@@ -215,8 +225,26 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
       id: orgId,
     },
   });
-  return organization;
+  return { organization, marker: "own-region" };
 }
+
+/**
+ * Why the organization for a subscription could not be resolved. The
+ * distinction decides whether a human has to look: Stripe delivers every event
+ * to all cloud regions, so a miss in a region that does not own the
+ * subscription is the normal case, not a fault.
+ */
+type OrgLookupMiss =
+  /** A region marker exists and names a different region: expected fan-out. */
+  | "other-region"
+  /** A marker names this region, but the organization row is gone. */
+  | "org-row-missing"
+  /** No region marker at all, so no region can own this event. */
+  | "unattributable";
+
+type OrgLookupResult =
+  | { found: true; org: ParsedOrganization }
+  | { found: false; miss: OrgLookupMiss };
 
 /**
  * Resolve the organization for a given subscription using layered fallbacks:
@@ -224,17 +252,19 @@ async function getOrgBasedOnCheckoutSessionAttachedToSubscription(
  * 2) by Stripe customer id
  * 3) by checkout session attached to the subscription
  * 4) by subscription.metadata.orgId (last, because there might be a mismatch)
- * Returns parsed org or null if not found (caller should log/return).
+ *
+ * Never logs a miss itself: only the caller knows whether a missing
+ * organization is expected in its context. Use `logOrgLookupMiss` for that.
  */
 async function getOrgForSubscriptionWithFallbacks(
   subscription: Stripe.Subscription,
-) {
+): Promise<OrgLookupResult> {
   const subscriptionId = subscription.id;
 
   // 1) by active subscription id
   let organization = await getOrgBasedOnActiveSubscriptionId(subscriptionId);
   if (organization) {
-    return parseDbOrg(organization);
+    return { found: true, org: parseDbOrg(organization) };
   }
 
   // 2) by Stripe customer id
@@ -245,15 +275,15 @@ async function getOrgForSubscriptionWithFallbacks(
   if (customerId) {
     organization = await getOrgBasedOnCustomerId(customerId);
     if (organization) {
-      return parseDbOrg(organization);
+      return { found: true, org: parseDbOrg(organization) };
     }
   }
 
   // 3) by checkout session attached to the subscription
-  organization =
+  const checkoutSession =
     await getOrgBasedOnCheckoutSessionAttachedToSubscription(subscriptionId);
-  if (organization) {
-    return parseDbOrg(organization);
+  if (checkoutSession.organization) {
+    return { found: true, org: parseDbOrg(checkoutSession.organization) };
   }
 
   // 4) by metadata.orgId
@@ -261,17 +291,71 @@ async function getOrgForSubscriptionWithFallbacks(
   if (metadataOrgId) {
     organization = await getOrgById(metadataOrgId);
     if (organization) {
-      return parseDbOrg(organization);
+      return { found: true, org: parseDbOrg(organization) };
     }
   }
 
-  logger.error(
-    `[Stripe Webhook] getOrgForSubscriptionWithFallbacks: Organization not found for subscription ${subscriptionId}`,
-  );
-  traceException(
-    `[Stripe Webhook] getOrgForSubscriptionWithFallbacks: Organization not found for subscription ${subscriptionId}`,
-  );
-  return null;
+  // Subscription metadata is the stronger marker: it is written by the region
+  // that owns the subscription, while a checkout session only exists for
+  // subscriptions that went through our pricing page.
+  const metadataRegion = subscription.metadata?.cloudRegion;
+  const marker: RegionMarker = metadataRegion
+    ? metadataRegion === env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? "own-region"
+      : "other-region"
+    : checkoutSession.marker;
+
+  switch (marker) {
+    case "own-region":
+      return { found: false, miss: "org-row-missing" };
+    case "other-region":
+      return { found: false, miss: "other-region" };
+    case "none":
+      return { found: false, miss: "unattributable" };
+  }
+}
+
+/**
+ * Report an unresolved organization at a severity that matches whether anyone
+ * has to act on it. Only `org-row-missing` raises a traced exception, so the
+ * webhook endpoint's error rate stays a signal rather than a background hum of
+ * expected cross-region misses.
+ *
+ * @param expected - Set by callers that know a missing organization needs no
+ * action in their context, e.g. a deletion event that has nothing left to write
+ */
+function logOrgLookupMiss({
+  miss,
+  subscriptionId,
+  context,
+  expected = false,
+}: {
+  miss: OrgLookupMiss;
+  subscriptionId: string;
+  context: string;
+  expected?: boolean;
+}) {
+  const message = `[Stripe Webhook] (${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}) ${context}: Organization not found for subscription ${subscriptionId} (${miss})`;
+
+  switch (miss) {
+    case "other-region":
+      logger.info(message);
+      return;
+    case "unattributable":
+      // Every region reports this same miss for the same subscription, so it is
+      // a fleet-wide fact about the Stripe object rather than a regional fault.
+      // Alerting belongs in billing reconciliation, not in one region's spans.
+      logger.warn(message);
+      return;
+    case "org-row-missing":
+      if (expected) {
+        logger.info(message);
+        return;
+      }
+      logger.error(message);
+      traceException(message);
+      return;
+  }
 }
 
 /**
@@ -310,15 +394,19 @@ async function ensureMetadataIsSetOnStripeSubscription(
   }
 
   try {
-    const parsedOrg = await getOrgForSubscriptionWithFallbacks(subscription);
-    if (!parsedOrg) {
+    const lookup = await getOrgForSubscriptionWithFallbacks(subscription);
+    if (!lookup.found) {
       // Note: all our production environments receive all webhooks from Stripe.
-      // Only one should handle the webhook; it is expected in 2/3 cases the organization is not found.
-      logger.info(
-        `[Stripe Webhook] (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization not found for subscription ${subscription.id} in Environment  ${currentEnvironment}`,
-      );
+      // Only one should handle the webhook, so all but one region are expected
+      // not to find the organization here.
+      logOrgLookupMiss({
+        miss: lookup.miss,
+        subscriptionId: subscription.id,
+        context: "ensureMetadataIsSetOnStripeSubscription",
+      });
       return;
     }
+    const parsedOrg = lookup.org;
     logger.info(
       `[Stripe Webhook]  (${currentEnvironment}) ensureMetadataIsSetOnStripeSubscription: Organization for subscription ${subscription.id} found in Environment  ${currentEnvironment}`,
     );
@@ -504,16 +592,20 @@ export async function handleSubscriptionChanged(
 
   const subscriptionId = subscription.id;
 
-  const parsedOrg = await getOrgForSubscriptionWithFallbacks(subscription);
-  if (!parsedOrg) {
-    logger.error(
-      `[Stripe Webhook] (${currentEnvironment}) Organization not found for subscription ${subscriptionId}`,
-    );
-    traceException(
-      `[Stripe Webhook] (${currentEnvironment}) Organization not found for subscription ${subscriptionId}`,
-    );
+  const lookup = await getOrgForSubscriptionWithFallbacks(subscription);
+  if (!lookup.found) {
+    logOrgLookupMiss({
+      miss: lookup.miss,
+      subscriptionId,
+      context: "handleSubscriptionChanged",
+      // Organization deletion cancels the subscription before deleting the row,
+      // so Stripe delivers customer.subscription.deleted once the row is
+      // already gone. There is nothing left to write, and nothing to fix.
+      expected: action === "deleted",
+    });
     return;
   }
+  const parsedOrg = lookup.org;
 
   if (
     parsedOrg.cloudConfig?.stripe?.activeSubscriptionId &&

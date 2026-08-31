@@ -32,7 +32,7 @@ export const runEvaluationRouter = createTRPCRouter({
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "evalJob:CUD",
+          scope: "evaluationRule:CUD",
         });
 
         const {

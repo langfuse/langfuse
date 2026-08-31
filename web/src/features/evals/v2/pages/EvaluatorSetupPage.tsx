@@ -161,7 +161,7 @@ export function EvaluatorSetupPage(
   const capture = usePostHogClientCapture();
   const canReactivate = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
@@ -669,6 +669,7 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
+              title="View version history"
               onClick={() => {
                 capture("evaluators:version_history_interaction", {
                   action: "open",

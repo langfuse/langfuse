@@ -48,7 +48,7 @@ import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-tr
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
@@ -59,7 +59,7 @@ import {
 } from "@/src/utils/observationCost";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { MemoizedIOTableCell } from "../../ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
@@ -728,13 +728,9 @@ export default function ObservationsTable({
       header: "Input",
       id: "input",
       size: 300,
+      cellBackground: "gray",
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-muted/50"
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -757,13 +753,9 @@ export default function ObservationsTable({
       id: "output",
       header: "Output",
       size: 300,
+      cellBackground: "green",
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          className="bg-accent-light-green"
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       cell: ({ row }) => {
         const observationId: string = row.getValue("id");
@@ -978,11 +970,7 @@ export default function ObservationsTable({
       header: "Metadata",
       size: 300,
       loadingCell: () => (
-        <MemoizedIOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to traces to track additional information.",
@@ -1011,7 +999,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -1084,7 +1072,9 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? <TableTextLoadingCell /> : null;
+        return generations.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
         createNumberTableColumn<ObservationsTableRow>({
@@ -1139,53 +1129,35 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? <TableTextLoadingCell /> : null;
+        return generations.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.cost.inputCost,
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            } = row.getValue("cost");
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
+          emptyValue: "-",
+          formatter: (value, { row }) =>
+            formatObservationCost(value, row.original.type),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.cost.outputCost,
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            } = row.getValue("cost");
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
+          emptyValue: "-",
+          formatter: (value, { row }) =>
+            formatObservationCost(value, row.original.type),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
   ];
@@ -1654,15 +1626,9 @@ const GenerationsDynamicCell = ({
         ? observation.data?.input
         : observation.data?.metadata;
 
-  return (
-    <MemoizedIOTableCell
-      isLoading={observation.isPending}
-      data={data}
-      className={cn(
-        col === "output" && "bg-accent-light-green",
-        col === "input" && "bg-muted/50",
-      )}
-      singleLine={singleLine}
-    />
-  );
+  if (observation.isPending) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
+  return <ConnectedIOTableCell data={data} singleLine={singleLine} />;
 };

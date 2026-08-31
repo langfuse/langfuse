@@ -245,7 +245,7 @@ describe("chbBillingService", () => {
 
   describe("createCheckoutSession", () => {
     const session = {
-      url: "https://pay.example.com/c/1",
+      checkoutUrl: "https://pay.example.com/c/1",
       organizationId: CH_ORG_ID,
     };
 
@@ -259,7 +259,7 @@ describe("chbBillingService", () => {
         "op-checkout",
       );
 
-      expect(url).toBe(session.url);
+      expect(url).toBe(session.checkoutUrl);
       expect(clientMock.createCheckoutSession).toHaveBeenCalledWith({
         organizationId: undefined,
         email: "user@example.com",
@@ -336,7 +336,7 @@ describe("chbBillingService", () => {
     it("refuses when a retry comes back with a different CH organization", async () => {
       withOrg({ clickhouse: { organizationId: CH_ORG_ID } });
       clientMock.createCheckoutSession.mockResolvedValue({
-        url: session.url,
+        checkoutUrl: session.checkoutUrl,
         organizationId: "11111111-2222-4333-8444-555555555555",
       });
 
@@ -356,7 +356,7 @@ describe("chbBillingService", () => {
     it("refuses to persist an id the stored schema rejects", async () => {
       withOrg(null);
       clientMock.createCheckoutSession.mockResolvedValue({
-        url: session.url,
+        checkoutUrl: session.checkoutUrl,
         organizationId: "not-a-uuid",
       });
 
