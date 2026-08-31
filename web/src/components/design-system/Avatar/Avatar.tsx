@@ -25,7 +25,7 @@ const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
 type AvatarProps = {
   "aria-hidden"?: boolean | "true" | "false";
   displayName: string;
-  src?: string | Blob;
+  src?: string;
 } & VariantProps<typeof avatarVariants>;
 
 const Avatar = React.forwardRef<
