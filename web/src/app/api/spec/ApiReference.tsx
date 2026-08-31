@@ -9,6 +9,13 @@ const apiReferenceConfiguration = {
   mcp: { disabled: true },
   hideClientButton: true,
   hideTestRequestButton: true,
+  withDefaultFonts: false,
+  customCss: `
+    :root {
+      --scalar-font: ui-sans-serif, system-ui, sans-serif;
+      --scalar-font-code: ui-monospace, monospace;
+    }
+  `,
 } as const;
 
 export function ApiReference() {

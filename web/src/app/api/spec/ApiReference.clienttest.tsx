@@ -25,6 +25,7 @@ describe("ApiReference", () => {
       mcp: { disabled: true },
       hideClientButton: true,
       hideTestRequestButton: true,
+      withDefaultFonts: false,
     });
     expect(
       new URL(
