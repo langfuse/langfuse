@@ -30,7 +30,10 @@ import { createTokenUsageTableColumn } from "@/src/components/design-system/tabl
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import TableIdOrName from "@/src/components/table/table-id";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import {
+  buildLocalIsoDatePresentation,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 import { IOTableCell } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
 import { MediaTag } from "@/src/components/MediaTag/MediaTag";
 import { type MediaDescriptor } from "@/src/components/ui/media/mediaUtils";
@@ -42,7 +45,6 @@ import { formatAsLabel, LevelSymbols } from "@/src/components/level-colors";
 import TagList from "@/src/features/tag/components/TagList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import {
   Copy,
@@ -1211,8 +1213,13 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
     size: 200,
     cell: ({ row }) => {
       if (row.original.type === "folder") return null;
-      const createdAt = row.original.createdAt;
-      return createdAt ? <LocalIsoDate date={createdAt} /> : null;
+      const preparedDate = buildLocalIsoDatePresentation({
+        date: row.original.createdAt,
+      });
+
+      return preparedDate ? (
+        <span title={preparedDate.title}>{preparedDate.display}</span>
+      ) : null;
     },
   },
   {

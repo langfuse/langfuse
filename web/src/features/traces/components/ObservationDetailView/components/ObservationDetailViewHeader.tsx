@@ -19,7 +19,6 @@ import {
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
@@ -80,6 +79,7 @@ import { DualAnnotationContent } from "@/src/features/scores/components/DualAnno
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -155,6 +155,11 @@ export const ObservationDetailViewHeader = memo(
     const totalUsage = observation.totalUsage;
     const inputUsage = observation.inputUsage;
     const outputUsage = observation.outputUsage;
+
+    const preparedDate = buildLocalIsoDatePresentation({
+      date: observation.startTime,
+      accuracy: "millisecond",
+    });
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -654,9 +659,11 @@ export const ObservationDetailViewHeader = memo(
 
         <div className="flex flex-col gap-2">
           {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <LocalIsoDate date={observation.startTime} accuracy="millisecond" />
-          </div>
+          {preparedDate ? (
+            <div className="flex flex-wrap items-center gap-1 text-sm">
+              <span title={preparedDate.title}>{preparedDate.display}</span>
+            </div>
+          ) : null}
 
           {/* Other badges */}
           {!isAnnotationMode && (
