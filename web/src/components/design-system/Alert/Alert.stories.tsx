@@ -110,7 +110,9 @@ export const DismissAction = meta.story({
     const dismissButton = canvas.getByRole("button", { name: "Dismiss alert" });
 
     await expect(alert).toHaveClass("pr-10");
+    await expect(alert.className).not.toContain("[&>svg");
     await expect(icon).toHaveClass("absolute", "top-3", "left-3", "size-4");
+    await expect(icon).toHaveAttribute("aria-hidden", "true");
     await expect(dismissButton).not.toHaveClass("pl-6");
     await userEvent.click(dismissButton);
     await expect(dismiss).toHaveBeenCalledOnce();
