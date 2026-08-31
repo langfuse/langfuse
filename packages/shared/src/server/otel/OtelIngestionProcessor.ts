@@ -25,6 +25,7 @@ import {
   normalizeEnvironment,
   DEFAULT_TRACE_ENVIRONMENT,
   LangfuseInternalTraceEnvironment,
+  sanitizeSdkMetricTagValue,
 } from "../";
 
 import {
@@ -3293,7 +3294,8 @@ export class OtelIngestionProcessor {
 
     // attributeKey is a closed set of Langfuse-defined attribute names
     // (never a user-supplied key); sdkName/sdkVersion attribute the emitting
-    // client; kind sub-classifies parse_failure by the value's shape. None
+    // client and are sanitized because they originate from raw request
+    // headers; kind sub-classifies parse_failure by the value's shape. None
     // of these carry the dropped value itself.
     const tags: Record<string, string> = {
       reason,
@@ -3301,8 +3303,8 @@ export class OtelIngestionProcessor {
       domain,
       projectId: this.projectId,
       attributeKey,
-      sdkName: this.sdkName,
-      sdkVersion: this.sdkVersion,
+      sdkName: sanitizeSdkMetricTagValue(this.sdkName),
+      sdkVersion: sanitizeSdkMetricTagValue(this.sdkVersion),
     };
     if (kind) {
       tags.kind = kind;
@@ -3311,10 +3313,11 @@ export class OtelIngestionProcessor {
   }
 
   // Sub-classifies a JSON.parse failure by the failing string's shape,
-  // reading only its head and tail — never parses the (possibly large)
-  // value again and never logs its content.
+  // reading only bounded head/tail windows — never re-parses or copies the
+  // (possibly multi-MB) value, and never logs its content. Slicing first
+  // keeps the trim/regex work off the full string.
   private classifyParseFailure(value: string): string {
-    const head = value.replace(/^\s+/, "").slice(0, 32);
+    const head = value.slice(0, 64).trimStart();
     if (head.length === 0) {
       return "empty";
     }
@@ -3325,7 +3328,7 @@ export class OtelIngestionProcessor {
     const first = head[0];
     if (first === "{" || first === "[") {
       const expectedClose = first === "{" ? "}" : "]";
-      const last = value.replace(/\s+$/, "").slice(-1);
+      const last = value.slice(-64).trimEnd().slice(-1);
       return last === expectedClose ? "loose_json" : "truncated_json";
     }
     return "unquoted_string";

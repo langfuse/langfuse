@@ -1,6 +1,6 @@
 /**
- * LFE-14345: `langfuse.ingestion.metadata_dropped` counter at the score
- * validation drop site (catch in processScoreEventList).
+ * `langfuse.ingestion.metadata_dropped` counter at the score validation
+ * drop site (catch in processScoreEventList).
  *
  * Spec under test:
  * - The catch that silently filters score events on validation failure
@@ -119,7 +119,7 @@ const processScores = (
     },
   });
 
-describe("score validation drop metric (LFE-14345)", () => {
+describe("score validation drop metric", () => {
   beforeEach(() => {
     mocks.recordIncrement.mockClear();
     mocks.validateAndInflateScoreOverride = undefined;

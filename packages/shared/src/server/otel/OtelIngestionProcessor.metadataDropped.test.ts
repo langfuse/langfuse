@@ -1,6 +1,6 @@
 /**
- * LFE-14342: `langfuse.ingestion.metadata_dropped` counter at the OTel
- * metadata drop site (`parseMetadataAttribute` drop branches).
+ * `langfuse.ingestion.metadata_dropped` counter at the OTel metadata drop
+ * site (`parseMetadataAttribute` drop branches).
  *
  * Spec under test:
  * - Counter name: langfuse.ingestion.metadata_dropped
@@ -119,7 +119,7 @@ const expectDropTags = (
   expect(tags?.sdkVersion).toBe("3.8.1");
 };
 
-describe("OTel metadata_dropped metric (LFE-14342)", () => {
+describe("OTel metadata_dropped metric", () => {
   beforeEach(() => {
     recordIncrementMock.mockClear();
   });
@@ -815,5 +815,35 @@ describe("metadata_dropped attribution tags (parse_failure kind, attributeKey)",
     const tags = singleDropTags();
     expect(tags.reason).toBe("primitive");
     expect(tags.kind).toBeUndefined();
+  });
+
+  it("sanitizes and bounds attacker-controlled sdkName/sdkVersion tags", async () => {
+    // sdkName/sdkVersion come from raw request headers; a caller must not be
+    // able to inject tag separators, control chars, or oversized values.
+    const processor = new OtelIngestionProcessor({
+      projectId: PROJECT_ID,
+      publicKey: "pk-test",
+      sdkName: "evil,name|with:sep=chars",
+      sdkVersion: `1.0\n${"x".repeat(100)}`,
+    });
+    await processor.processToIngestionEvents(
+      buildBatch([
+        {
+          key: "langfuse.observation.metadata",
+          value: { stringValue: "{bad" },
+        },
+      ]),
+    );
+
+    const tags = singleDropTags();
+    for (const key of ["sdkName", "sdkVersion"] as const) {
+      expect(tags[key]).not.toMatch(/[,|:=]/);
+      expect(tags[key].length).toBeLessThanOrEqual(32);
+      for (const character of tags[key]) {
+        const codePoint = character.codePointAt(0) ?? 0;
+        expect(codePoint).toBeGreaterThan(31);
+        expect(codePoint).not.toBe(127);
+      }
+    }
   });
 });
