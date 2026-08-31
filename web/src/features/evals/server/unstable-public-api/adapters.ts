@@ -32,6 +32,7 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   PublicEvaluationRuleFilter,
+  PublicEvaluationRuleReadFilter,
   type PublicEvaluationRuleFilterType,
   type PromptVariableMappingInputType,
   type PromptVariableMappingReadType,
@@ -415,19 +416,9 @@ function toApiFilters(
     target === "experiment"
       ? stripExperimentRootFilter(storedFilters.data)
       : storedFilters.data;
-  const publicFilters = effectiveFilters.map(toApiFilter);
-  const parsedPublicFilters = z
-    .array(PublicEvaluationRuleFilter)
-    .safeParse(publicFilters);
-
-  if (!parsedPublicFilters.success) {
-    logger.error("Failed to parse unstable public evaluation rule filters", {
-      issues: parsedPublicFilters.error.issues,
-    });
-    throw new InternalServerError("Evaluation rule filter is corrupted");
-  }
-
-  return parsedPublicFilters.data;
+  return z
+    .array(PublicEvaluationRuleReadFilter)
+    .parse(effectiveFilters.map(toApiFilter));
 }
 
 export function toApiEvaluator(params: {
@@ -624,7 +615,15 @@ export function toApiWritableV2EvaluationRule(
   ) {
     throw new InternalServerError("Evaluation rule target is corrupted");
   }
-  return evaluationRule;
+
+  const filter = z
+    .array(PublicEvaluationRuleFilter)
+    .safeParse(evaluationRule.filter);
+  if (!filter.success) {
+    throw new InternalServerError("Evaluation rule filter is corrupted");
+  }
+
+  return { ...evaluationRule, filter: filter.data };
 }
 
 export function toEvaluationRuleInput(params: {

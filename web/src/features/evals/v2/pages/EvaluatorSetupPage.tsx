@@ -670,6 +670,7 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
+              title="View version history"
               onClick={() => {
                 capture("evaluators:version_history_interaction", {
                   action: "open",

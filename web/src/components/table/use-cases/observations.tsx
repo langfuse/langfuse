@@ -14,7 +14,6 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
@@ -48,7 +47,7 @@ import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-tr
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
@@ -84,6 +83,7 @@ import { createDurationTableColumn } from "@/src/components/design-system/table/
 import { createItemBadgeTableColumn } from "@/src/components/design-system/table/columns/createItemBadgeTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -884,35 +884,28 @@ export default function ObservationsTable({
         );
       },
     },
-    {
-      accessorKey: "tokens",
-      header: "Tokens",
+    createTokenUsageTableColumn<
+      ObservationsTableRow,
+      ObservationsTableRow["usageDetails"]
+    >({
       id: "tokens",
+      accessorFn: (row) => row.usageDetails,
+      header: "Tokens",
       size: 150,
-      cell: ({ row }) => {
-        const aggregatedUsage = calculateAggregatedUsage(
-          row.original.usageDetails,
-        );
-        return (
-          <BreakdownTooltip
-            details={row.original.usageDetails}
-            pricingTierName={row.original.usagePricingTierName ?? undefined}
-          >
-            <div className="flex items-center gap-1">
-              <TokenUsageBadge
-                inputUsage={aggregatedUsage.input}
-                outputUsage={aggregatedUsage.output}
-                totalUsage={aggregatedUsage.total}
-                inline
-              />
-              <InfoIcon className="h-3 w-3" />
-            </div>
-          </BreakdownTooltip>
-        );
-      },
       enableHiding: true,
       enableSorting,
-    },
+      getCell: (value, { row }) => {
+        const aggregatedUsage = calculateAggregatedUsage(value ?? {});
+        return {
+          type: "usage",
+          inputUsage: aggregatedUsage.input,
+          outputUsage: aggregatedUsage.output,
+          totalUsage: aggregatedUsage.total,
+          details: row.original.usageDetails,
+          pricingTierName: row.original.usagePricingTierName ?? undefined,
+        };
+      },
+    }),
     {
       accessorKey: "model",
       id: "model",
@@ -999,7 +992,7 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return isColumnLoading ? <TableTextLoadingCell /> : null;
+        return isColumnLoading ? <Skeleton className="h-4 w-1/2" /> : null;
       },
       columns: scoreColumns,
     },
@@ -1072,7 +1065,9 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? <TableTextLoadingCell /> : null;
+        return generations.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
         createNumberTableColumn<ObservationsTableRow>({
@@ -1127,53 +1122,35 @@ export default function ObservationsTable({
       enableHiding: true,
       defaultHidden: true,
       cell: () => {
-        return generations.isPending ? <TableTextLoadingCell /> : null;
+        return generations.isPending ? (
+          <Skeleton className="h-4 w-1/2" />
+        ) : null;
       },
       columns: [
-        {
-          accessorKey: "inputCost",
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.cost.inputCost,
           id: "inputCost",
           header: "Input Cost",
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            } = row.getValue("cost");
-
-            return (
-              <span>
-                {formatObservationCost(value.inputCost, row.original.type)}
-              </span>
-            );
-          },
+          emptyValue: "-",
+          formatter: (value, { row }) =>
+            formatObservationCost(value, row.original.type),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
-        {
-          accessorKey: "outputCost",
+        }),
+        createNumberTableColumn<ObservationsTableRow>({
+          accessorFn: (row) => row.cost.outputCost,
           id: "outputCost",
           header: "Output Cost",
           size: 120,
-          loadingCell: <TableTextLoadingCell />,
-          cell: ({ row }) => {
-            const value: {
-              inputCost: number | undefined;
-              outputCost: number | undefined;
-            } = row.getValue("cost");
-
-            return (
-              <span>
-                {formatObservationCost(value.outputCost, row.original.type)}
-              </span>
-            );
-          },
+          emptyValue: "-",
+          formatter: (value, { row }) =>
+            formatObservationCost(value, row.original.type),
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-        },
+        }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
   ];
