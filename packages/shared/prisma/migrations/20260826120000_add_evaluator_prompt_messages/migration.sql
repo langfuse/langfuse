@@ -1,2 +1,2 @@
 ALTER TABLE "evaluator_versions"
-ADD COLUMN "prompt_messages" JSONB;
+ADD COLUMN IF NOT EXISTS "prompt_messages" JSONB;
