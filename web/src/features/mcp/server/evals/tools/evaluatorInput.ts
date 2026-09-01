@@ -95,6 +95,11 @@ export const McpEvaluatorInputBase = z.object({
     .describe("Variable mappings for LLM-as-a-judge evaluators only."),
 });
 
+export const McpEvaluatorDefinitionInputBase = McpEvaluatorInputBase.omit({
+  name: true,
+  description: true,
+});
+
 function toEvaluatorInput(input: z.infer<typeof McpEvaluatorInputBase>) {
   if (input.type === EvalTemplateType.LLM_AS_JUDGE) {
     return {

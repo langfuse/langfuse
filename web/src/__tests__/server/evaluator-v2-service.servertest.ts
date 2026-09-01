@@ -879,7 +879,16 @@ describe("EvaluatorService", () => {
       }),
     ).resolves.toEqual({ score: 1 });
 
-    expect(mocks.testEvaluator).toHaveBeenCalledTimes(2);
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
+        definition: llmInput("Test evaluator").definition,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    expect(mocks.testEvaluator).toHaveBeenCalledTimes(3);
     expect(mocks.testEvaluator).toHaveBeenCalledWith(
       expect.objectContaining({
         orgId,
@@ -896,6 +905,15 @@ describe("EvaluatorService", () => {
         ...observation,
       }),
     );
+    expect(mocks.testEvaluator).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        orgId,
+        evaluatorId: expect.any(String),
+        includeEvaluatorLink: false,
+        ...observation,
+      }),
+    );
     await expect(
       prisma.evaluatorVersion.count({ where: { evaluator: { projectId } } }),
     ).resolves.toBe(before);
@@ -909,6 +927,51 @@ describe("EvaluatorService", () => {
         ...observation,
       }),
     ).rejects.toThrow("Evaluator not found");
+  });
+
+  it("tests the latest version of a saved evaluator", async () => {
+    mocks.testEvaluator.mockResolvedValue({ score: 1 });
+    const service = createService();
+    const evaluator = await service.create(llmInput("Saved evaluator"), null);
+    const latestDefinition = {
+      ...llmInput("Saved evaluator").definition,
+      promptMessages: [
+        { role: "user" as const, content: "Judge the latest {{output}}" },
+      ],
+    };
+    await service.update(
+      {
+        ...llmInput("Saved evaluator"),
+        evaluatorId: evaluator.id,
+        definition: latestDefinition,
+      },
+      null,
+    );
+
+    const observation = {
+      observationId: "test-observation-id",
+      traceId: "test-trace-id",
+      startTime: new Date("2026-08-11T00:00:00.000Z"),
+      shouldReadFromObservationsTable: false,
+    };
+
+    await expect(
+      service.testEvaluator({
+        orgId,
+        projectId,
+        evaluatorId: evaluator.id,
+        ...observation,
+      }),
+    ).resolves.toEqual({ score: 1 });
+
+    expect(mocks.testEvaluator).toHaveBeenCalledWith({
+      orgId,
+      projectId,
+      evaluatorId: evaluator.id,
+      definition: latestDefinition,
+      includeEvaluatorLink: true,
+      ...observation,
+    });
   });
 
   it("suggests a safe name and silently returns null when unavailable", async () => {

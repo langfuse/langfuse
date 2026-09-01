@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import {
@@ -9,6 +10,7 @@ import {
   getEvaluatorBlockMetadata,
   getEvaluatorPromptMessages,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
+  InvalidRequestError,
   LangfuseConflictError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
@@ -614,24 +616,61 @@ export class EvaluatorService {
   }
 
   async testEvaluator(
-    params: Omit<Parameters<typeof executeEvaluatorTest>[0], "definition"> & {
-      definition: EvaluatorDefinition;
+    params: Omit<
+      Parameters<typeof executeEvaluatorTest>[0],
+      "evaluatorId" | "definition" | "includeEvaluatorLink"
+    > & {
+      evaluatorId?: string;
+      definition?: EvaluatorDefinition;
     },
   ) {
-    const evaluator = await this.prisma.evaluator.findFirst({
-      where: { id: params.evaluatorId, projectId: params.projectId },
-      select: { id: true },
-    });
-    // The setup editor pre-generates a UUID so a test run can be attributed to
-    // the evaluator before it is first saved. Every other id must resolve
-    // inside the project — never look it up unscoped, which would turn the
-    // response into a cross-project existence oracle.
-    if (!evaluator && !isPregeneratedEvaluatorId(params.evaluatorId)) {
-      throw new LangfuseNotFoundError("Evaluator not found");
+    const {
+      evaluatorId: requestedEvaluatorId,
+      definition: requestedDefinition,
+      ...executionParams
+    } = params;
+
+    let evaluatorId = requestedEvaluatorId;
+    let definition = requestedDefinition;
+    let includeEvaluatorLink = false;
+
+    if (definition) {
+      if (evaluatorId) {
+        const evaluator = await this.prisma.evaluator.findFirst({
+          where: { id: evaluatorId, projectId: params.projectId },
+          select: { id: true },
+        });
+        // The setup editor pre-generates a UUID so a test run can be attributed
+        // to the evaluator before it is first saved. Every other id must resolve
+        // inside the project — never look it up unscoped, which would turn the
+        // response into a cross-project existence oracle.
+        if (!evaluator && !isPregeneratedEvaluatorId(evaluatorId)) {
+          throw new LangfuseNotFoundError("Evaluator not found");
+        }
+        includeEvaluatorLink = Boolean(evaluator);
+      } else {
+        evaluatorId = randomUUID();
+      }
+    } else {
+      if (!evaluatorId) {
+        throw new InvalidRequestError(
+          "Either evaluatorId or definition is required",
+        );
+      }
+      const evaluator = await this.get(params.projectId, evaluatorId);
+      const latestVersion = evaluator.versions[0];
+      if (!latestVersion) {
+        throw new LangfuseNotFoundError("Evaluator version not found");
+      }
+      definition = toEvaluatorDefinition(evaluator.type, latestVersion);
+      includeEvaluatorLink = true;
     }
+
     return executeEvaluatorTest({
-      ...params,
-      includeEvaluatorLink: Boolean(evaluator),
+      ...executionParams,
+      evaluatorId,
+      definition,
+      includeEvaluatorLink,
     });
   }
 

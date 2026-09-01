@@ -176,6 +176,58 @@ describe("testEvaluator", () => {
     );
   });
 
+  it("treats a missing mapping as empty when the prompt has no variables", async () => {
+    await expect(
+      testEvaluator({
+        orgId: "org-1",
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: new Date("2026-08-11T12:00:00.000Z"),
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [{ role: "user", content: "Judge this response" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: [],
+          variableMapping: null,
+          outputDefinition: createNumericEvalOutputDefinition({
+            scoreDescription: "Correctness",
+            reasoningDescription: "Why the answer is correct",
+          }),
+        },
+      }),
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  it("rejects a missing mapping when the prompt has variables", async () => {
+    await expect(
+      testEvaluator({
+        orgId: "org-1",
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: new Date("2026-08-11T12:00:00.000Z"),
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [{ role: "user", content: "Judge {{answer}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["answer"],
+          variableMapping: null,
+          outputDefinition: createNumericEvalOutputDefinition({
+            scoreDescription: "Correctness",
+            reasoningDescription: "Why the answer is correct",
+          }),
+        },
+      }),
+    ).rejects.toThrow("Missing mappings for evaluator variables: answer");
+  });
+
   it("loads the selected observation and dispatches a code evaluator with canonical variables", async () => {
     const startTime = new Date("2026-08-11T12:00:00.000Z");
     vi.mocked(getObservationForEvalById).mockResolvedValue({
