@@ -17,13 +17,19 @@ export const MULTILINE_VARIABLE_REGEX = /{{[^{}\n]*\n[^{}]*}}/g;
 // Regex to find unclosed variables
 export const UNCLOSED_VARIABLE_REGEX = /{{(?!{)(?![^{]*}})/g;
 
-// Mirrors the hostname-label validation used by the AWS SDK for S3 regions.
+// Smithy host-label check used by S3-compatible clients. AWS, GCS XML/S3,
+// Cloudflare R2, MinIO, Azure location IDs (eastus), and OCI region ids all
+// fit this pattern. Spaces, underscores, and GCP dual-region `+` syntax are
+// rejected because they throw inside the AWS SDK and can terminate the process.
 export const BLOB_STORAGE_REGION_REGEX = /^(?!.*-$)(?!-)[a-zA-Z0-9-]{1,63}$/;
+
+export const BLOB_STORAGE_REGION_INVALID_MESSAGE =
+  "Region must be 1-63 letters, numbers, or hyphens, and cannot start or end with a hyphen";
 
 export function normalizeBlobStorageRegion(region: string): string {
   const normalizedRegion = region.trim();
   if (!BLOB_STORAGE_REGION_REGEX.test(normalizedRegion)) {
-    throw new Error("Region must be a valid hostname label");
+    throw new Error(BLOB_STORAGE_REGION_INVALID_MESSAGE);
   }
   return normalizedRegion;
 }

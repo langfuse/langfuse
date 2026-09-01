@@ -66,6 +66,7 @@ import { BLOB_INTEGRATION_DISABLED_METRIC } from "../features/blobstorage/isCust
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
   LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -273,12 +274,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         handleBlobStorageIntegrationProjectJob({
           data: { payload: { projectId } },
         } as Job),
-      ).rejects.toThrow("Region must be a valid hostname label");
+      ).rejects.toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
 
       const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
         where: { projectId },
       });
-      expect(row.lastError).toBe("Region must be a valid hostname label");
+      expect(row.lastError).toBe(BLOB_STORAGE_REGION_INVALID_MESSAGE);
       expect(row.lastErrorAt).not.toBeNull();
       expect(row.enabled).toBe(true);
     });

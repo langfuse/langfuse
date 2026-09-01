@@ -9775,9 +9775,11 @@ components:
         region:
           type: string
           description: >-
-            Storage region. Leading and trailing whitespace is removed; the
-            remaining value must be a valid hostname label (1-63 letters,
-            numbers, or hyphens, and cannot start or end with a hyphen).
+            Storage region used by S3-compatible clients (AWS, GCS, Cloudflare
+            R2, MinIO, Azure location IDs such as eastus, OCI). Leading and
+            trailing whitespace is removed. The remaining value must be 1-63
+            letters, numbers, or hyphens, and cannot start or end with a hyphen.
+            Examples: us-east-1, europe-west1, eastus, auto.
         accessKeyId:
           type: string
           nullable: true

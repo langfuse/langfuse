@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { S3Client } from "@aws-sdk/client-s3";
 
+import { BLOB_STORAGE_REGION_INVALID_MESSAGE } from "../../utils/stringChecks";
 import { env } from "../../env";
 import { resolveMediaStorageEndpoints } from "../s3";
 import { StorageServiceFactory } from "./StorageService";
@@ -44,8 +45,30 @@ describe("S3StorageService region normalization", () => {
         awsSse: undefined,
         awsSseKmsKeyId: undefined,
       }),
-    ).toThrow("Region must be a valid hostname label");
+    ).toThrow(BLOB_STORAGE_REGION_INVALID_MESSAGE);
   });
+
+  it.each(["europe-west1", "eastus", "auto"])(
+    "configures an S3-compatible client with region %s",
+    async (region) => {
+      const service = StorageServiceFactory.getInstance({
+        accessKeyId: "test-access-key",
+        secretAccessKey: "test-secret-key",
+        bucketName: "test-bucket",
+        endpoint: "https://storage.googleapis.com",
+        region,
+        forcePathStyle: true,
+        useAzureBlob: false,
+        useGoogleCloudStorage: false,
+        useOCIObjectStorage: false,
+        awsSse: undefined,
+        awsSseKmsKeyId: undefined,
+      });
+      const client = (service as unknown as { client: S3Client }).client;
+
+      await expect(client.config.region()).resolves.toBe(region);
+    },
+  );
 });
 
 describe("resolveMediaStorageEndpoints", () => {

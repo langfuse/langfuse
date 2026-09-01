@@ -6,6 +6,7 @@ import {
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
   normalizeBlobStorageRegion,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
@@ -75,7 +76,7 @@ export async function upsertBlobStorageIntegration(params: {
   try {
     region = normalizeBlobStorageRegion(data.region);
   } catch {
-    throw new InvalidRequestError("Region must be a valid hostname label");
+    throw new InvalidRequestError(BLOB_STORAGE_REGION_INVALID_MESSAGE);
   }
 
   if (data.endpoint) {
