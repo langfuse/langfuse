@@ -167,6 +167,117 @@ describe("monitors trpc", () => {
       expect(list.monitors.map((m) => m.id)).toContain(created.id);
     });
 
+    it("does not suggest a title when AI features are unavailable", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.monitors.suggestName({
+          projectId: project.id,
+          description: "Count of observations is above 100",
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("returns only alerts with an exact evaluator id filter", async () => {
+      const { project, caller } = await prepare();
+
+      const exact = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Exact evaluator",
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "string",
+            operator: "=",
+            value: "evaluator-1",
+          },
+        ],
+      });
+      const alertedAt = new Date("2026-06-01T12:00:00.000Z");
+      await prisma.monitor.update({
+        where: { id: exact.id },
+        data: { alertedAt },
+      });
+
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Partial evaluator",
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "string",
+            operator: "contains",
+            value: "evaluator-1",
+          },
+        ],
+      });
+
+      await expect(
+        caller.monitors.linkedEvaluatorAlerts({
+          projectId: project.id,
+          evaluatorId: "evaluator-1",
+        }),
+      ).resolves.toEqual({
+        data: [
+          {
+            id: exact.id,
+            name: "Exact evaluator",
+            status: MonitorStatusSchema.enum.ACTIVE,
+            severity: MonitorSeveritySchema.enum.UNKNOWN,
+            metric: { measure: "count", aggregation: "count" },
+            thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
+            alertThreshold: 100,
+            alertedAt,
+          },
+        ],
+        hasMore: false,
+      });
+    });
+
+    it("returns aggregate evaluator spend alerts", async () => {
+      const { project, caller } = await prepare();
+
+      const aggregate = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "All evaluator spend",
+        metric: { measure: "totalCost", aggregation: "sum" },
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "stringOptions",
+            operator: "none of",
+            value: [""],
+          },
+          {
+            column: "isEvaluatorTest",
+            type: "boolean",
+            operator: "=",
+            value: false,
+          },
+        ],
+      });
+
+      await expect(
+        caller.monitors.linkedAllEvaluatorSpendAlerts({
+          projectId: project.id,
+        }),
+      ).resolves.toEqual({
+        data: [
+          {
+            id: aggregate.id,
+            name: "All evaluator spend",
+            status: MonitorStatusSchema.enum.ACTIVE,
+            severity: MonitorSeveritySchema.enum.UNKNOWN,
+            metric: { measure: "totalCost", aggregation: "sum" },
+            thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
+            alertThreshold: 100,
+            alertedAt: null,
+          },
+        ],
+        hasMore: false,
+      });
+    });
+
     it("returns ERROR_BAD_QUERY monitors verbatim (scheduler-owned status survives a read)", async () => {
       const { project, caller } = await prepare();
 
@@ -207,7 +318,7 @@ describe("monitors trpc", () => {
       expect(created.id).toBeDefined();
     });
 
-    it("allows monitors.all from VIEWER role (read-only scope)", async () => {
+    it("allows monitor reads from VIEWER role (read-only scope)", async () => {
       const { project, caller } = await prepare({ projectRole: "VIEWER" });
 
       const list = await caller.monitors.all({
@@ -216,7 +327,16 @@ describe("monitors trpc", () => {
         page: 1,
         limit: 50,
       });
+      const linkedAlerts = await caller.monitors.linkedEvaluatorAlerts({
+        projectId: project.id,
+        evaluatorId: "evaluator-1",
+      });
+      const spendAlerts = await caller.monitors.linkedAllEvaluatorSpendAlerts({
+        projectId: project.id,
+      });
       expect(list.totalCount).toBe(0);
+      expect(linkedAlerts).toEqual({ data: [], hasMore: false });
+      expect(spendAlerts).toEqual({ data: [], hasMore: false });
     });
   });
 
@@ -415,12 +535,38 @@ describe("monitors trpc", () => {
       expect(result.monitors.map((m) => m.name)).toEqual(["Tagged"]);
     });
 
-    it("filterOptions returns distinct tags for the project", async () => {
+    it("filterOptions returns tags and evaluators with specific alerts", async () => {
       const { project, caller } = await prepare();
+      const linkedEvaluatorId = v4();
+      const unlinkedEvaluatorId = v4();
+      await prisma.evaluator.createMany({
+        data: [
+          {
+            id: linkedEvaluatorId,
+            projectId: project.id,
+            name: "Linked evaluator",
+            type: "CODE",
+          },
+          {
+            id: unlinkedEvaluatorId,
+            projectId: project.id,
+            name: "Unlinked evaluator",
+            type: "CODE",
+          },
+        ],
+      });
       await caller.monitors.create({
         ...validMonitorInput(project.id),
         name: "A",
         tags: ["prod", "latency"],
+        filters: [
+          {
+            column: "evaluatorId",
+            type: "string",
+            operator: "=",
+            value: linkedEvaluatorId,
+          },
+        ],
       });
       await caller.monitors.create({
         ...validMonitorInput(project.id),
@@ -432,6 +578,25 @@ describe("monitors trpc", () => {
         projectId: project.id,
       });
       expect(opts.tags.map((t) => t.value).sort()).toEqual(["latency", "prod"]);
+      expect(opts.evaluators).toEqual([
+        { value: linkedEvaluatorId, displayValue: "Linked evaluator" },
+      ]);
+
+      const filtered = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "evaluatorId",
+            operator: "any of",
+            value: [linkedEvaluatorId],
+          },
+        ],
+      });
+      expect(filtered.monitors.map((monitor) => monitor.name)).toEqual(["A"]);
     });
   });
 

@@ -158,16 +158,34 @@ const getMetricsFilterColumnSpecs = ({
     // "Observation Name" on the observations view filters observations.name
     // (mapped through dashboardUiTableToViewMapping). "Score Name" is omitted
     // here because observations:scores is 1:n -- see LFE-9773.
-    filterColumns.push({
-      column: {
-        name: "Observation Name",
-        id: "observationName",
-        type: "stringOptions",
-        options: observationNameOptions,
-        internal: "internalValue",
+    filterColumns.push(
+      {
+        column: {
+          name: "Observation Name",
+          id: "observationName",
+          type: "stringOptions",
+          options: observationNameOptions,
+          internal: "internalValue",
+        },
+        customSelect: true,
       },
-      customSelect: true,
-    });
+      {
+        column: {
+          name: "Evaluator ID",
+          id: "evaluatorId",
+          type: "string",
+          internal: "internalValue",
+        },
+      },
+      {
+        column: {
+          name: "Evaluator test run",
+          id: "isEvaluatorTest",
+          type: "boolean",
+          internal: "internalValue",
+        },
+      },
+    );
   }
 
   if (
@@ -186,6 +204,22 @@ const getMetricsFilterColumnSpecs = ({
           internal: "internalValue",
         },
         customSelect: true,
+      },
+      {
+        column: {
+          name: "Evaluator ID",
+          id: "evaluatorId",
+          type: "string",
+          internal: "internalValue",
+        },
+      },
+      {
+        column: {
+          name: "Evaluator test run",
+          id: "isEvaluatorTest",
+          type: "boolean",
+          internal: "internalValue",
+        },
       },
     );
   }

@@ -184,6 +184,72 @@ describe("toPrismaWhere", () => {
     });
   });
 
+  it("translates evaluator IDs into monitor-filter JSON predicates", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "any of",
+        value: ["eval-1", "eval-2"],
+      },
+    ];
+
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [
+        {
+          OR: ["eval-1", "eval-2"].map((value) => ({
+            filters: {
+              array_contains: [
+                {
+                  column: "evaluatorId",
+                  type: "string",
+                  operator: "=",
+                  value,
+                },
+              ],
+            },
+          })),
+        },
+      ],
+    });
+  });
+
+  it("negates excluded evaluator IDs", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "none of",
+        value: ["eval-1"],
+      },
+    ];
+
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [
+        {
+          NOT: {
+            OR: [
+              {
+                filters: {
+                  array_contains: [
+                    {
+                      column: "evaluatorId",
+                      type: "string",
+                      operator: "=",
+                      value: "eval-1",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
   it("translates tags operators to Prisma array predicates", () => {
     const filter: ListMonitorFilter = [
       {

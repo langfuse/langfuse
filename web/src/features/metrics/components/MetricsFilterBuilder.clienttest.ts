@@ -91,6 +91,14 @@ describe("resolvesToColumn", () => {
     expect(resolves("isRootObservation", "observations", "v1")).toBe(false);
   });
 
+  it("renders evaluator alert prefill filters", () => {
+    expect(resolves("evaluatorId", "observations", "v1")).toBe(true);
+    expect(resolves("evaluatorId", "observations", "v2")).toBe(true);
+    expect(resolves("isEvaluatorTest", "observations", "v2")).toBe(true);
+    expect(resolves("evaluatorId", "scores-categorical", "v2")).toBe(true);
+    expect(resolves("isEvaluatorTest", "scores-categorical", "v2")).toBe(true);
+  });
+
   it("unmapped column: does not resolve", () => {
     expect(resolves("totallyUnknownColumn", "observations")).toBe(false);
   });

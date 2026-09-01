@@ -3,8 +3,12 @@ import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
 import Page from "@/src/components/layouts/page";
+import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type APIError } from "@/src/utils/api";
 import { type Monitor } from "@langfuse/shared/monitors";
 
@@ -41,10 +45,44 @@ function EditMonitorPageRouter() {
 
 /** EditMonitorFormPage renders the edit monitors form */
 const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
+  const router = useRouter();
+  const utils = api.useUtils();
   const [liveName, setLiveName] = useState(monitor.name);
+  const canDelete = useHasProjectAccess({
+    projectId: monitor.projectId,
+    scope: "alerts:CUD",
+  });
+  const deleteMonitor = api.monitors.delete.useMutation({
+    onSuccess: async () => {
+      await utils.monitors.invalidate();
+      showSuccessToast({
+        title: "Alert deleted",
+        description: `"${monitor.name}" has been deleted.`,
+      });
+      await router.replace(`/project/${monitor.projectId}/alerts`);
+    },
+    onError: (error) => showErrorToast("Failed to delete alert", error.message),
+  });
 
   return (
-    <Page withPadding headerProps={getHeaderProps(monitor.projectId, liveName)}>
+    <Page
+      withPadding
+      headerProps={{
+        ...getHeaderProps(monitor.projectId, liveName),
+        actionButtonsRight: canDelete ? (
+          <DeleteMonitorButton
+            monitorName={monitor.name}
+            deleting={deleteMonitor.isPending}
+            onDelete={async () => {
+              await deleteMonitor.mutateAsync({
+                projectId: monitor.projectId,
+                id: monitor.id,
+              });
+            }}
+          />
+        ) : undefined,
+      }}
+    >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}

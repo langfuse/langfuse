@@ -179,15 +179,35 @@ export class MonitorService {
   public static async getFilterOptions(
     _session: SessionContext,
     input: GetMonitorFilterOptions,
-  ): Promise<{ tags: { value: string }[] }> {
-    const rows = await prisma.$queryRaw<{ value: string }[]>`
-      SELECT tags.tag AS value
-      FROM monitors, UNNEST(monitors.tags) AS tags(tag)
-      WHERE monitors.project_id = ${input.projectId}
-      GROUP BY tags.tag
-      ORDER BY tags.tag ASC;
-    `;
-    return { tags: rows };
+  ): Promise<{
+    tags: { value: string }[];
+    evaluators: { value: string; displayValue: string }[];
+  }> {
+    const [tags, evaluators] = await Promise.all([
+      prisma.$queryRaw<{ value: string }[]>`
+        SELECT tags.tag AS value
+        FROM monitors, UNNEST(monitors.tags) AS tags(tag)
+        WHERE monitors.project_id = ${input.projectId}
+        GROUP BY tags.tag
+        ORDER BY tags.tag ASC;
+      `,
+      prisma.$queryRaw<{ value: string; displayValue: string }[]>`
+        SELECT DISTINCT
+          e.id AS value,
+          e.name AS "displayValue"
+        FROM monitors AS m
+        CROSS JOIN LATERAL jsonb_array_elements(m.filters) AS filter_row
+        JOIN evaluators AS e
+          ON e.id = filter_row->>'value'
+          AND e.project_id = m.project_id
+        WHERE m.project_id = ${input.projectId}
+          AND filter_row->>'column' = 'evaluatorId'
+          AND filter_row->>'type' = 'string'
+          AND filter_row->>'operator' = '='
+        ORDER BY "displayValue" ASC, value ASC;
+      `,
+    ]);
+    return { tags, evaluators };
   }
 
   public static async delete(

@@ -360,6 +360,29 @@ export const eventsTracesView: ViewDeclarationType = {
   baseCte: `events_core events_traces`,
 };
 
+const createEvaluatorDimensions = (
+  tableAlias: string,
+): DimensionsDeclarationType => {
+  return {
+    evaluatorId: {
+      sql: `coalesce(nullIf(${tableAlias}.evaluator_id, ''), ${tableAlias}.evaluation_rule_id)`,
+      alias: "evaluatorId",
+      type: "string",
+      description:
+        "Identifier of the evaluator, falling back to its legacy evaluation rule identifier.",
+      highCardinality: true,
+      uiHidden: true,
+    },
+    isEvaluatorTest: {
+      sql: `${tableAlias}.evaluator_execution_is_test`,
+      alias: "isEvaluatorTest",
+      type: "boolean",
+      description: "Whether this row belongs to an evaluator test run.",
+      uiHidden: true,
+    },
+  };
+};
+
 export const observationsView: ViewDeclarationType = {
   name: "observations",
   description:
@@ -870,6 +893,13 @@ const createScoreSpecificDimensions = (
     highCardinality: true,
     uiHidden: true,
   },
+  isEvaluatorTest: {
+    sql: `toBool(${tableAlias}.metadata['${EvalExecutionMetadataKey.EVALUATOR_TEST}'] = 'true')`,
+    alias: "isEvaluatorTest",
+    type: "boolean",
+    description: "Whether this score belongs to an evaluator test run.",
+    uiHidden: true,
+  },
   source: {
     sql: `${tableAlias}.source`,
     alias: "source",
@@ -1189,6 +1219,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
       uiHidden: true,
     },
+    ...createEvaluatorDimensions("events_observations"),
     traceId: {
       sql: "events_observations.trace_id",
       alias: "traceId",

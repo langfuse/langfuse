@@ -58,6 +58,26 @@ export const toPrismaWhere = (
 ): Prisma.MonitorWhereInput => {
   const and: Prisma.MonitorWhereInput[] = [];
   for (const f of filter ?? []) {
+    if (f.column === "evaluatorId") {
+      const evaluatorPredicates = f.value.map((value) => ({
+        filters: {
+          array_contains: [
+            {
+              column: "evaluatorId",
+              type: "string",
+              operator: "=",
+              value,
+            },
+          ],
+        },
+      }));
+      and.push(
+        f.operator === "any of"
+          ? { OR: evaluatorPredicates }
+          : { NOT: { OR: evaluatorPredicates } },
+      );
+      continue;
+    }
     if (f.type === "stringOptions") {
       and.push(
         f.operator === "any of"
