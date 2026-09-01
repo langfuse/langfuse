@@ -1,0 +1,32 @@
+# Adds a local mail catcher to the source-built stack so email flows
+# (password-reset codes, signup email verification) can be exercised without a
+# real SMTP provider. Without SMTP_CONNECTION_URL and EMAIL_FROM_ADDRESS the
+# NextAuth email provider is not registered and /auth/reset-password renders
+# "Password reset is not configured on this instance".
+#
+#   docker compose -f docker-compose.build.yml -f docker-compose.mail.yml up -d --build --wait
+#
+# Captured mail is readable at http://localhost:8025 (Mailpit UI and REST API).
+# Mailpit stores messages in memory only and never forwards them.
+services:
+  mailpit:
+    image: docker.io/axllent/mailpit
+    restart: always
+    ports:
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 2s
+
+  langfuse-web:
+    environment:
+      SMTP_CONNECTION_URL: smtp://mailpit:1025
+      EMAIL_FROM_ADDRESS: no-reply@langfuse.local
+
+  langfuse-worker:
+    environment:
+      SMTP_CONNECTION_URL: smtp://mailpit:1025
+      EMAIL_FROM_ADDRESS: no-reply@langfuse.local
