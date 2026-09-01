@@ -6,9 +6,30 @@ import {
   within,
 } from "@testing-library/react";
 
+import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
 import { DeleteMonitorButton } from "./DeleteMonitorButton";
 
 describe("DeleteMonitorButton", () => {
+  it("invalidates monitor lists without refetching the deleted monitor", async () => {
+    const monitors = {
+      all: { invalidate: vi.fn().mockResolvedValue(undefined) },
+      getFilterOptions: { invalidate: vi.fn().mockResolvedValue(undefined) },
+      linkedEvaluatorAlerts: {
+        invalidate: vi.fn().mockResolvedValue(undefined),
+      },
+      get: { invalidate: vi.fn().mockResolvedValue(undefined) },
+      invalidate: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await invalidateMonitorQueriesAfterDelete(monitors);
+
+    expect(monitors.all.invalidate).toHaveBeenCalledOnce();
+    expect(monitors.getFilterOptions.invalidate).toHaveBeenCalledOnce();
+    expect(monitors.linkedEvaluatorAlerts.invalidate).toHaveBeenCalledOnce();
+    expect(monitors.get.invalidate).not.toHaveBeenCalled();
+    expect(monitors.invalidate).not.toHaveBeenCalled();
+  });
+
   it("confirms before deleting an alert", async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined);
     render(

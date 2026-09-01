@@ -6,6 +6,7 @@ import Page from "@/src/components/layouts/page";
 import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
+import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -54,7 +55,7 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
   });
   const deleteMonitor = api.monitors.delete.useMutation({
     onSuccess: async () => {
-      await utils.monitors.invalidate();
+      await invalidateMonitorQueriesAfterDelete(utils.monitors);
       showSuccessToast({
         title: "Alert deleted",
         description: `"${monitor.name}" has been deleted.`,
