@@ -59,7 +59,7 @@ export function getDisplaySecretKey(secretKey: string) {
     : "..." + secretKey.slice(-4);
 }
 
-export function validateBedrockSecretKey(secretKey: string) {
+function validateBedrockSecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return;
   }

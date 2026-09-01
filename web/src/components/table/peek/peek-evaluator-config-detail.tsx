@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import TableLink from "@/src/components/table/table-link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { CardDescription } from "@/src/components/ui/card";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
@@ -51,7 +51,10 @@ const PeekViewEvaluatorConfigDetail = ({
     evaluatorId: evalConfig?.id,
     evaluator: evalConfig,
   });
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
 
   if (!evalConfig) {
     return <Skeleton className="h-full w-full rounded-none" />;
@@ -154,11 +157,13 @@ const PeekViewEvaluatorConfigDetail = ({
       <CardDescription className="flex items-center text-sm">
         <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
-          <TableLink
-            path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
-            value={evalConfig.evalTemplate.name}
-            className="mr-1 flex min-h-6 items-center"
-          />
+          <span className="mr-1 flex min-h-6 items-center">
+            <TextLink
+              path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}
+              value={evalConfig.evalTemplate.name}
+              title={evalConfig.evalTemplate.name}
+            />
+          </span>
         )}
         {evalConfig.evalTemplate && (
           <Tooltip>

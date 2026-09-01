@@ -43,7 +43,7 @@ import { quoteIfNeeded } from "./quoting";
 export const OR_NOT_SUPPORTED_MESSAGE =
   "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
 
-export type SingleEventsFilter = FilterState[number];
+type SingleEventsFilter = FilterState[number];
 
 export type AstToFilterStateResult = {
   filters: FilterState;
@@ -160,13 +160,43 @@ export function astToFilterState(
     lowerTopLevel(ast, false, ctx);
   }
 
+  const defaultTextFilter = lowerDefaultTextField(ctx);
+
   return {
     filters: ctx.filters,
-    searchQuery: ctx.searchTerms.length > 0 ? ctx.searchTerms.join(" ") : null,
+    searchQuery:
+      defaultTextFilter || ctx.searchTerms.length === 0
+        ? null
+        : ctx.searchTerms.join(" "),
     // The bar has no scope tokens; the caller (commit.ts) applies the default.
     searchType: null,
     errors: ctx.errors,
   };
+}
+
+/**
+ * On a view with no full-text lane, the collected free-text words are ONE
+ * phrase on the view's default text field — the same coalescing the events
+ * table applies before writing `searchQuery`, and the same thing the bar's own
+ * `id:"test 123"` suggestion promises. Lowering per word instead would AND
+ * `id contains test` with `id contains 123`, which matches neither.
+ * Returns whether it consumed the terms.
+ */
+function lowerDefaultTextField(ctx: LowerContext): boolean {
+  const field = ctx.registry.defaultTextField;
+  if (ctx.registry.allowFreeText || field === null) return false;
+  if (ctx.searchTerms.length === 0) return false;
+  lowerFilterNode(
+    {
+      kind: "filter",
+      key: field,
+      op: "=",
+      values: [ctx.searchTerms.join(" ")],
+    },
+    false,
+    ctx,
+  );
+  return true;
 }
 
 // AND chains (top-level or parenthesized — semantically identical in the
@@ -186,19 +216,27 @@ function lowerTopLevel(
         return;
       }
       // A bare dot-prefix (`metadata.`, `scores.`, …) parses as free text, so
-      // committing it would silently set searchQuery to the prefix. Reject it
-      // here so every commit path (typed Enter and structured pick) is gated.
-      // Quoted text is an explicit literal search and is allowed.
-      if (!ctx.registry.allowFreeText) {
-        ctx.errors.push("Free-text search is not supported by this view");
-        return;
-      }
+      // committing it would silently search for the prefix itself. Gated ahead
+      // of the free-text branches below so every view reports the same accurate
+      // reason — a view whose bare words are rewritten (or rejected outright)
+      // still supports `metadata.<key>`, so "free text is not supported" would
+      // be the wrong message. Quoted text is an explicit literal and is allowed.
       if (!node.quoted && isDanglingDotPrefix(node.value, ctx.registry)) {
         ctx.errors.push(
           `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
         );
         return;
       }
+      if (
+        !ctx.registry.allowFreeText &&
+        ctx.registry.defaultTextField === null
+      ) {
+        ctx.errors.push("Free-text search is not supported by this view");
+        return;
+      }
+      // Collected, not lowered: on a `defaultTextField` view a multi-word run is
+      // ONE phrase, so it becomes a single filter (see lowerDefaultTextField),
+      // never one AND-ed filter per word.
       ctx.searchTerms.push(node.value);
       return;
     case "not":
@@ -430,11 +468,18 @@ function lowerText(
     return;
   }
   if (field.syncMode === "exactOption") {
+    const values = field.filterValueByDisplayValue
+      ? node.values.map((value) => field.filterValueByDisplayValue!.get(value))
+      : node.values;
+    if (values.some((value) => value === undefined)) {
+      errors.push(`"${field.id}" contains an unknown option`);
+      return;
+    }
     out.push({
       type: "stringOptions",
-      column: field.id,
+      column: field.filterColumn ?? field.id,
       operator: negated ? "none of" : "any of",
-      value: node.values,
+      value: values as string[],
     });
     return;
   }
@@ -828,7 +873,7 @@ function lowerHas(
     }
     out.push({
       type: "null",
-      column: target.field.id,
+      column: target.field.filterColumn ?? target.field.id,
       operator: negated ? "is null" : "is not null",
       value: "",
     });

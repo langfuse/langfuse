@@ -80,3 +80,6 @@ export function buildEvaluationAttributes(
       evaluationContext.evaluatorExecutionIsTest,
   };
 }
+
+/** SDK name for internally published AI-feature product traces. */
+export const AI_FEATURE_OTEL_SDK_NAME = "langfuse-internal-ai-features";

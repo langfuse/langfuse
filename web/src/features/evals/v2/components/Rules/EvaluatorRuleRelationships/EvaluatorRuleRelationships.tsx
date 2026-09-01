@@ -82,7 +82,7 @@ export function EvaluatorRuleRelationships({
   );
 }
 
-export function EvaluatorRuleRelationshipsSheet({
+function EvaluatorRuleRelationshipsSheet({
   projectId,
   evaluatorId,
   evaluatorName,
@@ -117,7 +117,7 @@ export function EvaluatorRuleRelationshipsSheet({
   const isEstimating = activationConfirmation.estimate.status === "estimating";
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
   const assignments = api.evalsV2.rules.listRulesForEvaluator.useQuery(
     { projectId, evaluatorId },
@@ -182,7 +182,7 @@ export function EvaluatorRuleRelationshipsSheet({
             <SheetDescription>
               {assignments.isPending
                 ? "Loading attached rules…"
-                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to another rule or remove an existing connection.`}
+                : `This evaluator is used by ${assignmentCount} ${assignmentCount === 1 ? "rule" : "rules"}. Attach it to a rule to run the evaluator on incoming observations.`}
             </SheetDescription>
           </SheetHeader>
 

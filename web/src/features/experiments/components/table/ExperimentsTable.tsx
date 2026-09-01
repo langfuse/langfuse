@@ -31,13 +31,15 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { GitCompareArrows, LightbulbIcon } from "lucide-react";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { useStore } from "zustand";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -46,10 +48,6 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/IOTableCell";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
@@ -68,6 +66,14 @@ import {
   type ExperimentsTableStore,
 } from "@/src/features/experiments/store/experimentsTableStore";
 import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  baselineChangedProps,
+  comparisonChangedProps,
+  chartsSectionToggledProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 
 /**
  * LFE-10460: the metadata column's default position moved from last to right
@@ -103,11 +109,14 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
 function ExperimentsMultiSelectActionMenu({
   projectId,
   store,
+  datasetIdByExperimentId,
 }: {
   projectId: string;
   store: ExperimentsTableStore;
+  datasetIdByExperimentId: Record<string, string>;
 }) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   // Page-scoped and in table order, so the first id is the topmost selected
   // row — the compare baseline.
@@ -122,7 +131,7 @@ function ExperimentsMultiSelectActionMenu({
 
   const hasEvalAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   // Build query with experiment context filter for batch actions
@@ -156,6 +165,24 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiments",
+        comparisonCount: comparisons.length,
+        datasetIds: selectedExperimentIds.map(
+          (id) => datasetIdByExperimentId[id],
+        ),
+        source: "table-selection",
+      }),
+    );
+    capture(
+      "experiment:baseline_changed",
+      baselineChangedProps({
+        tableName: "experiments",
+        source: "table-selection",
+      }),
+    );
     const params = new URLSearchParams();
     params.set("baseline", baseline);
     comparisons.forEach((id) => {
@@ -198,7 +225,7 @@ function ExperimentsMultiSelectActionMenu({
             icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
             customDialog: true,
             accessCheck: {
-              scope: "evalJob:CUD",
+              scope: "evaluationRule:CUD",
             },
           } as TableAction,
         ]
@@ -319,6 +346,7 @@ export default function ExperimentsTable({
     loading: isFilterOptionsPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId,
+    isV4: true,
   });
 
   // Apply default filter on mount (only if no existing filter)
@@ -437,59 +465,37 @@ export default function ExperimentsTable({
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ExperimentsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getExperimentsColumnName("name"),
       size: 200,
       isPinnedLeft: true,
-      cell: ({ row }) => {
-        const value: string = row.getValue("name");
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
-      id: "description",
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("description");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       // Placed here (right after the identifying name/description columns) rather
       // than last so it is never the trailing column. As the last column its right
       // resize handle sat flush against the table edge and could not be dragged
       // wider in a maximized browser (LFE-10460).
       accessorKey: "metadata",
-      id: "metadata",
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
+      singleLine: rowHeight === "s",
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
-      id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      cell: ({ row }) => {
-        const value: number = row.getValue("itemCount");
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0, 0),
+    }),
     {
       accessorKey: "errorCount",
       id: "errorCount",
@@ -508,18 +514,13 @@ export default function ExperimentsTable({
       },
       enableHiding: true,
     },
-    {
+    createDateTableColumn<ExperimentsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: getExperimentsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "datasetId",
       id: "datasetId",
@@ -587,33 +588,23 @@ export default function ExperimentsTable({
         );
       },
     },
-    {
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "latencyAvg",
-      id: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined || value === null) return undefined;
-        return <span>{numberFormatter(value / 1000, 4)}s</span>;
-      },
-    },
-    {
+      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "totalCost",
-      id: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined || value === null) return undefined;
-        return <span>${numberFormatter(value, 6)}</span>;
-      },
-    },
+      formatter: (value) => `$${numberFormatter(value, 6)}`,
+    }),
     {
       accessorKey: "traceItemScores",
       header: "Trace Item Scores",
@@ -721,8 +712,49 @@ export default function ExperimentsTable({
   }, [rows]);
 
   // Charts accordion collapsed state (persisted in session storage)
+  const capture = usePostHogClientCapture();
   const { accordionValue, setAccordionValue } =
     useExperimentChartsAccordion(projectId);
+
+  const datasetIdByExperimentId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.id] = row.datasetId;
+    }
+    return map;
+  }, [rows]);
+
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiments",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
+  const handleChartsAccordionChange = useCallback(
+    (value: string) => {
+      const isExpanded = value === "charts";
+      const wasExpanded = accordionValue === "charts";
+      if (isExpanded !== wasExpanded) {
+        capture(
+          "experiment:charts_section_toggled",
+          chartsSectionToggledProps({
+            tableName: "experiments",
+            isExpanded,
+          }),
+        );
+      }
+      setAccordionValue(value);
+    },
+    [accordionValue, capture, setAccordionValue],
+  );
 
   // Mirror the visible page's rows into the store (in table order, so
   // selectedPageRowIds keeps the first-selected-in-table-order semantics
@@ -736,7 +768,7 @@ export default function ExperimentsTable({
 
   return (
     <>
-      <DataTableControlsProvider>
+      <DataTableControlsProvider tableName={filterConfig.tableName}>
         <div className="flex h-full w-full flex-col">
           {showControlsInPageHeader && (
             <TableHeaderControls
@@ -753,6 +785,9 @@ export default function ExperimentsTable({
               projectId,
               controllers: viewControllers,
             }}
+            tableName={filterConfig.tableName}
+            isV4={true}
+            onColumnGroupToggle={handleColumnGroupToggle}
             columnsWithCustomSelect={["name", "datasetId"]}
             columnVisibility={columnVisibility}
             setColumnVisibility={setColumnVisibilityState}
@@ -768,6 +803,7 @@ export default function ExperimentsTable({
                 key="experiments-multi-select-actions"
                 projectId={projectId}
                 store={experimentsTableStore}
+                datasetIdByExperimentId={datasetIdByExperimentId}
               />,
             ]}
           />
@@ -778,7 +814,7 @@ export default function ExperimentsTable({
               type="single"
               collapsible
               value={accordionValue}
-              onValueChange={setAccordionValue}
+              onValueChange={handleChartsAccordionChange}
             >
               <AccordionItem value="charts" className="border-t">
                 <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">

@@ -186,6 +186,31 @@ describe("processObservationEval", () => {
     );
   });
 
+  it.each([
+    JobExecutionStatus.CANCELLED,
+    JobExecutionStatus.ERROR,
+    JobExecutionStatus.COMPLETED,
+  ])("skips an already terminal %s execution", async (status) => {
+    (prisma.jobExecution.findFirst as Mock).mockResolvedValue(
+      createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status,
+      }),
+    );
+
+    const outcome = await processObservationEval({
+      event: baseEvent,
+      executionType: EvalTemplateType.LLM_AS_JUDGE,
+      deps: createMockProcessorDeps(),
+    });
+
+    expect(outcome).toBe("skipped");
+    expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+    expect(executeCodeBasedEvaluation).not.toHaveBeenCalled();
+    expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+  });
+
   describe("v2 execution resolution", () => {
     const rule = {
       id: "rule-123",

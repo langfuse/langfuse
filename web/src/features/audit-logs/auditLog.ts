@@ -4,7 +4,7 @@ import {
   AuditLogRecordType,
 } from "@langfuse/shared/src/db";
 
-export type AuditableResource =
+type AuditableResource =
   | "annotationQueue"
   | "annotationQueueItem"
   | "annotationQueueAssignment"
@@ -94,28 +94,29 @@ export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
   };
 
   if ("apiKeyId" in log) {
-    await db.$transaction(async (tx) => {
-      const apiKey = await tx.apiKey.findUnique({
-        where: { id: log.apiKeyId },
-        select: {
-          isInAppAgentKey: true,
-          createdByUserId: true,
-        },
-      });
+    // Sequential find + create, not $transaction. Interactive transactions
+    // use a 5s timeout and hold a pooled connection across both awaits, so
+    // an event-loop stall can 500 public API writes that only need an audit log.
+    const apiKey = await db.apiKey.findUnique({
+      where: { id: log.apiKeyId },
+      select: {
+        isInAppAgentKey: true,
+        createdByUserId: true,
+      },
+    });
 
-      await tx.auditLog.create({
-        data: {
-          apiKeyId: log.apiKeyId,
-          userId:
-            apiKey?.isInAppAgentKey === true
-              ? (apiKey.createdByUserId ?? undefined)
-              : undefined,
-          orgId: log.orgId,
-          projectId: log.projectId,
-          type: AuditLogRecordType.API_KEY,
-          ...shared,
-        },
-      });
+    await db.auditLog.create({
+      data: {
+        apiKeyId: log.apiKeyId,
+        userId:
+          apiKey?.isInAppAgentKey === true
+            ? (apiKey.createdByUserId ?? undefined)
+            : undefined,
+        orgId: log.orgId,
+        projectId: log.projectId,
+        type: AuditLogRecordType.API_KEY,
+        ...shared,
+      },
     });
 
     return;

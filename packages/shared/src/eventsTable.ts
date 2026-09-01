@@ -53,6 +53,47 @@ export const isRootObservation = ({
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
 
+const isCachedInputMetric = (key: string): boolean => {
+  const normalizedKey = key.toLowerCase();
+  return (
+    normalizedKey.includes("cached") || normalizedKey.includes("cache_read")
+  );
+};
+
+const findCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => {
+  const values = Object.entries(details ?? {})
+    .filter(([key]) => isCachedInputMetric(key))
+    .map(([, value]) => Number(value));
+
+  return values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0)
+    : undefined;
+};
+
+export const getCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+export const getCachedInputCost = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+const cachedInputMetricSql = (detailsColumn: string): string => {
+  const keyPredicate = (key: string) =>
+    `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+  const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
+  const sum = `arraySum(mapValues(${filteredDetails}))`;
+
+  return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
+};
+
+export const eventsTableCachedInputTokensSql =
+  cachedInputMetricSql("e.usage_details");
+export const eventsTableCachedInputCostSql =
+  cachedInputMetricSql("e.cost_details");
+
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
   : T extends object
@@ -176,11 +217,12 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "e.level",
     options: [],
+    aliases: ["Level"],
   },
   {
     name: "Status Message",
@@ -237,6 +279,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Cached Input Tokens",
+    id: "cachedInputTokens",
+    type: "number",
+    internal: eventsTableCachedInputTokensSql,
+    nullable: true,
+  },
+  {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
@@ -258,6 +307,13 @@ const eventsTableColsDefinition = [
     type: "number",
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
+    nullable: true,
+  },
+  {
+    name: "Cached Input Cost ($)",
+    id: "cachedInputCost",
+    type: "number",
+    internal: eventsTableCachedInputCostSql,
     nullable: true,
   },
   {

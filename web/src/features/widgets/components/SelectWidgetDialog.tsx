@@ -261,6 +261,11 @@ export function SelectWidgetDialog({
                             key={presetId}
                             type="button"
                             onClick={() => {
+                              capture("dashboard:widget_added", {
+                                kind: "home_preset",
+                                preset_id: presetId,
+                                dashboard_id: dashboardId,
+                              });
                               onSelectPreset(presetId);
                               onOpenChange(false);
                             }}

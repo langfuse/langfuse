@@ -3,6 +3,7 @@ import {
   LLMAdapter,
 } from "@langfuse/shared";
 import {
+  compileLangfuseMediaMessages,
   DefaultEvalModelService,
   findModel,
   generateLLMText,
@@ -22,6 +23,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   DefaultEvalModelService: {
     fetchValidModelConfig: vi.fn(),
   },
+  compileLangfuseMediaMessages: vi.fn(),
   generateLLMText: vi.fn(),
   findModel: vi.fn(),
   resolveConfiguredCodeEvalDispatcher: vi.fn(),
@@ -54,6 +56,12 @@ describe("testEvaluator", () => {
         },
       } as unknown as ValidModelConfig,
     });
+    vi.mocked(compileLangfuseMediaMessages).mockImplementation(
+      async ({ messages }) => {
+        const mapped = messages.map(({ role, content }) => ({ role, content }));
+        return { providerMessages: mapped, traceMessages: mapped } as never;
+      },
+    );
     vi.mocked(generateLLMText).mockResolvedValue({
       output: { score: 1, reasoning: "Correct" },
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
@@ -96,7 +104,10 @@ describe("testEvaluator", () => {
         shouldReadFromObservationsTable: true,
         definition: {
           type: "LLM_AS_JUDGE",
-          prompt: "Judge {{answer}}",
+          promptMessages: [
+            { role: "system", content: "Judge consistently" },
+            { role: "user", content: "Judge {{answer}}" },
+          ],
           provider: null,
           model: null,
           modelParams: null,
@@ -128,10 +139,31 @@ describe("testEvaluator", () => {
       startTime,
       shouldReadFromObservationsTable: true,
     });
+    expect(compileLangfuseMediaMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "project-1" }),
+    );
     expect(generateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
+        maxRetries: 1,
         messages: [
-          expect.objectContaining({ content: "Judge It arrives tomorrow." }),
+          expect.objectContaining({
+            role: "system",
+            content: "Judge consistently",
+          }),
+          expect.objectContaining({
+            role: "user",
+            content: "Judge It arrives tomorrow.",
+          }),
+        ],
+        traceInput: [
+          expect.objectContaining({
+            role: "system",
+            content: "Judge consistently",
+          }),
+          expect.objectContaining({
+            role: "user",
+            content: "Judge It arrives tomorrow.",
+          }),
         ],
         trace: expect.objectContaining({
           evaluationContext: {
@@ -147,6 +179,58 @@ describe("testEvaluator", () => {
         }),
       }),
     );
+  });
+
+  it("treats a missing mapping as empty when the prompt has no variables", async () => {
+    await expect(
+      testEvaluator({
+        orgId: "org-1",
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: new Date("2026-08-11T12:00:00.000Z"),
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [{ role: "user", content: "Judge this response" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: [],
+          variableMapping: null,
+          outputDefinition: createNumericEvalOutputDefinition({
+            scoreDescription: "Correctness",
+            reasoningDescription: "Why the answer is correct",
+          }),
+        },
+      }),
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  it("rejects a missing mapping when the prompt has variables", async () => {
+    await expect(
+      testEvaluator({
+        orgId: "org-1",
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        observationId: "observation-1",
+        traceId: "trace-1",
+        startTime: new Date("2026-08-11T12:00:00.000Z"),
+        definition: {
+          type: "LLM_AS_JUDGE",
+          promptMessages: [{ role: "user", content: "Judge {{answer}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["answer"],
+          variableMapping: null,
+          outputDefinition: createNumericEvalOutputDefinition({
+            scoreDescription: "Correctness",
+            reasoningDescription: "Why the answer is correct",
+          }),
+        },
+      }),
+    ).rejects.toThrow("Missing mappings for evaluator variables: answer");
   });
 
   it("loads the selected observation and dispatches a code evaluator with canonical variables", async () => {

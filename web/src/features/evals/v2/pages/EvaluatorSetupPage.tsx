@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { History, Trash2 } from "lucide-react";
@@ -25,7 +25,7 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import type { EvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -35,7 +35,10 @@ import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import {
+  createEvaluatorSetupStore,
+  type EvaluatorSetupStore,
+} from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
 import { EvaluatorRuleRelationships } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/EvaluatorRuleRelationships";
 import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
@@ -51,6 +54,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 import {
   getEvaluatorCreationAnalyticsProperties,
+  getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 
@@ -59,7 +63,7 @@ type InitialEvaluator = {
   name: string;
   description: string | null;
   type: EvalTemplateType;
-  definition: EvaluatorDefinition;
+  definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
   blockMessage: string | null;
@@ -79,6 +83,51 @@ export function applyEvaluatorSuggestion(
   if (!suggestion) return false;
   setSuggestion(suggestion);
   return true;
+}
+
+export function getEvaluatorVersionDefinition(
+  version: EvaluatorVersion,
+): NormalizedEvaluatorDefinition {
+  if (version.type === "CODE") {
+    return {
+      type: version.type,
+      sourceCode: version.sourceCode ?? "",
+      sourceCodeLanguage: version.sourceCodeLanguage ?? "TYPESCRIPT",
+    };
+  }
+
+  type LlmEvaluatorDefinition = Extract<
+    NormalizedEvaluatorDefinition,
+    { type: "LLM_AS_JUDGE" }
+  >;
+
+  return {
+    type: version.type,
+    promptMessages: version.promptMessages!,
+    provider: version.provider,
+    model: version.model,
+    modelParams: version.modelParams,
+    vars: version.vars,
+    variableMapping:
+      version.variableMapping as LlmEvaluatorDefinition["variableMapping"],
+    outputDefinition:
+      version.outputDefinition as LlmEvaluatorDefinition["outputDefinition"],
+  };
+}
+
+export function restoreEvaluatorVersion({
+  store,
+  version,
+  resetTestState,
+}: {
+  store: EvaluatorSetupStore;
+  version: EvaluatorVersion;
+  resetTestState: () => void;
+}) {
+  store
+    .getState()
+    .actions.applyDefinition(getEvaluatorVersionDefinition(version));
+  resetTestState();
 }
 
 export function EvaluatorSetupPage(
@@ -113,16 +162,26 @@ export function EvaluatorSetupPage(
   const capture = usePostHogClientCapture();
   const canReactivate = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
+  });
+  const projectDefaultModel = useProjectDefaultModel({
+    projectId,
+    source: "editor",
   });
   const [evaluatorSetupStore] = useState(() =>
     createEvaluatorSetupStore({
       initialEvaluator: initialEvaluator ?? initialDraft,
       initialSampleFilter: initialEvaluator?.sampleFilter,
       initialType: props.mode === "create" ? props.initialType : undefined,
+      defaultModel: projectDefaultModel.defaultModel,
       mode: props.mode,
     }),
   );
+  useEffect(() => {
+    evaluatorSetupStore
+      .getState()
+      .actions.setDefaultModel(projectDefaultModel.defaultModel);
+  }, [evaluatorSetupStore, projectDefaultModel.defaultModel]);
   const codeDraft = useStore(
     evaluatorSetupStore,
     useShallow((state) => ({
@@ -147,14 +206,6 @@ export function EvaluatorSetupPage(
     evaluatorSetupStore,
     (state) => state.testPanelOpen,
   );
-  const judgeModelSelection = useStore(
-    evaluatorSetupStore,
-    useShallow((state) => ({
-      type: state.type,
-      mode: state.modelMode,
-      selectedModel: state.selectedModel,
-    })),
-  );
   const [testResult, setTestResult] = useState<unknown>(null);
   const [hasCompletedTestCall, setHasCompletedTestCall] = useState(false);
   const [lastTestRunCostUsd, setLastTestRunCostUsd] = useState<number | null>(
@@ -163,9 +214,6 @@ export function EvaluatorSetupPage(
   const [rawResultOpen, setRawResultOpen] = useState(false);
   const hasRequestedName = useRef(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(
-    null,
-  );
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [versionConflictOpen, setVersionConflictOpen] = useState(false);
@@ -187,6 +235,8 @@ export function EvaluatorSetupPage(
   );
   const sampleTracePeekNavigation = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: "evaluators-v2",
+    isV4: true,
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       reader: "trace",
@@ -217,24 +267,16 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-    prompt: version.prompt,
+    promptMessages:
+      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
     provider: version.provider,
     model: version.model,
+    modelParams: version.modelParams as EvaluatorVersion["modelParams"],
+    vars: version.vars,
+    variableMapping: version.variableMapping,
     outputDefinition: version.outputDefinition,
     createdByUser: version.createdByUser,
   }));
-
-  const projectDefaultModel = useProjectDefaultModel({
-    projectId,
-    source: "editor",
-  });
-  const hasValidModel =
-    judgeModelSelection.type !== "LLM_AS_JUDGE" ||
-    Boolean(
-      judgeModelSelection.mode === "custom"
-        ? judgeModelSelection.selectedModel
-        : projectDefaultModel.defaultModel,
-    );
 
   const create = api.evalsV2.create.useMutation();
   const update = api.evalsV2.update.useMutation();
@@ -293,7 +335,7 @@ export function EvaluatorSetupPage(
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
     return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, prompt: state.prompt }
+      ? { type: state.type, promptMessages: state.promptMessages }
       : { type: state.type, sourceCode: state.sourceCode };
   };
 
@@ -435,7 +477,12 @@ export function EvaluatorSetupPage(
           description,
           definition,
         });
-        capture("evaluators:update", { evaluatorType: state.type });
+        capture("evaluators:update", {
+          evaluatorType: state.type,
+          ...(definition.type === "LLM_AS_JUDGE"
+            ? getJudgePromptAnalyticsProperties(definition.promptMessages)
+            : {}),
+        });
         showSuccessToast({
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
@@ -458,6 +505,26 @@ export function EvaluatorSetupPage(
         getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
           creationSource: props.creationSource,
+          sourceCodeLanguage:
+            state.type === "CODE" ? state.sourceCodeLanguage : undefined,
+          variableMapping:
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.variableMapping
+              : undefined,
+          promptMessages:
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.promptMessages
+              : undefined,
+          evaluatorConfig:
+            state.type === "LLM_AS_JUDGE"
+              ? {
+                  usesDefaultModel: state.modelMode === "default",
+                  hasCustomModelParams:
+                    state.modelMode === "custom" &&
+                    Object.keys(state.modelParams ?? {}).length > 0,
+                  scoreType: state.scoreOutput.dataType,
+                }
+              : undefined,
         }),
       );
       initialSnapshot.current = getCurrentSnapshot(state);
@@ -569,7 +636,6 @@ export function EvaluatorSetupPage(
     <EvaluatorTestPanelContainer
       projectId={projectId}
       store={evaluatorSetupStore}
-      hasValidModel={hasValidModel}
       sampleSelector={
         <SampleObservationSelectorContainer
           store={evaluatorSetupStore}
@@ -614,6 +680,7 @@ export function EvaluatorSetupPage(
             <Button
               type="button"
               variant="outline"
+              title="View version history"
               onClick={() => {
                 capture("evaluators:version_history_interaction", {
                   action: "open",
@@ -718,13 +785,26 @@ export function EvaluatorSetupPage(
           versions={versions}
           currentVersionId={versions[0]?.id ?? ""}
           defaultModel={projectDefaultModel.defaultModel}
-          expandedVersionId={expandedVersionId}
-          onExpandedVersionChange={(versionId) => {
+          onVersionExpansionChange={(versionId) => {
             capture("evaluators:version_history_interaction", {
               action:
                 versionId === null ? "collapse_version" : "expand_version",
             });
-            setExpandedVersionId(versionId);
+          }}
+          onRestoreVersion={(version) => {
+            restoreEvaluatorVersion({
+              store: evaluatorSetupStore,
+              version,
+              resetTestState: () => {
+                setTestResult(null);
+                setHasCompletedTestCall(false);
+                setLastTestRunCostUsd(null);
+                setRawResultOpen(false);
+              },
+            });
+            capture("evaluators:version_history_interaction", {
+              action: "restore_version",
+            });
           }}
           isLoading={versionHistory.isPending}
           hasMore={versionHistory.hasNextPage}

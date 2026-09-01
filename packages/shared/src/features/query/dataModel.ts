@@ -443,7 +443,7 @@ export const observationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "observations.prompt_version",
       alias: "promptVersion",
-      type: "string",
+      type: "number",
       description: "Version of the prompt used for the observation.",
     },
     userId: {
@@ -488,7 +488,7 @@ export const observationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "observations.tool_call_names",
+      sql: "arrayDistinct(observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -625,6 +625,16 @@ export const observationsView: ViewDeclarationType = {
       description: "Number of tool calls per observation.",
       unit: "calls",
     },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
+      unit: "calls",
+    },
   },
   tableRelations: {
     traces: {
@@ -712,7 +722,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   observationPromptVersion: {
     sql: "observations.prompt_version",
     alias: "observationPromptVersion",
-    type: "string",
+    type: "number",
     relationTable: "observations",
     description: "Version of the prompt used for the observation.",
   },
@@ -799,7 +809,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   observationPromptVersion: {
     sql: "events_observations.prompt_version",
     alias: "observationPromptVersion",
-    type: "string",
+    type: "number",
     relationTable: "events_observations",
     description: "Version of the prompt used for the observation.",
   },
@@ -1305,7 +1315,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "events_observations.prompt_version",
       alias: "promptVersion",
-      type: "string",
+      type: "number",
       description: "Version of the prompt used for the observation.",
     },
     startTimeMonth: {
@@ -1322,7 +1332,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       explodeArray: true,
     },
     calledToolNames: {
-      sql: "events_observations.tool_call_names",
+      sql: "arrayDistinct(events_observations.tool_call_names)",
       alias: "calledToolNames",
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
@@ -1523,6 +1533,16 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "toolCalls",
       type: "integer",
       description: "Number of tool calls per observation.",
+      unit: "calls",
+    },
+    toolCallInvocations: {
+      sql: "countEqual(@@AGG1@@(events_observations.tool_call_names), calledToolNames)",
+      aggs: { agg1: "any" },
+      alias: "toolCallInvocations",
+      type: "integer",
+      requiresDimension: "calledToolNames",
+      description:
+        "Number of individual tool-call invocations, counting repeated calls to the same tool within one observation. Automatically grouped by the Called Tool Names dimension. Use the Sum aggregation for totals and rankings.",
       unit: "calls",
     },
     costByType: {

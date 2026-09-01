@@ -1,5 +1,6 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -68,6 +69,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         session: ctx.session,
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
+      });
+      // Issuing organization-scoped keys is a paid feature. Reads and deletes
+      // stay ungated so a downgraded organization can still revoke keys that
+      // were issued while it was entitled.
+      throwIfNoEntitlement({
+        entitlement: "admin-api",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
       });
 
       const apiKeyMeta = await createAndAddApiKeysToDb({

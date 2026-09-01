@@ -22,7 +22,6 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
-  LangfuseInternalTraceEnvironment,
   logger,
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
@@ -50,7 +49,13 @@ import {
 } from "./parseOutcomeScoring";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
+import {
+  EVALUATOR_FIELD_REGISTRY,
+  RULE_SAMPLE_FIELD_REGISTRY,
+} from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { EVENTS_FIELD_REGISTRY, withFieldOptions } from "../lib/fields";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -61,7 +66,15 @@ const scoreNameList = z
 const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
-  registryId: z.enum(["events", "evaluationRules"]).default("events"),
+  registryId: z
+    .enum([
+      "events",
+      "evaluationRules",
+      "evaluatorSamples",
+      "ruleSamples",
+      "sessions",
+    ])
+    .default("events"),
   /** Existing bar query text, so the model refines the current filters. */
   currentQuery: z.string().max(4096).optional(),
   /** Project data context (observed values, metadata keys, result count) built
@@ -87,10 +100,25 @@ export const searchBarRouter = createTRPCRouter({
     .input(GenerateFilterInput)
     .mutation(async ({ input, ctx }) => {
       try {
-        const registry =
+        const baseRegistry =
           input.registryId === "evaluationRules"
             ? RULE_FIELD_REGISTRY
-            : EVENTS_FIELD_REGISTRY;
+            : input.registryId === "evaluatorSamples"
+              ? EVALUATOR_FIELD_REGISTRY
+              : input.registryId === "ruleSamples"
+                ? RULE_SAMPLE_FIELD_REGISTRY
+                : input.registryId === "sessions"
+                  ? SESSIONS_FIELD_REGISTRY
+                  : EVENTS_FIELD_REGISTRY;
+        // Defence in depth for the client gate above: generating against the
+        // fallback (events) prompt for a view that has no branch of its own
+        // produces filters for columns that view does not have.
+        if (!baseRegistry.aiFilterPrompt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "AI filter generation is not available for this view",
+          });
+        }
         // Generating a filter reads nothing a project member cannot already
         // read by hand, so membership is the right bar; whether the org uses
         // AI at all is governed by `aiFeaturesEnabled` below.
@@ -100,14 +128,25 @@ export const searchBarRouter = createTRPCRouter({
           scope: "project:read",
         });
 
-        const project = await ctx.prisma.project.findUnique({
-          where: { id: input.projectId },
-          select: {
-            organization: {
-              select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+        const isSampleRegistry =
+          input.registryId === "evaluatorSamples" ||
+          input.registryId === "ruleSamples";
+        const [project, datasets] = await Promise.all([
+          ctx.prisma.project.findUnique({
+            where: { id: input.projectId },
+            select: {
+              organization: {
+                select: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
+              },
             },
-          },
-        });
+          }),
+          isSampleRegistry
+            ? ctx.prisma.dataset.findMany({
+                where: { projectId: input.projectId },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+        ]);
 
         if (!project) {
           throw new TRPCError({
@@ -122,6 +161,17 @@ export const searchBarRouter = createTRPCRouter({
             message: "AI features are not enabled for this organization.",
           });
         }
+
+        const registry = isSampleRegistry
+          ? withFieldOptions(
+              baseRegistry,
+              DATASET_NAME_COLUMN,
+              datasets.map((dataset) => ({
+                value: dataset.id,
+                displayValue: dataset.name,
+              })),
+            )
+          : baseRegistry;
 
         const modelConfig = getInAppAgentModelConfig();
 
@@ -210,8 +260,6 @@ export const searchBarRouter = createTRPCRouter({
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
                 traceId,
-                environment:
-                  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "search-bar-filter",
                 projectId: ctx.session.projectId,
                 traceName: "search-bar-filter",

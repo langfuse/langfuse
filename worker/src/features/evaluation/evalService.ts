@@ -56,6 +56,7 @@ import {
   Observation,
   EvalTargetObject,
   getEvaluatorBlockMetadata,
+  getEvaluatorPromptMessages,
   getBlockReasonForInvalidModelConfig,
   isEvalRuleExecutable,
   type EvalTemplateLlmAsAJudge,
@@ -265,6 +266,36 @@ function toTraceEvalConfig(rule: TraceRule): TraceEvalConfig | null {
     evaluatorId: evaluator.id,
     evaluationRuleId: rule.id,
   };
+}
+
+/**
+ * Stable id for a trace/dataset eval execution, derived from the same key the
+ * dedup lookup uses.
+ *
+ * Two producers (trace-upsert shards, dataset-run-item-upsert, CreateEvalQueue)
+ * can observe the same trace concurrently and both pass the read-then-write
+ * existence check. A random id lets both inserts succeed, which doubles LLM
+ * spend and — because score ids are derived from the job execution id — shows
+ * up as duplicate scores. Deriving the id from the dedup key lets the primary
+ * key reject the loser instead.
+ */
+function createDeterministicJobExecutionId(params: {
+  projectId: string;
+  configId: string;
+  traceId: string;
+  datasetItemId: string | null;
+  observationId: string | null;
+}): string {
+  return createW3CTraceId(
+    JSON.stringify([
+      "trace-eval",
+      params.projectId,
+      params.configId,
+      params.traceId,
+      params.datasetItemId,
+      params.observationId,
+    ]),
+  );
 }
 
 export const createEvalJobs = async ({
@@ -729,7 +760,18 @@ export const createEvalJobs = async ({
     // If we matched a trace for a trace event, we create a job or
     // if we have both trace and datasetItem.
     if (traceExists && (!isDatasetConfig || Boolean(datasetItem))) {
-      const jobExecutionId = randomUUID();
+      // Derive the id from the dedup key instead of randomising it, so two
+      // producers racing on the same (config, trace, dataset item, observation)
+      // compute the same primary key. The insert below then relies on the
+      // primary key to reject the loser atomically, which the read-then-write
+      // existence check above cannot do on its own.
+      const jobExecutionId = createDeterministicJobExecutionId({
+        projectId: event.projectId,
+        configId: config.id,
+        traceId: event.traceId,
+        datasetItemId: datasetItem?.id ?? null,
+        observationId: observationId ?? null,
+      });
 
       // deduplication: if a job exists already for a trace event, we do not create a new one.
       if (existingJob.length > 0) {
@@ -756,56 +798,88 @@ export const createEvalJobs = async ({
         `Creating eval job execution for config ${config.id} and trace ${event.traceId}`,
       );
 
-      await prisma.jobExecution.create({
-        data: {
-          id: jobExecutionId,
-          projectId: event.projectId,
-          jobConfigurationId: config.id,
-          jobInputTraceId: event.traceId,
-          jobInputTraceTimestamp: traceTimestamp,
-          jobTemplateId: config.evalTemplateId,
-          status: "PENDING",
-          startTime: new Date(),
-          ...(datasetItem
-            ? {
-                jobInputDatasetItemId: datasetItem.id,
-                ...("validFrom" in datasetItem && {
-                  jobInputDatasetItemValidFrom: datasetItem.validFrom,
-                }),
-                jobInputObservationId: observationId || null,
-              }
-            : {}),
-        },
-      });
-
-      // add the job to the next queue so that eval can be executed
-      const shardingKey = `${event.projectId}-${jobExecutionId}`;
-      await EvalExecutionQueue.getInstance({ shardingKey })?.add(
-        QueueName.EvaluationExecution,
-        {
-          name: QueueJobs.EvaluationExecution,
-          id: randomUUID(),
-          timestamp: new Date(),
-          payload: {
+      // `createMany` with `skipDuplicates` turns the insert into an
+      // INSERT ... ON CONFLICT DO NOTHING on the primary key. The racing loser
+      // gets `count: 0` and must not enqueue, so one execution stays one
+      // execution (and one score, since score ids derive from this id).
+      const { count: insertedCount } = await prisma.jobExecution.createMany({
+        data: [
+          {
+            id: jobExecutionId,
             projectId: event.projectId,
-            jobExecutionId: jobExecutionId,
-            delay: config.delay,
-            ...(config.evaluatorId
+            jobConfigurationId: config.id,
+            jobInputTraceId: event.traceId,
+            jobInputTraceTimestamp: traceTimestamp,
+            jobTemplateId: config.evalTemplateId,
+            status: "PENDING",
+            startTime: new Date(),
+            ...(datasetItem
               ? {
-                  evaluatorId: config.evaluatorId,
-                  evaluationRuleId: config.evaluationRuleId,
+                  jobInputDatasetItemId: datasetItem.id,
+                  ...("validFrom" in datasetItem && {
+                    jobInputDatasetItemValidFrom: datasetItem.validFrom,
+                  }),
+                  jobInputObservationId: observationId || null,
                 }
               : {}),
           },
-          retryBaggage: {
-            originalJobTimestamp: new Date(),
-            attempt: 0,
+        ],
+        skipDuplicates: true,
+      });
+
+      if (insertedCount === 0) {
+        logger.debug(
+          `Concurrent producer already created eval job ${jobExecutionId} for config ${config.id} and trace ${event.traceId}`,
+        );
+        continue;
+      }
+
+      try {
+        // add the job to the next queue so that eval can be executed
+        const shardingKey = `${event.projectId}-${jobExecutionId}`;
+        await EvalExecutionQueue.getInstance({ shardingKey })?.add(
+          QueueName.EvaluationExecution,
+          {
+            name: QueueJobs.EvaluationExecution,
+            id: randomUUID(),
+            timestamp: new Date(),
+            payload: {
+              projectId: event.projectId,
+              jobExecutionId: jobExecutionId,
+              delay: config.delay,
+              ...(config.evaluatorId
+                ? {
+                    evaluatorId: config.evaluatorId,
+                    evaluationRuleId: config.evaluationRuleId,
+                  }
+                : {}),
+            },
+            retryBaggage: {
+              originalJobTimestamp: new Date(),
+              attempt: 0,
+            },
           },
-        },
-        {
-          delay: config.delay, // milliseconds
-        },
-      );
+          {
+            delay: config.delay, // milliseconds
+          },
+        );
+      } catch (e) {
+        // The row exists but nothing will ever pick it up. Without this
+        // compensating delete the BullMQ redelivery would hit the dedup check
+        // above and skip re-enqueueing, stranding the execution at PENDING.
+        logger.warn(
+          `Failed to enqueue eval execution ${jobExecutionId}, removing the orphaned job execution so the retry can recreate it`,
+          e,
+        );
+        await prisma.jobExecution.deleteMany({
+          where: {
+            id: jobExecutionId,
+            projectId: event.projectId,
+            status: JobExecutionStatus.PENDING,
+          },
+        });
+        throw e;
+      }
     } else {
       // if we do not have a match, and execution exists, we mark the job as cancelled
       // we do this, because a second trace event might 'deselect' a trace
@@ -1010,7 +1084,10 @@ export async function runLLMAsJudgeEvaluation({
       let evaluatorExecution: Awaited<ReturnType<typeof executeLlmEvaluator>>;
       try {
         evaluatorExecution = await executeLlmEvaluator({
-          templatePrompt: template.prompt,
+          promptMessages: getEvaluatorPromptMessages({
+            prompt: template.prompt,
+            promptMessages: template.promptMessages,
+          }),
           variables: extractedVariables,
           outputDefinition: parsedOutputDefinition.data,
           callLlm: async ({
@@ -1309,6 +1386,7 @@ async function resolveTraceExecution(params: {
     name: evaluator.name,
     version: version.version,
     prompt: version.prompt,
+    promptMessages: version.promptMessages,
     type: evaluator.type,
     partner: version.partner,
     model: version.model,

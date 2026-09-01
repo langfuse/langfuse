@@ -4,7 +4,7 @@
  */
 
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
   type PriceSource,
@@ -21,8 +21,8 @@ export function CostBadge({
   costDetails: Record<string, number> | undefined;
   priceSource?: PriceSource;
 }) {
-  // Don't show if no cost data or cost is 0
-  if (totalCost == null || totalCost === 0 || !costDetails) return null;
+  // Don't show if no cost data. Explicit 0 is a real value and should render.
+  if (totalCost == null || !costDetails) return null;
 
   return (
     <BreakdownTooltip
@@ -30,10 +30,7 @@ export function CostBadge({
       isCost={true}
       priceSource={priceSource}
     >
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{usdFormatter(totalCost)}</span>
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
     </BreakdownTooltip>
   );
 }
@@ -60,17 +57,16 @@ export function UsageBadge({
     totalUsage,
     true,
   );
-  const hasText = tokenText.length > 0;
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge
-        variant="tertiary"
-        className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
-      >
-        {hasText && <span>{tokenText}</span>}
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
+      {tokenText ? (
+        <Badge text={tokenText} trailingIcon={InfoIcon} />
+      ) : (
+        <BadgeShell aria-label="View usage breakdown">
+          <InfoIcon aria-hidden className="size-3" />
+        </BadgeShell>
+      )}
     </BreakdownTooltip>
   );
 }

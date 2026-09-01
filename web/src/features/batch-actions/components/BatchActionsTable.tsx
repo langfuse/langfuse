@@ -2,17 +2,20 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
-import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { InfoIcon } from "lucide-react";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { BatchActionStatus } from "@langfuse/shared";
 
 type BatchActionRow = {
   id: string;
@@ -44,20 +47,16 @@ export function BatchActionsTable(props: { projectId: string }) {
   });
 
   const columns: LangfuseColumnDef<BatchActionRow>[] = [
-    {
+    createTextTableColumn<BatchActionRow>({
       accessorKey: "actionType",
-      id: "actionType",
       header: "Action Type",
       size: 200,
-      cell: ({ row }) => {
-        const actionType = row.getValue("actionType") as string;
-        const formattedType = actionType
-          .split("-")
+      mapValue: (value) =>
+        value
+          ?.split("-")
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(" ");
-        return <span>{formattedType}</span>;
-      },
-    },
+          .join(" "),
+    }),
     {
       accessorKey: "tableName",
       id: "tableName",
@@ -68,16 +67,21 @@ export function BatchActionsTable(props: { projectId: string }) {
         return <span className="capitalize">{tableName}</span>;
       },
     },
-    {
+    createStatusTableColumn<BatchActionRow, string>({
       accessorKey: "status",
-      id: "status",
+      getStatus: (status) => {
+        if (status === BatchActionStatus.Queued) return "queued";
+        if (status === BatchActionStatus.Processing) return "processing";
+        if (status === BatchActionStatus.Completed) return "completed";
+        if (status === BatchActionStatus.Failed) return "failed";
+        if (status === BatchActionStatus.Partial) return "partial";
+        if (!status) return undefined;
+
+        return status.toLowerCase();
+      },
       header: "Status",
       size: 110,
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return <StatusBadge type={status.toLowerCase()} />;
-      },
-    },
+    }),
     {
       accessorKey: "progress",
       id: "progress",
@@ -105,16 +109,11 @@ export function BatchActionsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createDateTableColumn<BatchActionRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Created",
       size: 150,
-      cell: ({ row }) => {
-        const createdAt = row.getValue("createdAt") as Date;
-        return <LocalIsoDate date={createdAt} />;
-      },
-    },
+    }),
     {
       accessorKey: "finishedAt",
       id: "finishedAt",
@@ -122,36 +121,24 @@ export function BatchActionsTable(props: { projectId: string }) {
       size: 150,
       cell: ({ row }) => {
         const finishedAt = row.getValue("finishedAt") as Date | null;
-        return finishedAt ? (
-          <LocalIsoDate date={finishedAt} />
+        const preparedDate = buildLocalIsoDatePresentation({
+          date: finishedAt,
+        });
+
+        return preparedDate ? (
+          <span title={preparedDate.title}>{preparedDate.display}</span>
         ) : (
           <span className="text-muted-foreground">-</span>
         );
       },
     },
-    {
+    createUserTableColumn<BatchActionRow>({
       accessorKey: "user",
-      id: "user",
       header: "Created By",
       size: 150,
-      cell: ({ row }) => {
-        const user = row.getValue("user") as {
-          name: string | null;
-          image: string | null;
-        } | null;
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={user?.image ?? undefined}
-                alt={user?.name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{user?.name ?? "Unknown"}</span>
-          </div>
-        );
-      },
-    },
+      variant: "avatar",
+      emptyValue: "Unknown",
+    }),
     {
       accessorKey: "log",
       id: "log",

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.17.0",
+  "version": "4.27.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -34,6 +34,7 @@
     "@anthropic-ai/tokenizer": "^0.0.4",
     "@ag-ui/core": "^0.0.52",
     "@ag-ui/mastra": "1.1.1",
+    "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/shared": "workspace:*",
     "@aws-sdk/client-lambda-microvms": "catalog:",
@@ -55,6 +56,8 @@
     "@prisma/instrumentation": "^6.19.3",
     "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.81",
     "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.111",
+    "ai-sdk-openai-compatible-v4": "npm:@ai-sdk/openai-compatible@3.0.3",
+    "ai-sdk-openai-v4": "npm:@ai-sdk/openai@3.0.99",
     "bullmq": "^5.76.3",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
@@ -73,7 +76,6 @@
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.0",
-    "yaml": "^2.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

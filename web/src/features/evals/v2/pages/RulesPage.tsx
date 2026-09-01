@@ -19,11 +19,11 @@ export function RulesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   if (!hasReadAccess) return <SupportOrUpgradePage />;

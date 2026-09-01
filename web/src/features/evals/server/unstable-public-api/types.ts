@@ -10,10 +10,11 @@ import type {
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
-  PublicEvaluationRuleReadMappingType,
+  PublicEvaluationRuleReadFilterType,
+  PromptVariableMappingReadType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
-  LegacyEvaluationRuleMappingType,
+  LegacyPromptVariableMappingType,
   PublicEvaluationRuleLegacyTargetType,
   PublicEvaluatorModelConfigType,
   PublicEvaluatorOutputDefinitionType,
@@ -37,7 +38,7 @@ type ApiEvaluatorRecordBase = {
   version: number;
   variables: string[];
   // Read shape: an evaluator default can be incomplete or name experiment-only sources.
-  mapping: PublicEvaluationRuleReadMappingType[] | null;
+  mapping: PromptVariableMappingReadType[] | null;
   evaluationRuleCount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -85,27 +86,34 @@ type ApiEvaluationRuleRecordBase = {
 export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   evaluators: Array<{
     evaluator: PublicEvaluationRuleEvaluatorType;
-    mapping: PublicEvaluationRuleReadMappingType[] | null;
+    mapping: PromptVariableMappingReadType[] | null;
   }>;
   target: PublicEvaluationRuleTargetType;
   filter: PublicEvaluationRuleFilterType[];
-  mapping: PublicEvaluationRuleReadMappingType[];
+  mapping: PromptVariableMappingReadType[];
 };
 
 type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
   evaluators: Array<{
     evaluator: PublicEvaluationRuleEvaluatorType;
-    mapping: LegacyEvaluationRuleMappingType[] | null;
+    mapping: LegacyPromptVariableMappingType[] | null;
   }>;
   target: PublicEvaluationRuleLegacyTargetType;
   delay: number;
   timeScope: JobTimeScope[];
   filter: FilterCondition[];
-  mapping: LegacyEvaluationRuleMappingType[];
+  mapping: LegacyPromptVariableMappingType[];
+};
+
+type ApiReadableV2EvaluationRuleRecord = Omit<
+  ApiWritableEvaluationRuleRecord,
+  "filter"
+> & {
+  filter: PublicEvaluationRuleReadFilterType[];
 };
 
 export type ApiEvaluationRuleRecord =
-  | ApiWritableEvaluationRuleRecord
+  | ApiReadableV2EvaluationRuleRecord
   | ApiLegacyEvaluationRuleRecord;
 
 export type EvaluationRuleEvaluatorFamilyReference =
@@ -128,4 +136,6 @@ export type StoredPublicEvaluatorTemplate = Pick<
     | "sourceCode"
     | "sourceCodeLanguage"
     | "variableMapping"
-  >;
+  > & {
+    promptMessages?: EvaluatorVersion["promptMessages"];
+  };

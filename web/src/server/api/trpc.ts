@@ -94,7 +94,6 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
-import { type Flag } from "@/src/features/feature-flags/types";
 import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
@@ -399,31 +398,6 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
-
-/** requireFeatureFlag gates a procedure behind a server-side feature flag. */
-export const requireFeatureFlag = (flag: Flag) =>
-  t.middleware(({ ctx, next }) => {
-    const session = ctx.session;
-    const enabled =
-      (session?.user?.featureFlags?.[flag] ?? false) ||
-      (session?.user?.admin ?? false) ||
-      (session?.environment?.enableExperimentalFeatures ?? false);
-    if (!enabled) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: `Feature "${flag}" is not enabled for this user`,
-      });
-    }
-    return next();
-  });
-
-/** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
-export const requireLangfuseCloud = t.middleware(({ next }) => {
-  if (!isLangfuseCloud) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
-  }
-  return next();
-});
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
 export const requireV4Writes = t.middleware(({ next }) => {
@@ -796,13 +770,10 @@ export const adminProcedure = withOtelTracingProcedure
 
 // Export context types for easier reuse
 // Base context from createTRPCContext
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 // After `enforceUserIsAuthed`: session & user are non-null
 export type AuthedSession = NonNullable<TRPCContext["session"]> & {
   user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
-};
-export type AuthedContext = Omit<TRPCContext, "session"> & {
-  session: AuthedSession;
 };
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {

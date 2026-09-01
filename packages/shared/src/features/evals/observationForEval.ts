@@ -175,12 +175,18 @@ export type ObservationEvalFilterColumnInternal =
     | "name"
     | "environment"
     | "level"
+    | "status_message"
     | "version"
+    | "release"
     | "trace_name"
     | "user_id"
     | "session_id"
+    | "provided_model_name"
+    | "prompt_name"
+    | "prompt_version"
     | "tags"
     | "experiment_id"
+    | "experiment_name"
     | "experiment_dataset_id"
     | "experiment_item_root_span_id"
     | "metadata"
@@ -334,17 +340,53 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     options: [], // to be filled at runtime
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "level",
     options: Object.values(ObservationLevel).map((key) => ({ value: key })),
+    aliases: ["Level"],
   },
   {
     name: "Version",
     id: "version",
     type: "string",
     internal: "version",
+    nullable: true,
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "release",
+    nullable: true,
+  },
+  {
+    name: "Status Message",
+    id: "statusMessage",
+    type: "string",
+    internal: "status_message",
+    nullable: true,
+  },
+  {
+    name: "Provided Model Name",
+    id: "providedModelName",
+    type: "string",
+    internal: "provided_model_name",
+    nullable: true,
+  },
+  {
+    name: "Prompt Name",
+    id: "promptName",
+    type: "string",
+    internal: "prompt_name",
+    nullable: true,
+  },
+  {
+    name: "Prompt Version",
+    id: "promptVersion",
+    type: "number",
+    internal: "prompt_version",
     nullable: true,
   },
   {
@@ -401,6 +443,13 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     type: "stringOptions",
     internal: "experiment_id",
     options: [], // to be filled at runtime
+    nullable: true,
+  },
+  {
+    name: "Experiment Name",
+    id: "experimentName",
+    type: "string",
+    internal: "experiment_name",
     nullable: true,
   },
   {

@@ -4,10 +4,16 @@ import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
 import { Badge } from "@/src/components/ui/badge";
 import { useExperimentSearch } from "@/src/features/experiments/hooks/useExperimentSearch";
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  comparisonChangedProps,
+  comparisonPickerOpenedProps,
+} from "@/src/features/experiments/lib/analytics";
 
 export type ExperimentOption = {
   experimentId: string;
   experimentName: string;
+  datasetId: string | null;
 };
 
 type ExperimentComparisonSelectorProps = {
@@ -25,6 +31,7 @@ export function ExperimentComparisonSelector({
   selectedExperimentCount,
   onSelectedIdsChange,
 }: ExperimentComparisonSelectorProps) {
+  const capture = usePostHogClientCapture();
   const {
     searchResults,
     searchQuery,
@@ -44,16 +51,14 @@ export function ExperimentComparisonSelector({
 
   // Map selected IDs to full experiment objects
   const selectedExperiments = useMemo(() => {
-    return selectedIds
-      .map((id) => {
-        const found = availableExperimentNames.find(
-          (exp) => exp.experimentId === id,
-        );
-        if (found) return found;
-        // If not in current results, create placeholder with ID as name
-        return { experimentId: id, experimentName: id };
-      })
-      .filter((exp): exp is ExperimentOption => exp !== undefined);
+    return selectedIds.map((id) => {
+      const found = availableExperimentNames.find(
+        (exp) => exp.experimentId === id,
+      );
+      if (found) return found;
+      // If not in current results, create placeholder with ID as name
+      return { experimentId: id, experimentName: id, datasetId: null };
+    });
   }, [selectedIds, availableExperimentNames]);
 
   const handleItemsChange = (items: ExperimentOption[]) => {
@@ -67,7 +72,45 @@ export function ExperimentComparisonSelector({
             (selectedExperimentCount - selectedIds.length),
         ),
       );
+    if (
+      newIds.length === selectedIds.length &&
+      newIds.every((id, index) => id === selectedIds[index])
+    ) {
+      return;
+    }
+    const baselineDatasetId = availableExperimentNames.find(
+      (exp) => exp.experimentId === baselineExperimentId,
+    )?.datasetId;
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiment-items",
+        comparisonCount: newIds.length,
+        datasetIds: [
+          baselineDatasetId,
+          ...newIds.map(
+            (id) =>
+              availableExperimentNames.find((exp) => exp.experimentId === id)
+                ?.datasetId,
+          ),
+        ],
+        source: "picker",
+      }),
+    );
     onSelectedIdsChange(newIds);
+  };
+
+  const handlePickerOpenChange = (open: boolean) => {
+    if (!open) return;
+    capture(
+      "experiment:comparison_picker_opened",
+      comparisonPickerOpenedProps({
+        tableName: "experiment-items",
+        optionCount: searchResultsExclBaseline.length,
+        datasetIds: searchResultsExclBaseline.map((exp) => exp.datasetId),
+        queryLength: searchQuery.length,
+      }),
+    );
   };
 
   const isMaxReached = selectedExperimentCount >= MAX_SELECTED_EXPERIMENTS;
@@ -78,6 +121,7 @@ export function ExperimentComparisonSelector({
         labelLeft="Experiment selection"
         selectedItems={selectedExperiments}
         onItemsChange={handleItemsChange}
+        onOpenChange={handlePickerOpenChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchResults={searchResultsExclBaseline}

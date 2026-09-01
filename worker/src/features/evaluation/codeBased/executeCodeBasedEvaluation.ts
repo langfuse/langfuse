@@ -82,10 +82,6 @@ export async function executeCodeBasedEvaluation(params: {
       });
 
       if (!dispatchOutcome.success) {
-        if (dispatchOutcome.error.retryable === false) {
-          throw new UnrecoverableError(dispatchOutcome.error.message);
-        }
-
         throw new CodeEvalExecutionError(dispatchOutcome.error);
       }
 
