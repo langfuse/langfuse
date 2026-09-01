@@ -86,10 +86,6 @@ const searchPanelTheme = EditorView.theme({
     backgroundColor: "hsl(var(--accent))",
     color: "hsl(var(--accent-foreground))",
   },
-  ".cm-panel.cm-search label:has(input:checked)": {
-    backgroundColor: "hsl(var(--accent))",
-    color: "hsl(var(--accent-foreground))",
-  },
   ".cm-panel.cm-search input[type=checkbox]": {
     boxSizing: "border-box",
     display: "inline-flex",
