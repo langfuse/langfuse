@@ -95,9 +95,8 @@ describe("MarkdownView ordered lists", () => {
 
 describe("MarkdownView list item layout", () => {
   // A list item that also contains a nested list has a block sibling
-  // (`ul`/`ol`) after the label. `list-inside` then paints the marker on its
-  // own line above the bold header. `list-outside` keeps the marker beside
-  // the first line of the item.
+  // after the label. Markers use list-outside and matching left padding
+  // so they sit in the gutter beside the first line.
   it("places nested bullet markers outside the item content box", () => {
     const { container } = renderMarkdown(NESTED_BULLET_MARKDOWN);
 
@@ -118,7 +117,10 @@ describe("MarkdownView list item layout", () => {
     ]);
 
     for (const item of topItems) {
-      expect(item.querySelector(":scope > ul")).not.toBeNull();
+      const nested = item.querySelector(":scope > ul");
+      expect(nested).not.toBeNull();
+      expect(nested?.className).toContain("pl-6");
+      expect(item.className).not.toContain("[&>ul]:pl-4");
     }
   });
 
@@ -135,7 +137,10 @@ describe("MarkdownView list item layout", () => {
     expect(topItems).toHaveLength(2);
 
     for (const item of topItems) {
-      expect(item.querySelector(":scope > ol")).not.toBeNull();
+      const nested = item.querySelector(":scope > ol");
+      expect(nested).not.toBeNull();
+      expect(nested?.className).toContain("pl-6");
+      expect(item.className).not.toContain("[&>ol]:pl-4");
     }
   });
 

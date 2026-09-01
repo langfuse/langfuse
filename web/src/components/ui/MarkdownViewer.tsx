@@ -315,9 +315,8 @@ const markdownComponents: NonNullable<Options["components"]> = {
   ul({ children }) {
     if (isChecklist(children)) return <ul className="list-none">{children}</ul>;
 
-    // list-outside keeps the marker beside the first line even when the
-    // item also contains a nested list (a block sibling). list-inside
-    // puts that marker on its own line above the label.
+    // Nested items contain a block list after the label. list-outside
+    // plus left padding keeps the marker in the gutter beside that line.
     return <ul className="list-outside list-disc pl-6">{children}</ul>;
   },
   ol({ children, start }) {
@@ -328,11 +327,7 @@ const markdownComponents: NonNullable<Options["components"]> = {
     );
   },
   li({ children }) {
-    return (
-      <li className="mt-1 [&>ol]:pl-4 [&>ul]:pl-4">
-        {transformListItemChildren(children)}
-      </li>
-    );
+    return <li className="mt-1">{transformListItemChildren(children)}</li>;
   },
   pre({ children }) {
     return <pre className="rounded p-2">{children}</pre>;
