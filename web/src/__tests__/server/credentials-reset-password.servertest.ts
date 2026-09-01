@@ -51,6 +51,41 @@ describe("credentials.resetPassword", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
+  it("allows only one concurrent password update per OTP", async () => {
+    const { caller, userId, email } = await createPasswordUser();
+    const token = uniqueOtp();
+    await insertOtp({ email, token });
+
+    const results = await Promise.allSettled([
+      caller.credentials.resetPassword({
+        email,
+        token,
+        password: NEW_PASSWORD,
+      }),
+      caller.credentials.resetPassword({
+        email,
+        token,
+        password: "Another1!",
+      }),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === "rejected"),
+    ).toHaveLength(1);
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { password: true },
+    });
+    const hasWinningPassword =
+      (await verifyPassword(NEW_PASSWORD, user.password!)) ||
+      (await verifyPassword("Another1!", user.password!));
+    expect(hasWinningPassword).toBe(true);
+  });
+
   it("does not let another account's session use the OTP", async () => {
     const victim = await createPasswordUser();
     const attacker = await createPasswordUser();
