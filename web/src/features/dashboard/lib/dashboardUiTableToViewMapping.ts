@@ -56,6 +56,17 @@ const defineField = (
   legacy,
 });
 
+const evaluatorFilterDefinitions = [
+  defineField(
+    "evaluatorId",
+    sourceSpec("Evaluator ID", { uiTableId: "evaluatorId" }),
+  ),
+  defineField(
+    "isEvaluatorTest",
+    sourceSpec("Evaluator test run", { uiTableId: "isEvaluatorTest" }),
+  ),
+] as const;
+
 const viewFilterDefinitions: Record<
   ViewName,
   readonly DashboardViewFieldDefinition[]
@@ -145,6 +156,7 @@ const viewFilterDefinitions: Record<
       "environment",
       sourceSpec("Environment", { uiTableId: "environment" }),
     ),
+    ...evaluatorFilterDefinitions,
     defineField(
       "release",
       sourceSpec("Release", {
@@ -220,6 +232,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-boolean": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -267,6 +280,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
   "scores-categorical": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
@@ -314,6 +328,7 @@ const viewFilterDefinitions: Record<
       "traceVersion",
       sourceSpec("Version", { uiTableId: "version" }),
     ),
+    ...evaluatorFilterDefinitions,
   ],
 };
 
