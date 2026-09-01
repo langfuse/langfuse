@@ -2,6 +2,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
   type SyntheticEvent,
+  useRef,
   useState,
 } from "react";
 import type { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
@@ -69,26 +70,41 @@ function AssistantComposer({
 }) {
   const { openAssistant, submit } = useInAppAiAgent();
   const [request, setRequest] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlightRef = useRef(false);
   const isScratch = context === "scratch";
 
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedRequest = request.trim();
-    if (!trimmedRequest || !openAssistant("code_evaluator_editor")) return;
+    if (
+      !trimmedRequest ||
+      submitInFlightRef.current ||
+      !openAssistant("code_evaluator_editor")
+    ) {
+      return;
+    }
 
-    const started = await submit(
-      getAssistantPrompt({
-        context,
-        request: trimmedRequest,
-        sourceCodeLanguage,
-      }),
-      {
-        newConversation: true,
-        entryPoint: "code-evaluator-editor",
-      },
-    );
+    submitInFlightRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const started = await submit(
+        getAssistantPrompt({
+          context,
+          request: trimmedRequest,
+          sourceCodeLanguage,
+        }),
+        {
+          newConversation: true,
+          entryPoint: "code-evaluator-editor",
+        },
+      );
 
-    if (started) setRequest("");
+      if (started) setRequest("");
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -134,6 +150,7 @@ function AssistantComposer({
               : "e.g. Return 0 instead of throwing when the output is empty"
           }
           value={request}
+          disabled={isSubmitting}
           onChange={(event) => {
             setRequest(event.target.value);
             resizeTextarea(event.currentTarget);
@@ -152,6 +169,7 @@ function AssistantComposer({
               : "Update with Langfuse Assistant"
           }
           disabled={!request.trim()}
+          loading={isSubmitting}
         >
           <SendHorizontal className="h-4 w-4" />
         </Button>

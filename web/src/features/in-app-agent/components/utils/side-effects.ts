@@ -17,6 +17,7 @@ export type InAppAgentTrpcInvalidationTarget =
   | "dashboardWidgets"
   | "datasets"
   | "evals"
+  | "evalsV2"
   | "experiments"
   | "models"
   | "prompts"
@@ -70,10 +71,10 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listEvaluators: [],
   langfuse_listManagedEvaluatorTemplates: [],
   langfuse_getEvaluator: [],
-  langfuse_testEvaluator: ["evals"],
-  langfuse_createEvaluator: ["evals", "models"],
-  langfuse_updateEvaluator: ["evals", "models"],
-  langfuse_deleteEvaluator: ["evals", "models"],
+  langfuse_testEvaluator: ["evals", "evalsV2"],
+  langfuse_createEvaluator: ["evals", "evalsV2", "models"],
+  langfuse_updateEvaluator: ["evals", "evalsV2", "models"],
+  langfuse_deleteEvaluator: ["evals", "evalsV2", "models"],
   langfuse_listEvaluationRules: [],
   langfuse_getEvaluationRule: [],
   langfuse_createEvaluationRule: ["evals"],
@@ -182,6 +183,9 @@ function performTargetInvalidation(
   }
   if (target === "evals") {
     return utils.evals.invalidate();
+  }
+  if (target === "evalsV2") {
+    return utils.evalsV2.invalidate();
   }
   if (target === "experiments") {
     return utils.experiments.invalidate();

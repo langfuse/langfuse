@@ -65,6 +65,42 @@ describe("CodeEvaluatorAssistantExperience", () => {
     );
   });
 
+  it("starts only one conversation while a submission is pending", async () => {
+    let resolveSubmission: (started: boolean) => void = () => undefined;
+    agentContext.submit.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        resolveSubmission = resolve;
+      }),
+    );
+    render(
+      <CodeEvaluatorAssistantExperience
+        context="scratch"
+        sourceCodeLanguage="TYPESCRIPT"
+      >
+        <div>Code editor</div>
+      </CodeEvaluatorAssistantExperience>,
+    );
+
+    const input = screen.getByLabelText("Describe the code evaluator you want");
+    fireEvent.change(input, {
+      target: { value: "Score empty responses" },
+    });
+    const form = input.closest("form");
+    expect(form).not.toBeNull();
+
+    fireEvent.submit(form!);
+    fireEvent.submit(form!);
+
+    expect(agentContext.openAssistant).toHaveBeenCalledOnce();
+    expect(agentContext.submit).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("button", { name: "Create with Langfuse Assistant" }),
+    ).toBeDisabled();
+
+    resolveSubmission(true);
+    await waitFor(() => expect(input).toHaveValue(""));
+  });
+
   it("remembers when the user chooses to code scratch evaluators", () => {
     const { unmount } = render(
       <CodeEvaluatorAssistantExperience
