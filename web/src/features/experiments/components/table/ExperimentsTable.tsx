@@ -171,6 +171,8 @@ function ExperimentsMultiSelectActionMenu({
     if (selectedExperimentIds.length === 0) return;
 
     const [baseline, ...comparisons] = selectedExperimentIds;
+    // The list's own way into a comparison — the same events the picker and the
+    // baseline control emit, told apart by their source.
     capture(
       "experiment:comparison_changed",
       comparisonChangedProps({
@@ -851,6 +853,10 @@ export default function ExperimentsTable({
     return map;
   }, [rows]);
 
+  // Which score family do people actually want visible, now that all of them are
+  // on by default? The column drawer's per-family Select All / Deselect All is
+  // the family-level intent; the individual checkboxes stay on
+  // `table:column_visibility_changed`, which already carries the column.
   const handleColumnGroupToggle = useCallback(
     ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
       const props = scoreColumnScopeToggledProps({

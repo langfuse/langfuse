@@ -36,6 +36,12 @@ export function ExperimentBaselineControls({
   });
   const capture = usePostHogClientCapture();
 
+  // `baseline_changed` fires from the two paths through this control — picking a
+  // run and clearing it. Arriving on the page with a baseline already set (a row
+  // click on the list, a shared link) is navigation rather than use of this
+  // control, and is deliberately not counted; the results pageview is that
+  // denominator.
+
   // Grouped by dataset and dated, so two runs sharing a name are two readable
   // options rather than the same label twice.
   const baselineOptionGroups = useMemo<ComboboxOptionGroup<string>[]>(() => {

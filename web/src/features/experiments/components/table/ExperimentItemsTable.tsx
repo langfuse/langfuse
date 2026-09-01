@@ -31,6 +31,7 @@ import {
 import { ExperimentFilterPills } from "./ExperimentFilterPills";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  COMPARISON_OPERATOR_PROPERTY,
   itemRegressionFilterAppliedProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
@@ -594,31 +595,12 @@ export default function ExperimentItemsTable({
       }
 
       // Update the target for this filter
-      if (toExperimentId !== _fromExperimentId) {
-        const props = itemRegressionFilterAppliedProps({
-          tableName: "experiment-items",
-          column: _filter.column,
-          operator: _filter.operator,
-          toExperimentId,
-          baselineId,
-          comparisonIds,
-        });
-        if (props) {
-          capture("experiment:item_regression_filter_applied", props);
-        }
-      }
       setFilterTargets((prev) => ({
         ...prev,
         [originalIndex]: toExperimentId,
       }));
     },
-    [
-      filterTargets,
-      defaultFilterTargetExperimentId,
-      baselineId,
-      comparisonIds,
-      capture,
-    ],
+    [filterTargets, defaultFilterTargetExperimentId],
   );
 
   // Handler for removing a filter via pill
@@ -811,6 +793,60 @@ export default function ExperimentItemsTable({
     removeFilter: removeScoreComparisonFilter,
   } = useScoreComparisonFilters();
 
+  // Is the regression filter used once it exists? The question the whole
+  // rebuild is for, so it carries the score's level and type, which comparison
+  // it reads against, and whether the user picked it or arrived with it in a
+  // shared URL. No score name and no score value — those are user content.
+  // (LFE-15720)
+  const captureScoreComparisonFilter = useCallback(
+    ({
+      filter,
+      dataType,
+      source,
+    }: {
+      filter: ScoreComparisonFilter;
+      dataType: ScoreColumnDataType | undefined;
+      source: "header_menu" | "url";
+    }) =>
+      capture(
+        "experiment:item_regression_filter_applied",
+        itemRegressionFilterAppliedProps({
+          tableName: "experiment-items",
+          scoreLevel: filter.level,
+          dataType,
+          operator: COMPARISON_OPERATOR_PROPERTY[filter.operator],
+          comparisonExperimentId: filter.comparisonExperimentId,
+          comparisonIds,
+          source,
+        }),
+      ),
+    [capture, comparisonIds],
+  );
+
+  // A results page can arrive with the filter already in the URL. Reported once
+  // per page, after the score column definitions land (they carry the data
+  // type), and never again — it is a shared view, not an action.
+  const hasReportedUrlScoreFilters = useRef(false);
+  useEffect(() => {
+    if (hasReportedUrlScoreFilters.current) return;
+    if (isFilterOptionsLoading) return;
+    hasReportedUrlScoreFilters.current = true;
+    for (const filter of scoreComparisonFilters) {
+      captureScoreComparisonFilter({
+        filter,
+        dataType: scoreDataTypesByKey[scoreFieldForLevel(filter.level)].get(
+          filter.scoreKey,
+        ),
+        source: "url",
+      });
+    }
+  }, [
+    isFilterOptionsLoading,
+    scoreComparisonFilters,
+    scoreDataTypesByKey,
+    captureScoreComparisonFilter,
+  ]);
+
   // The runs a score can be read against, the auto-selected comparison first so
   // the menu's default is the one the column header already reports.
   const comparisonTargets = useMemo(() => {
@@ -912,6 +948,11 @@ export default function ExperimentItemsTable({
                             operator,
                             comparisonExperimentId,
                           };
+                          captureScoreComparisonFilter({
+                            filter: nextFilter,
+                            dataType,
+                            source: "header_menu",
+                          });
                           setScoreComparisonFilter(nextFilter);
                         }}
                         onClear={() =>
@@ -1027,6 +1068,7 @@ export default function ExperimentItemsTable({
       scoreComparisonFilters,
       setScoreComparisonFilter,
       removeScoreComparisonFilter,
+      captureScoreComparisonFilter,
       runNameOf,
     ],
   );

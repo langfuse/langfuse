@@ -12,6 +12,7 @@ import { type ExperimentNameOption } from "@/src/features/experiments/hooks/useE
 import { formatRunRecency } from "@/src/features/experiments/fns/formatRunRecency";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  autoComparisonPreferenceChangedProps,
   comparisonChangedProps,
   comparisonPickerOpenedProps,
 } from "@/src/features/experiments/lib/analytics";
@@ -329,6 +330,13 @@ export function ExperimentComparisonSelector({
               <button
                 type="button"
                 onClick={() => {
+                  capture(
+                    "experiment:auto_comparison_preference_changed",
+                    autoComparisonPreferenceChangedProps({
+                      tableName: "experiment-items",
+                      isEnabled: !isAutoSelectEnabled,
+                    }),
+                  );
                   onAutoSelectEnabledChange(!isAutoSelectEnabled);
                 }}
                 className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"
