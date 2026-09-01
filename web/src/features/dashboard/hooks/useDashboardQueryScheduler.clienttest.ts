@@ -5,8 +5,7 @@
  * reset key changes (see `resetQueue`). The reset key must therefore depend
  * only on genuinely query-affecting params (time range, filters, environment)
  * and NOT on the set of widgets present — otherwise adding a widget re-runs
- * every sibling, which on the SSE path blanks already-rendered charts
- * (LFE-10986).
+ * every sibling, which on the SSE path blanks already-rendered charts.
  */
 import { act, renderHook } from "@testing-library/react";
 import {
@@ -27,7 +26,7 @@ describe("getDashboardSchedulerResetKey", () => {
 
   it("is composed of only query-affecting params (never the widget set)", () => {
     // Pinning the exact composition guards against re-introducing the widget
-    // id list, which would re-queue every sibling on "Add Widget" (LFE-10986).
+    // id list, which would re-queue every sibling on "Add Widget".
     expect(getDashboardSchedulerResetKey(base)).toBe(
       "project-1|dashboard-1|2026-01-01T00:00:00.000Z|2026-01-08T00:00:00.000Z|[]|default",
     );
@@ -67,9 +66,9 @@ describe("useDashboardQueryScheduler", () => {
 
   // Characterizes `register`'s incremental behavior (a new id is inserted as
   // `queued` and scheduled without iterating existing items). This is the
-  // property the reset-key fix relies on — not itself a guard for LFE-10986
-  // (register never touched siblings, pre- or post-fix). The regression guard
-  // for the bug is the getDashboardSchedulerResetKey composition test above.
+  // property the reset-key contract relies on (register never touched
+  // siblings, pre- or post-fix). The regression guard for the add-a-widget
+  // bug is the getDashboardSchedulerResetKey composition test above.
   it("schedules a newly registered widget without touching done siblings", () => {
     const { result } = renderHook(() =>
       useDashboardQueryScheduler({ maxConcurrent: 2, resetKey: "k1" }),

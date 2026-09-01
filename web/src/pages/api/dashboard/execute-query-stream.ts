@@ -136,7 +136,11 @@ export default async function handler(
   // abandoned aggregation to completion. max_execution_time still bounds the
   // stragglers either way.
   let aborted = false;
-  req.on("close", () => {
+  // `res`, not `req`: the request stream can end once the POST body is
+  // consumed, while the response lives for the whole stream — its close
+  // fires on a client disconnect mid-stream (and only after res.end() on
+  // the happy path, where the loop has already finished).
+  res.on("close", () => {
     aborted = true;
   });
 

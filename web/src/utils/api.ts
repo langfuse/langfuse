@@ -452,6 +452,20 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
         },
       });
     }
+  } else if (shouldSilenceError) {
+    // A silenced non-tRPC query error — the surface owns the error UX
+    // end-to-end (meta silentAllErrors, e.g. the SSE dashboard transport:
+    // stall aborts and stream failures render inline per widget, and genuine
+    // server failures are logged server-side). Breadcrumb, not capture.
+    addBreadcrumb({
+      category: "trpc",
+      type: "http",
+      level: "warning",
+      message: "Suppressed silenced non-tRPC query error (not sent to Sentry)",
+      data: {
+        message: error instanceof Error ? error.message : String(error),
+      },
+    });
   } else {
     // For non-TRPC errors, still send to Sentry (coerced to a real Error).
     reportError(error, { area: "trpc" });
