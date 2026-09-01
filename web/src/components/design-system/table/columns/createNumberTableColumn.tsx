@@ -1,4 +1,5 @@
 /* eslint-disable boundaries/dependencies */
+import { type ReactNode } from "react";
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -13,11 +14,14 @@ export function createNumberTableColumn<
   TValue extends number | bigint = number,
 >({
   emptyValue,
+  emptyCell,
   formatter,
   getValue,
   ...options
 }: TableColumnOptions<TData, TValue> & {
   emptyValue?: string;
+  /** Rendered when there is no value; takes precedence over `emptyValue`. */
+  emptyCell?: ReactNode;
   formatter?: (
     value: TValue,
     context: CellContext<TData, TValue | null | undefined>,
@@ -33,8 +37,10 @@ export function createNumberTableColumn<
     ...options,
     loadingCell,
     renderCell: (value, context) => {
+      const empty = emptyCell ?? emptyValue ?? null;
+
       if (!getValue) {
-        if (value === null || value === undefined) return emptyValue ?? null;
+        if (value === null || value === undefined) return empty;
         return (
           <span>{formatter?.(value, context) ?? numberFormatter(value)}</span>
         );
@@ -42,7 +48,7 @@ export function createNumberTableColumn<
 
       const resolvedValue = getValue(value, context);
 
-      if (resolvedValue === undefined) return emptyValue ?? null;
+      if (resolvedValue === undefined) return empty;
       if (
         typeof resolvedValue !== "number" &&
         typeof resolvedValue !== "bigint"
