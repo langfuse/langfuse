@@ -108,6 +108,10 @@ describe("evaluation execution metrics", () => {
       expected: "customer_error",
     },
     {
+      code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
+      expected: "customer_error",
+    },
+    {
       code: CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
       expected: "platform_error",
     },
