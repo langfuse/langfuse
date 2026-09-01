@@ -88,9 +88,9 @@ describe("listLinkedEvaluatorAlerts", () => {
                 array_contains: [
                   {
                     column: "evaluatorId",
-                    type: "stringOptions",
-                    operator: "none of",
-                    value: [""],
+                    type: "string",
+                    operator: "is not empty",
+                    value: "",
                   },
                 ],
               },

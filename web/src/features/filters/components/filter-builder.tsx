@@ -904,8 +904,11 @@ function FilterBuilderForm({
             {
               ...filter,
               operator: value as any,
-              // Ensure null filters always have empty string value
-              value: filter.type === "null" ? "" : (filter.value as any),
+              // Value-less operators keep an empty string for schema compatibility.
+              value:
+                filter.type === "null" || value === "is not empty"
+                  ? ""
+                  : (filter.value as any),
             },
             i,
           );
@@ -929,7 +932,9 @@ function FilterBuilderForm({
 
     const valueControl = keyPending ? (
       <Input disabled />
-    ) : stringObjectSuggest && filter.type === "stringObject" ? (
+    ) : filter.type === "string" &&
+      filter.operator === "is not empty" ? null : stringObjectSuggest &&
+      filter.type === "stringObject" ? (
       <SingleSelect
         title="Value"
         className="min-w-[100px]"

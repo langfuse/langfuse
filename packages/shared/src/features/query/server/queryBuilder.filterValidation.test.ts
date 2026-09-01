@@ -320,9 +320,9 @@ describe("queryBuilder filter type validation", () => {
     const evaluatorIdQuery = await buildQueryWithFilter(
       {
         column: "evaluatorId",
-        operator: "none of",
-        value: [""],
-        type: "stringOptions",
+        operator: "is not empty",
+        value: "",
+        type: "string",
       },
       { view: "observations" },
       "v2",
@@ -353,7 +353,7 @@ describe("queryBuilder filter type validation", () => {
     expect(evaluatorTestQuery.query).not.toContain(
       "events_observations.evaluator_execution_is_test",
     );
-    expect(evaluatorIdQuery.query).toContain("NOT IN ({stringOptionsFilter");
+    expect(evaluatorIdQuery.query).toContain("!= ''");
     expect(evaluatorTestQuery.query).toContain(": Boolean}");
   });
 

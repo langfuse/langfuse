@@ -9,9 +9,9 @@ const evaluatorIdFilter = (evaluatorId: string) => ({
 
 const anyEvaluatorIdFilter = {
   column: "evaluatorId",
-  type: "stringOptions" as const,
-  operator: "none of" as const,
-  value: [""],
+  type: "string" as const,
+  operator: "is not empty" as const,
+  value: "",
 };
 
 const excludeEvaluatorTestsFilter = {

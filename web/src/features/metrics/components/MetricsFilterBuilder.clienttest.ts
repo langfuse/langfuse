@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type FilterState } from "@langfuse/shared";
+import { filterOperators, type FilterState } from "@langfuse/shared";
 
 import {
   getMetricsColumnsWithCustomSelect,
@@ -110,6 +110,15 @@ describe("resolvesToColumn", () => {
   it("v2-only column on v1: does not resolve", () => {
     expect(resolves("isRootObservation", "observations", "v2")).toBe(true);
     expect(resolves("isRootObservation", "observations", "v1")).toBe(false);
+  });
+
+  it("offers an is-not-empty operator for evaluator IDs", () => {
+    const evaluatorColumn = columnsFor("observations").find(
+      (column) => column.id === "evaluatorId",
+    );
+
+    expect(evaluatorColumn?.type).toBe("string");
+    expect(filterOperators.string).toContain("is not empty");
   });
 
   it("renders evaluator alert prefill filters", () => {
