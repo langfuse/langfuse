@@ -8,6 +8,7 @@ import { TextDecoder, TextEncoder } from "util";
 import {
   parseSSEBuffer,
   computeMonotonicPercent,
+  fetchDashboardSSERows,
   useSSEDashboardQuery,
 } from "@/src/hooks/useSSEDashboardQuery";
 
@@ -516,5 +517,103 @@ describe("useSSEDashboardQuery", () => {
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
+  });
+});
+
+// The two degrade paths that must fail visibly instead of wedging a widget or
+// caching partial rows as a fresh success.
+describe("fetchDashboardSSERows degrade paths", () => {
+  const originalFetch = global.fetch;
+  const originalTextDecoder = global.TextDecoder;
+
+  const input = {
+    projectId: "project-1",
+    version: "v1" as const,
+    query: {
+      view: "traces" as const,
+      dimensions: [],
+      metrics: [{ measure: "count", aggregation: "count" as const }],
+      filters: [],
+      timeDimension: null,
+      fromTimestamp: "2026-03-22T00:00:00.000Z",
+      toTimestamp: "2026-03-23T00:00:00.000Z",
+      orderBy: null,
+    },
+  };
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    global.TextDecoder = originalTextDecoder;
+    vi.restoreAllMocks();
+  });
+
+  it("aborts a stalled stream with a real error (never forever-pending)", async () => {
+    const encoder = new TextEncoder();
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+    global.fetch = vi.fn().mockImplementation(async (_url, init) => ({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: vi
+            .fn()
+            .mockResolvedValueOnce({
+              done: false,
+              value: encoder.encode('event: row\ndata: {"count_count":1}\n\n'),
+            })
+            // Second read never resolves — until the watchdog aborts.
+            .mockImplementation(
+              () =>
+                new Promise((_resolve, reject) => {
+                  (init as RequestInit).signal?.addEventListener("abort", () =>
+                    reject(new DOMException("aborted", "AbortError")),
+                  );
+                }),
+            ),
+        }),
+      },
+    })) as typeof fetch;
+
+    await expect(
+      fetchDashboardSSERows(input, {
+        basePath: "",
+        signal: new AbortController().signal,
+        onProgress: () => undefined,
+        stallTimeoutMs: 30,
+      }),
+    ).rejects.toThrow(/stalled/);
+  });
+
+  it("treats a stream cut before its terminal event as an error, even with rows", async () => {
+    const encoder = new TextEncoder();
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+    let step = 0;
+    global.fetch = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: vi.fn().mockImplementation(async () => {
+            if (step === 0) {
+              step += 1;
+              return {
+                done: false,
+                value: encoder.encode(
+                  'event: row\ndata: {"count_count":42}\n\n',
+                ),
+              };
+            }
+            // Clean end without a "done"/"error" event: a cut stream.
+            return { done: true, value: undefined };
+          }),
+        }),
+      },
+    })) as typeof fetch;
+
+    await expect(
+      fetchDashboardSSERows(input, {
+        basePath: "",
+        signal: new AbortController().signal,
+        onProgress: () => undefined,
+      }),
+    ).rejects.toThrow("Stream ended unexpectedly");
   });
 });

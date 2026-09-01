@@ -80,8 +80,10 @@ const SSE_STALL_TIMEOUT_MS = 60_000;
  * and must stay out of the query cache). A stream that stalls (no bytes for
  * `stallTimeoutMs`) is aborted and surfaces as a normal error — never as a
  * forever-pending query holding a scheduler slot.
+ *
+ * Exported for tests; the hook below is the only production caller.
  */
-async function fetchDashboardSSERows(
+export async function fetchDashboardSSERows(
   input: DashboardExecuteQueryInput,
   {
     basePath,
@@ -206,10 +208,13 @@ async function fetchDashboardSSERows(
     if (done === "error") {
       throw new Error(errorMessage);
     }
-    if (done === "success" || rows.length > 0) {
-      return rows;
+    // No terminal event = the stream was cut (server crash, proxy timeout).
+    // Partial rows must not land in the query cache as a fresh success and
+    // silently render an incomplete chart — fail visibly instead.
+    if (done !== "success") {
+      throw new Error("Stream ended unexpectedly");
     }
-    throw new Error("Stream ended unexpectedly");
+    return rows;
   } catch (error) {
     if (stalled) {
       throw new Error("The query stream stalled and was aborted");

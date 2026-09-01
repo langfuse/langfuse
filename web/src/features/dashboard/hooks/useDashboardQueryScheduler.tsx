@@ -150,6 +150,9 @@ export const DashboardQuerySchedulerProvider = ({
 // Surfaces without a provider (e.g. a single widget embedded outside a
 // dashboard) share one unmanaged store with an unlimited budget: every
 // registration is promoted immediately, so `canFetch` is effectively true.
+// Because it is shared module-wide, provider-less consumers must use
+// queryIds unique per mounted instance — a collision would let one
+// consumer's unmount unregister the other's slot.
 const unmanagedSchedulerStore = createDashboardQuerySchedulerStore({
   maxConcurrent: Number.POSITIVE_INFINITY,
 });
