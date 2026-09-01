@@ -78,5 +78,15 @@ describe("SampleDataTreeSelector", () => {
       "image/png",
     );
     expect(within(wildcardRow!).queryByText(reference)).not.toBeInTheDocument();
+
+    const preview = within(wildcardRow!)
+      .getByTestId("media-tag")
+      .closest("span[title]");
+    expect(preview).toHaveClass("h-3.5", "items-center", "leading-none");
+
+    fireEvent.click(within(wildcardRow!).getByText(/cache-hit-ratio\.png/));
+    expect(
+      screen.getByRole("button", { name: /filename cache-hit-ratio\.png/i }),
+    ).toBeInTheDocument();
   });
 });

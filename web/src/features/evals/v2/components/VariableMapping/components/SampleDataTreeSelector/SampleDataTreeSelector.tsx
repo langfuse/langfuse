@@ -55,18 +55,22 @@ function MediaAwarePreview({
 
   return (
     <span
-      className="text-muted-foreground flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-xs leading-5"
+      className="text-muted-foreground flex h-3.5 min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-xs leading-none"
       title={preview}
     >
       {segments.map((segment, index) =>
         segment.type === "media" ? (
-          <span key={index} className="inline-flex shrink-0 items-center">
+          <span
+            key={index}
+            data-tree-row-action=""
+            className="inline-flex shrink-0 items-center"
+          >
             <MediaTag contentType={segment.descriptor.contentType} />
           </span>
         ) : (
           <span
             key={index}
-            className="min-w-0 truncate whitespace-pre"
+            className="flex h-3.5 min-w-0 items-center truncate leading-none whitespace-pre"
             title={segment.value}
           >
             {segment.value}
@@ -155,10 +159,19 @@ function TreeRow({
     <>
       <div
         className={cn(
-          "group/row hover:bg-muted/50 flex w-full min-w-0 items-center gap-2 px-2 py-1 text-left text-sm",
+          "group/row hover:bg-muted/50 flex w-full min-w-0 cursor-pointer items-center gap-2 px-2 py-1 text-left text-sm",
           isCurrent && "bg-primary-accent/5",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        onClick={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest("[data-tree-row-action]")
+          ) {
+            return;
+          }
+          selectOrToggle();
+        }}
       >
         <button
           type="button"
@@ -167,7 +180,6 @@ function TreeRow({
             hasMedia ? "shrink-0" : "flex-1",
           )}
           title={expandable ? preview : `Pull {{${variable}}} from here`}
-          onClick={selectOrToggle}
         >
           {expandable ? (
             <ChevronDown
@@ -216,6 +228,7 @@ function TreeRow({
         ) : null}
         <button
           type="button"
+          data-tree-row-action=""
           className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
           title={`Pull {{${variable}}} from here`}
           onClick={() => onSelect(columnId, segments)}
