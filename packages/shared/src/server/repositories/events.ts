@@ -373,13 +373,6 @@ const PUBLIC_API_TRACES_COLUMN_MAPPING = createPublicApiTracesColumnMapping(
 // not joined from a separate observations table (with 'o' prefix). We need to remap these.
 const TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS =
   tracesTableUiColumnDefinitions.map((col) => {
-    if (col.uiTableId === "evaluatorId") {
-      return { ...col, clickhouseSelect: "t.evaluator_id" };
-    }
-    if (col.uiTableId === "ruleId") {
-      return { ...col, clickhouseSelect: "t.evaluation_rule_id" };
-    }
-
     // If this column references the observations table with 'o' prefix,
     // remap it to use 't' prefix since observations are aggregated into traces CTE
     if (col.clickhouseTableName === "observations") {
