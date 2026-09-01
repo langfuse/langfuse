@@ -79,7 +79,6 @@ export async function consumeEmailOtpAndUpdatePassword({
 
   const identifier = email.toLowerCase();
   const hashedToken = hashEmailOtpToken(token);
-  const hashedPassword = await hashPassword(password);
   const now = new Date();
 
   const passwordUpdated = await prisma.$transaction(async (tx) => {
@@ -100,6 +99,9 @@ export async function consumeEmailOtpAndUpdatePassword({
     // Invalidate any other outstanding code for this account.
     await tx.verificationToken.deleteMany({ where: { identifier } });
 
+    // Keep password hashing behind successful OTP validation so unauthenticated
+    // invalid attempts cannot trigger expensive bcrypt work.
+    const hashedPassword = await hashPassword(password);
     const updated = await tx.user.updateMany({
       where: { email: identifier },
       data: {
