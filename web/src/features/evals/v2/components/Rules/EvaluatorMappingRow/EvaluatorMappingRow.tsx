@@ -156,11 +156,15 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
           </Button>
         </div>
         <CollapsibleContent className="border-t p-3">
-          {mapping.length === 0 ? (
+          {isCodeEvaluator ? (
             <p className="text-muted-foreground text-sm">
-              {isCodeEvaluator
-                ? "Observation data is available directly in code evaluators, so no variable mapping is required."
-                : "No variable mapping is required because this evaluator does not define prompt variables."}
+              Observation data is available directly in code evaluators, so no
+              variable mapping is required.
+            </p>
+          ) : mapping.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No variable mapping is required because this evaluator does not
+              define prompt variables.
             </p>
           ) : (
             <VariableMapping

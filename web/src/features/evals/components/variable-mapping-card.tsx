@@ -41,6 +41,7 @@ import {
   FormField,
   FormItem,
   FormMessage,
+  hasArrayLevelFieldError,
 } from "@/src/components/ui/form";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
@@ -54,7 +55,7 @@ import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMa
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   type EvalPreviewPointer,
   buildEvalPreviewNavigationPath,
@@ -93,7 +94,7 @@ export const VariableMappingCard = ({
   const [selectedPreviewPointer, setSelectedPreviewPointer] =
     useState<EvalPreviewPointer>();
   const router = useRouter();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const peekId =
     typeof router.query.peek === "string" ? router.query.peek : undefined;
   const isPeekView = Boolean(peekId);
@@ -101,14 +102,17 @@ export const VariableMappingCard = ({
   // The trace preview reads the legacy traces table, which is not the v4
   // user's experience — never offer it there.
   const shouldShowPreviewForTarget =
-    shouldShowLegacyTracePreview(target, isBetaEnabled) ||
+    shouldShowLegacyTracePreview(target, isV4) ||
     isEventTarget(target) ||
-    (isExperimentTarget(target) && isBetaEnabled);
+    (isExperimentTarget(target) && isV4);
 
   const { fields } = useFieldArray({
     control: form.control,
     name: "mapping",
   });
+  const hasMappingArrayError = hasArrayLevelFieldError(
+    form.formState.errors.mapping,
+  );
 
   const syncStatus = useVariableMappingSync({
     templateVars: evalTemplate?.vars,
@@ -158,7 +162,7 @@ export const VariableMappingCard = ({
     shouldShowPreviewForTarget && !disabled && !shouldDisablePreviewForNonOtel;
   const previewNavigationListKey = getEvalPreviewDetailPageListKey(
     target,
-    isBetaEnabled,
+    isV4,
   );
   const evalPreviewBasePath = hideAdvancedSettings
     ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
@@ -243,7 +247,7 @@ export const VariableMappingCard = ({
           )}
         </div>
       </div>
-      {shouldShowLegacyTracePreview(form.watch("target"), isBetaEnabled) &&
+      {shouldShowLegacyTracePreview(form.watch("target"), isV4) &&
         !disabled && (
           <FormDescription>
             Preview of the evaluation prompt with the variables replaced with
@@ -727,7 +731,7 @@ export const VariableMappingCard = ({
                       ))}
                 </div>
               </div>
-              <FormMessage />
+              {hasMappingArrayError ? <FormMessage /> : null}
             </>
           )}
         />

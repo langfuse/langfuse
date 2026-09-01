@@ -118,7 +118,7 @@ export function formatMetricName(metricName: string): string {
 /**
  * Formats multiple metric names for display, showing first 3 and "+ X more" if needed
  */
-export function formatMultipleMetricNames(metricNames: string[]): string {
+function formatMultipleMetricNames(metricNames: string[]): string {
   if (metricNames.length === 0) return "No Metrics";
   if (metricNames.length === 1) return formatMetricName(metricNames[0]);
 
@@ -233,10 +233,8 @@ export function buildWidgetDescription({
  * remains excluded from the public `viewsV2` API enum. Existing trace widgets
  * are still supported by the internal events-backed v2 query declaration.
  */
-export function getDefaultView(
-  isBetaEnabled: boolean,
-): "traces" | "observations" {
-  return isBetaEnabled ? "observations" : "traces";
+export function getDefaultView(isV4: boolean): "traces" | "observations" {
+  return isV4 ? "observations" : "traces";
 }
 
 /**

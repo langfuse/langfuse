@@ -24,18 +24,22 @@ import { EvalTemplateType } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
-  ExperimentEvaluationRuleFilter,
-  LegacyEvaluationRuleMapping,
-  ObservationEvaluationRuleFilter,
+  getLegacyEvaluatorPrompt,
+  reconcileEvaluatorPromptMessages,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorService";
+import {
+  LegacyPromptVariableMapping,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  PublicEvaluationRuleFilter,
+  PublicEvaluationRuleReadFilter,
   type PublicEvaluationRuleFilterType,
-  type PublicEvaluationRuleMappingType,
-  type PublicEvaluationRuleReadMappingType,
+  type PromptVariableMappingInputType,
+  type PromptVariableMappingReadType,
   type PublicEvaluationRuleReadTargetType,
   type PublicEvaluationRuleStatusType,
   type PublicEvaluationRuleTargetType,
-  type LegacyEvaluationRuleMappingType,
+  type LegacyPromptVariableMappingType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
@@ -82,7 +86,7 @@ const INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET: Record<
 };
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
-  PublicEvaluationRuleMappingType["source"],
+  PromptVariableMappingInputType["source"],
   ObservationVariableMapping["selectedColumnId"]
 > = {
   input: "input",
@@ -95,7 +99,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
 
 const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   string,
-  PublicEvaluationRuleMappingType["source"]
+  PromptVariableMappingInputType["source"]
 > = {
   input: "input",
   output: "output",
@@ -113,24 +117,21 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experiment_item_metadata: "experiment_item_metadata",
 };
 
-function getPublicFilterArraySchema(target: PublicEvaluationRuleTargetType) {
-  return z.array(
-    target === "observation"
-      ? ObservationEvaluationRuleFilter
-      : ExperimentEvaluationRuleFilter,
-  );
-}
-
 export function deriveEvaluatorVariables(
-  template: Pick<StoredPublicEvaluatorTemplate, "vars" | "prompt">,
+  template: Pick<
+    StoredPublicEvaluatorTemplate,
+    "vars" | "prompt" | "promptMessages"
+  >,
 ) {
   return template.vars.length > 0
     ? template.vars
-    : extractVariables(template.prompt ?? "");
+    : reconcileEvaluatorPromptMessages(template).flatMap(({ content }) =>
+        extractVariables(content),
+      );
 }
 
 export function toStoredVariableMappings(params: {
-  mappings: PublicEvaluationRuleMappingType[];
+  mappings: PromptVariableMappingInputType[];
   variables: string[];
   target: PublicEvaluationRuleTargetType;
 }) {
@@ -149,7 +150,7 @@ export function toStoredVariableMappings(params: {
  * elsewhere; prefer `toStoredVariableMappings` when they are.
  */
 export function toStoredMappingList(
-  mappings: PublicEvaluationRuleMappingType[],
+  mappings: PromptVariableMappingInputType[],
 ) {
   return observationVariableMappingList.parse(
     mappings.map((mapping) => ({
@@ -293,23 +294,20 @@ function toStoredFilter(
   return filter;
 }
 
-function toApiFilter(
-  filter: z.infer<typeof singleFilter>,
-  target: PublicEvaluationRuleTargetType,
-): PublicEvaluationRuleFilterType {
-  if (target === "experiment" && filter.column === "experimentDatasetId") {
+function toApiFilter(filter: z.infer<typeof singleFilter>) {
+  if (filter.column === "experimentDatasetId") {
     return {
       ...filter,
       column: "datasetId",
-    } as PublicEvaluationRuleFilterType;
+    };
   }
 
-  return filter as PublicEvaluationRuleFilterType;
+  return filter;
 }
 
 export function toApiReadMappings(
   mappings: unknown,
-): PublicEvaluationRuleReadMappingType[] {
+): PromptVariableMappingReadType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -337,7 +335,7 @@ export function toApiReadMappings(
 
 export function toApiMappings(
   mappings: unknown,
-): PublicEvaluationRuleMappingType[] {
+): PromptVariableMappingInputType[] {
   return toApiReadMappings(mappings).map((mapping) => {
     if (mapping.source === null) {
       throw new InternalServerError("Evaluation rule mapping is corrupted");
@@ -349,7 +347,7 @@ export function toApiMappings(
 
 function toApiLegacyMappings(
   mappings: unknown,
-): LegacyEvaluationRuleMappingType[] {
+): LegacyPromptVariableMappingType[] {
   const parsed = variableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -367,7 +365,7 @@ function toApiLegacyMappings(
     ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
   }));
   const parsedPublicMappings = z
-    .array(LegacyEvaluationRuleMapping)
+    .array(LegacyPromptVariableMapping)
     .safeParse(publicMappings);
   if (!parsedPublicMappings.success) {
     logger.error("Failed to parse unstable public legacy rule mappings", {
@@ -381,7 +379,7 @@ function toApiLegacyMappings(
 function toDefaultLegacyMappings(
   mappings: unknown,
   target: "trace" | "dataset",
-): LegacyEvaluationRuleMappingType[] {
+): LegacyPromptVariableMappingType[] {
   return toApiMappings(mappings).map((mapping) => ({
     ...mapping,
     langfuseObject: target === "trace" ? "trace" : "dataset_item",
@@ -404,7 +402,7 @@ function getLegacyCodeEvalVariableMapping(target: "trace" | "dataset") {
 function toApiFilters(
   filters: unknown,
   target: PublicEvaluationRuleTargetType,
-): PublicEvaluationRuleFilterType[] {
+) {
   const storedFilters = z.array(singleFilter).safeParse(filters);
 
   if (!storedFilters.success) {
@@ -418,20 +416,9 @@ function toApiFilters(
     target === "experiment"
       ? stripExperimentRootFilter(storedFilters.data)
       : storedFilters.data;
-  const publicFilters = effectiveFilters.map((filter) =>
-    toApiFilter(filter, target),
-  );
-  const parsedPublicFilters =
-    getPublicFilterArraySchema(target).safeParse(publicFilters);
-
-  if (!parsedPublicFilters.success) {
-    logger.error("Failed to parse unstable public evaluation rule filters", {
-      issues: parsedPublicFilters.error.issues,
-    });
-    throw new InternalServerError("Evaluation rule filter is corrupted");
-  }
-
-  return parsedPublicFilters.data;
+  return z
+    .array(PublicEvaluationRuleReadFilter)
+    .parse(effectiveFilters.map(toApiFilter));
 }
 
 export function toApiEvaluator(params: {
@@ -467,14 +454,15 @@ export function toApiEvaluator(params: {
     };
   }
 
-  if (!template.prompt) {
-    throw new InternalServerError("Evaluator prompt is corrupted");
+  const promptMessages = reconcileEvaluatorPromptMessages(template);
+  if (promptMessages.every(({ content }) => content.length === 0)) {
+    throw new InternalServerError("Evaluator prompt messages are corrupted");
   }
 
   return {
     ...base,
     type: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
-    prompt: template.prompt,
+    prompt: getLegacyEvaluatorPrompt(promptMessages),
     outputDefinition: parseStoredOutputDefinition(template),
     modelConfig: toApiModelConfig(template),
   };
@@ -627,7 +615,15 @@ export function toApiWritableV2EvaluationRule(
   ) {
     throw new InternalServerError("Evaluation rule target is corrupted");
   }
-  return evaluationRule;
+
+  const filter = z
+    .array(PublicEvaluationRuleFilter)
+    .safeParse(evaluationRule.filter);
+  if (!filter.success) {
+    throw new InternalServerError("Evaluation rule filter is corrupted");
+  }
+
+  return { ...evaluationRule, filter: filter.data };
 }
 
 export function toEvaluationRuleInput(params: {
@@ -637,7 +633,7 @@ export function toEvaluationRuleInput(params: {
     enabled: boolean;
     sampling: number;
     filter: PublicEvaluationRuleFilterType[];
-    mapping?: PublicEvaluationRuleMappingType[];
+    mapping?: PromptVariableMappingInputType[];
   };
   evaluatorVariables: string[];
   evaluatorType: PublicEvaluatorTypeType;
@@ -680,7 +676,7 @@ export function toEvaluationRuleFields(input: {
 /** Stored mapping for one assignment. Code evaluators inherit their fixed evaluator mapping. */
 export function toStoredAssignmentMapping(params: {
   target: PublicEvaluationRuleTargetType;
-  mapping?: PublicEvaluationRuleMappingType[];
+  mapping?: PromptVariableMappingInputType[];
   evaluatorVariables: string[];
   evaluatorType: PublicEvaluatorTypeType;
 }) {

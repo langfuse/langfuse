@@ -1,5 +1,8 @@
 import {
+  EvalOutputDefinitionSchema,
   EvalTemplateType,
+  EvaluatorPromptMessagesSchema,
+  extractVariables,
   EvaluatorSourceCodeLanguage,
   InvalidRequestError,
   PersistedEvalOutputDefinitionSchema,
@@ -8,6 +11,7 @@ import {
   paginationLimitZod,
   singleFilter,
   type ObservationVariableMapping,
+  type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
 import { z } from "zod";
 
@@ -46,9 +50,9 @@ export type EvaluatorVersionCursor = z.infer<
 export const encodeEvaluatorVersionCursor = (cursor: EvaluatorVersionCursor) =>
   Buffer.from(JSON.stringify(cursor)).toString("base64url");
 
-export const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
+const LlmEvaluatorDefinitionSchema = EvaluatorVersionBaseSchema.extend({
   type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-  prompt: z.string().min(1),
+  promptMessages: EvaluatorPromptMessagesSchema,
   provider: z.string().nullable(),
   model: z.string().nullable(),
   modelParams: ZodModelConfig.nullable(),
@@ -68,16 +72,56 @@ export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   CodeEvaluatorDefinitionSchema,
 ]);
 
+export const EvaluatorModelConfigSchema = z.object({
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  modelParams: ZodModelConfig.nullable().optional(),
+});
+
+const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
+  type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
+  promptMessages: EvaluatorPromptMessagesSchema,
+  modelConfig: EvaluatorModelConfigSchema.nullable(),
+  outputDefinition: EvalOutputDefinitionSchema,
+});
+
+export const EvaluatorDefinitionInputSchema = z
+  .discriminatedUnion("type", [
+    LlmEvaluatorDefinitionInputSchema,
+    CodeEvaluatorDefinitionSchema,
+  ])
+  .transform(
+    (definition): z.infer<typeof EvaluatorDefinitionSchema> =>
+      definition.type === EvalTemplateType.CODE
+        ? definition
+        : {
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            promptMessages: definition.promptMessages,
+            provider: definition.modelConfig?.provider ?? null,
+            model: definition.modelConfig?.model ?? null,
+            modelParams: definition.modelConfig?.modelParams ?? null,
+            vars: [
+              ...new Set(
+                definition.promptMessages.flatMap(({ content }) =>
+                  extractVariables(content),
+                ),
+              ),
+            ],
+            variableMapping: definition.variableMapping,
+            outputDefinition: definition.outputDefinition,
+          },
+  );
+
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.uuid().optional(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const UpdateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
   evaluatorId: z.string(),
-  definition: EvaluatorDefinitionSchema,
+  definition: EvaluatorDefinitionInputSchema,
 });
 
 export const EvaluatorIdSchema = z.object({
@@ -110,9 +154,9 @@ const EvaluatorListFilterSchema = z
   .superRefine((filters, ctx) => {
     for (const [index, filter] of filters.entries()) {
       const valid =
-        ((filter.column === "name" || filter.column === "creator") &&
+        (["name", "creator", "model"].includes(filter.column) &&
           (filter.type === "string" || filter.type === "stringOptions")) ||
-        ((filter.column === "status" || filter.column === "type") &&
+        (["status", "type"].includes(filter.column) &&
           filter.type === "stringOptions");
       const validOptions =
         filter.type !== "stringOptions" ||
@@ -126,7 +170,9 @@ const EvaluatorListFilterSchema = z
                   value as EvalTemplateType,
                 ),
               )
-            : filter.column === "name" || filter.column === "creator");
+            : filter.column === "name" ||
+              filter.column === "creator" ||
+              filter.column === "model");
       if (!valid || !validOptions) {
         ctx.addIssue({
           code: "custom",
@@ -152,8 +198,26 @@ export const ListEvaluatorsSchema = z.object({
   projectId: z.string(),
   page: z.number().int().positive().default(1),
   limit: paginationLimitZod.optional().default(50),
+  orderBy: z
+    .object({
+      column: z.enum(["name", "type", "createdAt", "updatedAt"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
   search: z.string().trim().max(200).optional(),
   filter: EvaluatorListFilterSchema,
+});
+
+export const ListEvaluatorGallerySchema = z.object({
+  projectId: z.string(),
+  cursor: z
+    .object({
+      createdAt: z.date(),
+      id: z.string(),
+    })
+    .optional(),
+  limit: paginationLimitZod.optional().default(50),
+  search: z.string().trim().max(200).optional(),
 });
 
 export const EvaluatorOptionsSchema = z.object({
@@ -169,7 +233,7 @@ export const SuggestEvaluatorTextSchema = z.object({
   definition: z.discriminatedUnion("type", [
     z.object({
       type: z.literal(EvalTemplateType.LLM_AS_JUDGE),
-      prompt: z.string().min(1),
+      promptMessages: EvaluatorPromptMessagesSchema,
     }),
     z.object({
       type: z.literal(EvalTemplateType.CODE),
@@ -179,11 +243,23 @@ export const SuggestEvaluatorTextSchema = z.object({
 });
 
 export type EvaluatorDefinition = z.infer<typeof EvaluatorDefinitionSchema>;
+export type NormalizedEvaluatorDefinition = EvaluatorDefinition;
 export type EvaluatorDefinitionForPersistence =
-  | Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }>
+  | (Extract<EvaluatorDefinition, { type: "LLM_AS_JUDGE" }> & {
+      prompt: string;
+      promptMessages: PersistedEvaluatorPromptMessages;
+    })
   | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
       variableMapping: ObservationVariableMapping[];
     });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
+export type PatchEvaluatorInput = Pick<
+  UpdateEvaluatorInput,
+  "projectId" | "evaluatorId"
+> &
+  Partial<Pick<UpdateEvaluatorInput, "name" | "description" | "definition">>;
 export type DeleteEvaluatorsInput = z.infer<typeof DeleteEvaluatorsSchema>;
+export type EvaluatorListOrderBy = z.infer<
+  typeof ListEvaluatorsSchema
+>["orderBy"];

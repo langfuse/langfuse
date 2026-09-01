@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  ClipboardPasteIcon,
   CopyIcon,
   CopyPlusIcon,
   GripVerticalIcon,
@@ -10,24 +9,22 @@ import {
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
   type PresetWidgetContext,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import {
-  buildPresetExport,
-  isPasteablePlacementPayload,
-} from "@/src/features/dashboard/utils/dashboard-import-export";
+import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 
@@ -49,6 +46,7 @@ export interface PresetPlacement {
 export function PresetDashboardWidget({
   projectId,
   dashboardId,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -57,11 +55,12 @@ export function PresetDashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicatePreset,
 }: {
   projectId: string;
   dashboardId: string;
+  /** Resolved by the page controller — the card must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: PresetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -77,18 +76,12 @@ export function PresetDashboardWidget({
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
   /**
-   * Pastes the clipboard widget/card next to this tile. Passed only on
-   * editable (non-locked) dashboards.
-   */
-  onPasteWidget?: (anchor: PresetPlacement) => void;
-  /**
-   * Adds another placement of this preset card next to this tile. Passed
-   * only on editable (non-locked) dashboards.
+   * Adds another placement of this preset card next to this tile (clone).
+   * Passed only on editable (non-locked) dashboards.
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
-  const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
 
   // Presets on project-owned dashboards (e.g. a clone of the curated Home)
   // can be moved/removed, but their content stays fixed until extended into a
@@ -167,18 +160,6 @@ export function PresetDashboardWidget({
   };
 
   const capture = usePostHogClientCapture();
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a pasteable
-  // payload, where the browser lets us check silently.
-  const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
-  );
-  const clipboardProbe = useClipboardWidgetProbe(
-    isActionsMenuOpen && Boolean(onPasteWidget),
-    isPasteablePayload,
-  );
-
   const handleCopyToClipboard = async () => {
     try {
       await copyTextToClipboard(
@@ -189,6 +170,10 @@ export function PresetDashboardWidget({
         kind: "preset",
         preset_id: placement.presetId,
         dashboard_id: dashboardId,
+      });
+      showSuccessToast({
+        title: "Card copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
       });
     } catch {
       showErrorToast("Copy failed", "Could not write to the clipboard.");
@@ -212,21 +197,12 @@ export function PresetDashboardWidget({
           only the edit affordances (drag, delete) are gated. */}
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
-          <>
-            <GripVerticalIcon
-              size={16}
-              className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
-            />
-            <button
-              onClick={handleDelete}
-              className="text-muted-foreground hover:text-destructive"
-              aria-label="Delete widget"
-            >
-              <TrashIcon size={16} />
-            </button>
-          </>
+          <GripVerticalIcon
+            size={16}
+            className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
+          />
         )}
-        <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className="text-muted-foreground hover:text-foreground"
@@ -238,22 +214,25 @@ export function PresetDashboardWidget({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleCopyToClipboard}>
               <CopyIcon className="mr-2 h-4 w-4" />
-              Copy to clipboard
+              Copy card
             </DropdownMenuItem>
-            {onPasteWidget && (
-              <DropdownMenuItem
-                disabled={clipboardProbe === "no-widget"}
-                onClick={() => onPasteWidget(placement)}
-              >
-                <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                Paste to the right
-              </DropdownMenuItem>
-            )}
             {onDuplicatePreset && (
               <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
                 <CopyPlusIcon className="mr-2 h-4 w-4" />
-                Duplicate
+                Clone
               </DropdownMenuItem>
+            )}
+            {!readOnly && (hasCUDAccess || isLockedEditable) && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleDelete}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <TrashIcon className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>

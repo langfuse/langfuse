@@ -8,6 +8,8 @@ import {
   eventsTableIsRootObservationSql,
   eventsTableHasInputSql,
   eventsTableHasOutputSql,
+  eventsTableCachedInputCostSql,
+  eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
 } from "../../eventsTable";
 
@@ -117,6 +119,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
   },
   {
+    uiTableName: "Cached Input Cost ($)",
+    uiTableId: "cachedInputCost",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableCachedInputCostSql,
+  },
+  {
     uiTableName: "Output Cost ($)",
     uiTableId: "outputCost",
     clickhouseTableName: "events_proto",
@@ -131,8 +139,9 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "events_proto",
     clickhouseSelect: "level",
     queryPrefix: "e",
@@ -167,6 +176,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "events_proto",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
+    clickhouseTypeOverwrite: "Decimal64(3)",
+  },
+  {
+    uiTableName: "Cached Input Tokens",
+    uiTableId: "cachedInputTokens",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableCachedInputTokensSql,
     clickhouseTypeOverwrite: "Decimal64(3)",
   },
   {

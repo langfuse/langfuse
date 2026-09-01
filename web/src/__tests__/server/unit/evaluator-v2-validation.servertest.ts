@@ -19,7 +19,10 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
 }));
 
 import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
-import { CreateEvaluatorSchema } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import {
+  CreateEvaluatorSchema,
+  ListEvaluatorsSchema,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 
 describe("evaluator configuration validation", () => {
   beforeEach(() => {
@@ -37,19 +40,52 @@ describe("evaluator configuration validation", () => {
         description: null,
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{output}}",
-          provider: null,
-          model: null,
-          modelParams: null,
-          vars: ["output"],
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+          modelConfig: null,
           variableMapping: null,
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
           },
         },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires prompt messages at the evaluator API boundary", () => {
+    expect(
+      CreateEvaluatorSchema.safeParse({
+        projectId: "project-id",
+        name: "Legacy prompt evaluator",
+        description: null,
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          prompt: "Judge {{output}}",
+          modelConfig: null,
+          variableMapping: null,
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts text filters for evaluator models", () => {
+    expect(
+      ListEvaluatorsSchema.safeParse({
+        projectId: "project-id",
+        filter: [
+          {
+            column: "model",
+            type: "string",
+            operator: "contains",
+            value: "gpt",
+          },
+        ],
       }).success,
     ).toBe(true);
   });
@@ -85,14 +121,13 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{output}}",
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
           provider: null,
           model: null,
           modelParams: null,
           vars: ["output"],
           variableMapping: null,
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -128,6 +163,84 @@ describe("evaluator configuration validation", () => {
     },
   );
 
+  it("rejects system messages after the first prompt message", async () => {
+    const definition = {
+      type: EvalTemplateType.LLM_AS_JUDGE,
+      promptMessages: [
+        { role: "user" as const, content: "Judge {{output}}" },
+        { role: "system" as const, content: "Be strict" },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["output"],
+      variableMapping: null,
+      outputDefinition: {
+        version: 2 as const,
+        dataType: "NUMERIC" as const,
+        score: { description: "Quality" },
+        reasoning: { description: "Reasoning" },
+      },
+    };
+
+    expect(
+      CreateEvaluatorSchema.safeParse({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        description: null,
+        definition,
+      }).success,
+    ).toBe(false);
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition,
+      }),
+    ).rejects.toThrow(
+      "System messages are only allowed as the first prompt message",
+    );
+  });
+
+  it("rejects empty prompt messages", async () => {
+    const definition = {
+      type: EvalTemplateType.LLM_AS_JUDGE,
+      promptMessages: [
+        { role: "user" as const, content: "Judge {{output}}" },
+        { role: "assistant" as const, content: "   " },
+      ],
+      provider: null,
+      model: null,
+      modelParams: null,
+      vars: ["output"],
+      variableMapping: null,
+      outputDefinition: {
+        version: 2 as const,
+        dataType: "NUMERIC" as const,
+        score: { description: "Quality" },
+        reasoning: { description: "Reasoning" },
+      },
+    };
+
+    expect(
+      CreateEvaluatorSchema.safeParse({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        description: null,
+        definition,
+      }).success,
+    ).toBe(false);
+
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition,
+      }),
+    ).rejects.toThrow("Add content to every prompt message before saving.");
+  });
+
   it("rejects evaluator variables that do not match the prompt", async () => {
     await expect(
       assertEvaluatorConfigurationValid({
@@ -135,14 +248,15 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}} and {{output}}",
+          promptMessages: [
+            { role: "user", content: "Judge {{input}} and {{output}}" },
+          ],
           provider: null,
           model: null,
           modelParams: null,
           vars: ["output"],
           variableMapping: null,
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -152,6 +266,37 @@ describe("evaluator configuration validation", () => {
     ).rejects.toThrow("Evaluator variables must match the prompt variables");
   });
 
+  it("rejects mappings that reference variables not in the prompt", async () => {
+    await expect(
+      assertEvaluatorConfigurationValid({
+        projectId: "project-id",
+        name: "LLM evaluator",
+        definition: {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+          provider: null,
+          model: null,
+          modelParams: null,
+          vars: ["output"],
+          variableMapping: [
+            { templateVariable: "output", selectedColumnId: "output" },
+            {
+              templateVariable: "item_metadata",
+              selectedColumnId: "experimentItemMetadata",
+            },
+          ],
+          outputDefinition: {
+            dataType: "NUMERIC",
+            score: { description: "Quality" },
+            reasoning: { description: "Reasoning" },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Mappings reference unknown evaluator variables: item_metadata",
+    );
+  });
+
   it("rejects incomplete evaluator default mappings", async () => {
     await expect(
       assertEvaluatorConfigurationValid({
@@ -159,7 +304,9 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}} and {{output}}",
+          promptMessages: [
+            { role: "user", content: "Judge {{input}} and {{output}}" },
+          ],
           provider: null,
           model: null,
           modelParams: null,
@@ -168,7 +315,6 @@ describe("evaluator configuration validation", () => {
             { templateVariable: "output", selectedColumnId: "output" },
           ],
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },
@@ -185,7 +331,7 @@ describe("evaluator configuration validation", () => {
         name: "LLM evaluator",
         definition: {
           type: EvalTemplateType.LLM_AS_JUDGE,
-          prompt: "Judge {{input}}",
+          promptMessages: [{ role: "user", content: "Judge {{input}}" }],
           provider: null,
           model: null,
           modelParams: null,
@@ -198,7 +344,6 @@ describe("evaluator configuration validation", () => {
             },
           ],
           outputDefinition: {
-            version: 2,
             dataType: "NUMERIC",
             score: { description: "Quality" },
             reasoning: { description: "Reasoning" },

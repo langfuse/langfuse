@@ -84,7 +84,10 @@ vi.mock("@langfuse/shared/src/db", async () => {
       findFirst: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
+      update: vi.fn(),
     },
+    jobExecution: { deleteMany: vi.fn() },
     $transaction: vi.fn(),
     evaluationRuleEvaluatorAssignment: { update: vi.fn(), create: vi.fn() },
   };
@@ -144,10 +147,16 @@ import {
   CodeEvalJobConfigError,
   assertCodeEvalRuleCanRun,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
-import { createPublicEvaluationRule } from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
+import {
+  createPublicEvaluationRule,
+  deletePublicEvaluationRule,
+  listPublicEvaluationRules,
+  updatePublicEvaluationRule,
+} from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
 import {
   findPublicV2EvaluationRule,
   findPublicV2EvaluatorInFamilyOrThrow,
+  listPublicEvaluationRulePage,
 } from "@/src/features/evals/server/unstable-public-api/queries";
 import { MAX_ACTIVE_EVALUATION_RULES } from "@/src/features/evals/v2/server/rules/ruleErrors";
 
@@ -188,6 +197,31 @@ function buildCreatedRule(data: {
       },
     ],
   };
+}
+
+function buildMigratedRuleWithLegacyFilter() {
+  const migratedRule = buildCreatedRule({
+    projectId: "project",
+    name: "Migrated rule",
+    status: "ACTIVE",
+    targetObject: "event",
+    filter: [
+      {
+        type: "string",
+        column: "environment",
+        operator: "does not contain",
+        value: "langfuse-",
+      },
+      {
+        type: "null",
+        column: "experimentId",
+        operator: "is null",
+        value: "",
+      },
+    ],
+    sampling: 1,
+  });
+  return migratedRule;
 }
 
 describe("unstable public evaluation-rule service", () => {
@@ -394,4 +428,157 @@ describe("unstable public evaluation-rule service", () => {
       }),
     ).rejects.toMatchObject({ httpCode: 400, code: "invalid_request" });
   });
+
+  it("lists migrated rules with filters that do not match their current target", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    (listPublicEvaluationRulePage as Mock).mockResolvedValue({
+      records: [migratedRule],
+      totalItems: 1,
+    });
+
+    await expect(
+      listPublicEvaluationRules({ projectId: "project", page: 1, limit: 50 }),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: "rule",
+          filter: [
+            {
+              type: "string",
+              column: "environment",
+              operator: "does not contain",
+              value: "langfuse-",
+            },
+            {
+              type: "null",
+              column: "experimentId",
+              operator: "is null",
+              value: "",
+            },
+          ],
+        },
+      ],
+      meta: { totalItems: 1 },
+    });
+  });
+
+  it("preserves migrated filters on patches that do not replace them", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.update as Mock).mockImplementation(({ data }) => {
+      migratedRule.name = data.name ?? migratedRule.name;
+      return migratedRule;
+    });
+
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        evaluationRuleId: "rule",
+        input: { name: "Renamed rule", target: "observation" },
+      }),
+    ).resolves.toMatchObject({
+      name: "Renamed rule",
+      filter: [{ column: "environment" }, { column: "experimentId" }],
+    });
+    expect(prisma.evaluationRule.update).toHaveBeenCalledOnce();
+  });
+
+  it("repairs migrated rules with a V2-compatible replacement filter", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    const replacementFilter = [
+      {
+        type: "boolean" as const,
+        column: "isRootObservation",
+        operator: "=" as const,
+        value: true,
+      },
+    ];
+    (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.update as Mock).mockImplementation(({ data }) => {
+      migratedRule.filter = data.filter;
+      migratedRule.status = data.status;
+      return migratedRule;
+    });
+
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        evaluationRuleId: "rule",
+        input: {
+          target: "observation",
+          filter: replacementFilter,
+          enabled: false,
+        },
+      }),
+    ).resolves.toMatchObject({ filter: replacementFilter, enabled: false });
+    expect(prisma.evaluationRule.update).toHaveBeenCalledOnce();
+  });
+
+  it("requires a replacement filter when changing the target of a migrated rule", async () => {
+    const migratedRule = buildMigratedRuleWithLegacyFilter();
+    (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+    (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+
+    await expect(
+      updatePublicEvaluationRule({
+        orgId: "org",
+        projectId: "project",
+        evaluationRuleId: "rule",
+        input: { target: "experiment" },
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 400,
+      code: "invalid_body",
+      details: { field: "filter" },
+    });
+    expect(prisma.evaluationRule.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      operation: "disabled",
+      mutate: () =>
+        updatePublicEvaluationRule({
+          orgId: "org",
+          projectId: "project",
+          evaluationRuleId: "rule",
+          input: { enabled: false },
+        }),
+    },
+    {
+      operation: "deleted",
+      mutate: () =>
+        deletePublicEvaluationRule({
+          projectId: "project",
+          evaluationRuleId: "rule",
+        }),
+    },
+  ])(
+    "allows a migrated rule with an unsupported stored filter to be $operation",
+    async ({ mutate, operation }) => {
+      const migratedRule = buildMigratedRuleWithLegacyFilter();
+      (findPublicV2EvaluationRule as Mock).mockResolvedValue(migratedRule);
+      (prisma.evaluationRule.findFirst as Mock).mockResolvedValue(migratedRule);
+      (prisma.evaluationRule.update as Mock).mockImplementation(({ data }) => {
+        migratedRule.status = data.status ?? migratedRule.status;
+        return migratedRule;
+      });
+      (prisma.evaluationRule.deleteMany as Mock).mockResolvedValue({
+        count: 1,
+      });
+      (prisma.jobExecution.deleteMany as Mock).mockResolvedValue({ count: 0 });
+
+      const result = await mutate();
+      if (operation === "disabled") {
+        expect(result).toMatchObject({ enabled: false, status: "inactive" });
+        expect(prisma.evaluationRule.update).toHaveBeenCalledOnce();
+      } else {
+        expect(prisma.evaluationRule.deleteMany).toHaveBeenCalledOnce();
+      }
+    },
+  );
 });

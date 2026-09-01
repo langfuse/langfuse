@@ -1,4 +1,5 @@
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+/* eslint-disable @repo/no-style-props */
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type ScoreAggregate,
@@ -17,7 +18,7 @@ import {
   type CellRowDef,
   getVisibleCellRows,
 } from "@/src/features/experiments/components/table/types";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
   HoverCard,
@@ -478,14 +479,20 @@ export const ExperimentGridCell = ({
       {
         accessorKey: "output",
         header: "Output",
-        cell: ({ data }) => (
-          <MemoizedIOTableCell
-            isLoading={data.isLoading}
-            data={data.output ?? null}
-            className="bg-accent-light-green min-h-8"
-            singleLine={singleLine}
-          />
-        ),
+        cell: ({ data }) =>
+          data.isLoading ? (
+            <ConnectedIOTableCell
+              isLoading
+              variant="output"
+              singleLine={singleLine}
+            />
+          ) : (
+            <ConnectedIOTableCell
+              data={data.output ?? null}
+              variant="output"
+              singleLine={singleLine}
+            />
+          ),
       },
       // Keep all score levels together. Individual score visibility still
       // follows the list-view columns.
@@ -549,20 +556,26 @@ export const ExperimentGridCell = ({
           {
             accessorKey: "level",
             cell: ({ data }) => (
-              <MetadataItem label="Level">
+              <MetadataItem label="Status">
                 <span className="text-xs">{data.level}</span>
               </MetadataItem>
             ),
           },
           {
             accessorKey: "startTime",
-            cell: ({ data }) => (
-              <MetadataItem label="Start Time">
-                <span className="text-xs">
-                  <LocalIsoDate date={data.startTime} />
-                </span>
-              </MetadataItem>
-            ),
+            cell: ({ data }) => {
+              const preparedDate = buildLocalIsoDatePresentation({
+                date: data.startTime,
+              });
+
+              return (
+                <MetadataItem label="Start Time">
+                  <span className="text-xs" title={preparedDate?.title}>
+                    {preparedDate?.display}
+                  </span>
+                </MetadataItem>
+              );
+            },
           },
           {
             accessorKey: "totalCost",
@@ -648,7 +661,7 @@ export const ExperimentGridCell = ({
         const isFirst = index === 0;
         const isLast = index === sectionsToRender.length - 1;
 
-        // Output section - special handling for MemoizedIOTableCell
+        // Output section - special handling for IOTableCell
         if (row.accessorKey === "output" && row.cell) {
           return (
             <Fragment key={row.accessorKey}>

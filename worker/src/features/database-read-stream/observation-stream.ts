@@ -1,6 +1,7 @@
 import {
   BatchExportFileFormat,
   FilterCondition,
+  matchesUiColumnMapping,
   type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
@@ -93,8 +94,8 @@ export const getObservationStream = async (
   // Filter out trace-level filters since we don't join the traces table for filtering
   // This prevents batch export failures when trace-level filters are present
   const observationOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = observationsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    const columnDef = observationsTableUiColumnDefinitions.find((col) =>
+      matchesUiColumnMapping(col, f.column),
     );
     // Keep the filter if it's not a trace-level filter
     return columnDef?.clickhouseTableName !== "traces";
@@ -465,8 +466,8 @@ const getObservationStreamFromEvents = async (
   // this export path) and comment filters (comments live in Postgres and are
   // resolved before the stream via applyCommentFilters).
   const exportableFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    const columnDef = eventsTableUiColumnDefinitions.find((col) =>
+      matchesUiColumnMapping(col, f.column),
     );
     if (columnDef?.clickhouseTableName === "comments") return false;
     if (columnDef?.clickhouseTableName === "scores") {

@@ -2,8 +2,6 @@ import { z } from "zod";
 import { singleFilter } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 
-// Exported to silence @typescript-eslint/no-unused-vars v8 warning
-// (used for type extraction via typeof, which is a legitimate pattern)
 export const FilterArray = z.array(singleFilter);
 
 /**
@@ -117,7 +115,10 @@ const viewFilterDefinitions: Record<
       "providedModelName",
       sourceSpec("Model", { uiTableId: "model" }),
     ),
-    defineField("level", sourceSpec("Level", { uiTableId: "level" })),
+    defineField(
+      "level",
+      sourceSpec("Status", { uiTableId: "level", aliases: ["Level"] }),
+    ),
     defineField(
       "toolNames",
       sourceSpec("Tool Names (Available)", { uiTableId: "toolNames" }),

@@ -11,7 +11,7 @@ import {
   toApiV2EvaluationRule,
   toEvaluationRuleInput,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
-import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { StructuredPublicApiError } from "@/src/features/public-api";
 import type {
   StoredPublicEvaluatorTemplate,
   StoredPublicV2EvaluationRule,
@@ -37,21 +37,21 @@ const numericOutputDefinition = createNumericEvalOutputDefinition({
   maxValue: 1,
 });
 
-const expectUnstablePublicApiError = (
+const expectStructuredPublicApiError = (
   fn: () => unknown,
   params: {
-    code: UnstablePublicApiError["code"];
+    code: StructuredPublicApiError["code"];
     message?: string;
     details?: Record<string, unknown>;
   },
 ) => {
   try {
     fn();
-    throw new Error("Expected function to throw UnstablePublicApiError");
+    throw new Error("Expected function to throw StructuredPublicApiError");
   } catch (error) {
-    expect(error).toBeInstanceOf(UnstablePublicApiError);
+    expect(error).toBeInstanceOf(StructuredPublicApiError);
 
-    const unstableError = error as UnstablePublicApiError;
+    const unstableError = error as StructuredPublicApiError;
     expect(unstableError.code).toBe(params.code);
 
     if (params.message) {
@@ -584,6 +584,7 @@ describe("unstable public eval adapters", () => {
                 version: 1,
                 createdByUserId: null,
                 prompt: "Always return a score of 1",
+                promptMessages: null,
                 partner: null,
                 model: null,
                 provider: null,
@@ -659,7 +660,7 @@ describe("unstable public eval adapters", () => {
   });
 
   it("rejects invalid static filter option values", () => {
-    expectUnstablePublicApiError(
+    expectStructuredPublicApiError(
       () =>
         toEvaluationRuleInput({
           input: {
@@ -692,7 +693,7 @@ describe("unstable public eval adapters", () => {
   });
 
   it("rejects malformed jsonPath selectors", () => {
-    expectUnstablePublicApiError(
+    expectStructuredPublicApiError(
       () =>
         toEvaluationRuleInput({
           input: {
@@ -724,7 +725,7 @@ describe("unstable public eval adapters", () => {
   });
 
   it("rejects mapping sources that are incompatible with the selected target", () => {
-    expectUnstablePublicApiError(
+    expectStructuredPublicApiError(
       () =>
         toEvaluationRuleInput({
           input: {
@@ -778,7 +779,7 @@ describe("unstable public eval adapters", () => {
   });
 
   it("rejects missing evaluator variable mappings", () => {
-    expectUnstablePublicApiError(
+    expectStructuredPublicApiError(
       () =>
         toEvaluationRuleInput({
           input: {

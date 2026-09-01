@@ -11,7 +11,10 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import { parseFlags } from "@/src/features/feature-flags/utils";
+import {
+  parseFlags,
+  parseFlagsWithOrganizationDefaults,
+} from "@/src/features/feature-flags/utils";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
@@ -64,6 +67,7 @@ import {
   instrumentAsync,
   logger,
   resolveProjectRole,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
@@ -184,6 +188,7 @@ if (
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
       idToken: env.AUTH_CUSTOM_ID_TOKEN === "true",
+      fetchUserInfo: env.AUTH_CUSTOM_FETCH_USERINFO === "true",
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
@@ -777,7 +782,7 @@ export async function getAuthOptions(signupAttribution?: {
     logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's
@@ -894,6 +899,7 @@ export async function getAuthOptions(signupAttribution?: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
               inAppAgentEnabled: isInAppAgentInstanceEnabled(),
+              aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
@@ -957,6 +963,14 @@ export async function getAuthOptions(signupAttribution?: {
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          featureFlags: parseFlagsWithOrganizationDefaults(
+                            dbUser.featureFlags,
+                            orgMembership.organization.featureFlagOrgDefaults,
+                            {
+                              email: dbUser.email,
+                              v4BetaEnabled,
+                            },
+                          ),
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {

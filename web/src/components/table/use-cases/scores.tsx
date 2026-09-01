@@ -6,15 +6,15 @@ import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
-import {
-  TableBadgeLoadingCell,
-  TableTextLoadingCell,
-} from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
+import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { IOTableCell } from "../../ui/IOTableCell";
-import { Avatar, AvatarImage } from "@/src/components/ui/avatar";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
   type UseSidebarFilterStateOptions,
@@ -54,8 +54,6 @@ import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { Badge } from "@/src/components/ui/badge";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -66,9 +64,9 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import TableIdOrName from "@/src/components/table/table-id";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   ScoreTag,
   scoreLevelFromScore,
@@ -173,14 +171,14 @@ export default function ScoresTable({
     () => new Set<string>(hiddenColumns),
     [hiddenColumns],
   );
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   // In v4beta, scores must exclusively use events-backed endpoints (no traces-table route).
-  const useEventsBackedScores = isBetaEnabled;
+  const useEventsBackedScores = isV4;
   // Same derivation `WidgetForm.tsx`/`ChartScores` use (`activeVersion`/
   // `metricsVersion`) — the chart/outlier strip must read the same version
   // as the table's own data, or a non-beta project's trace/observation
   // breakdown would run against the events-backed view and come back empty.
-  const chartViewVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const chartViewVersion: ViewVersion = isV4 ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
@@ -241,6 +239,8 @@ export default function ScoresTable({
     // the peek to that trace instead of the one just clicked — matches the
     // same guard `traces.tsx`/`EventsTable.tsx` already have.
     queryParams: ["observation", "display", "timestamp", "traceId"],
+    tableName: scoresFilterConfig.tableName,
+    isV4,
     extractParamsValuesFromRow: (
       row: ScoresTableRow,
     ): Record<string, string> =>
@@ -577,34 +577,22 @@ export default function ScoresTable({
 
   const rawColumns: LangfuseColumnDef<ScoresTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ScoresTableRow>({
       accessorKey: "id",
-      id: "id",
       enableColumnFilter: false,
       header: "Score ID",
       size: 100,
       enableSorting: false,
       defaultHidden: true,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value = row.getValue("id");
-        return typeof value === "string" ? (
-          <TableIdOrName value={value} />
-        ) : undefined;
-      },
-    },
-    {
+    }),
+    createDateTableColumn<ScoresTableRow>({
       accessorKey: "timestamp",
       header: "Timestamp",
-      id: "timestamp",
       enableHiding: true,
       enableSorting: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: ScoresTableRow["timestamp"] = row.getValue("timestamp");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "name",
       header: "Name",
@@ -656,47 +644,21 @@ export default function ScoresTable({
         return <ScoreTag level={level} />;
       },
     },
-    {
+    createIOTableColumn<ScoresTableRow>({
       accessorKey: "comment",
       header: "Comment",
-      id: "comment",
       enableHiding: true,
       size: 400,
-      loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
-      ),
-      cell: ({ row }) => {
-        const value = row.getValue("comment") as ScoresTableRow["comment"];
-        return (
-          !!value && <IOTableCell data={value} singleLine={rowHeight === "s"} />
-        );
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createBadgeTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
-      id: "environment",
       size: 150,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableBadgeLoadingCell />,
-      cell: ({ row }) => {
-        const value = row.getValue("environment") as string | undefined;
-        return value ? (
-          <Badge
-            variant="secondary"
-            className="max-w-fit truncate rounded-sm px-1 font-normal"
-            title={value}
-          >
-            {value}
-          </Badge>
-        ) : null;
-      },
-    },
+    }),
     {
       accessorKey: "traceTags",
       id: "traceTags",
@@ -704,10 +666,11 @@ export default function ScoresTable({
       size: 250,
       enableHiding: true,
       defaultHidden: true,
-      loadingCell: <TableTextLoadingCell />,
+      loadingCell: <Skeleton className="h-4 w-1/2" />,
       cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
+        if (isV4 && !scoreMetrics.data) {
+          return <Skeleton className="h-4 w-1/2" />;
+        }
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
           traceTags &&
@@ -730,11 +693,7 @@ export default function ScoresTable({
       id: "metadata",
       size: 400,
       loadingCell: () => (
-        <IOTableCell
-          isLoading
-          data={undefined}
-          singleLine={rowHeight === "s"}
-        />
+        <ConnectedIOTableCell isLoading singleLine={rowHeight === "s"} />
       ),
       headerTooltip: {
         description: "Add metadata to scores to track additional information.",
@@ -754,119 +713,133 @@ export default function ScoresTable({
       enableHiding: true,
       defaultHidden: true,
     },
-    {
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "traceName",
       header: "Trace Name",
-      id: "traceName",
       enableHiding: true,
       enableSorting: true,
       defaultHidden: true,
       size: 150,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
-        const value = row.getValue("traceName") as ScoresTableRow["traceName"];
+      getCell: (value) => {
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
+        if (!value) return undefined;
+
         const filter = encodeURIComponent(
           `name;stringOptions;;any of;${value}`,
         );
-        return value ? (
-          <TableLink
-            path={`/project/${projectId}/traces?filter=${value ? filter : ""}`}
-            value={value}
-          />
-        ) : undefined;
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces?filter=${filter}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "traceId",
-      id: "traceId",
       enableColumnFilter: true,
       header: "Trace",
       enableSorting: true,
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("traceId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
-              value={value}
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        if (peekEnabled) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(value)}`,
+              value,
               // Opens the trace in the peek side panel instead of navigating
-              // away; a modifier-click (cmd/ctrl, middle-click) still opens
-              // the real page in a new tab via the href above.
-              onClick={peekEnabled ? () => openScorePeek(value) : undefined}
-            />
-          </>
-        ) : undefined;
+              // away; a modifier-click still opens the href in a new tab.
+              onClick: () => openScorePeek(value),
+            },
+          };
+        }
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(value)}`,
+            value,
+            onClick: undefined,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "observationId",
-      id: "observationId",
       header: "Observation",
       enableSorting: true,
       size: 100,
-      cell: ({ row }) => {
-        const observationId = row.getValue(
-          "observationId",
-        ) as ScoresTableRow["observationId"];
+      getCell: (observationId, { row }) => {
         const traceId = row.getValue("traceId") as ScoresTableRow["traceId"];
-        return traceId && observationId ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`}
-            value={observationId}
-            // extractParamsValuesFromRow reads `row.observationId` (the
-            // original, not the table row wrapper) to add `?observation=`
-            // to the peek URL, focusing this observation within the trace.
-            onClick={
-              peekEnabled
-                ? () => openScorePeek(traceId, row.original)
-                : undefined
-            }
-          />
-        ) : undefined;
+        if (!traceId || !observationId) return undefined;
+
+        if (peekEnabled) {
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`,
+              value: observationId,
+              // extractParamsValuesFromRow reads the original row to focus
+              // this observation within the trace in the peek URL.
+              onClick: () => openScorePeek(traceId, row.original),
+            },
+          };
+        }
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(traceId)}?observation=${encodeURIComponent(observationId)}`,
+            value: observationId,
+            onClick: undefined,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "executionTraceId",
-      id: "executionTraceId",
       header: "Execution Trace",
       enableSorting: false,
       enableHiding: true,
       defaultHidden: true,
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("executionTraceId");
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/traces/${encodeURIComponent(value)}`}
-            value={value}
-          />
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/traces/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "sessionId",
       header: "Session",
-      id: "sessionId",
       enableHiding: true,
       enableSorting: true,
       size: 100,
-      cell: ({ row }) => {
-        const value = row.getValue("sessionId");
-        return typeof value === "string" ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(value)}`}
-            value={value}
-          />
-        ) : undefined;
+      getCell: (value) => {
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/sessions/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "userId",
       header: "User",
-      id: "userId",
       headerTooltip: {
         description: "The user ID associated with the trace.",
         href: "https://langfuse.com/docs/observability/features/users",
@@ -875,51 +848,42 @@ export default function ScoresTable({
       enableSorting: true,
       defaultHidden: true,
       size: 100,
-      loadingCell: <TableTextLoadingCell />,
-      cell: ({ row }) => {
-        if (isBetaEnabled && !scoreMetrics.data)
-          return <TableTextLoadingCell />;
-        const value = row.getValue("userId");
-        return typeof value === "string" ? (
-          <>
-            <TableLink
-              path={`/project/${projectId}/users/${encodeURIComponent(value)}`}
-              value={value}
-            />
-          </>
-        ) : undefined;
+      getCell: (value) => {
+        if (isV4 && !scoreMetrics.data) return { type: "loading" };
+        if (typeof value !== "string") return undefined;
+
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            value,
+          },
+        };
       },
-    },
-    {
+    }),
+    createUserTableColumn<ScoresTableRow, ScoresTableRow["author"]>({
       accessorKey: "author",
-      id: "author",
       header: "Author",
       enableHiding: true,
       defaultHidden: true,
       size: 150,
-      cell: ({ row }) => {
-        const { userId, name, image } = row.getValue(
-          "author",
-        ) as ScoresTableRow["author"];
-        return (
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-7 w-7">
-              <AvatarImage
-                src={image ?? undefined}
-                alt={name ?? "User Avatar"}
-              />
-            </Avatar>
-            <span>{name ?? userId}</span>
-          </div>
-        );
+      variant: "avatar",
+      emptyValue: "",
+      getUser: (author) => {
+        if (!author) return undefined;
+
+        const { userId, name, image } = author;
+        return {
+          type: "user",
+          user: { id: userId, name, image },
+        };
       },
-    },
-    {
+    }),
+    createLinkTableColumn<ScoresTableRow>({
       accessorKey: "jobConfigurationId",
-      header: isBetaEnabled ? "Evaluator" : "Eval Configuration ID",
-      id: "jobConfigurationId",
+      header: isV4 ? "Evaluator" : "Eval Configuration ID",
       headerTooltip: {
-        description: isBetaEnabled
+        description: isV4
           ? "The evaluator associated with the score."
           : "The Job Configuration ID associated with the score.",
         href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
@@ -928,24 +892,32 @@ export default function ScoresTable({
       enableSorting: false,
       defaultHidden: true,
       size: 150,
-      cell: ({ row }) => {
-        const value = isBetaEnabled
-          ? row.original.evaluatorId
-          : row.getValue("jobConfigurationId");
+      getCell: (_, { row }) => {
+        if (isV4) {
+          const value = row.original.evaluatorId;
+          if (typeof value !== "string") return undefined;
+
+          return {
+            type: "link",
+            props: {
+              path: `/project/${projectId}/evals/${value}`,
+              value,
+            },
+          };
+        }
+
+        const value = row.getValue("jobConfigurationId");
         if (typeof value !== "string") return undefined;
 
-        return (
-          <TableLink
-            path={
-              isBetaEnabled
-                ? `/project/${projectId}/evals/${value}`
-                : `/project/${projectId}/evals/legacy/${value}`
-            }
-            value={value}
-          />
-        );
+        return {
+          type: "link",
+          props: {
+            path: `/project/${projectId}/evals/legacy/${value}`,
+            value,
+          },
+        };
       },
-    },
+    }),
   ];
 
   const tableActions: TableAction[] = [
@@ -1020,7 +992,7 @@ export default function ScoresTable({
 
   // Merge v4 metrics into table rows
   const enrichedScores = useMemo(() => {
-    if (!isBetaEnabled) {
+    if (!isV4) {
       return scoresV3.data?.scores.map(convertToTableRow);
     }
 
@@ -1066,7 +1038,7 @@ export default function ScoresTable({
       } satisfies ScoresTableRow;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores.data, scoreMetrics.data, isBetaEnabled]);
+  }, [scores.data, scoreMetrics.data, isV4]);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
@@ -1263,6 +1235,8 @@ export default function ScoresTable({
             closePeek={closeScorePeek}
             expandPeek={expandScorePeek}
             itemType="TRACE"
+            tableName={scoresFilterConfig.tableName}
+            isV4={isV4}
             projectId={projectId}
           />
         )}
@@ -1292,11 +1266,11 @@ const ScoresMetadataCell = ({
       refetchOnMount: false, // prevents refetching loops
     },
   );
+  if (score.isPending) {
+    return <ConnectedIOTableCell isLoading singleLine={singleLine} />;
+  }
+
   return (
-    <IOTableCell
-      isLoading={score.isPending}
-      data={score.data?.metadata}
-      singleLine={singleLine}
-    />
+    <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
   );
 };

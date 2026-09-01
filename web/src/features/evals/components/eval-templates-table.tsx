@@ -10,7 +10,6 @@ import { Copy, MoreVertical, Pen, Trash } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import TableIdOrName from "@/src/components/table/table-id";
 import { TablePeekViewEvaluatorTemplateDetail } from "@/src/components/table/peek/peek-evaluator-template-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
@@ -55,6 +54,8 @@ import {
   shouldShowEvalTemplate,
 } from "@/src/features/evals/utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 
 export type EvalsTemplateRow = {
   name: string;
@@ -147,7 +148,7 @@ const EvalTemplateRowActionsMenu = ({
   const utils = api.useUtils();
   const hasTemplateWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalTemplate:CUD",
+    scope: "evaluator:CUD",
   });
 
   return (
@@ -254,7 +255,10 @@ export default function EvalsTemplateTable({
     searchQuery: searchQuery,
   });
 
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:CUD",
+  });
 
   const totalCount = templates.data?.totalCount ?? null;
 
@@ -327,13 +331,9 @@ export default function EvalsTemplateTable({
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
   const columns = [
-    columnHelper.accessor("name", {
+    createIdTableColumn<EvalsTemplateRow>({
+      accessorKey: "name",
       header: "Name",
-      id: "name",
-      cell: (row) => {
-        const name = row.getValue();
-        return name ? <TableIdOrName value={name} /> : undefined;
-      },
     }),
     columnHelper.accessor("type", {
       id: "type",
@@ -383,34 +383,28 @@ export default function EvalsTemplateTable({
         return row.getValue()?.toLocaleDateString();
       },
     }),
-    columnHelper.accessor("usageCount", {
+    createNumberTableColumn<EvalsTemplateRow>({
+      accessorKey: "usageCount",
       header: "Usage Count",
-      id: "usageCount",
       enableHiding: true,
       size: 80,
-      cell: (row) => {
-        const count = row.getValue();
-        return !!count ? count : null;
+      formatter: (value) => String(value),
+      getValue: (value) => {
+        return value || undefined;
       },
     }),
-    columnHelper.accessor("latestVersion", {
+    createNumberTableColumn<EvalsTemplateRow>({
+      accessorKey: "latestVersion",
       header: "Latest Version",
-      id: "latestVersion",
       enableHiding: true,
       size: 80,
-      cell: (row) => {
-        return row.getValue();
-      },
+      formatter: (value) => String(value),
     }),
-    columnHelper.accessor("id", {
+    createIdTableColumn<EvalsTemplateRow>({
+      accessorKey: "id",
       header: "Id",
-      id: "id",
       size: 100,
       enableHiding: true,
-      cell: (row) => {
-        const id = row.getValue();
-        return id ? <TableIdOrName value={id} /> : null;
-      },
     }),
     columnHelper.accessor("actions", {
       header: "Actions",
@@ -481,6 +475,8 @@ export default function EvalsTemplateTable({
     );
 
   const peekNavigationProps = usePeekNavigation({
+    tableName: "evalTemplates",
+    isV4: false,
     expandConfig: {
       basePath: `/project/${projectId}/evals/templates`,
     },

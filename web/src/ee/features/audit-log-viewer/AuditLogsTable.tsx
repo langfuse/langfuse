@@ -3,18 +3,15 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { cn } from "@/src/utils/tailwind";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BatchExportTableName } from "@langfuse/shared";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 
 // Both endpoints return the same shape
 type AuditLogRow = RouterOutputs["auditLogs"]["all"]["data"][number];
@@ -74,14 +71,11 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
           const user = actor.body;
           return (
             <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
-                {user?.image && (
-                  <AvatarImage src={user.image} alt={user?.name ?? "User"} />
-                )}
-                <AvatarFallback>
-                  {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? "U"}
-                </AvatarFallback>
-              </Avatar>
+              <Avatar
+                size="sm"
+                src={user?.image ?? undefined}
+                displayName={user?.name ?? user?.email ?? "User"}
+              />
               <span
                 className={cn(
                   "text-sm",
@@ -106,38 +100,32 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
         return null;
       },
     },
-    {
+    createTextTableColumn<AuditLogRow>({
       accessorKey: "resourceType",
       header: "Resource Type",
-    },
-    {
+    }),
+    createTextTableColumn<AuditLogRow>({
       accessorKey: "resourceId",
       header: "Resource ID",
-    },
-    {
+    }),
+    createTextTableColumn<AuditLogRow>({
       accessorKey: "action",
       header: "Action",
-    },
-    {
+    }),
+    createIOTableColumn<AuditLogRow>({
       accessorKey: "before",
       header: "Before",
       size: 300,
-      cell: (row) => {
-        const value = row.getValue() as string | null;
-        if (!value) return null;
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<AuditLogRow>({
       accessorKey: "after",
       header: "After",
       size: 300,
-      cell: (row) => {
-        const value = row.getValue() as string | null;
-        if (!value) return null;
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
   ];
 
   return (

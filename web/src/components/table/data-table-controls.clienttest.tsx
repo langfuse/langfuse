@@ -34,6 +34,38 @@ beforeAll(() => {
 });
 
 describe("CategoricalFacet", () => {
+  it("renders an option suffix after its label", () => {
+    render(
+      <Accordion type="multiple" value={["model"]}>
+        <CategoricalFacet
+          label="Model"
+          filterKey="model"
+          expanded
+          loading={false}
+          options={["gpt-4.1", "claude-sonnet"]}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          renderOptionSuffix={(value) =>
+            value === "gpt-4.1" ? <span>Project default</span> : null
+          }
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+      { wrapper: TooltipProvider },
+    );
+
+    const label = screen.getByText("gpt-4.1");
+    const suffix = screen.getByText("Project default");
+    expect(
+      label.compareDocumentPosition(suffix) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(label).not.toHaveClass("flex-1");
+    expect(screen.getByText("claude-sonnet")).toBeInTheDocument();
+  });
+
   it("shows selected values even when the backend returns no options", () => {
     render(
       <Accordion type="multiple" value={["type"]}>
@@ -597,6 +629,8 @@ describe("DataTableControls facet ordering", () => {
       categoricalFilter("beta", "Beta", true),
     ]);
     qf.onExpandedChange = (value) => expandedChanges.push(value);
+    qf.isV4 = true;
+    captureSpy.mockClear();
     render(
       <TooltipProvider>
         <DataTableControls queryFilter={qf} />
@@ -606,6 +640,94 @@ describe("DataTableControls facet ordering", () => {
     // Nothing expanded -> the toggle offers Expand all with every column.
     fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
     expect(expandedChanges.at(-1)).toEqual(["beta", "alpha"]);
+
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: true,
+      facetCount: 2,
+      layout: "panel",
+      isV4: true,
+    });
+    // Expand-all is its own intent; it must not also emit per-facet toggles.
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
+  });
+
+  it("captures expand_all_toggled collapsed when every visible facet is open", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.expanded = ["alpha", "beta"];
+    qf.isV4 = false;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse all filters" }),
+    );
+    const expandAll = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:expand_all_toggled",
+    );
+    expect(expandAll).toHaveLength(1);
+    expect(expandAll[0][1]).toMatchObject({
+      expanded: false,
+      facetCount: 2,
+      layout: "panel",
+      isV4: false,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:facet_toggled",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("captures facet_toggled once when a single header is opened", () => {
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.isV4 = true;
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Alpha All" }));
+    const toggled = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_toggled",
+    );
+    expect(toggled).toHaveLength(1);
+    expect(toggled[0][1]).toMatchObject({
+      column: "alpha",
+      expanded: true,
+      layout: "panel",
+      isV4: true,
+    });
+    expect(
+      captureSpy.mock.calls.filter(
+        ([event]) => event === "filters:expand_all_toggled",
+      ),
+    ).toHaveLength(0);
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
   });
 
   it("shows only active facets plus an Add filter picker when active-only mode is on", () => {
@@ -794,6 +916,81 @@ describe("DataTableControls blocked facets (LFE-11040)", () => {
     } finally {
       localStorage.removeItem("data-table-controls-active-only");
     }
+  });
+});
+
+describe("DataTableControls facet catalog", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): CategoricalUIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (filters: UIFilter[]): QueryFilter => ({
+    filters,
+    expanded: [],
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const CATALOG = [
+    categoricalFilter("environment", "Environment", false),
+    categoricalFilter("release", "Release", false),
+    categoricalFilter("name", "Name", false),
+    categoricalFilter("version", "Version", false),
+  ];
+
+  it("keeps every facet visible so browser find can reach it", () => {
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={queryFilter(CATALOG)} />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByText("Environment")).toBeVisible();
+    expect(screen.getByText("Name")).toBeVisible();
+    expect(screen.getByText("Release")).toBeVisible();
+    expect(screen.getByText("Version")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Show \d+ more/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expand-all expands every facet in the catalog", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={{
+            ...queryFilter(CATALOG),
+            onExpandedChange,
+          }}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    expect(onExpandedChange).toHaveBeenCalledWith([
+      "environment",
+      "release",
+      "name",
+      "version",
+    ]);
   });
 });
 

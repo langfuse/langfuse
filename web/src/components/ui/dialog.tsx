@@ -173,11 +173,14 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 /**
  * Owns dialog open state while callers retain trigger and content presentation.
- * Use the supplied Trigger to preserve Radix behavior.
+ * Prefer Trigger for direct user actions so Radix can provide trigger semantics,
+ * keyboard behavior, and focus restoration. Use openDialog when the dialog must
+ * open indirectly.
  */
 type DialogControllerProps = {
   children: (control: {
     isOpen: boolean;
+    openDialog: () => void;
     Trigger: typeof DialogTrigger;
   }) => React.ReactNode;
   closeOnInteractionOutside: boolean;
@@ -195,7 +198,11 @@ const DialogController = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {children({ isOpen, Trigger: DialogTrigger })}
+      {children({
+        isOpen,
+        openDialog: () => setIsOpen(true),
+        Trigger: DialogTrigger,
+      })}
       <DialogContent
         size={size}
         closeOnInteractionOutside={closeOnInteractionOutside}
@@ -326,8 +333,6 @@ DialogDescription.displayName = DialogPrimitive.Description.displayName;
 export {
   Dialog,
   DialogController,
-  DialogPortal,
-  DialogOverlay,
   DialogClose,
   DialogTrigger,
   DialogContent,

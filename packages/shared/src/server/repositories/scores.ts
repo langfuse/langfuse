@@ -261,7 +261,7 @@ export const getScoresForSessions = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -310,7 +310,7 @@ export const getScoresForExperiments = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -529,7 +529,7 @@ const getScoresForTracesInternal = async <
       ${levelFilter}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<
@@ -2323,7 +2323,7 @@ const buildScoresForBlobStorageExportQuery = (
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND timestamp < {maxTimestamp: DateTime64(3)}
     AND data_type IN ({dataTypes: Array(String)})
   `;
 

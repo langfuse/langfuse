@@ -36,9 +36,9 @@ vi.mock("@/src/components/SettingsDangerZone", () => ({
 }));
 
 vi.mock(
-  "@/src/features/organizations/components/DeleteOrganizationButton",
+  "@/src/features/organizations/components/DeleteOrganizationDialogController",
   () => ({
-    DeleteOrganizationButton: () => null,
+    DeleteOrganizationDialogController: () => null,
   }),
 );
 

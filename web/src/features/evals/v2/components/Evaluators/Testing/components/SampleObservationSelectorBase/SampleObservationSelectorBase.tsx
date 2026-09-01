@@ -1,17 +1,19 @@
-import { useMemo, useState, type UIEvent } from "react";
+/* eslint-disable @repo/no-style-props */
+import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 import {
   type FilterState,
   type TimeFilter,
   type TracingSearchType,
 } from "@langfuse/shared";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
@@ -19,6 +21,7 @@ import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   type FieldRegistry,
   EVENTS_FIELD_REGISTRY,
+  withFieldOptions,
 } from "@/src/features/search-bar/lib/fields";
 import {
   observedScoreNamesFromOptions,
@@ -32,6 +35,12 @@ import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Tes
 import { EXPERIMENTS_AND_EVALS_EXCLUSION_FILTERS } from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
 import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
 import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
+import {
+  DATASET_NAME_COLUMN,
+  addDatasetNameObservedOptions,
+} from "@/src/features/evals/v2/utils/datasetNameFilter";
+import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export type SampleObservation =
   RouterOutputs["events"]["all"]["observations"][number];
@@ -167,6 +176,50 @@ export function SampleObservationSelectorBase(
     formatCount,
     mapObservedOptions,
   } = props;
+  const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
+  const datasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId },
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+  const datasetOptions = useMemo(() => datasets.data ?? [], [datasets.data]);
+  const searchRegistry = useMemo(
+    () =>
+      withFieldOptions(
+        activeRegistry,
+        DATASET_NAME_COLUMN,
+        datasetOptions.map((dataset) => ({
+          value: dataset.id,
+          displayValue: dataset.name,
+        })),
+      ),
+    [activeRegistry, datasetOptions],
+  );
+  const reusableRuleFilters = useReusableRuleFilterPresets(
+    projectId,
+    searchRegistry,
+  );
+  const capture = usePostHogClientCapture();
+  const onQueryPresetPick = useCallback(
+    (presetId: string) => {
+      const preset = reusableRuleFilters.presets.find(
+        (candidate) => candidate.id === presetId,
+      );
+      if (!preset) return;
+      capture("evaluation_rules:filter_reused", {
+        tableName,
+        evaluatorCount: preset.evaluatorCount,
+        filterCount: preset.filterCount,
+        replacedFilterCount: filterState.length,
+        isV4: true,
+      });
+    },
+    [capture, filterState.length, reusableRuleFilters.presets, tableName],
+  );
   const setFilters = (
     next: FilterState | ((current: FilterState) => FilterState),
   ) => {
@@ -197,20 +250,21 @@ export function SampleObservationSelectorBase(
     includeApproxCount: true,
     lazy: true,
   });
-  const observed = useMemo(
-    () =>
-      mapObservedOptions(
-        toObservedOptions(
-          options.filterOptions,
-          options.isFilterOptionsPending,
-        ),
-      ),
-    [mapObservedOptions, options.filterOptions, options.isFilterOptionsPending],
-  );
+  const observed = useMemo(() => {
+    const mapped = mapObservedOptions(
+      toObservedOptions(options.filterOptions, options.isFilterOptionsPending),
+    );
+    return addDatasetNameObservedOptions(mapped, datasetOptions);
+  }, [
+    datasetOptions,
+    mapObservedOptions,
+    options.filterOptions,
+    options.isFilterOptionsPending,
+  ]);
   const search = useEventsSearchBar({
     projectId,
     tableName,
-    enabled: true,
+    enabled: !datasets.isPending,
     filterState,
     searchQuery,
     searchType,
@@ -224,7 +278,7 @@ export function SampleObservationSelectorBase(
     setSearchType: (next) => {
       setSearchType(next);
     },
-    ...(registry ? { registry } : {}),
+    registry: searchRegistry,
   });
   // listCursor always reads in the events table's stable start_time DESC tuple
   // order, so it takes no orderBy.
@@ -304,16 +358,21 @@ export function SampleObservationSelectorBase(
         resultCount: observationQuery.isSuccess
           ? matchingObservations.length
           : null,
-        registry: registry ?? EVENTS_FIELD_REGISTRY,
+        registry: searchRegistry,
       }),
-    [matchingObservations, observationQuery.isSuccess, observed, registry],
+    [
+      searchRegistry,
+      matchingObservations,
+      observationQuery.isSuccess,
+      observed,
+    ],
   );
   const aiScoreNames = useMemo(
     () =>
-      (registry ?? EVENTS_FIELD_REGISTRY).scores
+      searchRegistry.scores
         ? observedScoreNamesFromOptions(observed)
         : undefined,
-    [observed, registry],
+    [searchRegistry, observed],
   );
   const selectionToReconcile = observationQuery.isSuccess
     ? resolveSelection(matchingObservations, selectedObservationId)
@@ -322,14 +381,12 @@ export function SampleObservationSelectorBase(
   const columns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
     () => [
       ...leadingColumns,
-      {
+      createDateTableColumn<SampleObservation>({
         accessorKey: "startTime",
-        id: "startTime",
         header: "Start time",
         size: 170,
         enableHiding: true,
-        cell: ({ row }) => <LocalIsoDate date={row.original.startTime} />,
-      },
+      }),
       {
         accessorKey: "type",
         id: "type",
@@ -354,62 +411,47 @@ export function SampleObservationSelectorBase(
         defaultHidden: true,
         cell: ({ row }) => row.original.traceName ?? "—",
       },
-      {
+      createIOTableColumn<SampleObservation>({
         accessorKey: "input",
-        id: "input",
         header: "Input",
         size: 300,
         enableHiding: true,
-        cell: ({ row }) => {
+        getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          return (
-            <MemoizedIOTableCell
-              isLoading={!io && observationIOPending}
-              data={io?.input}
-              className="bg-muted/50"
-              singleLine={rowHeight === "s"}
-              enableExpandOnHover={rowHeight === "s"}
-            />
-          );
+          if (!io && observationIOPending) return { type: "loading" };
+          return io?.input;
         },
-      },
-      {
+        singleLine: rowHeight === "s",
+        enableExpandOnHover: rowHeight === "s",
+        variant: "input",
+      }),
+      createIOTableColumn<SampleObservation>({
         accessorKey: "output",
-        id: "output",
         header: "Output",
         size: 300,
         enableHiding: true,
-        cell: ({ row }) => {
+        getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          return (
-            <MemoizedIOTableCell
-              isLoading={!io && observationIOPending}
-              data={io?.output}
-              className="bg-accent-light-green"
-              singleLine={rowHeight === "s"}
-              enableExpandOnHover={rowHeight === "s"}
-            />
-          );
+          if (!io && observationIOPending) return { type: "loading" };
+          return io?.output;
         },
-      },
-      {
+        singleLine: rowHeight === "s",
+        enableExpandOnHover: rowHeight === "s",
+        variant: "output",
+      }),
+      createIOTableColumn<SampleObservation>({
         accessorKey: "metadata",
-        id: "metadata",
         header: "Metadata",
         size: 300,
         enableHiding: true,
-        cell: ({ row }) => {
+        getCell: (_value, { row }) => {
           const io = observationIOById.get(row.original.id);
-          return (
-            <MemoizedIOTableCell
-              isLoading={!io && observationIOPending}
-              data={io?.metadata}
-              singleLine={rowHeight === "s"}
-              enableExpandOnHover={rowHeight === "s"}
-            />
-          );
+          if (!io && observationIOPending) return { type: "loading" };
+          return io?.metadata;
         },
-      },
+        singleLine: rowHeight === "s",
+        enableExpandOnHover: rowHeight === "s",
+      }),
       {
         accessorKey: "environment",
         id: "environment",
@@ -452,20 +494,26 @@ export function SampleObservationSelectorBase(
           tooltip={filterTooltip}
           trailing={null}
         />
-        <EventsSearchBarRow
-          projectId={projectId}
-          tableName={tableName}
-          store={search.store}
-          commit={search.commit}
-          observed={observed}
-          erroredColumns={options.erroredColumns}
-          {...(registry ? { registry } : {})}
-          onApplyFilters={search.applyFilters}
-          onRequestColumns={options.requestColumns}
-          aiDataContext={aiDataContext}
-          aiScoreNames={aiScoreNames}
-          className="p-0"
-        />
+        {datasets.isPending ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <EventsSearchBarRow
+            projectId={projectId}
+            tableName={tableName}
+            store={search.store}
+            commit={search.commit}
+            observed={observed}
+            erroredColumns={options.erroredColumns}
+            registry={searchRegistry}
+            onApplyFilters={search.applyFilters}
+            onRequestColumns={options.requestColumns}
+            presetSections={reusableRuleFilters.sections}
+            onQueryPresetPick={onQueryPresetPick}
+            aiDataContext={aiDataContext}
+            aiScoreNames={aiScoreNames}
+            className="p-0"
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((example) => (
             <Button

@@ -147,7 +147,7 @@ function computeNumericRange(
   return [minValue, maxValue];
 }
 
-export interface BaseUIFilter {
+interface BaseUIFilter {
   column: string;
   label: string;
   tooltip?: string;
@@ -182,6 +182,8 @@ export interface CategoricalUIFilter extends BaseUIFilter {
   onOnlyChange?: (value: string) => void;
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** Optional content rendered after a filter option label */
+  renderOptionSuffix?: (value: string) => React.ReactNode;
   /**
    * Current operator of the facet's checkbox filter (arrayOptions AND
    * stringOptions columns; undefined when no filter is applied):
@@ -257,7 +259,7 @@ export type {
   StringKeyValueFilterEntry,
 } from "../lib/sidebar-filter-actions";
 
-export interface KeyValueUIFilter extends BaseUIFilter {
+interface KeyValueUIFilter extends BaseUIFilter {
   type: "keyValue";
   value: KeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
@@ -266,7 +268,7 @@ export interface KeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: KeyValueFilterEntry[]) => void;
 }
 
-export interface NumericKeyValueUIFilter extends BaseUIFilter {
+interface NumericKeyValueUIFilter extends BaseUIFilter {
   type: "numericKeyValue";
   value: NumericKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
@@ -274,7 +276,7 @@ export interface NumericKeyValueUIFilter extends BaseUIFilter {
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
 }
 
-export interface BooleanKeyValueUIFilter extends BaseUIFilter {
+interface BooleanKeyValueUIFilter extends BaseUIFilter {
   type: "booleanKeyValue";
   value: BooleanKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
@@ -1901,6 +1903,8 @@ export function useSidebarFilterPresentation(
           disabledReason: disableState.reason,
           renderIcon:
             facet.type === "categorical" ? facet.renderIcon : undefined,
+          renderOptionSuffix:
+            facet.type === "categorical" ? facet.renderOptionSuffix : undefined,
           onChange: (values: string[]) => updateFilter(facet.column, values),
           onOnlyChange: (value: string) => {
             if (selectedValues.length === 1 && selectedValues.includes(value)) {

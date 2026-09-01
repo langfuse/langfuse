@@ -16,6 +16,14 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  // Base URL for the in-app agent's MCP calls. Defaults to NEXTAUTH_URL.
+  // Set this instead of redirecting NEXTAUTH_URL when the worker should reach
+  // web internally: NEXTAUTH_URL also builds user-facing links in emails and
+  // Slack messages, which must stay externally resolvable.
+  // Web validates the Host header of MCP requests, so any hostname used here
+  // other than NEXTAUTH_URL's own must be listed in LANGFUSE_MCP_ALLOWED_HOSTS
+  // on web, or the requests are rejected.
+  LANGFUSE_MCP_BASE_URL: z.url().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
@@ -234,16 +242,14 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
-  // Opt-in because only workers provisioned for agent execution should consume
-  // durable runs; ingestion-only workers must leave this disabled.
+  // Optional opt-outs for split-role workers. Unset follows
+  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
   QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
-  // Reconciles stale runs that nobody reopened. Off by default: one elected
-  // worker per region is enough.
+    .optional(),
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .optional(),
   // The ambient host profile takes precedence over the agent-specific default
   // so local developer credentials win when both are configured.
   AWS_PROFILE: z.string().optional(),
@@ -401,6 +407,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -688,7 +695,7 @@ export const v4WritesToLegacyTables = (envValue: ParsedEnv): boolean =>
 export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR === "direct";
 
-export const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
+const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
   envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
 const validateV4Flags = (parsed: ParsedEnv): void => {

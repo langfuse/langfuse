@@ -1,6 +1,9 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -98,7 +101,33 @@ function placementNextTo(anchor: DashboardPlacement) {
   };
 }
 
+// Controller: no widget query may fire before the session resolves the v3/v4
+// read path — an unresolved session used to read as v3 and fire a wave of
+// legacy-table queries that was thrown away once the session landed.
 export default function DashboardDetail() {
+  const router = useRouter();
+  const { projectId } = router.query as { projectId: string };
+  const { readPath } = useReadPath();
+  if (readPath === "unknown") {
+    return (
+      <Page
+        withPadding
+        scrollable
+        headerProps={{
+          title: "Dashboard",
+          breadcrumb: [
+            { name: "Dashboards", href: `/project/${projectId}/dashboards` },
+          ],
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+  return <DashboardDetailView readPath={readPath} />;
+}
+
+function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -110,7 +139,7 @@ export default function DashboardDetail() {
   };
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
-  const { isBetaEnabled } = useV4Beta();
+  const isV4 = readPath === "v4";
 
   // Fetch dashboard data
   const dashboard = api.dashboard.getDashboard.useQuery({
@@ -128,6 +157,19 @@ export default function DashboardDetail() {
   // Langfuse-managed dashboards keep full edit affordances; edit attempts
   // route through the clone-first flow instead of mutating.
   const isLockedEditable = hasRbacCUDAccess && isLockedDashboard;
+
+  // PostHog is the external system: report one view per dashboard once the
+  // owner is known ("do the Langfuse-maintained templates get used?"). The
+  // id ref dedupes Strict Mode double-mounts while still re-reporting on
+  // client-side navigation between dashboards (same pattern as
+  // dashboard:home_dashboard_viewed).
+  const dashboardOwner = dashboard.data?.owner;
+  const viewedDashboardRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!dashboardOwner || viewedDashboardRef.current === dashboardId) return;
+    viewedDashboardRef.current = dashboardId;
+    capture("dashboard:view", { dashboardId, owner: dashboardOwner });
+  }, [capture, dashboardId, dashboardOwner]);
 
   // Access for cloning (independent of dashboard owner)
   const hasCloneAccess = hasRbacCUDAccess && isLockedDashboard;
@@ -421,7 +463,7 @@ export default function DashboardDetail() {
   const handlePastedPreset = useCallback(
     (
       presetId: HomeDashboardPresetId,
-      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       capture("dashboard:widget_pasted", {
@@ -476,7 +518,7 @@ export default function DashboardDetail() {
   const handleParsedWidgetPaste = useCallback(
     async (
       parsed: Exclude<PastedWidgetParseResult, { status: "not-widget" }>,
-      source: "cmd_v" | "dashboard_menu" | "paste_right" | "drop",
+      source: "cmd_v" | "dashboard_menu" | "drop",
       anchor?: DashboardPlacement,
     ) => {
       if (parsed.status === "invalid") {
@@ -535,10 +577,7 @@ export default function DashboardDetail() {
   // Menu-driven paste ("Paste widget" / "Paste to the right"): read the
   // clipboard and reject non-widget payloads visibly.
   const pasteWidgetFromClipboard = useCallback(
-    async (
-      source: "dashboard_menu" | "paste_right",
-      anchor?: DashboardPlacement,
-    ) => {
+    async (source: "dashboard_menu", anchor?: DashboardPlacement) => {
       const text = await readTextFromClipboard();
       if (text === null) {
         showErrorToast(
@@ -548,7 +587,7 @@ export default function DashboardDetail() {
         );
         return;
       }
-      const parsed = parsePastedWidget(text, { isBetaEnabled });
+      const parsed = parsePastedWidget(text, { isV4 });
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
@@ -578,13 +617,7 @@ export default function DashboardDetail() {
       }
       await handleParsedWidgetPaste(parsed, source, anchor);
     },
-    [
-      capture,
-      dashboardId,
-      handleParsedWidgetPaste,
-      handlePastedPreset,
-      isBetaEnabled,
-    ],
+    [capture, dashboardId, handleParsedWidgetPaste, handlePastedPreset, isV4],
   );
 
   // Cmd/Ctrl+V on the dashboard pastes a copied widget. Only intercepts when
@@ -604,7 +637,7 @@ export default function DashboardDetail() {
       }
       const text = event.clipboardData?.getData("text/plain");
       if (!text) return;
-      const parsed = parsePastedWidget(text, { isBetaEnabled });
+      const parsed = parsePastedWidget(text, { isV4 });
       if (parsed.status === "not-widget") {
         const preset = parsePastedPreset(text);
         // Neither widget nor preset payload: leave the event alone (silent,
@@ -631,7 +664,7 @@ export default function DashboardDetail() {
     return () => document.removeEventListener("paste", onPaste);
   }, [
     hasCUDAccess,
-    isBetaEnabled,
+    isV4,
     handleParsedWidgetPaste,
     handlePastedPreset,
     capture,
@@ -642,8 +675,8 @@ export default function DashboardDetail() {
   // holding a pasteable payload, where the browser lets us check silently.
   const [isDashboardMenuOpen, setIsDashboardMenuOpen] = useState(false);
   const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
+    (text: string) => isPasteablePlacementPayload(text, { isV4 }),
+    [isV4],
   );
   const clipboardProbe = useClipboardWidgetProbe(
     isDashboardMenuOpen && hasCUDAccess,
@@ -782,7 +815,7 @@ export default function DashboardDetail() {
     async (file: File) => {
       const text = await file.text();
 
-      const dashboardResult = parseDashboardImport(text, { isBetaEnabled });
+      const dashboardResult = parseDashboardImport(text, { isV4 });
       if (dashboardResult.status === "dashboard") {
         await handleDashboardImport(dashboardResult.dashboard);
         return;
@@ -801,7 +834,7 @@ export default function DashboardDetail() {
         return;
       }
 
-      const widgetResult = parsePastedWidget(text, { isBetaEnabled });
+      const widgetResult = parsePastedWidget(text, { isV4 });
       if (widgetResult.status === "not-widget") {
         const preset = parsePastedPreset(text);
         if (preset.status === "preset") {
@@ -832,7 +865,7 @@ export default function DashboardDetail() {
       await handleParsedWidgetPaste(widgetResult, "drop");
     },
     [
-      isBetaEnabled,
+      isV4,
       handleDashboardImport,
       handleParsedWidgetPaste,
       handlePastedPreset,
@@ -890,7 +923,7 @@ export default function DashboardDetail() {
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
-    isBetaEnabled,
+    isV4,
     timeRange,
   });
 
@@ -1365,6 +1398,7 @@ export default function DashboardDetail() {
           <div>
             <DashboardGrid
               key={gridResetKey}
+              readPath={readPath}
               widgets={dashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
                 if (isLockedEditable) {
@@ -1398,13 +1432,6 @@ export default function DashboardDetail() {
               }
               onDuplicatePreset={
                 hasCUDAccess ? handleDuplicatePreset : undefined
-              }
-              onPasteWidget={
-                hasCUDAccess
-                  ? (anchor) => {
-                      pasteWidgetFromClipboard("paste_right", anchor);
-                    }
-                  : undefined
               }
             />
           </div>

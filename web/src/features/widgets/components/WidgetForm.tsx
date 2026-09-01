@@ -50,7 +50,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 
 import { type z } from "zod";
 
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
@@ -222,13 +222,13 @@ export function WidgetForm({
   onSave: (widgetData: WidgetSavePayload) => void;
   widgetId?: string;
 }) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // The initial widget's persisted version is a local hint frozen at mount.
   // The resolver and live viewVersion additionally derive v2 from the current
   // form shape; the server derives the value that gets persisted.
   const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
-  const activeVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const activeVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   // The auto-suggestions change on every keystroke; a ref keeps the resolver
   // closure from being rebuilt on each one (the filled name/description do not
@@ -346,6 +346,7 @@ export function WidgetForm({
   const chartTypeError: string | undefined = formErrors.chart?.type?.message;
   const metricsError: string | undefined =
     formErrors.metrics?.message ??
+    formErrors.metrics?.root?.message ??
     formErrors.metrics?.[0]?.measure?.message ??
     formErrors.metrics?.[0]?.aggregation?.message;
   const dimensionsError: string | undefined = formErrors.dimensions?.message;
@@ -580,7 +581,7 @@ export function WidgetForm({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       enabled: queryValidation.valid,
     },
   );
@@ -870,12 +871,12 @@ export function WidgetForm({
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Widget Configuration</CardTitle>
-              {!widgetId && isBetaEnabled && (
+              {!widgetId && isV4 && (
                 <WidgetImporter
                   projectId={projectId}
                   viewVersion={viewVersion}
                   dateRange={dateRange}
-                  isBetaEnabled={isBetaEnabled}
+                  isV4={isV4}
                   onImport={handleImportedWidget}
                 />
               )}
@@ -885,7 +886,7 @@ export function WidgetForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 overflow-y-auto">
-            {isBetaEnabled && selectedView === "traces" && (
+            {isV4 && selectedView === "traces" && (
               <Alert
                 variant="default"
                 className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
