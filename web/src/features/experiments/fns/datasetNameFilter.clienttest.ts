@@ -1,4 +1,4 @@
-import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
+import { getExperimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 
@@ -75,48 +75,60 @@ describe("withDatasetNamesResolved", () => {
 });
 
 describe("folding the legacy dataset column", () => {
-  const migrate = experimentsFilterConfig.migrateFilterState!;
+  const nameById = new Map([
+    ["ds-legal", "legal-answer-quality"],
+    ["ds-judge", "groundedness-judge-calibration"],
+  ]);
+  const migrate = (filters: FilterState, map = nameById) =>
+    getExperimentsFilterConfig([], map).migrateFilterState!(filters);
 
-  it("moves a legacy experimentDatasetId filter onto the canonical column", () => {
-    // Left on its own column it survives every Dataset-facet interaction and is
-    // ANDed with the user's choice, so the table shows nothing.
-    expect(
-      migrate([
-        {
-          type: "stringOptions",
-          column: "experimentDatasetId",
-          operator: "any of",
-          value: ["dataset-abc"],
-        },
-      ]),
-    ).toEqual([
+  const legacy = (...ids: string[]): FilterState => [
+    {
+      type: "stringOptions",
+      column: "experimentDatasetId",
+      operator: "any of",
+      value: ids,
+    },
+  ];
+
+  it("moves the filter onto the canonical column as the dataset NAME", () => {
+    // The facet's options and labels are keyed by name, so folding the id
+    // through unchanged would show an opaque id with nothing checked.
+    expect(migrate(legacy("ds-legal"))).toEqual([
       {
         type: "stringOptions",
         column: "experimentDatasetName",
         operator: "any of",
-        value: ["dataset-abc"],
+        value: ["legal-answer-quality"],
       },
     ]);
   });
 
+  it("waits rather than folding while the id -> name map is empty", () => {
+    // The legacy column is real, so leaving it alone keeps querying correctly.
+    const filters = legacy("ds-legal");
+    expect(migrate(filters, new Map())).toBe(filters);
+  });
+
+  it("leaves an id it cannot name alone", () => {
+    // A deleted dataset must not become a name that matches nothing.
+    const filters = legacy("ds-deleted");
+    expect(migrate(filters)).toEqual(filters);
+  });
+
+  it("folds all values of an entry or none of them", () => {
+    const filters = legacy("ds-legal", "ds-deleted");
+    expect(migrate(filters)).toEqual(filters);
+  });
+
   it("cannot leave two dataset filters behind", () => {
-    const migrated = migrate([
-      {
-        type: "stringOptions",
-        column: "experimentDatasetId",
-        operator: "any of",
-        value: ["dataset-abc"],
-      },
-      {
-        type: "stringOptions",
-        column: "experimentDatasetId",
-        operator: "any of",
-        value: ["dataset-def"],
-      },
-    ]);
+    const migrated = migrate([...legacy("ds-legal"), ...legacy("ds-judge")]);
 
     expect(migrated).toHaveLength(1);
-    expect(migrated[0]).toMatchObject({ column: "experimentDatasetName" });
+    expect(migrated[0]).toMatchObject({
+      column: "experimentDatasetName",
+      value: ["legal-answer-quality"],
+    });
   });
 
   it("leaves a filter state without the legacy column untouched", () => {
