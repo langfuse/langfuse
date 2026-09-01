@@ -11,6 +11,12 @@ import {
   WILDCARD,
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
+import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import {
+  classifyMediaValue,
+  splitStringByMediaReferences,
+  type MediaDescriptor,
+} from "@/src/components/ui/media/mediaUtils";
 import { cn } from "@/src/utils/tailwind";
 
 const MAX_CONCRETE_ENTRIES = 5;
@@ -34,6 +40,41 @@ function pathKey(columnId: string, segments: PathSegment[]): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function MediaAwarePreview({
+  preview,
+  directDescriptor,
+}: {
+  preview: string;
+  directDescriptor: MediaDescriptor | null;
+}) {
+  const segments = directDescriptor
+    ? [{ type: "media" as const, descriptor: directDescriptor }]
+    : splitStringByMediaReferences(preview);
+
+  return (
+    <span
+      className="text-muted-foreground flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-xs leading-5"
+      title={preview}
+    >
+      {segments.map((segment, index) =>
+        segment.type === "media" ? (
+          <span key={index} className="inline-flex shrink-0 items-center">
+            <MediaTag contentType={segment.descriptor.contentType} />
+          </span>
+        ) : (
+          <span
+            key={index}
+            className="min-w-0 truncate whitespace-pre"
+            title={segment.value}
+          >
+            {segment.value}
+          </span>
+        ),
+      )}
+    </span>
+  );
 }
 
 function wildcardRepresentative(entries: unknown[]) {
@@ -98,6 +139,12 @@ function TreeRow({
     ? value.length > 0
     : isPlainObject(value) && Object.keys(value).length > 0;
   const preview = previewOf(value);
+  const directMediaDescriptor = expandable ? null : classifyMediaValue(value);
+  const hasMedia =
+    directMediaDescriptor !== null ||
+    splitStringByMediaReferences(preview).some(
+      (segment) => segment.type === "media",
+    );
 
   const selectOrToggle = () => {
     if (expandable) onToggleExpand(key);
@@ -115,7 +162,10 @@ function TreeRow({
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+          className={cn(
+            "flex min-w-0 cursor-pointer items-center gap-2 text-left",
+            hasMedia ? "shrink-0" : "flex-1",
+          )}
           title={expandable ? preview : `Pull {{${variable}}} from here`}
           onClick={selectOrToggle}
         >
@@ -130,32 +180,40 @@ function TreeRow({
             <span className="h-3.5 w-3.5 shrink-0" />
           )}
           <span className="shrink-0 font-mono font-bold">{label}</span>
-          <span
-            className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
-            title={preview}
-          >
-            {preview}
-          </span>
-          {partial ? (
+          {!hasMedia ? (
             <span
-              className="text-dark-yellow shrink-0 rounded border px-1 py-px text-[10px]"
-              title="Not present in every entry of this list"
+              className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
+              title={preview}
             >
-              not in every entry
-            </span>
-          ) : null}
-          <span className="text-muted-foreground shrink-0 rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
-            {badge ?? typeBadge(value)}
-          </span>
-          {isCurrent ? (
-            <span
-              className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
-              title={`{{${variable}}} currently maps to here`}
-            >
-              current
+              {preview}
             </span>
           ) : null}
         </button>
+        {hasMedia ? (
+          <MediaAwarePreview
+            preview={preview}
+            directDescriptor={directMediaDescriptor}
+          />
+        ) : null}
+        {partial ? (
+          <span
+            className="text-dark-yellow shrink-0 rounded border px-1 py-px text-[10px]"
+            title="Not present in every entry of this list"
+          >
+            not in every entry
+          </span>
+        ) : null}
+        <span className="text-muted-foreground shrink-0 rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
+          {badge ?? typeBadge(value)}
+        </span>
+        {isCurrent ? (
+          <span
+            className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
+            title={`{{${variable}}} currently maps to here`}
+          >
+            current
+          </span>
+        ) : null}
         <button
           type="button"
           className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
