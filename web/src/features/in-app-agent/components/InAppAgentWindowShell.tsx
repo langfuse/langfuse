@@ -216,6 +216,7 @@ export function InAppAgentWindowShell({
       // layout under the home indicator and, in landscape, the notch.
       <div
         ref={panelRef}
+        data-testid="in-app-agent-fullscreen"
         className="pointer-events-auto fixed top-[calc(var(--banner-offset)+0.75rem)] right-[calc(0.75rem+env(safe-area-inset-right,0px))] bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] left-[calc(0.75rem+env(safe-area-inset-left,0px))] origin-top-left"
         data-ignore-outside-interaction
       >

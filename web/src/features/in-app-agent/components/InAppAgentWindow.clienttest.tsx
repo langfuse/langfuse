@@ -21,6 +21,8 @@ const controlledAgent = vi.hoisted(() => ({
     conversations: [] as Array<{ id: string; title: string | null }>,
     activityByConversationId: new Map<string, { state: string }>(),
     attentionCount: 0,
+    dock: "sidebar" as const,
+    setDock: vi.fn(),
     error: null as InAppAgentError | null,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
@@ -92,6 +94,8 @@ function windowElement(
     hasMoreConversations: false,
     isAssistantTurnInProgress: false,
     isExpanded: false,
+    dock: "sidebar",
+    onDockChange: vi.fn(),
     isConversationInteractionDisabled: false,
     isSelectedConversationHydrating: false,
     isLoadingMoreConversations: false,
@@ -268,6 +272,41 @@ describe("InAppAgentWindow header", () => {
     );
 
     expect(screen.getByText("Assistant")).toBeInTheDocument();
+  });
+
+  it("detaches from the sidebar and docks back from the overlay", () => {
+    capture.mockClear();
+    const onDockChange = vi.fn();
+    const { rerender } = render(
+      windowElement({ dock: "sidebar", onDockChange }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Detach assistant" }));
+    expect(onDockChange).toHaveBeenCalledWith("detached");
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "detached",
+    });
+
+    rerender(windowElement({ dock: "detached", onDockChange }));
+    fireEvent.click(screen.getByRole("button", { name: "Dock assistant" }));
+    expect(onDockChange).toHaveBeenCalledWith("sidebar");
+    expect(capture).toHaveBeenCalledWith("in_app_agent:presentation_changed", {
+      presentation: "sidebar",
+    });
+  });
+
+  it("hides detach and dock while expanded", () => {
+    render(windowElement({ dock: "sidebar", isExpanded: true }));
+
+    expect(
+      screen.queryByRole("button", { name: "Detach assistant" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dock assistant" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse window" }),
+    ).toBeInTheDocument();
   });
 
   it("toggles expanded on a header double-click, but not from its actions", () => {

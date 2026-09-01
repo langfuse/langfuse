@@ -12,8 +12,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 /** Launcher only — the assistant window itself is rendered by
- * InAppAgentWindowHost from the persistent authenticated layout, so it
- * survives the per-page remount of this button on navigation.
+ * InAppAgentWindowHost from the persistent authenticated layout, wrapping
+ * page content so the docked sidebar survives per-page remounts.
  *
  * `prominent` is the compact, icon-only launcher for the mobile top bar: a
  * gradient border in the agent's own palette (the colors of its window's

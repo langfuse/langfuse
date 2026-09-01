@@ -20,6 +20,8 @@ import {
   TriangleAlert,
   Minimize2,
   Minus,
+  PanelRight,
+  PictureInPicture2,
   Plus,
   SendHorizontal,
   Square,
@@ -68,6 +70,7 @@ import {
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
 import { deduplicateBy } from "@/src/utils/arrays";
+import type { InAppAgentDock } from "@/src/features/in-app-agent/presentation";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -874,6 +877,8 @@ export type InAppAgentWindowProps = {
   isAwaitingApproval?: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
+  dock: InAppAgentDock;
+  onDockChange: (dock: InAppAgentDock) => void;
   isConversationInteractionDisabled: boolean;
   /** Distinguishes a loading transcript from an empty conversation. */
   isSelectedConversationHydrating: boolean;
@@ -977,6 +982,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isRunUnsettled = isAssistantTurnInProgress,
     isAwaitingApproval = false,
     isHeaderDragHandleEnabled = false,
+    dock,
+    onDockChange,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
     isSelectedConversationHydrating,
@@ -1134,8 +1141,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       aria-label="Assistant"
       className={cn(
         "bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
-        // Full-bleed on mobile: the drawer owns the edge, so drop the window chrome.
-        isHandheld && "rounded-none border-0 shadow-none",
+        // Full-bleed on mobile and when docked: the drawer / split owns the edge.
+        (isHandheld || (dock === "sidebar" && !isExpanded)) &&
+          "rounded-none border-0 shadow-none",
       )}
     >
       <header
@@ -1314,6 +1322,39 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Fullscreen and handheld have nowhere to dock or detach into. */}
+          {!isHandheld && !isExpanded ? (
+            <Tooltip delayDuration={100} disableHoverableContent>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label={
+                    dock === "sidebar" ? "Detach assistant" : "Dock assistant"
+                  }
+                  onClick={() => {
+                    const nextDock =
+                      dock === "sidebar" ? "detached" : "sidebar";
+                    capture("in_app_agent:presentation_changed", {
+                      presentation: nextDock,
+                    });
+                    onDockChange(nextDock);
+                  }}
+                >
+                  {dock === "sidebar" ? (
+                    <PictureInPicture2 className="size-3" />
+                  ) : (
+                    <PanelRight className="size-3" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {dock === "sidebar" ? "Detach assistant" : "Dock assistant"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           {/* Mobile is always full-screen, so there is nothing to expand. */}
           {!isHandheld ? (
             <Tooltip delayDuration={100} disableHoverableContent>

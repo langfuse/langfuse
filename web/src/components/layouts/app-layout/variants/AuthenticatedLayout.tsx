@@ -288,9 +288,15 @@ export function AuthenticatedLayout({
                     scrollbar showed — spawning a horizontal one. Flex already
                     sizes the inset to that space. */}
                 <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                  <AppContentWithRightDrawer>
-                    {children}
-                  </AppContentWithRightDrawer>
+                  {/* Assistant host wraps page content so the docked sidebar
+                      can push it aside. Detached/fullscreen still overlay.
+                      Lives here (not in PageHeader) so the open window
+                      survives route changes. */}
+                  <InAppAgentWindowHost>
+                    <AppContentWithRightDrawer>
+                      {children}
+                    </AppContentWithRightDrawer>
+                  </InAppAgentWindowHost>
                   {/* Toasts render in the `toast` overlay layer — the last layer
                       in LAYER_ORDER — so they paint above every overlay (incl. a
                       non-modal peek) by DOM order alone, no z-index. Sonner's
@@ -300,10 +306,6 @@ export function AuthenticatedLayout({
                     <Toaster visibleToasts={1} />
                   </Layer>
                   <CommandMenu mainNavigation={navigation.navigation} />
-                  {/* Assistant window host lives here (not in PageHeader with
-                      its launcher button) so the open window and its geometry
-                      survive route changes. */}
-                  <InAppAgentWindowHost />
                 </SidebarInset>
               </div>
               {hasFeaturePreviews ? (

@@ -60,9 +60,14 @@ function InAppAgentWindowStoryShell({
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const [dock, setDock] = useState(args.dock);
   const handleExpandedChange = (isExpanded: boolean) => {
     setIsExpanded(isExpanded);
     args.onExpandedChange(isExpanded);
+  };
+  const handleDockChange = (nextDock: InAppAgentWindowProps["dock"]) => {
+    setDock(nextDock);
+    args.onDockChange(nextDock);
   };
 
   return (
@@ -73,6 +78,8 @@ function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
+          dock={dock}
+          onDockChange={handleDockChange}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
           onExpandedChange={handleExpandedChange}
@@ -268,6 +275,7 @@ function appendToken(currentText: string, nextText: string) {
 
 function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
+  const [dock, setDock] = useState(args.dock);
   const [messages, setMessages] = useState<InAppAgentWindowMessage[]>(
     streamingSeedMessages,
   );
@@ -550,6 +558,10 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     setIsExpanded(isExpanded);
     args.onExpandedChange(isExpanded);
   };
+  const handleDockChange = (nextDock: InAppAgentWindowProps["dock"]) => {
+    setDock(nextDock);
+    args.onDockChange(nextDock);
+  };
 
   return (
     <InAppAgentWindowStoryShell
@@ -559,6 +571,8 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
       {({ isHeaderDragHandleEnabled }) => (
         <InAppAgentWindow
           {...args}
+          dock={dock}
+          onDockChange={handleDockChange}
           isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
           isExpanded={isExpanded}
           messages={messages}
@@ -696,6 +710,8 @@ const meta = preview.meta({
   args: {
     error: null,
     executionUi: { notice: null, stop: null },
+    dock: "detached",
+    onDockChange: fn(),
     isExpanded: false,
     isConversationInteractionDisabled: false,
     isSelectedConversationHydrating: false,
@@ -780,6 +796,21 @@ export const Empty = meta.story({
   args: {
     messages: [],
   },
+});
+
+export const DockedSidebar = meta.story({
+  args: {
+    dock: "sidebar",
+    messages: [],
+  },
+  render: (args) => (
+    <div className="flex h-screen w-full">
+      <div className="bg-muted/40 min-h-0 min-w-0 flex-1" />
+      <div className="h-full w-[min(100%,28rem)] min-w-80 border-l">
+        <InAppAgentWindow {...args} dock="sidebar" isExpanded={false} />
+      </div>
+    </div>
+  ),
 });
 
 export const Conversation = meta.story({

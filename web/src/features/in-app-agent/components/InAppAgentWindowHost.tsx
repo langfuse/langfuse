@@ -1,11 +1,12 @@
 /* eslint-disable @repo/no-null-render */
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
 import { Layer } from "@/src/components/ui/layer";
+import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
 import {
@@ -17,6 +18,8 @@ import {
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { useIsHandheld } from "@/src/hooks/use-mobile";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 function DeleteConversationDialog({
   close,
@@ -58,15 +61,22 @@ function DeleteConversationDialog({
   );
 }
 
+function InAppAgentHostFrame({ children }: { children: ReactNode }) {
+  return <div className="flex min-h-0 flex-1 flex-col">{children}</div>;
+}
+
 /**
- * Hosts the floating assistant window and its drag/resize geometry. Must be
- * rendered from a scope that survives route changes (the authenticated
- * layout), NOT from per-page chrome like PageHeader — otherwise the open
- * window unmounts and its geometry resets on every navigation.
+ * Hosts the assistant window and its presentations. Must be rendered from a
+ * scope that survives route changes (the authenticated layout), wrapping page
+ * content so the docked sidebar can push that content aside. Overlay
+ * presentations (detached and fullscreen) still render through the `agent`
+ * layer; the handheld drawer is unchanged.
  */
-export function InAppAgentWindowHost() {
+export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-  const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
+  const isHandheld = useIsHandheld();
+  const capture = usePostHogClientCapture();
+  const { deleteConversation, dock, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
@@ -104,29 +114,44 @@ export function InAppAgentWindowHost() {
   const handleExpandedChange = (nextIsExpanded: boolean) => {
     previousPanelRectRef.current =
       panelRef.current?.getBoundingClientRect() ?? null;
+    if (nextIsExpanded !== isExpanded) {
+      capture("in_app_agent:presentation_changed", {
+        presentation: nextIsExpanded ? "fullscreen" : dock,
+      });
+    }
     setIsExpanded(nextIsExpanded);
   };
 
-  // Geometry follows the open state: cleared on close so every open starts
-  // from the default placement, initialized on open for the floating panel.
+  // Geometry belongs to the detached overlay: cleared on close so every open
+  // starts from the default placement, initialized only once the movable panel
+  // is the active presentation.
   useLayoutEffect(() => {
     if (!open) {
       floatingPanelHandle.clearGeometry();
       return;
     }
 
-    if (isExpanded || floatingPanelHandle.geometry) {
+    if (isHandheld || isExpanded || dock !== "detached") {
+      return;
+    }
+
+    if (floatingPanelHandle.geometry) {
       return;
     }
 
     floatingPanelHandle.initializeGeometry();
-  }, [floatingPanelHandle, isExpanded, open]);
+  }, [dock, floatingPanelHandle, isExpanded, isHandheld, open]);
 
-  // Only `isInAppAgentLauncherVisible` gates the tree: the shell owns the `open` guard
-  // so the handheld drawer stays mounted and can animate itself closed.
+  // Only `isInAppAgentLauncherVisible` gates the assistant tree: page content
+  // always stays mounted, and the shell owns the `open` guard so the handheld
+  // drawer can animate itself closed.
   if (!isInAppAgentLauncherVisible) {
-    return null;
+    return <InAppAgentHostFrame>{children}</InAppAgentHostFrame>;
   }
+
+  const showSidebar = open && dock === "sidebar" && !isExpanded && !isHandheld;
+  const showOverlay =
+    isHandheld || (open && (isExpanded || dock === "detached"));
 
   return (
     <DialogController<InAppAgentWindowConversation>
@@ -138,40 +163,73 @@ export function InAppAgentWindowHost() {
         />
       )}
     >
-      {(deleteConversationDialog) => (
-        // The assistant window lives in the `agent` overlay layer — a
-        // <body>-level layer container that floats above page content and
-        // panel surfaces, but below true modals and transient overlays by DOM
-        // order alone. No z-index: layer ORDER stacks it (see
-        // components/ui/layer.tsx). This replaces the old body portal + z-51,
-        // which fought the nav-user dropdown's z-60 at <body> level.
-        <Layer name="agent">
-          <InAppAgentWindowShell
-            floatingPanelHandle={floatingPanelHandle}
+      {(deleteConversationDialog) => {
+        const renderWindow = (isHeaderDragHandleEnabled: boolean) => (
+          <ControlledInAppAgentWindow
+            isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
             isExpanded={isExpanded}
+            onDeleteConversation={(conversation) => {
+              deleteConversationDialog.open(conversation);
+            }}
+            onExpandedChange={handleExpandedChange}
             onClose={() => {
               setOpen(false);
             }}
-            onExpandedChange={handleExpandedChange}
-            open={open}
-            panelRef={panelRef}
-          >
-            {({ isHeaderDragHandleEnabled }) => (
-              <ControlledInAppAgentWindow
-                isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
-                isExpanded={isExpanded}
-                onDeleteConversation={(conversation) => {
-                  deleteConversationDialog.open(conversation);
-                }}
-                onExpandedChange={handleExpandedChange}
-                onClose={() => {
-                  setOpen(false);
-                }}
+          />
+        );
+
+        return (
+          <InAppAgentHostFrame>
+            {isHandheld ? (
+              children
+            ) : (
+              <ResizableSplitLayout
+                className="flex h-full min-h-0 w-full flex-1"
+                primaryContent={children}
+                secondaryContent={
+                  <div
+                    data-testid="in-app-agent-sidebar"
+                    className="h-full min-h-0 overflow-hidden"
+                  >
+                    {renderWindow(false)}
+                  </div>
+                }
+                open={showSidebar}
+                defaultPrimarySize={70}
+                defaultSecondarySize={30}
+                minPrimarySize={40}
+                maxSecondarySize={50}
+                keepSecondaryMounted={false}
+                persistId="in-app-agent-sidebar"
               />
             )}
-          </InAppAgentWindowShell>
-        </Layer>
-      )}
+            {showOverlay ? (
+              // Detached, fullscreen, and handheld presentations live in the
+              // `agent` overlay layer — a <body>-level layer container that
+              // floats above page content and panel surfaces, but below true
+              // modals and transient overlays by DOM order alone. No z-index:
+              // layer ORDER stacks it (see components/ui/layer.tsx). The
+              // docked sidebar is in-flow above, not in this layer.
+              <Layer name="agent">
+                <InAppAgentWindowShell
+                  floatingPanelHandle={floatingPanelHandle}
+                  isExpanded={isExpanded}
+                  onClose={() => {
+                    setOpen(false);
+                  }}
+                  onExpandedChange={handleExpandedChange}
+                  open={open}
+                  panelRef={panelRef}
+                >
+                  {({ isHeaderDragHandleEnabled }) =>
+                    renderWindow(isHeaderDragHandleEnabled)
+                  }
+                </InAppAgentWindowShell>
+              </Layer>
+            ) : null}
+          </InAppAgentHostFrame>
+        );
+      }}
     </DialogController>
   );
 }

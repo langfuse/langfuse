@@ -51,6 +51,7 @@ export function ControlledInAppAgentWindow(
   const {
     activityByConversationId,
     conversations,
+    dock,
     error,
     hasMoreConversations,
     isLoadingMoreConversations,
@@ -69,6 +70,7 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     selectedConversationTitle,
+    setDock,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -177,6 +179,8 @@ export function ControlledInAppAgentWindow(
       isAwaitingApproval={isAwaitingApproval}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
+      dock={dock}
+      onDockChange={setDock}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
       messages={drawerMessages}

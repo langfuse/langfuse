@@ -1,21 +1,50 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 import { InAppAgentWindowHost } from "./InAppAgentWindowHost";
+import type { InAppAgentDock } from "@/src/features/in-app-agent/presentation";
 
 const mocks = vi.hoisted(() => ({
   open: false,
+  dock: "sidebar" as InAppAgentDock,
+  isExpanded: false,
   setOpen: vi.fn(),
+  setDock: vi.fn(),
+  setIsExpanded: vi.fn(),
 }));
 
 vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
   useIsInAppAgentLauncherVisible: () => true,
   useInAppAiAgent: () => ({
     deleteConversation: vi.fn(),
-    isExpanded: false,
+    dock: mocks.dock,
+    isExpanded: mocks.isExpanded,
     open: mocks.open,
-    setIsExpanded: vi.fn(),
+    setDock: mocks.setDock,
+    setIsExpanded: mocks.setIsExpanded,
     setOpen: mocks.setOpen,
   }),
+}));
+
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+
+vi.mock("@/src/components/ui/resizable-split-layout", () => ({
+  ResizableSplitLayout: ({
+    primaryContent,
+    secondaryContent,
+    open,
+  }: {
+    primaryContent: ReactNode;
+    secondaryContent: ReactNode;
+    open: boolean;
+  }) => (
+    <div>
+      {primaryContent}
+      {open ? secondaryContent : null}
+    </div>
+  ),
 }));
 
 vi.mock(
@@ -82,10 +111,22 @@ function stubHandheld() {
   );
 }
 
+function renderHost() {
+  return render(
+    <InAppAgentWindowHost>
+      <div data-testid="page">page</div>
+    </InAppAgentWindowHost>,
+  );
+}
+
 describe("InAppAgentWindowHost", () => {
   beforeEach(() => {
     mocks.open = false;
+    mocks.dock = "sidebar";
+    mocks.isExpanded = false;
     mocks.setOpen.mockReset();
+    mocks.setDock.mockReset();
+    mocks.setIsExpanded.mockReset();
 
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
@@ -119,13 +160,42 @@ describe("InAppAgentWindowHost", () => {
     Reflect.deleteProperty(window, "visualViewport");
   });
 
-  it("keeps geometry while open and resets it on close/reopen", () => {
-    const { rerender } = render(<InAppAgentWindowHost />);
+  it("docks into a sidebar by default so page content stays visible", () => {
+    mocks.open = true;
+    renderHost();
+
+    expect(screen.getByTestId("page")).toBeInTheDocument();
+    expect(screen.getByTestId("window")).toBeInTheDocument();
+    expect(screen.getByTestId("in-app-agent-sidebar")).toBeInTheDocument();
+    expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
+  });
+
+  it("detaches into the movable overlay without unmounting the page", () => {
+    mocks.open = true;
+    mocks.dock = "detached";
+    renderHost();
+
+    expect(screen.getByTestId("page")).toBeInTheDocument();
+    expect(screen.getByTestId("movable-resizable-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("in-app-agent-sidebar")).toBeNull();
+  });
+
+  it("keeps detached geometry while open and resets it on close/reopen", () => {
+    mocks.dock = "detached";
+    const { rerender } = render(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
 
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
 
     mocks.open = true;
-    rerender(<InAppAgentWindowHost />);
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
 
     // Default placement: bottom-right of the 1024x768 viewport.
     const panel = screen.getByTestId("movable-resizable-panel");
@@ -154,17 +224,29 @@ describe("InAppAgentWindowHost", () => {
 
     // Re-render while still open (e.g. after a route change): the dragged
     // geometry must survive.
-    rerender(<InAppAgentWindowHost />);
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
     expect(screen.getByTestId("movable-resizable-panel").style.left).toBe(
       "468px",
     );
 
     mocks.open = false;
-    rerender(<InAppAgentWindowHost />);
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
 
     mocks.open = true;
-    rerender(<InAppAgentWindowHost />);
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
     expect(screen.getByTestId("movable-resizable-panel").style.left).toBe(
       "568px",
     );
@@ -173,7 +255,18 @@ describe("InAppAgentWindowHost", () => {
     );
   });
 
-  it("renders a full-screen drawer instead of the movable panel on a handheld", () => {
+  it("expands to fullscreen from the sidebar without the movable overlay", () => {
+    mocks.open = true;
+    mocks.isExpanded = true;
+    renderHost();
+
+    expect(screen.getByTestId("page")).toBeInTheDocument();
+    expect(screen.getByTestId("in-app-agent-fullscreen")).toBeInTheDocument();
+    expect(screen.queryByTestId("in-app-agent-sidebar")).toBeNull();
+    expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
+  });
+
+  it("renders a full-screen drawer instead of the sidebar or movable panel on a handheld", () => {
     // A landscape phone: too wide for the `md` width clause, so only the
     // coarse-pointer clause can match. Pins that the shell asks the handheld
     // predicate, not the width-only one that sent a rotated phone back to the
@@ -181,17 +274,22 @@ describe("InAppAgentWindowHost", () => {
     stubHandheld();
     mocks.open = true;
 
-    const { rerender } = render(<InAppAgentWindowHost />);
+    const { rerender } = renderHost();
 
     // No drag/resize on touch, and the drawer is the modal that scroll-locks
     // the page behind it.
     expect(screen.queryByTestId("movable-resizable-panel")).toBeNull();
+    expect(screen.queryByTestId("in-app-agent-sidebar")).toBeNull();
     expect(document.querySelector("#in-app-agent-drawer")).not.toBeNull();
 
     // Closing drives the drawer's own `open` prop rather than unmounting the
     // tree from under it, so Vaul can animate itself out.
     mocks.open = false;
-    rerender(<InAppAgentWindowHost />);
+    rerender(
+      <InAppAgentWindowHost>
+        <div data-testid="page">page</div>
+      </InAppAgentWindowHost>,
+    );
     expect(document.querySelector("#in-app-agent-drawer")).toHaveAttribute(
       "data-state",
       "closed",
@@ -204,7 +302,7 @@ describe("InAppAgentWindowHost", () => {
     const resizeViewportTo = stubVisualViewport(669);
     mocks.open = true;
 
-    render(<InAppAgentWindowHost />);
+    renderHost();
     const drawer = document.querySelector<HTMLElement>("#in-app-agent-drawer");
     const composer = screen.getByTestId("composer");
 
