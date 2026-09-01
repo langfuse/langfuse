@@ -92,6 +92,20 @@ import {
   type ScoreColumnSummary,
 } from "@/src/features/experiments/fns/summariseScoreColumn";
 import { ScoreColumnHeaderSummary } from "./ScoreColumnHeaderSummary";
+import { ScoreColumnFilterMenu } from "./ScoreColumnFilterMenu";
+import { ScoreComparisonFilterPills } from "./ScoreComparisonFilterPills";
+import {
+  ExperimentScoreMatrix,
+  type ScoreMatrixRow,
+} from "./ExperimentScoreMatrix";
+import { useScoreComparisonFilters } from "@/src/features/experiments/hooks/useScoreComparisonFilters";
+import {
+  describeEmptyScoreComparison,
+  rowPassesScoreComparisonFilters,
+  scoreFieldForLevel,
+  type ScoreComparisonFilter,
+  type ScoreLevel,
+} from "@/src/features/experiments/fns/scoreComparisonFilter";
 import { resetStaleDefaultColumnOrder } from "@/src/features/experiments/fns/experimentItemsColumnOrder";
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
@@ -779,6 +793,47 @@ export default function ExperimentItemsTable({
     scoreColumnDefs.traceScoreColumns,
   ]);
 
+  const scoreNamesByKey = useMemo(() => {
+    const build = (columns: ScoreColumnDef[]) =>
+      new Map(toScoreColumnInput(columns).map(({ key, name }) => [key, name]));
+    return {
+      observationScores: build(scoreColumnDefs.observationScoreColumns),
+      traceScores: build(scoreColumnDefs.traceScoreColumns),
+    };
+  }, [
+    scoreColumnDefs.observationScoreColumns,
+    scoreColumnDefs.traceScoreColumns,
+  ]);
+
+  const {
+    filters: scoreComparisonFilters,
+    setFilter: setScoreComparisonFilter,
+    removeFilter: removeScoreComparisonFilter,
+  } = useScoreComparisonFilters();
+
+  // The runs a score can be read against, the auto-selected comparison first so
+  // the menu's default is the one the column header already reports.
+  const comparisonTargets = useMemo(() => {
+    const others = selectedExperimentNames.filter(
+      (exp) => exp.experimentId !== primaryExperimentId,
+    );
+    return [
+      ...others.filter((exp) => exp.experimentId === primaryComparisonId),
+      ...others.filter((exp) => exp.experimentId !== primaryComparisonId),
+    ].map(({ experimentId, experimentName }) => ({
+      experimentId,
+      experimentName,
+    }));
+  }, [selectedExperimentNames, primaryExperimentId, primaryComparisonId]);
+
+  const scoreDataTypeFor = useCallback(
+    (filter: ScoreComparisonFilter) =>
+      scoreDataTypesByKey[scoreFieldForLevel(filter.level)].get(
+        filter.scoreKey,
+      ),
+    [scoreDataTypesByKey],
+  );
+
   const scoreColumnSummaries = useMemo(() => {
     const rowsInView = items.rows ?? [];
     return {
@@ -821,6 +876,13 @@ export default function ExperimentItemsTable({
           typeof scoreCol.header === "string"
             ? scoreCol.header
             : (scoreCol.accessorKey ?? "");
+        const level: ScoreLevel =
+          scoreField === "traceScores" ? "trace" : "observation";
+        const activeComparisonFilter = key
+          ? scoreComparisonFilters.find(
+              (filter) => filter.level === level && filter.scoreKey === key,
+            )
+          : undefined;
 
         return {
           ...scoreCol,
@@ -837,6 +899,27 @@ export default function ExperimentItemsTable({
                     dataType={dataType}
                     summary={summary}
                     comparisonName={primaryComparisonName}
+                    filterMenu={
+                      <ScoreColumnFilterMenu
+                        targets={comparisonTargets}
+                        hasOrder={dataType !== "CATEGORICAL"}
+                        active={activeComparisonFilter}
+                        onSelect={(operator, comparisonExperimentId) => {
+                          if (!key) return;
+                          const nextFilter = {
+                            level,
+                            scoreKey: key,
+                            operator,
+                            comparisonExperimentId,
+                          };
+                          setScoreComparisonFilter(nextFilter);
+                        }}
+                        onClear={() =>
+                          activeComparisonFilter &&
+                          removeScoreComparisonFilter(activeComparisonFilter)
+                        }
+                      />
+                    }
                   />
                 ),
               }
@@ -940,6 +1023,10 @@ export default function ExperimentItemsTable({
       scoreColumnSummaries,
       scoreDataTypesByKey,
       showComparisonDiff,
+      comparisonTargets,
+      scoreComparisonFilters,
+      setScoreComparisonFilter,
+      removeScoreComparisonFilter,
       runNameOf,
     ],
   );
@@ -1393,8 +1480,20 @@ export default function ExperimentItemsTable({
   const rows: ExperimentItemsTableRow[] = useMemo(() => {
     if (items.status !== "success" || !items.rows) return [];
     // Add 'id' field for DataTable row identification (peek view requires it)
-    return items.rows.map((row) => ({ ...row, id: row.itemId }));
-  }, [items]);
+    const withIds = items.rows.map((row) => ({ ...row, id: row.itemId }));
+    // The score comparison filters narrow the page here rather than in the
+    // query — see `useScoreComparisonFilters` for why. The header aggregates
+    // deliberately keep describing the whole fetched page, so the movement the
+    // filter was built from stays readable while it is applied.
+    return withIds.filter((row) =>
+      rowPassesScoreComparisonFilters({
+        filters: scoreComparisonFilters,
+        experiments: row.experiments,
+        baselineExperimentId: primaryExperimentId,
+        dataTypeFor: scoreDataTypeFor,
+      }),
+    );
+  }, [items, scoreComparisonFilters, primaryExperimentId, scoreDataTypeFor]);
 
   useEffect(() => {
     if (items.status === "success") {
@@ -1435,6 +1534,38 @@ export default function ExperimentItemsTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.status, rows, baselineId]);
+
+  // Plain English for the active comparisons, and for the table when they leave
+  // nothing: "no regressions on this score" is an answer, not a broken table.
+  const scoreComparisonPills = useMemo(
+    () =>
+      scoreComparisonFilters.map((filter) => ({
+        filter,
+        scoreName:
+          scoreNamesByKey[scoreFieldForLevel(filter.level)].get(
+            filter.scoreKey,
+          ) ?? filter.scoreKey,
+        comparisonName:
+          selectedExperimentNames.find(
+            (exp) => exp.experimentId === filter.comparisonExperimentId,
+          )?.experimentName ?? filter.comparisonExperimentId,
+      })),
+    [scoreComparisonFilters, scoreNamesByKey, selectedExperimentNames],
+  );
+
+  const scoreComparisonEmptyMessage = useMemo(() => {
+    if (rows.length > 0 || (items.rows ?? []).length === 0) return undefined;
+    if (scoreComparisonPills.length !== 1)
+      return scoreComparisonPills.length > 1
+        ? "No item on this page matches every score comparison."
+        : undefined;
+    const [pill] = scoreComparisonPills;
+    return describeEmptyScoreComparison({
+      operator: pill.filter.operator,
+      scoreName: pill.scoreName,
+      comparisonName: pill.comparisonName,
+    });
+  }, [rows.length, items.rows, scoreComparisonPills]);
 
   const pagination = useMemo(
     () => ({
@@ -1605,6 +1736,13 @@ export default function ExperimentItemsTable({
           />
         )}
 
+        {/* Score comparison filters — evaluated over the loaded page */}
+        <ScoreComparisonFilterPills
+          pills={scoreComparisonPills}
+          onRemove={removeScoreComparisonFilter}
+          className="border-b"
+        />
+
         {/* Filter Pills with Experiment Targeting */}
         {filtersByExperiment.length > 0 && (
           <ExperimentFilterPills
@@ -1684,6 +1822,10 @@ export default function ExperimentItemsTable({
                   !hasSelectedRuns ? (
                     <span className="text-muted-foreground text-sm">
                       Please select a baseline experiment.
+                    </span>
+                  ) : scoreComparisonEmptyMessage ? (
+                    <span className="text-muted-foreground text-sm">
+                      {scoreComparisonEmptyMessage}
                     </span>
                   ) : undefined
                 }
