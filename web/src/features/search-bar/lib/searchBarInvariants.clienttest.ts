@@ -688,11 +688,18 @@ describe("search bar invariants — experiments registry", () => {
 
   it("exposes only the sidebar facets whose columns are actually filterable", () => {
     expect(EXPERIMENTS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
+      "experimentDatasetName",
       "name",
     ]);
-    // The dataset column holds an ID while the sidebar shows the name, so the
-    // bar would contradict it — see the registry's EXCLUDED_COLUMN_IDS note.
-    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("dataset")).toBeNull();
+    // `dataset:` filters by the readable, unique name; the id column stays
+    // filterable for old saved views but is not offered here.
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("dataset")).toMatchObject({
+      type: "field",
+      field: { id: "experimentDatasetName" },
+    });
+    expect(
+      EXPERIMENTS_FIELD_REGISTRY.resolveField("experimentDatasetId"),
+    ).toBeNull();
   });
 
   it("keeps score dot-paths closed until the columns are unified", () => {

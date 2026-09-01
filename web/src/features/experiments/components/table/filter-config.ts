@@ -1,6 +1,7 @@
 import {
   omitFilterFacets,
   type FilterConfig,
+  type FilterStateMigration,
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnDefinition } from "@langfuse/shared";
 
@@ -42,8 +43,22 @@ export const experimentsTableCols: ColumnDefinition[] = [
     internal: "prompts",
     nullable: true,
   },
+  // Dataset names are unique per project, so the NAME is the canonical filter
+  // value: it survives in a URL or saved view as something readable, and the
+  // sidebar picker and the search bar can both show the same string. It is
+  // translated to `experimentDatasetId` on the way to the query (the dataset
+  // name is not a ClickHouse column) — see fns/datasetNameFilter.
   {
     name: "Dataset",
+    id: "experimentDatasetName",
+    type: "stringOptions",
+    internal: "experiment_dataset_id",
+    options: [],
+  },
+  // Still filterable so URLs and saved views written before the switch keep
+  // resolving; no longer offered as a facet.
+  {
+    name: "Dataset ID",
     id: "experimentDatasetId",
     type: "stringOptions",
     internal: "experiment_dataset_id",
@@ -136,12 +151,72 @@ export const getExperimentsColumnName = (id: string): string => {
   return column.name;
 };
 
+/**
+ * Folds a legacy `experimentDatasetId` filter onto the canonical column.
+ *
+ * Both ids compile to the same ClickHouse column, and the name resolver passes
+ * a value it cannot translate straight through — so an id keeps matching. What
+ * matters is that only ONE dataset column can be present: the sidebar's facet
+ * actions replace entries by exact column name, so a leftover
+ * `experimentDatasetId` from an old link survived every interaction with the
+ * Dataset facet and was ANDed with the user's new choice, silently showing zero
+ * rows with one dataset apparently selected.
+ */
+/**
+ * Folds a legacy `experimentDatasetId` filter onto the canonical column,
+ * translating its value from the id to the dataset's NAME.
+ *
+ * Only ONE dataset column may be present: the sidebar's facet actions replace
+ * entries by exact column name, so a leftover `experimentDatasetId` from an old
+ * link survived every interaction with the Dataset facet and was ANDed with the
+ * user's new choice - one dataset apparently selected, zero rows.
+ *
+ * The value has to travel with the column. The facet's options and its display
+ * labels are keyed by name, so a folded id would render as an opaque id with no
+ * checkbox matching it. Until the id -> name map arrives the legacy filter is
+ * left exactly as it is: it names a real column, so it keeps querying correctly
+ * in the meantime, and an id with no name (a deleted dataset) stays put rather
+ * than becoming a name that resolves to nothing.
+ */
+const foldLegacyDatasetColumn =
+  (datasetNameById: ReadonlyMap<string, string>): FilterStateMigration =>
+  (filters) => {
+    if (
+      datasetNameById.size === 0 ||
+      !filters.some((filter) => filter.column === "experimentDatasetId")
+    ) {
+      return filters;
+    }
+
+    let folded = false;
+    return filters.flatMap((filter) => {
+      if (filter.column !== "experimentDatasetId") return [filter];
+      if (filter.type !== "stringOptions") return [filter];
+
+      const names = filter.value.map((id) => datasetNameById.get(id));
+      // Partial knowledge would drop a constraint, so fold all or nothing.
+      if (names.some((name) => name === undefined)) return [filter];
+      // A second legacy entry would fold onto the same column and re-create
+      // the AND this exists to remove.
+      if (folded) return [];
+      folded = true;
+
+      return [
+        {
+          ...filter,
+          column: "experimentDatasetName",
+          value: names as string[],
+        },
+      ];
+    });
+  };
+
 export const experimentsFilterConfig: FilterConfig = {
   tableName: "experiments",
 
   columnDefinitions: experimentsTableCols,
 
-  defaultExpanded: ["experimentDatasetId"],
+  defaultExpanded: ["experimentDatasetName"],
 
   facets: [
     {
@@ -151,8 +226,8 @@ export const experimentsFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "experimentDatasetId",
-      label: getExperimentsColumnName("experimentDatasetId"),
+      column: "experimentDatasetName",
+      label: getExperimentsColumnName("experimentDatasetName"),
     },
     {
       type: "stringKeyValue" as const,
@@ -194,7 +269,9 @@ export const experimentsFilterConfig: FilterConfig = {
   ],
 };
 
-export type ExperimentsOmittableFilterColumn = "experimentDatasetId";
+export type ExperimentsOmittableFilterColumn =
+  | "experimentDatasetId"
+  | "experimentDatasetName";
 
 export function isExperimentsOmittableFilterColumn(
   column: string,
@@ -204,6 +281,19 @@ export function isExperimentsOmittableFilterColumn(
 
 export function getExperimentsFilterConfig(
   omittedFilter: ExperimentsOmittableFilterColumn[] = [],
+  datasetNameById: ReadonlyMap<string, string> = new Map(),
 ): FilterConfig {
-  return omitFilterFacets(experimentsFilterConfig, omittedFilter);
+  // A dataset-scoped page pins `experimentDatasetId`, but the facet it should
+  // hide is the name one that replaced it.
+  const config = omitFilterFacets(
+    experimentsFilterConfig,
+    omittedFilter.map((column) =>
+      column === "experimentDatasetId" ? "experimentDatasetName" : column,
+    ) as ExperimentsOmittableFilterColumn[],
+  );
+
+  return {
+    ...config,
+    migrateFilterState: foldLegacyDatasetColumn(datasetNameById),
+  };
 }
