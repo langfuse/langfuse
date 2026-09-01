@@ -4210,6 +4210,13 @@ describe("queryBuilder", () => {
           }),
           createEvent({
             project_id: projectId,
+            name: "explicitly-uncached",
+            usage_details: { uncached_input_tokens: 60 },
+            cost_details: { input: 10 },
+            start_time,
+          }),
+          createEvent({
+            project_id: projectId,
             name: "alias-hit",
             usage_details: { input: 30, cached_tokens: 10 },
             cost_details: { input: 200 },
@@ -4245,7 +4252,7 @@ describe("queryBuilder", () => {
         expect(buckets).toEqual({
           "Cached input": 90,
           "Other input": 100,
-          "Cache reporting unavailable": 40,
+          "Cache reporting unavailable": 100,
         });
 
         const spend = await executeQuery(

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import isEqual from "lodash/isEqual";
 import { prisma } from "@langfuse/shared/src/db";
 import langfuseDashboards from "../constants/langfuse-dashboards.json";
 import { LANGFUSE_HOME_DASHBOARD } from "@langfuse/shared";
@@ -7,6 +8,7 @@ import {
   WidgetDomainSchema,
   DashboardDomainSchema,
 } from "@langfuse/shared/src/server";
+import { env, v4WritesToEventsTable } from "../env";
 
 /**
  * JSON STRUCTURE & SCHEMAS
@@ -52,6 +54,31 @@ const FileSchema = z.object({
 type ParsedWidgets = z.infer<typeof WidgetDomainSchema>[];
 type ParsedDashboards = z.infer<typeof DashboardDomainSchema>[];
 
+const omitUnsupportedWidgetPlacements = (
+  dashboards: ParsedDashboards,
+  widgets: ParsedWidgets,
+): ParsedDashboards => {
+  if (v4WritesToEventsTable(env)) return dashboards;
+
+  const unsupportedWidgetIds = new Set(
+    widgets
+      .filter((widget) => (widget.minVersion ?? 1) >= 2)
+      .map((widget) => widget.id),
+  );
+
+  return dashboards.map((dashboard) => ({
+    ...dashboard,
+    definition: {
+      ...dashboard.definition,
+      widgets: dashboard.definition.widgets.filter(
+        (placement) =>
+          placement.type !== "widget" ||
+          !unsupportedWidgetIds.has(placement.widgetId),
+      ),
+    },
+  }));
+};
+
 export const upsertLangfuseDashboards = async (force = false) => {
   const startTime = Date.now();
   try {
@@ -70,8 +97,13 @@ export const upsertLangfuseDashboards = async (force = false) => {
       owner: "LANGFUSE",
     });
 
+    const dashboards = omitUnsupportedWidgetPlacements(
+      parsed.dashboards,
+      parsed.widgets,
+    );
+
     await upsertWidgets(parsed.widgets, force);
-    await upsertDashboards([...parsed.dashboards, homeDashboard], force);
+    await upsertDashboards([...dashboards, homeDashboard], force);
 
     logger.info(
       `Finished upserting Langfuse dashboards and widgets in ${Date.now() - startTime}ms`,
@@ -158,16 +190,20 @@ async function upsertDashboards(dashboards: ParsedDashboards, force: boolean) {
     select: {
       id: true,
       updatedAt: true,
+      definition: true,
     },
   });
-  const existingMap = new Map(existing.map((d) => [d.id, d.updatedAt]));
+  const existingMap = new Map(
+    existing.map((dashboard) => [dashboard.id, dashboard]),
+  );
 
   const promises = dashboards.map((dashboard) => {
-    const existingUpdatedAt = existingMap.get(dashboard.id);
+    const existingDashboard = existingMap.get(dashboard.id);
     if (
       !force &&
-      existingUpdatedAt &&
-      existingUpdatedAt.getTime() === dashboard.updatedAt.getTime()
+      existingDashboard &&
+      existingDashboard.updatedAt.getTime() === dashboard.updatedAt.getTime() &&
+      isEqual(existingDashboard.definition, dashboard.definition)
     ) {
       logger.debug(`Dashboard ${dashboard.name} already up to date. Skipping.`);
       return Promise.resolve();

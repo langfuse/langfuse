@@ -57,7 +57,8 @@ export const eventsTableHasOutputSql = "e.output != ''";
 const isCachedInputMetric = (key: string): boolean => {
   const normalizedKey = key.toLowerCase();
   return (
-    normalizedKey.includes("cached") || normalizedKey.includes("cache_read")
+    !normalizedKey.includes("uncached") &&
+    (normalizedKey.includes("cached") || normalizedKey.includes("cache_read"))
   );
 };
 
@@ -82,7 +83,7 @@ export const getCachedInputCost = (
 ): number | undefined => findCachedInputMetric(details);
 
 export const eventsTableCachedInputMetricKeySql = (key: string): string =>
-  `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+  `(positionCaseInsensitive(${key}, 'uncached') = 0 AND (positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0))`;
 
 export const eventsTableCachedInputMetricSqlForColumn = (
   detailsColumn: string,

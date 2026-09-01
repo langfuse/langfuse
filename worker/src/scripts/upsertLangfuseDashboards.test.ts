@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const dashboardWidgetFindMany = vi.hoisted(() => vi.fn());
 const dashboardWidgetUpsert = vi.hoisted(() => vi.fn());
@@ -32,18 +32,25 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import langfuseDashboards from "../constants/langfuse-dashboards.json";
+import { env } from "../env";
 import { upsertLangfuseDashboards } from "./upsertLangfuseDashboards";
 
 const PROMPT_CACHE_UTILIZATION_WIDGET_ID = "l0liih2p6mb79934helasxiy";
 const INPUT_SPEND_WITHOUT_CACHE_WIDGET_ID = "oqhqp4ikycjg5b69lwslv7hg";
 
 describe("managed cache widgets", () => {
+  const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
   beforeEach(() => {
     vi.clearAllMocks();
     dashboardWidgetFindMany.mockResolvedValue([]);
     dashboardWidgetUpsert.mockResolvedValue(undefined);
     dashboardFindMany.mockResolvedValue([]);
     dashboardUpsert.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
   });
 
   it("places cache utilization in Usage Management and no-cache spend in Cost", () => {
@@ -94,6 +101,7 @@ describe("managed cache widgets", () => {
   });
 
   it("persists both widgets as events-backed definitions", async () => {
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     await upsertLangfuseDashboards(true);
 
     for (const id of [
@@ -105,6 +113,47 @@ describe("managed cache widgets", () => {
           where: { id },
           create: expect.objectContaining({ minVersion: 2 }),
           update: expect.objectContaining({ minVersion: 2 }),
+        }),
+      );
+    }
+  });
+
+  it("removes events-backed placements from managed dashboards in legacy mode", async () => {
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+    const cacheDashboards = langfuseDashboards.dashboards.filter((dashboard) =>
+      dashboard.definition.widgets.some((placement) =>
+        [
+          PROMPT_CACHE_UTILIZATION_WIDGET_ID,
+          INPUT_SPEND_WITHOUT_CACHE_WIDGET_ID,
+        ].includes("widgetId" in placement ? placement.widgetId : ""),
+      ),
+    );
+    dashboardFindMany.mockResolvedValue(
+      cacheDashboards.map((dashboard) => ({
+        id: dashboard.id,
+        updatedAt: new Date(dashboard.updatedAt),
+        definition: dashboard.definition,
+      })),
+    );
+
+    await upsertLangfuseDashboards();
+
+    for (const dashboard of cacheDashboards) {
+      expect(dashboardUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: dashboard.id },
+          update: expect.objectContaining({
+            definition: expect.objectContaining({
+              widgets: expect.not.arrayContaining([
+                expect.objectContaining({
+                  widgetId: PROMPT_CACHE_UTILIZATION_WIDGET_ID,
+                }),
+                expect.objectContaining({
+                  widgetId: INPUT_SPEND_WITHOUT_CACHE_WIDGET_ID,
+                }),
+              ]),
+            }),
+          }),
         }),
       );
     }

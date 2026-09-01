@@ -68,6 +68,7 @@ describe("cached input metrics", () => {
         input_cache_creation: 100,
       }),
     ).toBe(42);
+    expect(getCachedInputMetric({ uncached_input_tokens: 17 })).toBeUndefined();
   });
 
   it("distinguishes missing cached metrics from explicit zero values", () => {
