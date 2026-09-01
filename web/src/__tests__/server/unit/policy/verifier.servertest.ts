@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type ApiKey } from "@langfuse/shared/src/db";
 import { InternalServerError } from "@langfuse/shared";
+import { hashSecretKey } from "@langfuse/shared/src/server";
 
+import { Verifier } from "@/src/features/apiKey/verifier";
 import {
-  Verifier,
-  type ApiKeyLookup,
+  type FindApiKeyResult,
   type ApiKeyRepository,
-  type VerifySlowResult,
-} from "@/src/features/apiKey/verifier";
+} from "@/src/features/apiKey/apiKeyRepository";
 import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
 
 const SALT = "salt";
@@ -37,22 +37,20 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey =>
 const basicHeader = (pub: string, secret: string) =>
   `Basic ${btoa(`${pub}:${secret}`)}`;
 
-const lookup = (apiKey: ApiKey | null): ApiKeyLookup => ({
+const lookup = (apiKey: ApiKey | null): FindApiKeyResult => ({
   success: true,
   apiKey,
 });
-const slow = (valid: boolean): VerifySlowResult => ({ success: true, valid });
 
-const stubStore = (over: Partial<ApiKeyRepository> = {}): ApiKeyRepository => ({
-  findByFastHash: vi.fn(async () => lookup(null)),
-  findByPublicKey: vi.fn(async () => lookup(null)),
-  verifySlow: vi.fn(async () => slow(false)),
-  backfillFastHash: vi.fn(async () => {}),
-  ...over,
-});
+const stubStore = (over: Partial<ApiKeyRepository> = {}): ApiKeyRepository =>
+  ({
+    findByFastHash: vi.fn(async () => lookup(null)),
+    findByPublicKey: vi.fn(async () => lookup(null)),
+    backfillFastHash: vi.fn(async () => {}),
+    ...over,
+  }) as unknown as ApiKeyRepository;
 
-const verifier = (store: ApiKeyRepository) =>
-  new Verifier(store, SALT, ADMIN, false);
+const verifier = (store: ApiKeyRepository) => new Verifier(store, SALT, ADMIN);
 
 describe("scheme dispatch", () => {
   it("a missing header is a 401", async () => {
@@ -85,11 +83,13 @@ describe("Basic authenticates the secret as privateKey", () => {
     });
   });
   it("falls back to bcrypt and backfills the fast hash for a NULL-hash key", async () => {
-    const key = apiKey({ fastHashedSecretKey: null });
+    const key = apiKey({
+      fastHashedSecretKey: null,
+      hashedSecretKey: await hashSecretKey("sk"),
+    });
     const backfill = vi.fn(async () => {});
     const store = stubStore({
       findByPublicKey: vi.fn(async () => lookup(key)),
-      verifySlow: vi.fn(async () => slow(true)),
       backfillFastHash: backfill,
     });
     const result = await verifier(store).verify(
@@ -156,11 +156,16 @@ describe("Bearer chains admin then private then public", () => {
   });
 });
 
-describe("admin key is self-host only", () => {
-  it("is ignored on cloud", async () => {
-    const cloud = new Verifier(stubStore(), SALT, ADMIN, true);
-    const result = await cloud.verify(
-      parseAuthorizationHeader(`Bearer ${ADMIN}`),
+describe("admin key needs a set, non-empty configured key", () => {
+  it("is ignored when the configured key is unset", async () => {
+    const noKey = new Verifier(stubStore(), SALT, undefined);
+    const result = await noKey.verify(parseAuthorizationHeader("Bearer "));
+    expect(result.success).toBe(false);
+  });
+  it("is ignored when the configured key is whitespace only", async () => {
+    const blankKey = new Verifier(stubStore(), SALT, "   ");
+    const result = await blankKey.verify(
+      parseAuthorizationHeader("Bearer    "),
     );
     expect(result.success).toBe(false);
   });
@@ -170,7 +175,7 @@ describe("infra failures surface as typed errors, not throws", () => {
   it("propagates an api key repo failure as an InternalServerError result", async () => {
     const store = stubStore({
       findByFastHash: vi.fn(
-        async (): Promise<ApiKeyLookup> => ({
+        async (): Promise<FindApiKeyResult> => ({
           success: false,
           error: new InternalServerError("db down"),
         }),

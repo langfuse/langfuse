@@ -50,6 +50,7 @@ const ctx = (policies: Policy[]): AuthorizationContext => ({
     kind: "apiKey",
     apiKeyId: "key_1",
     userId: null,
+    isInAppAgentKey: false,
     organizations: [],
   },
   policies,

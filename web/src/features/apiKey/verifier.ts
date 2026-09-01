@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 
 import { type ApiKey } from "@langfuse/shared/src/db";
-import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
-import { createShaHash } from "@langfuse/shared/src/server";
+import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
+import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
 import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
 import {
   type ErrorResult,
   type Success,
@@ -15,17 +16,19 @@ import {
 export const invalidCredentials =
   "Invalid credentials. Confirm that you've configured the correct host.";
 
+/** publicKeyPrefix is the prefix every Langfuse public key carries. */
+const publicKeyPrefix = "pk-lf-";
+
 /** Verifier authenticates a request credential into a resolvable presentation, dispatching Basic vs Bearer and never throwing. */
 export class Verifier {
   constructor(
-    private readonly store: ApiKeyRepository,
+    private readonly apiKeyRepo: ApiKeyRepository = new ApiKeyRepository(),
     private readonly salt: string = env.SALT,
     private readonly adminApiKey: string | undefined = env.ADMIN_API_KEY,
-    private readonly isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
   ) {}
 
   /** verify resolves a parsed credential to a presentation, or a typed failure. */
-  async verify(credential: Credential): Promise<VerifyResult> {
+  async verify(credential: Credential): Promise<VerifyApiKeyResult> {
     if (credential.kind === "basic") {
       return this.verifyBasic(credential.publicKey, credential.secretKey);
     }
@@ -35,77 +38,103 @@ export class Verifier {
     return unauthorized();
   }
 
-  /** verifyBasic authenticates a public:secret pair as the privateKey presentation. */
+  /** verifyBasic authenticates a public:secret pair as the privateKey presentation, private key first then a slow bcrypt backfill. */
   private async verifyBasic(
     publicKey: string,
     secretKey: string,
-  ): Promise<VerifyResult> {
-    const byFastHash = await this.store.findByFastHash(
+  ): Promise<VerifyApiKeyResult> {
+    const byPrivateKey = await this.verifyPrivateKey(secretKey);
+    if (byPrivateKey) return byPrivateKey;
+
+    const bySlowHash = await this.backfillSlowHash(publicKey, secretKey);
+    if (bySlowHash) return bySlowHash;
+
+    return unauthorized();
+  }
+
+  /** verifyBearer chains admin, then public (public key), then private (fast hash). */
+  private async verifyBearer(token: string): Promise<VerifyApiKeyResult> {
+    const admin = this.verifyAdminKey(token);
+    if (admin) return admin;
+
+    const byPublicKey = await this.verifyPublicKey(token);
+    if (byPublicKey) return byPublicKey;
+
+    const byPrivateKey = await this.verifyPrivateKey(token);
+    if (byPrivateKey) return byPrivateKey;
+
+    return unauthorized();
+  }
+
+  /** verifyPrivateKey resolves a secret to its privateKey presentation via the fast-hash index, or null when it is not indexed there. */
+  private async verifyPrivateKey(
+    secretKey: string,
+  ): Promise<VerifyApiKeyResult | null> {
+    const found = await this.apiKeyRepo.findByFastHash(
       createShaHash(secretKey, this.salt),
     );
-    if (!byFastHash.success) return byFastHash;
-    if (byFastHash.apiKey?.fastHashedSecretKey) {
-      return privateKey(byFastHash.apiKey);
-    }
-
-    const slow = await this.store.findByPublicKey(publicKey);
-    if (!slow.success) return slow;
-    if (slow.apiKey) {
-      const verified = await this.store.verifySlow(secretKey, slow.apiKey);
-      if (!verified.success) return verified;
-      if (verified.valid) {
-        await this.store.backfillFastHash(
-          slow.apiKey,
-          createShaHash(secretKey, this.salt),
-        );
-        return privateKey(slow.apiKey);
-      }
-    }
-    return unauthorized();
+    if (!found.success) return found;
+    if (found.apiKey?.fastHashedSecretKey) return privateKey(found.apiKey);
+    return null;
   }
 
-  /** verifyBearer chains admin, then private (fast hash), then public (public key). */
-  private async verifyBearer(token: string): Promise<VerifyResult> {
-    if (this.matchesAdminKey(token)) {
-      return { success: true, authorization: "admin" };
-    }
+  /** backfillSlowHash bcrypt-verifies a secret against the public key's row, backfilling the fast hash on a match, or null on a miss. */
+  private async backfillSlowHash(
+    publicKey: string,
+    secretKey: string,
+  ): Promise<VerifyApiKeyResult | null> {
+    const found = await this.apiKeyRepo.findByPublicKey(publicKey);
+    if (!found.success) return found;
+    if (!found.apiKey) return null;
 
-    const byFastHash = await this.store.findByFastHash(
-      createShaHash(token, this.salt),
-    );
-    if (!byFastHash.success) return byFastHash;
-    if (byFastHash.apiKey?.fastHashedSecretKey) {
-      return privateKey(byFastHash.apiKey);
-    }
-
-    const byPublicKey = await this.store.findByPublicKey(token);
-    if (!byPublicKey.success) return byPublicKey;
-    if (byPublicKey.apiKey) {
+    let valid: boolean;
+    try {
+      valid = await verifySecretKey(secretKey, found.apiKey.hashedSecretKey);
+    } catch (error) {
       return {
-        success: true,
-        authorization: "publicKey",
-        apiKey: byPublicKey.apiKey,
+        success: false,
+        error: new InternalServerError(`slow verify failed: ${String(error)}`),
       };
     }
-    return unauthorized();
+    if (!valid) return null;
+
+    await this.apiKeyRepo.backfillFastHash(
+      found.apiKey.id,
+      createShaHash(secretKey, this.salt),
+    );
+    return privateKey(found.apiKey);
   }
 
-  /** matchesAdminKey timing-safe compares the token to the self-host admin key. */
-  private matchesAdminKey(token: string): boolean {
-    if (this.isCloud || !this.adminApiKey) return false;
+  /** verifyAdminKey resolves a token that timing-safe matches the admin key, or null; the key is ignored unless set and non-empty after trimming. */
+  private verifyAdminKey(token: string): VerifyApiKeyResult | null {
+    const adminApiKey = this.adminApiKey?.trim();
+    if (!adminApiKey) return null;
     try {
-      return crypto.timingSafeEqual(
-        Buffer.from(token),
-        Buffer.from(this.adminApiKey),
-      );
+      if (
+        crypto.timingSafeEqual(Buffer.from(token), Buffer.from(adminApiKey))
+      ) {
+        return { success: true, authorization: "admin" };
+      }
     } catch {
-      return false;
+      return null;
     }
+    return null;
+  }
+
+  /** verifyPublicKey resolves a public-key token to its scores-only presentation, or null when it is not a public key or is unknown. */
+  private async verifyPublicKey(
+    token: string,
+  ): Promise<VerifyApiKeyResult | null> {
+    if (!token.startsWith(publicKeyPrefix)) return null;
+    const found = await this.apiKeyRepo.findByPublicKey(token);
+    if (!found.success) return found;
+    if (!found.apiKey) return null;
+    return { success: true, authorization: "publicKey", apiKey: found.apiKey };
   }
 }
 
 /** privateKey wraps an ApiKey row as the full-access privateKey presentation. */
-function privateKey(apiKey: ApiKey): VerifyResult {
+function privateKey(apiKey: ApiKey): VerifyApiKeyResult {
   return { success: true, authorization: "privateKey", apiKey };
 }
 
@@ -119,25 +148,7 @@ export type VerifiedCredential =
   | { authorization: "publicKey" | "privateKey"; apiKey: ApiKey }
   | { authorization: "admin" };
 
-/** VerifyResult is the verified credential, or a typed failure; verify returns, never throws. */
-export type VerifyResult =
+/** VerifyApiKeyResult is the verified credential, or a typed failure; verify returns, never throws. */
+export type VerifyApiKeyResult =
   | (Success & VerifiedCredential)
   | ErrorResult<UnauthorizedError | InternalServerError>;
-
-/** ApiKeyLookup is a hit, a miss (null), or an infra failure; a miss is normal control flow, not an error. */
-export type ApiKeyLookup =
-  | (Success & { apiKey: ApiKey | null })
-  | ErrorResult<InternalServerError>;
-
-/** VerifySlowResult is the bcrypt comparison outcome, or an infra failure. */
-export type VerifySlowResult =
-  | (Success & { valid: boolean })
-  | ErrorResult<InternalServerError>;
-
-/** ApiKeyRepository reads `ApiKey` rows by the two disjoint unique indexes and backfills the fast hash. */
-export type ApiKeyRepository = {
-  findByFastHash: (hash: string) => Promise<ApiKeyLookup>;
-  findByPublicKey: (publicKey: string) => Promise<ApiKeyLookup>;
-  verifySlow: (secretKey: string, apiKey: ApiKey) => Promise<VerifySlowResult>;
-  backfillFastHash: (apiKey: ApiKey, hash: string) => Promise<void>;
-};

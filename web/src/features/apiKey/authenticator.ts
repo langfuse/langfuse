@@ -1,35 +1,30 @@
 import { type IncomingHttpHeaders } from "http";
 
-import {
-  type PrismaClient,
-  prisma as defaultPrisma,
-} from "@langfuse/shared/src/db";
-import { InternalServerError, UnauthorizedError } from "@langfuse/shared";
-import { verifySecretKey, logger } from "@langfuse/shared/src/server";
+import { type InternalServerError, UnauthorizedError } from "@langfuse/shared";
 
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
-import { parseAuthorizationHeader } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
-import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import {
-  Verifier,
-  invalidCredentials,
-  type ApiKeyRepository,
-} from "@/src/features/apiKey/verifier";
+  parseAuthorizationHeader,
+  type Credential,
+} from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
+import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
+import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
 import {
   type AuthorizationContext,
   type ErrorResult,
+  type Principal,
   type Success,
 } from "@/src/features/auth/policy/types";
 
-/** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → gate key kind → resolve. */
+/** Authenticator resolves a request's credential into an `AuthorizationContext`: cache → verify → resolve → gate key kind. */
 export class Authenticator {
   constructor(
-    private readonly verifier: Verifier = buildVerifier(),
-    private readonly resolver: ContextResolver = new ContextResolver(),
+    private readonly authn: Verifier = new Verifier(),
+    private readonly authz: ContextResolver = new ContextResolver(),
     private readonly cache: AuthenticatorCache = new AuthenticatorCache(),
   ) {}
 
-  /** auth runs the full pipeline read-through the consolidated context cache, returning a typed failure rather than throwing. */
+  /** auth runs the full pipeline read-through the context cache and gates the resolved principal on every path, returning a typed failure rather than throwing. */
   async auth(params: ApiKeyAuthParams): Promise<ApiKeyAuthResults> {
     const credential = parseAuthorizationHeader(params.headers.authorization);
     if (credential.kind === "malformed") {
@@ -39,48 +34,48 @@ export class Authenticator {
       };
     }
 
-    const cached = await this.cache.get(credential);
-    if (cached) return cached;
+    const result =
+      (await this.cache.get(credential)) ??
+      (await this.verifyAndResolve(credential));
+    if (result.success) {
+      const denied = gate(result.context.principal, params);
+      if (denied) return denied;
+    }
+    return result;
+  }
 
-    const verified = await this.verifier.verify(credential);
+  /** verifyAndResolve authenticates and materializes on a cache miss, writing every cacheable outcome back to the cache. */
+  private async verifyAndResolve(
+    credential: Credential,
+  ): Promise<ApiKeyAuthResults> {
+    const verified = await this.authn.verify(credential);
     if (!verified.success) {
       await this.cache.set(credential, verified);
       return verified;
     }
-
-    const gate = gateKeyKind(verified, params);
-    if (gate) return gate;
-
-    const resolved = await this.resolver.resolve(verified);
-    if (isCacheable(verified)) {
-      await this.cache.set(credential, resolved);
-    }
+    const resolved = await this.authz.resolve(verified);
+    await this.cache.set(credential, resolved);
     return resolved;
   }
 }
 
-/** defaultAuthenticator is the Authenticator on its default prisma/redis collaborators. */
-const defaultAuthenticator = new Authenticator();
+/** authenticator is the Authenticator on its default prisma/redis collaborators. */
+export const authenticator = new Authenticator();
 
-/** authenticate resolves a request's credential via the default Authenticator. */
-export const authenticate = (
-  params: ApiKeyAuthParams,
-): Promise<ApiKeyAuthResults> => defaultAuthenticator.auth(params);
-
-/** gateKeyKind rejects key kinds a route does not opt into: in-app-agent and admin. */
-function gateKeyKind(
-  verified: Extract<Awaited<ReturnType<Verifier["verify"]>>, { success: true }>,
+/** gate rejects key kinds a route does not opt into — in-app-agent and admin — reading the resolved principal so it reruns on every cache path. */
+function gate(
+  principal: Principal,
   params: ApiKeyAuthParams,
 ): ErrorResult<UnauthorizedError> | null {
-  if (verified.authorization === "admin" && !params.isAdminApiKeyAuthAllowed) {
+  if (principal.kind === "admin" && !params.isAdminApiKeyAuthAllowed) {
     return {
       success: false,
       error: new UnauthorizedError("Admin API key auth is not allowed here"),
     };
   }
   if (
-    verified.authorization !== "admin" &&
-    verified.apiKey.isInAppAgentKey &&
+    principal.kind === "apiKey" &&
+    principal.isInAppAgentKey &&
     !params.allowInAppAgentKey
   ) {
     return {
@@ -91,78 +86,6 @@ function gateKeyKind(
     };
   }
   return null;
-}
-
-/** isCacheable rejects contexts whose route-specific gate must rerun every request: admin and in-app-agent keys. */
-function isCacheable(
-  verified: Extract<Awaited<ReturnType<Verifier["verify"]>>, { success: true }>,
-): boolean {
-  if (verified.authorization === "admin") return false;
-  return !verified.apiKey.isInAppAgentKey;
-}
-
-/** buildVerifier is the prisma-backed Verifier on its default collaborators. */
-function buildVerifier(prisma: PrismaClient = defaultPrisma): Verifier {
-  return new Verifier(prismaApiKeyRepository(prisma));
-}
-
-/** prismaApiKeyRepository reads `ApiKey` rows by index, returning infra failures as values; caching lives at the Authenticator, not here. */
-function prismaApiKeyRepository(prisma: PrismaClient): ApiKeyRepository {
-  return {
-    findByFastHash: async (hash) => {
-      try {
-        const apiKey = await prisma.apiKey.findUnique({
-          where: { fastHashedSecretKey: hash },
-        });
-        return { success: true, apiKey };
-      } catch (error) {
-        return {
-          success: false,
-          error: new InternalServerError(
-            `api key lookup by fast hash failed: ${String(error)}`,
-          ),
-        };
-      }
-    },
-    findByPublicKey: async (publicKey) => {
-      try {
-        const apiKey = await prisma.apiKey.findUnique({ where: { publicKey } });
-        return { success: true, apiKey };
-      } catch (error) {
-        return {
-          success: false,
-          error: new InternalServerError(
-            `api key lookup by public key failed: ${String(error)}`,
-          ),
-        };
-      }
-    },
-    verifySlow: async (secretKey, apiKey) => {
-      try {
-        return {
-          success: true,
-          valid: await verifySecretKey(secretKey, apiKey.hashedSecretKey),
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: new InternalServerError(
-            `slow verify failed: ${String(error)}`,
-          ),
-        };
-      }
-    },
-    backfillFastHash: async (apiKey, hash) => {
-      try {
-        await prisma.apiKey.update({
-          where: { id: apiKey.id },
-          data: { fastHashedSecretKey: hash },
-        });
-      } catch (error) {
-        logger.error("authz api key fast-hash backfill failed", error);
-      }
-    },
-  };
 }
 
 /** ApiKeyAuthParams is the request headers plus the route's key-kind opt-ins. */

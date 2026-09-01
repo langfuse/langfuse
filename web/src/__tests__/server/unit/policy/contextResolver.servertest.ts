@@ -147,6 +147,16 @@ describe("attribution", () => {
     });
     expect(ctx.principal.kind === "apiKey" && ctx.principal.userId).toBe(USER);
   });
+
+  it("apiKey principal: carries isInAppAgentKey", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: apiKey({ isInAppAgentKey: true }),
+    });
+    expect(
+      ctx.principal.kind === "apiKey" && ctx.principal.isInAppAgentKey,
+    ).toBe(true);
+  });
 });
 
 describe("org suspension rides as a boolean, not a policy", () => {

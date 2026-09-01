@@ -84,6 +84,7 @@ function materialize(
     kind: "apiKey",
     apiKeyId: apiKey.id,
     userId: apiKey.createdByUserId,
+    isInAppAgentKey: apiKey.isInAppAgentKey,
     organizations: [org],
     boundResource: boundResourceFor(apiKey),
   };

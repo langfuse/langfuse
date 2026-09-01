@@ -8,7 +8,7 @@ import {
 } from "@langfuse/shared";
 
 import { authorize } from "./authorize";
-import { authenticate } from "@/src/features/apiKey/authenticator";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import {
   type AuthorizationContext,
   type ErrorResult,
@@ -28,7 +28,7 @@ const headerValue = (
 export async function enforceProjectAuth(
   params: EnforceProjectAuthParams,
 ): Promise<ProjectAccessResult | ErrorResult<AuthError>> {
-  const authn = await authenticate({
+  const authn = await authenticator.auth({
     headers: params.headers,
     allowInAppAgentKey: params.allowInAppAgentKey,
     isAdminApiKeyAuthAllowed: params.isAdminApiKeyAuthAllowed,

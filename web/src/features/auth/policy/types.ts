@@ -52,6 +52,7 @@ export type Principal =
       kind: "apiKey";
       apiKeyId: string;
       userId: string | null;
+      isInAppAgentKey: boolean;
       organizations: PrincipalOrganization[];
       boundResource?: Resource;
     };

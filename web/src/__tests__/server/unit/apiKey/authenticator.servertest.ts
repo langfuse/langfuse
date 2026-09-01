@@ -16,10 +16,8 @@ import {
   type OrganizationWithProjects,
 } from "@/src/features/auth/policy/organizationRepository";
 import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
-import {
-  Verifier,
-  type ApiKeyRepository,
-} from "@/src/features/apiKey/verifier";
+import { Verifier } from "@/src/features/apiKey/verifier";
+import { type ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
 
 const SALT = "test-salt";
 const ORG = "org_1";
@@ -49,15 +47,16 @@ const apiKey = (over: Partial<ApiKey> = {}): ApiKey => ({
 });
 
 /** store resolves the known secret via the fast-hash index and misses everything else. */
-const store = (key: ApiKey): ApiKeyRepository => ({
-  findByFastHash: async (hash) => ({
-    success: true,
-    apiKey: hash === key.fastHashedSecretKey ? key : null,
-  }),
-  findByPublicKey: async () => ({ success: true, apiKey: null }),
-  verifySlow: async () => ({ success: true, valid: false }),
-  backfillFastHash: async () => {},
-});
+const store = (key: ApiKey): ApiKeyRepository =>
+  ({
+    findByFastHash: async (hash: string) => ({
+      success: true,
+      apiKey: hash === key.fastHashedSecretKey ? key : null,
+    }),
+    findByPublicKey: async () => ({ success: true, apiKey: null }),
+    verifySlow: async () => ({ success: true, valid: false }),
+    backfillFastHash: async () => {},
+  }) as unknown as ApiKeyRepository;
 
 const resolver = new ContextResolver(
   new OrganizationRepository({
@@ -196,7 +195,7 @@ describe("Authenticator consolidated context cache", () => {
     expect(result.success).toBe(true);
   });
 
-  it("does not cache in-app-agent keys: their route-specific gate must run every request", async () => {
+  it("in-app-agent key: cached and still gated off a cache hit", async () => {
     const agentKey = apiKey({ isInAppAgentKey: true });
     const agentVerifier = new Verifier(store(agentKey), SALT);
     const redis = fakeRedis();
@@ -206,12 +205,45 @@ describe("Authenticator consolidated context cache", () => {
       new AuthenticatorCache(redis, SALT),
     );
 
-    const result = await auth.auth({
+    const allowed = await auth.auth({
       headers: { authorization: `Bearer ${KNOWN_SECRET}` },
       allowInAppAgentKey: true,
     });
-    expect(result.success).toBe(true);
-    expect(redis.map.size).toBe(0);
+    expect(allowed.success).toBe(true);
+    expect(redis.map.size).toBe(1);
+
+    const verifySpy = vi.spyOn(agentVerifier, "verify");
+    const gated = await auth.auth(bearer(KNOWN_SECRET));
+    expect(verifySpy).not.toHaveBeenCalled();
+    expect(gated.success).toBe(false);
+    if (!gated.success) {
+      expect(gated.error).toBeInstanceOf(UnauthorizedError);
+    }
+  });
+
+  it("admin key, route disallows: gated off a cache hit", async () => {
+    const redis = fakeRedis();
+    const adminVerifier = new Verifier(store(apiKey()), SALT, KNOWN_SECRET);
+    const auth = new Authenticator(
+      adminVerifier,
+      resolver,
+      new AuthenticatorCache(redis, SALT),
+    );
+
+    const allowed = await auth.auth({
+      ...bearer(KNOWN_SECRET),
+      isAdminApiKeyAuthAllowed: true,
+    });
+    expect(allowed.success).toBe(true);
+    expect(redis.map.size).toBe(1);
+
+    const verifySpy = vi.spyOn(adminVerifier, "verify");
+    const gated = await auth.auth(bearer(KNOWN_SECRET));
+    expect(verifySpy).not.toHaveBeenCalled();
+    expect(gated.success).toBe(false);
+    if (!gated.success) {
+      expect(gated.error).toBeInstanceOf(UnauthorizedError);
+    }
   });
 
   it("no-ops the cache when disabled", async () => {
@@ -225,7 +257,7 @@ describe("Authenticator consolidated context cache", () => {
   });
 
   it("does not negatively cache a 500: a later call re-runs verify", async () => {
-    const failing: ApiKeyRepository = {
+    const failing = {
       findByFastHash: async () => ({
         success: false,
         error: new InternalServerError("db down"),
@@ -233,7 +265,7 @@ describe("Authenticator consolidated context cache", () => {
       findByPublicKey: async () => ({ success: true, apiKey: null }),
       verifySlow: async () => ({ success: true, valid: false }),
       backfillFastHash: async () => {},
-    };
+    } as unknown as ApiKeyRepository;
     const failingVerifier = new Verifier(failing, SALT);
     const redis = fakeRedis();
     const auth = new Authenticator(
