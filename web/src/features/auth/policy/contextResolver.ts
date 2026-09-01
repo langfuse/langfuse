@@ -5,6 +5,7 @@ import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRi
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import {
   OrganizationRepository,
+  type GetOrganizationResult,
   type OrganizationWithProjects,
 } from "./organizationRepository";
 import {
@@ -30,7 +31,7 @@ export class ContextResolver {
     if (params.authorization === "admin") {
       return { success: true, context: adminContext() };
     }
-    const org = await this.getPrincipalOrganization({ apiKey: params.apiKey });
+    const org = await this.getPrincipalOrganization(params.apiKey);
     if (!org.success) return org;
     return {
       success: true,
@@ -43,21 +44,13 @@ export class ContextResolver {
   }
 
   /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
-  private async getPrincipalOrganization({
-    apiKey,
-  }: {
-    apiKey: ApiKey;
-  }): Promise<
+  private async getPrincipalOrganization(
+    apiKey: ApiKey,
+  ): Promise<
     | (Success & { organization: PrincipalOrganization })
     | ErrorResult<InternalServerError>
   > {
-    if (apiKey.orgId === null) {
-      return {
-        success: false,
-        error: new InternalServerError(`key ${apiKey.id} has no orgId`),
-      };
-    }
-    const found = await this.orgs.getOrganization(apiKey.orgId);
+    const found = await this.loadOrganization(apiKey);
     if (!found.success) {
       return {
         success: false,
@@ -71,6 +64,30 @@ export class ContextResolver {
       success: true,
       organization: toPrincipalOrganization(found.organization),
     };
+  }
+
+  /** loadOrganization loads the key's org by its scope: an org key by orgId, a project key by its bound projectId. */
+  private async loadOrganization(
+    apiKey: ApiKey,
+  ): Promise<GetOrganizationResult> {
+    if (apiKey.scope === "ORGANIZATION") {
+      if (apiKey.orgId === null) {
+        return {
+          success: false,
+          error: new InternalServerError(`org key ${apiKey.id} has no orgId`),
+        };
+      }
+      return this.orgs.getOrganizationByOrgId(apiKey.orgId);
+    }
+    if (apiKey.projectId === null) {
+      return {
+        success: false,
+        error: new InternalServerError(
+          `project key ${apiKey.id} has no projectId`,
+        ),
+      };
+    }
+    return this.orgs.getOrganizationByProjectId(apiKey.projectId);
   }
 }
 

@@ -11,8 +11,8 @@ import { type ErrorResult, type Success } from "./types";
 export class OrganizationRepository {
   constructor(private readonly prisma: PrismaClient = defaultPrisma) {}
 
-  /** getOrganization loads an org and its live project ids by id; a miss is a legitimate `NotFound`. */
-  async getOrganization(orgId: string): Promise<GetOrganizationResult> {
+  /** getOrganizationByOrgId loads an org and all its live project ids by org id; a miss is a legitimate `NotFound`. */
+  async getOrganizationByOrgId(orgId: string): Promise<GetOrganizationResult> {
     try {
       const organization = await this.prisma.organization.findUnique({
         where: { id: orgId },
@@ -32,6 +32,36 @@ export class OrganizationRepository {
         success: false,
         error: new InternalServerError(
           `failed to load org ${orgId}: ${String(error)}`,
+        ),
+      };
+    }
+  }
+
+  /** getOrganizationByProjectId loads the org owning a live project, carrying only that project id; a soft-deleted or unknown project is a legitimate `NotFound`. */
+  async getOrganizationByProjectId(
+    projectId: string,
+  ): Promise<GetOrganizationResult> {
+    try {
+      const organization = await this.prisma.organization.findFirst({
+        where: { projects: { some: { id: projectId, deletedAt: null } } },
+      });
+      if (!organization) {
+        return {
+          success: false,
+          error: new LangfuseNotFoundError(
+            `no live project ${projectId} found`,
+          ),
+        };
+      }
+      return {
+        success: true,
+        organization: { ...organization, projects: [{ id: projectId }] },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: new InternalServerError(
+          `failed to load org for project ${projectId}: ${String(error)}`,
         ),
       };
     }

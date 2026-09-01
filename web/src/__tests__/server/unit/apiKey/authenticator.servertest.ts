@@ -58,16 +58,18 @@ const store = (key: ApiKey): ApiKeyRepository =>
     backfillFastHash: async () => {},
   }) as unknown as ApiKeyRepository;
 
+const orgRow = {
+  id: ORG,
+  cloudConfig: null,
+  cloudFreeTierUsageThresholdState: null,
+  projects: [{ id: PRJ }],
+} as unknown as OrganizationWithProjects;
+
 const resolver = new ContextResolver(
   new OrganizationRepository({
     organization: {
-      findUnique: async () =>
-        ({
-          id: ORG,
-          cloudConfig: null,
-          cloudFreeTierUsageThresholdState: null,
-          projects: [{ id: PRJ }],
-        }) as unknown as OrganizationWithProjects,
+      findUnique: async () => orgRow,
+      findFirst: async () => orgRow,
     },
   } as unknown as PrismaClient),
 );

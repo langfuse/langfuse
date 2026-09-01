@@ -33,7 +33,10 @@ const orgRow = (
 const resolverFor = (row: OrganizationWithProjects | null): ContextResolver =>
   new ContextResolver(
     new OrganizationRepository({
-      organization: { findUnique: async () => row },
+      organization: {
+        findUnique: async () => row,
+        findFirst: async () => row,
+      },
     } as unknown as PrismaClient),
   );
 
@@ -186,10 +189,21 @@ describe("a verified key with no org is a 500 invariant break", () => {
     }
   });
 
-  it("collapses a key with a null orgId to an InternalServerError", async () => {
+  it("collapses an org key with a null orgId to an InternalServerError", async () => {
     const resolved = await resolverFor(orgRow()).resolve({
       authorization: "privateKey",
-      apiKey: apiKey({ orgId: null }),
+      apiKey: orgKey({ orgId: null }),
+    });
+    expect(resolved.success).toBe(false);
+    if (!resolved.success) {
+      expect(resolved.error).toBeInstanceOf(InternalServerError);
+    }
+  });
+
+  it("collapses a project key with a null projectId to an InternalServerError", async () => {
+    const resolved = await resolverFor(orgRow()).resolve({
+      authorization: "privateKey",
+      apiKey: apiKey({ projectId: null }),
     });
     expect(resolved.success).toBe(false);
     if (!resolved.success) {
