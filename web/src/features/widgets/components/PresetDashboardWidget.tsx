@@ -9,7 +9,7 @@ import {
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
@@ -46,6 +46,7 @@ export interface PresetPlacement {
 export function PresetDashboardWidget({
   projectId,
   dashboardId,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -58,6 +59,8 @@ export function PresetDashboardWidget({
 }: {
   projectId: string;
   dashboardId: string;
+  /** Resolved by the page controller — the card must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: PresetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -78,8 +81,7 @@ export function PresetDashboardWidget({
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
-  const { isV4 } = useReadPath();
-  const metricsVersion: ViewVersion = isV4 ? "v2" : "v1";
+  const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
 
   // Presets on project-owned dashboards (e.g. a clone of the curated Home)
   // can be moved/removed, but their content stays fixed until extended into a

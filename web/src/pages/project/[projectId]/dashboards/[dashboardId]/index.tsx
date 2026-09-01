@@ -1,6 +1,9 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -98,7 +101,33 @@ function placementNextTo(anchor: DashboardPlacement) {
   };
 }
 
+// Controller: no widget query may fire before the session resolves the v3/v4
+// read path — an unresolved session used to read as v3 and fire a wave of
+// legacy-table queries that was thrown away once the session landed.
 export default function DashboardDetail() {
+  const router = useRouter();
+  const { projectId } = router.query as { projectId: string };
+  const { readPath } = useReadPath();
+  if (readPath === "unknown") {
+    return (
+      <Page
+        withPadding
+        scrollable
+        headerProps={{
+          title: "Dashboard",
+          breadcrumb: [
+            { name: "Dashboards", href: `/project/${projectId}/dashboards` },
+          ],
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+  return <DashboardDetailView readPath={readPath} />;
+}
+
+function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
@@ -110,7 +139,7 @@ export default function DashboardDetail() {
   };
 
   const lookbackLimit = useEntitlementLimit("data-access-days");
-  const { isV4 } = useReadPath();
+  const isV4 = readPath === "v4";
 
   // Fetch dashboard data
   const dashboard = api.dashboard.getDashboard.useQuery({
@@ -1369,6 +1398,7 @@ export default function DashboardDetail() {
           <div>
             <DashboardGrid
               key={gridResetKey}
+              readPath={readPath}
               widgets={dashboardDefinition.widgets}
               onChange={(updatedWidgets) => {
                 if (isLockedEditable) {

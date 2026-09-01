@@ -11,6 +11,7 @@ import { SelectDashboardDialog } from "@/src/features/dashboard/components/Selec
 import { useState } from "react";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export default function NewWidget() {
@@ -19,7 +20,7 @@ export default function NewWidget() {
     projectId: string;
     dashboardId?: string;
   };
-  const { isV4 } = useReadPath();
+  const { isV4, isResolved } = useReadPath();
   const capture = usePostHogClientCapture();
 
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
@@ -77,6 +78,24 @@ export default function NewWidget() {
 
   const [dashboardDialogOpen, setDashboardDialogOpen] = useState(false);
   const [pendingWidgetId, setPendingWidgetId] = useState<string | null>(null);
+
+  // The form seeds its default view from the read path once, at mount — an
+  // unresolved session would permanently seed the v3 default for a v4 user.
+  if (!isResolved) {
+    return (
+      <Page
+        withPadding
+        headerProps={{
+          title: "New Widget",
+          help: {
+            description: "Create a new widget",
+          },
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
 
   return (
     <Page

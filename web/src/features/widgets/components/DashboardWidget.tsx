@@ -62,7 +62,7 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -81,6 +81,7 @@ export interface WidgetPlacement {
 export function DashboardWidget({
   projectId,
   dashboardId,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -93,6 +94,8 @@ export function DashboardWidget({
 }: {
   projectId: string;
   dashboardId: string;
+  /** Resolved by the page controller — the widget must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -119,7 +122,7 @@ export function DashboardWidget({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const { isV4 } = useReadPath();
+  const isV4 = readPath === "v4";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -476,9 +479,9 @@ export function DashboardWidget({
       view as z.infer<typeof views>,
       mergedFilters,
       dateRange,
-      isV4 ? "v4" : "v3",
+      readPath,
     );
-  }, [projectId, widget.data, filterState, dateRange, isV4]);
+  }, [projectId, widget.data, filterState, dateRange, readPath]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;

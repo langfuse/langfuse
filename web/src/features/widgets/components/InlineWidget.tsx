@@ -129,6 +129,8 @@ export function WidgetContent({
   entityDimensionLabelMap,
   hideXAxisLabels,
 }: WidgetContentProps) {
+  // Transport-only: `version` is a prop here, so an unresolved session can
+  // never change WHAT is queried — only whether it streams (SSE) or not.
   const { isV4 } = useReadPath();
   const [retryCount, setRetryCount] = useState(0);
 

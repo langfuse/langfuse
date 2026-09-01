@@ -447,10 +447,21 @@ export const dashboardRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         query: customQuery,
-        version: viewVersions.optional().default("v1"),
+        // Required on purpose: a client must decide the read path explicitly.
+        // An implicit v1 default let unresolved-session clients silently fire
+        // legacy-table queries for v4 users.
+        version: viewVersions,
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // v1 stays open to v4 users (saved v1 widgets render read-only), but v2
+      // reads the events views and follows the session's read path.
+      if (input.version === "v2" && ctx.session.user?.v4BetaEnabled !== true) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "v2 queries require the V4 read path on this account",
+        });
+      }
       try {
         const validation = validateQuery(input.query, input.version);
         if (!validation.valid) {

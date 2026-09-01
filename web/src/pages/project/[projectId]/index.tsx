@@ -27,7 +27,10 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -45,13 +48,29 @@ import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 
+// Controller: no widget query may fire before the session resolves the v3/v4
+// read path — an unresolved session used to read as v3, fire a full wave of
+// legacy-table queries, then re-run the whole dashboard on v4 once the
+// session landed (via the scheduler reset key below).
 export default function Dashboard() {
+  const { readPath } = useReadPath();
+  if (readPath === "unknown") {
+    return (
+      <Page withPadding scrollable headerProps={{ title: "Home" }}>
+        <NoDataOrLoading isLoading />
+      </Page>
+    );
+  }
+  return <HomeDashboard readPath={readPath} />;
+}
+
+function HomeDashboard({ readPath }: { readPath: ResolvedReadPath }) {
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
-  const { isV4 } = useReadPath();
+  const isV4 = readPath === "v4";
   const metricsVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
@@ -381,6 +400,7 @@ export default function Dashboard() {
             canEdit={false}
             dashboardId={dashboardId}
             projectId={projectId}
+            readPath={readPath}
             dateRange={absoluteTimeRange}
             filterState={gridFilterState}
             onDeleteWidget={() => undefined}
