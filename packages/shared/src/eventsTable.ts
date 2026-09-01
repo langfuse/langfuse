@@ -90,12 +90,10 @@ const cachedInputMetricSql = (detailsColumn: string): string => {
   return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
 };
 
-export const eventsTableCachedInputTokensSql = cachedInputMetricSql(
-  "e.usage_details",
-);
-export const eventsTableCachedInputCostSql = cachedInputMetricSql(
-  "e.cost_details",
-);
+export const eventsTableCachedInputTokensSql =
+  cachedInputMetricSql("e.usage_details");
+export const eventsTableCachedInputCostSql =
+  cachedInputMetricSql("e.cost_details");
 
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]

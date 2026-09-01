@@ -251,9 +251,7 @@ describe("search bar invariants — events v4 registry", () => {
     expect(
       validateQuery(query, undefined, EVENTS_FIELD_REGISTRY).diagnostics,
     ).toEqual([]);
-    expect(
-      planCommit(query, undefined, EVENTS_FIELD_REGISTRY),
-    ).toMatchObject({
+    expect(planCommit(query, undefined, EVENTS_FIELD_REGISTRY)).toMatchObject({
       status: "committed",
       filters: [
         {
