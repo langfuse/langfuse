@@ -73,7 +73,8 @@ export type FieldRegistry = {
     | "evaluationRules"
     | "evaluatorSamples"
     | "ruleSamples"
-    | "sessions";
+    | "sessions"
+    | "experiments";
   fields: readonly FieldDef[];
   columns: readonly ColumnDefinition[];
   allowFreeText: boolean;

@@ -10,6 +10,11 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { DEFAULT_SEARCH_TYPE } from "@/src/features/search-bar/lib/commit";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import {
   getExperimentsFilterConfig,
   getExperimentsColumnName,
@@ -370,6 +375,34 @@ export default function ExperimentsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+
+  // Grammar search bar: an ADDITIONAL editor over the same FilterState the
+  // facet sidebar edits. Score filtering stays in the sidebar here — see
+  // experimentsSearchRegistry.
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+  // The experiments table has no full-text lane, so the registry rejects free
+  // text and these stay inert.
+  const noSearchLane = useCallback(() => {}, []);
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    tableName: filterConfig.tableName,
+    enabled: true,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery: null,
+    searchType: DEFAULT_SEARCH_TYPE,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery: noSearchLane,
+    setSearchType: noSearchLane,
+    registry: EXPERIMENTS_FIELD_REGISTRY,
+  });
 
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
@@ -776,37 +809,52 @@ export default function ExperimentsTable({
               setTimeRange={setTimeRange}
             />
           )}
-          {/* Toolbar spanning full width */}
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.filterState}
-            viewConfig={{
-              tableName: TableViewPresetTableName.Experiments,
-              projectId,
-              controllers: viewControllers,
-            }}
-            tableName={filterConfig.tableName}
-            isV4={true}
-            onColumnGroupToggle={handleColumnGroupToggle}
-            columnsWithCustomSelect={["name", "datasetId"]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            timeRange={showControlsInPageHeader ? undefined : timeRange}
-            setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-            actionButtons={[
-              <ExperimentsMultiSelectActionMenu
-                key="experiments-multi-select-actions"
-                projectId={projectId}
-                store={experimentsTableStore}
-                datasetIdByExperimentId={datasetIdByExperimentId}
-              />,
-            ]}
-          />
+          {/* The composer and the toolbar stick together as one band so the
+              toolbar cannot scroll under the composer and render half-clipped;
+              pb-1.5 matches the other bar surfaces' spacing above the table. */}
+          <div className="bg-background sticky top-0 z-30 pb-1.5">
+            <EventsSearchBarRow
+              projectId={projectId}
+              tableName={filterConfig.tableName}
+              store={searchBarStore}
+              commit={searchBarCommit}
+              observed={observedOptions}
+              onApplyFilters={searchBarApplyFilters}
+              registry={EXPERIMENTS_FIELD_REGISTRY}
+            />
+            {/* Toolbar spanning full width */}
+            <DataTableToolbar
+              rowClassName="my-1"
+              columns={columns}
+              filterState={queryFilter.filterState}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Experiments,
+                projectId,
+                controllers: viewControllers,
+              }}
+              tableName={filterConfig.tableName}
+              isV4={true}
+              onColumnGroupToggle={handleColumnGroupToggle}
+              columnsWithCustomSelect={["name", "datasetId"]}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibilityState}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              orderByState={orderByState}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              actionButtons={[
+                <ExperimentsMultiSelectActionMenu
+                  key="experiments-multi-select-actions"
+                  projectId={projectId}
+                  store={experimentsTableStore}
+                  datasetIdByExperimentId={datasetIdByExperimentId}
+                />,
+              ]}
+            />
+          </div>
 
           {/* Charts section - Collapsible Accordion */}
           {tableDateRange && (

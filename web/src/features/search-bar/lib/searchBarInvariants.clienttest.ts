@@ -13,6 +13,7 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import { validateQuery } from "./validate";
 import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
@@ -657,5 +658,87 @@ describe("search bar invariants — sessions registry", () => {
 
     // Opt-in: a view that has not asked for recents gets none, valid or not.
     expect(RULE_FIELD_REGISTRY.recentSearches).toBe(false);
+  });
+});
+
+const experimentsView: RegistryUnderTest = {
+  name: "experiments",
+  registry: EXPERIMENTS_FIELD_REGISTRY,
+  extraKeys: ["metadata.owner", 'metadata."my key"'],
+  scoreContexts: [],
+  fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
+  freeTextValues: ["hello", "run 12", "or", "!important"],
+};
+
+describe("search bar invariants — experiments registry", () => {
+  it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
+    const failures = runSearchBarInvariants(experimentsView);
+    expect(
+      failures,
+      failures.length === 0
+        ? "ok"
+        : `\n${failures
+            .slice(0, 25)
+            .map((f) => `  [${f.invariant}] ${f.case} — ${f.detail}`)
+            .join(
+              "\n",
+            )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
+    ).toEqual([]);
+  });
+
+  it("exposes only the sidebar facets whose columns are actually filterable", () => {
+    expect(EXPERIMENTS_FIELD_REGISTRY.fields.map((f) => f.id).sort()).toEqual([
+      "name",
+    ]);
+    // The dataset column holds an ID while the sidebar shows the name, so the
+    // bar would contradict it — see the registry's EXCLUDED_COLUMN_IDS note.
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("dataset")).toBeNull();
+  });
+
+  it("keeps score dot-paths closed until the columns are unified", () => {
+    // The adapter lowers `scores.<name>` onto the canonical scores_avg /
+    // score_categories / score_booleans columns. Experiments names its score
+    // columns obs_* / trace_*, so an open `scores.` here would emit a filter on
+    // a column this view does not have.
+    expect(
+      EXPERIMENTS_FIELD_REGISTRY.resolveField("scores.groundedness"),
+    ).toBeNull();
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("traceScores.x")).toBeNull();
+    // Metadata is unaffected — that column exists under its canonical name.
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("metadata.owner")).toEqual({
+      type: "metadata",
+      key: "owner",
+    });
+  });
+
+  it("rewrites a bare word onto the experiment name", () => {
+    const committed = planCommit(
+      "refund eval",
+      undefined,
+      EXPERIMENTS_FIELD_REGISTRY,
+    );
+    expect(committed).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "refund eval",
+        },
+      ],
+    });
+  });
+
+  it("keeps the run metrics out — the backend silently drops them", () => {
+    // itemCount / errorCount / totalCost / latencyAvg have ColumnDefinitions for
+    // display and sorting but no UiColumnMapping, and the repository partitions
+    // filters by allow-list, discarding anything in neither group. A field here
+    // would render a pill and change nothing.
+    for (const id of ["itemCount", "errorCount", "totalCost", "latencyAvg"]) {
+      expect(EXPERIMENTS_FIELD_REGISTRY.resolveField(id)).toBeNull();
+    }
+    expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("cost")).toBeNull();
   });
 });
