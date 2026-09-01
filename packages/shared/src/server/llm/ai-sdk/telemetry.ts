@@ -90,8 +90,10 @@ export function createAiSdkTelemetryCapture(params: {
   traceSinkParams: TraceSinkParams;
   /** Recorded as the root span's (and trace's) input. */
   rootInput?: unknown;
+  /** Trace-visible generation input. Pass media-reference messages instead of the exact provider egress payload when needed. */
+  generationInput?: unknown;
 }): AiSdkTelemetryCapture | undefined {
-  const { traceSinkParams, rootInput } = params;
+  const { traceSinkParams, rootInput, generationInput } = params;
   const isAiFeatureProductTrace = Boolean(
     traceSinkParams.aiFeatureOtelIngestion,
   );
@@ -207,6 +209,7 @@ export function createAiSdkTelemetryCapture(params: {
 
   const otelIntegration = createGenerationSpanTelemetry({
     tracer,
+    recordedInput: generationInput,
     attributes: {
       // Experiment linkage goes on every span so every materialized event
       // remains associated with the run item root.
@@ -318,8 +321,13 @@ function createGenerationSpanTelemetry(params: {
    * experiment linkage).
    */
   attributes?: Attributes;
+  /**
+   * Safe input to record instead of the provider-bound messages. The latter
+   * may contain short-lived signed media URLs that must not enter traces.
+   */
+  recordedInput?: unknown;
 }): Telemetry {
-  const { tracer, attributes } = params;
+  const { tracer, attributes, recordedInput } = params;
   const openSpans = new Map<string, Span>();
 
   const endAllOpenSpans = (error?: unknown): void => {
@@ -357,8 +365,12 @@ function createGenerationSpanTelemetry(params: {
               "gen_ai.request.temperature": event.temperature,
               "gen_ai.request.top_p": event.topP,
             }),
-            ...(event.messages !== undefined
-              ? { "gen_ai.input.messages": safeJsonStringify(event.messages) }
+            ...(recordedInput !== undefined || event.messages !== undefined
+              ? {
+                  "gen_ai.input.messages": safeJsonStringify(
+                    recordedInput ?? event.messages,
+                  ),
+                }
               : {}),
             ...(event.tools && event.tools.length > 0
               ? { "gen_ai.tool.definitions": safeJsonStringify(event.tools) }

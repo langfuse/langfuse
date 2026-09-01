@@ -21,21 +21,49 @@ describe("createEvaluatorSetupStore", () => {
     });
   });
 
-  it("keeps prompt and code drafts when switching evaluator type", () => {
+  it("reorders prompt messages and keeps the final message", () => {
     const store = createEvaluatorSetupStore({
       initialEvaluator: null,
       mode: "create",
     });
     const { actions } = store.getState();
 
-    actions.setPrompt("Judge {{output}}");
+    actions.setPromptMessage(0, { role: "system", content: "Rubric" });
+    actions.addPromptMessage();
+    actions.setPromptMessage(1, { role: "user", content: "Case" });
+    actions.reorderPromptMessage(1, 0);
+
+    expect(store.getState().promptMessages).toEqual([
+      { role: "user", content: "Case" },
+      { role: "system", content: "Rubric" },
+    ]);
+    expect(store.getState().promptMessageIds).toHaveLength(2);
+
+    actions.removePromptMessage(0);
+    actions.removePromptMessage(0);
+    expect(store.getState().promptMessages).toEqual([
+      { role: "system", content: "Rubric" },
+    ]);
+  });
+
+  it("keeps prompt messages and code drafts when switching evaluator type", () => {
+    const store = createEvaluatorSetupStore({
+      initialEvaluator: null,
+      mode: "create",
+    });
+    const { actions } = store.getState();
+
+    actions.setPromptMessage(0, {
+      role: "user",
+      content: "Judge {{output}}",
+    });
     actions.setSourceCode("return { score: 1 };");
     actions.setType("CODE");
     actions.setType("LLM_AS_JUDGE");
 
     expect(store.getState()).toMatchObject({
       type: "LLM_AS_JUDGE",
-      prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       sourceCode: "return { score: 1 };",
     });
   });
@@ -247,7 +275,7 @@ describe("createEvaluatorSetupStore", () => {
 
     store.getState().actions.applyDefinition({
       type: "LLM_AS_JUDGE",
-      prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       provider: "openai",
       model: "gpt-4.1-mini",
       modelParams: { temperature: 0.2 },
@@ -274,7 +302,7 @@ describe("createEvaluatorSetupStore", () => {
       type: "LLM_AS_JUDGE",
       name: "Answer quality",
       description: "Checks answer quality",
-      prompt: "Judge {{output}}",
+      promptMessages: [{ role: "user", content: "Judge {{output}}" }],
       modelMode: "custom",
       selectedModel: { provider: "openai", model: "gpt-4.1-mini" },
       modelParams: { temperature: 0.2 },

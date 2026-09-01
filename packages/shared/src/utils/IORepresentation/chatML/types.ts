@@ -188,8 +188,21 @@ export const MediaReferencePartSchema = z.string().refine((value) => {
   );
 });
 
+/** AI SDK file part after its egress-only payload has been replaced. */
+export const AiSdkFileContentPartSchema = z.object({
+  type: z.literal("file"),
+  data: MediaReferencePartSchema,
+  mediaType: z.string(),
+  filename: z.string().optional(),
+});
+export type AiSdkFileContentPart = z.infer<typeof AiSdkFileContentPartSchema>;
+export const isAiSdkFileContentPart = (
+  content: unknown,
+): content is AiSdkFileContentPart =>
+  AiSdkFileContentPartSchema.safeParse(content).success;
+
 /**
- * Array of OpenAI content parts (text, image, audio, bare media reference).
+ * Array of OpenAI/AI SDK content parts.
  * Used when message content is structured with multiple parts.
  */
 export const OpenAIContentParts = z.array(
@@ -197,6 +210,7 @@ export const OpenAIContentParts = z.array(
     OpenAITextContentPart,
     OpenAIImageContentPart,
     OpenAIInputAudioContentPart,
+    AiSdkFileContentPartSchema,
     MediaReferencePartSchema,
   ]),
 );

@@ -157,7 +157,8 @@ langfuse/
   regressions.
 - Public API contracts in `web/src/pages/api/public/**`,
   `web/src/features/public-api/types/**`, or `fern/apis/**`: `pnpm run lint`,
-  targeted server API tests, and Fern update/regeneration.
+  targeted server API tests, Fern update/regeneration, and
+  `pnpm run openapi:check`.
 - Cross-package refactors: `pnpm run lint`, `pnpm run typecheck`, and targeted
   tests for impacted packages.
 - Client-bundle soundness: CI scans every prod web build
