@@ -317,6 +317,8 @@ const events = {
     "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
+    "tracing_ai_opt_in_not_now_clicked",
+    "tracing_ai_opt_in_enabled",
   ],
   user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
