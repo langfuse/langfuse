@@ -4,7 +4,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
-import { Authenticator } from "@/src/features/apiKey/auth";
+import { Authenticator } from "@/src/features/apiKey/authenticator";
 import { authorize } from "@/src/features/auth/policy/authorize";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 

@@ -1,7 +1,7 @@
 import { type Redis } from "ioredis";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type ApiKey } from "@langfuse/shared/src/db";
+import { type ApiKey, type PrismaClient } from "@langfuse/shared/src/db";
 import { UnauthorizedError } from "@langfuse/shared";
 import {
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
@@ -12,9 +12,12 @@ import {
 import {
   Authenticator,
   redisContextCache,
-  type OrganizationRepository,
+} from "@/src/features/apiKey/authenticator";
+import {
+  OrganizationRepository,
   type OrganizationWithProjects,
-} from "@/src/features/apiKey/auth";
+} from "@/src/features/auth/policy/organizationRepository";
+import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import {
   Verifier,
   type ApiKeyRepository,
@@ -58,17 +61,19 @@ const store = (key: ApiKey): ApiKeyRepository => ({
   backfillFastHash: async () => {},
 });
 
-const orgs: OrganizationRepository = {
-  getByOrgId: async (id) => ({
-    success: true,
+const resolver = new ContextResolver(
+  new OrganizationRepository({
     organization: {
-      id,
-      cloudConfig: null,
-      cloudFreeTierUsageThresholdState: null,
-      projects: [{ id: PRJ }],
-    } as unknown as OrganizationWithProjects,
-  }),
-};
+      findUnique: async () =>
+        ({
+          id: ORG,
+          cloudConfig: null,
+          cloudFreeTierUsageThresholdState: null,
+          projects: [{ id: PRJ }],
+        }) as unknown as OrganizationWithProjects,
+    },
+  } as unknown as PrismaClient),
+);
 
 /** fakeRedis is an in-memory get/set store; overrides let a test make either op throw. */
 function fakeRedis(
@@ -104,7 +109,11 @@ describe("Authenticator consolidated context cache", () => {
 
   it("miss then hit: first call resolves via verify and caches; second call serves from cache without verifying", async () => {
     const redis = fakeRedis();
-    const auth = new Authenticator(verifier, orgs, redisContextCache(redis));
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      redisContextCache(redis),
+    );
 
     const first = await auth.auth(bearer(KNOWN_SECRET));
     expect(first.success).toBe(true);
@@ -123,7 +132,11 @@ describe("Authenticator consolidated context cache", () => {
 
   it("uses the authz:context: namespace, never the legacy api-key: prefix", async () => {
     const redis = fakeRedis();
-    const auth = new Authenticator(verifier, orgs, redisContextCache(redis));
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      redisContextCache(redis),
+    );
     await auth.auth(bearer(KNOWN_SECRET));
     const key = [...redis.map.keys()][0];
     expect(key.startsWith(AUTHZ_CONTEXT_CACHE_KEY_PREFIX)).toBe(true);
@@ -132,7 +145,11 @@ describe("Authenticator consolidated context cache", () => {
 
   it("negative caching: an unknown credential's 401 is stored and replayed without verifying", async () => {
     const redis = fakeRedis();
-    const auth = new Authenticator(verifier, orgs, redisContextCache(redis));
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      redisContextCache(redis),
+    );
 
     const first = await auth.auth(bearer(UNKNOWN_SECRET));
     expect(first.success).toBe(false);
@@ -157,7 +174,11 @@ describe("Authenticator consolidated context cache", () => {
         throw new Error("redis down");
       }) as unknown as Redis["get"],
     });
-    const auth = new Authenticator(verifier, orgs, redisContextCache(redis));
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      redisContextCache(redis),
+    );
     const result = await auth.auth(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
   });
@@ -168,7 +189,11 @@ describe("Authenticator consolidated context cache", () => {
         throw new Error("redis down");
       }) as unknown as Redis["set"],
     });
-    const auth = new Authenticator(verifier, orgs, redisContextCache(redis));
+    const auth = new Authenticator(
+      verifier,
+      resolver,
+      redisContextCache(redis),
+    );
     const result = await auth.auth(bearer(KNOWN_SECRET));
     expect(result.success).toBe(true);
   });
@@ -179,7 +204,7 @@ describe("Authenticator consolidated context cache", () => {
     const redis = fakeRedis();
     const auth = new Authenticator(
       agentVerifier,
-      orgs,
+      resolver,
       redisContextCache(redis),
     );
 
@@ -194,7 +219,7 @@ describe("Authenticator consolidated context cache", () => {
   it("no-ops the cache when disabled", async () => {
     const nullCacheAuth = new Authenticator(
       verifier,
-      orgs,
+      resolver,
       redisContextCache(null),
     );
     const result = await nullCacheAuth.auth(bearer(KNOWN_SECRET));

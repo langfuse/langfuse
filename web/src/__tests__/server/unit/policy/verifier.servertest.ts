@@ -111,7 +111,7 @@ describe("Bearer chains admin then private then public", () => {
     const result = await verifier(stubStore()).verify(
       parseAuthorizationHeader(`Bearer ${ADMIN}`),
     );
-    expect(result).toMatchObject({ success: true, authorization: "adminKey" });
+    expect(result).toMatchObject({ success: true, authorization: "admin" });
   });
   it("private-first: a token matching the fast hash is privateKey", async () => {
     const key = apiKey();

@@ -1,9 +1,16 @@
 import { type ApiKey } from "@langfuse/shared/src/db";
+import { CloudConfigSchema, InternalServerError } from "@langfuse/shared";
 
 import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  OrganizationRepository,
+  type OrganizationWithProjects,
+} from "./organizationRepository";
 import {
   wildcard,
   type AuthorizationContext,
+  type ErrorResult,
   type Policy,
   type Principal,
   type PrincipalOrganization,
@@ -12,16 +19,59 @@ import {
   type SystemPolicy,
 } from "./types";
 
-/** resolveContext materializes an authenticated credential into its `AuthorizationContext`; pure — the caller pre-enriches the organization. */
-export function resolveContext(input: ResolveContextParams): Resolved {
-  if (input.authorization === "adminKey") {
-    return { success: true, context: adminContext() };
+/** ContextResolver materializes an authenticated credential into its `AuthorizationContext`, loading and enriching the org it implies. */
+export class ContextResolver {
+  constructor(
+    private readonly orgs: OrganizationRepository = new OrganizationRepository(),
+  ) {}
+
+  /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
+  async resolve(params: ResolveContextParams): Promise<Resolved> {
+    if (params.authorization === "admin") {
+      return { success: true, context: adminContext() };
+    }
+    const org = await this.getPrincipalOrganization({ apiKey: params.apiKey });
+    if (!org.success) return org;
+    return {
+      success: true,
+      context: materialize(
+        params.apiKey,
+        params.authorization,
+        org.organization,
+      ),
+    };
   }
-  const { apiKey, authorization, organization } = input;
-  return {
-    success: true,
-    context: materialize(apiKey, authorization, organization),
-  };
+
+  /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, mapping a missing org to a 500 invariant break. */
+  private async getPrincipalOrganization({
+    apiKey,
+  }: {
+    apiKey: ApiKey;
+  }): Promise<
+    | (Success & { organization: PrincipalOrganization })
+    | ErrorResult<InternalServerError>
+  > {
+    if (apiKey.orgId === null) {
+      return {
+        success: false,
+        error: new InternalServerError(`key ${apiKey.id} has no orgId`),
+      };
+    }
+    const found = await this.orgs.getOrganization(apiKey.orgId);
+    if (!found.success) {
+      return {
+        success: false,
+        error:
+          found.error instanceof InternalServerError
+            ? found.error
+            : new InternalServerError(found.error.message),
+      };
+    }
+    return {
+      success: true,
+      organization: toPrincipalOrganization(found.organization),
+    };
+  }
 }
 
 /** materialize expands the `ApiKey` row and its presentation into the policies the credential implies. */
@@ -53,6 +103,27 @@ function adminContext(): AuthorizationContext {
     principal,
     policies: apiKeyAccessRights.ADMIN.map((policy) => bind(policy, principal)),
   };
+}
+
+/** toPrincipalOrganization derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
+function toPrincipalOrganization(
+  org: OrganizationWithProjects,
+): PrincipalOrganization {
+  const cloudConfig = getCloudConfig(org);
+  return {
+    orgId: org.id,
+    plan: getOrganizationPlanServerSide(cloudConfig),
+    rateLimitConfig: cloudConfig?.rateLimitOverrides ?? [],
+    projectIds: org.projects.map((p) => p.id),
+    isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
+  };
+}
+
+/** getCloudConfig parses an org's raw cloud-config json, or undefined when unset. */
+function getCloudConfig(
+  org: OrganizationWithProjects,
+): CloudConfigSchema | undefined {
+  return org.cloudConfig ? CloudConfigSchema.parse(org.cloudConfig) : undefined;
 }
 
 /** bind fixes a resource-less SystemPolicy to the resources the principal covers, by the policy's kind. */
@@ -93,14 +164,15 @@ function boundResourceFor(apiKey: ApiKey): Resource {
   return { projectId: apiKey.projectId! };
 }
 
-/** ResolveContextParams is an authenticated credential with its pre-enriched organization, or the admin key. */
+/** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */
 export type ResolveContextParams =
   | {
       authorization: "publicKey" | "privateKey";
       apiKey: ApiKey;
-      organization: PrincipalOrganization;
     }
-  | { authorization: "adminKey" };
+  | { authorization: "admin" };
 
-/** Resolved is the materialized context; resolveContext only materializes and never fails. */
-export type Resolved = Success & { context: AuthorizationContext };
+/** Resolved is the materialized context, or a 500 when a verified key's org is missing. */
+export type Resolved =
+  | (Success & { context: AuthorizationContext })
+  | ErrorResult<InternalServerError>;

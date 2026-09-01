@@ -82,7 +82,7 @@ export class Verifier {
   /** verifyBearer chains admin, then private (fast hash), then public (public key). */
   private async verifyBearer(token: string): Promise<VerifyResult> {
     if (this.matchesAdminKey(token)) {
-      return { success: true, authorization: "adminKey" };
+      return { success: true, authorization: "admin" };
     }
 
     const byFastHash = await this.store.findByFastHash(
@@ -132,7 +132,7 @@ function unauthorized(): ErrorResult<UnauthorizedError> {
 /** VerifiedCredential is the presentation the resolver consumes: an api key with how it was presented, or the admin key. */
 export type VerifiedCredential =
   | { authorization: "publicKey" | "privateKey"; apiKey: ApiKey }
-  | { authorization: "adminKey" };
+  | { authorization: "admin" };
 
 /** VerifyResult is the verified credential, or a typed failure; verify returns, never throws. */
 export type VerifyResult =

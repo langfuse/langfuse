@@ -10,7 +10,7 @@ import { handleGetProjects } from "@/src/ee/features/admin-api/server/projects";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { env } from "@/src/env.mjs";
-import { defaultAuthenticator } from "@/src/features/apiKey/auth";
+import { authenticate } from "@/src/features/apiKey/authenticator";
 import { authorize } from "@/src/features/auth/policy/authorize";
 import {
   diffResults,
@@ -113,7 +113,7 @@ export default async function handler(
 async function authorizeOrgProjectsRead(
   headers: IncomingHttpHeaders,
 ): Promise<NewResult> {
-  const authn = await defaultAuthenticator.auth({ headers });
+  const authn = await authenticate({ headers });
   if (!authn.success) {
     return { success: false, error: { httpCode: authn.error.httpCode } };
   }
