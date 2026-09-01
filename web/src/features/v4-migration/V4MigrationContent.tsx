@@ -52,7 +52,7 @@ import {
   type MigrationCountState,
   type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -1495,12 +1495,12 @@ export function V4MigrationDetailsContent({
     projectId,
     enabled: Boolean(projectId),
   });
-  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const { canToggleV4, isV4 } = useReadPath();
   // Evidence links target the v4 events table; with the v4 preview off the
   // route renders the v3 observations table, which cannot express the
   // ingestionApiKey filter — the link would open an unfiltered table. Keep
   // the key as plain text there instead of a misleading link.
-  const evidenceProjectId = isBetaEnabled ? projectId : undefined;
+  const evidenceProjectId = isV4 ? projectId : undefined;
 
   // PostHog is the external system here: the panel's checks resolve
   // asynchronously after open, so the "how much work was shown" event can

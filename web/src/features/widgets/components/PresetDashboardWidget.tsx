@@ -9,7 +9,7 @@ import {
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { findClosestDashboardInterval } from "@/src/utils/date-range-utils";
 import {
   getHomePreset,
@@ -78,8 +78,8 @@ export function PresetDashboardWidget({
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
-  const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const { isV4 } = useReadPath();
+  const metricsVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   // Presets on project-owned dashboards (e.g. a clone of the curated Home)
   // can be moved/removed, but their content stays fixed until extended into a

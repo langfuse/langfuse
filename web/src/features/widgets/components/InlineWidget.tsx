@@ -22,7 +22,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -129,7 +129,7 @@ export function WidgetContent({
   entityDimensionLabelMap,
   hideXAxisLabels,
 }: WidgetContentProps) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const [retryCount, setRetryCount] = useState(0);
 
   const handleRetry = useCallback(() => {
@@ -155,7 +155,7 @@ export function WidgetContent({
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version,
       }),
       enabled: !isExternalLoading,
@@ -317,7 +317,7 @@ export function WidgetContent({
   });
 
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version,
   });
 

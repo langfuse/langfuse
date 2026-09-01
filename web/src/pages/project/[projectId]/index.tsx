@@ -27,7 +27,7 @@ import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -51,8 +51,8 @@ export default function Dashboard() {
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
   const { timeRange, setTimeRange } = useDashboardDateRange();
-  const { isBetaEnabled } = useV4Beta();
-  const metricsVersion: ViewVersion = isBetaEnabled ? "v2" : "v1";
+  const { isV4 } = useReadPath();
+  const metricsVersion: ViewVersion = isV4 ? "v2" : "v1";
 
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange) ?? undefined,
@@ -69,7 +69,7 @@ export default function Dashboard() {
 
   const { nameOptions, tagsOptions } = useDashboardFilterOptions({
     projectId,
-    isBetaEnabled,
+    isV4,
     timeRange,
   });
 

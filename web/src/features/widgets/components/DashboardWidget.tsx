@@ -62,7 +62,7 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -119,7 +119,7 @@ export function DashboardWidget({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -139,7 +139,7 @@ export function DashboardWidget({
       filters: widget.data?.filters ?? [],
     },
     persistedMinVersion: widget.data?.minVersion,
-    newestReadableVersion: isBetaEnabled ? "v2" : "v1",
+    newestReadableVersion: isV4 ? "v2" : "v1",
   });
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
@@ -275,7 +275,7 @@ export function DashboardWidget({
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version: metricsVersion,
       }),
       enabled:
@@ -289,7 +289,7 @@ export function DashboardWidget({
     errorMessage: queryResult.error,
   });
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version: metricsVersion,
   });
   const loadingStateLayout =
@@ -476,9 +476,9 @@ export function DashboardWidget({
       view as z.infer<typeof views>,
       mergedFilters,
       dateRange,
-      isBetaEnabled ? "v4" : "v3",
+      isV4 ? "v4" : "v3",
     );
-  }, [projectId, widget.data, filterState, dateRange, isBetaEnabled]);
+  }, [projectId, widget.data, filterState, dateRange, isV4]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;

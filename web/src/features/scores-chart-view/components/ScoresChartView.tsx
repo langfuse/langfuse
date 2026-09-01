@@ -31,7 +31,7 @@ import { AddToDashboardButton } from "@/src/features/chart-view/components/AddTo
  * dropped from the chart query rather than erroring — it keeps narrowing the
  * table underneath.
  *
- * `viewVersion` MUST come from the caller's own `isBetaEnabled` check (the
+ * `viewVersion` MUST come from the caller's own `isV4` check (the
  * same one `scores.tsx` already uses to pick `scoresV3`/`scoresV4` for the
  * table rows, and the same one `ChartScores`/`WidgetForm` use as
  * `metricsVersion`/`activeVersion`) — hardcoding "v2" here would run the

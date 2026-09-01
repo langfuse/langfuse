@@ -9,7 +9,7 @@ import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { useState } from "react";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
@@ -19,7 +19,7 @@ export default function NewWidget() {
     projectId: string;
     dashboardId?: string;
   };
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
 
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
@@ -90,7 +90,7 @@ export default function NewWidget() {
     >
       <WidgetForm
         // No `key` on the beta flag: WidgetForm derives viewVersion (and its
-        // available views/measures/filter columns) reactively from isBetaEnabled
+        // available views/measures/filter columns) reactively from isV4
         // + the selected view, so a live beta toggle re-derives them without a
         // remount — preserving the in-progress form. The only tradeoff is that
         // an untouched form's default view no longer auto-switches on toggle;
@@ -100,7 +100,7 @@ export default function NewWidget() {
         initialValues={{
           name: "",
           description: "",
-          view: getDefaultView(isBetaEnabled),
+          view: getDefaultView(isV4),
           dimension: "none",
           measure: "count",
           aggregation: "count",
