@@ -74,7 +74,10 @@ import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
 } from "@/src/features/evals/components/eval-template-type-selector";
-import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
+import { Label } from "@/src/components/ui/label";
+import { cn } from "@/src/utils/tailwind";
 import {
   useEvalCapabilities,
   type EvalCapabilities,
@@ -137,6 +140,12 @@ export const EvalTemplateForm = (props: {
       />
     </div>
   );
+};
+
+// Stable callback ref: paired with keying the alert by its message, it scrolls
+// the alert into view once per new error instead of on every render.
+const scrollAlertIntoView = (node: HTMLDivElement | null) => {
+  node?.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
 const selectedModelSchema = z.object({
@@ -295,7 +304,6 @@ const InnerEvalTemplateForm = (props: {
     name: "categories",
   });
 
-  const useDefaultModel = form.watch("shouldUseDefaultModel");
   const evalTemplateType = form.watch("type");
   const sourceCodeLanguage =
     form.watch("sourceCodeLanguage") ??
@@ -449,6 +457,7 @@ const InnerEvalTemplateForm = (props: {
   }
 
   async function onSubmit(values: z.infer<typeof templateFormSchema>) {
+    setFormError(null);
     capture(
       props.isEditing
         ? "eval_templates:update_form_submit"
@@ -642,74 +651,128 @@ const InnerEvalTemplateForm = (props: {
                 control={form.control}
                 name="shouldUseDefaultModel"
                 render={({ field }) => (
-                  <FormItem className="mt-3 flex flex-row items-center space-y-0 space-x-3">
+                  <FormItem className="mt-3">
                     <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+                      <RadioGroup
+                        value={field.value ? "default" : "custom"}
+                        onValueChange={(value) =>
+                          field.onChange(value === "default")
+                        }
                         disabled={!props.isEditing}
-                      />
+                      >
+                        <div
+                          className={cn(
+                            "flex items-start gap-3 rounded-md border p-3 transition-colors",
+                            field.value
+                              ? "bg-muted/50"
+                              : props.isEditing && "hover:bg-muted/30",
+                          )}
+                        >
+                          <RadioGroupItem
+                            value="default"
+                            id="eval-model-source-default"
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 space-y-1 leading-none">
+                            <Label
+                              htmlFor="eval-model-source-default"
+                              className={cn(
+                                "font-bold",
+                                props.isEditing && "cursor-pointer",
+                              )}
+                            >
+                              Default evaluation model
+                            </Label>
+                            <FormDescription className="text-xs">
+                              <ManageDefaultEvalModel
+                                projectId={props.projectId}
+                                variant="color-coded"
+                                setUpMessage={
+                                  <>
+                                    No default model set. LLM-as-a-judge
+                                    evaluations require an LLM connection for
+                                    scoring. This default is used by all
+                                    templates that don&apos;t specify their own
+                                    model.{" "}
+                                    <a
+                                      href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline"
+                                    >
+                                      Learn more.
+                                    </a>
+                                  </>
+                                }
+                                className="text-sm font-normal"
+                              />
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <div
+                          className={cn(
+                            "flex items-start gap-3 rounded-md border p-3 transition-colors",
+                            !field.value
+                              ? "bg-muted/50"
+                              : props.isEditing && "hover:bg-muted/30",
+                          )}
+                        >
+                          <RadioGroupItem
+                            value="custom"
+                            id="eval-model-source-custom"
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 flex-1 space-y-1 leading-none">
+                            <Label
+                              htmlFor="eval-model-source-custom"
+                              className={cn(
+                                "font-bold",
+                                props.isEditing && "cursor-pointer",
+                              )}
+                            >
+                              Custom model
+                            </Label>
+                            {!field.value &&
+                              (!props.isEditing && !isCustomModelValid ? (
+                                <div className="text-destructive flex items-center gap-1 pt-2 text-sm">
+                                  <AlertCircle className="h-4 w-4" />
+                                  <p>
+                                    This evaluator is configured to use{" "}
+                                    {modelParams.provider.value}s models but no
+                                    API key exists. Add a key or choose another
+                                    provider.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="pt-2">
+                                  <ModelParameters
+                                    customHeader={
+                                      <span className="sr-only">
+                                        Custom model configuration
+                                      </span>
+                                    }
+                                    {...{
+                                      modelParams,
+                                      availableModels,
+                                      providerModelCombinations,
+                                      availableProviders,
+                                      updateModelParamValue:
+                                        updateModelParamValue,
+                                      setModelParamEnabled,
+                                      modelParamsDescription:
+                                        "Select a model which supports function calling.",
+                                    }}
+                                    formDisabled={!props.isEditing}
+                                  />
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </RadioGroup>
                     </FormControl>
-                    <div className="space-y-0 leading-none">
-                      <FormLabel>Use default evaluation model</FormLabel>
-                      <FormDescription className="text-xs">
-                        <ManageDefaultEvalModel
-                          projectId={props.projectId}
-                          variant="color-coded"
-                          setUpMessage={
-                            <>
-                              No default model set. LLM-as-a-judge evaluations
-                              require an LLM connection for scoring. This
-                              default is used by all templates that don&apos;t
-                              specify their own model.{" "}
-                              <a
-                                href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="underline"
-                              >
-                                Learn more.
-                              </a>
-                            </>
-                          }
-                          className="text-sm font-normal"
-                        />
-                      </FormDescription>
-                    </div>
                   </FormItem>
                 )}
               />
-              {/* Only show model parameters if using custom model */}
-              {!useDefaultModel &&
-                (!props.isEditing && !isCustomModelValid ? (
-                  <div className="text-destructive mt-2 flex items-center space-x-1 text-sm">
-                    <AlertCircle className="h-4 w-4" />
-                    <p>
-                      This evaluator is configured to use{" "}
-                      {modelParams.provider.value}s models but no API key
-                      exists. Add a key or choose another provider.
-                    </p>
-                  </div>
-                ) : (
-                  <ModelParameters
-                    customHeader={
-                      <p className="text-sm leading-none font-bold">
-                        Custom model configuration
-                      </p>
-                    }
-                    {...{
-                      modelParams,
-                      availableModels,
-                      providerModelCombinations,
-                      availableProviders,
-                      updateModelParamValue: updateModelParamValue,
-                      setModelParamEnabled,
-                      modelParamsDescription:
-                        "Select a model which supports function calling.",
-                    }}
-                    formDisabled={!props.isEditing}
-                  />
-                ))}
             </CardContent>
           </Card>
 
@@ -973,7 +1036,14 @@ const InnerEvalTemplateForm = (props: {
   );
 
   const formFooter = (
-    <div className="flex w-full flex-col items-end gap-4">
+    <div className="flex w-full flex-col gap-4">
+      {formError ? (
+        <Alert variant="destructive" key={formError} ref={scrollAlertIntoView}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Could not save</AlertTitle>
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
       {props.isEditing && (
         <Button
           type="submit"
@@ -984,16 +1054,15 @@ const InnerEvalTemplateForm = (props: {
           Save
         </Button>
       )}
-      {formError ? (
-        <p className="text-destructive text-sm">{formError}</p>
-      ) : null}
     </div>
   );
 
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, () =>
+          setFormError("Fix the highlighted fields above and try again."),
+        )}
         className="mt-2 w-full space-y-4"
       >
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
