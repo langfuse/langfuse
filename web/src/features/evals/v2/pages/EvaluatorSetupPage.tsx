@@ -54,6 +54,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
 import {
   getEvaluatorCreationAnalyticsProperties,
+  getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 
@@ -476,7 +477,12 @@ export function EvaluatorSetupPage(
           description,
           definition,
         });
-        capture("evaluators:update", { evaluatorType: state.type });
+        capture("evaluators:update", {
+          evaluatorType: state.type,
+          ...(definition.type === "LLM_AS_JUDGE"
+            ? getJudgePromptAnalyticsProperties(definition.promptMessages)
+            : {}),
+        });
         showSuccessToast({
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
@@ -504,6 +510,10 @@ export function EvaluatorSetupPage(
           variableMapping:
             definition.type === "LLM_AS_JUDGE"
               ? definition.variableMapping
+              : undefined,
+          promptMessages:
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.promptMessages
               : undefined,
           evaluatorConfig:
             state.type === "LLM_AS_JUDGE"
