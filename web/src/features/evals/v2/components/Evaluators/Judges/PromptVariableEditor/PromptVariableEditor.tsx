@@ -302,7 +302,7 @@ export function PromptVariableEditor({
               mode="prompt"
               // Keep the editor mounted while previewing so it remains the
               // stable height anchor for both surfaces.
-              minHeight={140}
+              minHeight={48}
               maxHeight="50dvh"
               lineNumbers={false}
               extensions={extensions}
