@@ -1032,6 +1032,24 @@ describe("InMemoryFilterService", () => {
       ).toBe(false);
     });
 
+    test("numberObject metadata comparison does not match a missing key", () => {
+      expect(
+        InMemoryFilterService.evaluateFilter(
+          mockData,
+          [
+            {
+              column: "metadata",
+              type: "numberObject",
+              key: "absentField",
+              operator: ">",
+              value: 0,
+            },
+          ],
+          fieldMapper,
+        ),
+      ).toBe(false);
+    });
+
     test("evaluates booleanObject filters correctly", () => {
       expect(
         InMemoryFilterService.evaluateFilter(

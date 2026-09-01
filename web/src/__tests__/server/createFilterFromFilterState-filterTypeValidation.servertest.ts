@@ -380,6 +380,17 @@ describe("createFilterFromFilterState filter type validation", () => {
       colDefs: columnDefinitions,
     },
     {
+      scenario: "numberObject on stringObject metadata column",
+      column: "metadata",
+      filter: {
+        type: "numberObject",
+        operator: ">",
+        key: "timeout",
+        value: 20,
+      },
+      colDefs: columnDefinitions,
+    },
+    {
       scenario: "null filter bypasses validation",
       column: "metadata",
       filter: { type: "null", operator: "is null", value: "" as const },
@@ -572,6 +583,103 @@ describe("createFilterFromFilterState filter type validation", () => {
     );
     expect(query).not.toContain("arrayStringConcat");
     expect(Object.values(params)).toEqual(["environment", "production"]);
+  });
+
+  it("generates numeric metadata SQL with toFloat64OrNull on events arrays", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: ">",
+        key: "timeout",
+        value: 20,
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.eventMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("has(e.metadata_names,");
+    expect(query).toContain("toFloat64OrNull");
+    expect(query).toContain("e.metadata_values[indexOf(e.metadata_names,");
+    expect(Object.values(params)).toEqual(["timeout", 20]);
+  });
+
+  it("generates numeric metadata SQL with toFloat64OrNull on experiment metadata arrays", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: ">",
+        key: "timeout",
+        value: 20,
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.experimentMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("has(e.experiment_metadata_names,");
+    expect(query).toContain("toFloat64OrNull");
+    expect(query).toContain(
+      "e.experiment_metadata_values[indexOf(e.experiment_metadata_names,",
+    );
+    expect(query).not.toContain("arrayFilter");
+    expect(Object.values(params)).toEqual(["timeout", 20]);
+  });
+
+  it("generates numeric metadata SQL with toFloat64OrNull on traces Map", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "numberObject",
+        operator: ">=",
+        key: "timeout",
+        value: 20,
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.metadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("mapContains(t.metadata,");
+    expect(query).toContain("toFloat64OrNull");
+    expect(Object.values(params)).toEqual(["timeout", 20]);
+  });
+
+  it("keeps scores numberObject on the Array(Tuple) path", () => {
+    const [result] = createFilterFromFilterState(
+      [
+        {
+          column: "scores_avg",
+          type: "numberObject",
+          operator: ">=",
+          key: "quality",
+          value: 0.5,
+        },
+      ],
+      [mappings.scores_avg],
+      columnDefinitions,
+    );
+
+    const { query } = result.apply();
+    expect(query).toContain("arrayFilter");
+    expect(query).not.toContain("toFloat64OrNull");
   });
 
   it.each([

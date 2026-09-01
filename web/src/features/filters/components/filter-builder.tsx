@@ -88,6 +88,20 @@ type AiFilterConfig = {
   generateFilters: (prompt: string) => Promise<WipFilterState | null>;
 };
 
+/** ClickHouse string-stored metadata only. Postgres JSON columns (prompts.config, datasetItems.metadata) use a hard CAST that errors on non-numeric values. */
+function allowsNumericMetadataComparisons(
+  column: ColumnDefinition | undefined,
+): boolean {
+  if (column?.type !== "stringObject") return false;
+  if (column.id === "config") return false;
+  if (column.internal.includes("di.")) return false;
+  return (
+    column.id === "metadata" ||
+    column.id === "eventMetadata" ||
+    column.id === "itemMetadata"
+  );
+}
+
 // Has WipFilterState, passes all valid filters to parent onChange
 export function PopoverFilterBuilder({
   columns,
@@ -896,6 +910,45 @@ function FilterBuilderForm({
         onValueChange={(value) => {
           // protect against invalid empty operator values
           if (value === "") return;
+          const numericMetadataOperator =
+            allowsNumericMetadataComparisons(column) &&
+            (filterOperators.number as readonly string[]).includes(value) &&
+            value !== "=";
+          if (numericMetadataOperator) {
+            const numericValue =
+              typeof filter.value === "number"
+                ? filter.value
+                : Number(filter.value);
+            handleFilterChange(
+              {
+                ...filter,
+                type: "numberObject",
+                operator: value as (typeof filterOperators.number)[number],
+                value: Number.isFinite(numericValue) ? numericValue : undefined,
+              } as WipFilterCondition,
+              i,
+            );
+            return;
+          }
+          if (
+            allowsNumericMetadataComparisons(column) &&
+            filter.type === "numberObject"
+          ) {
+            handleFilterChange(
+              {
+                ...filter,
+                type: "stringObject",
+                operator:
+                  value as (typeof filterOperators.stringObject)[number],
+                value:
+                  filter.value === undefined || filter.value === null
+                    ? undefined
+                    : String(filter.value),
+              } as WipFilterCondition,
+              i,
+            );
+            return;
+          }
           handleFilterChange(
             {
               ...filter,
@@ -913,7 +966,13 @@ function FilterBuilderForm({
         </SelectTrigger>
         <SelectContent>
           {filter.type !== undefined
-            ? filterOperators[filter.type].map((option) => (
+            ? (allowsNumericMetadataComparisons(column)
+                ? [
+                    ...filterOperators.stringObject,
+                    ...filterOperators.number.filter((op) => op !== "="),
+                  ]
+                : filterOperators[filter.type]
+              ).map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>

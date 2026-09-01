@@ -482,6 +482,15 @@ describe("planInputCompletions", () => {
     ]);
   });
 
+  it("offers numeric comparisons for metadata keys", () => {
+    const p = plan("metadata.region:", 16);
+    expect(p?.sections.map((s) => s.title)).toContain(SECTION_COMPARE_OPS);
+    const compare = flattenOptions(p).filter((o) => o.kind === "operator");
+    expect(compare.map((o) => o.label)).toEqual(
+      expect.arrayContaining([">", ">=", "<", "<="]),
+    );
+  });
+
   it("offers scoped full-text rewrites for free text, default scope first", () => {
     const p = plan("refund", 6);
     const opts = flattenOptions(p);

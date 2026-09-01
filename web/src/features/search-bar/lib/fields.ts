@@ -604,11 +604,8 @@ export function operatorIssue(
       }
       return null;
     case "metadata":
-      // stringObject filters support string ops only; there is no numeric
-      // metadata filter in the current contract.
-      if (COMPARISONS.has(op)) {
-        return `metadata filters match text — ${op} comparisons are not supported`;
-      }
+      // String ops stay stringObject; comparisons (> < >= <=) lower to
+      // numberObject with toFloat64OrNull on the stored string value.
       return null;
     case "scores":
       if (STRING_OPS.has(op) && op !== "exact") {

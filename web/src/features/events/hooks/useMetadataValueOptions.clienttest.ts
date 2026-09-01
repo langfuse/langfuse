@@ -49,6 +49,19 @@ describe("metadataKeysInUse", () => {
     ]);
   });
 
+  it("includes committed numberObject metadata keys", () => {
+    const filterState = [
+      {
+        type: "numberObject",
+        column: "metadata",
+        operator: ">",
+        key: "timeout",
+        value: 20,
+      },
+    ] as unknown as FilterState;
+    expect(metadataKeysInUse(filterState, [])).toEqual(["timeout"]);
+  });
+
   it("includes an edited key that is not yet a committed filter row", () => {
     expect(metadataKeysInUse([] as FilterState, ["region"])).toEqual([
       "region",

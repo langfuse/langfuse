@@ -67,14 +67,20 @@ export const useMetadataValueOptions = ({
   return { metadataValueOptions, onMetadataKeyChange };
 };
 
-/** metadataKeysInUse unions committed stringObject filter keys with keys edited this session. */
+/** metadataKeysInUse unions committed metadata filter keys with keys edited this session. */
 const metadataKeysInUse = (
   filterState: FilterState,
   editedKeys: readonly string[],
 ): string[] => {
   const keys = new Set<string>(editedKeys);
   for (const filter of filterState) {
-    if (filter.type === "stringObject" && filter.key) keys.add(filter.key);
+    if (
+      (filter.type === "stringObject" || filter.type === "numberObject") &&
+      filter.column === "metadata" &&
+      filter.key
+    ) {
+      keys.add(filter.key);
+    }
   }
   return [...keys];
 };

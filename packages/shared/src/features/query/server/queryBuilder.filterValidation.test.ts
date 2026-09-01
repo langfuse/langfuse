@@ -261,6 +261,36 @@ describe("queryBuilder filter type validation", () => {
     expect(query).toContain("has");
   });
 
+  it("accepts numberObject metadata comparisons and parses stored strings", async () => {
+    const filter = {
+      column: "metadata",
+      type: "numberObject" as const,
+      operator: ">" as const,
+      key: "timeout",
+      value: 20,
+    };
+
+    const v1 = await buildQueryWithFilter(filter);
+    expect(v1.query).toContain("mapContains");
+    expect(v1.query).toContain("toFloat64OrNull");
+
+    const v2 = await buildQueryWithFilter(filter, {}, "v2");
+    expect(v2.query).toContain("has(");
+    expect(v2.query).toContain("metadata_names");
+    expect(v2.query).toContain("toFloat64OrNull");
+  });
+
+  it("rejects a string filter on metadata", async () => {
+    await expect(
+      buildQueryWithFilter({
+        column: "metadata",
+        operator: "contains",
+        value: "prod",
+        type: "string",
+      } as FilterCondition),
+    ).rejects.toThrow("Metadata filters require type 'stringObject'");
+  });
+
   it("lowers a compatible boolean score filter to a Boolean SQL predicate", async () => {
     const { query } = await buildQueryWithFilter(
       {

@@ -366,8 +366,11 @@ export class InMemoryFilterService {
       return false;
     }
 
-    // Type assertion is safe here since we've checked typeof fieldValue === "object" above
-    const objectValue = (fieldValue as Record<string, unknown>)[key];
+    const record = fieldValue as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(record, key)) {
+      return false;
+    }
+    const objectValue = record[key];
     const numValue =
       typeof objectValue === "number"
         ? objectValue

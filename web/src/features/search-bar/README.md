@@ -37,7 +37,7 @@ tables (no opt-in). Based on the `langfuse-search-bar` prototype.
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
-- `metadata.region:eu`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
+- `metadata.region:eu`, `metadata.timeout:>20`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
   (matches a score at observation OR trace level, LFE-10596). The legacy
   `traceScores.` namespace (trace-only) still parses/lowers so saved queries
   and URLs keep working, but it is no longer offered in suggestions.
@@ -352,10 +352,10 @@ analysis is deferred (until CH26), so `metadata.` completions are fed
   shape, `gen_ai.request.model`); object-valued keys are suggested with type
   `object` and their nested content matches via contains
   (`metadata.scope:*value*`).
-- **Types are display-only.** Metadata filters always lower to `stringObject`
-  (numeric metadata comparisons are rejected by `operatorIssue`); a key
-  observed with more than one type — or only ever `null` — drops its hint
-  instead of showing a wrong one (`mixed` is absorbing).
+- **Types are display-only.** Equality and string ops still lower to
+  `stringObject`; comparisons (`metadata.timeout:>20`) lower to `numberObject`.
+  A key observed with more than one type — or only ever `null` — drops its
+  hint instead of showing a wrong one (`mixed` is absorbing).
 - **Bounded on every axis**: 30 sampled rows per fetch, key length ≤ 100
   chars, ≤ 200 keys per project (first-observed wins), ≤ 5 values per key,
   value length ≤ 60 chars, ≤ 1024 values per project, ≤ 20 projects

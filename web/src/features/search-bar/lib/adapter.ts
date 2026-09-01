@@ -628,8 +628,9 @@ function lowerBoolean(
 }
 
 /**
- * Metadata dot-paths lower to stringObject filters (the only metadata filter
- * shape in the contract): single value, string ops, FTS matches.
+ * Metadata dot-paths: string ops lower to stringObject; comparisons lower to
+ * numberObject (toFloat64OrNull on the stored string). Equality stays an
+ * exact string match — `metadata.x:20` is not the same as a numeric `=`.
  */
 function lowerMetadata(
   node: FilterNode,
@@ -645,6 +646,20 @@ function lowerMetadata(
     return;
   }
   const value = node.values[0]!;
+  const path = `metadata.${quoteIfNeeded(key)}`;
+
+  if (isComparison(node.op)) {
+    const numbers = parseNumbers(node, path, errors);
+    if (numbers === null) return;
+    out.push({
+      type: "numberObject",
+      column: "metadata",
+      key,
+      operator: negated ? INVERTED_COMPARISON[node.op] : node.op,
+      value: numbers[0]!,
+    });
+    return;
+  }
 
   if (node.op === "~") {
     out.push({
@@ -667,7 +682,7 @@ function lowerMetadata(
     });
     return;
   }
-  // '=' default and 'exact': exact match. Negated equality is blocked by
+  // '=' default and 'exact': exact string match. Negated equality is blocked by
   // negationIssue for 'exact'; for '=' there is no "does not equal" either —
   // surface the same suggestion.
   if (negated) {
