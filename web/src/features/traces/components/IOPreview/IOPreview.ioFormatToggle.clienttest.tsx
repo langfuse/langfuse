@@ -6,6 +6,10 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => capture,
 }));
 
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: () => false,
+}));
+
 vi.mock("./IOPreviewJSON", () => ({
   IOPreviewJSON: () => <div data-testid="io-json-beta" />,
 }));
