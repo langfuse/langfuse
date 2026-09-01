@@ -191,7 +191,11 @@ describe("annotation queues trpc", () => {
       const rejected = results.filter((r) => r.status === "rejected");
       expect(results.length - rejected.length).toBe(1);
       for (const result of rejected) {
-        expect(String(result.reason)).toMatch(HOBBY_LIMIT_MESSAGE);
+        // A loser either re-reads the count and sees the limit, or runs out of
+        // serialization retries and is told to retry.
+        expect(String(result.reason)).toMatch(
+          /Maximum number of annotation queues reached on Hobby plan|Could not create annotation queue, please retry/,
+        );
       }
     }, 25_000);
 

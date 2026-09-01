@@ -22,6 +22,27 @@ import {
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+const SERIALIZABLE_ATTEMPTS = 3;
+
+const isSerializationFailure = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2034";
+
+// A serializable transaction that loses a write conflict is safe to replay:
+// the retry re-reads on a fresh snapshot and re-applies the same checks.
+async function retryOnSerializationFailure<T>(run: () => Promise<T>) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (isSerializationFailure(error) && attempt < SERIALIZABLE_ATTEMPTS) {
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 export const queueRouter = createTRPCRouter({
   hasAny: protectedProjectProcedure
     .input(
@@ -315,84 +336,51 @@ export const queueRouter = createTRPCRouter({
         );
         const plan = org?.plan ?? "oss";
 
-        // Count-then-insert must share a serializable snapshot. Otherwise
-        // parallel creates with distinct names all observe count = 0 and
-        // bypass the hobby limit; (projectId, name) uniqueness cannot stop
-        // that. Retry serialization failures so a loser re-checks the count
-        // instead of returning a generic conflict.
-        const queue = await (async () => {
-          const maxSerializableAttempts = 3;
+        // Counting and inserting must share one serializable snapshot.
+        // Otherwise parallel creates with distinct names all observe
+        // count = 0 and bypass the hobby limit, which the (projectId, name)
+        // unique index cannot prevent.
+        const queue = await retryOnSerializationFailure(() =>
+          ctx.prisma.$transaction(
+            async (tx) => {
+              if (plan === "cloud:hobby") {
+                const queueCount = await tx.annotationQueue.count({
+                  where: { projectId: input.projectId },
+                });
 
-          for (
-            let attempt = 1;
-            attempt <= maxSerializableAttempts;
-            attempt += 1
-          ) {
-            try {
-              return await ctx.prisma.$transaction(
-                async (tx) => {
-                  if (plan === "cloud:hobby") {
-                    if (
-                      (await tx.annotationQueue.count({
-                        where: {
-                          projectId: input.projectId,
-                        },
-                      })) >= 1
-                    ) {
-                      throw new TRPCError({
-                        code: "FORBIDDEN",
-                        message:
-                          "Maximum number of annotation queues reached on Hobby plan.",
-                      });
-                    }
-                  }
-
-                  const existingQueue = await tx.annotationQueue.findFirst({
-                    where: {
-                      projectId: input.projectId,
-                      name: input.name,
-                    },
+                if (queueCount >= 1) {
+                  throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message:
+                      "Maximum number of annotation queues reached on Hobby plan.",
                   });
-
-                  if (existingQueue) {
-                    throw new TRPCError({
-                      code: "CONFLICT",
-                      message:
-                        "A queue with this name already exists in the project",
-                    });
-                  }
-
-                  return tx.annotationQueue.create({
-                    data: {
-                      name: input.name,
-                      projectId: input.projectId,
-                      description: input.description,
-                      scoreConfigIds: input.scoreConfigIds,
-                    },
-                  });
-                },
-                {
-                  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-                },
-              );
-            } catch (error) {
-              if (
-                error instanceof Prisma.PrismaClientKnownRequestError &&
-                error.code === "P2034" &&
-                attempt < maxSerializableAttempts
-              ) {
-                continue;
+                }
               }
 
-              throw error;
-            }
-          }
+              const existingQueue = await tx.annotationQueue.findFirst({
+                where: { projectId: input.projectId, name: input.name },
+              });
 
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "Could not create annotation queue, please retry.",
-          });
-        })();
+              if (existingQueue) {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    "A queue with this name already exists in the project",
+                });
+              }
+
+              return tx.annotationQueue.create({
+                data: {
+                  name: input.name,
+                  projectId: input.projectId,
+                  description: input.description,
+                  scoreConfigIds: input.scoreConfigIds,
+                },
+              });
+            },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+          ),
+        );
 
         await auditLog({
           session: ctx.session,
@@ -419,43 +407,7 @@ export const queueRouter = createTRPCRouter({
           });
         }
 
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2034"
-        ) {
-          const existingQueue = await ctx.prisma.annotationQueue.findFirst({
-            where: {
-              projectId: input.projectId,
-              name: input.name,
-            },
-            select: { id: true },
-          });
-
-          if (existingQueue) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "A queue with this name already exists in the project",
-            });
-          }
-
-          const org = ctx.session.user.organizations.find((candidate) =>
-            candidate.projects.some((proj) => proj.id === input.projectId),
-          );
-
-          if ((org?.plan ?? "oss") === "cloud:hobby") {
-            const queueCount = await ctx.prisma.annotationQueue.count({
-              where: { projectId: input.projectId },
-            });
-
-            if (queueCount >= 1) {
-              throw new TRPCError({
-                code: "FORBIDDEN",
-                message:
-                  "Maximum number of annotation queues reached on Hobby plan.",
-              });
-            }
-          }
-
+        if (isSerializationFailure(error)) {
           throw new TRPCError({
             code: "CONFLICT",
             message: "Could not create annotation queue, please retry.",
