@@ -233,10 +233,8 @@ export function buildWidgetDescription({
  * remains excluded from the public `viewsV2` API enum. Existing trace widgets
  * are still supported by the internal events-backed v2 query declaration.
  */
-export function getDefaultView(
-  isBetaEnabled: boolean,
-): "traces" | "observations" {
-  return isBetaEnabled ? "observations" : "traces";
+export function getDefaultView(isV4: boolean): "traces" | "observations" {
+  return isV4 ? "observations" : "traces";
 }
 
 /**

@@ -47,7 +47,7 @@ export const ModelUsageChart = ({
   toTimestamp: Date;
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
 }) => {
