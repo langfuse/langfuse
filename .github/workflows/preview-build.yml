@@ -328,6 +328,7 @@ jobs:
             ```sh
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-worker   # worker
+            kubectl -n ${{ needs.meta.outputs.namespace }} port-forward svc/preview-mailpit 8025:8025                  # captured email UI → http://localhost:8025
             ```
             Add `--previous` for a crashed container, `--tail=200` to limit, or
             `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
