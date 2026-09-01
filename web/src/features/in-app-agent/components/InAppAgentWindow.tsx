@@ -877,8 +877,8 @@ export type InAppAgentWindowProps = {
   isAwaitingApproval?: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
-  dock: InAppAgentDock;
-  onDockChange: (dock: InAppAgentDock) => void;
+  dock?: InAppAgentDock;
+  onDockChange?: (dock: InAppAgentDock) => void;
   isConversationInteractionDisabled: boolean;
   /** Distinguishes a loading transcript from an empty conversation. */
   isSelectedConversationHydrating: boolean;
@@ -982,7 +982,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isRunUnsettled = isAssistantTurnInProgress,
     isAwaitingApproval = false,
     isHeaderDragHandleEnabled = false,
-    dock,
+    dock = "detached",
     onDockChange,
     isConversationInteractionDisabled,
     isLoadingMoreConversations,
@@ -1323,7 +1323,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </DropdownMenuContent>
           </DropdownMenu>
           {/* Fullscreen and handheld have nowhere to dock or detach into. */}
-          {!isHandheld && !isExpanded ? (
+          {onDockChange && !isHandheld && !isExpanded ? (
             <Tooltip delayDuration={100} disableHoverableContent>
               <TooltipTrigger asChild>
                 <Button

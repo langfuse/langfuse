@@ -309,6 +309,17 @@ describe("InAppAgentWindow header", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides detach and dock when dock changes are not wired", () => {
+    render(windowElement({ onDockChange: undefined }));
+
+    expect(
+      screen.queryByRole("button", { name: "Detach assistant" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dock assistant" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("toggles expanded on a header double-click, but not from its actions", () => {
     const onExpandedChange = vi.fn();
     render(windowElement({ onExpandedChange }));

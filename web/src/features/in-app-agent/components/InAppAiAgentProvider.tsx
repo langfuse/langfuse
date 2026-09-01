@@ -323,7 +323,7 @@ function InAppAiAgentProviderInner({
   const dock = parseInAppAgentDock(storedDock);
   const setDock = useCallback<Dispatch<SetStateAction<InAppAgentDock>>>(
     (action) => {
-      setStoredDock((previous) => {
+      setStoredDock((previous: unknown) => {
         const current = parseInAppAgentDock(previous);
         return parseInAppAgentDock(evaluateSetStateAction(action, current));
       });
