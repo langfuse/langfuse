@@ -31,9 +31,7 @@ export const DatasetSchemaValidationError: React.FC<
   return (
     <div className="mt-4">
       <Alert variant="destructive">
-        <Alert.Title className="text-base">
-          Schema Validation Failed
-        </Alert.Title>
+        <Alert.Title>Schema Validation Failed</Alert.Title>
         <Alert.Description>
           <div className="mt-2 flex flex-col gap-3">
             <p className="text-sm">

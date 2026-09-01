@@ -1,9 +1,6 @@
-/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
-
-import { cn } from "@/src/utils/tailwind";
 
 type AlertContent = Exclude<React.ReactNode, null | undefined | boolean>;
 
@@ -51,7 +48,6 @@ type AlertProps = Pick<
 };
 type AlertTitleProps = {
   children: React.ReactNode;
-  className?: "text-base";
 };
 
 function AlertRoot({
@@ -87,11 +83,11 @@ type AlertDescriptionProps = {
   children: React.ReactNode;
 };
 
-function AlertTitle({ children, className }: AlertTitleProps) {
+function AlertTitle({ children }: AlertTitleProps) {
   return (
     <h5
       data-slot="alert-title"
-      className={cn("leading-none font-bold tracking-tight", className)}
+      className="leading-none font-bold tracking-tight"
     >
       {children}
     </h5>
