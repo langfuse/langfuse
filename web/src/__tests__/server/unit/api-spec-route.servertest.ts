@@ -1,4 +1,4 @@
-import handler from "@/src/pages/api/spec";
+import handler from "@/src/pages/api/docs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -16,7 +16,7 @@ const callHandler = (
   return res;
 };
 
-describe("/api/spec", () => {
+describe("/api/docs", () => {
   it("renders the deployment-local specification with local assets", () => {
     const res = callHandler("GET");
     const body = res._getData() as string;
@@ -74,7 +74,7 @@ describe("/api/spec", () => {
     expect(
       new URL(
         relativeSpecUrl!,
-        "https://langfuse.example.com/langfuse/api/spec",
+        "https://langfuse.example.com/langfuse/api/docs",
       ).pathname,
     ).toBe("/langfuse/generated/api/openapi.yml");
   });

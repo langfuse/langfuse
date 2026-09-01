@@ -176,7 +176,7 @@ const nextConfig = {
   // Keep Scalar outside Next's client compilation by tracing its prebuilt bundle.
   // Its MIT notice must ship with redistributed copies.
   outputFileTracingIncludes: {
-    "/api/spec": [
+    "/api/docs": [
       "./node_modules/@scalar/api-reference/dist/browser/standalone.js",
       "./third-party-licenses/scalar-api-reference.LICENSE.txt",
     ],
