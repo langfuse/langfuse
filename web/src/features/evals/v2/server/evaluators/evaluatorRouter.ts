@@ -15,6 +15,7 @@ import {
   EvaluatorIdsSchema,
   EvaluatorOptionsSchema,
   EvaluatorVersionsSchema,
+  ListEvaluatorGallerySchema,
   ListEvaluatorsSchema,
   SuggestEvaluatorTextSchema,
   UpdateEvaluatorSchema,
@@ -65,6 +66,29 @@ export const evaluatorRouter = createTRPCRouter({
         ...input,
         projectId: ctx.session.projectId,
       });
+    }),
+
+  listGallery: protectedProjectProcedure
+    .input(ListEvaluatorGallerySchema)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        scope: "evaluator:read",
+      });
+      const { cursor, ...params } = input;
+      const page = cursor ?? 1;
+      const result = await serviceForContext(ctx).list({
+        ...params,
+        projectId: ctx.session.projectId,
+        page,
+      });
+
+      return {
+        ...result,
+        nextCursor:
+          page * input.limit < result.totalItems ? page + 1 : undefined,
+      };
     }),
 
   filterOptions: protectedProjectProcedure

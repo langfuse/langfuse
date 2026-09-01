@@ -169,6 +169,39 @@ describe("evalsV2 tRPC", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("paginates evaluator gallery results", async () => {
+    const search = `Gallery pagination ${randomUUID()}`;
+    await Promise.all(
+      Array.from({ length: 3 }, (_, index) =>
+        caller.evalsV2.create({
+          projectId,
+          name: `${search} ${index + 1}`,
+          description: null,
+          definition,
+        }),
+      ),
+    );
+
+    const firstPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+    });
+    const secondPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(firstPage.evaluators).toHaveLength(2);
+    expect(firstPage.totalItems).toBe(3);
+    expect(firstPage.nextCursor).toBe(2);
+    expect(secondPage.evaluators).toHaveLength(1);
+    expect(secondPage.totalItems).toBe(3);
+    expect(secondPage.nextCursor).toBeUndefined();
+  });
+
   it("rejects access to another project", async () => {
     await expect(
       caller.evalsV2.list({ projectId: otherProjectId }),
