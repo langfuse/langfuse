@@ -23,6 +23,26 @@ export type IoFormatToggleContext = {
 
 export type IoFormatToggleView = "pretty" | "json" | "json-beta";
 
+/** Formatted tabs, including the admin-only normalized parser. */
+function isPrettyIoFormatView(view: string): boolean {
+  return view === "pretty" || view === "pretty-beta";
+}
+
+/** Collapse pretty-beta onto pretty. JSON-beta stays distinct. */
+export function toIoFormatToggleView(view: string): IoFormatToggleView {
+  if (isPrettyIoFormatView(view)) return "pretty";
+  if (view === "json-beta") return "json-beta";
+  return "json";
+}
+
+/** Skip pretty↔pretty-beta and json↔json-beta. Those are renderer swaps. */
+export function shouldCaptureIoFormatToggle(
+  fromView: string,
+  toView: string,
+): boolean {
+  return isPrettyIoFormatView(fromView) !== isPrettyIoFormatView(toView);
+}
+
 export function ioFormatToggleProperties(
   context: IoFormatToggleContext,
 ): IoFormatToggleContext {

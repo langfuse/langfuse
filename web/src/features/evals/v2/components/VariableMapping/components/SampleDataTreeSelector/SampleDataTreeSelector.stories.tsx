@@ -44,3 +44,28 @@ export const CurrentMapping = meta.story({
     onSelect: fn(),
   },
 });
+
+export const MediaReference = meta.story({
+  args: {
+    variable: "input",
+    roots: [
+      {
+        id: "input",
+        label: "Input",
+        value: {
+          attachments: [
+            {
+              filename: "cache-hit-ratio.png",
+              content_type: "image/png",
+              media:
+                "@@@langfuseMedia:type=image/png|id=cc48838a-3da8-4ca4-a007-2cf8df930e69|source=bytes@@@",
+            },
+          ],
+        },
+      },
+    ],
+    currentColumnId: "input",
+    currentSegments: ["attachments", 0, "media"],
+    onSelect: fn(),
+  },
+});

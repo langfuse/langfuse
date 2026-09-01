@@ -12,6 +12,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { type IoFormatToggleContext } from "@/src/features/posthog-analytics/ioFormatToggleContext";
 import { Button } from "@/src/components/ui/button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
+import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   ChevronDown,
   ChevronRight,
@@ -94,13 +95,14 @@ const PRETTY_JSON_VIEW_TONE_CLASSES: Record<
   { container: string; row: string; cell: string }
 > = {
   danger: {
-    container: "border-dark-red bg-light-red",
-    row: "hover:bg-light-red",
-    cell: "border-dark-red/30",
+    container:
+      "border-dark-red/30 bg-light-red/50 dark:border-dark-red/20 dark:bg-light-red/35",
+    row: "hover:bg-light-red/50 dark:hover:bg-light-red/35",
+    cell: "border-dark-red/20 dark:border-dark-red/15",
   },
   warning: {
-    container: "border-dark-yellow/40 bg-light-yellow",
-    row: "hover:bg-light-yellow",
+    container: "border-dark-yellow/40 bg-light-yellow/80",
+    row: "hover:bg-light-yellow/80",
     cell: "border-dark-yellow/20",
   },
   muted: {
@@ -907,6 +909,28 @@ export function PrettyJsonView(
     [parsedJson, largeStringValue, characterLimit],
   );
 
+  // Nested MarkdownView is rendered without a title (this view owns the
+  // header), so the header must host the same collapse control that
+  // MarkdownView would show when it has a title. Skip gated large strings:
+  // they render through LargeStringFallback, and splitting them for a
+  // preview would undo the main-thread guard that gate exists for.
+  const systemPromptCollapsibleContent =
+    largeStringValue !== null
+      ? ""
+      : typeof markdownContent === "string"
+        ? markdownContent
+        : typeof parsedJson === "string"
+          ? parsedJson
+          : "";
+  const {
+    shouldBeCollapsible: shouldCollapseSystemPrompt,
+    isCollapsed: isSystemPromptCollapsed,
+    toggleCollapsed: toggleSystemPromptCollapsed,
+  } = useCollapsibleSystemPrompt({
+    isSystemPrompt: Boolean(props.isSystemPrompt),
+    content: systemPromptCollapsibleContent,
+  });
+
   const baseTableData = useMemo(() => {
     try {
       if (
@@ -1407,6 +1431,16 @@ export function PrettyJsonView(
           canEnableMarkdown={false}
           handleOnValueChange={() => {}} // No-op, parent handles state
           handleOnCopy={handleOnCopy}
+          collapseControl={
+            shouldCollapseSystemPrompt &&
+            isMarkdownMode &&
+            !shouldRenderStandaloneMedia
+              ? {
+                  isCollapsed: isSystemPromptCollapsed,
+                  onToggle: () => toggleSystemPromptCollapsed("header"),
+                }
+              : undefined
+          }
           inset={props.inset}
           controlButtons={
             <>

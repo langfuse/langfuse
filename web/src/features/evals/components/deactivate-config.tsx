@@ -25,7 +25,10 @@ export function DeactivateEvalConfig({
   onStatusChange?: () => void;
 }) {
   const utils = api.useUtils();
-  const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
   const { allowLegacy } = useEvalCapabilities(projectId);
   const [isOpen, setIsOpen] = useState(false);
   const capture = usePostHogClientCapture();

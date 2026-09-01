@@ -1,6 +1,6 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
@@ -161,7 +161,7 @@ const DatasetAggregateCellContent = ({
       {/* Displays trace/observation output */}
       <div
         className={cn(
-          "relative h-[50%] w-full min-w-0 shrink-0 overflow-auto",
+          "relative h-[50%] min-h-8 w-full min-w-0 shrink-0 overflow-auto",
           !selectedFields.includes("output") && "hidden",
         )}
       >
@@ -170,12 +170,12 @@ const DatasetAggregateCellContent = ({
             itemType={value.observation ? "observation" : "trace"}
             singleLine={false}
           />
+        ) : isLoading || !data ? (
+          <ConnectedIOTableCell isLoading variant="output" />
         ) : (
-          <MemoizedIOTableCell
-            isLoading={isLoading || !data}
-            data={data?.output ?? "null"}
-            className="bg-accent-light-green min-h-8"
-            singleLine={false}
+          <ConnectedIOTableCell
+            data={data.output ?? "null"}
+            variant="output"
             enableExpandOnHover
           />
         )}

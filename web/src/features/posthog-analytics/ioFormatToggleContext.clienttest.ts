@@ -3,7 +3,28 @@
 import {
   captureIoFormatToggle,
   ioFormatToggleProperties,
+  shouldCaptureIoFormatToggle,
+  toIoFormatToggleView,
 } from "./ioFormatToggleContext";
+
+describe("toIoFormatToggleView", () => {
+  it("maps pretty-beta onto pretty and leaves json variants", () => {
+    expect(toIoFormatToggleView("pretty")).toBe("pretty");
+    expect(toIoFormatToggleView("pretty-beta")).toBe("pretty");
+    expect(toIoFormatToggleView("json")).toBe("json");
+    expect(toIoFormatToggleView("json-beta")).toBe("json-beta");
+  });
+});
+
+describe("shouldCaptureIoFormatToggle", () => {
+  it("fires only when crossing formatted vs JSON", () => {
+    expect(shouldCaptureIoFormatToggle("pretty", "json")).toBe(true);
+    expect(shouldCaptureIoFormatToggle("pretty-beta", "json-beta")).toBe(true);
+    expect(shouldCaptureIoFormatToggle("json", "pretty")).toBe(true);
+    expect(shouldCaptureIoFormatToggle("pretty", "pretty-beta")).toBe(false);
+    expect(shouldCaptureIoFormatToggle("json", "json-beta")).toBe(false);
+  });
+});
 
 describe("ioFormatToggleProperties", () => {
   it("omits undefined fields rather than guessing", () => {

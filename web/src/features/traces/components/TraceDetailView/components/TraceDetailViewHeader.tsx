@@ -20,10 +20,11 @@ import { type SelectionData } from "@/src/features/comments/contexts/InlineComme
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
@@ -48,9 +49,12 @@ import {
   ChevronDown,
   EllipsisVertical,
   ListPlus,
+  LockIcon,
   MessageSquare,
   MessageSquareOff,
   MoreHorizontal,
+  PlusIcon,
+  SquarePen,
 } from "lucide-react";
 import {
   Popover,
@@ -58,6 +62,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { cn } from "@/src/utils/tailwind";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -95,11 +100,26 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
     () => aggregateTraceMetrics(observations),
     [observations],
   );
+  const {
+    existingDatasetItems,
+    hasAccess: hasDatasetAccess,
+    captureNewDatasetItemFormOpen,
+  } = useDatasetItemFromTraceOrObservation({
+    projectId,
+    traceId: trace.id,
+  });
+  const datasetCount = existingDatasetItems.length;
+  const hasExistingDatasetItems = datasetCount > 0;
 
   const targetTraceId =
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
       : null;
+
+  const preparedDate = buildLocalIsoDatePresentation({
+    date: trace.timestamp,
+    accuracy: "millisecond",
+  });
 
   return (
     <div className="@container shrink-0 space-y-2 border-b p-2">
@@ -161,17 +181,65 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 forceMount
                 className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
               >
-                <NewDatasetItemFromExistingObject
+                <NewDatasetItemFromExistingObjectDialogController
                   traceId={trace.id}
                   projectId={projectId}
                   input={trace.input}
                   output={trace.output}
                   metadata={trace.metadata}
-                  layout="menu"
-                />
+                >
+                  {({ openDialog }) => (
+                    <ExistingDatasetItemsDropdownMenuController
+                      projectId={projectId}
+                      datasetItems={existingDatasetItems}
+                      disabled={!hasDatasetAccess}
+                      onOpenDialog={openDialog}
+                    >
+                      {({ Anchor, openDropdown }) => (
+                        <Anchor>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!hasDatasetAccess}
+                            className="w-full justify-start gap-2 font-normal"
+                            onClick={() => {
+                              if (hasExistingDatasetItems) {
+                                openDropdown();
+                                return;
+                              }
+
+                              captureNewDatasetItemFormOpen();
+                              openDialog();
+                            }}
+                          >
+                            {hasExistingDatasetItems || hasDatasetAccess ? (
+                              <PlusIcon
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            <span className="text-sm">
+                              {hasExistingDatasetItems
+                                ? `In ${datasetCount} dataset(s)`
+                                : "Add to datasets"}
+                            </span>
+                            {hasExistingDatasetItems ? (
+                              <ChevronDown className="ml-auto h-3 w-3" />
+                            ) : !hasDatasetAccess ? (
+                              <LockIcon
+                                className="ml-auto h-3 w-3"
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                          </Button>
+                        </Anchor>
+                      )}
+                    </ExistingDatasetItemsDropdownMenuController>
+                  )}
+                </NewDatasetItemFromExistingObjectDialogController>
                 {!isAnnotationMode && (
                   <>
-                    <AnnotateDrawer
+                    <AnnotateDrawerController
                       projectId={projectId}
                       scoreTarget={{
                         type: "trace",
@@ -182,8 +250,24 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         projectId: projectId,
                         environment: trace.environment,
                       }}
-                      layout="menu"
-                    />
+                    >
+                      {({ disabled, openDrawer }) => (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={disabled}
+                          className="w-full justify-start gap-2 font-normal"
+                          onClick={openDrawer}
+                        >
+                          {disabled ? (
+                            <LockIcon className="h-3 w-3" />
+                          ) : (
+                            <SquarePen className="h-4 w-4" />
+                          )}
+                          <span className="text-sm">Annotate</span>
+                        </Button>
+                      )}
+                    </AnnotateDrawerController>
                     <AnnotationQueueItemDropdownMenuController
                       projectId={projectId}
                       objectId={trace.id}
@@ -245,19 +329,64 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            <NewDatasetItemFromExistingObject
+            <NewDatasetItemFromExistingObjectDialogController
               traceId={trace.id}
               projectId={projectId}
               input={trace.input}
               output={trace.output}
               metadata={trace.metadata}
               key={trace.id}
-              size="sm"
-            />
+            >
+              {({ openDialog }) => (
+                <ExistingDatasetItemsDropdownMenuController
+                  projectId={projectId}
+                  datasetItems={existingDatasetItems}
+                  disabled={!hasDatasetAccess}
+                  onOpenDialog={openDialog}
+                >
+                  {({ Anchor, openDropdown }) => (
+                    <Anchor>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={!hasDatasetAccess}
+                        onClick={() => {
+                          if (hasExistingDatasetItems) {
+                            openDropdown();
+                            return;
+                          }
+
+                          captureNewDatasetItemFormOpen();
+                          openDialog();
+                        }}
+                      >
+                        {!hasExistingDatasetItems && hasDatasetAccess ? (
+                          <PlusIcon
+                            className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {hasExistingDatasetItems
+                          ? `In ${datasetCount} dataset(s)`
+                          : "Add to datasets"}
+                        {hasExistingDatasetItems ? (
+                          <ChevronDown className="ml-2 h-3 w-3" />
+                        ) : !hasDatasetAccess ? (
+                          <LockIcon
+                            className="ml-1.5 h-3 w-3"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                      </Button>
+                    </Anchor>
+                  )}
+                </ExistingDatasetItemsDropdownMenuController>
+              )}
+            </NewDatasetItemFromExistingObjectDialogController>
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
               <div className="flex items-start">
-                <AnnotateDrawer
+                <AnnotateDrawerController
                   key={"annotation-drawer-" + trace.id}
                   projectId={projectId}
                   scoreTarget={{
@@ -269,8 +398,24 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     projectId: projectId,
                     environment: trace.environment,
                   }}
-                  size="sm"
-                />
+                >
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={disabled}
+                      className="rounded-r-none"
+                      onClick={openDrawer}
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      <span>Annotate</span>
+                    </Button>
+                  )}
+                </AnnotateDrawerController>
                 <AnnotationQueueItemDropdownMenuController
                   projectId={projectId}
                   objectId={trace.id}
@@ -335,9 +480,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       {/* Metadata badges */}
       <div className="flex flex-col gap-2">
         {/* Timestamp */}
-        <div className="flex flex-wrap items-center gap-1 text-sm">
-          <LocalIsoDate date={trace.timestamp} accuracy="millisecond" />
-        </div>
+        {preparedDate ? (
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <span title={preparedDate.title}>{preparedDate.display}</span>
+          </div>
+        ) : null}
 
         {/* Other badges */}
         {!isAnnotationMode && (

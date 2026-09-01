@@ -545,6 +545,60 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("G. drops Android WebView Java-bridge listener failures", () => {
+    // Real shape (LANGFUSE-60G): Chrome Mobile WebView throws Chromium's
+    // `Error invoking <method>: Java bridge method invocation error` from a
+    // host-app `@JavascriptInterface` during `unload`. Sentry's
+    // addEventListener wrap captures it — stack is SDK wrap + anonymous
+    // `batch` frames, no Langfuse frames.
+    const webViewJavaBridgeEvent = (
+      value: string,
+      mechanismType = "auto.browser.browserapierrors.addEventListener",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-60G addEventListener batch-bridge error", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking batch: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same Chromium wording for another Java method name", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking onPause: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording via a global browser handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          webViewJavaBridgeEvent(
+            "Error invoking batch: Java bridge method invocation error",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -823,6 +877,71 @@ describe("isDenylistedNoiseEvent", () => {
           ),
         ),
       ).toBe(false);
+    });
+
+    it("keeps an app-captured Java-bridge phrase (not a Sentry browser wrap)", () => {
+      // Mechanism guard: captureException / capture_console must still surface
+      // if our code ever throws or logs this wording.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Error invoking batch: Java bridge method invocation error",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Error invoking batch: Java bridge method invocation error",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a listener TypeError that is not the Chromium Java-bridge wording", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'map')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes the Java-bridge suffix", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Failed to persist playground batch: Java bridge method invocation error",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps an event with no exception values", () => {

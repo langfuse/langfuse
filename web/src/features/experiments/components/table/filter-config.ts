@@ -136,7 +136,7 @@ export const getExperimentsColumnName = (id: string): string => {
   return column.name;
 };
 
-const experimentsFilterConfig: FilterConfig = {
+export const experimentsFilterConfig: FilterConfig = {
   tableName: "experiments",
 
   columnDefinitions: experimentsTableCols,
