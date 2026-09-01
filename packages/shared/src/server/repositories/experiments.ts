@@ -892,7 +892,9 @@ const getExperimentScoreOptionsByLevel = async ({
   });
 
   // Trace-level names are half of what the level-agnostic facets offer; without
-  // this a score recorded on the trace was never even suggested.
+  // this a score recorded on the trace was never even suggested — and it is also
+  // where an LLM-as-judge on a dataset run writes, so it belongs in the chart's
+  // metric list next to the other two levels.
   const traceQuery = buildScoreFilterOptionsQuery({
     projectId,
     experimentIds: uniqueExperimentIds,
