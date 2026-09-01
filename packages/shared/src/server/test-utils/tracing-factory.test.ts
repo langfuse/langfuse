@@ -21,4 +21,15 @@ describe("tracing factories DateTime64 nulls", () => {
     expect(event.end_time).toBeNull();
     expect(event.completion_start_time).toBeNull();
   });
+
+  it("stringifies millisecond and microsecond event ticks to the same instant", () => {
+    const millisecond = Date.UTC(2024, 0, 15, 12, 0, 0);
+
+    expect(createEvent({ start_time: millisecond }).start_time).toBe(
+      "2024-01-15 12:00:00.000",
+    );
+    expect(createEvent({ start_time: millisecond * 1000 }).start_time).toBe(
+      "2024-01-15 12:00:00.000",
+    );
+  });
 });
