@@ -169,6 +169,61 @@ describe("evalsV2 tRPC", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("paginates evaluator gallery results", async () => {
+    const search = `Gallery pagination ${randomUUID()}`;
+    const created = await Promise.all(
+      Array.from({ length: 3 }, (_, index) =>
+        caller.evalsV2.create({
+          projectId,
+          name: `${search} ${index + 1}`,
+          description: null,
+          definition,
+        }),
+      ),
+    );
+
+    const firstPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+    });
+    const firstPageIds = new Set(
+      firstPage.evaluators.map((evaluator) => evaluator.id),
+    );
+    const remainingId = created.find(
+      (evaluator) => !firstPageIds.has(evaluator.id),
+    )?.id;
+    if (!remainingId) throw new Error("Expected an evaluator on the next page");
+    await prisma.evaluator.update({
+      where: { id: remainingId },
+      data: { updatedAt: new Date(Date.now() + 60_000) },
+    });
+
+    const secondPage = await caller.evalsV2.listGallery({
+      projectId,
+      search,
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(firstPage.evaluators).toHaveLength(2);
+    expect(firstPage.totalItems).toBe(3);
+    expect(firstPage.nextCursor).toEqual({
+      createdAt: expect.any(Date),
+      id: expect.any(String),
+    });
+    expect(secondPage.evaluators).toHaveLength(1);
+    expect(secondPage.totalItems).toBeUndefined();
+    expect(secondPage.nextCursor).toBeUndefined();
+    expect(
+      new Set(
+        [...firstPage.evaluators, ...secondPage.evaluators].map(
+          (evaluator) => evaluator.id,
+        ),
+      ),
+    ).toEqual(new Set(created.map((evaluator) => evaluator.id)));
+  });
+
   it("rejects access to another project", async () => {
     await expect(
       caller.evalsV2.list({ projectId: otherProjectId }),
