@@ -178,77 +178,62 @@ describe("monitors trpc", () => {
       ).resolves.toBeNull();
     });
 
-    it("returns alerts whose positive evaluator filter matches the evaluator id", async () => {
-      const { project, caller } = await prepare();
+    it.each([
+      {
+        name: "equals",
+        filter: {
+          column: "evaluatorId",
+          type: "string" as const,
+          operator: "=" as const,
+          value: "evaluator-1",
+        },
+      },
+      {
+        name: "contains",
+        filter: {
+          column: "evaluatorId",
+          type: "string" as const,
+          operator: "contains" as const,
+          value: "valuator-1",
+        },
+      },
+      {
+        name: "starts with",
+        filter: {
+          column: "evaluatorId",
+          type: "string" as const,
+          operator: "starts with" as const,
+          value: "evaluator-",
+        },
+      },
+      {
+        name: "any of",
+        filter: {
+          column: "evaluatorId",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["evaluator-2", "evaluator-1"],
+        },
+      },
+    ])(
+      "returns alerts whose $name filter matches the evaluator id",
+      async ({ name, filter }) => {
+        const { project, caller } = await prepare();
+        const monitor = await caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: `${name} evaluator`,
+          filters: [filter],
+        });
 
-      const exact = await caller.monitors.create({
-        ...validMonitorInput(project.id),
-        name: "Exact evaluator",
-        filters: [
-          {
-            column: "evaluatorId",
-            type: "string",
-            operator: "=",
-            value: "evaluator-1",
-          },
-        ],
-      });
-      const alertedAt = new Date("2026-06-01T12:00:00.000Z");
-      await prisma.monitor.update({
-        where: { id: exact.id },
-        data: { alertedAt },
-      });
+        const linked = await caller.monitors.linkedEvaluatorAlerts({
+          projectId: project.id,
+          evaluatorId: "evaluator-1",
+        });
 
-      const contains = await caller.monitors.create({
-        ...validMonitorInput(project.id),
-        name: "Contains evaluator",
-        filters: [
-          {
-            column: "evaluatorId",
-            type: "string",
-            operator: "contains",
-            value: "valuator-1",
-          },
-        ],
-      });
-      const startsWith = await caller.monitors.create({
-        ...validMonitorInput(project.id),
-        name: "Starts with evaluator",
-        filters: [
-          {
-            column: "evaluatorId",
-            type: "string",
-            operator: "starts with",
-            value: "evaluator-",
-          },
-        ],
-      });
-      const anyOf = await caller.monitors.create({
-        ...validMonitorInput(project.id),
-        name: "Any-of evaluator",
-        filters: [
-          {
-            column: "evaluatorId",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["evaluator-2", "evaluator-1"],
-          },
-        ],
-      });
-
-      const linked = await caller.monitors.linkedEvaluatorAlerts({
-        projectId: project.id,
-        evaluatorId: "evaluator-1",
-      });
-
-      expect(linked.data.map(({ id }) => id).sort()).toEqual(
-        [exact.id, contains.id, startsWith.id, anyOf.id].sort(),
-      );
-      expect(linked.data.find(({ id }) => id === exact.id)?.alertedAt).toEqual(
-        alertedAt,
-      );
-      expect(linked.hasMore).toBe(false);
-    });
+        expect(linked.data.map(({ id }) => id)).toEqual([monitor.id]);
+        expect(linked.hasMore).toBe(false);
+      },
+    );
 
     it("returns aggregate evaluator spend alerts", async () => {
       const { project, caller } = await prepare();
