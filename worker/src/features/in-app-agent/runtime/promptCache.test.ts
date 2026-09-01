@@ -19,6 +19,38 @@ const twoMessagePrompt = [
   { role: "user", content: [{ type: "text", text: "hello" }] },
 ];
 
+// One completed tool turn followed by a new user turn.
+const toolTurnPrompt = [
+  { role: "system", content: "You are the Langfuse assistant." },
+  { role: "user", content: [{ type: "text", text: "hello" }] },
+  {
+    role: "assistant",
+    content: [{ type: "tool-call", toolCallId: "call-1" }],
+  },
+  {
+    role: "tool",
+    content: [{ type: "tool-result", toolCallId: "call-1" }],
+  },
+  {
+    role: "assistant",
+    content: [{ type: "text", text: "You have 20 prompts." }],
+  },
+  {
+    role: "user",
+    content: [{ type: "text", text: "and the versions?" }],
+  },
+];
+
+const currentTimeMessage = {
+  role: "user",
+  content: [
+    {
+      type: "text",
+      text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
+    },
+  ],
+};
+
 describe("applyPromptCachePoints", () => {
   it("caches the stable system prefix and the growing conversation prefix", () => {
     // Checkpoints are tools → system → messages. Tagging the last leading
@@ -62,31 +94,7 @@ describe("applyPromptCachePoints", () => {
   });
 
   it("re-stamps the previous turn's last prefix so a follow-up user message can cache-read it", () => {
-    expect(
-      applyPromptCachePoints(
-        [
-          { role: "system", content: "You are the Langfuse assistant." },
-          { role: "user", content: [{ type: "text", text: "hello" }] },
-          {
-            role: "assistant",
-            content: [{ type: "tool-call", toolCallId: "call-1" }],
-          },
-          {
-            role: "tool",
-            content: [{ type: "tool-result", toolCallId: "call-1" }],
-          },
-          {
-            role: "assistant",
-            content: [{ type: "text", text: "You have 20 prompts." }],
-          },
-          {
-            role: "user",
-            content: [{ type: "text", text: "and the versions?" }],
-          },
-        ],
-        "bedrock",
-      ),
-    ).toEqual([
+    expect(applyPromptCachePoints(toolTurnPrompt, "bedrock")).toEqual([
       {
         role: "system",
         content: "You are the Langfuse assistant.",
@@ -117,35 +125,7 @@ describe("applyPromptCachePoints", () => {
   it("keeps the previous-turn checkpoint when a trailing current-time suffix is present", () => {
     expect(
       applyPromptCachePoints(
-        [
-          { role: "system", content: "You are the Langfuse assistant." },
-          { role: "user", content: [{ type: "text", text: "hello" }] },
-          {
-            role: "assistant",
-            content: [{ type: "tool-call", toolCallId: "call-1" }],
-          },
-          {
-            role: "tool",
-            content: [{ type: "tool-result", toolCallId: "call-1" }],
-          },
-          {
-            role: "assistant",
-            content: [{ type: "text", text: "You have 20 prompts." }],
-          },
-          {
-            role: "user",
-            content: [{ type: "text", text: "and the versions?" }],
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
-              },
-            ],
-          },
-        ],
+        [...toolTurnPrompt, currentTimeMessage],
         "bedrock",
       ),
     ).toEqual([
@@ -211,15 +191,7 @@ describe("applyPromptCachePoints", () => {
             role: "tool",
             content: [{ type: "tool-result", toolCallId: "call-1" }],
           },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: '<current_time tz="Europe/London">2026-08-24 08:53</current_time>',
-              },
-            ],
-          },
+          currentTimeMessage,
         ],
         "openai-responses",
       ),
@@ -262,31 +234,7 @@ describe("applyPromptCachePoints", () => {
   });
 
   it("stamps the previous turn's user message and the new user turn for Responses", () => {
-    expect(
-      applyPromptCachePoints(
-        [
-          { role: "system", content: "You are the Langfuse assistant." },
-          { role: "user", content: [{ type: "text", text: "hello" }] },
-          {
-            role: "assistant",
-            content: [{ type: "tool-call", toolCallId: "call-1" }],
-          },
-          {
-            role: "tool",
-            content: [{ type: "tool-result", toolCallId: "call-1" }],
-          },
-          {
-            role: "assistant",
-            content: [{ type: "text", text: "You have 20 prompts." }],
-          },
-          {
-            role: "user",
-            content: [{ type: "text", text: "and the versions?" }],
-          },
-        ],
-        "openai-responses",
-      ),
-    ).toEqual([
+    expect(applyPromptCachePoints(toolTurnPrompt, "openai-responses")).toEqual([
       {
         role: "system",
         content: "You are the Langfuse assistant.",
