@@ -6,6 +6,24 @@ import {
   type UrlUpdateType,
 } from "use-query-params";
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
+import useLocalStorage from "@/src/components/useLocalStorage";
+
+/**
+ * How the selected experiments are laid out against each other: one row per item
+ * ("list") or one column per experiment ("grid").
+ */
+export type ExperimentResultsLayout = "grid" | "list";
+
+/** What a diff cell's extra line is measured against. */
+export type ExperimentDiffMode = "comparison" | "expected" | "off";
+
+const asLayout = (value: unknown): ExperimentResultsLayout | undefined =>
+  value === "grid" || value === "list" ? value : undefined;
+
+const asDiffMode = (value: unknown): ExperimentDiffMode | undefined =>
+  value === "comparison" || value === "expected" || value === "off"
+    ? value
+    : undefined;
 
 // Drop null/empty entries and de-duplicate, preserving first-seen order.
 const dedupe = (ids: (string | null | undefined)[]): string[] =>
@@ -15,7 +33,8 @@ export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
     c: withDefault(ArrayParam, []),
-    layout: withDefault(StringParam, "grid"),
+    layout: withDefault(StringParam, undefined),
+    diff: withDefault(StringParam, undefined),
     itemVisibility: withDefault(StringParam, "baseline-only"),
   });
 
@@ -88,10 +107,41 @@ export function useExperimentResultsState() {
   const removeComparisonId = (id: string) =>
     setComparisonIds(comparisonIds.filter((existingId) => existingId !== id));
 
-  // Layout management
-  const layout = (state.layout as "grid" | "list") ?? "list";
-  const setLayout = (newLayout: "grid" | "list") => {
+  // Layout and diff mode: the URL wins so a view stays shareable, then the
+  // user's remembered pick, then the default for the current selection.
+  const [storedLayout, setStoredLayout] =
+    useLocalStorage<ExperimentResultsLayout | null>(
+      "experiment-results-layout",
+      null,
+    );
+  const [storedDiffMode, setStoredDiffMode] =
+    useLocalStorage<ExperimentDiffMode | null>("experiment-results-diff", null);
+
+  // With something to compare against, one row per item beats one wide column
+  // per experiment: a three-way comparison pushes the third experiment off a
+  // 1512px screen entirely.
+  const layout: ExperimentResultsLayout =
+    asLayout(state.layout) ??
+    storedLayout ??
+    (comparisonIds.length > 0 ? "list" : "grid");
+
+  const setLayout = (newLayout: ExperimentResultsLayout) => {
+    setStoredLayout(newLayout);
     setState({ layout: newLayout });
+  };
+
+  const diffMode: ExperimentDiffMode =
+    asDiffMode(state.diff) ?? storedDiffMode ?? "comparison";
+
+  const setDiffMode = (newDiffMode: ExperimentDiffMode) => {
+    setStoredDiffMode(newDiffMode);
+    // Expected → Output is the diff layout's two-line cell; picking it from the
+    // side-by-side layout would otherwise appear to do nothing.
+    setState({
+      diff: newDiffMode,
+      ...(newDiffMode === "expected" ? { layout: "list" } : {}),
+    });
+    if (newDiffMode === "expected") setStoredLayout("list");
   };
 
   // Item visibility management
@@ -123,6 +173,10 @@ export function useExperimentResultsState() {
     // Layout
     layout,
     setLayout,
+
+    // Diff mode
+    diffMode,
+    setDiffMode,
 
     // Item visibility
     itemVisibility,
