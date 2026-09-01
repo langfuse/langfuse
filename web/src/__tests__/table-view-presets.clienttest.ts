@@ -10,6 +10,7 @@ import {
   type OrderByState,
 } from "@langfuse/shared";
 import { experimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
+import { experimentItemsFilterConfig } from "@/src/features/experiments/config/experiment-items-filter-config";
 
 // Mock data for testing
 const mockColumns = [
@@ -289,6 +290,59 @@ describe("saved views built before the experiment score facets were unified", ()
         },
       ],
       experimentsFilterConfig.columnDefinitions,
+    );
+
+    expect(validated.map((filter) => filter.column)).toEqual([
+      "scores_avg",
+      "trace_scores_avg",
+    ]);
+  });
+});
+
+describe("saved views built before the experiment ITEM score facets were unified", () => {
+  it.each([
+    ["obs_scores_avg", "scores_avg"],
+    ["Scores (numeric)", "scores_avg"],
+    ["obs_score_categories", "score_categories"],
+    ["Scores (categorical)", "score_categories"],
+    ["obs_score_booleans", "score_booleans"],
+    ["Scores (boolean)", "score_booleans"],
+  ] as const)("resolves %s onto %s", (stored, canonical) => {
+    const validated = validateFilters(
+      [
+        {
+          type: "numberObject",
+          column: stored,
+          key: "accuracy",
+          operator: ">",
+          value: 0.5,
+        },
+      ],
+      experimentItemsFilterConfig.columnDefinitions,
+    );
+
+    expect(validated.map((filter) => filter.column)).toEqual([canonical]);
+  });
+
+  it("keeps both levels when a saved view carries one of each", () => {
+    const validated = validateFilters(
+      [
+        {
+          type: "numberObject",
+          column: "Scores (numeric)",
+          key: "accuracy",
+          operator: ">",
+          value: 0.5,
+        },
+        {
+          type: "numberObject",
+          column: "trace_scores_avg",
+          key: "nps",
+          operator: ">",
+          value: 5,
+        },
+      ],
+      experimentItemsFilterConfig.columnDefinitions,
     );
 
     expect(validated.map((filter) => filter.column)).toEqual([
