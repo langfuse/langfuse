@@ -191,8 +191,8 @@ describe("annotation queues trpc", () => {
       const rejected = results.filter((r) => r.status === "rejected");
       expect(results.length - rejected.length).toBe(1);
       for (const result of rejected) {
-        // A loser either re-reads the count and sees the limit, or runs out of
-        // serialization retries and is told to retry.
+        // Concurrent losers abort the serializable transaction (P2034) or
+        // observe the committed row and hit the hobby limit.
         expect(String(result.reason)).toMatch(
           /Maximum number of annotation queues reached on Hobby plan|Could not create annotation queue, please retry/,
         );
