@@ -739,12 +739,87 @@ export class FilterList {
   }
 }
 
+// events_core_mv truncates each metadata_values element (and input/output) to
+// the first 200 UTF-8 code points via leftUTF8(v, 200). A metadata filter is
+// only safe to answer against events_core when 200-char truncation cannot
+// change its result.
+const EVENTS_CORE_TRUNCATION_LIMIT = 200;
+
+// Metadata operators whose match can live past code point 200, so truncation
+// can hide it regardless of the filter value: substring/suffix matching and the
+// FTS `matches` operator (which additionally needs the events_full-only index).
+const TRUNCATION_UNSAFE_METADATA_OPERATORS = new Set<ClickhouseOperator>([
+  "contains",
+  "does not contain",
+  "ends with",
+  FTS_MATCH_OPERATOR,
+]);
+
+// Count Unicode code points to mirror ClickHouse leftUTF8, which truncates by
+// code point rather than UTF-16 unit or byte.
+const codePointLength = (value: string): number => Array.from(value).length;
+
+/**
+ * Truncation-safety classifier: can a single metadata filter be answered
+ * correctly against the truncated events_core copy, or must it read events_full?
+ *
+ * events_core keeps only the first {@link EVENTS_CORE_TRUNCATION_LIMIT} code
+ * points of each metadata value (metadata_names is not truncated). A filter is
+ * events_core-safe when its operator and value length make anything past that
+ * boundary irrelevant:
+ *   - `starts with`, value length <= 200 — the prefix lives within retained chars.
+ *   - `=`, value length < 200 — a stored value longer than 200 truncates to 200
+ *     code points and can never equal a sub-200 value. Strict `<` avoids the
+ *     exact-200 false positive where a >200 value shares the first 200 chars.
+ *   - key existence / `is null` / `is not null` / empty checks — truncation
+ *     invariant (metadata_names is untruncated; emptiness is unaffected).
+ *   - numeric / boolean / date metadata comparisons — the value is inherently
+ *     short, so its truncated copy is complete.
+ * Unsafe: `contains`, `does not contain`, `ends with`, `matches`.
+ *
+ * Single source of truth for metadata truncation routing. Do not reuse
+ * NGRAM_ACCELERATED_METADATA_OPERATORS or FTS_TEXT_OPERATORS: those classify
+ * ngram/FTS index eligibility, a different axis (the ngram set includes
+ * truncation-unsafe `contains`/`ends with` and excludes truncation-safe `=`).
+ */
+export const metadataFilterIsEventsCoreSafe = (
+  operator: ClickhouseOperator,
+  value: unknown,
+): boolean => {
+  if (TRUNCATION_UNSAFE_METADATA_OPERATORS.has(operator)) {
+    return false;
+  }
+  if (typeof value === "string") {
+    if (operator === "starts with") {
+      return codePointLength(value) <= EVENTS_CORE_TRUNCATION_LIMIT;
+    }
+    if (operator === "=") {
+      return codePointLength(value) < EVENTS_CORE_TRUNCATION_LIMIT;
+    }
+  }
+  // Non-string values (numeric/boolean) and truncation-invariant operators
+  // (key existence, null checks) are always decidable on events_core.
+  return true;
+};
+
 // events_core stores input/output/metadata_values truncated to 200 chars
-// (events_core_mv); filters on these fields must run against events_full or
-// matches beyond the truncation point are silently dropped.
+// (events_core_mv). A filter must read events_full when truncation could change
+// its result: input/output always (truncated, and events_core lacks the I/O FTS
+// indices); metadata only when the operator/value is truncation-sensitive.
+const filterRequiresEventsFull = (filter: Filter): boolean => {
+  if (!isFtsEventsTable(filter.clickhouseTable)) {
+    return false;
+  }
+  if (isFtsTextField(filter.field)) {
+    return true;
+  }
+  if (isFtsMetadataField(filter.field)) {
+    const value =
+      "value" in filter ? (filter as { value: unknown }).value : undefined;
+    return !metadataFilterIsEventsCoreSafe(filter.operator, value);
+  }
+  return false;
+};
+
 export const filtersRequireEventsFull = (filters: FilterList): boolean =>
-  filters.some(
-    (f) =>
-      isFtsEventsTable(f.clickhouseTable) &&
-      (isFtsTextField(f.field) || isFtsMetadataField(f.field)),
-  );
+  filters.some(filterRequiresEventsFull);
