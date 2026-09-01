@@ -69,9 +69,10 @@ because `parseSSEBuffer` has non-dashboard consumers).
 - A widget query releases its scheduler slot on every terminal path — success,
   error, stall (60s no-byte watchdog aborts the stream), or unmount
   (unregister). A held slot at 90d windows (budget: 2) freezes the dashboard.
-- The SSE endpoint aborts the ClickHouse HTTP request and sets
-  `cancel_http_readonly_queries_on_client_close` when the browser disconnects,
-  so abandoned dashboards do not keep aggregations running server-side.
+- The SSE endpoint sets `cancel_http_readonly_queries_on_client_close`, so
+  when the browser disconnects (the handler breaks and the ClickHouse stream
+  socket closes) the server kills the query instead of running the abandoned
+  aggregation to completion; `max_execution_time` bounds any straggler.
 
 ## Migration State
 

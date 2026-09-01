@@ -129,15 +129,15 @@ export default async function handler(
   });
   res.flushHeaders();
 
-  // A closed client must cancel the ClickHouse query, not just stop the
-  // response: abort the CH HTTP request AND set
-  // cancel_http_readonly_queries_on_client_close so the server kills the
-  // query instead of running an abandoned aggregation to completion.
+  // A closed client should also stop the ClickHouse query, not just this
+  // response: the `break` below tears down the CH stream (its socket closes
+  // within one progress event), and cancel_http_readonly_queries_on_client_close
+  // makes ClickHouse kill the query on that close instead of running the
+  // abandoned aggregation to completion. max_execution_time still bounds the
+  // stragglers either way.
   let aborted = false;
-  const chAbort = new AbortController();
   req.on("close", () => {
     aborted = true;
-    chAbort.abort();
   });
 
   try {
@@ -153,7 +153,6 @@ export default async function handler(
       Record<string, unknown>
     >({
       ...chOpts,
-      abortSignal: chAbort.signal,
       clickhouseSettings: {
         ...chOpts.clickhouseSettings,
         cancel_http_readonly_queries_on_client_close: 1,

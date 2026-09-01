@@ -586,8 +586,6 @@ export type ClickhouseQueryOpts = {
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   allowLegacyEventsRead?: boolean;
-  /** Aborts the HTTP request; pair with cancel_http_readonly_queries_on_client_close to stop the query itself. */
-  abortSignal?: AbortSignal;
 };
 
 function recordSummaryOnSpan(
@@ -629,7 +627,6 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   format: F;
   span: Span;
   queryId?: string;
-  abortSignal?: AbortSignal;
 }) {
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const res = await clickhouseClient(
@@ -641,7 +638,6 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query_params: opts.params,
     use_multipart_params_auto: opts.useMultipartParamsAuto,
     ...(opts.queryId ? { query_id: opts.queryId } : {}),
-    ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
     clickhouse_settings: {
       ...opts.clickhouseSettings,
       log_comment: JSON.stringify(normalizedTags),
