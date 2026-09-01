@@ -541,21 +541,39 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div className="flex items-center select-none">
-                            <span
-                              className="truncate leading-normal"
-                              title={getPlainTextFromReactNode(
-                                flexRender(
+                          <div
+                            className={cn(
+                              "flex select-none",
+                              columnDef.headerBlock
+                                ? "items-start"
+                                : "items-center",
+                            )}
+                          >
+                            {columnDef.headerBlock ? (
+                              // Opted out of the single truncated line, so a
+                              // header can carry more than the column's name.
+                              <div className="min-w-0 flex-1 leading-normal">
+                                {flexRender(
                                   header.column.columnDef.header,
                                   header.getContext(),
-                                ),
-                              )}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span
+                                className="truncate leading-normal"
+                                title={getPlainTextFromReactNode(
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  ),
+                                )}
+                              >
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
+                            )}
                             {columnDef.headerTooltip && (
                               <DocPopup
                                 description={

@@ -22,28 +22,51 @@ export function DiffLabel({
   formatValue,
   className,
   preferNegativeDiff = false,
+  title,
 }: {
   diff: NumericDiff | CategoricalDiff;
   formatValue: (value: number) => string;
   className?: string;
   preferNegativeDiff?: boolean;
+  /**
+   * What the chip means, on hover. `+0.07` and `a → b` do not say which side
+   * is which; a caller that knows the two sides should say it
+   * (`describeRunComparison`). Falls back to the chip's own text.
+   */
+  title?: string;
 }) {
   if (diff.type === "NUMERIC") {
     return (
       <Badge
         size="sm"
         variant={getVariant(diff.direction, preferNegativeDiff)}
-        className={cn("font-bold", className)}
+        // A number must never break across the badge's line box or give up
+        // width to a sibling: both render a fragment. If it cannot sit beside
+        // the value it qualifies, the caller's row wraps it whole.
+        className={cn("shrink-0 font-bold whitespace-nowrap", className)}
+        title={title}
       >
         {diff.direction}
         {formatValue(diff.absoluteDifference)}
       </Badge>
     );
   }
-  if (diff.isDifferent)
+  if (diff.isDifferent) {
+    /* Name the move when both sides are a single value: a categorical
+       score going pass → fail is a diff, just not a number. */
+    const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
     return (
-      <Badge size="sm" variant="warning" className="font-bold">
-        Varies
+      <Badge
+        size="sm"
+        variant="warning"
+        // A named move can be longer than the cell it sits in, and the value it
+        // qualifies matters more than the move does — so shrink and ellipsise
+        // here rather than clipping mid-word, and keep the full move on hover.
+        className={cn("min-w-0 truncate font-bold", className)}
+        title={title ?? move}
+      >
+        {move}
       </Badge>
     );
+  }
 }
