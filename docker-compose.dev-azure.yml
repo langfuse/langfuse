@@ -33,13 +33,12 @@ services:
     image: docker.io/floci/floci:1.7.0-compat
     container_name: ${FLOCI_CONTAINER_NAME:-langfuse-floci}
     environment:
-      AWS_ACCESS_KEY_ID: ${FLOCI_ACCESS_KEY_ID:-test}
-      AWS_SECRET_ACCESS_KEY: ${FLOCI_SECRET_ACCESS_KEY:-test}
+      AWS_ACCESS_KEY_ID: ${FLOCI_ACCESS_KEY_ID:-minio}
+      AWS_SECRET_ACCESS_KEY: ${FLOCI_SECRET_ACCESS_KEY:-miniosecret}
       AWS_REGION: ${FLOCI_REGION:-us-east-1}
       FLOCI_HOSTNAME: floci
       FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: 120
       FLOCI_S3_CORS_ALLOWED_ORIGINS: "${FLOCI_S3_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
-      FLOCI_SERVICES_S3_ENFORCE_AUTH: "true"
       FLOCI_STORAGE_MODE: ${FLOCI_STORAGE_MODE:-persistent}
       FLOCI_STORAGE_PERSISTENT_PATH: /app/data
       FLOCI_S3_BUCKET: ${FLOCI_S3_BUCKET:-langfuse}

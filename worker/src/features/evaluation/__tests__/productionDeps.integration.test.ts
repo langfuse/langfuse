@@ -26,8 +26,8 @@ import { JobExecutionStatus } from "@prisma/client";
 describe("Production Dependency Factories Integration Tests", () => {
   let s3StorageService: StorageService;
   const bucketName = env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET || "langfuse";
-  const flociAccessKeyId = "test";
-  const flociAccessKeySecret = "test";
+  const flociAccessKeyId = "minio";
+  const flociAccessKeySecret = "miniosecret";
   const flociEndpoint = "http://localhost:4566";
 
   // Track created files for cleanup

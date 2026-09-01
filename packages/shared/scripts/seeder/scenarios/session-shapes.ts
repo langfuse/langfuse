@@ -828,11 +828,11 @@ const run = async (
     } else if (shapeParam === "media") {
       throw new SeedError(
         "could not seed media assets for the media shape",
-        "check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET and that Floci is running (pnpm run seed -- doctor)",
+        "check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET and the configured S3-compatible storage (pnpm run seed -- doctor)",
       );
     } else {
       ctx.log(
-        "skipping the media shape: media assets could not be uploaded (check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET / Floci)",
+        "skipping the media shape: media assets could not be uploaded (check LANGFUSE_S3_MEDIA_UPLOAD_BUCKET / S3-compatible storage)",
       );
       shapesToSeed = shapesToSeed.filter((shape) => shape !== "media");
     }
@@ -1005,7 +1005,7 @@ const run = async (
 export const sessionShapesScenario: ScenarioDefinition = {
   name: "session-shapes",
   description:
-    "Diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION (the default 'first generation' preset yields empty cards — LFE-10520), a MIXED session, and a MEDIA session whose messages carry @@@langfuseMedia:...@@@ references (inline image, multiple references in one message, and a link-only payload — LFE-14815). Creates the Postgres trace_sessions rows; the media shape uploads its assets to Floci.",
+    "Diverse v4 session shapes for the session-detail view: a clean multi-turn CHAT session (renders as chat), a coding/AGENT session whose I/O lives on AGENT/TOOL observations with NO GENERATION (the default 'first generation' preset yields empty cards — LFE-10520), a MIXED session, and a MEDIA session whose messages carry @@@langfuseMedia:...@@@ references (inline image, multiple references in one message, and a link-only payload — LFE-14815). Creates the Postgres trace_sessions rows; the media shape uploads its assets to the configured S3-compatible storage.",
   supportsV4: true,
   flags: [
     {

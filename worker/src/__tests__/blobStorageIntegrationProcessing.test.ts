@@ -89,8 +89,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   const secretAccessKey = env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY || "";
   const endpoint = env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT || undefined;
   const region = env.LANGFUSE_S3_EVENT_UPLOAD_REGION || undefined;
-  const flociAccessKeyId = "test";
-  const flociAccessKeySecret = "test";
+  const flociAccessKeyId = "minio";
+  const flociAccessKeySecret = "miniosecret";
   const flociEndpoint = "http://localhost:4566";
 
   beforeAll(async () => {

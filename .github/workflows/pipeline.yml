@@ -887,6 +887,20 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+      - name: Verify MinIO storage compatibility
+        if: matrix.deploy-mode == ''
+        run: |
+          docker compose --project-name langfuse-minio-compat -f docker-compose.yml up -d --wait --wait-timeout 60 minio
+          pnpm --filter=worker run test src/__tests__/storageservice.test.ts
+        env:
+          MINIO_ROOT_USER: minio
+          MINIO_ROOT_PASSWORD: miniosecret
+          LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+          LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+          LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+          LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+          LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://localhost:9090
+          LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
   test-worker-llm-connections:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404
