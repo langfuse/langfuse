@@ -406,7 +406,7 @@ export const observationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "observations.prompt_version",
       alias: "promptVersion",
-      type: "string",
+      type: "number",
       description: "Version of the prompt used for the observation.",
     },
     userId: {
@@ -675,7 +675,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
   observationPromptVersion: {
     sql: "observations.prompt_version",
     alias: "observationPromptVersion",
-    type: "string",
+    type: "number",
     relationTable: "observations",
     description: "Version of the prompt used for the observation.",
   },
@@ -762,7 +762,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
   observationPromptVersion: {
     sql: "events_observations.prompt_version",
     alias: "observationPromptVersion",
-    type: "string",
+    type: "number",
     relationTable: "events_observations",
     description: "Version of the prompt used for the observation.",
   },
@@ -1186,7 +1186,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     promptVersion: {
       sql: "events_observations.prompt_version",
       alias: "promptVersion",
-      type: "string",
+      type: "number",
       description: "Version of the prompt used for the observation.",
     },
     startTimeMonth: {
