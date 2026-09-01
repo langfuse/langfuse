@@ -1418,6 +1418,59 @@ export default function ExperimentItemsTable({
     columnOrderMigrations,
   );
 
+  // The transposed layout's axes (LFE-15711 C8): score columns as rows —
+  // respecting what the column picker hid — and the selected runs as columns,
+  // baseline first. Both are a re-read of what the grid already has, so the
+  // layout needs no query of its own.
+  const matrixScoreRows = useMemo<ScoreMatrixRow[]>(() => {
+    const build = (
+      scoreCols: LangfuseColumnDef<ExperimentItemData>[],
+      level: ScoreLevel,
+    ): ScoreMatrixRow[] =>
+      scoreCols.flatMap((scoreCol) => {
+        const accessorKey = scoreCol.accessorKey;
+        if (!accessorKey || columnVisibility[accessorKey] === false) return [];
+        const scoreKey = accessorKey.replace(/^Trace-/, "");
+        const dataType =
+          scoreDataTypesByKey[scoreFieldForLevel(level)].get(scoreKey);
+        if (!dataType) return [];
+        return [
+          {
+            scoreKey,
+            level,
+            dataType,
+            label:
+              typeof scoreCol.header === "string" ? scoreCol.header : scoreKey,
+          },
+        ];
+      });
+    return [
+      ...build(observationScoreColumns, "observation"),
+      ...build(traceScoreColumns, "trace"),
+    ];
+  }, [
+    observationScoreColumns,
+    traceScoreColumns,
+    scoreDataTypesByKey,
+    columnVisibility,
+  ]);
+
+  const matrixExperiments = useMemo(
+    () =>
+      [
+        ...(primaryExperimentId ? [primaryExperimentId] : []),
+        ...allExperimentIds.filter((id) => id !== primaryExperimentId),
+      ].map((experimentId) => ({
+        experimentId,
+        experimentName:
+          selectedExperimentNames.find(
+            (exp) => exp.experimentId === experimentId,
+          )?.experimentName ?? experimentId.slice(0, 8),
+        isBaseline: experimentId === primaryExperimentId,
+      })),
+    [allExperimentIds, primaryExperimentId, selectedExperimentNames],
+  );
+
   const peekNavigationProps = usePeekNavigation({
     queryParams: [
       "observation",
@@ -1765,7 +1818,22 @@ export default function ExperimentItemsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            {layout === "grid" ? (
+            {layout === "matrix" ? (
+              hasSelectedRuns ? (
+                <ExperimentScoreMatrix
+                  rows={rows}
+                  scoreRows={matrixScoreRows}
+                  experiments={matrixExperiments}
+                  isLoading={items.status === "loading" || isViewLoading}
+                />
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <span className="text-muted-foreground text-sm">
+                    Please select a baseline experiment.
+                  </span>
+                </div>
+              )
+            ) : layout === "grid" ? (
               hasSelectedRuns ? (
                 <ExperimentGridView
                   projectId={projectId}
