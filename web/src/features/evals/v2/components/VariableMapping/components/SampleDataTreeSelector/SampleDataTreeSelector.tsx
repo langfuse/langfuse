@@ -55,7 +55,10 @@ function MediaAwarePreview({
 
   return (
     <span
-      className="text-muted-foreground flex h-3.5 min-w-0 flex-1 items-center gap-0.5 overflow-hidden text-xs leading-none"
+      className={cn(
+        "text-muted-foreground flex min-w-0 flex-1 items-baseline gap-0.5 overflow-hidden text-xs leading-4",
+        directDescriptor && "self-center",
+      )}
       title={preview}
     >
       {segments.map((segment, index) =>
@@ -63,14 +66,14 @@ function MediaAwarePreview({
           <span
             key={index}
             data-tree-row-action=""
-            className="inline-flex shrink-0 items-center"
+            className="inline-flex shrink-0 self-center"
           >
             <MediaTag contentType={segment.descriptor.contentType} />
           </span>
         ) : (
           <span
             key={index}
-            className="flex h-3.5 min-w-0 items-center truncate leading-none whitespace-pre"
+            className="min-w-0 truncate leading-4 whitespace-pre"
             title={segment.value}
           >
             {segment.value}
@@ -159,7 +162,7 @@ function TreeRow({
     <>
       <div
         className={cn(
-          "group/row hover:bg-muted/50 flex w-full min-w-0 cursor-pointer items-center gap-2 px-2 py-1 text-left text-sm",
+          "group/row hover:bg-muted/50 flex w-full min-w-0 cursor-pointer items-baseline gap-2 px-2 py-1 text-left text-sm",
           isCurrent && "bg-primary-accent/5",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -176,7 +179,7 @@ function TreeRow({
         <button
           type="button"
           className={cn(
-            "flex min-w-0 cursor-pointer items-center gap-2 text-left",
+            "flex min-w-0 cursor-pointer items-baseline gap-2 text-left",
             hasMedia ? "shrink-0" : "flex-1",
           )}
           title={expandable ? preview : `Pull {{${variable}}} from here`}
@@ -184,17 +187,17 @@ function TreeRow({
           {expandable ? (
             <ChevronDown
               className={cn(
-                "text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform",
+                "text-muted-foreground h-3.5 w-3.5 shrink-0 self-center transition-transform",
                 !isOpen && "-rotate-90",
               )}
             />
           ) : (
-            <span className="h-3.5 w-3.5 shrink-0" />
+            <span className="h-3.5 w-3.5 shrink-0 self-center" />
           )}
           <span className="shrink-0 font-mono font-bold">{label}</span>
           {!hasMedia ? (
             <span
-              className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
+              className="text-muted-foreground min-w-0 flex-1 truncate text-xs leading-4"
               title={preview}
             >
               {preview}
@@ -209,18 +212,18 @@ function TreeRow({
         ) : null}
         {partial ? (
           <span
-            className="text-dark-yellow shrink-0 rounded border px-1 py-px text-[10px]"
+            className="text-dark-yellow shrink-0 self-center rounded border px-1 py-px text-[10px]"
             title="Not present in every entry of this list"
           >
             not in every entry
           </span>
         ) : null}
-        <span className="text-muted-foreground shrink-0 rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
+        <span className="text-muted-foreground shrink-0 self-center rounded border px-1 py-px text-[10px] group-focus-within/row:hidden group-hover/row:hidden">
           {badge ?? typeBadge(value)}
         </span>
         {isCurrent ? (
           <span
-            className="text-primary-accent bg-primary-accent/10 shrink-0 rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
+            className="text-primary-accent bg-primary-accent/10 shrink-0 self-center rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
             title={`{{${variable}}} currently maps to here`}
           >
             current
@@ -229,7 +232,7 @@ function TreeRow({
         <button
           type="button"
           data-tree-row-action=""
-          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 self-center rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
           title={`Pull {{${variable}}} from here`}
           onClick={() => onSelect(columnId, segments)}
         >
