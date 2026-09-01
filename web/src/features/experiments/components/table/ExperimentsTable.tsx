@@ -551,6 +551,8 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
+      // Off by default: 300px of mostly boilerplate ahead of the score columns.
+      defaultHidden: true,
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
@@ -563,6 +565,7 @@ export default function ExperimentsTable({
       header: getExperimentsColumnName("metadata"),
       size: 100,
       enableHiding: true,
+      defaultHidden: true,
       singleLine: rowHeight === "s",
     }),
     createNumberTableColumn<ExperimentsTableRow>({
