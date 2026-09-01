@@ -332,8 +332,8 @@ const fixtures: Record<string, WidgetInitialValues> = {
     chartType: "LINE_TIME_SERIES",
     chartConfig: { type: "LINE_TIME_SERIES" },
   },
-  // Historical widgets that stored count(toolCalls) — the silent undercount.
-  // Opening them must not rewrite count → sum via defaultAggregation.
+  // Historical widgets that stored count(toolCalls), the silent undercount.
+  // Opening them must not rewrite count to sum via defaultAggregation.
   "saved toolCalls with count aggregation": {
     name: "My tool calls widget",
     description: "saved copy",
