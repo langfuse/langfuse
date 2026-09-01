@@ -10,10 +10,12 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { ScoreTag, SCORE_LEVEL_LABELS } from "@/src/components/score-tag";
 import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { type QueryType } from "@langfuse/shared/query";
 import type { MetricOption } from "@/src/features/experiments/types/charts";
 import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
+import { SCORE_LEVEL_TAGS } from "@/src/features/experiments/constants/charts";
 import { cn } from "@/src/utils/tailwind";
 import {
   MetricStripBand,
@@ -243,6 +245,18 @@ export function ExperimentMetricStrip({
   const selectedLabel =
     selectedMetricOption?.label ?? metricId.split(":").pop() ?? metricId;
 
+  // Every dropdown row is tagged with its level; the header only needs the tag
+  // when the name alone doesn't say which series is drawn — the same score name
+  // can exist at two levels and the chart plots exactly one of them. A
+  // selected name that is unique reads plain, as in the tracing tables'
+  // filter picker.
+  const selectedLevel = selectedMetricOption?.level;
+  const isSelectedNameAmbiguous =
+    Boolean(selectedLevel) &&
+    availableMetricOptions.filter(
+      (option) => option.label === selectedMetricOption?.label,
+    ).length > 1;
+
   const isChartEnabled =
     Boolean(selectedMetricOption) && orderedExperiments.length > 0;
   const status: MetricStripStatus =
@@ -262,11 +276,15 @@ export function ExperimentMetricStrip({
         <MetricStripHeaderRow>
           <Select value={metricId} onValueChange={handleMetricChange}>
             <SelectTrigger
-              aria-label={`Chart metric: ${selectedLabel}`}
+              aria-label={
+                selectedLevel
+                  ? `Chart metric: ${selectedLabel} (${SCORE_LEVEL_LABELS[SCORE_LEVEL_TAGS[selectedLevel]]})`
+                  : `Chart metric: ${selectedLabel}`
+              }
               // The band's own bold trigger (`MetricStripTrigger`), on a
-              // Select rather than a DropdownMenu: this list is grouped and
-              // long (every score name, at three levels), so it needs the
-              // scrolling and type-to-find a Select brings.
+              // Select rather than a DropdownMenu: this list is long (every
+              // score name, at every level), so it needs the scrolling and
+              // type-to-find a Select brings.
               className={cn(
                 METRIC_STRIP_TRIGGER_CLASS,
                 metricStripTriggerClasses.metric,
@@ -277,6 +295,9 @@ export function ExperimentMetricStrip({
               <SelectValue placeholder="Select metric...">
                 {selectedLabel}
               </SelectValue>
+              {isSelectedNameAmbiguous && selectedLevel && (
+                <ScoreTag level={SCORE_LEVEL_TAGS[selectedLevel]} />
+              )}
               <ChevronDown className="h-2.5 w-2.5" />
             </SelectTrigger>
             <SelectContent>
@@ -286,8 +307,22 @@ export function ExperimentMetricStrip({
                     {group}
                   </SelectLabel>
                   {options.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
+                    <SelectItem
+                      key={option.id}
+                      value={option.id}
+                      // Type-to-find stays on the score name, so the level tag
+                      // can't swallow a keystroke.
+                      textValue={option.label}
+                    >
+                      <span className="flex items-center">
+                        {option.label}
+                        {option.level && (
+                          <ScoreTag
+                            level={SCORE_LEVEL_TAGS[option.level]}
+                            className="ml-1.5"
+                          />
+                        )}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectGroup>

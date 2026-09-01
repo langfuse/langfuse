@@ -1,3 +1,4 @@
+import type { ScoreLevel as ScoreTagLevel } from "@/src/components/score-tag";
 import type {
   ScoreLevel,
   ScoreMetricSpec,
@@ -11,42 +12,46 @@ export const BASE_CHART_IDS = {
   LATENCY: "base:latency",
 } as const;
 
+/**
+ * The level tag shown next to a score name in the metric dropdown, in the
+ * vocabulary the tracing tables' score pickers use (`ScoreTag`). (LFE-15711)
+ */
+export const SCORE_LEVEL_TAGS: Record<ScoreLevel, ScoreTagLevel> = {
+  obs: "observation",
+  trace: "trace",
+  experiment: "experiment",
+};
+
 export const SCORE_METRIC_SPECS: ScoreMetricSpec = {
   "obs:numeric": {
     level: "obs",
     dataType: "numeric",
     filterKey: "obs_scores_avg",
-    group: "Observation Scores",
   },
   "obs:categorical": {
     level: "obs",
     dataType: "categorical",
     filterKey: "obs_score_categories",
-    group: "Observation Scores",
   },
   "trace:numeric": {
     level: "trace",
     dataType: "numeric",
     filterKey: "trace_scores_avg",
-    group: "Trace Scores",
   },
   "trace:categorical": {
     level: "trace",
     dataType: "categorical",
     filterKey: "trace_score_categories",
-    group: "Trace Scores",
   },
   "experiment:numeric": {
     level: "experiment",
     dataType: "numeric",
     filterKey: "experiment_scores_avg",
-    group: "Experiment Scores",
   },
   "experiment:categorical": {
     level: "experiment",
     dataType: "categorical",
     filterKey: "experiment_score_categories",
-    group: "Experiment Scores",
   },
 };
 

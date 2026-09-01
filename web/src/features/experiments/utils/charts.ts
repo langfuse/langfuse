@@ -101,14 +101,23 @@ export function buildWidgetConfigFromId(chartId: string) {
   });
 }
 
+/** Order two entries for the same score name take: obs, trace, then run. */
+const LEVEL_SORT_ORDER: ScoreLevel[] = ["obs", "trace", "experiment"];
+
 /**
  * Build all available metric options from score filter options for the dropdown.
+ *
+ * The score metrics are ONE flat, alphabetical list: the level is a tag on the
+ * entry, not a structural division, so the strip reads like the tracing tables'
+ * level-agnostic score facets. A name recorded at two levels yields two
+ * entries — each still plots exactly one level — sorted next to each other.
+ * (LFE-15711)
  */
 export function buildMetricOptions(
   scoreFilterOptions: ScoreFilterOptions,
 ): MetricOption[] {
   const scoreOptions = Object.values(SCORE_METRIC_SPECS).flatMap(
-    ({ level, dataType, filterKey, group }) => {
+    ({ level, dataType, filterKey }) => {
       const scoreNames = getScoreNamesFromFilterOption(
         scoreFilterOptions[filterKey],
         dataType,
@@ -117,9 +126,16 @@ export function buildMetricOptions(
       return scoreNames.map((scoreName) => ({
         id: buildScoreChartId(level, dataType, scoreName),
         label: scoreName,
-        group,
+        group: "Scores" as const,
+        level,
       }));
     },
+  );
+
+  scoreOptions.sort(
+    (a, b) =>
+      a.label.localeCompare(b.label) ||
+      LEVEL_SORT_ORDER.indexOf(a.level) - LEVEL_SORT_ORDER.indexOf(b.level),
   );
 
   return [

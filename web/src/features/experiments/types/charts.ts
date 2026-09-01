@@ -2,11 +2,14 @@
 export type MetricOption = {
   id: string;
   label: string;
-  group:
-    | "Base Metrics"
-    | "Observation Scores"
-    | "Trace Scores"
-    | "Experiment Scores";
+  group: "Base Metrics" | "Scores";
+  /**
+   * The level the score was recorded at, absent on base metrics. Presentation
+   * only: the metric still resolves to one level to plot, but the dropdown
+   * tags the entry with the level instead of splitting the list by it — the
+   * tracing tables' score facets read the same way. (LFE-15711)
+   */
+  level?: ScoreLevel;
 };
 
 export type ScoreFilterOptions = {
@@ -39,6 +42,5 @@ export type ScoreMetricSpec = Record<
     level: ScoreLevel;
     dataType: ScoreChartDataType;
     filterKey: keyof ScoreFilterOptions;
-    group: Exclude<MetricOption["group"], "Base Metrics">;
   }
 >;
