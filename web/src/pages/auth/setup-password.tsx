@@ -4,27 +4,22 @@ import { type GetServerSideProps } from "next";
 
 type PageProps = {
   passwordResetAvailable: boolean;
-  initialEmail: string;
 };
 
-export const getServerSideProps: GetServerSideProps<PageProps> = async ({
-  query,
-}) => {
+export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   return {
     props: {
       passwordResetAvailable:
         env.SMTP_CONNECTION_URL !== undefined &&
         env.EMAIL_FROM_ADDRESS !== undefined,
-      initialEmail: typeof query.email === "string" ? query.email : "",
     },
   };
 };
 
-const Page = ({ passwordResetAvailable, initialEmail }: PageProps) => {
+const Page = ({ passwordResetAvailable }: PageProps) => {
   return (
     <ResetPasswordPage
       passwordResetAvailable={passwordResetAvailable}
-      initialEmail={initialEmail}
       intent="setup"
     />
   );

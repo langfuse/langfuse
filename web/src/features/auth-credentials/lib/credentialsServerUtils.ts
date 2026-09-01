@@ -7,9 +7,12 @@ import { TRPCError } from "@trpc/server";
 import { compare, hash } from "bcryptjs";
 
 function hashEmailOtpToken(token: string) {
+  if (!env.NEXTAUTH_SECRET) {
+    throw new Error("NEXTAUTH_SECRET is required for password reset.");
+  }
   // NextAuth applies this digest before storing email-provider tokens.
   return createHash("sha256")
-    .update(`${token}${env.NEXTAUTH_SECRET ?? ""}`)
+    .update(`${token}${env.NEXTAUTH_SECRET}`)
     .digest("hex");
 }
 

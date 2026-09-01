@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,6 +26,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 const resetPasswordSchema = z
   .object({
@@ -76,6 +77,18 @@ export function ResetPasswordPage({
     },
   });
 
+  useEffect(() => {
+    if (intent !== "setup" || initialEmail) return;
+
+    const storedEmail = sessionStorage.getItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+    );
+    if (storedEmail) {
+      setEmail(storedEmail);
+      setCodeRequested(true);
+    }
+  }, [initialEmail, intent]);
+
   async function onSubmit(values: z.infer<typeof resetPasswordSchema>) {
     setFormError(null);
     setIsSuccess(false);
@@ -94,6 +107,10 @@ export function ResetPasswordPage({
         token: values.token,
         password: values.password,
       });
+
+      if (isSetMode) {
+        sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
+      }
 
       let target =
         isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";

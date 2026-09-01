@@ -34,6 +34,7 @@ import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 // Use the same getServerSideProps function as src/pages/auth/sign-in.tsx
 export { getServerSideProps } from "@/src/pages/auth/sign-in";
@@ -373,9 +374,11 @@ function VerifiedSignupFlow({
       }
 
       capture("sign_up:button_click", { provider: "email_verification" });
-      await router.push(
-        `/auth/setup-password?email=${encodeURIComponent(values.email.toLowerCase())}`,
+      sessionStorage.setItem(
+        PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+        values.email.toLowerCase(),
       );
+      await router.push("/auth/setup-password");
     } catch {
       setFormError("An error occurred. Please try again.");
     }
