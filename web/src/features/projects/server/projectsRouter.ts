@@ -224,6 +224,9 @@ export const projectsRouter = createTRPCRouter({
         action: "delete",
       });
 
+      // Refresh org-scoped keys' baked projectIds now that a project is gone.
+      await invalidateCachedOrgApiKeys(ctx.session.orgId);
+
       // Soft-delete is the billing-relevant moment: the customer stops being
       // billable now, not when the async hard-delete worker finishes.
       emitChbProjectEvent({
@@ -320,6 +323,10 @@ export const projectsRouter = createTRPCRouter({
         ctx.prisma,
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
+
+      // Both orgs' org-scoped keys bake a projectId set that just changed.
+      await invalidateCachedOrgApiKeys(ctx.session.orgId);
+      await invalidateCachedOrgApiKeys(input.targetOrgId);
 
       // A transfer is a delete for the source org and a create for the
       // destination one. CHB's registry is keyed by (organizationId,
