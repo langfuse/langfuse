@@ -274,7 +274,7 @@ export function DashboardWidget({
       },
       queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute`,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({

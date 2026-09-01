@@ -581,7 +581,7 @@ export function WidgetForm({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       enabled: queryValidation.valid,
     },
   );

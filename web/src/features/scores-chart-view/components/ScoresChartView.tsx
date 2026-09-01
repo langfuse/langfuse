@@ -79,7 +79,7 @@ export function ScoresChartView({
     { projectId, query, version: viewVersion },
     {
       enabled: validRange,
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       trpc: { context: { skipBatch: true } },
     },
   );

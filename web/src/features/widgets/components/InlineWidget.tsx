@@ -153,7 +153,7 @@ export function WidgetContent({
       },
       queryId: schedulerId,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
