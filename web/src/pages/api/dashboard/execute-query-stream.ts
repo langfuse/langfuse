@@ -41,10 +41,12 @@ function formatSSEEvent(event: SSEEvent): string {
   }
 }
 
+// `version` is required on purpose — see dashboard.executeQuery: an implicit
+// v1 default let unresolved-session clients silently pick the read path.
 const inputSchema = z.object({
   projectId: z.string(),
   query: customQuery,
-  version: viewVersions.optional().default("v1"),
+  version: viewVersions,
 });
 
 export default async function handler(

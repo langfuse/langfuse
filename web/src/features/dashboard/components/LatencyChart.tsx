@@ -42,7 +42,7 @@ export const GenerationLatencyChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
 }) => {
