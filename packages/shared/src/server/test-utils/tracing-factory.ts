@@ -152,8 +152,11 @@ export const createObservation = (
     prompt_id: v4(),
     prompt_name: "generation-prompt",
     prompt_version: 1,
-    end_time: toClickhouseDateTime(end_time),
-    completion_start_time: toClickhouseDateTime(completion_start_time),
+    end_time: end_time === null ? null : toClickhouseDateTime(end_time),
+    completion_start_time:
+      completion_start_time === null
+        ? null
+        : toClickhouseDateTime(completion_start_time),
     tool_definitions: {},
     tool_calls: [],
     tool_call_names: [],
@@ -390,10 +393,11 @@ export const createEvent = (
 
     // Timestamps (ClickHouse DateTime64 strings)
     start_time: toEventClickhouseDateTime(start_time),
-    end_time: toEventClickhouseDateTime(end_time),
-    completion_start_time: completion_start_time
-      ? toEventClickhouseDateTime(completion_start_time)
-      : null,
+    end_time: end_time === null ? null : toEventClickhouseDateTime(end_time),
+    completion_start_time:
+      completion_start_time == null
+        ? null
+        : toEventClickhouseDateTime(completion_start_time),
     created_at: toEventClickhouseDateTime(created_at),
     updated_at: toEventClickhouseDateTime(updated_at),
     event_ts: toEventClickhouseDateTime(event_ts),
