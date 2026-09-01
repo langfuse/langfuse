@@ -249,15 +249,12 @@ describe("AI SDK telemetry integration", () => {
         metadata: { attributes?: Record<string, unknown> };
       }
     ).metadata;
-    expect(generationMetadata.attributes).not.toHaveProperty(
-      "langfuse.evaluator.id",
-    );
-    expect(generationMetadata.attributes).not.toHaveProperty(
-      "langfuse.evaluation.rule.id",
-    );
-    expect(generationMetadata.attributes).not.toHaveProperty(
-      "langfuse.evaluator.execution.is_test",
-    );
+    expect(generationMetadata.attributes).toMatchObject({
+      "gen_ai.operation.name": "chat",
+      "langfuse.evaluator.id": "evaluator-1",
+      "langfuse.evaluation.rule.id": "legacy-rule-1",
+      "langfuse.evaluator.execution.is_test": "true",
+    });
 
     const eventInputs = processor.processToEvent(resourceSpans);
     expect(eventInputs).toHaveLength(2);

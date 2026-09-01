@@ -206,7 +206,7 @@ describe("IngestionService unit tests", () => {
     ]);
   });
 
-  it("prefers evaluation context while stripping compatibility metadata from events", async () => {
+  it("persists evaluation context in dedicated columns without removing metadata", async () => {
     const ingestionService = new IngestionService(
       {} as any,
       {} as any,
@@ -242,8 +242,16 @@ describe("IngestionService unit tests", () => {
     expect(eventRecord.evaluator_id).toBe("evaluator-1");
     expect(eventRecord.evaluation_rule_id).toBe("rule-1");
     expect(eventRecord.evaluator_execution_is_test).toBe(false);
-    expect(eventRecord.metadata_names).toEqual([]);
-    expect(eventRecord.metadata_values).toEqual([]);
+    expect(eventRecord.metadata_names).toEqual([
+      "evaluator_id",
+      "job_configuration_id",
+      "evaluator_test",
+    ]);
+    expect(eventRecord.metadata_values).toEqual([
+      "legacy-evaluator-1",
+      "legacy-rule-1",
+      "true",
+    ]);
   });
 
   it("preserves non-JSON model parameter strings on direct events", async () => {
@@ -642,6 +650,10 @@ describe("IngestionService unit tests", () => {
         evaluation_rule_id: "rule-1",
         metadata: {
           job_execution_id: "job-1",
+          evaluator_id: "legacy-evaluator-1",
+          evaluation_rule_id: "legacy-rule-1",
+          job_configuration_id: "legacy-job-configuration-1",
+          evaluator_test: "true",
         },
       }),
     );

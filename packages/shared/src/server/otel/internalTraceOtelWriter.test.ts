@@ -115,15 +115,11 @@ describe("writeInternalTraceViaOtelIngestion", () => {
         evaluatorExecutionIsTest: true,
       },
     });
-    expect(root.metadata.attributes).not.toHaveProperty(
-      "langfuse.evaluator.id",
-    );
-    expect(root.metadata.attributes).not.toHaveProperty(
-      "langfuse.evaluation.rule.id",
-    );
-    expect(root.metadata.attributes).not.toHaveProperty(
-      "langfuse.evaluator.execution.is_test",
-    );
+    expect(root.metadata.attributes).toMatchObject({
+      "langfuse.evaluator.id": "evaluator-1",
+      "langfuse.evaluation.rule.id": "legacy-rule-1",
+      "langfuse.evaluator.execution.is_test": "true",
+    });
   });
 
   it("remaps child parentSpanId onto the regenerated span ids", async () => {

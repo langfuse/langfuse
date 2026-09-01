@@ -9,7 +9,6 @@ import {
   PrismaClient,
   Prompt,
   safeJsonParse,
-  EvalExecutionMetadataKey,
   type JsonNested,
 } from "@langfuse/shared";
 import {
@@ -103,15 +102,6 @@ function toPricingAttributeRecord(value: unknown): Record<string, string> {
         : [],
     ),
   );
-}
-
-function removePromotedEvalMetadata(metadata: Record<string, unknown>) {
-  const remainingMetadata = { ...metadata };
-  delete remainingMetadata[EvalExecutionMetadataKey.EVALUATOR_ID];
-  delete remainingMetadata[EvalExecutionMetadataKey.EVALUATION_RULE_ID];
-  delete remainingMetadata[EvalExecutionMetadataKey.JOB_CONFIGURATION_ID];
-  delete remainingMetadata[EvalExecutionMetadataKey.EVALUATOR_TEST];
-  return remainingMetadata;
 }
 
 export type EventInput = InternalTraceEventInput;
@@ -366,12 +356,8 @@ export class IngestionService {
 
     const now = this.getMicrosecondTimestamp();
 
-    const metadataToPersist = eventData.evaluationContext
-      ? removePromotedEvalMetadata(metadata)
-      : metadata;
-
     // Flatten raw metadata first (before stringification destroys nested structure)
-    const flattened = flattenJsonToPathArrays(metadataToPersist);
+    const flattened = flattenJsonToPathArrays(metadata);
     const metadataNames = flattened.names;
     // Defensive: coerce null/undefined to empty string for Array(String) ClickHouse column.
     // Should not be required as convertValueToPlainJavascript() never returns null.
@@ -675,11 +661,6 @@ export class IngestionService {
                 evaluatorId?: string;
                 evaluationRuleId?: string;
               };
-            const metadata =
-              evaluationFields.evaluatorId !== undefined ||
-              evaluationFields.evaluationRuleId !== undefined
-                ? removePromotedEvalMetadata(rawMetadata)
-                : rawMetadata;
             return {
               id: entityId,
               project_id: projectId,
@@ -695,7 +676,7 @@ export class IngestionService {
               observation_id: validatedScore.observationId,
               config_id: validatedScore.configId,
               comment: validatedScore.comment,
-              metadata: convertRecordValuesToString(metadata),
+              metadata: convertRecordValuesToString(rawMetadata),
               evaluator_id: evaluationFields.evaluatorId,
               evaluation_rule_id: evaluationFields.evaluationRuleId,
               string_value: validatedScore.stringValue,

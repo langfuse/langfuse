@@ -27,10 +27,7 @@ import {
   LangfuseInternalTraceEnvironment,
 } from "../";
 
-import {
-  EVALUATION_CONTEXT_ATTRIBUTE_KEYS,
-  LangfuseOtelSpanAttributes,
-} from "./attributes";
+import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
@@ -1733,12 +1730,6 @@ export class OtelIngestionProcessor {
 
     // Delete simple keys
     potentialInputOutputKeys.forEach((key) => {
-      delete rawFilteredAttributes[key];
-    });
-
-    // Evaluator linkage is promoted to dedicated event fields and must not be
-    // duplicated in the generic OTel attributes metadata object.
-    EVALUATION_CONTEXT_ATTRIBUTE_KEYS.forEach((key) => {
       delete rawFilteredAttributes[key];
     });
 

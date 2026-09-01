@@ -60,12 +60,6 @@ export enum LangfuseOtelSpanAttributes {
   EVALUATOR_EXECUTION_IS_TEST = "langfuse.evaluator.execution.is_test",
 }
 
-export const EVALUATION_CONTEXT_ATTRIBUTE_KEYS = [
-  LangfuseOtelSpanAttributes.EVALUATOR_ID,
-  LangfuseOtelSpanAttributes.EVALUATION_RULE_ID,
-  LangfuseOtelSpanAttributes.EVALUATOR_EXECUTION_IS_TEST,
-] as const;
-
 export function buildEvaluationAttributes(
   evaluationContext: EvalExecutionContext,
 ) {
