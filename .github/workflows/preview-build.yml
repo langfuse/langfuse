@@ -166,14 +166,14 @@ jobs:
           - target: web
             image: ${{ needs.meta.outputs.web_image }}
             dockerfile: web/Dockerfile
-            # web disables sign-up on previews; worker has no such arg.
-            # The cloud region must be baked at build time (NEXT_PUBLIC_* is
-            # inlined into the client bundle) so previews render the cloud-only
-            # AI features; the worker reads it from runtime env instead.
+            # Signup is on (Mailpit catches mail and does not relay). The cloud
+            # region must be baked at build time (NEXT_PUBLIC_* is inlined into
+            # the client bundle) so previews render the cloud-only AI features;
+            # the worker reads it from runtime env instead.
             # Auto sign-in with the shared seeded demo identity — previews are
             # disposable, synthetic-data-only environments with an intentionally
             # public login, so visitors should not have to type it.
-            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=false --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
