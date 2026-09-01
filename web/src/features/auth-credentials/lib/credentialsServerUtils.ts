@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { compare, hash } from "bcryptjs";
 
 function hashEmailOtpToken(token: string) {
+  // NextAuth applies this digest before storing email-provider tokens.
   return createHash("sha256")
     .update(`${token}${env.NEXTAUTH_SECRET ?? ""}`)
     .digest("hex");
@@ -62,21 +63,6 @@ export async function createUserEmailPassword(
   });
 
   return newUser.id;
-}
-
-export async function updateUserPassword(userId: string, password: string) {
-  if (!isValidPassword(password))
-    throw new Error("Password needs to be at least 8 characters long.");
-
-  const hashedPassword = await hashPassword(password);
-  await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      password: hashedPassword,
-    },
-  });
 }
 
 export async function consumeEmailOtpAndUpdatePassword({
