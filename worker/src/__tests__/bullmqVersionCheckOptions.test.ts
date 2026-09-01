@@ -123,6 +123,25 @@ describe("BullMQ Redis version check options", () => {
     });
   });
 
+  test("hashes repeatable-job keys with a FIPS-approved algorithm", async () => {
+    const { redisModule } = await importRedisModule();
+
+    // bullmq defaults repeatKeyHashAlgorithm to md5, which an OpenSSL FIPS
+    // provider refuses. Without this setting the legacy-schedule cleanup in
+    // scheduleRecurringJob throws ERR_OSSL_EVP_UNSUPPORTED on a FIPS image,
+    // leaving stale md5-keyed schedules firing alongside the job scheduler.
+    expect(
+      redisModule.createBullMQQueueOptionsWithRedis("test-queue"),
+    ).toMatchObject({
+      settings: { repeatKeyHashAlgorithm: "sha256" },
+    });
+    expect(
+      redisModule.createBullMQWorkerOptionsWithRedis("test-queue"),
+    ).toMatchObject({
+      settings: { repeatKeyHashAlgorithm: "sha256" },
+    });
+  });
+
   test("uses worker Redis retry options without disabling offline queue", async () => {
     const { redisInstances, redisModule } = await importRedisModule();
     const options =
