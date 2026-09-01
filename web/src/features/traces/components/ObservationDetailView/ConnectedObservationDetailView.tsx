@@ -54,7 +54,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 import { api } from "@/src/utils/api";
 
 // Extracted components
-import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader";
+import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
@@ -64,6 +64,7 @@ import {
 } from "@/src/features/traces/fns/traceAggregation";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ObservationPreview } from "./ObservationPreview";
 
 export interface ConnectedObservationDetailViewProps {
@@ -176,15 +177,30 @@ export function ConnectedObservationDetailView({
     setGlobalSelectedTab(tab);
   };
 
+  // The normalized-parser formatted view is gated to admins and explicitly
+  // flagged users; it must never surface for regular users.
+  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+    projectId,
+  });
+
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  // A persisted "pretty-beta" preference clamps to "pretty" when the beta
+  // tab is unavailable, so the highlighted tab matches the rendered parser.
+  const selectedViewTab =
+    currentView === "pretty-beta"
+      ? showPrettyBeta
+        ? "pretty-beta"
+        : "pretty"
+      : currentView === "pretty"
+        ? "pretty"
+        : "json";
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
-      if (tab === "pretty") {
-        setJsonViewPreference("pretty");
+      if (tab === "pretty" || tab === "pretty-beta") {
+        setJsonViewPreference(tab);
       } else {
         // When switching to JSON, use beta preference
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
@@ -358,7 +374,9 @@ export function ConnectedObservationDetailView({
                   <Tabs
                     className="ml-auto h-fit px-2 py-0.5"
                     value={
-                      selectedTab === "log" && isLogViewVirtualized
+                      selectedTab === "log" &&
+                      (isLogViewVirtualized ||
+                        selectedViewTab === "pretty-beta")
                         ? "pretty"
                         : selectedViewTab
                     }
@@ -374,6 +392,16 @@ export function ConnectedObservationDetailView({
                     }}
                   >
                     <TabsList className="h-fit py-0.5">
+                      {/* Log view never runs the normalized parser, so the
+                          beta tab only renders on the preview tab. */}
+                      {showPrettyBeta && selectedTab !== "log" && (
+                        <TabsTrigger
+                          value="pretty-beta"
+                          className="h-fit px-1 text-xs"
+                        >
+                          Normalized (beta)
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger
                         value="pretty"
                         className="h-fit px-1 text-xs"
