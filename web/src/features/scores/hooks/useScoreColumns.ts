@@ -8,31 +8,47 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { toOrderedScoresList } from "@/src/features/scores/lib/helpers";
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import {
+  getScoreDataTypeIcon,
+  withPresentScoreKeys,
+} from "@/src/features/scores/lib/scoreColumns";
 
 // Simple score column creation - exported for reuse
-export function createScoreColumns<T extends Record<string, any>>(
+export function createScoreColumns<T extends Record<string, any>>({
+  scoreColumns,
+  scoreColumnKey,
+  displayFormat,
+  prefix,
+  headerPrefix,
+  defaultHidden,
+  rawKey,
+}: {
   scoreColumns: Array<{
     key: string;
     name: string;
     source: string;
     dataType: ScoreDataTypeType;
-  }>,
-  scoreColumnKey: keyof T & string,
-  displayFormat: "smart" | "aggregate",
-  prefix?: string,
-  defaultHidden?: boolean,
-  rawKey?: boolean,
-): LangfuseColumnDef<T>[] {
+  }>;
+  scoreColumnKey: keyof T & string;
+  displayFormat: "smart" | "aggregate";
+  /** Prefix for the column id/accessor, keeping two score levels apart. */
+  prefix?: string;
+  /** Score level shown in the header. Defaults to `prefix`. */
+  headerPrefix?: string;
+  defaultHidden?: boolean;
+  rawKey?: boolean;
+}): LangfuseColumnDef<T>[] {
   return scoreColumns.map(({ key, name, source, dataType }) => {
     const accessorKey = prefix ? `${prefix}-${key}` : key;
     // The score's name identifies the column, so it comes first. A score
     // column is narrow and truncates from the right, so a leading level ate
     // the name and left every column of a level looking alike. The level
     // still trails the name, where the hover title and the column picker
-    // pick it up in full.
+    // pick it up in full. The header level is decoupled from the id prefix so
+    // the level can be renamed without orphaning persisted visibility/order.
+    const level = headerPrefix ?? prefix;
     const label = `${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`;
-    const header = prefix ? `${label} · ${prefix}` : label;
+    const header = level ? `${label} · ${level}` : label;
 
     return {
       accessorKey,
@@ -71,10 +87,12 @@ export function useScoreColumns<T extends Record<string, any>>({
   fromTimestamp,
   toTimestamp,
   prefix,
+  headerPrefix,
   isFilterDataPending = false,
   displayFormat = "smart",
   defaultHidden,
   rawKey = false,
+  presentKeys,
 }: {
   projectId: string;
   scoreColumnKey: keyof T & string;
@@ -82,10 +100,18 @@ export function useScoreColumns<T extends Record<string, any>>({
   fromTimestamp?: Date;
   toTimestamp?: Date;
   prefix?: string;
+  /** Score level shown in the header. Defaults to `prefix`. */
+  headerPrefix?: string;
   isFilterDataPending?: boolean;
   displayFormat?: "smart" | "aggregate";
   defaultHidden?: boolean;
   rawKey?: boolean;
+  /**
+   * Restricts the columns to the score keys that actually carry a value in the
+   * current result set. Leave undefined to create a column per discovered
+   * score, and while that data is still loading.
+   */
+  presentKeys?: ReadonlySet<string>;
 }) {
   const scoreColumnsQuery = api.scores.getScoreColumns.useQuery(
     {
@@ -102,21 +128,27 @@ export function useScoreColumns<T extends Record<string, any>>({
   const scoreColumns = useMemo(() => {
     if (!scoreColumnsQuery.data?.scoreColumns) return [];
 
-    return createScoreColumns<T>(
-      toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
+    return createScoreColumns<T>({
+      scoreColumns: withPresentScoreKeys(
+        toOrderedScoresList(scoreColumnsQuery.data.scoreColumns),
+        presentKeys,
+      ),
       scoreColumnKey,
       displayFormat,
       prefix,
+      headerPrefix,
       defaultHidden,
       rawKey,
-    );
+    });
   }, [
     scoreColumnsQuery.data?.scoreColumns,
     scoreColumnKey,
     prefix,
+    headerPrefix,
     displayFormat,
     defaultHidden,
     rawKey,
+    presentKeys,
   ]);
 
   return {

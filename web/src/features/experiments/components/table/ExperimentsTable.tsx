@@ -44,6 +44,7 @@ import Link from "next/link";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
+import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -52,7 +53,11 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import {
+  collectPresentScoreKeys,
+  revealScoreColumns,
+  scoreFilters,
+} from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
@@ -107,6 +112,7 @@ const repositionTrailingMetadata = (order: string[]): string[] => {
   return next;
 };
 
+/** The table's score column groups, by the score level each one holds. */
 /**
  * Owns every consumer of the selection state (action menu, compare navigation,
  * run-evaluator dialog) so checkbox clicks re-render only this menu and the
@@ -428,12 +434,28 @@ export default function ExperimentsTable({
   );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
-    projectId,
-    filterState,
-    orderByState,
-    paginationState,
-  });
+  const { experiments, totalCount, dataUpdatedAt, metricsLoading } =
+    useExperimentsTableData({
+      projectId,
+      filterState,
+      orderByState,
+      paginationState,
+    });
+
+  // A score column that is empty for every experiment in view is noise, so only
+  // create columns for the keys the metrics query actually returned. Undefined
+  // while metrics load, so columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
+      observationItem: collectPresentScoreKeys(
+        rows.map((r) => r.observationItemScores),
+      ),
+      experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -465,7 +487,7 @@ export default function ExperimentsTable({
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
-    defaultHidden: true,
+    presentKeys: presentScoreKeys?.traceItem,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -476,6 +498,7 @@ export default function ExperimentsTable({
     rawKey: true,
     displayFormat: "aggregate",
     scoreColumnKey: "observationItemScores",
+    headerPrefix: "Observation",
     projectId,
     filter:
       experiments.rows && experiments.rows.length > 0
@@ -484,6 +507,7 @@ export default function ExperimentsTable({
           })
         : [],
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.observationItem,
   });
 
   // Experiment-level scores (direct dataset_run_id match)
@@ -502,6 +526,7 @@ export default function ExperimentsTable({
     rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.experiment,
   });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
@@ -669,10 +694,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: "Observation Scores",
       id: "observationItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -682,10 +706,9 @@ export default function ExperimentsTable({
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: "Experiment Scores",
       id: "experimentScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isExperimentScoreColumnLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -695,10 +718,40 @@ export default function ExperimentsTable({
     },
   ];
 
+  const scoreColumnIds = useMemo(
+    () =>
+      [
+        ...traceItemScoreColumns,
+        ...observationItemScoreColumns,
+        ...experimentScoreColumns,
+      ].map((column) => column.accessorKey),
+    [
+      traceItemScoreColumns,
+      observationItemScoreColumns,
+      experimentScoreColumns,
+    ],
+  );
+
+  // LFE-15711: score columns are now visible by default. A returning user has
+  // `false` persisted for every one of them from the previous default, so this
+  // one-time migration reaches them too — see `revealScoreColumns` for how a
+  // user who picked their own score columns is left alone.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          revealScoreColumns(visibility, scoreColumnIds),
+      },
+    ],
+    [projectId, scoreColumnIds],
+  );
+
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentsTableRow>(
       `experimentsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
 
   // One-time migration for LFE-10460 on the localStorage replay path:
