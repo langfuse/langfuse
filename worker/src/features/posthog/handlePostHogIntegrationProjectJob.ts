@@ -17,6 +17,7 @@ import {
   transformEventForPostHog,
   transformScoreForPostHog,
 } from "./transformers";
+import { hostnameForLog } from "../analyticsIntegrationEgress";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -316,7 +317,7 @@ export const handlePostHogIntegrationProjectJob = async (
     await validateWebhookURL(postHogIntegration.posthogHostName);
   } catch (error) {
     logger.error(
-      `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+      `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${hostnameForLog(postHogIntegration.posthogHostName)}. Error: ${error instanceof Error ? error.message : String(error)}`,
     );
     throw new Error(
       `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
