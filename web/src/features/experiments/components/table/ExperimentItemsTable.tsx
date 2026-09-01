@@ -759,6 +759,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "observationId",
       id: "observationId",
+      headerLabel: "Observation ID",
       header: () => renderExperimentSpecificHeader("Observation ID"),
       size: 180,
       enableHiding: true,
@@ -777,6 +778,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "startTime",
       id: "startTime",
+      headerLabel: getExperimentItemsColumnName("startTime"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("startTime"),
@@ -808,6 +810,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "level",
       id: "level",
+      headerLabel: getExperimentItemsColumnName("level"),
       header: () =>
         renderExperimentSpecificHeader(getExperimentItemsColumnName("level")),
       size: 120,
@@ -828,6 +831,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "totalCost",
       id: "totalCost",
+      headerLabel: getExperimentItemsColumnName("totalCost"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("totalCost"),
@@ -855,6 +859,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "latencyMs",
       id: "latencyMs",
+      headerLabel: getExperimentItemsColumnName("latencyMs"),
       header: () =>
         renderExperimentSpecificHeader(
           getExperimentItemsColumnName("latencyMs"),
@@ -882,6 +887,7 @@ export default function ExperimentItemsTable({
     {
       accessorKey: "experimentId",
       id: "experimentId",
+      headerLabel: "Experiment",
       header: () => renderExperimentSpecificHeader("Experiment"),
       size: 150,
       defaultHidden: true,
