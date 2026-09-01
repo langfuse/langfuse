@@ -22,6 +22,12 @@ describe("convertDateTime64TicksToClickhouseDateTime", () => {
       "2024-11-06 20:37:00.123456",
     );
   });
+
+  it("keeps pre-epoch DateTime64(6) ticks on the same instant", () => {
+    expect(convertDateTime64TicksToClickhouseDateTime(-1234567, 6)).toBe(
+      "1969-12-31 23:59:58.765433",
+    );
+  });
 });
 
 describe("quoteDateTime64InsertValue", () => {

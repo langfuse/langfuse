@@ -90,8 +90,8 @@ export const convertDateTime64TicksToClickhouseDateTime = (
     return convertDateToClickhouseDateTime(new Date(ticks));
   }
 
-  const milliseconds = Math.trunc(ticks / 1000);
-  const microsecondRemainder = Math.abs(ticks % 1000);
+  const milliseconds = Math.floor(ticks / 1000);
+  const microsecondRemainder = ((ticks % 1000) + 1000) % 1000;
   return `${convertDateToClickhouseDateTime(new Date(milliseconds))}${String(microsecondRemainder).padStart(3, "0")}`;
 };
 
