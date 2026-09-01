@@ -1,5 +1,4 @@
 import type { FilterState } from "@langfuse/shared";
-import { areStringSetsEqual } from "./stringSetUtils";
 
 type EnvironmentFilter = Extract<
   FilterState[number],
@@ -25,6 +24,29 @@ export function buildManagedEnvironmentPolicyConfig(
   };
 }
 
+function partitionNoneOfEnvironmentValues(params: {
+  values: string[];
+  hiddenEnvironments: string[];
+}): {
+  extras: string[];
+  hiddenInValues: string[];
+  excludesAllHidden: boolean;
+} {
+  const { values, hiddenEnvironments } = params;
+  const hiddenSet = new Set(hiddenEnvironments);
+  const extras = values.filter((value) => !hiddenSet.has(value));
+  const hiddenInValues = values.filter((value) => hiddenSet.has(value));
+  const valueSet = new Set(values);
+
+  return {
+    extras,
+    hiddenInValues,
+    excludesAllHidden:
+      hiddenEnvironments.length > 0 &&
+      hiddenEnvironments.every((environment) => valueSet.has(environment)),
+  };
+}
+
 // Only the SYSTEM-shaped implicit default — the `none of [hidden]` filter the
 // sidebar auto-derives, and that the facet re-creates when the user clears back
 // to the default selection — counts as "no real filter" and is stripped before
@@ -33,18 +55,39 @@ export function buildManagedEnvironmentPolicyConfig(
 // happens to select exactly the current default set: if the user committed to a
 // value we keep it explicit and visible. Returning to the default is the user's
 // action (remove the filter / uncheck back to default), not something we infer.
-function isEquivalentToImplicitEnvironmentDefault(params: {
+//
+// A `none of [hidden ∪ extras]` exclusion is the same default plus the user's
+// extra unchecked values (unchecking production from the implicit default).
+// Persist only the extras so the search bar shows the non-default values
+// (`-environment:production`) instead of burying them in the hidden-env list.
+function canonicalizeNoneOfEnvironmentFilter(params: {
   envFilter: EnvironmentFilter;
   hiddenEnvironments: string[];
-}): boolean {
+}): EnvironmentFilter | null {
   const { envFilter, hiddenEnvironments } = params;
 
-  if (hiddenEnvironments.length === 0) return false;
+  if (envFilter.operator !== "none of") {
+    return envFilter;
+  }
 
-  return (
-    envFilter.operator === "none of" &&
-    areStringSetsEqual(envFilter.value, hiddenEnvironments)
-  );
+  if (hiddenEnvironments.length === 0) {
+    return envFilter.value.length === 0 ? null : envFilter;
+  }
+
+  const { extras, excludesAllHidden } = partitionNoneOfEnvironmentValues({
+    values: envFilter.value,
+    hiddenEnvironments,
+  });
+
+  if (!excludesAllHidden) {
+    return envFilter;
+  }
+
+  if (extras.length === 0) {
+    return null;
+  }
+
+  return { ...envFilter, value: extras };
 }
 
 export function stripImplicitEnvironmentFilterFromExplicitState(params: {
@@ -69,17 +112,19 @@ export function stripImplicitEnvironmentFilterFromExplicitState(params: {
   }
 
   const envFilter = managedColumnFilters[0] as EnvironmentFilter;
-  const otherFilters = explicitFilters.filter((filter) => filter !== envFilter);
+  const canonical = canonicalizeNoneOfEnvironmentFilter({
+    envFilter,
+    hiddenEnvironments,
+  });
 
-  if (
-    isEquivalentToImplicitEnvironmentDefault({
-      envFilter,
-      hiddenEnvironments,
-    })
-  ) {
-    return otherFilters;
+  if (canonical === envFilter) {
+    return explicitFilters;
   }
-  return explicitFilters;
+
+  return explicitFilters.flatMap((filter) => {
+    if (filter !== envFilter) return [filter];
+    return canonical === null ? [] : [canonical];
+  });
 }
 
 export function buildImplicitEnvironmentFilter(params: {
@@ -112,7 +157,7 @@ export function buildEffectiveEnvironmentFilter(params: {
   config: ManagedEnvironmentPolicyConfig;
 }): FilterState {
   const { explicitFilters, config } = params;
-  const { managedEnvironmentColumn } = config;
+  const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
   const managedColumnFilters = explicitFilters.filter(
     (filter) => filter.column === managedEnvironmentColumn,
@@ -133,5 +178,24 @@ export function buildEffectiveEnvironmentFilter(params: {
   }
 
   const envFilter = managedColumnFilters[0] as EnvironmentFilter;
+
+  if (envFilter.operator === "none of" && hiddenEnvironments.length > 0) {
+    const { extras, hiddenInValues } = partitionNoneOfEnvironmentValues({
+      values: envFilter.value,
+      hiddenEnvironments,
+    });
+
+    // Extras-only form (`none of [production]`): fold the implicit hidden
+    // exclusions back in so queries still hide internal environments.
+    if (hiddenInValues.length === 0 && extras.length > 0) {
+      return [
+        {
+          ...envFilter,
+          value: [...hiddenEnvironments, ...extras],
+        },
+      ];
+    }
+  }
+
   return [envFilter];
 }

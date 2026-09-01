@@ -1317,8 +1317,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
   it("strips only the system-shaped implicit default, keeping user-authored selections", () => {
     // The implicit default the sidebar auto-derives — and that the facet
     // re-creates when the user clears back to the default selection — is the
-    // `none of [hidden]` shape. That is the ONLY env filter we strip before
-    // persistence, so returning to default leaves a clean URL.
+    // `none of [hidden]` shape. That default is stripped before persistence,
+    // so returning to default leaves a clean URL. Extra exclusions on top of
+    // that default are kept as `none of [extras]` only.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -1427,6 +1428,113 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
         type: "stringOptions",
         operator: "any of",
         value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
+
+  it("keeps only non-default environment exclusions in explicit state", () => {
+    // Unchecking a default-included environment (production) from the implicit
+    // `none of [hidden]` default produces `none of [hidden ∪ production]`.
+    // The bar should persist/show only the deviation (`production`), not the
+    // implicit hidden set that every table already applies.
+    expect(
+      strip([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: [...hiddenEnvironments, "production"],
+        },
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["trace-a"],
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ]);
+  });
+
+  it("merges hidden environments back into extras-only none-of effective state", () => {
+    const effective = buildEffectiveEnvironmentFilter({
+      explicitFilters: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["production"],
+        },
+      ],
+      config: managedEnvironmentConfig,
+    });
+
+    expect(effective).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+    ]);
+  });
+
+  it("does not strip a none-of that enables a hidden environment", () => {
+    // Checking one hidden env leaves `none of [hidden − that env]`. That is
+    // not the implicit default and must stay explicit so the enabled env
+    // is not silently re-hidden.
+    const remainingHidden = hiddenEnvironments.filter(
+      (environment) => environment !== "langfuse-evaluation",
+    );
+
+    expect(
+      strip([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: remainingHidden,
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: remainingHidden,
+      },
+    ]);
+
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: remainingHidden,
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: remainingHidden,
       },
     ]);
   });

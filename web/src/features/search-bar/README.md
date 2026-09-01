@@ -158,11 +158,15 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   **explicit** `FilterState`, so the managed-environment implicit default
   (`environment none of [hidden internal envs]`, derived into _effective_ state
   by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
-  That policy strips exactly one shape from explicit state — that same implicit
-  `none of [hidden]` default (which the facet also re-creates on "clear back to
-  default"). A user-authored positive selection (`environment:default`, typed or
-  saved) is kept explicit even when it equals the current default set; the user
-  returns to the default by removing the filter, never by us inferring it.
+  That policy strips the implicit `none of [hidden]` default (which the facet
+  also re-creates on "clear back to default") and canonicalizes
+  `none of [hidden ∪ extras]` down to `none of [extras]` so only the values
+  that differ from the global default appear as chips
+  (`-environment:production`). Queries still exclude the hidden set — effective
+  state folds it back in. A user-authored positive selection
+  (`environment:default`, typed or saved) is kept explicit even when it equals
+  the current default set; the user returns to the default by removing the
+  filter, never by us inferring it.
 
 ## Ownership map
 
