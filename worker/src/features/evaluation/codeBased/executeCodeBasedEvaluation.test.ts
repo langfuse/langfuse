@@ -641,6 +641,56 @@ describe("executeCodeBasedEvaluation", () => {
     expect(trace).not.toContain(rawTimeoutMessage);
   });
 
+  it("shows a user-visible error when evaluator code exceeds available memory", async () => {
+    const error = new CodeEvalDispatcherError(
+      "Runtime.OutOfMemory: Runtime exited with error: signal: killed",
+      {
+        code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
+        retryable: false,
+      },
+    );
+    mocks.dispatcher.dispatch.mockRejectedValue(error);
+
+    const promise = executeCodeBasedEvaluation({
+      projectId: "project-1",
+      organizationId: "org-1",
+      job: {
+        id: "job-1",
+        jobConfigurationId: "config-1",
+        jobInputTraceId: "trace-1",
+        jobInputObservationId: "obs-1",
+        jobInputDatasetItemId: null,
+      } as any,
+      config: { id: "config-1", scoreName: "default-score" } as any,
+      template: {
+        id: "template-1",
+        name: "Code evaluator",
+        type: EvalTemplateType.CODE,
+        version: 1,
+        sourceCode: "function evaluate() {}",
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        prompt: null,
+        outputDefinition: null,
+      } as any,
+      extractedVariables: [{ var: "input", value: "prompt" }],
+      executionMetadata: { job_execution_id: "job-1" },
+    });
+
+    await expect(promise).rejects.toMatchObject({
+      code: "OUT_OF_MEMORY",
+      retryable: false,
+    });
+    await expect(promise).rejects.toThrow(
+      "Evaluator exceeded the available memory limit. Reduce memory usage in your evaluator code to stay within the limit, then try again.",
+    );
+
+    const trace = JSON.stringify(mocks.writeInternalTrace.mock.calls[0]?.[0]);
+    expect(trace).toContain(
+      "Evaluator exceeded the available memory limit. Reduce memory usage in your evaluator code to stay within the limit, then try again.",
+    );
+    expect(trace).not.toContain("Runtime.OutOfMemory");
+  });
+
   it("masks internal dispatcher errors in the internal trace", async () => {
     const error = new CodeEvalDispatcherError(
       "Failed to invoke code eval Lambda code-based-eval-executor-node: ResourceNotFoundException: Function not found",

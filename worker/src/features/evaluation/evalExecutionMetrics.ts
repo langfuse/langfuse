@@ -25,6 +25,7 @@ const CODE_EVAL_CUSTOMER_ERROR_CODES: ReadonlySet<string> = new Set([
   CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
   CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
   CodeEvalDispatcherErrorCodes.TIMEOUT,
+  CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
   CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
