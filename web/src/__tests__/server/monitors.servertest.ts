@@ -62,7 +62,6 @@ const buildSession = (params: {
       },
     ],
     featureFlags: {
-      searchBar: false,
       templateFlag: false,
       excludeClickhouseRead: false,
       v4BetaToggleVisible: false,

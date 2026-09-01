@@ -12,14 +12,12 @@ tables (no opt-in). Based on the `langfuse-search-bar` prototype.
 ## Enablement
 
 - **Generally available on the v4 events tables** — every user gets the bar; it
-  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
-  now returns `true` for everyone, so the bar renders wherever the v4 events
-  table does.
+  is no longer a per-user Feature Preview opt-in. The bar renders wherever the
+  v4 events table does.
 - `EventsTable` activates the bar when the table is a full-page surface
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
   The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
-  Observations/Traces tables, so call sites still read as
-  `isBetaEnabled && useSearchBarEnabled()`.
+  Observations/Traces tables.
 - The search bar is not a Feature Preview and has no user or organization
   toggle.
 
