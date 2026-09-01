@@ -31,7 +31,7 @@ export const TracesBarListChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const isV2 = metricsVersion === "v2";
