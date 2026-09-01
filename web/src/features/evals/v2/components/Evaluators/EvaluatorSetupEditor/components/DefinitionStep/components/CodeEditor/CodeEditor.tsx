@@ -3,6 +3,10 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
+import {
+  CodeEvaluatorAssistantExperience,
+  type CodeEvaluatorAssistantContext,
+} from "./CodeEvaluatorAssistantExperience";
 import { buildCodeEvalContextSnippet } from "@/src/features/evals/v2/fns/evaluatorTesting/buildCodeEvalContextSnippet";
 import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -12,10 +16,12 @@ export function CodeEditor({
   projectId,
   store,
   validationResult,
+  assistantContext,
 }: {
   projectId: string;
   store: EvaluatorSetupStore;
   validationResult: CodeEvalValidationResult | null;
+  assistantContext: CodeEvaluatorAssistantContext | null;
 }) {
   const sampleObservation = useEvaluatorSetupSample({ projectId, store });
   const state = useStore(
@@ -38,13 +44,18 @@ export function CodeEditor({
   );
 
   return (
-    <CodeEvalTemplateFormBody
-      sourceCode={state.sourceCode}
+    <CodeEvaluatorAssistantExperience
+      context={assistantContext}
       sourceCodeLanguage={state.sourceCodeLanguage}
-      onSourceCodeChange={state.setSourceCode}
-      editable
-      validationResult={validationResult}
-      ctxSample={ctxSample}
-    />
+    >
+      <CodeEvalTemplateFormBody
+        sourceCode={state.sourceCode}
+        sourceCodeLanguage={state.sourceCodeLanguage}
+        onSourceCodeChange={state.setSourceCode}
+        editable
+        validationResult={validationResult}
+        ctxSample={ctxSample}
+      />
+    </CodeEvaluatorAssistantExperience>
   );
 }

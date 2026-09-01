@@ -604,6 +604,13 @@ export function EvaluatorSetupPage(
       codeValidationResult={
         codeValidation.isPending ? null : codeValidation.validationResult
       }
+      codeEvaluatorAssistantContext={
+        initialEvaluator
+          ? "edit"
+          : props.mode === "create" && props.creationSource.type === "scratch"
+            ? "scratch"
+            : null
+      }
       onStepOpenChange={setStepOpen}
       nameAIAssistance={
         !nameAIAssistanceAvailable
