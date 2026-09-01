@@ -14,17 +14,16 @@ V1 includes:
 
 - Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, and their native auxiliary endpoints used by Claude Code and Codex.
 - OpenAI and Anthropic BYOK connections.
-- Native protocol passthrough when the client and upstream protocols match.
-- A bounded OpenAI-to-Anthropic protocol bridge for Chat Completions and Responses.
+- Native protocol passthrough when the client and upstream protocols match. Incompatible client/upstream protocol pairs are rejected before provider dispatch.
 - Gateway virtual keys, deterministic model-to-connection resolution, and automatic Langfuse telemetry.
 
-V1 does not include inference resale, multiple routing candidates, fallbacks, gateway retries, rate limits, spend limits, or guardrails.
+V1 does not include cross-provider protocol translation, inference resale, multiple routing candidates, fallbacks, gateway retries, rate limits, spend limits, or guardrails.
 
 ## Context
 
 Langfuse currently observes coding agents through client-side hooks. This works for individuals but is difficult to deploy and govern across organizations with hundreds of developers. A gateway gives platform teams one centrally managed integration point for tracing, cost attribution, credentials, and future runtime policy.
 
-Provider translation materially strengthens that value proposition: OpenAI applications and Codex can use an Anthropic model without changing their wire protocol. The same bridge architecture enables Claude Code to use OpenAI models as a fast follow. Research across LiteLLM, Bifrost, Portkey, Helicone, and smaller Rust gateways shows that the common coding-agent subset is feasible to translate, but universal lossless translation is not. V1 therefore defines an explicit compatibility profile and rejects unsupported semantics instead of silently dropping them.
+Cross-provider translation would strengthen that value proposition by letting Codex use Anthropic models or Claude Code use OpenAI models without changing their wire protocol. However, OpenAI Responses and Anthropic Messages are not equivalent contracts. Translation introduces state, tool-lifecycle, streaming, media, and provider-owned artifact semantics whose failures can be silent and agent-breaking. V1 therefore prioritizes reliable native execution and treats translation as a separate interoperability product with its own compatibility contract and release criteria.
 
 ## Product Scope
 
@@ -34,22 +33,22 @@ Provider translation materially strengthens that value proposition: OpenAI appli
 | --- | --- |
 | `POST /v1/messages` | Required: Anthropic Messages and Claude Code |
 | `POST /v1/messages/count_tokens` | Native Anthropic pass-through; optional to Claude Code |
-| `POST /v1/chat/completions` | Required: native OpenAI and translation to Anthropic |
-| `POST /v1/responses` | Required: native OpenAI and translation to Anthropic |
-| `POST /v1/responses/compact` | Required for native OpenAI/Codex; translated compaction requires a separate conformance decision |
+| `POST /v1/chat/completions` | Required: native OpenAI |
+| `POST /v1/responses` | Required: native OpenAI |
+| `POST /v1/responses/compact` | Required for native OpenAI/Codex |
 | `GET /v1/models` | Required: authenticated gateway-owned catalog |
 
 ### Protocol matrix
 
-The requested model deterministically selects one upstream adapter and LLM Connection. Matching pairs use native passthrough; supported mismatches use the protocol bridge.
+The requested model deterministically selects one upstream adapter and LLM Connection. V1 only executes matching client and upstream protocols.
 
 | Client protocol | OpenAI upstream | Anthropic upstream |
 | --- | --- | --- |
-| Anthropic Messages | Fast follow | Native passthrough |
-| OpenAI Chat Completions | Native passthrough | Request to Messages; response back to Chat |
-| OpenAI Responses | Native passthrough | Request to Messages; response back to Responses |
+| Anthropic Messages | Not supported | Native passthrough |
+| OpenAI Chat Completions | Native passthrough | Not supported |
+| OpenAI Responses | Native passthrough | Not supported |
 
-Translation is a V1 launch requirement, not a claim that every provider-specific extension is portable. Chat Completions and Responses to Anthropic must pass their documented compatibility profile before V1 launches. Auxiliary behavior such as Responses compaction is evaluated separately before a specific client/model combination is advertised. Anthropic Messages to OpenAI is a fast follow.
+An incompatible model/protocol pair returns a clear client error before provider dispatch. The gateway never silently translates, drops, or approximates provider-specific semantics in V1.
 
 ### Model discovery
 
@@ -74,7 +73,7 @@ The [Claude Code gateway contract](https://code.claude.com/docs/en/llm-gateway-p
 
 The endpoint requires a Gateway virtual key and returns only models enabled for that key's organization and resolved project policy. The list is generated from Langfuse configuration and never fetched synchronously from an upstream provider. A listed model maps to exactly one upstream adapter and connection, and unlisted models are rejected. This is deterministic destination selection, not routing: there is no candidate set, policy evaluation, or fallback.
 
-Claude Code only discovers IDs containing `claude` or `anthropic`. An OpenAI-backed model intended for its picker therefore needs an explicit compatible gateway alias; otherwise administrators configure that model directly in Claude Code.
+Claude Code only discovers IDs containing `claude` or `anthropic`. Because V1 does not translate Messages to OpenAI, the catalog must not make an OpenAI destination appear Messages-compatible by assigning it a Claude-like alias.
 
 ## Architecture
 
@@ -83,9 +82,9 @@ flowchart LR
     C["Claude Code, Codex, or application"] -->|"native API request"| G["Rust AI Gateway"]
     G -->|"cache miss: resolve"| W["Langfuse Web control plane"]
     W --> P[("Postgres and existing auth/config")]
-    G -->|"native or translated request"| O["OpenAI or Anthropic"]
+    G -->|"native request"| O["OpenAI or Anthropic"]
     O -->|"JSON or SSE"| G
-    G -->|"native or translated response"| C
+    G -->|"native response"| C
     G -.->|"batched telemetry and media"| W
     W -.-> I["Existing Langfuse ingestion"]
 ```
@@ -118,7 +117,7 @@ Gateway virtual key + ingress protocol + model
   -> organization and project
   -> upstream adapter
   -> one default LLM Connection
-  -> native or translated execution
+  -> native execution
 ```
 
 Official OpenAI and Anthropic origins are supported first. Custom base URLs require save-time, use-time, connection-time, DNS, and redirect validation plus strict credential stripping. They only enter V1 if that security work is completed for both Cloud and self-hosted deployments.
@@ -203,52 +202,36 @@ Web seals the context with a Web-only authenticated-encryption key. The gateway 
 
 1. **Classify and bound:** Select the ingress protocol, normalize the client credential, reject an invalid method/content type or declared oversize body, and read the body once under a hard byte limit.
 2. **Authenticate and resolve:** Extract the model, load or refresh the cached execution configuration, and use the catalog's single adapter/connection mapping. No client-controlled origin, connection, or project is accepted.
-3. **Protect:** Apply the native path's minimal boundary checks or the translated path's stricter compatibility validation, plus header and media policy.
-4. **Prepare:** Use raw native passthrough when protocols match. Otherwise validate against the translation compatibility profile and transform into the upstream protocol.
+3. **Protect:** Apply the native protocol's minimal boundary checks plus header and media policy. Reject an incompatible client/upstream protocol pair.
+4. **Prepare:** Preserve the native body and apply only the resolved origin, model placement, provider authentication, and safe header adjustments required by the upstream transport.
 5. **Execute once:** Replace client authentication with the provider credential and perform one upstream request. Inference POSTs receive zero gateway retries.
-6. **Relay and observe:** Stream with backpressure and cancellation. Native streams remain byte passthrough; translated streams use a stateful semantic-event converter. Telemetry observes the same stream and never becomes a second consumer.
+6. **Relay and observe:** Stream native response bytes with backpressure and cancellation. Telemetry observes the same stream and never becomes a second consumer.
 7. **Finalize:** Enqueue bounded telemetry/media work. Failures after provider dispatch fail open and never corrupt an otherwise healthy client response.
 
-Gateway-generated errors use the client's native error envelope. Provider-native responses are preserved on passthrough paths. Translated provider errors are mapped conservatively while retaining the provider request ID.
+Gateway-generated errors use the client's native error envelope. Provider-native statuses, errors, response bodies, and SSE events are preserved.
 
-### Protocol bridge
+### Native protocol handling
 
-Translation is only invoked when ingress and upstream protocols differ. It uses narrow owned wire types and a loss-aware internal representation; that internal representation is not a public API.
+Native calls bypass a universal prompt representation. The gateway parses only what resolution, boundary enforcement, and telemetry require; it does not reconstruct provider requests or response events when the semantic protocol already matches.
 
-The initial compatibility profile covers:
+Native Anthropic execution preserves the evolving, non-credential `anthropic-*` headers and body fields as an open set. Upstream headers are reconstructed: customer/provider credentials, cookies, forwarding and hop-by-hop headers are always removed, and sensitive headers are never followed across origins. The gateway does not fetch prompt-supplied media URLs; it validates inline media type and bytes and passes supported sources to the provider.
 
-- System/developer instructions and user/assistant text.
-- URL and base64 images.
-- Function tools, tool choice, parallel tool calls, and tool results.
-- Core generation limits and sampling parameters where semantics match.
-- Non-streaming responses.
-- Streaming text, tool-input deltas, stop reasons, usage/cache usage, and errors.
-- Interrupted streams and client cancellation.
+Transport adaptation is distinct from cross-provider protocol translation. A future adapter may change authentication, URL/model placement, or event framing while preserving the provider's semantic schema—for example, Anthropic Messages on Bedrock or Vertex. Such an adapter requires its own provider conformance work but does not imply OpenAI-to-Anthropic translation.
 
-The bridge must reject unsupported fields with a client-native `400`. It must never silently discard data or fabricate provider-specific opaque values. Initial non-goals include audio, PDFs/documents, citations, provider-hosted tools, MCP server tools, computer use, multiple choices, stateful Responses references, and exact cross-provider reasoning/thinking fidelity. Real Claude Code or Codex fixtures may promote a capability into the profile before that client/model combination is advertised.
+### Why translation is excluded from V1
 
-Native Anthropic execution preserves the evolving, non-credential `anthropic-*` headers and body fields as an open set. Upstream headers are reconstructed: customer/provider credentials, cookies, forwarding and hop-by-hop headers are always removed, and sensitive headers are never followed across origins. The gateway does not fetch prompt-supplied media URLs; it validates inline media type and bytes and passes supported sources to the provider. On a translated request, an unsupported capability returns the stable client-native rejection required for the client to disable or surface that capability; it is not quietly removed. This behavior is part of the real-client conformance suite.
+Translation is feasible for a constrained subset, but it is a continuously maintained compatibility product rather than gateway plumbing:
 
-Streaming conversion is a state machine, not a rewrite of arbitrary network chunks:
+- **Stateful continuation:** Responses can refer only to `previous_response_id` or a stored conversation, while Messages expects complete history. Correct support requires gateway-owned state and reconstruction; LiteLLM has failed second tool turns when those identities diverged ([LiteLLM #26167](https://github.com/BerriAI/litellm/issues/26167)).
+- **Agent tool semantics:** Parallel tool calls and results have different grouping, ordering, choice, and terminal rules. Incorrect translation can return a provider `400`, silently enable disabled tools, or end a successful-looking stream before the agent executes its tool ([LiteLLM #23105](https://github.com/BerriAI/litellm/issues/23105), [LiteLLM #32505](https://github.com/BerriAI/litellm/issues/32505), [Bifrost #6123](https://github.com/maximhq/bifrost/issues/6123)).
+- **Provider-owned artifacts:** Encrypted reasoning, thinking signatures, hosted tools, file IDs, prompt-cache controls, background execution, and conversation resources do not have lossless cross-provider representations.
+- **Streaming and multimodal breadth:** Every request field, response item, nested media location, SSE transition, provider/model capability, and client release expands the conformance matrix. OSS gateways with substantial adapter suites still regress on new server tools and heterogeneous stream items ([Bifrost #4780](https://github.com/maximhq/bifrost/issues/4780), [Bifrost #4713](https://github.com/maximhq/bifrost/issues/4713)).
 
-```text
-provider bytes
-  -> SSE framing
-  -> provider semantic event
-  -> per-request translation state
-  -> client semantic event(s)
-  -> SSE encoding
-```
+The dangerous failures are not limited to obvious request rejection. A translated stream can appear successful while losing a tool result, changing a stop reason, enabling a disabled tool, or breaking reasoning continuity. Those failures are difficult to detect from gateway health metrics and directly affect agent correctness and safety.
 
-This is necessary because Anthropic content blocks and OpenAI Responses/Chat events have different start, index, delta, usage, and terminal-event rules.
+V1 therefore supports Claude Code with Anthropic destinations and Codex/OpenAI clients with OpenAI-compatible destinations. Codex-to-Claude and Claude-Code-to-OpenAI remain valuable fast-follow use cases, but they require a separate RFC defining one named compatibility profile, explicit rejections, conversation/provider pinning, direct pairwise adapters, translator version telemetry, and real-client multi-turn conformance tests.
 
-### Why we own the bridge
-
-- LiteLLM's mature Python implementation demonstrates broad mapping coverage, but its current Rust Chat-to-Anthropic path deliberately rejects streaming and non-text content and falls back to Python.
-- Bifrost demonstrates the right capability-aware internal representation and stateful streaming architecture, but its Anthropic adapters and regression corpus also show that universal translation is a large maintenance surface.
-- Smaller Rust gateways demonstrate that the coding-agent matrix is feasible, but several silently drop reasoning or unknown content and are not suitable as production dependencies.
-
-We should use these projects as behavioral references, not add a gateway SDK to the hot path. Langfuse owns its protocol types, loss policy, stream state machines, and conformance fixtures. Native calls continue to avoid translation entirely.
+This decision is about sequencing, not rejecting interoperability. The likely first post-V1 profile is OpenAI Responses to Anthropic Messages for Codex, limited initially to complete stateless history, text/images, custom function tools/results, and streaming/non-streaming execution. Stateful Responses, hosted tools, provider file IDs, encrypted reasoning translation, and cross-provider fallback after a conversation starts would be rejected.
 
 ## Telemetry and Media
 
@@ -274,11 +257,11 @@ Operators configure only enablement, public ingress/TLS, and optionally an exist
 
 ## Failure Semantics
 
-- Authentication, expired-cache resolution, destination selection, and translation validation fail closed before provider dispatch.
+- Authentication, expired-cache resolution, destination selection, protocol matching, and boundary validation fail closed before provider dispatch.
 - Inference POSTs are never retried by the gateway.
-- Provider status/errors are passed through or translated into the client-native envelope.
+- Provider statuses and errors are passed through unchanged.
 - After provider dispatch, telemetry and media failures fail open.
-- Capture, batches, queues, and per-request translation state are byte- and count-bounded.
+- Capture, batches, and queues are byte- and count-bounded.
 - Saturation sheds new work or telemetry according to explicit limits; it never permits unbounded memory growth.
 
 ## Delivery Milestones
@@ -286,27 +269,27 @@ Operators configure only enablement, public ingress/TLS, and optionally an exist
 1. **Contracts and runtime:** Rust service skeleton, internal resolve/cache contract, sealed context, bounded telemetry endpoint, native fixtures, and streaming/load qualification.
 2. **Claude Code to Anthropic:** Messages, count tokens, model discovery, native streaming, keys/connections, tracing, cost, and real Claude Code conformance.
 3. **OpenAI native:** Chat Completions, Responses, compact, model discovery, OpenAI SDK and Codex conformance.
-4. **Protocol bridge:** Chat Completions and Responses to Anthropic, capability gates, translation/state-machine fixtures, and an advertised client/model compatibility matrix. Anthropic-to-OpenAI translation follows after V1.
-5. **Cloud qualification:** Dedicated edge configuration, security review, stream-aware autoscaling, graceful deployments, SLOs, and progressive regional rollout.
-6. **Self-hosted:** First-class Helm packaging, secret wiring, networking guidance, and the same conformance suite.
+4. **Cloud qualification:** Dedicated edge configuration, security review, stream-aware autoscaling, graceful deployments, SLOs, and progressive regional rollout.
+5. **Self-hosted:** First-class Helm packaging, secret wiring, networking guidance, and the same conformance suite.
 
-These workstreams can proceed mostly independently once the resolve contract, protocol types, terminal outcomes, and telemetry facts are fixed: control-plane keys/permissions, LLM Connections/model catalog, authority/cache endpoints, native protocol adapters, translation adapters, telemetry/media ingestion, Cloud deployment, Helm packaging, and conformance/load testing.
+These workstreams can proceed mostly independently once the resolve contract, protocol types, terminal outcomes, and telemetry facts are fixed: control-plane keys/permissions, LLM Connections/model catalog, authority/cache endpoints, native protocol adapters, telemetry/media ingestion, Cloud deployment, Helm packaging, and conformance/load testing.
+
+Cross-provider translation is a post-V1 milestone with a separate compatibility RFC and launch gate; it is not on the critical path for the milestones above.
 
 ## Launch Gates
 
 - Real Claude Code and Codex sessions, including tools, media, cancellation, long sessions, and model discovery.
 - OpenAI and Anthropic TypeScript/Python SDK conformance for native paths.
-- Golden request/response/error fixtures and exact translated SSE event ordering.
-- Strict negative tests for every unsupported translation feature.
+- Golden native request/response/error fixtures and exact SSE pass-through behavior.
+- Strict negative tests for incompatible client protocol and destination combinations.
 - Credential/header leak, tenant isolation, revocation-window, SSRF, redirect, and custom-origin tests.
 - Long-lived stream, slow-client, disconnect, deployment-drain, Web outage, provider failure, and telemetry saturation tests.
 - Measured gateway overhead and capacity on production-like multi-core containers.
 
 ## Open Questions
 
-- Which reasoning/thinking continuity subset is required before Codex-to-Anthropic or Claude-Code-to-OpenAI translation can be advertised?
-- What exact translated compaction behavior is required before Codex-to-Anthropic can be advertised for long sessions?
 - Are custom public HTTPS LLM Connection base URLs included in V1 after the required transport-security spike, or deferred?
+- Are near-native Bedrock Messages and Vertex Messages transport adapters included in V1 after provider conformance, or deferred?
 
 ## References
 
@@ -321,15 +304,14 @@ These workstreams can proceed mostly independently once the resolve contract, pr
 - [OpenAI Responses streaming events](https://developers.openai.com/api/reference/resources/responses/streaming-events)
 - [OpenAI Models](https://developers.openai.com/api/reference/resources/models/methods/list)
 
-### Translation references
+### Translation decision evidence
 
-- [LiteLLM Anthropic passthrough architecture](https://github.com/BerriAI/litellm/blob/litellm_internal_staging/litellm/llms/anthropic/experimental_pass_through/architecture.md)
-- [LiteLLM Rust translation acceptance boundary](https://github.com/BerriAI/litellm/blob/litellm_internal_staging/litellm-rust/crates/core/src/chat_completions/transformation.rs)
-- [LiteLLM Rust migration](https://github.com/BerriAI/litellm/issues/31263)
-- [Bifrost Anthropic integration](https://github.com/maximhq/bifrost/blob/dev/transports/bifrost-http/integrations/anthropic.go)
-- [Bifrost Anthropic Responses adapter](https://github.com/maximhq/bifrost/blob/dev/core/providers/anthropic/responses.go)
-- [Portkey Anthropic Chat adapter](https://github.com/Portkey-AI/gateway/blob/main/src/providers/anthropic/chatComplete.ts)
-- [Helicone Rust protocol mappers](https://github.com/Helicone/ai-gateway/tree/main/ai-gateway/src/middleware/mapper)
+- [LiteLLM stateful Responses tool-turn failure](https://github.com/BerriAI/litellm/issues/26167)
+- [LiteLLM Responses-to-Vertex tool-result ordering failure](https://github.com/BerriAI/litellm/issues/23105)
+- [LiteLLM tool-choice semantic failures](https://github.com/BerriAI/litellm/issues/32505)
+- [Bifrost incorrect translated stream termination](https://github.com/maximhq/bifrost/issues/6123)
+- [Bifrost missing hosted-tool stream handling](https://github.com/maximhq/bifrost/issues/4780)
+- [Bifrost heterogeneous tool stream failure](https://github.com/maximhq/bifrost/issues/4713)
 
 ### Deployment and standards
 
