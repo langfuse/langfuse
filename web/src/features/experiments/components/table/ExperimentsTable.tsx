@@ -280,15 +280,6 @@ export default function ExperimentsTable({
   showControlsInPageHeader = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
-  const filterConfig = useMemo(
-    () =>
-      getExperimentsFilterConfig(
-        fixedFilter
-          .map((filter) => filter.column)
-          .filter(isExperimentsOmittableFilterColumn),
-      ),
-    [fixedFilter],
-  );
 
   const { setDetailPageList } = useDetailPageLists();
   // Selection lives in a per-mount vanilla zustand store (not useState) so a
@@ -352,6 +343,19 @@ export default function ExperimentsTable({
     projectId,
     oldFilterState,
   });
+
+  // Built after the dataset map, which its filter-state migration needs to
+  // translate a legacy dataset id into the name the facet is keyed by.
+  const filterConfig = useMemo(
+    () =>
+      getExperimentsFilterConfig(
+        fixedFilter
+          .map((filter) => filter.column)
+          .filter(isExperimentsOmittableFilterColumn),
+        datasetNameById,
+      ),
+    [fixedFilter, datasetNameById],
+  );
 
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
