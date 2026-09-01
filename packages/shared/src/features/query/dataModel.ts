@@ -925,7 +925,7 @@ const createScoreTableRelations = (
   {
     name: string;
     joinConditionSql: string;
-    timeDimension: string;
+    timeDimension: string | null;
     useFinal?: boolean;
   }
 > => {
@@ -952,14 +952,14 @@ const createScoreTableRelations = (
       // Observation scores use their exact event context. Trace scores use
       // semantic roots, which covers native app roots and synthetic roots.
       joinConditionSql: `ON scores.trace_id = events_traces.trace_id AND scores.project_id = events_traces.project_id AND ((ifNull(scores.observation_id, '') != '' AND scores.observation_id = events_traces.span_id) OR (ifNull(scores.observation_id, '') = '' AND ${eventsTableIsRootObservationSqlForAlias("events_traces")}))`,
-      timeDimension: "start_time",
+      timeDimension: null,
       useFinal: false,
     },
     events_observations: {
       name: "events_core",
       joinConditionSql:
         "ON scores.project_id = events_observations.project_id AND scores.trace_id = events_observations.trace_id AND scores.observation_id = events_observations.span_id",
-      timeDimension: "start_time",
+      timeDimension: null,
       useFinal: false,
     },
   };

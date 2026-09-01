@@ -926,6 +926,8 @@ describe("dashboard v1 vs v2 consistency", () => {
     it("should include observation-level scores by the trace name on their exact events", async () => {
       const caller = makeCaller();
       const timestamp = new Date(toTimestamp).getTime() - 30 * 60 * 1000;
+      const oldObservationTimestamp =
+        new Date(fromTimestamp7d).getTime() - 60 * 60 * 1000;
       const traceName = `observation-score-trace-${v4()}`;
       const appRootOnlyTraceId = v4();
       const dualRootTraceId = v4();
@@ -945,7 +947,7 @@ describe("dashboard v1 vs v2 consistency", () => {
           parent_span_id: `external-${v4()}`,
           is_app_root: true,
           trace_name: traceName,
-          start_time: timestamp * 1000,
+          start_time: oldObservationTimestamp * 1000,
           ...emptyEventMetrics,
         }),
         createEvent({
@@ -955,7 +957,7 @@ describe("dashboard v1 vs v2 consistency", () => {
           id: appRootOnlyObservationId,
           parent_span_id: appRootOnlyRootId,
           trace_name: traceName,
-          start_time: timestamp * 1000,
+          start_time: oldObservationTimestamp * 1000,
           ...emptyEventMetrics,
         }),
         createEvent({

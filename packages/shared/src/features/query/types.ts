@@ -94,7 +94,10 @@ export const viewDeclaration = z.object({
     z.object({
       name: z.string(),
       joinConditionSql: z.string(),
-      timeDimension: z.string(),
+      // Entity-context relations may outlive the queried base rows. A null
+      // value keeps project pruning without applying the base query window to
+      // the related entity timestamp.
+      timeDimension: z.string().nullable(),
       useFinal: z.boolean().optional(),
     }),
   ),

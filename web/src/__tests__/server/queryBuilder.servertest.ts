@@ -5374,6 +5374,10 @@ describe("query builder measure-aggregation validation", () => {
       expect(compiledQuery).toContain("events_traces.parent_span_id = ''");
       expect(compiledQuery).toContain("events_traces.is_app_root = true");
       expect(compiledQuery).toContain("uniqExact(scores_numeric.id) as count");
+      expect(compiledQuery).not.toContain("events_traces.start_time >=");
+      expect(compiledQuery).toMatch(
+        /AND events_traces\.project_id = \{stringFilter\w+: String\}/,
+      );
       // scores base CTE should still use FINAL
       expect(compiledQuery).toContain("scores scores_numeric FINAL");
     });
@@ -5425,6 +5429,10 @@ describe("query builder measure-aggregation validation", () => {
 
       // v1 traces join should still use FINAL (useFinal defaults to true)
       expect(compiledQuery).toContain("JOIN traces FINAL");
+      expect(compiledQuery).toContain("traces.timestamp >=");
+      expect(compiledQuery).toMatch(
+        /AND traces\.project_id = \{stringFilter\w+: String\}/,
+      );
     });
   });
 

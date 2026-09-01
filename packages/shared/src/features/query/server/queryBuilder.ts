@@ -796,6 +796,7 @@ export class QueryBuilder {
     filterList: FilterList,
     query: QueryType,
     skipObservationsFinal: boolean,
+    projectId: string,
   ) {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
@@ -814,43 +815,63 @@ export class QueryBuilder {
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
       let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
 
-      // Create time dimension mapping for the relation table
-      const relationTimeDimensionMapping = {
-        uiTableName: relation.timeDimension,
-        uiTableId: relation.timeDimension,
+      const relationProjectMapping = {
+        uiTableName: "project_id",
+        uiTableId: "project_id",
         clickhouseTableName: relation.name,
-        clickhouseSelect: relation.timeDimension,
+        clickhouseSelect: "project_id",
         queryPrefix: relationTableName,
-        type: "datetime",
+        type: "string",
       };
-
-      // Add relation-specific timestamp filters
-      const fromFilter = createFilterFromFilterState(
+      const projectFilter = createFilterFromFilterState(
         [
           {
-            column: relation.timeDimension,
-            operator: ">=",
-            value: new Date(query.fromTimestamp),
-            type: "datetime",
+            column: "project_id",
+            operator: "=",
+            value: projectId,
+            type: "string",
           },
         ],
-        [relationTimeDimensionMapping],
+        [relationProjectMapping],
       );
+      filterList.push(...projectFilter);
 
-      const toFilter = createFilterFromFilterState(
-        [
-          {
-            column: relation.timeDimension,
-            operator: "<=",
-            value: new Date(query.toTimestamp),
-            type: "datetime",
-          },
-        ],
-        [relationTimeDimensionMapping],
-      );
+      if (relation.timeDimension) {
+        const relationTimeDimensionMapping = {
+          uiTableName: relation.timeDimension,
+          uiTableId: relation.timeDimension,
+          clickhouseTableName: relation.name,
+          clickhouseSelect: relation.timeDimension,
+          queryPrefix: relationTableName,
+          type: "datetime",
+        };
 
-      // Add filters to the filter list
-      filterList.push(...fromFilter, ...toFilter);
+        const fromFilter = createFilterFromFilterState(
+          [
+            {
+              column: relation.timeDimension,
+              operator: ">=",
+              value: new Date(query.fromTimestamp),
+              type: "datetime",
+            },
+          ],
+          [relationTimeDimensionMapping],
+        );
+
+        const toFilter = createFilterFromFilterState(
+          [
+            {
+              column: relation.timeDimension,
+              operator: "<=",
+              value: new Date(query.toTimestamp),
+              type: "datetime",
+            },
+          ],
+          [relationTimeDimensionMapping],
+        );
+
+        filterList.push(...fromFilter, ...toFilter);
+      }
 
       relationJoins.push(joinStatement);
     }
@@ -1654,6 +1675,7 @@ export class QueryBuilder {
         filterList,
         query,
         skipObservationsFinal,
+        projectId,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }
