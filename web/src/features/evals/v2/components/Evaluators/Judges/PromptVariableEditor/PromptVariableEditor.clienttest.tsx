@@ -24,6 +24,36 @@ describe("PromptVariableEditor", () => {
     });
   });
 
+  it("uses a checkbox focus affordance only during keyboard navigation", async () => {
+    const { container } = render(
+      <PromptVariableEditor value="Search me" onChange={vi.fn()} />,
+    );
+
+    const editorContent = container.querySelector<HTMLElement>(".cm-content");
+    const editor = container.querySelector<HTMLElement>(".cm-editor");
+    expect(editorContent).not.toBeNull();
+    expect(editor).not.toBeNull();
+
+    fireEvent.keyDown(editorContent!, {
+      key: "f",
+      code: "KeyF",
+      ctrlKey: true,
+    });
+    const checkbox = await waitFor(() => {
+      const element = container.querySelector<HTMLInputElement>(
+        '.cm-search input[type="checkbox"]',
+      );
+      expect(element).not.toBeNull();
+      return element!;
+    });
+
+    expect(editor).toHaveClass("cm-keyboard-navigation");
+    fireEvent.mouseDown(checkbox);
+    expect(editor).not.toHaveClass("cm-keyboard-navigation");
+    fireEvent.keyDown(checkbox, { key: "Tab", code: "Tab" });
+    expect(editor).toHaveClass("cm-keyboard-navigation");
+  });
+
   it("keeps the interpolated preview aligned and theme-aware", () => {
     const { container } = render(
       <PromptVariableEditor

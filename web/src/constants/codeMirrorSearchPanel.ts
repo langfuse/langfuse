@@ -1,6 +1,34 @@
 import { search } from "@codemirror/search";
 import type { Extension } from "@codemirror/state";
-import { EditorView } from "@uiw/react-codemirror";
+import { EditorView, ViewPlugin } from "@uiw/react-codemirror";
+
+const KEYBOARD_NAVIGATION_CLASS = "cm-keyboard-navigation";
+
+const keyboardNavigation = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {
+      view.dom.addEventListener("keydown", this.handleKeyDown, true);
+      view.dom.addEventListener("mousedown", this.handleMouseDown, true);
+    }
+
+    private readonly handleKeyDown = () => {
+      this.view.dom.classList.add(KEYBOARD_NAVIGATION_CLASS);
+    };
+
+    private readonly handleMouseDown = () => {
+      this.view.dom.classList.remove(KEYBOARD_NAVIGATION_CLASS);
+    };
+
+    destroy() {
+      this.view.dom.removeEventListener("keydown", this.handleKeyDown, true);
+      this.view.dom.removeEventListener(
+        "mousedown",
+        this.handleMouseDown,
+        true,
+      );
+    }
+  },
+);
 
 const searchPanelTheme = EditorView.theme({
   ".cm-panels-top": {
@@ -102,6 +130,10 @@ const searchPanelTheme = EditorView.theme({
     outline: "none",
     cursor: "pointer",
   },
+  "&.cm-keyboard-navigation .cm-panel.cm-search input[type=checkbox]:focus": {
+    outline: "2px solid hsl(var(--ring))",
+    outlineOffset: "2px",
+  },
   ".cm-panel.cm-search input[type=checkbox]:checked": {
     borderColor: "hsl(var(--control-fill))",
     backgroundColor: "hsl(var(--control-fill))",
@@ -133,5 +165,6 @@ const searchPanelTheme = EditorView.theme({
 /** Shared top-mounted search panel for prompt and code editors. */
 export const codeMirrorSearchPanel: Extension = [
   search({ top: true }),
+  keyboardNavigation,
   searchPanelTheme,
 ];
