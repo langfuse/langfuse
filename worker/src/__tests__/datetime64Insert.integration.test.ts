@@ -118,9 +118,6 @@ describe("DateTime64 JSONEachRow inserts", () => {
       TABLE_MS,
       "helper-traces",
       quoted.timestamp,
-      {
-        input_format_read_datetime_number_as_raw_value: 0,
-      },
     );
 
     expect(stored.year).toBe(2024);
@@ -147,9 +144,6 @@ describe("DateTime64 JSONEachRow inserts", () => {
       TABLE_US,
       "helper-events",
       quoted.start_time,
-      {
-        input_format_read_datetime_number_as_raw_value: 0,
-      },
     );
 
     expect(stored.year).toBe(2024);
